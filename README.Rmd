@@ -241,7 +241,7 @@ cheap sample.
 | --- | --- | --- |
 | Default: `universo = "tabla_completa"`, `muestra = Inf` | the whole table | Yes: all that fit within the cell and byte caps |
 | `muestra = n` | the whole table | Yes, up to `n`: it bounds the read, not the aggregates |
-| `universo = "muestra_motor"`, `muestra_motor = n` | a sample taken by the engine | Yes, the rows in that sample |
+| `universo = "muestra_motor"`, `muestra_motor = n` | up to `n` rows sampled by the engine | Yes, the rows effectively materialized after the caps |
 | `bloque_muestra = "solo_agregados"` | whatever `universo` says | No: aggregates only, no row-level findings |
 
 Without `orden_muestra`, a `muestra = n` read gets the first rows the engine
@@ -260,6 +260,11 @@ in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
 - **Sample caps.** What is read into R, or sampled within R, stops at
   `r max_celdas` cells (`max_celdas_muestra`) and `r max_mib` MiB (`max_bytes_muestra`),
   and the cut is recorded in `cobertura()` together with the cap that triggered it ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes)).
+  In `muestra_motor`, the spool uses a conservative maximum row size before
+  each `dbFetch(n)`. Long text is requested as length and MD5 summary, so its
+  content cannot make a fetch exceed that bound; unknown types are probed one
+  row at a time. It records requested and effective rows, the measured size
+  and the real fraction before returning the profile.
 - **Cost policy.** In `perfilar_dbi()`, `politica_costo = "todas"` (the
   default) computes the mode and the median in every column; `"por_cardinalidad"` skips
   the mode where the proportion of distinct values reaches `umbral_cardinalidad` (`r umbral_cardinalidad`),

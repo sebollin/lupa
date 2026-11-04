@@ -61,6 +61,12 @@ test_that("la muestra no puede ser mayor que la tabla", {
                                                tamano_muestra = 100)), 500)
 })
 
+.tipos_incomodos_perfil_sin_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_silent(resultado_env$resultado <- perfilar_dbi(...))
+  resultado_env$resultado
+}
+
 test_that("el modo muestreado sobre una tabla chica informa la columna llena", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
@@ -68,7 +74,7 @@ test_that("el modo muestreado sobre una tabla chica informa la columna llena", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(monto = 11:20))
 
-  perfil <- perfilar_dbi(
+  perfil <- .tipos_incomodos_perfil_sin_aviso(
     con, "t", universo = "muestra_motor", muestra_motor = 1000L,
     muestra = 1000L, estrategia_mediana = "exacta"
   )

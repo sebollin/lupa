@@ -133,11 +133,18 @@ test_that("un presupuesto excedido no publica una muestra hibrida", {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(valor = seq_len(40L)))
-  resultado <- perfilar_dbi(
-    con, "t", universo = "muestra_motor", muestra_motor = 40L,
-    muestra = 40L, max_bytes_materializacion = 1000L,
-    proteger_datos_personales = FALSE
+  aviso <- NULL
+  resultado <- withCallingHandlers(
+    perfilar_dbi(
+      con, "t", universo = "muestra_motor", muestra_motor = 40L,
+      muestra = 40L, max_bytes_materializacion = 1000L,
+      proteger_datos_personales = FALSE
+    ), warning = function(w) {
+      aviso <<- w
+      invokeRestart("muffleWarning")
+    }
   )
+  expect_s3_class(aviso, "lupa_aviso_muestra_motor")
   materializacion <- resultado$resumen_tabla$meta$materializacion
   expect_identical(materializacion$estado, "no_disponible")
   expect_identical(materializacion$motivo,

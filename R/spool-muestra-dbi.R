@@ -112,7 +112,8 @@
     campos = as.character(campos), muestra_id = as.character(muestra_id),
     snapshot_id = as.character(snapshot_id), orden_id = as.character(orden_id),
     max_bytes = max_bytes, eventos = .eventos_spool_vacios_dbi(),
-    trailer_reserva = .RESERVA_TRAILER_SPOOL_DBI
+    trailer_reserva = .RESERVA_TRAILER_SPOOL_DBI, truncada = FALSE,
+    motivo = NULL, filas_bloques = integer()
   )
 }
 
@@ -135,7 +136,37 @@
       bytes_antes + length(raw) + escritor$trailer_reserva >
         escritor$max_bytes) {
     motivo <- "muestra_inestable:presupuesto_materializacion"
-    escritor$motivo <- motivo
+    capacidad <- escritor$max_bytes - bytes_antes - escritor$trailer_reserva
+    aceptadas <- 0L
+    if (capacidad > 0) {
+      # Los bloques que llegan desde el motor ya estan acotados por la cota de
+      # fila. Si la serializacion aun excede el saldo, se conserva un prefijo
+      # recorriendo ese bloque chico; nunca se vuelve a serializar un bloque de
+      # gigabytes en una busqueda binaria.
+      for (i in seq_len(n)) {
+        parcial <- datos[seq_len(i), , drop = FALSE]
+        bruto <- .serializar_spool_dbi(list(
+          tipo = "chunk", ordinal_inicio = ordinal_inicio,
+          ordinal_fin = ordinal_inicio + i - 1L, n_filas = i,
+          payload = parcial
+        ))
+        if (length(bruto) > capacidad) break
+        aceptadas <- i
+        raw <- bruto
+      }
+    }
+    if (aceptadas > 0L) {
+      datos <- datos[seq_len(aceptadas), , drop = FALSE]
+      n <- aceptadas
+      registro <- list(
+        tipo = "chunk", ordinal_inicio = ordinal_inicio,
+        ordinal_fin = ordinal_inicio + n - 1L, n_filas = n, payload = datos
+      )
+      raw <- .serializar_spool_dbi(registro)
+      escritor$truncada <- TRUE
+    } else {
+      escritor$motivo <- motivo
+    }
     escritor$eventos <- rbind(
       escritor$eventos,
       .evento_spool_dbi(
@@ -144,7 +175,7 @@
         bytes_retenidos = bytes_antes, bytes_resultado = length(raw)
       )
     )
-    return(escritor)
+    if (!is.null(escritor$motivo)) return(escritor)
   }
   escrito <- tryCatch({
     writeBin(raw, escritor$conexion)
@@ -167,6 +198,7 @@
   escritor$bloque_id <- escritor$bloque_id + 1L
   escritor$n_chunks <- escritor$n_chunks + 1L
   escritor$bytes_bloques <- c(escritor$bytes_bloques, as.numeric(length(raw)))
+  escritor$filas_bloques <- c(escritor$filas_bloques, as.integer(n))
   escritor
 }
 
@@ -179,7 +211,7 @@
       ok = FALSE, motivo = escritor$motivo, n_filas = escritor$n_filas,
       bytes = NA_real_, checksum = NA_character_,
       n_chunks = escritor$n_chunks, bytes_bloques = escritor$bytes_bloques,
-      eventos = escritor$eventos
+      eventos = escritor$eventos, truncada = isTRUE(escritor$truncada)
     ))
   }
   trailer <- list(
@@ -203,7 +235,7 @@
       n_chunks = escritor$n_chunks, bytes_bloques = escritor$bytes_bloques,
       eventos = rbind(escritor$eventos, .evento_spool_dbi(
         "spool_escritura_fallida", "spool_incompleto:escritura_fallida"
-      ))
+      )), truncada = isTRUE(escritor$truncada)
     ))
   }
   escrito <- tryCatch({
@@ -218,7 +250,7 @@
       n_chunks = escritor$n_chunks, bytes_bloques = escritor$bytes_bloques,
       eventos = rbind(escritor$eventos, .evento_spool_dbi(
         "spool_escritura_fallida", "spool_incompleto:escritura_fallida"
-      ))
+      )), truncada = isTRUE(escritor$truncada)
     ))
   }
   info <- file.info(escritor$path)
@@ -226,7 +258,11 @@
     ok = TRUE, motivo = NA_character_, n_filas = escritor$n_filas,
     bytes = as.numeric(info$size[[1L]]),
     checksum = trailer$checksum, n_chunks = escritor$n_chunks,
-    bytes_bloques = escritor$bytes_bloques, eventos = escritor$eventos
+    bytes_bloques = escritor$bytes_bloques, eventos = escritor$eventos,
+    truncada = isTRUE(escritor$truncada),
+    motivo = if (isTRUE(escritor$truncada)) {
+      "muestra_inestable:presupuesto_materializacion"
+    } else NA_character_
   )
 }
 
@@ -363,14 +399,229 @@
   )
 }
 
+.estimar_bytes_fila_muestra_dbi <- function(
+    conexion, tabla, presupuesto, campos = NULL, tipos_motor = NULL) {
+  vacia <- list(
+    disponible = FALSE, bytes_por_fila = NA_real_, filas_catalogo = NA_real_,
+    fuente = NA_character_, motivo = "sin_estimacion_catalogo",
+    version_sqlserver = NA_real_,
+    consulta = .medicion_consulta_vacia_dbi("catalogo_bytes_muestra")
+  )
+  senas <- .senas_conexion_dbi(conexion)
+  nombre <- .texto_tabla_dbi(tabla)
+  literal <- tryCatch(
+    as.character(DBI::dbQuoteString(conexion, nombre)),
+    error = function(e) NA_character_
+  )
+  if (length(literal) != 1L || is.na(literal) || !nzchar(literal)) {
+    return(vacia)
+  }
+  partes <- strsplit(gsub('"', "", nombre, fixed = TRUE), ".", fixed = TRUE)[[1L]]
+  tabla_nombre <- partes[[length(partes)]]
+  esquema_nombre <- if (length(partes) > 1L) {
+    partes[[length(partes) - 1L]]
+  } else NA_character_
+  quote_texto <- function(x) {
+    tryCatch(as.character(DBI::dbQuoteString(conexion, x)),
+             error = function(e) NA_character_)
+  }
+  if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
+    esquema <- if (is.na(esquema_nombre)) "current_schema()" else
+      quote_texto(esquema_nombre)
+    tabla_citada <- quote_texto(tabla_nombre)
+    if (is.na(tabla_citada) || is.na(esquema)) return(vacia)
+    nombres_proyeccion <- character()
+    binarios <- logical()
+    if (length(campos) && length(tipos_motor) == length(campos)) {
+      nombres_proyeccion <- vapply(as.character(campos), quote_texto, character(1L))
+      binarios <- vapply(seq_along(campos), function(i) {
+        .es_tipo_binario_muestra_dbi(tipos_motor[[i]], senas)
+      }, logical(1L))
+      if (any(is.na(nombres_proyeccion))) {
+        nombres_proyeccion <- character()
+        binarios <- logical()
+      }
+    }
+    expresion_proyeccion <- if (length(nombres_proyeccion)) {
+      paste0(
+        "(SELECT CASE WHEN COUNT(CASE WHEN a.attname NOT IN (",
+        paste(nombres_proyeccion[binarios], collapse = ","),
+        ") THEN s.attname END) = COUNT(CASE WHEN a.attname NOT IN (",
+        paste(nombres_proyeccion[binarios], collapse = ","),
+        ") THEN 1 END) THEN ",
+        "SUM(CASE WHEN a.attname IN (",
+        paste(nombres_proyeccion[binarios], collapse = ","),
+        ") THEN 64 ELSE COALESCE(s.avg_width, 0) END) ELSE NULL END ",
+        "FROM pg_attribute a LEFT JOIN pg_stats s ON s.schemaname = n.nspname ",
+        "AND s.tablename = c.relname AND s.attname = a.attname ",
+        "WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped)"
+      )
+    } else "NULL"
+    if (length(nombres_proyeccion) && !any(binarios)) {
+      expresion_proyeccion <- paste0(
+        "(SELECT CASE WHEN COUNT(s.attname) = COUNT(a.attname) THEN ",
+        "SUM(COALESCE(s.avg_width, 0)) ELSE NULL END ",
+        "FROM pg_attribute a LEFT JOIN pg_stats s ON s.schemaname = n.nspname ",
+        "AND s.tablename = c.relname AND s.attname = a.attname ",
+        "WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped)"
+      )
+    }
+    estimacion <- paste0(
+      "COALESCE(", expresion_proyeccion,
+      ", pg_table_size(c.oid) / NULLIF(c.reltuples, 0))"
+    )
+    sql <- paste0(
+      "SELECT CASE WHEN c.reltuples > 0 THEN ", estimacion,
+      " ELSE NULL END AS lupa_bytes_fila, c.reltuples AS lupa_filas_catalogo ",
+      "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace ",
+      "WHERE n.nspname = ", esquema, " AND c.relname = ", tabla_citada
+    )
+    resultado <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "catalogo_bytes_muestra"
+    )
+    if (!isTRUE(resultado$ok) || !is.data.frame(resultado$datos) ||
+        !nrow(resultado$datos)) return(vacia)
+    bytes <- suppressWarnings(as.numeric(resultado$datos[[1L]][[1L]]))
+    filas <- if (ncol(resultado$datos) > 1L) {
+      suppressWarnings(as.numeric(resultado$datos[[2L]][[1L]]))
+    } else NA_real_
+    if (!is.finite(bytes) || bytes <= 0) return(vacia)
+    return(list(
+      disponible = TRUE, bytes_por_fila = bytes, filas_catalogo = filas,
+      fuente = if (length(nombres_proyeccion)) {
+        "pg_stats.avg_width sobre la proyeccion; pg_table_size / reltuples como respaldo"
+      } else "pg_table_size / pg_class.reltuples",
+      motivo = NA_character_, version_sqlserver = NA_real_,
+      consulta = resultado
+    ))
+  }
+  if (grepl("sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE)) {
+    sql <- paste0(
+      "WITH lupa_filas AS (SELECT SUM(p.rows) AS row_count FROM ",
+      "sys.partitions AS p WHERE p.object_id = OBJECT_ID(", literal,
+      ") AND p.index_id IN (0, 1)), lupa_paginas AS (SELECT ",
+      "SUM(au.total_pages) AS total_pages FROM sys.partitions AS p ",
+      "JOIN sys.allocation_units AS au ON (au.type IN (1, 3) AND ",
+      "au.container_id = p.hobt_id) OR (au.type = 2 AND ",
+      "au.container_id = p.partition_id) WHERE p.object_id = OBJECT_ID(",
+      literal, ") AND p.index_id IN (0, 1)) SELECT ",
+      "lupa_paginas.total_pages * 8192.0 / NULLIF(lupa_filas.row_count, 0) ",
+      "AS lupa_bytes_fila, lupa_filas.row_count AS lupa_filas_catalogo, ",
+      "CONVERT(int, SERVERPROPERTY('ProductMajorVersion')) AS ",
+      "lupa_version_mayor FROM lupa_filas CROSS JOIN lupa_paginas"
+    )
+    resultado <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "catalogo_bytes_muestra"
+    )
+    if (!isTRUE(resultado$ok) || !is.data.frame(resultado$datos) ||
+        !nrow(resultado$datos)) return(vacia)
+    bytes <- suppressWarnings(as.numeric(resultado$datos[[1L]][[1L]]))
+    filas <- if (ncol(resultado$datos) > 1L) {
+      suppressWarnings(as.numeric(resultado$datos[[2L]][[1L]]))
+    } else NA_real_
+    version <- if (ncol(resultado$datos) > 2L) {
+      suppressWarnings(as.numeric(resultado$datos[[3L]][[1L]]))
+    } else NA_real_
+    if (!is.finite(bytes) || bytes <= 0) return(vacia)
+    return(list(
+      disponible = TRUE, bytes_por_fila = bytes, filas_catalogo = filas,
+      fuente = paste(
+        "sys.partitions + sys.allocation_units total_pages * 8192 / row_count"
+      ),
+      motivo = NA_character_, version_sqlserver = version,
+      consulta = resultado
+    ))
+  }
+  vacia
+}
+
+.alternativa_muestreo_reintento_dbi <- function(
+    candidatos, metodo_inicial, senas, n_total, objetivo,
+    medianas_pendientes = 1L) {
+  if (!length(candidatos) || !length(metodo_inicial) ||
+      is.na(metodo_inicial)) {
+    return(list(candidato = NULL, guardia = NULL, motivo = NA_character_))
+  }
+  inicial <- candidatos[[as.character(metodo_inicial)]]
+  por_bloques <- if (!is.null(inicial) && identical(inicial$tipo, "tablesample")) {
+    inicial
+  } else {
+    bloques <- candidatos[vapply(
+      candidatos, function(x) identical(x$tipo, "tablesample"), logical(1L)
+    )]
+    if (length(bloques)) bloques[[1L]] else NULL
+  }
+  alternativa <- NULL
+  motivo <- NA_character_
+  if (grepl("postgres|pqconnection", senas, perl = TRUE) &&
+      "tablesample_bernoulli" %in% names(candidatos)) {
+    alternativa <- candidatos[["tablesample_bernoulli"]]
+    motivo <- "Se prefirio BERNOULLI para recuperar filas sin ordenar la tabla."
+  } else if (!is.null(por_bloques)) {
+    alternativa <- por_bloques
+    motivo <- paste(
+      "Se mantuvo el metodo por bloques y se aumento la fraccion para evitar",
+      "un ordenamiento de la tabla completa."
+    )
+  } else if ("random_limit" %in% names(candidatos)) {
+    alternativa <- candidatos[["random_limit"]]
+    funcion <- if (length(alternativa$funciones)) {
+      alternativa$funciones[[1L]]$nombre
+    } else "random"
+    guardia <- .evaluar_guardia_aleatorio_dbi(
+      n_total, objetivo, funcion, medianas_pendientes
+    )
+    if (!isTRUE(guardia$aceptado)) {
+      return(list(
+        candidato = NULL, guardia = guardia,
+        motivo = paste(
+          "El fallback aleatorio no se ejecuto porque la guarda de costo lo",
+          "rechazo y no hay un metodo por bloques utilizable."
+        )
+      ))
+    }
+    motivo <- paste0(
+      "Se uso `", funcion,
+      "` porque el dialecto no ofrecio un metodo por bloques y la guarda de",
+      " costo lo acepto."
+    )
+    return(list(candidato = alternativa, guardia = guardia, motivo = motivo))
+  }
+  list(candidato = alternativa, guardia = NULL, motivo = motivo)
+}
+
+.mejor_spool_muestra_dbi <- function(primero, segundo) {
+  if (!isTRUE(primero$ok)) return(segundo)
+  if (!isTRUE(segundo$ok)) return(primero)
+  n_primero <- suppressWarnings(as.numeric(primero$n_filas))
+  n_segundo <- suppressWarnings(as.numeric(segundo$n_filas))
+  if (is.finite(n_segundo) && (!is.finite(n_primero) || n_segundo > n_primero)) {
+    segundo
+  } else {
+    primero
+  }
+}
+
 .materializar_muestra_spool_dbi <- function(conexion, sql, campos, muestra_id,
                                            snapshot_id, orden_id, presupuesto,
                                            bloque_filas = 10000,
-                                           max_bytes = Inf, backend = NULL) {
+                                           max_bytes = Inf, backend = NULL,
+                                           max_filas = Inf,
+                                           bytes_por_fila_max = NA_real_) {
   max_bytes <- .validar_presupuesto_bytes_dbi(
     max_bytes, "max_bytes_materializacion"
   )
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
+  if (!is.numeric(max_filas) || length(max_filas) != 1L ||
+      is.na(max_filas) || max_filas < 0 ||
+      (is.finite(max_filas) && max_filas != floor(max_filas))) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      "`max_filas` debe ser un entero no negativo o Inf."
+    )
+  }
+  max_filas <- as.numeric(max_filas)
+  bloque_maximo <- bloque_filas
   backend <- backend %||% .BACKEND_SPOOL_MUESTRA_DBI
   path <- tempfile("lupa-spool-muestra-", fileext = ".bin")
   resultado <- NULL
@@ -396,7 +647,7 @@
       ok = FALSE, path = path, consulta = NULL, n_filas = 0,
       bytes = NA_real_, checksum = NA_character_,
       fetches = 0L, bytes_bloques = numeric(),
-      motivo = escritor$motivo, eventos = escritor$eventos
+      motivo = escritor$motivo, eventos = escritor$eventos, truncada = FALSE
     ))
   }
   escritor$path <- path
@@ -408,12 +659,13 @@
       ok = FALSE, path = path, consulta = NULL, n_filas = NA_real_,
       bytes = NA_real_, checksum = NA_character_, fetches = 0L,
       bytes_bloques = cerrado$bytes_bloques, motivo = escritor$motivo,
-      eventos = cerrado$eventos
+      eventos = cerrado$eventos, truncada = isTRUE(cerrado$truncada)
     ))
   }
   medicion <- .iniciar_consulta_dbi(presupuesto, "materializacion_muestra")
   error_lectura <- NULL
   fetches <- 0L
+  bytes_traidos_r <- 0
   resultado <- tryCatch(
     .enviar_consulta_dbi(conexion, sql),
     error = function(e) {
@@ -432,8 +684,44 @@
   n_filas <- 0
   repeat {
     if (is.null(resultado)) break
+    restantes <- if (is.finite(max_filas)) max_filas - n_filas else Inf
+    if (restantes <= 0) break
+    n_pedir <- if (is.finite(restantes)) min(bloque_filas, restantes) else {
+      bloque_filas
+    }
+    if (is.finite(max_bytes)) {
+      saldo <- max_bytes - escritor$estado$bytes - escritor$trailer_reserva
+      capacidad <- if (is.finite(bytes_por_fila_max) && bytes_por_fila_max > 0) {
+        floor(saldo / bytes_por_fila_max)
+      } else NA_real_
+      if (is.finite(capacidad) && capacidad < 1) {
+        escritor$truncada <- TRUE
+        escritor$eventos <- rbind(
+          escritor$eventos,
+          .evento_spool_dbi(
+            "spool_presupuesto_excedido",
+            "muestra_inestable:presupuesto_materializacion",
+            bloque_id = escritor$bloque_id + 1L,
+            bytes_retenidos = escritor$estado$bytes,
+            bytes_resultado = NA_real_
+          )
+        )
+        break
+      }
+      n_pedir <- if (is.finite(capacidad)) min(n_pedir, capacidad) else {
+        min(n_pedir, 100L)
+      }
+    } else if (!is.finite(bytes_por_fila_max)) {
+      # Sin una cota del motor se sondea un bloque pequeno y la escritura
+      # adapta el prefijo que entra; la proyeccion de tipos extensos evita esta
+      # via en los motores que pueden resumirlos antes del fetch.
+      n_pedir <- min(n_pedir, 100L)
+    }
+    if (n_pedir < 1) break
     datos <- tryCatch(
-      .marcar_utf8_tabla(.traer_filas_dbi(resultado, n = bloque_filas, conexion)),
+      .marcar_utf8_tabla(.traer_filas_dbi(
+        resultado, n = as.integer(n_pedir), conexion
+      )),
       error = function(e) {
         .repropagar_transaccion_dbi(e)
         error_lectura <<- .mensaje_motor(e)
@@ -443,9 +731,19 @@
     fetches <- fetches + 1L
     if (!is.null(error_lectura)) break
     if (is.null(datos) || !nrow(datos)) break
+    bytes_traidos_r <- bytes_traidos_r + as.numeric(utils::object.size(datos))
     escritor <- .escribir_chunk_spool_muestra_dbi(escritor, datos)
-    n_filas <- n_filas + nrow(datos)
+    n_filas <- escritor$n_filas
     if (!is.null(escritor$motivo)) break
+    if (isTRUE(escritor$truncada)) break
+    if (is.finite(max_bytes) && nrow(datos) > 0L) {
+      if (!is.finite(bytes_por_fila_max)) {
+        bytes_fila <- tail(escritor$bytes_bloques, 1L) / nrow(datos)
+        if (is.finite(bytes_fila) && bytes_fila > 0) {
+          bytes_por_fila_max <- bytes_fila * 2
+        }
+      }
+    }
     completado <- tryCatch(DBI::dbHasCompleted(resultado), error = function(e) NA)
     if (isTRUE(completado)) break
   }
@@ -465,7 +763,7 @@
   }
   medicion_final <- .terminar_consulta_dbi(medicion, NULL)
   medicion_final$n_filas_resultado <- as.numeric(n_filas)
-  medicion_final$bytes_resultado_r <- NA_real_
+  medicion_final$bytes_resultado_r <- bytes_traidos_r
   cerrado <- .cerrar_spool_muestra_dbi(escritor)
   if (!isTRUE(cerrado$ok)) {
     return(list(
@@ -473,7 +771,8 @@
       n_filas = NA_real_, bytes = NA_real_, checksum = NA_character_,
       fetches = fetches, bytes_bloques = cerrado$bytes_bloques,
       motivo = if (!is.null(escritor$motivo)) escritor$motivo else cerrado$motivo,
-      eventos = cerrado$eventos
+      eventos = cerrado$eventos, max_filas = max_filas,
+      truncada = isTRUE(cerrado$truncada)
     ))
   }
   verificada <- .verificar_spool_muestra_dbi(path)
@@ -485,17 +784,19 @@
       motivo = verificada$motivo,
       eventos = rbind(cerrado$eventos, .evento_spool_dbi(
         "spool_verificacion_fallida", verificada$motivo
-      ))
+      )), max_filas = max_filas
     ))
   }
   materializacion_exitosa <- TRUE
   list(
     ok = TRUE, path = path, consulta = medicion_final,
     n_filas = verificada$n_filas, bytes = verificada$bytes,
-    checksum = verificada$checksum, motivo = NA_character_,
+    checksum = verificada$checksum, motivo = cerrado$motivo,
     fetches = fetches, bytes_bloques = cerrado$bytes_bloques,
     eventos = cerrado$eventos, header = verificada$header,
-    trailer = verificada$trailer
+    trailer = verificada$trailer, max_filas = max_filas,
+    truncada = isTRUE(cerrado$truncada),
+    bytes_por_fila_max = bytes_por_fila_max
   )
 }
 
@@ -512,7 +813,8 @@
   candidato <- preparacion$muestreo$candidato
   proyeccion_muestra <- .campos_sql_muestra_dbi(
     conexion, preparacion$campos, preparacion$campos_sql_proyeccion,
-    preparacion$prototipo, preparacion$tipos, preparacion$dialecto
+    preparacion$prototipo, preparacion$tipos, preparacion$dialecto,
+    tipos_motor = preparacion$esquema$tipos_motor
   )
   fuente <- if (!is.null(candidato)) tryCatch(
     .fuente_muestreada_dbi(
@@ -557,10 +859,10 @@
   rownames(perfil$cobertura_diagnosticos) <- NULL
   # `perfilar()` puede haber encontrado faltantes y adjuntado a cada hallazgo
   # los indices de sus filas. Esos indices son ciertos para este archivo, pero
-  # no son una identidad estable de la selección del motor: no se publican
+  # no son una identidad estable de la seleccion del motor: no se publican
   # como si fueran trazabilidad reproducible. Se conserva la columna para no
   # romper el contrato de forma de `hallazgos`, dejando sus valores ausentes y
-  # la explicación completa en `cobertura_diagnosticos`.
+  # la explicacion completa en `cobertura_diagnosticos`.
   #
   # Retirar los indices no es retirar la traza. Antes cada traza se reemplazaba
   # por `NULL`, que no es ninguno de los cuatro estados que la ayuda promete
@@ -698,13 +1000,33 @@
 .perfil_muestra_spool_dbi <- function(conexion, tabla, preparacion,
                                       incluir_valores, bloque_filas,
                                       max_bytes_procesamiento,
-                                      max_bytes_materializacion, argumentos) {
+                                      max_bytes_materializacion, argumentos,
+                                      trazador = NULL,
+                                      max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+                                      max_bytes_muestra = .MAX_BYTES_MUESTRA) {
   presupuesto <- preparacion$presupuesto
   campos <- as.character(preparacion$campos)
+  max_bytes_lectura <- min(
+    if (is.finite(max_bytes_materializacion)) max_bytes_materializacion else Inf,
+    if (is.finite(max_bytes_muestra)) max_bytes_muestra else Inf
+  )
+  estimacion_bytes <- .estimar_bytes_fila_muestra_dbi(
+    conexion, tabla, presupuesto, campos = preparacion$campos,
+    tipos_motor = preparacion$esquema$tipos_motor
+  )
   proyeccion_muestra <- .campos_sql_muestra_dbi(
     conexion, preparacion$campos, preparacion$campos_sql_proyeccion,
-    preparacion$prototipo, preparacion$tipos, preparacion$dialecto
+    preparacion$prototipo, preparacion$tipos, preparacion$dialecto,
+    tipos_motor = preparacion$esquema$tipos_motor,
+    version_sqlserver = estimacion_bytes$version_sqlserver,
+    max_largo_valor_vocabulario = argumentos[[
+      "max_largo_valor_vocabulario"
+    ]] %||% .MAX_LARGO_VALOR_CASI_DUPLICADOS
   )
+  estimacion_bytes$bytes_por_fila_max <- proyeccion_muestra$bytes_por_fila_max
+  estimacion_bytes$columnas_texto_largo <- proyeccion_muestra$columnas_texto_largo
+  estimacion_bytes$max_largo_valor_vocabulario <-
+    proyeccion_muestra$max_largo_valor_vocabulario
   columnas_castadas <- proyeccion_muestra$columnas_castadas
   info_conexion <- .info_conexion_dbi(conexion)
   backend <- .BACKEND_SPOOL_MUESTRA_DBI
@@ -719,6 +1041,29 @@
     )
     n_total <- if (isTRUE(consulta_n$ok)) .conteo_dbi(consulta_n$valor) else NA_real_
   }
+  alcance <- .tope_muestra_dbi(
+    preparacion$muestra_motor, n_total, length(campos),
+    max_celdas_muestra, max_bytes_muestra
+  )
+  filas_por_catalogo <- Inf
+  if (is.finite(max_bytes_materializacion) || is.finite(max_bytes_muestra)) {
+    presupuesto_filas_bytes <- min(
+      if (is.finite(max_bytes_materializacion)) max_bytes_materializacion else Inf,
+      if (is.finite(max_bytes_muestra)) max_bytes_muestra else Inf
+    )
+    fila_maxima <- estimacion_bytes$bytes_por_fila_max
+    filas_por_catalogo <- if (is.finite(fila_maxima) && fila_maxima > 0) {
+      floor(presupuesto_filas_bytes / fila_maxima)
+    } else Inf
+    if (filas_por_catalogo < 1 && alcance$filas_solicitadas > 0) {
+      filas_por_catalogo <- 1
+    }
+  }
+  filas_efectivas <- min(alcance$filas_efectivas, filas_por_catalogo)
+  alcance$filas_por_bytes <- filas_por_catalogo
+  alcance$filas_efectivas <- filas_efectivas
+  alcance$celdas_efectivas <- filas_efectivas * length(campos)
+  filas_pedidas_motor <- filas_efectivas
   id_consulta_n <- if (!is.null(consulta_n)) {
     suppressWarnings(as.integer(consulta_n$consulta_id))
   } else NA_integer_
@@ -740,7 +1085,7 @@
     fuente <- tryCatch(
       .fuente_muestreada_dbi(
         preparacion$tabla_sql, proyeccion_muestra$campos_sql,
-        preparacion$muestra_motor, n_total, preparacion$dialecto,
+        filas_pedidas_motor, n_total, preparacion$dialecto,
         preparacion$muestreo
       ),
       error = function(e) NULL
@@ -764,30 +1109,77 @@
     }
   }
   sql_muestra <- if (is.null(fuente)) NA_character_ else fuente$sql
-  bloque_filas <- bloque_filas %||% min(10000, preparacion$muestra_motor)
+  bloque_filas <- bloque_filas %||% max(1, min(10000, filas_pedidas_motor))
+  if (is.finite(max_bytes_lectura)) {
+    if (is.finite(estimacion_bytes$bytes_por_fila_max) &&
+        estimacion_bytes$bytes_por_fila_max > 0) {
+      propuesta <- floor(
+        max_bytes_lectura / estimacion_bytes$bytes_por_fila_max
+      )
+      bloque_filas <- min(bloque_filas, max(1L, as.integer(propuesta)))
+    } else {
+      bloque_filas <- min(bloque_filas, 100L)
+    }
+  }
   materializacion <- .materializacion_spool_vacia_dbi(
-    backend, max_bytes_materializacion, muestra_id, snapshot_id, orden_id,
+    backend, max_bytes_lectura, muestra_id, snapshot_id, orden_id,
     motivo = motivo
   )
   spool <- NULL
   perfil_aislado <- NULL
   cobertura_aislada <- .cobertura_dbi_vacia()
   if (is.null(motivo)) {
+    inicio_materializacion <- if (!is.null(trazador) &&
+                                  isTRUE(trazador$activo)) .ahora_dbi() else NULL
+    cpu_materializacion <- if (!is.null(trazador) &&
+                               isTRUE(trazador$activo)) .ahora_cpu_dbi() else NULL
     spool <- .materializar_muestra_spool_dbi(
       conexion, sql_muestra, campos, muestra_id, snapshot_id, orden_id,
       presupuesto, bloque_filas = bloque_filas,
-      max_bytes = max_bytes_materializacion, backend = backend
+      max_bytes = max_bytes_lectura, backend = backend,
+      max_filas = filas_efectivas,
+      bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max
     )
-    if (!isTRUE(spool$ok)) motivo <- spool$motivo
+    .registrar_etapa_dbi(
+      trazador, "materializacion_muestra", inicio_materializacion,
+      .ahora_dbi(), cpu_inicio = cpu_materializacion,
+      cpu_fin = .ahora_cpu_dbi(), estado = if (isTRUE(spool$ok)) NULL else
+        "no_disponible"
+    )
+    if (!isTRUE(spool$ok)) {
+      motivo <- spool$motivo
+      presupuesto$fallas_consultas[[length(presupuesto$fallas_consultas) + 1L]] <-
+        list(
+          etapa = "materializacion_muestra",
+          consulta_id = if (is.null(spool$consulta)) NA_integer_ else
+            as.integer(spool$consulta$consulta_id),
+          motivo = as.character(spool$motivo), sqlstate = NA_character_,
+          tipo = .clasificar_falla_consulta_dbi(NA_character_, spool$motivo)
+        )
+    }
     materializacion <- .materializacion_spool_vacia_dbi(
-      backend, max_bytes_materializacion, muestra_id, snapshot_id, orden_id,
-      estado = if (isTRUE(spool$ok)) "cerrada_verificada" else "no_disponible",
-      motivo = motivo
+      backend, max_bytes_lectura, muestra_id, snapshot_id, orden_id,
+      estado = if (!isTRUE(spool$ok) ||
+                   (isTRUE(spool$truncada) &&
+                    identical(as.numeric(spool$n_filas), 0))) "no_disponible" else
+        "cerrada_verificada",
+      motivo = if (isTRUE(spool$truncada)) spool$motivo else motivo
     )
+    materializacion$estimacion_bytes <- estimacion_bytes
+    materializacion$filas_solicitadas <- preparacion$muestra_motor
+    materializacion$filas_efectivas <- filas_efectivas
+    materializacion$filas_por_celdas <- alcance$filas_por_celdas
+    materializacion$filas_por_bytes <- alcance$filas_por_bytes
+    materializacion$max_celdas_muestra <- max_celdas_muestra
+    materializacion$max_bytes_muestra <- max_bytes_muestra
     materializacion$checksum <- spool$checksum
     materializacion$bytes <- spool$bytes
     materializacion$n_filas <- spool$n_filas
-    materializacion$validado_relectura <- isTRUE(spool$ok)
+    materializacion$validado_relectura <- isTRUE(spool$ok) && !(
+      isTRUE(spool$truncada) && identical(as.numeric(spool$n_filas), 0)
+    )
+    materializacion$recortada <- isTRUE(spool$truncada)
+    materializacion$bytes_medidos <- spool$bytes
     if (!isTRUE(spool$ok) && grepl(
       "error_lectura_spool", as.character(spool$motivo), fixed = TRUE,
       useBytes = TRUE
@@ -815,22 +1207,168 @@
       }
     }
   }
+  reintentos_muestreo <- 0L
+  metodo_inicial <- if (is.null(publico)) NA_character_ else publico$metodo
+  metodo_reintento <- NA_character_
+  motivo_reintento <- NA_character_
+  guardia_reintento <- NULL
+  if (is.null(motivo) && !is.null(spool) && isTRUE(spool$ok) &&
+      !isTRUE(spool$truncada) &&
+      is.finite(filas_efectivas) && filas_efectivas > 0 &&
+      !is.null(publico) && grepl("^tablesample_", publico$metodo) &&
+      isTRUE(spool$n_filas < filas_efectivas / 2)) {
+    candidatos <- .candidatos_muestreo_dbi(
+      conexion, preparacion$dialecto,
+      tipo_objeto = preparacion$tipo_objeto
+    )
+    objetivo_reintento <- min(
+      preparacion$muestra_motor * 2, if (is.finite(n_total)) n_total else
+        preparacion$muestra_motor * 2
+    )
+    pendientes_mediana <- if (
+      "mediana" %in% preparacion$metricas_ejecucion &&
+      isTRUE(incluir_valores)
+    ) sum(preparacion$es_numerico) else 1L
+    decision_reintento <- .alternativa_muestreo_reintento_dbi(
+      candidatos, metodo_inicial, .senas_conexion_dbi(conexion), n_total,
+      objetivo_reintento, pendientes_mediana
+    )
+    alternativa <- decision_reintento$candidato
+    guardia_reintento <- decision_reintento$guardia
+    motivo_reintento <- decision_reintento$motivo
+    if (!is.null(alternativa)) {
+      metodo_reintento <- alternativa$nombre
+      resolucion_reintento <- preparacion$muestreo
+      resolucion_reintento$candidato <- alternativa
+      fuente_reintento <- tryCatch(
+        .fuente_muestreada_dbi(
+          preparacion$tabla_sql, proyeccion_muestra$campos_sql,
+          objetivo_reintento, n_total, preparacion$dialecto,
+          resolucion_reintento
+        ), error = function(e) NULL
+      )
+      if (!is.null(fuente_reintento)) {
+        reintentos_muestreo <- 1L
+        publico_reintento <- .publicar_muestreo_dbi(
+          resolucion_reintento, fuente_reintento, n_total
+        )
+        publico_reintento$id_consulta_n <- id_consulta_n
+        publico_reintento$muestra_id <- muestra_id
+        publico_reintento$snapshot_id <- snapshot_id
+        publico_reintento$orden_id <- orden_id
+        inicio_materializacion <- if (!is.null(trazador) &&
+                                      isTRUE(trazador$activo)) .ahora_dbi() else NULL
+        cpu_materializacion <- if (!is.null(trazador) &&
+                                   isTRUE(trazador$activo)) .ahora_cpu_dbi() else NULL
+        spool_reintento <- .materializar_muestra_spool_dbi(
+          conexion, fuente_reintento$sql, campos, muestra_id, snapshot_id,
+          orden_id,
+          presupuesto, bloque_filas = bloque_filas,
+          max_bytes = max_bytes_lectura, backend = backend,
+          max_filas = filas_efectivas,
+          bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max
+        )
+        .registrar_etapa_dbi(
+          trazador, "materializacion_muestra", inicio_materializacion,
+          .ahora_dbi(), cpu_inicio = cpu_materializacion,
+          cpu_fin = .ahora_cpu_dbi(), estado = if (isTRUE(spool_reintento$ok)) NULL else
+            "no_disponible"
+        )
+        mejor <- .mejor_spool_muestra_dbi(spool, spool_reintento)
+        uso_reintento <- identical(mejor, spool_reintento)
+        if (uso_reintento) {
+          try(unlink(spool$path, force = TRUE), silent = TRUE)
+          spool <- spool_reintento
+          publico <- publico_reintento
+          sql_muestra <- fuente_reintento$sql
+          materializacion <- .materializacion_spool_vacia_dbi(
+            backend, max_bytes_lectura, muestra_id, snapshot_id, orden_id,
+            estado = "cerrada_verificada",
+            motivo = if (isTRUE(spool$truncada)) spool$motivo else motivo
+          )
+          materializacion$estimacion_bytes <- estimacion_bytes
+          materializacion$filas_solicitadas <- preparacion$muestra_motor
+          materializacion$filas_efectivas <- filas_efectivas
+          materializacion$filas_por_celdas <- alcance$filas_por_celdas
+          materializacion$filas_por_bytes <- alcance$filas_por_bytes
+          materializacion$max_celdas_muestra <- max_celdas_muestra
+          materializacion$max_bytes_muestra <- max_bytes_muestra
+          materializacion$checksum <- spool$checksum
+          materializacion$bytes <- spool$bytes
+          materializacion$n_filas <- spool$n_filas
+          materializacion$validado_relectura <- TRUE
+          materializacion$recortada <- isTRUE(spool$truncada)
+          materializacion$bytes_medidos <- spool$bytes
+        } else {
+          try(unlink(spool_reintento$path, force = TRUE), silent = TRUE)
+          motivo_nuevo <- paste(
+            "La primera muestra se conservo porque el reintento no trajo mas filas."
+          )
+          motivo_reintento <- if (is.na(motivo_reintento)) motivo_nuevo else
+            paste(motivo_reintento, motivo_nuevo)
+        }
+        if (!isTRUE(spool_reintento$ok)) {
+          motivo_nuevo <- paste(
+            "El reintento fallo y la primera muestra valida se conservo."
+          )
+          motivo_reintento <- if (is.na(motivo_reintento)) motivo_nuevo else
+            paste(motivo_reintento, motivo_nuevo)
+        }
+      }
+    }
+  }
   if (is.null(publico)) {
     publico <- list(
       disponible = FALSE, metodo = NA_character_, metodo_muestreo = NA_character_,
       funcion_muestreo = NA_character_, descripcion = NA_character_,
-      fraccion = NA_real_, tamano_muestra = preparacion$muestra_motor,
+      fraccion = NA_real_, tamano_muestra = filas_efectivas,
       filas_solicitadas = preparacion$muestra_motor,
-      filas_pedidas = preparacion$muestra_motor, filas_obtenidas = NA_real_,
+      filas_pedidas = filas_efectivas, filas_obtenidas = NA_real_,
       universo = n_total, muestra_id = muestra_id, snapshot_id = snapshot_id,
       orden_id = orden_id, reproducible = FALSE, id_consulta_n = id_consulta_n
     )
   }
+  materializacion$estimacion_bytes <- estimacion_bytes
+  materializacion$filas_solicitadas <- preparacion$muestra_motor
+  materializacion$filas_efectivas <- filas_efectivas
+  materializacion$filas_por_celdas <- alcance$filas_por_celdas
+  materializacion$filas_por_bytes <- alcance$filas_por_bytes
+  materializacion$max_celdas_muestra <- max_celdas_muestra
+  materializacion$max_bytes_muestra <- max_bytes_muestra
+  materializacion$max_bytes_materializacion <- max_bytes_materializacion
+  materializacion$presupuesto_efectivo <- max_bytes_lectura
+  publico$filas_solicitadas_sin_topes <- preparacion$muestra_motor
+  publico$filas_solicitadas <- preparacion$muestra_motor
+  publico$filas_pedidas <- filas_efectivas
+  publico$max_celdas_muestra <- max_celdas_muestra
+  publico$max_bytes_muestra <- max_bytes_muestra
+  publico$filas_por_celdas <- alcance$filas_por_celdas
+  publico$filas_por_bytes <- alcance$filas_por_bytes
+  publico$bytes_por_fila_estimados <- estimacion_bytes$bytes_por_fila
+  publico$estimacion_bytes <- estimacion_bytes
   if (!is.null(spool) && isTRUE(spool$ok)) {
+    inicio_lectura_spool <- if (!is.null(trazador) &&
+                                isTRUE(trazador$activo)) .ahora_dbi() else NULL
+    cpu_lectura_spool <- if (!is.null(trazador) &&
+                             isTRUE(trazador$activo)) .ahora_cpu_dbi() else NULL
     leido <- .leer_spool_muestra_dbi(spool$path, devolver_chunks = TRUE)
+    .registrar_etapa_dbi(
+      trazador, "lectura_spool", inicio_lectura_spool, .ahora_dbi(),
+      cpu_inicio = cpu_lectura_spool, cpu_fin = .ahora_cpu_dbi(),
+      estado = if (isTRUE(leido$ok)) NULL else "no_disponible"
+    )
     if (!isTRUE(leido$ok)) {
       motivo <- leido$motivo
       spool$ok <- FALSE
+    }
+    spool_inutil <- !is.null(spool) && isTRUE(spool$truncada) &&
+      identical(as.numeric(spool$n_filas), 0)
+    if (spool_inutil) {
+      motivo <- spool$motivo
+      if (is.null(motivo) || is.na(motivo)) {
+        motivo <- "muestra_inestable:presupuesto_materializacion"
+      }
+      leido$ok <- FALSE
     }
   } else {
     leido <- list(ok = FALSE, motivo = motivo)
@@ -839,6 +1377,46 @@
   n_filas_spool <- if (spool_valido) as.numeric(leido$n_filas) else NA_real_
   n_chunks_spool <- if (spool_valido) as.integer(leido$n_chunks) else 0L
   fetches_spool <- if (!is.null(spool)) as.integer(spool$fetches %||% 0L) else 0L
+  publico$reintentos <- reintentos_muestreo
+  publico$metodo_inicial <- metodo_inicial
+  publico$metodo_reintento <- metodo_reintento
+  publico$motivo_reintento <- motivo_reintento
+  publico$politica_aleatoria_reintento <- guardia_reintento
+  publico$filas_obtenidas <- if (spool_valido) n_filas_spool else NA_real_
+  if (spool_valido) {
+    publico$fraccion_solicitada <- publico$fraccion
+    publico$fraccion <- .fraccion_muestreo_dbi(n_filas_spool, n_total)
+  }
+  if (grepl("^tablesample_", as.character(publico$metodo)) ||
+      reintentos_muestreo > 0L) {
+    publico$coincide_con_lo_pedido <- spool_valido &&
+      identical(as.numeric(n_filas_spool), as.numeric(filas_efectivas))
+  }
+  filas_base <- min(
+    as.numeric(preparacion$muestra_motor),
+    if (is.finite(n_total)) n_total else preparacion$muestra_motor
+  )
+  recorte_celdas <- is.finite(alcance$filas_por_celdas) &&
+    alcance$filas_por_celdas < filas_base
+  recorte_bytes_prelectura <- is.finite(filas_por_catalogo) &&
+    filas_por_catalogo < filas_base
+  recorte_bytes <- recorte_bytes_prelectura || isTRUE(spool$truncada)
+  recorte_procesamiento <- FALSE
+  recorte_topes <- recorte_celdas || recorte_bytes
+  materializacion$fraccion_materializada <- if (
+    spool_valido && is.finite(n_total)
+  ) .fraccion_muestreo_dbi(n_filas_spool, n_total) else NA_real_
+  materializacion$tope_que_mando <- if (recorte_bytes) "bytes" else if (
+    recorte_celdas
+  ) "celdas" else NA_character_
+  materializacion$bytes_por_fila_max <- estimacion_bytes$bytes_por_fila_max
+  materializacion$recortada <- recorte_bytes
+  if (recorte_bytes && (is.null(materializacion$motivo) ||
+                        is.na(materializacion$motivo))) {
+    materializacion$motivo <- "muestra_inestable:presupuesto_materializacion"
+  }
+  muestreo_corto <- spool_valido && filas_efectivas > 0 &&
+    n_filas_spool < filas_efectivas / 2
   bloques <- list(
     solicitados = if (spool_valido && n_filas_spool > 0) {
       as.integer(ceiling(n_filas_spool / bloque_filas))
@@ -922,6 +1500,26 @@
     NA_real_
   } else publico$fraccion
   cobertura <- cobertura_aislada
+  if (reintentos_muestreo > 0L || muestreo_corto) {
+    estado_muestreo <- if (muestreo_corto) "degradado" else "medido"
+    motivo_muestreo <- if (muestreo_corto) {
+      paste0(
+        "La muestra final contiene ", .entero_sql_dbi(n_filas_spool),
+        " de ", .entero_sql_dbi(filas_efectivas), " filas pedidas."
+      )
+    } else {
+      paste0(
+        "La muestra inicial fue corta y el reintento con `",
+        as.character(publico$metodo), "` alcanzo el tamano pedido."
+      )
+    }
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "resumen_tabla", .texto_tabla_dbi(tabla), estado_muestreo,
+      motivo_muestreo,
+      "Revisar `meta$muestreo` para los metodos y filas de cada intento.",
+      publico$sql
+    ))
+  }
   if (!is.null(perfil_aislado)) {
     cobertura <- rbind(
       cobertura,
@@ -935,10 +1533,12 @@
   # Lo leido entero, tambien las columnas enmascaradas que no se perfilan: su
   # completitud sale de aca (ver abajo).
   datos_todos <- datos_completos
-  if (isTRUE(leido$ok) && nrow(datos) > 0L) {
+  if (isTRUE(leido$ok) && (nrow(datos) > 0L ||
+                          (is.finite(n_total) && n_total == 0))) {
     if (is.finite(max_bytes_procesamiento) &&
         as.numeric(utils::object.size(datos_completos)) > max_bytes_procesamiento) {
       motivo <- "muestra_inestable:presupuesto_procesamiento"
+      recorte_procesamiento <- TRUE
       leido$ok <- FALSE
     } else {
       args <- argumentos
@@ -959,7 +1559,10 @@
       }
       if (any(sacar)) datos <- .seleccionar_columnas(datos, which(!sacar))
       perfil <- tryCatch(
-        do.call(perfilar, c(list(datos = datos), args)),
+        .medir_etapa_dbi(
+          trazador, "perfilado_muestra",
+          do.call(perfilar, c(list(datos = datos), args))
+        ),
         error = function(e) e
       )
       if (inherits(perfil, "condition")) {
@@ -969,6 +1572,12 @@
         )
         perfil <- NULL
       }
+      if (!is.null(perfil)) {
+        perfil <- .ajustar_longitudes_binarias_dbi(
+          perfil, datos, proyeccion_muestra$columnas_binarias,
+          proyeccion_muestra$columnas_binarias_prefijo
+        )
+      }
       if (!is.null(datos_completos) && nrow(datos_completos) != nrow(datos)) {
         perfil_resumen <- tryCatch(
           do.call(perfilar, c(list(datos = datos_completos), args)),
@@ -976,6 +1585,22 @@
         )
       } else {
         perfil_resumen <- perfil
+      }
+      if (!is.null(perfil)) {
+        perfil <- .ajustar_textos_largos_dbi(
+          perfil, datos,
+          proyeccion_muestra$columnas_texto_largo,
+          proyeccion_muestra$max_largo_valor_vocabulario
+        )
+      }
+      if (!is.null(perfil_resumen) &&
+          !identical(perfil_resumen, perfil) &&
+          is.data.frame(datos_completos)) {
+        perfil_resumen <- .ajustar_textos_largos_dbi(
+          perfil_resumen, datos_completos,
+          proyeccion_muestra$columnas_texto_largo,
+          proyeccion_muestra$max_largo_valor_vocabulario
+        )
       }
       # `perfilar()` decidio los rellenos de las columnas protegidas sobre la
       # muestra del motor, y con `universo = "muestra_motor"` no hay conteo de
@@ -1015,12 +1640,75 @@
         }
       }
     }
-  } else if (isTRUE(leido$ok)) {
+  } else if (isTRUE(leido$ok) && !(is.finite(n_total) && n_total == 0)) {
     metodo_vacio <- if (is.null(publico$metodo) ||
                         is.na(publico$metodo) || !nzchar(publico$metodo)) {
       "muestreo_sin_metodo"
     } else as.character(publico$metodo)
     motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
+  }
+  recorte_topes <- recorte_celdas || recorte_bytes || recorte_procesamiento
+  tope_que_mando <- if (recorte_procesamiento) {
+    "procesamiento"
+  } else if (recorte_bytes) {
+    "bytes"
+  } else if (recorte_celdas) {
+    "celdas"
+  } else NA_character_
+  materializacion$tope_que_mando <- tope_que_mando
+  materializacion$recortada <- recorte_bytes
+  if (recorte_procesamiento) {
+    materializacion$motivo <- "muestra_inestable:presupuesto_procesamiento"
+  }
+  # Un reintento que recupera la muestra no avisa: lo que se pidio llego y la
+  # escasez transitoria queda en `meta$muestreo` (`reintentos`,
+  # `metodo_inicial`), como en la via de solo agregados. Si hay otro motivo de
+  # aviso, el mensaje tambien nombra el reintento.
+  if (recorte_topes || muestreo_corto) {
+    motivos_aviso <- character()
+    if (recorte_bytes) motivos_aviso <- c(
+      motivos_aviso,
+      paste0(
+        "la materializacion se acoto a ",
+        .entero_sql_dbi(n_filas_spool), " fila(s) por el presupuesto de bytes"
+      )
+    )
+    if (recorte_celdas) motivos_aviso <- c(
+      motivos_aviso,
+      paste0(
+        "la muestra se acoto a ", .entero_sql_dbi(filas_efectivas),
+        " fila(s) por el presupuesto de celdas"
+      )
+    )
+    if (recorte_procesamiento) motivos_aviso <- c(
+      motivos_aviso,
+      "el perfil local se descarto porque supero el presupuesto de procesamiento"
+    )
+    if (muestreo_corto) motivos_aviso <- c(
+      motivos_aviso,
+      paste0(
+        "el motor devolvio ", .entero_sql_dbi(n_filas_spool),
+        " de ", .entero_sql_dbi(filas_efectivas), " fila(s) pedidas"
+      )
+    )
+    if (reintentos_muestreo > 0L && !muestreo_corto) motivos_aviso <- c(
+      motivos_aviso,
+      paste0(
+        "la primera muestra fue corta y se reintento con `",
+        as.character(publico$metodo), "`"
+      )
+    )
+    .avisar_muestra_motor_dbi(
+      paste0("La muestra_motor tuvo alcance degradado: ",
+             paste(motivos_aviso, collapse = "; "), "."),
+      datos = list(
+        tope_que_mando = tope_que_mando,
+        recorte_bytes = recorte_bytes,
+        recorte_celdas = recorte_celdas,
+        recorte_procesamiento = recorte_procesamiento,
+        muestreo_corto = muestreo_corto
+      )
+    )
   }
   # El perfil se puede construir despues de leer el spool. Recalcular el
   # estado aqui evita publicar `no_disponible` solo porque al entrar todavia no
@@ -1066,6 +1754,31 @@
     perfil$meta$bloques <- bloques
     perfil$meta$pasadas <- pasadas
     perfil$meta$materializacion <- materializacion
+    perfil$meta$muestra <- preparacion$muestra_motor
+    perfil$meta$muestra_efectiva <- filas_efectivas
+    perfil$meta$celdas_solicitadas <- alcance$celdas_solicitadas
+    perfil$meta$celdas_efectivas <- alcance$celdas_efectivas
+    perfil$meta$max_celdas_muestra <- max_celdas_muestra
+    perfil$meta$max_bytes_muestra <- max_bytes_muestra
+    perfil$meta$bytes_sonda <- NA_real_
+    perfil$meta$bytes_muestra <- if (spool_valido) spool$bytes else NA_real_
+    perfil$meta$tope_que_mando <- tope_que_mando
+    perfil$meta$tope_que_mando_texto <- if (recorte_topes) {
+      if (recorte_procesamiento) {
+        "El perfil local se descarto al superar el presupuesto de procesamiento."
+      } else if (recorte_bytes) {
+        paste0(
+          "La materializacion se acoto a ",
+          .entero_sql_dbi(n_filas_spool),
+          " filas por el presupuesto de bytes."
+        )
+      } else {
+        paste0(
+          "La muestra del motor quedo acotada a ",
+          .entero_sql_dbi(filas_efectivas), " filas antes de leerla."
+        )
+      }
+    } else NA_character_
     perfil$meta$origen_dbi <- list(
       tipo = "DBI", conexion = info_conexion,
       tabla = .texto_tabla_dbi(tabla), muestreo = publico,
@@ -1216,7 +1929,9 @@
     bloques = bloques, pasadas = pasadas,
     consultas = list(
       emitidas = presupuesto$usadas, presupuesto = presupuesto$max,
-      agotado = isTRUE(presupuesto$agotado)
+      agotado = isTRUE(presupuesto$agotado),
+      fallas = .publicar_fallas_consultas_dbi(presupuesto),
+      sondas_fallidas = .publicar_fallas_sondas_dbi(presupuesto)
     ),
     plan = NULL,
     proteccion_personal = list(
@@ -1234,12 +1949,20 @@
     entrada = if (is.null(spool)) NA_real_ else spool$bytes,
     texto = NA_real_, retenidos = NA_real_, rss_maximo = NA_real_
   )
+  meta$bytes_muestra <- if (is.null(spool)) NA_real_ else spool$bytes
+  meta$max_celdas_muestra <- max_celdas_muestra
+  meta$max_bytes_muestra <- max_bytes_muestra
+  meta$tope_que_mando <- tope_que_mando
+  meta$muestra_solicitada <- preparacion$muestra_motor
+  meta$muestra_efectiva <- filas_efectivas
+  meta$tiempos <- .resumen_tiempos_dbi(trazador)
   meta$vigilante <- list(eventos = if (is.null(spool)) {
     .eventos_spool_vacios_dbi()
   } else spool$eventos)
   if (!is.null(perfil)) {
     perfil$meta$bytes <- meta$bytes
     perfil$meta$vigilante <- meta$vigilante
+    perfil$meta$tiempos <- meta$tiempos
   }
   if (!is.null(perfil)) {
     args_proteger <- .protege_argumentos(argumentos)
@@ -1265,10 +1988,31 @@
   if (length(ilegibles)) {
     cobertura <- rbind(cobertura, .cobertura_ilegibles_dbi(preparacion$esquema))
   }
+  fallas_consultas <- .publicar_fallas_consultas_dbi(presupuesto)
+  if (is.data.frame(fallas_consultas) && nrow(fallas_consultas)) {
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "resumen_tabla", .texto_tabla_dbi(tabla), "degradado",
+      paste0(
+        "Fallaron ", nrow(fallas_consultas),
+        " consultas solicitadas; revisar `meta$consultas$fallas`."
+      ),
+      "Revisar el motivo del motor, reducir el alcance o repetir con otra muestra.",
+      NA_character_
+    ))
+  }
   resumen <- list(
     columnas = columnas, sql = sql, cobertura = cobertura,
-    literales = character(), meta = meta
+    literales = character(), meta = meta, tiempos = meta$tiempos
   )
+  if (is.data.frame(fallas_consultas) && nrow(fallas_consultas)) {
+    .avisar_muestra_motor_dbi(
+      paste0(
+        "Una o mas consultas solicitadas no estuvieron disponibles (",
+        nrow(fallas_consultas), "). El detalle queda en `meta$consultas$fallas`."
+      ),
+      datos = list(fallas = fallas_consultas)
+    )
+  }
   columnas_decimal <- .columnas_decimal_doble_muestra_dbi(
     datos_completos, campos, preparacion$tipos
   )

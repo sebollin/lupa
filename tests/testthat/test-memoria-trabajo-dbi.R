@@ -28,6 +28,19 @@ skip_if_not_installed("RSQLite")
   )
 }
 
+.memoria_trabajo_perfil_con_aviso <- function(...) {
+  avisos <- character()
+  resultado <- withCallingHandlers(
+    .memoria_trabajo_perfil(...),
+    warning = function(x) {
+      avisos <<- c(avisos, conditionMessage(x))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_length(avisos, 0L)
+  resultado
+}
+
 .memoria_trabajo_datos <- function(n = 100000L) {
   n_distintos <- min(90000L, n)
   repetidos <- n - n_distintos
@@ -126,7 +139,7 @@ test_that("una muestra saturada clasifica el spool como trabajo creciente", {
   conexion <- .memoria_trabajo_conexion(.memoria_trabajo_datos(20L))
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
 
-  resultado <- .memoria_trabajo_perfil(
+  resultado <- .memoria_trabajo_perfil_con_aviso(
     conexion,
     universo = "muestra_motor", muestra_motor = 1000L,
     bloque_muestra = "con_muestra",
@@ -325,7 +338,7 @@ test_that("una muestra saturada conserva el limite y declara el spool", {
   conexion <- .memoria_trabajo_conexion()
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
 
-  resultado <- .memoria_trabajo_perfil(
+  resultado <- .memoria_trabajo_perfil_con_aviso(
     conexion,
     universo = "muestra_motor", muestra_motor = 200000L,
     bloque_muestra = "con_muestra",

@@ -3,13 +3,13 @@
 #
 # La regla que gobierna todo lo que sigue: ante un fallo PARCIAL se devuelve lo
 # medido con su alcance declarado. Nunca el todo descartado, y nunca `0` -ni
-# `-Inf`- por ausencia de medición. En el vocabulario de este paquete `0`
-# significa «medido y ninguno»; usarlo para «no se midió» es una afirmación
+# `-Inf`- por ausencia de medicion. En el vocabulario de este paquete `0`
+# significa "medido y ninguno"; usarlo para "no se midio" es una afirmacion
 # falsa.
 #
 # La otra causa estructural: toda la superficie DBI estaba probada contra
 # un solo motor, y SQLite comparte justamente las propiedades cuya ausencia es
-# el modo de falla —acepta `LIMIT`, calcula el desvio sin quejarse—. Acá se
+# el modo de falla -acepta `LIMIT`, calcula el desvio sin quejarse-. Aca se
 # construyen conexiones
 # simuladas que NO las comparten.
 
@@ -23,10 +23,10 @@ testthat::skip_on_cran()
   DBI::dbConnect(RSQLite::SQLite(), ":memory:")
 }
 
-# --- La tabla vacía --------------------------------------------------------
+# --- La tabla vacia --------------------------------------------------------
 #
-# Una tabla vacía no es un caso exótico: es rutina institucional —tabla recién
-# creada, staging truncada, partición del mes que viene—.
+# Una tabla vacia no es un caso exotico: es rutina institucional -tabla recien
+# creada, staging truncada, particion del mes que viene-.
 
 test_that("una tabla vacia no informa -Inf ni ceros inventados", {
   con <- .con_arreglos()
@@ -45,7 +45,7 @@ test_that("una tabla vacia no informa -Inf ni ceros inventados", {
   # Antes: -Inf, fuera del [0,1] que promete el paquete.
   expect_true(is.na(vacia$prop_faltantes_maxima))
   expect_false(isTRUE(vacia$prop_faltantes_maxima == -Inf))
-  # Antes: 0, o sea «tres columnas sin ausencias» sobre una tabla de la que no
+  # Antes: 0, o sea "tres columnas sin ausencias" sobre una tabla de la que no
   # se sabe nada.
   expect_true(is.na(vacia$n_columnas_sin_faltantes))
   # Y el alcance queda declarado: de cero columnas se conoce la proporcion.
@@ -98,7 +98,7 @@ test_that("una proporcion parcialmente conocida declara sobre cuantas columnas s
 #
 # Un motor que rechaza un agregado producia un informe INDISTINGUIBLE de uno
 # donde todo se midio. El backend simulado rechaza las tres formas del desvio
-# —las dos nativas y el calculo casero con `SQRT`—, que es exactamente
+# -las dos nativas y el calculo casero con `SQRT`-, que es exactamente
 # la propiedad que SQLite no comparte con Oracle.
 
 # Un motor que rechaza una construccion SQL, sin necesitar un motor real: se
@@ -130,7 +130,14 @@ test_that("un agregado rechazado por el motor llega a la coleccion sin conservar
   .rechazar_sql("SQRT|STDDEV_SAMP|STDEV")
   col <- coleccion(con, "expedientes", nombre = "base_rechazada")
 
-  liviano <- perfilar_coleccion(col, muestra = 10, conservar_perfiles = FALSE)
+  liviano_env <- new.env(parent = emptyenv())
+  expect_warning(
+    liviano_env$valor <- perfilar_coleccion(
+      col, muestra = 10, conservar_perfiles = FALSE
+    ),
+    class = "lupa_aviso_muestra_motor"
+  )
+  liviano <- liviano_env$valor
 
   # La cobertura por metrica se calcula ANTES de descartar el perfil, asi que
   # existe tambien en el modo liviano. Antes no llegaba en NINGUN modo.
@@ -176,8 +183,19 @@ test_that("la cobertura por metrica es la misma con y sin perfiles, y el descart
   .rechazar_sql("SQRT|STDDEV_SAMP|STDEV")
   col <- coleccion(con, "expedientes")
 
-  liviano <- perfilar_coleccion(col, muestra = 10)
-  pesado <- perfilar_coleccion(col, muestra = 10, conservar_perfiles = TRUE)
+  resultados_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultados_env$liviano <- perfilar_coleccion(col, muestra = 10),
+    class = "lupa_aviso_muestra_motor"
+  )
+  expect_warning(
+    resultados_env$pesado <- perfilar_coleccion(
+      col, muestra = 10, conservar_perfiles = TRUE
+    ),
+    class = "lupa_aviso_muestra_motor"
+  )
+  liviano <- resultados_env$liviano
+  pesado <- resultados_env$pesado
   expect_identical(liviano$cobertura_metricas, pesado$cobertura_metricas)
   # El descarte del perfil sigue ahorrando lo que justificaba el valor por
   # omision: la cobertura por metrica es acotada y no lo anula.
@@ -662,12 +680,12 @@ test_that("el unicode y las palabras reservadas siguen funcionando", {
   expect_equal(reservada$esquema, "from")
   expect_equal(reservada$tabla, "order")
 
-  DBI::dbExecute(con, 'CREATE TABLE "niños" ("año" INTEGER)')
-  DBI::dbExecute(con, 'INSERT INTO "niños" VALUES (2024)')
+  DBI::dbExecute(con, 'CREATE TABLE "ni\u00f1os" ("a\u00f1o" INTEGER)')
+  DBI::dbExecute(con, 'INSERT INTO "ni\u00f1os" VALUES (2024)')
   resumen <- perfilar_coleccion(
-    coleccion(con, "niños"), muestra = 10
+    coleccion(con, "ni\u00f1os"), muestra = 10
   )$resumen_coleccion
-  expect_equal(resumen$identificador, "niños")
+  expect_equal(resumen$identificador, "ni\u00f1os")
   expect_equal(resumen$n_columnas, 1)
 
   # La inyeccion queda inerte porque todo pasa por dbQuoteIdentifier().
@@ -692,7 +710,7 @@ test_that("el data.frame de tablas valida NA, cadenas vacias y tipos", {
     "cadenas vacias"
   )
   # Y el `NA` logico de `data.frame(esquema = NA)` sigue siendo la forma normal
-  # de declarar «sin esquema».
+  # de declarar "sin esquema".
   expect_silent(coleccion(con, data.frame(esquema = NA, tabla = "a")))
 })
 

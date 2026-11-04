@@ -35,6 +35,15 @@
     },
     .consultar_dbi = function(conexion, sql, presupuesto = NULL, filas = -1L,
                               etapa = "consulta") {
+      if (grepl("pg_settings", sql, fixed = TRUE)) {
+        parametros <- data.frame(
+          name = if (is.null(hash)) "work_mem" else
+            c("work_mem", "hash_mem_multiplier"),
+          setting = if (is.null(hash)) work else
+            c(work, as.character(hash)), stringsAsFactors = FALSE
+        )
+        return(list(ok = TRUE, datos = parametros, motivo = NA_character_))
+      }
       list(ok = TRUE, datos = stats, motivo = NA_character_)
     },
     .package = "lupa"

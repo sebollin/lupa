@@ -457,7 +457,7 @@
   descendientes <- .campo_clave(datos, "constraint_descendientes")
   relkind <- .campo_clave(datos, "constraint_relkind")
   # `pg_inherits` registra tanto la herencia tradicional como el particionado
-  # declarativo, y sólo la primera deja filas fuera del alcance de la clave.
+  # declarativo, y solo la primera deja filas fuera del alcance de la clave.
   # Medido contra PostgreSQL 16: una tabla `relkind = 'r'` con un hijo que
   # repite un valor da 6001 validos y 6000 distintos; una `relkind = 'p'` con
   # dos particiones da 19999 y 19999. En PostgreSQL anterior a la version 10 no
@@ -736,7 +736,9 @@
   } else {
     via$sql(esquema, tabla)
   }
-  respuesta <- .consultar_dbi(conexion, sql, presupuesto)
+  respuesta <- .consultar_dbi(
+    conexion, sql, presupuesto, etapa = "clave_primaria"
+  )
   if (!isTRUE(respuesta$ok)) {
     return(vacio(
       via$nombre, paste0(

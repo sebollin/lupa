@@ -78,6 +78,33 @@ setMethod("dbColumnInfo", "ResultadoLobLupa", function(res, ...) {
   force(expr)
 }
 
+.lob_perfil_con_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultado_env$resultado <- perfilar_dbi(...),
+    class = "lupa_aviso_muestra_motor"
+  )
+  resultado_env$resultado
+}
+
+.lob_perfil_con_avisos <- function(...) {
+  avisos <- list()
+  resultado <- withCallingHandlers(
+    perfilar_dbi(...),
+    warning = function(w) {
+      avisos[[length(avisos) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(length(avisos) > 0L)
+  expect_true(all(vapply(
+    avisos,
+    function(aviso) inherits(aviso, "lupa_aviso_muestra_motor"),
+    logical(1L)
+  )))
+  resultado
+}
+
 .tabla_con_lob <- function() {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   DBI::dbExecute(con, "CREATE TABLE t (id INTEGER, monto REAL, nota TEXT)")
@@ -125,7 +152,7 @@ test_that("una columna que el controlador rechaza no se lleva puesta la muestra"
   con <- .envolver_lob(cruda)
   .lob_prueba$sql <- character()
 
-  perfil <- perfilar_dbi(con, "t", muestra = 10)
+  perfil <- .lob_perfil_con_aviso(con, "t", muestra = 10)
 
   # Lo que importa: la muestra existe, con las columnas que si se pudieron leer.
   expect_false(is.null(perfil$perfil_muestra))
@@ -201,7 +228,7 @@ test_that("un controlador que informa el tipo como codigo ODBC no pierde la mues
     on.exit(DBI::dbDisconnect(cruda), add = TRUE)
     con <- .envolver_lob(cruda)
 
-    perfil <- perfilar_dbi(con, "t", muestra = 10)
+    perfil <- .lob_perfil_con_aviso(con, "t", muestra = 10)
 
     expect_false(is.null(perfil$perfil_muestra))
     expect_setequal(perfil$perfil_muestra$columnas$columna, c("id", "monto"))
@@ -223,7 +250,7 @@ test_that("un tipo que nadie reconoce se aisla por descarte y se declara comprob
     con <- .envolver_lob(cruda)
 
     expect_length(.columnas_de_tipo_largo_dbi("un_tipo_que_ningun_patron_conoce"), 0L)
-    perfil <- perfilar_dbi(con, "t", muestra = 10)
+    perfil <- .lob_perfil_con_aviso(con, "t", muestra = 10)
 
     expect_false(is.null(perfil$perfil_muestra))
     expect_setequal(perfil$perfil_muestra$columnas$columna, c("id", "monto"))
@@ -258,10 +285,7 @@ test_that("si el fallo no es de una columna, el descarte lo dice y no inventa un
 
   # El aviso es parte del contrato: la muestra no esta y se dice en voz alta,
   # ademas de quedar en la cobertura.
-  expect_warning(
-    perfil <- perfilar_dbi(con, "t", muestra = 10),
-    "no queda ningun subconjunto legible"
-  )
+  perfil <- .lob_perfil_con_avisos(con, "t", muestra = 10)
 
   # Sin subconjunto legible no hay muestra, y eso se declara: lo que no puede
   # pasar es que se omita una columna cualquiera para poder devolver algo.

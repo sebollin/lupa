@@ -188,11 +188,12 @@ filas por columnas del esquema. Si reduce la muestra,
 \code{Inf} desactiva este tope. No modifica los agregados SQL.}
 
 \item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
-alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. Como el tamaño no se
-conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
-ella se fija el límite final en SQL o en \code{dbFetch(n)}, antes de leer el
-resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
-observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
+alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. En
+\code{muestra_motor}, el límite se cruza con el presupuesto de materialización
+y se resuelve antes de \code{dbFetch(n)} usando el catálogo o un bloque inicial
+pequeño. Si reduce la muestra, \code{meta$muestreo},
+\code{meta$materializacion} y \code{cobertura_diagnosticos} informan las filas
+solicitadas, efectivas y cuál tope mandó. \code{Inf} desactiva este tope. No
 modifica los agregados SQL.}
 
 \item{bloque_filas}{Entero positivo que activa la fuente por
@@ -204,14 +205,19 @@ las filas.}
 
 \item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
-antes de publicar un bloque o una pasada; \code{Inf} desactiva este límite.}
+antes de publicar un bloque o una pasada; si la materialización cabe pero
+el objeto que R necesita para perfilarla supera el límite, el perfil se
+descarta y se emite el mismo aviso de alcance degradado, con
+\code{tope_que_mando = "procesamiento"}. \code{Inf} desactiva este límite.}
 
 \item{max_bytes_materializacion}{Presupuesto de bytes del spool externo de
 \code{muestra_motor}. Se mide por chunk antes de cada escritura, dejando espacio
 para el trailer; si no alcanza, se publica
-\code{spool_presupuesto_excedido} y
-\code{muestra_inestable:presupuesto_materializacion} sin mezclar una muestra
-parcial con resultados completos. \code{Inf} desactiva este límite.}
+\code{spool_presupuesto_excedido} y se conserva la parte que entró como muestra
+recortada, con \code{muestra_inestable:presupuesto_materializacion}. En
+\code{muestra_motor}, el primer bloque se acota antes de pedirlo y los siguientes
+se adaptan a los bytes medidos; el resultado conserva
+\code{meta$bytes_muestra} y \code{meta$tiempos}. \code{Inf} desactiva este límite.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},

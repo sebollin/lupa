@@ -49,6 +49,18 @@ testthat::skip_if_not_installed("DBI")
       silent = TRUE)
 }
 
+.o179_perfil_aviso_opcional <- function(..., espera_aviso = FALSE) {
+  if (isTRUE(espera_aviso)) {
+    resultado_env <- new.env(parent = emptyenv())
+    expect_warning(
+      resultado_env$resultado <- lupa::perfilar_dbi(...),
+      class = "lupa_aviso_muestra_motor"
+    )
+    return(resultado_env$resultado)
+  }
+  expect_no_warning(lupa::perfilar_dbi(...))
+}
+
 .o179_drop_mssql <- function(conexion) {
   try(DBI::dbExecute(conexion, "IF @@TRANCOUNT > 0 ROLLBACK"), silent = TRUE)
   try(DBI::dbExecute(conexion,
@@ -142,21 +154,15 @@ testthat::test_that("SQL Server trata un sinonimo no clasificado como tabla", {
   DBI::dbBegin(conexion)
   DBI::dbExecute(conexion, "INSERT INTO r39x_dev_o179_user VALUES (1)")
 
-  sin_orden <- tryCatch(
-    lupa::perfilar_dbi(
-      conexion, "r39x_dev_o179_syn", universo = "muestra_motor",
-      muestra_motor = 50L, metricas = "validos",
-      proteger_datos_personales = FALSE
-    ),
-    error = function(e) e
+  sin_orden <- .o179_perfil_aviso_opcional(
+    conexion, "r39x_dev_o179_syn", universo = "muestra_motor",
+    muestra_motor = 200L, metricas = "validos",
+    proteger_datos_personales = FALSE
   )
-  con_orden <- tryCatch(
-    lupa::perfilar_dbi(
-      conexion, "r39x_dev_o179_syn", universo = "muestra_motor",
-      muestra_motor = 50L, muestra = 50L, orden_muestra = "id",
-      metricas = "validos", proteger_datos_personales = FALSE
-    ),
-    error = function(e) e
+  con_orden <- .o179_perfil_aviso_opcional(
+    conexion, "r39x_dev_o179_syn", universo = "muestra_motor",
+    muestra_motor = 200L, muestra = 200L, orden_muestra = "id",
+    metricas = "validos", proteger_datos_personales = FALSE
   )
   estado <- DBI::dbGetQuery(conexion, paste(
     "SELECT @@TRANCOUNT AS trancount, XACT_STATE() AS xact_state,",
@@ -182,11 +188,11 @@ testthat::test_that("la lectura DBI recorta char en PostgreSQL", {
     DBI::dbExecute(conexion,
                    "INSERT INTO r39x_dev_o179_pg_char SELECT g, 'A' || g FROM generate_series(1, 20) g")
 
-    resultado <- lupa::perfilar_dbi(
+    resultado <- expect_no_warning(lupa::perfilar_dbi(
       conexion, "r39x_dev_o179_pg_char", muestra = 20L,
       bloque_filas = 8L, metricas = c("validos", "distintos"),
       proteger_datos_personales = FALSE
-    )
+    ))
     hallazgos <- resultado$perfil_muestra$hallazgos
     expect_false(any(
       hallazgos$columna == "cod" &
@@ -223,11 +229,11 @@ testthat::test_that("SQL Server declara no disponibles los agregados de tipos no
   DBI::dbBegin(conexion)
   DBI::dbExecute(conexion, "INSERT INTO r39x_dev_o179_user VALUES (1)")
 
-  resultado <- lupa::perfilar_dbi(
+  resultado <- expect_no_warning(lupa::perfilar_dbi(
     conexion, "r39x_dev_o179_lob",
     metricas = c("validos", "distintos", "basicos", "moda", "mediana", "desvio"),
     proteger_datos_personales = FALSE
-  )
+  ))
   estado <- DBI::dbGetQuery(conexion, paste(
     "SELECT @@TRANCOUNT AS trancount, XACT_STATE() AS xact_state,",
     "(SELECT COUNT(*) FROM r39x_dev_o179_user) AS fila"
@@ -287,11 +293,11 @@ testthat::test_that("SQL Server muestrea una vista sin emitir TABLESAMPLE", {
   DBI::dbBegin(conexion)
   DBI::dbExecute(conexion, "INSERT INTO r39x_dev_o179_user VALUES (1)")
 
-  resultado <- lupa::perfilar_dbi(
+  resultado <- expect_no_warning(lupa::perfilar_dbi(
     conexion, "r39x_dev_o179_view", universo = "muestra_motor",
     muestra_motor = 50L, metricas = "validos",
     proteger_datos_personales = FALSE
-  )
+  ))
   estado <- DBI::dbGetQuery(conexion, paste(
     "SELECT @@TRANCOUNT AS trancount, XACT_STATE() AS xact_state,",
     "(SELECT COUNT(*) FROM r39x_dev_o179_user) AS fila"

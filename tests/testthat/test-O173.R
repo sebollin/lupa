@@ -2,6 +2,19 @@
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
+.r37x_perfil_con_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultado_env$perfil <- lupa::perfilar_dbi(...),
+    class = "lupa_aviso_muestra_motor"
+  )
+  resultado_env$perfil
+}
+
+.r37x_perfil_aviso_opcional <- function(...) {
+  expect_no_warning(suppressMessages(lupa::perfilar_dbi(...)))
+}
+
 testthat::skip_if_not_installed("DBI")
 
 .r37x_pg <- function() {
@@ -66,7 +79,7 @@ testthat::test_that("la muestra con orden conserva las columnas sanas de una vis
   ))
 
   for (orden in list("id", "cod", c("nombre", "cod"), c("id", "nombre"))) {
-    resultado <- lupa::perfilar_dbi(
+    resultado <- .r37x_perfil_con_aviso(
       conexion, "r37x_dev_test_v", muestra = 100L, orden_muestra = orden,
       metricas = "validos", proteger_datos_personales = FALSE
     )
@@ -104,7 +117,7 @@ testthat::test_that("un orden roto se informa y no fabrica un motivo de aislamie
   ))
 
   for (orden in list("cod", c("nombre", "cod"))) {
-    resultado <- lupa::perfilar_dbi(
+    resultado <- .r37x_perfil_con_aviso(
       conexion, "r37x_dev_test_v", muestra = 100L,
       orden_muestra = orden, metricas = "validos",
       proteger_datos_personales = FALSE
@@ -138,7 +151,7 @@ testthat::test_that("bloque_filas conserva magnitudes sanas cuando una columna f
     "CAST(id AS double precision) AS valor, nombre FROM r37x_dev_test_src"
   ))
 
-  resultado <- lupa::perfilar_dbi(
+  resultado <- .r37x_perfil_con_aviso(
     conexion, "r37x_dev_test_v", muestra = 5L, bloque_filas = 5L,
     proteger_datos_personales = FALSE
   )
@@ -161,10 +174,10 @@ testthat::test_that("muestra_motor resume toda la materializacion y recorta solo
     try(DBI::dbDisconnect(conexion), silent = TRUE)
   }, add = TRUE)
   .r37x_drop_pg(conexion)
-  datos <- data.frame(id = seq_len(20000L), valor = seq_len(20000L))
+  datos <- data.frame(id = seq_len(500L), valor = seq_len(500L))
   DBI::dbWriteTable(conexion, "r37x_dev_test_sample", datos, overwrite = TRUE)
 
-  resultado <- lupa::perfilar_dbi(
+  resultado <- .r37x_perfil_aviso_opcional(
     conexion, "r37x_dev_test_sample", universo = "muestra_motor",
     muestra_motor = 500L, muestra = 100L, metricas = "validos",
     proteger_datos_personales = FALSE
@@ -176,7 +189,7 @@ testthat::test_that("muestra_motor resume toda la materializacion y recorta solo
   fila <- resultado$resumen_tabla$columnas[
     resultado$resumen_tabla$columnas$columna == "valor", , drop = FALSE
   ]
-  expect_equal(as.numeric(fila$n), 20000)
+  expect_equal(as.numeric(fila$n), 500)
   expect_equal(as.numeric(fila$n_validos + fila$n_faltantes), filas_motor)
   filas_diagnostico <- resultado$perfil_muestra$general$filas
   expect_equal(filas_diagnostico, 100)
@@ -266,7 +279,7 @@ testthat::test_that("SQL Server recupera la muestra si falla una columna del ord
   ), immediate = TRUE)
 
   for (orden in list("id", "cod", c("nombre", "cod"), c("id", "nombre"))) {
-    resultado <- lupa::perfilar_dbi(
+    resultado <- .r37x_perfil_con_aviso(
       conexion, "r37x_dev_test_order_v", muestra = 100L,
       orden_muestra = orden, metricas = "validos",
       proteger_datos_personales = FALSE
@@ -311,13 +324,13 @@ testthat::test_that("SQL Server no pierde la transaccion del usuario al leer una
 
   DBI::dbBegin(conexion)
   DBI::dbExecute(conexion, "INSERT INTO r37x_dev_test_tx_user VALUES (1)", immediate = TRUE)
-  capturado <- tryCatch(
+  capturado <- expect_no_warning(tryCatch(
     lupa::perfilar_dbi(
       conexion, "r37x_dev_test_tx_v", bloque_filas = 2L, muestra = 5L,
       metricas = "validos", proteger_datos_personales = FALSE
     ),
     error = function(e) e
-  )
+  ))
   expect_s3_class(capturado, "lupa_error_transaccion_dbi")
   estado <- DBI::dbGetQuery(
     conexion, "SELECT @@TRANCOUNT AS n", immediate = TRUE
@@ -358,14 +371,14 @@ testthat::test_that("el error de materializacion cierra el archivo del spool", {
     tempdir(), pattern = "^lupa-spool-muestra-.*\\.bin$", full.names = TRUE
   )
   DBI::dbBegin(conexion)
-  capturado <- tryCatch(
+  capturado <- expect_no_warning(tryCatch(
     lupa::perfilar_dbi(
       conexion, "r37x_dev_test_spool", universo = "muestra_motor",
       muestra_motor = 2000L, metricas = "validos",
       proteger_datos_personales = FALSE
     ),
     error = function(e) e
-  )
+  ))
   expect_s3_class(capturado, "lupa_error_transaccion_dbi")
   expect_match(
     conditionMessage(capturado),

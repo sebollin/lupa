@@ -2,6 +2,10 @@
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
+.o175_perfil_aviso_opcional <- function(argumentos) {
+  expect_no_warning(suppressMessages(do.call(lupa::perfilar_dbi, argumentos)))
+}
+
 testthat::test_that("float8 de PostgreSQL conserva la aritmetica binaria", {
   testthat::skip_if_not_installed("DBI")
   testthat::skip_if_not_installed("RPostgres")
@@ -29,7 +33,7 @@ testthat::test_that("float8 de PostgreSQL conserva la aritmetica binaria", {
     stringsAsFactors = FALSE
   )
   DBI::dbWriteTable(con, tabla, valores)
-  salida <- suppressMessages(lupa::perfilar_dbi(
+  salida <- .o175_perfil_aviso_opcional(list(
     con, tabla, bloque_muestra = "solo_agregados",
     proteger_datos_personales = FALSE, analizar_dependencias = FALSE
   ))
@@ -79,12 +83,13 @@ testthat::test_that("la mediana exacta conserva vecinos de un ulp en PG93", {
     bloques = list(bloque_filas = 7L),
     muestra_motor = list(universo = "muestra_motor", muestra_motor = 1000L)
   )
-  for (via in vias) {
-    salida <- suppressMessages(do.call(
-      lupa::perfilar_dbi,
-      c(list(con, tabla, proteger_datos_personales = FALSE,
-             analizar_dependencias = FALSE), via)
-    ))
+  for (nombre_via in names(vias)) {
+    via <- vias[[nombre_via]]
+    llamada <- c(list(con, tabla, proteger_datos_personales = FALSE,
+                      analizar_dependencias = FALSE), via)
+    # Con `muestra_motor` mayor que la tabla, la muestra es la tabla entera: no
+    # hay recorte que avisar.
+    salida <- .o175_perfil_aviso_opcional(llamada)
     fila <- salida$resumen_tabla$columnas
     fila <- fila[fila$columna == "v", , drop = FALSE]
     testthat::expect_equal(fila$mediana, esperado, tolerance = 0)
@@ -118,7 +123,7 @@ testthat::test_that("incluir_valores FALSE cierra todos los canales de valores",
     " VALUES (1, 9007199254740993), (2, 9007199254740995),",
     " (3, 9007199254740997)"
   ))
-  salida <- suppressMessages(lupa::perfilar_dbi(
+  salida <- .o175_perfil_aviso_opcional(list(
     con, tabla, universo = "muestra_motor", muestra_motor = 3L,
     incluir_valores = FALSE, proteger_datos_personales = FALSE,
     analizar_dependencias = FALSE
@@ -161,11 +166,11 @@ testthat::test_that("comparar_perfiles no convierte dos muestras DBI en deriva",
     id = 1:2000, x = seq(10, 20000, by = 10),
     stringsAsFactors = FALSE
   ))
-  llamada <- function() suppressMessages(lupa::perfilar_dbi(
+  llamada <- function() expect_no_warning(suppressMessages(lupa::perfilar_dbi(
     con, tabla, muestra = 100L,
     orden_muestra = "id", proteger_datos_personales = FALSE,
     analizar_dependencias = FALSE
-  ))
+  )))
   anterior <- llamada()
   actual <- llamada()
   deriva <- suppressMessages(lupa::comparar_perfiles(

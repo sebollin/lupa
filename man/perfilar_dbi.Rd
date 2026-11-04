@@ -263,11 +263,12 @@ filas por columnas del esquema. Si reduce la muestra,
 \code{Inf} desactiva este tope. No modifica los agregados SQL.}
 
 \item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
-alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. Como el tamaño no se
-conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
-ella se fija el límite final en SQL o en \code{dbFetch(n)}, antes de leer el
-resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
-observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
+alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. En
+\code{muestra_motor}, el límite se cruza con el presupuesto de materialización
+y se resuelve antes de \code{dbFetch(n)} usando el catálogo o un bloque inicial
+pequeño. Si reduce la muestra, \code{meta$muestreo},
+\code{meta$materializacion} y \code{cobertura_diagnosticos} informan las filas
+solicitadas, efectivas y cuál tope mandó. \code{Inf} desactiva este tope. No
 modifica los agregados SQL.}
 
 \item{bloque_filas}{Entero positivo que activa el recorrido de
@@ -291,14 +292,19 @@ privacidad ni como \code{no_solicitado}.}
 
 \item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
-antes de publicar un bloque o una pasada; \code{Inf} desactiva este límite.}
+antes de publicar un bloque o una pasada; si la materialización cabe pero
+el objeto que R necesita para perfilarla supera el límite, el perfil se
+descarta y se emite el mismo aviso de alcance degradado, con
+\code{tope_que_mando = "procesamiento"}. \code{Inf} desactiva este límite.}
 
 \item{max_bytes_materializacion}{Presupuesto de bytes del spool externo de
 \code{muestra_motor}. Se mide por chunk antes de cada escritura, dejando espacio
 para el trailer; si no alcanza, se publica
-\code{spool_presupuesto_excedido} y
-\code{muestra_inestable:presupuesto_materializacion} sin mezclar una muestra
-parcial con resultados completos. \code{Inf} desactiva este límite.}
+\code{spool_presupuesto_excedido} y se conserva la parte que entró como muestra
+recortada, con \code{muestra_inestable:presupuesto_materializacion}. En
+\code{muestra_motor}, el primer bloque se acota antes de pedirlo y los siguientes
+se adaptan a los bytes medidos; el resultado conserva
+\code{meta$bytes_muestra} y \code{meta$tiempos}. \code{Inf} desactiva este límite.}
 
 \item{columnas_opcionales}{Nombres de columnas que sólo son aplicables a
 parte de las filas. Esta política se aplica al \code{perfil_muestra}; el
@@ -358,6 +364,13 @@ clave primaria: \code{columnas}, \code{fuente}, \code{motivo}, \code{garantia} y
 expone, \code{visible}, \code{restriccion_diferible},
 \code{universo_incluye_descendientes} e \code{indice_no_unico}. Una consulta fallida
 queda diferenciada de una clave no declarada.
+En \code{muestra_motor}, \code{resumen_tabla$tiempos} incluye materialización,
+lectura del spool y perfilado local; \code{perfil_muestra$meta$bytes_muestra}
+conserva los bytes del spool. \code{meta$muestreo$reintentos} y
+\code{meta$muestreo$metodo_inicial} describen la recuperación de una muestra
+corta. Las columnas binarias de motores compatibles se representan como
+\code{largo:md5} durante la lectura y el perfil publica sus largos originales;
+el contenido no se conserva.
 }
 \description{
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación
@@ -378,6 +391,54 @@ dependencia opcional. Cada agregado no disponible queda en \code{NA} y su
 consulta, estado y motivo se conservan en \code{resumen_tabla$sql}.
 Las expresiones se ejecutan como capacidades a comprobar, no como un
 dialecto SQL universal.
+
+En \code{muestra_motor}, \code{max_celdas_muestra} y \code{max_bytes_muestra} se aplican
+antes de armar la selección y se publican como filas pedidas y filas
+efectivas. El spool estima bytes por fila desde el catálogo cuando el motor
+lo permite; si la estimación no existe, comienza con un bloque pequeño y lo
+adapta. La materialización publica la fuente, la estimación, el recorte y el
+presupuesto efectivo en \code{meta$materializacion}. Un recorte, un muestreo corto
+de \code{TABLESAMPLE} o una falla de una consulta emiten la clase
+\code{lupa_aviso_muestra_motor}, que se puede capturar o silenciar por clase.
+Las columnas binarias compatibles se leen como largo y resumen MD5, por lo
+que se conservan faltantes, duplicados y largos sin traer el contenido a R.
+En SQL Server anterior a 13, o si la versión no se pudo determinar, el MD5
+usa un prefijo de 8000 bytes y conserva el largo completo; esta decisión
+queda en la metadata de \code{perfil_muestra} y también convierte \code{image} a
+\code{varbinary(max)} antes de resumirla.
+Si \code{TABLESAMPLE} entrega menos de la mitad de las filas efectivas, se hace
+un solo reintento con una fracción mayor. PostgreSQL prefiere
+\verb{TABLESAMPLE BERNOULLI}; en los demás motores se conserva el método por
+bloques y, solo si no existe, se considera el orden pseudoaleatorio sujeto a
+la misma guarda de costo. La metadata publica ambos métodos, la cantidad de
+reintentos, la guarda y cuál spool quedó elegido: una falla o una muestra más
+corta en el segundo intento conserva la primera muestra válida.
+
+Las fallas de consultas solicitadas se conservan en
+\code{resumen_tabla$meta$consultas$fallas}, con \code{etapa}, \code{consulta_id},
+\code{sqlstate}, \code{tipo} y \code{motivo}. Un \code{SQLSTATE} \code{57014} se publica como
+\code{cancelada}; los rechazos tienen \code{tipo = "rechazada"}. Las etapas internas
+\code{clave_primaria}, \code{proteccion_coleccion}, \code{sonda_collation_dbi},
+\code{sonda_fuente_bloques}, \code{sonda_desvio}, \code{estimacion_derrame}, \code{explain_moda},
+\code{sonda_muestreo}, \code{sonda_mediana_escalar}, \code{sonda_mediana_cte_ventana},
+\code{sonda_mediana_cte_ventana_control_negativo}, \code{sonda_moda_guardian},
+\code{sonda_mediana_consolidada}, \code{sonda_aproximacion}, \code{sonda_dialecto},
+\code{consulta}, \code{cardinalidad_catalogo}, \code{tipos_guardados}, \code{sonda_infinitos},
+\code{sonda_magnitud}, \code{esquema}, \code{sonda_lectura_muestra}, \code{sonda_bytes_muestra},
+\code{proteccion_fuera_de_muestra}, \code{porton_tabla} y
+\code{catalogo_bytes_muestra} se conservan aparte en
+\code{resumen_tabla$meta$consultas$sondas_fallidas} y no disparan el aviso de
+degradacion. El aviso que informa que la muestra no esta disponible conserva
+ademas la clase historica \code{lupa_muestra_dbi_no_disponible}.
+
+Cuando el catálogo estima al menos \code{1e8} filas y se pidió
+\code{universo = "tabla_completa"}, la función avisa antes de los agregados con
+la clase \code{lupa_aviso_costo_dbi} y sugiere usar
+\code{universo = "muestra_motor"}. El umbral se llama
+\code{.UMBRAL_FILAS_AVISO_AGREGADOS_DBI} y no afecta tablas menores ni la vía de
+muestra. La consulta de ese aviso es interna y no consume el presupuesto de
+\code{max_consultas}, para que el aviso no cambie qué métricas entran en la
+corrida.
 }
 \section{Dos tablas se llaman cobertura}{
 
@@ -599,6 +660,10 @@ convierte un texto sucio— la deja abortada, y hay que cerrarla con
 usa \code{TABLESAMPLE} cuando el motor lo acepta, o una función pseudoaleatoria con
 el límite del dialecto. Si ninguna forma es compatible, las métricas SQL
 quedan en \code{no_disponible}: no se sustituyen por resultados de la tabla completa.
+La estimación de bytes de SQL Server usa \code{sys.partitions} y
+\code{sys.allocation_units}, que no requieren \verb{VIEW DATABASE STATE} para una
+tabla accesible al usuario. Si el catálogo no se puede leer, esa consulta interna
+queda en la metadata sin convertirse en una falla de consulta solicitada.
 Cada registro publica \code{alcance}, \code{universo}, \code{tamano_muestra}, \code{fraccion},
 \code{metodo} y \code{error_esperado}. En \code{resumen_tabla$meta$muestreo},
 \code{tamano_muestra} conserva el nombre historico y declara el tamano efectivo
@@ -606,7 +671,12 @@ solicitado a la consulta; \code{filas_solicitadas} y \code{filas_pedidas} declar
 pedido original y \code{filas_obtenidas} las filas que devolvio el spool. La
 materializacion publica \code{muestra_id}, \code{snapshot_id}, \code{orden_id}, \code{n_filas},
 \code{bytes}, \code{checksum}, backend, version y presupuesto en
-\code{meta$materializacion}; las pasadas publican el mismo \code{muestra_id}.
+\code{meta$materializacion}; las pasadas publican el mismo \code{muestra_id}. También
+publica la estimación de bytes por fila del catálogo, los bytes medidos,
+la fracción real materializada y \code{tope_que_mando} cuando un tope recortó la
+copia. La estimación sólo fija el primer bloque: el tamaño medido gobierna
+los siguientes y la parte que entra se conserva cuando el presupuesto se
+agota.
 El contrato de \code{perfil_muestra} es campo por campo: \code{meta$filas_analizadas}
 es la cantidad efectivamente entregada a los diagnósticos; \code{hallazgos} solo
 contiene familias disponibles; y \code{cobertura_diagnosticos} tiene una fila por
@@ -642,15 +712,17 @@ si la politica de costo conserva \code{n_total}, la proyeccion, la tasa y sus
 tres umbrales; si no, la mediana queda \code{no_disponible} con
 \code{capacidad_no_aceptada:newid_costo_excede_presupuesto} aunque se silencien
 los avisos.
-Si la consulta de la muestra devuelve cero filas, no hay base para medir las
-metricas de alcance \code{muestra}: se publican con valor \code{NA}, estado
-\code{no_disponible} y el motivo estable
-\code{muestra_vacia:random_limit_sin_filas} (o el metodo efectivo equivalente).
-Esto no permite concluir que
-la columna este vacia, por lo que no se publica cero ni se dispara la
-cascada \code{sin_valores}. Una muestra no vacia sin valores validos usa
-\code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada usa
-\code{capacidad_no_aceptada:...}. \code{n} conserva el conteo de la tabla completa.
+Si \code{TABLESAMPLE} devuelve cero o menos de la mitad de las filas pedidas, se
+intenta una vez con una forma de muestreo más amplia. Si el reintento logra
+una muestra suficiente, se conservan en \code{meta$muestreo} ambos métodos y no
+se emite un aviso por la escasez transitoria. Si la muestra final sigue
+corta, se publica el aviso y las métricas de alcance quedan con el estado
+correspondiente. Un \code{random_limit} que devuelve cero conserva el motivo
+\code{muestra_vacia:random_limit_sin_filas} (o el método efectivo equivalente).
+Esto no permite concluir que la columna esté vacía, por lo que no se publica
+cero ni se dispara la cascada \code{sin_valores}. Una muestra no vacía sin valores
+válidos usa \code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada
+usa \code{capacidad_no_aceptada:...}. \code{n} conserva el conteo de la tabla completa.
 
 En una muestra, \code{error_esperado} vale \code{no_estimado} para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,
@@ -1310,6 +1382,18 @@ mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 la moda de un identificador único es un documento real. Si se pidió \code{desvio},
 la sonda de magnitud que ese cálculo necesita puede emitirse, pero su motivo
 nunca publica el valor devuelto por el motor.
+}
+
+\section{Valores de texto extensos}{
+
+En \code{muestra_motor}, las columnas de texto de PostgreSQL, SQL Server,
+MySQL y MariaDB que superan \code{max_largo_valor_vocabulario} se solicitan
+como largo en caracteres, largo en bytes y resumen MD5. El contenido
+completo se conserva solo para los valores que no superan ese umbral, por
+lo que el tamaño máximo de una fila se conoce antes de \code{dbFetch(n)}. La
+cobertura agrega \code{texto_largo_no_evaluado} para declarar los diagnósticos
+textuales que no se pudieron calcular sobre esos valores; sus faltantes,
+duplicados y longitudes siguen entrando en las métricas disponibles.
 }
 
 \section{Progreso}{

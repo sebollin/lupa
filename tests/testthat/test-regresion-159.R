@@ -22,7 +22,7 @@ testthat::skip_on_cran()
   llamadas$sql <- NA_character_
   resultado <- testthat::with_mocked_bindings(
     lupa:::.clave_primaria_dbi(conexion, "tabla", esquema = "esquema"),
-    .consultar_dbi = function(conexion, sql, presupuesto) {
+    .consultar_dbi = function(conexion, sql, presupuesto, ...) {
       llamadas$n <- llamadas$n + 1L
       llamadas$sql <- sql
       list(ok = ok, datos = datos, motivo = motivo)

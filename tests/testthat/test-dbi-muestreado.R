@@ -288,11 +288,16 @@ test_that("una muestra vacia no publica ceros ni estados de muestra observada", 
   }, add = TRUE)
   .capacidad_dbi_prueba$muestra_vacia <- TRUE
 
-  resultado <- perfilar_dbi(
-    con, "datos_corta", universo = "muestra_motor", muestra_motor = 5L,
-    muestra = 5L, estrategia_mediana = "exacta",
-    proteger_datos_personales = FALSE
+  resultado_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultado_env$resultado <- perfilar_dbi(
+      con, "datos_corta", universo = "muestra_motor", muestra_motor = 5L,
+      muestra = 5L, estrategia_mediana = "exacta",
+      proteger_datos_personales = FALSE
+    ),
+    class = "lupa_aviso_muestra_motor"
   )
+  resultado <- resultado_env$resultado
   columnas <- resultado$resumen_tabla$columnas
   registros <- resultado$resumen_tabla$sql
   alcance <- registros[registros$metrica != "n", , drop = FALSE]
@@ -358,11 +363,19 @@ test_that("el metadato publico conserva una muestra menor que el pedido", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "datos", data.frame(valor = seq_len(75L)))
 
-  resultado <- perfilar_dbi(
-    con, "datos", universo = "muestra_motor", muestra_motor = 100L,
-    muestra = 100L, estrategia_mediana = "exacta",
-    orden_muestra = "valor", proteger_datos_personales = FALSE
+  avisos <- character()
+  resultado <- withCallingHandlers(
+    perfilar_dbi(
+      con, "datos", universo = "muestra_motor", muestra_motor = 100L,
+      muestra = 100L, estrategia_mediana = "exacta",
+      orden_muestra = "valor", proteger_datos_personales = FALSE
+    ),
+    warning = function(x) {
+      avisos <<- c(avisos, conditionMessage(x))
+      invokeRestart("muffleWarning")
+    }
   )
+  expect_length(avisos, 0L)
   muestreo <- resultado$resumen_tabla$meta$muestreo
 
   expect_equal(muestreo$tamano_muestra, 75)

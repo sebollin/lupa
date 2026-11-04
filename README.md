@@ -260,12 +260,12 @@ names(en_la_base)
 #> [1] "resumen_tabla"  "perfil_muestra"
 ```
 
-| Option                                                  | SQL aggregates over          | Brings rows into R?                                    |
-| ------------------------------------------------------- | ---------------------------- | ------------------------------------------------------ |
-| Default: `universo = "tabla_completa"`, `muestra = Inf` | the whole table              | Yes: all that fit within the cell and byte caps        |
-| `muestra = n`                                           | the whole table              | Yes, up to `n`: it bounds the read, not the aggregates |
-| `universo = "muestra_motor"`, `muestra_motor = n`       | a sample taken by the engine | Yes, the rows in that sample                           |
-| `bloque_muestra = "solo_agregados"`                     | whatever `universo` says     | No: aggregates only, no row-level findings             |
+| Option                                                  | SQL aggregates over                  | Brings rows into R?                                    |
+| ------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------ |
+| Default: `universo = "tabla_completa"`, `muestra = Inf` | the whole table                      | Yes: all that fit within the cell and byte caps        |
+| `muestra = n`                                           | the whole table                      | Yes, up to `n`: it bounds the read, not the aggregates |
+| `universo = "muestra_motor"`, `muestra_motor = n`       | up to `n` rows sampled by the engine | Yes, the rows effectively materialized after the caps  |
+| `bloque_muestra = "solo_agregados"`                     | whatever `universo` says             | No: aggregates only, no row-level findings             |
 
 Without `orden_muestra`, a `muestra = n` read gets the first rows the engine
 returns, in an order SQL does not guarantee; with `orden_muestra` the read can be
@@ -283,6 +283,11 @@ in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
   - **Sample caps.** What is read into R, or sampled within R, stops at
     1,000,000 cells (`max_celdas_muestra`) and 512 MiB (`max_bytes_muestra`),
     and the cut is recorded in `cobertura()` together with the cap that triggered it ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes)).
+    In `muestra_motor`, the spool uses a conservative maximum row size before
+    each `dbFetch(n)`. Long text is requested as length and MD5 summary, so its
+    content cannot make a fetch exceed that bound; unknown types are probed one
+    row at a time. It records requested and effective rows, the measured size
+    and the real fraction before returning the profile.
   - **Cost policy.** In `perfilar_dbi()`, `politica_costo = "todas"` (the
     default) computes the mode and the median in every column; `"por_cardinalidad"` skips
     the mode where the proportion of distinct values reaches `umbral_cardinalidad` (0.5),
@@ -396,7 +401,7 @@ and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 The public API of `lupa` may change before 1.0; breaking changes are
 announced in [NEWS](https://github.com/sebollin/lupa/blob/main/NEWS.md), with a deprecation warning
 first whenever possible. The stable contracts are the declared units, the
-scope, the protection of personal data and the audit log; implementation
+scope, the audit log and, when it is requested, the protection of personal data; implementation
 details and timings may change as long as those contracts still hold.
 
 Bugs, proposals and documentation fixes go to the

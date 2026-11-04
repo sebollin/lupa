@@ -4,6 +4,21 @@
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
+.o101_perfil_aviso_opcional <- function(argumentos, espera_aviso = FALSE) {
+  ejecutar <- function() suppressMessages(do.call(perfilar_dbi, argumentos))
+  if (isTRUE(espera_aviso)) {
+    resultado_env <- new.env(parent = emptyenv())
+    expect_warning(
+      resultado_env$perfil <- ejecutar(),
+      class = "lupa_aviso_muestra_motor"
+    )
+    perfil <- resultado_env$perfil
+  } else {
+    perfil <- expect_no_warning(ejecutar())
+  }
+  perfil
+}
+
 test_that("el alcance de un agregado de segundo nivel es el de cada entidad", {
   nucleo <- metricas_nucleo()
   formato <- function(entidad, atributo) {
@@ -48,7 +63,9 @@ test_that("un NaN del motor no se publica como una cifra calculada", {
     argumentos <- list(con, "d", bloque_muestra = "solo_agregados",
                        proteger_datos_personales = FALSE)
     if (!is.null(metricas)) argumentos$metricas <- metricas
-    perfil <- suppressMessages(do.call(perfilar_dbi, argumentos))
+    perfil <- .o101_perfil_aviso_opcional(
+      argumentos, espera_aviso = is.null(metricas)
+    )
     sql <- as.data.frame(perfil$resumen_tabla$sql)
     de_nan <- sql[sql$columna == "n_nan" &
                     sql$metrica %in% c("minimo", "maximo", "media", "mediana",
@@ -70,10 +87,10 @@ test_that("la sonda de magnitud ve un texto colado en una columna numerica", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE t (v INTEGER)")
   DBI::dbExecute(con, "INSERT INTO t VALUES (1), (2), (3), (4), ('texto')")
-  perfil <- suppressMessages(perfilar_dbi(
+  perfil <- expect_no_warning(suppressMessages(perfilar_dbi(
     con, "t", metricas = c("validos", "mediana"),
     bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE
-  ))
+  )))
   sql <- as.data.frame(perfil$resumen_tabla$sql)
   # Con `MIN` la sonda devolvia 1 y la mediana se publicaba calculada sobre una
   # columna con texto.

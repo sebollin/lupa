@@ -32,6 +32,16 @@
     },
     .consultar_dbi = function(conexion, sql, presupuesto = NULL, filas = -1L,
                               etapa = "consulta") {
+      if (grepl("pg_settings", sql, fixed = TRUE)) {
+        return(list(
+          ok = TRUE,
+          datos = data.frame(
+            name = c("work_mem", "hash_mem_multiplier"),
+            setting = c("4MB", "2"), stringsAsFactors = FALSE
+          ),
+          motivo = NA_character_
+        ))
+      }
       if (grepl("^EXPLAIN", sql)) {
         json <- paste0(
           "[{\"Plan\":{\"Node Type\":\"Limit\",\"Plans\":[",

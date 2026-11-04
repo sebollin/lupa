@@ -46,10 +46,13 @@
   invisible(NULL)
 }
 
-.cobertura_texto_largo_perfil <- function(
-    resultados, nombres, max_largo, normalizacion = NULL,
-    duplicados_aproximados = FALSE) {
-  diagnosticos_afectados <- c(
+# Los diagnosticos que leen la vista con los textos largos afuera. Los usan
+# `perfilar()` y la muestra del motor, que trae esos valores como largo y
+# resumen: los dos declaran las mismas filas dependientes, y `comparar_perfiles()`
+# dice `no_evaluado` y no `resuelto` en las dos vias.
+.diagnosticos_afectados_texto_largo <- function(
+    nombres, normalizacion = NULL, duplicados_aproximados = FALSE) {
+  c(
     "patron_raro", "espacios_sobrantes", "controles_invisibles",
     "entidades_html", "separadores_en_campo",
     "mayusculas_inconsistentes",
@@ -63,6 +66,31 @@
     } else if (is.list(duplicados_aproximados)) {
       c("duplicados_aproximados", "duplicados_exactos_normalizados")
     } else character()
+  )
+}
+
+.filas_dependientes_texto_largo <- function(columna, diagnosticos) {
+  lapply(diagnosticos, function(diagnostico) {
+    .nuevo_diagnostico_no_evaluado(
+      diagnostico, columna,
+      paste0(
+        "No se evaluo `", diagnostico,
+        "` sobre los valores que superan el tope de texto largo."
+      ),
+      paste0(
+        "Subir `max_largo_valor_vocabulario` si `", diagnostico,
+        "` debe incluir esos valores, o usar `Inf` explicitamente."
+      ),
+      dependencia = "texto_largo_no_evaluado", columnas = columna
+    )
+  })
+}
+
+.cobertura_texto_largo_perfil <- function(
+    resultados, nombres, max_largo, normalizacion = NULL,
+    duplicados_aproximados = FALSE) {
+  diagnosticos_afectados <- .diagnosticos_afectados_texto_largo(
+    nombres, normalizacion, duplicados_aproximados
   )
   filas <- lapply(seq_along(resultados), function(i) {
     largo <- resultados[[i]]$texto_largo
@@ -81,21 +109,9 @@
         " en los diagnosticos textuales, o usar `Inf` explicitamente."
       ), columnas = nombres[[i]]
     )
-    dependientes <- lapply(diagnosticos_afectados, function(diagnostico) {
-      .nuevo_diagnostico_no_evaluado(
-        diagnostico, nombres[[i]],
-        paste0(
-          "No se evaluo `", diagnostico,
-          "` sobre los valores que superan el tope de texto largo."
-        ),
-        paste0(
-          "Subir `max_largo_valor_vocabulario` si `", diagnostico,
-          "` debe incluir esos valores, o usar `Inf` explicitamente."
-        ),
-        dependencia = "texto_largo_no_evaluado", columnas = nombres[[i]]
-      )
-    })
-    c(list(base), dependientes)
+    c(list(base), .filas_dependientes_texto_largo(
+      nombres[[i]], diagnosticos_afectados
+    ))
   })
   filas <- unlist(filas[!vapply(filas, is.null, logical(1L))], recursive = FALSE)
   if (!length(filas)) return(.cobertura_diagnosticos_vacia())

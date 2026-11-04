@@ -2,6 +2,10 @@
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
+.r154_perfil_con_aviso <- function(...) {
+  expect_no_warning(perfilar_dbi(...))
+}
+
 skip_if_not_installed("DBI")
 skip_if_not_installed("RSQLite")
 
@@ -293,7 +297,7 @@ test_that("la capacidad consolidada usa un SELECT de PERCENTILE_CONT y SQLite ca
   expect_length(lupa:::.candidatos_mediana_consolidada_dbi(sqlite), 0L)
 
   DBI::dbWriteTable(conexion, "tabla154", .r154_datos())
-  resultado <- perfilar_dbi(
+  resultado <- .r154_perfil_con_aviso(
     conexion, "tabla154", universo = "tabla_completa",
     estrategia_mediana = "exacta", metricas = "mediana",
     bloque_muestra = "solo_agregados", instrumentar = FALSE,
@@ -338,7 +342,7 @@ test_that("la estrategia aproximada publica el metodo exacto que efectivamente c
   }
   DBI::dbWriteTable(conexion, "tabla154_aprox", .r154_datos())
 
-  resultado <- perfilar_dbi(
+  resultado <- .r154_perfil_con_aviso(
     conexion, "tabla154_aprox", universo = "tabla_completa",
     estrategia_mediana = "aproximada_motor", metricas = "mediana",
     bloque_muestra = "solo_agregados", instrumentar = FALSE,

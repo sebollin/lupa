@@ -2,6 +2,15 @@
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
+.o176_perfil_con_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultado_env$resultado <- lupa::perfilar_dbi(...),
+    class = "lupa_aviso_muestra_motor"
+  )
+  resultado_env$resultado
+}
+
 skip_if_not_installed("DBI")
 
 .o176_pg <- function() {
@@ -142,7 +151,7 @@ test_that("SQL Server ordena una vista por la columna cruda y conserva el par", 
   .o176_exec(con, paste0(
     "CREATE VIEW ", vista, " AS SELECT id, c, CAST(codigo AS int) AS bad, k FROM ", tabla
   ))
-  perfil <- lupa::perfilar_dbi(
+  perfil <- .o176_perfil_con_aviso(
     con, vista, muestra = 2, orden_muestra = "c",
     proteger_datos_personales = FALSE
   )
@@ -172,7 +181,7 @@ test_that("muestra_motor no publica el perfil aislado como resumen", {
   .o176_exec(con, paste0(
     "CREATE VIEW ", vista, " AS SELECT id, c, CAST(codigo AS int) AS bad FROM ", tabla
   ))
-  perfil <- lupa::perfilar_dbi(
+  perfil <- .o176_perfil_con_aviso(
     con, vista, universo = "muestra_motor", muestra_motor = 4,
     muestra = 2, proteger_datos_personales = FALSE
   )

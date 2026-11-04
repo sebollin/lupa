@@ -298,13 +298,17 @@ test_that("un motor que rechaza LIMIT en la muestra no se lleva el resumen", {
   bases <- .conexion_juguete(modo = "sin_limite_final")
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
-  resultado <- NULL
-  expect_warning(
-    resultado <- .perfilar_juguete(
+  avisos <- character()
+  resultado <- withCallingHandlers(
+    .perfilar_juguete(
       bases$juguete, muestra = 5L, orden_muestra = "id"
     ),
-    class = "lupa_muestra_dbi_no_disponible"
+    warning = function(w) {
+      avisos <<- c(avisos, class(w)[[1L]])
+      invokeRestart("muffleWarning")
+    }
   )
+  expect_true("lupa_aviso_muestra_motor" %in% avisos)
   expect_s3_class(resultado, "perfil_dbi")
   # El resumen completo se devuelve: es lo que ya estaba medido.
   expect_equal(nrow(resultado$resumen_tabla$columnas), 3L)
@@ -506,13 +510,17 @@ test_that("lo que no entra en el presupuesto se declara, y nunca queda en cero",
   # agota antes de leer la muestra, el paquete lo dice. Declararlo con
   # `expect_warning()` lo convierte de ruido en comprobacion, y ademas fija que
   # el aviso siga apareciendo si alguien toca ese camino.
-  expect_warning(
-    resultado <- .perfilar_juguete(
+  avisos <- character()
+  resultado <- withCallingHandlers(
+    .perfilar_juguete(
       bases$juguete, muestra = 5L, orden_muestra = "id", max_consultas = 8
     ),
-    "no se pudo leer la muestra|presupuesto",
-    ignore.case = TRUE
+    warning = function(w) {
+      avisos <<- c(avisos, class(w)[[1L]])
+      invokeRestart("muffleWarning")
+    }
   )
+  expect_true("lupa_aviso_muestra_motor" %in% avisos)
   expect_lte(resultado$resumen_tabla$meta$consultas$emitidas, 8)
   expect_true(resultado$resumen_tabla$meta$consultas$agotado)
   registros <- resultado$resumen_tabla$sql

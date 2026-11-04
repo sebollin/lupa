@@ -97,6 +97,36 @@ setMethod(
   )
 }
 
+.r153_perfil_con_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultado_env$resultado <- .r153_perfil(...),
+    class = "lupa_aviso_muestra_motor"
+  )
+  resultado_env$resultado
+}
+
+.r153_perfil_sin_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_silent(resultado_env$resultado <- .r153_perfil(...))
+  resultado_env$resultado
+}
+
+.r153_directo_con_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_warning(
+    resultado_env$resultado <- perfilar_dbi(...),
+    class = "lupa_aviso_muestra_motor"
+  )
+  resultado_env$resultado
+}
+
+.r153_directo_sin_aviso <- function(...) {
+  resultado_env <- new.env(parent = emptyenv())
+  expect_silent(resultado_env$resultado <- perfilar_dbi(...))
+  resultado_env$resultado
+}
+
 test_that("la fusion conserva la salida en los cinco casos con y sin ausentes", {
   casos <- list(
     con_ausentes = data.frame(
@@ -116,13 +146,18 @@ test_that("la fusion conserva la salida en los cinco casos con y sin ausentes", 
     unitaria <- .conexion_r153(casos[[nombre]])
     conexiones <- c(conexiones, list(fusionada, unitaria))
     for (caso in casos_api) {
-      nuevo <- .r153_perfil(fusionada$conexion, 4L, caso)
-      referencia <- .r153_perfil(unitaria$conexion, 1L, caso)
       if (identical(caso, "muestreado")) {
-        # La selección única vive en un spool de sesión, pero el motor no
+        nuevo <- .r153_perfil_sin_aviso(fusionada$conexion, 4L, caso)
+        referencia <- .r153_perfil_sin_aviso(unitaria$conexion, 1L, caso)
+      } else {
+        nuevo <- .r153_perfil(fusionada$conexion, 4L, caso)
+        referencia <- .r153_perfil(unitaria$conexion, 1L, caso)
+      }
+      if (identical(caso, "muestreado")) {
+        # La seleccion unica vive en un spool de sesion, pero el motor no
         # demuestra que el orden de una muestra aleatoria sea reproducible.
         # Dos corridas pueden diferir en checksum, ejemplos y valores vistos;
-        # la comparación válida es la forma y el estado del contrato.
+        # la comparacion valida es la forma y el estado del contrato.
         expect_equal(
           names(nuevo$resumen_tabla$columnas),
           names(referencia$resumen_tabla$columnas),
@@ -288,7 +323,7 @@ test_that("el repliegue conserva un denominador exacto si falla el lote", {
   )
   conexion <- .conexion_r153(datos, modo = "falla_lote")
   on.exit(.cerrar_r153(conexion), add = TRUE)
-  resultado <- perfilar_dbi(
+  resultado <- .r153_directo_sin_aviso(
     conexion$conexion, "tabla_prueba", universo = "tabla_completa",
     metricas = "validos", estrategia_mediana = "exacta", muestra = 4L,
     bloque_muestra = "solo_agregados", tamano_lote = 2L,
@@ -309,9 +344,10 @@ test_that("el repliegue conserva un denominador exacto si falla el lote", {
   ) == 1L
   expect_equal(sum(solo_conteos), 1L)
   expect_true(any(grepl("lupa_l", .r153_estado$sql, fixed = TRUE)))
+  expect_equal(nrow(resultado$resumen_tabla$meta$consultas$fallas), 0L)
 })
 
-test_that("el identificador sólo reúne métricas de una misma consulta", {
+test_that("el identificador solo reune metricas de una misma consulta", {
   datos <- data.frame(
     id = 1:12, valor = seq_len(12), extra = seq_len(12) * 2,
     texto = rep(c("a", "b"), 6L),

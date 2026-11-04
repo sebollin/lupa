@@ -2,6 +2,14 @@
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
+.o172_perfil_sin_aviso <- function(...) {
+  expect_no_warning(suppressMessages(perfilar_dbi(...)))
+}
+
+.o172_coleccion_sin_aviso <- function(...) {
+  expect_no_warning(perfilar_coleccion(...))
+}
+
 test_that("float8 exacto en PostgreSQL 9.3 y 16", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RPostgres")
@@ -82,24 +90,24 @@ test_that("float8 exacto en PostgreSQL 9.3 y 16", {
       "::double precision), (3, 0.1::double precision), (4, 5e-324::double precision)"
     ))
 
-    completo <- suppressMessages(perfilar_dbi(
+    completo <- .o172_perfil_sin_aviso(
       conexion, tabla, bloque_muestra = "solo_agregados", max_consultas = Inf,
       proteger = FALSE
-    ))
-    muestra <- suppressMessages(perfilar_dbi(
+    )
+    muestra <- .o172_perfil_sin_aviso(
       conexion, tabla, universo = "muestra_motor", muestra_motor = 200,
       muestra = 200, orden_muestra = "id", sentinelas_numericos = -99.9,
       max_consultas = Inf, proteger = FALSE
-    ))
-    bloques <- suppressMessages(perfilar_dbi(
+    )
+    bloques <- .o172_perfil_sin_aviso(
       conexion, tabla, bloque_filas = 17, sentinelas_numericos = -99.9,
       max_consultas = Inf, proteger = FALSE
-    ))
-    solo_agregados <- suppressMessages(perfilar_dbi(
+    )
+    solo_agregados <- .o172_perfil_sin_aviso(
       conexion, tabla, universo = "muestra_motor", muestra_motor = 200,
       orden = "id", bloque_muestra = "solo_agregados",
       sentinelas_numericos = -99.9, max_consultas = Inf, proteger = FALSE
-    ))
+    )
     perfiles <- list(completo, muestra, bloques, solo_agregados)
     for (perfil in perfiles) {
       sin_sintaxis(perfil$resumen_tabla)
@@ -123,10 +131,10 @@ test_that("float8 exacto en PostgreSQL 9.3 y 16", {
       ignore.case = TRUE
     )))
 
-    extremos_perfil <- suppressMessages(perfilar_dbi(
+    extremos_perfil <- .o172_perfil_sin_aviso(
       conexion, extremos, bloque_muestra = "solo_agregados",
       max_consultas = Inf, proteger = FALSE
-    ))
+    )
     extremos_columna <- columna(extremos_perfil, "f8")
     expect_equal(extremos_columna$minimo, -.Machine$double.xmax)
     expect_equal(extremos_columna$maximo, .Machine$double.xmax)
@@ -139,7 +147,7 @@ test_that("float8 exacto en PostgreSQL 9.3 y 16", {
       pares <- data.frame(tabla_1 = referencia, tabla_2 = tabla,
                           stringsAsFactors = FALSE)
       relaciones <- relaciones_coleccion(col, pares, muestra = Inf)
-      coleccion_perfiles <- perfilar_coleccion(
+      coleccion_perfiles <- .o172_coleccion_sin_aviso(
         col, muestra = 20, conservar_perfiles = TRUE,
         bloque_muestra = "solo_agregados"
       )

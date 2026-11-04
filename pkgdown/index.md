@@ -257,12 +257,12 @@ names(en_la_base)
 #> [1] "resumen_tabla"  "perfil_muestra"
 ```
 
-| Opción                                                      | Agregados SQL sobre           | ¿Trae filas a R?                                           |
-| ----------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------- |
-| Por omisión: `universo = "tabla_completa"`, `muestra = Inf` | toda la tabla                 | Sí: todas las que entran en los topes de celdas y de bytes |
-| `muestra = n`                                               | toda la tabla                 | Sí, hasta `n`: acota la lectura, no los agregados          |
-| `universo = "muestra_motor"`, `muestra_motor = n`           | una muestra que toma el motor | Sí, las de esa muestra                                     |
-| `bloque_muestra = "solo_agregados"`                         | lo que diga `universo`        | No: sólo agregados, sin hallazgos por fila                 |
+| Opción                                                      | Agregados SQL sobre                      | ¿Trae filas a R?                                           |
+| ----------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| Por omisión: `universo = "tabla_completa"`, `muestra = Inf` | toda la tabla                            | Sí: todas las que entran en los topes de celdas y de bytes |
+| `muestra = n`                                               | toda la tabla                            | Sí, hasta `n`: acota la lectura, no los agregados          |
+| `universo = "muestra_motor"`, `muestra_motor = n`           | hasta `n` filas muestreadas por el motor | Sí, las que se materializan después de los topes           |
+| `bloque_muestra = "solo_agregados"`                         | lo que diga `universo`                   | No: sólo agregados, sin hallazgos por fila                 |
 
 Sin `orden_muestra`, la lectura de `muestra = n` son las primeras filas que
 entrega el motor, en un orden que SQL no garantiza; con `orden_muestra` se puede
@@ -279,6 +279,11 @@ en [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
   - **Topes de muestra.** Lo que se trae o se muestrea en R se corta en
     1.000.000 celdas (`max_celdas_muestra`) y 512 MiB (`max_bytes_muestra`),
     y el recorte queda en `cobertura()` con el tope que mandó ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes)).
+    En `muestra_motor`, el spool usa un tamaño máximo de fila conservador antes de
+    cada `dbFetch(n)`. El texto largo se pide como largo y resumen MD5, así que su
+    contenido no puede hacer que una lectura pase esa cota; los tipos sin cota
+    conocida se sondean de a una fila. Registra las filas pedidas y efectivas, el
+    tamaño medido y la fracción real antes de devolver el perfil.
   - **Política de costo.** En `perfilar_dbi()`, `politica_costo = "todas"` (por
     omisión) mide moda y mediana en todas las columnas; `"por_cardinalidad"` omite
     la moda donde la proporción de distintos llega a `umbral_cardinalidad` (0,5),
@@ -391,7 +396,7 @@ e [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 La API pública de `lupa` puede cambiar antes de la 1.0; los cambios
 incompatibles se anuncian en [NEWS](news/index.html), con una advertencia
 previa siempre que se pueda. Los contratos estables son las unidades declaradas,
-el alcance, la protección de datos personales y el registro de auditoría; los
+el alcance, el registro de auditoría y, cuando se pide, la protección de datos personales; los
 detalles de implementación y los tiempos pueden cambiar mientras esos contratos
 sigan siendo ciertos.
 
