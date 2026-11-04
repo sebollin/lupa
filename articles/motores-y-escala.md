@@ -433,7 +433,8 @@ la tabla por bloques de `n` filas desde un único result set
 cobertura se lee en `meta$bloques$filas_vistas`; `perfil_muestra` sigue
 siendo la muestra diagnóstica acotada por `muestra` y los topes. Los
 controladores sin retención incremental demostrada —DuckDB entre ellos—
-quedan `no_disponible` con su motivo.
+quedan `no_disponible` con su motivo y un aviso
+`lupa_aviso_muestra_motor`.
 
 ``` r
 

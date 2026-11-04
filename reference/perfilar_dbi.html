@@ -422,8 +422,8 @@ tope. No modifica los agregados SQL.</p></dd>
 de liberar la entrada; <code>NULL</code> conserva la via existente. El resultado
 publica <code>meta$alcance$orden</code>, <code>meta$bloques</code>, <code>meta$bytes</code> y los eventos del
 vigilante. Los drivers sin retencion incremental demostrada (incluido
-DuckDB en esta matriz) quedan <code>no_disponible</code> con su motivo, sin caer en
-<code>dbGetQuery()</code>. Si se pide <code>moda</code> o <code>mediana</code>, la lectura por bloques inicia tambien el mapa
+DuckDB en esta matriz) quedan <code>no_disponible</code> con su motivo y un aviso
+<code>lupa_aviso_muestra_motor</code>, sin caer en <code>dbGetQuery()</code>. Si se pide <code>moda</code> o <code>mediana</code>, la lectura por bloques inicia tambien el mapa
 central de distintos aunque <code>n_distintos</code> no se haya pedido: la mediana
 depende de ese mapa y la fila <code>n_distintos</code> conserva <code>no_solicitado</code>.
 Las columnas binarias compatibles se solicitan en la misma forma que la

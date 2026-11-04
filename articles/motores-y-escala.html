@@ -845,8 +845,8 @@ sin retener todas las filas. La cobertura se lee en
 <code>meta$bloques$filas_vistas</code>; <code>perfil_muestra</code>
 sigue siendo la muestra diagnóstica acotada por <code>muestra</code> y
 los topes. Los controladores sin retención incremental demostrada
-—DuckDB entre ellos— quedan <code>no_disponible</code> con su
-motivo.</p>
+—DuckDB entre ellos— quedan <code>no_disponible</code> con su motivo y
+un aviso <code>lupa_aviso_muestra_motor</code>.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">por_bloques</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tramites"</span>, bloque_filas <span class="op">=</span> <span class="fl">500</span>, muestra <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
 <span><span class="va">por_bloques</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">bloques</span><span class="op">$</span><span class="va">filas_vistas</span></span>

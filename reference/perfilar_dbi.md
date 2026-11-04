@@ -360,17 +360,17 @@ perfilar_dbi(
   `NULL` conserva la via existente. El resultado publica
   `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y los eventos del
   vigilante. Los drivers sin retencion incremental demostrada (incluido
-  DuckDB en esta matriz) quedan `no_disponible` con su motivo, sin caer
-  en `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por
-  bloques inicia tambien el mapa central de distintos aunque
-  `n_distintos` no se haya pedido: la mediana depende de ese mapa y la
-  fila `n_distintos` conserva `no_solicitado`. Las columnas binarias
-  compatibles se solicitan en la misma forma que la muestra,
-  `largo:md5`, para que R no materialice los bytes crudos; los largos
-  que se publican se reconstruyen desde el prefijo y son los largos
-  originales, no el largo de esa cadena. Bajo `bloque_filas`,
-  `perfil_muestra` sigue siendo la muestra diagnóstica acotada por
-  `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; su
+  DuckDB en esta matriz) quedan `no_disponible` con su motivo y un aviso
+  `lupa_aviso_muestra_motor`, sin caer en `dbGetQuery()`. Si se pide
+  `moda` o `mediana`, la lectura por bloques inicia tambien el mapa
+  central de distintos aunque `n_distintos` no se haya pedido: la
+  mediana depende de ese mapa y la fila `n_distintos` conserva
+  `no_solicitado`. Las columnas binarias compatibles se solicitan en la
+  misma forma que la muestra, `largo:md5`, para que R no materialice los
+  bytes crudos; los largos que se publican se reconstruyen desde el
+  prefijo y son los largos originales, no el largo de esa cadena. Bajo
+  `bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
+  acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; su
   `general$filas` no es la cobertura, que se publica en
   `meta$bloques$filas_vistas`. Si el recorrido por bloques no puede leer
   una columna de una vista, se vuelve a leer la muestra diagnóstica por
