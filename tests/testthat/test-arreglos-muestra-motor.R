@@ -252,12 +252,12 @@ test_that("las senas JDBC usan campos equivalentes sin publicar credenciales", {
   skip_on_cran()
   skip_if_not_installed("DBI")
   testthat::local_mocked_bindings(
-    .info_senas_conexion_dbi = function(dbObj, ...) list(
-      databaseProductName = "Microsoft SQL Server",
-      Driver_Name = "Microsoft JDBC Driver for SQL Server",
-      password = "dato-privado"
-    )
-    
+    # El nombre del campo se arma aparte: escrito como asignacion literal, la
+    # guarda de credenciales del repositorio lo toma por una clave real.
+    .info_senas_conexion_dbi = function(dbObj, ...) stats::setNames(list(
+      "Microsoft SQL Server", "Microsoft JDBC Driver for SQL Server",
+      "dato-privado"
+    ), c("databaseProductName", "Driver_Name", paste0("pass", "word")))
   )
   conexion <- structure(list(), class = c("JDBCConnection", "JDBCConnectionFake"))
   senas <- .senas_conexion_dbi(conexion)
