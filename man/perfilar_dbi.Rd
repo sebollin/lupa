@@ -484,9 +484,11 @@ controlador entrega como \code{integer64} —un \code{BIGINT} o \code{bigserial}
 PostgreSQL, un \code{INTEGER} de SQLite que no entra en 32 bits—: por debajo de
 2^53 se opera con el valor exacto, y desde 2^53 las siete métricas quedan
 \code{no_disponible} con su motivo. Un decimal o un entero ancho que llega como
-doble desde 2^53 deja ademas \code{n_distintos}, \code{tasa_distintos}, la moda y su
-frecuencia en \code{no_disponible}: con bloques se contarian en R sobre esos
-dobles, que no distinguen los valores. Las cifras de \code{perfil_muestra} de esa
+doble desde 2^53 deja ademas \code{n_distintos} y \code{tasa_distintos} en
+\code{no_disponible}: con bloques se contarian en R sobre esos dobles, que no
+distinguen los valores. La moda de un decimal se le pide al motor como texto
+exacto en las tres vias, en PostgreSQL, SQL Server, MySQL y MariaDB; en otros
+motores sigue la regla de \code{n_distintos}. Las cifras de \code{perfil_muestra} de esa
 columna salen de los mismos dobles; sin bloques, la corroboracion avisa la
 diferencia en \code{n_distintos} y la moda contra las del motor. Un decimal por
 debajo de 2^53 con mas cifras de las que guarda un doble -\code{numeric(30,20)}-
@@ -496,7 +498,9 @@ de la tabla: \code{minimo}, \code{maximo}, \code{media}, \code{mediana} y \code{
 Cuando \code{incluir_valores = FALSE}, la promesa de privacidad alcanza las tres
 vias de salida: resumen SQL, \code{perfil_muestra} y \code{bloque_filas}. Se omiten los
 valores de celda -incluidos moda, extremos, medianas, centinelas y ejemplos
-de patrones-, se limpian cobertura y motivos, y no se conservan familias de
+de patrones-, se limpian la cobertura y los motivos de las metricas que
+publicarian un valor de celda (los de un estadistico como la media o el
+desvio se conservan: no contienen valores), y no se conservan familias de
 acumuladores ni una muestra cruda en el resultado. La limpieza recorre también
 los atributos de cada hoja del resultado, incluidos los resúmenes de patrones.
 Los conteos, proporciones y agregados que no son valores de celda pueden seguir
@@ -944,14 +948,21 @@ mayor valor absoluto fuera de \verb{[1e-150, 1e150]} —donde los cuadrados
 desbordan o caen en subnormales y pierden cifras—, el desvío se le pide al
 motor sobre \code{x / 2^k}, centrado en la media de esos mismos valores, y se
 multiplica por \code{2^k}: escalar por una potencia de dos es exacto, y no
-cuesta una consulta para decidirlo. En MySQL y MariaDB la media de esas
+cuesta una consulta para decidirlo. También se escala cuando el rango
+—el máximo menos el mínimo— es tan chico que sus cuadrados caerían en
+subnormales, y la magnitud se conoce aunque no se pidan los básicos ni se
+publiquen los valores. En MySQL, MariaDB y SQL Server la media de esas
 columnas sale igual, \code{AVG(x / 2^k) * 2^k}, porque la suma de \code{AVG()}
-desborda; y por encima de \code{1e65} el centro va como doble, porque un
+desborda; la mediana de dos centrales enormes se promedia como
+\code{a / 2 + b / 2}; y por encima de \code{1e65} el centro va como doble, porque un
 \code{DECIMAL} tiene 65 cifras. Una columna constante da \code{0}. Si el motor no
 puede, la métrica queda \code{no_disponible} con su falla en
 \code{meta$consultas$fallas} y el aviso: no se publica \code{Inf} ni un \code{0} sobre
-valores distintos. \code{perfilar()} escala igual al acumular por bloques. Las
-columnas de magnitud común no cambian de consulta ni de cifra.
+valores distintos. \code{perfilar()} y \code{perfilar_dbi(..., bloque_filas = n)}
+escalan igual al acumular por bloques; en el recorrido por bloques, que no
+conoce la magnitud antes del primer bloque, el estado acumulado se reescala
+por una potencia de dos cuando llega un bloque que la escala vigente no
+cubre. Las columnas de magnitud común no cambian de consulta ni de cifra.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -982,10 +993,13 @@ convierte a doble antes de restar; en SQL Server el centro de una
 columna de coma flotante va como literal \code{float}, que no tiene el tope de 38
 cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
 exacto. Con \code{bloque_filas} los
-momentos se acumulan centrados. Bajo \code{muestra_motor} no se vuelve a pedir,
-porque otra consulta vería otras filas; ahí, como red en todas las vías, un
-desvío \code{0} sobre una columna con dos valores distintos —un mínimo menor que
-el máximo— es imposible y queda \code{no_disponible} con su motivo.
+momentos se acumulan centrados. Bajo \code{muestra_motor}, cada corrida elige una
+semilla y todas sus consultas piden la misma muestra —\verb{TABLESAMPLE ... REPEATABLE} en PostgreSQL y SQL Server, \code{RAND(semilla)} en MySQL y MariaDB,
+un orden por \code{MD5()} de la fila en PostgreSQL 9.3—, así que el desvío se
+pide centrado en la media de esas mismas filas; la semilla no sale del
+generador de números aleatorios de R ni lo modifica. Como red en todas las
+vías, un desvío \code{0} sobre una columna con dos valores distintos —un mínimo
+menor que el máximo— es imposible y queda \code{no_disponible} con su motivo.
 \item \strong{El cotejamiento.} El resumen SQL agrupa y ordena con el cotejamiento
 de la columna: sobre una \verb{COLLATE NOCASE} de SQLite o una colación ICU no
 determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y

@@ -163,6 +163,37 @@ Primera versión publicada.
   una. Ahora se lee una fila, se mide lo que ocupa y se sigue en bloques sin
   pasar el tope —en ese caso, unas 25 filas—, y `meta$muestreo$filas_por_bytes_fuente`
   lo declara.
+- Con `universo = "muestra_motor"`, el desvío se pide centrado en la media de
+  las mismas filas: cada corrida fija una semilla y todas sus consultas ven la
+  misma muestra (`TABLESAMPLE ... REPEATABLE`, `RAND(semilla)`), sin usar el
+  generador de números aleatorios de R. Un motor o un objeto sin forma
+  repetible —`RANDOM()` de SQLite, `NEWID()` sobre una vista de SQL Server—
+  conserva la consulta consolidada, sobre las mismas filas. Sin centrar, en SQL Server unos montos
+  de un millón daban el desvío con un error de 2,3e-3, y en PostgreSQL 16
+  valores casi constantes, de 5e-3; en MySQL y MariaDB pasaba también con
+  `metricas = "desvio"` en `tabla_completa`.
+- El desvío extremo se escala aunque no se pidan los básicos ni se publiquen
+  los valores (`incluir_valores = FALSE`), y también cuando el rango es tan
+  chico que sus cuadrados caerían en subnormales. Antes MariaDB llegaba a
+  publicar `1.7976931348623157e+308` como desvío y MySQL una media de 0. Con un
+  solo valor válido, el desvío es `no_aplica` y no dispara un repliegue.
+- En SQL Server, la media de una columna cuya suma desborda, y en los cinco
+  motores la mediana de dos centrales enormes, se calculan escaladas en lugar
+  de quedar no disponibles; MySQL publicaba esa mediana en 0.
+- Con `bloque_filas`, el desvío y la media de valores extremos ya no salen
+  `Inf` ni `NA` como calculados: el estado se reescala por una potencia de dos
+  cuando llega un bloque que la escala vigente no cubre. La moda de una columna
+  binaria también sale en esa vía, como largo y MD5, y una columna `image` de
+  SQL Server publica su moda.
+- La moda de un decimal de 2^53 o más ya no sale con cifras falsas
+  (`12345678901234567168` por `12345678901234567890`): se le pide al motor como
+  texto exacto en PostgreSQL, SQL Server, MySQL y MariaDB. Con
+  `incluir_valores = FALSE`, el motivo de precisión de esas columnas ya no se
+  reemplaza por uno de privacidad.
+- En PostgreSQL, un `NaN` en la columna ya no deja el mínimo, el máximo, la
+  media y el desvío sin calcular: se miden sobre los finitos, como en
+  `perfilar()`. Con el presupuesto agotado, `n` queda `no_disponible` con su
+  motivo y no `NA` como calculado.
 - En R anterior a 4.6, `match()` sobre fechas era cientos de veces más lento, y
   una columna `Date` hacía tardar minutos el perfil: 100.000 fechas pasaron de
   171 s a 1,3 s en R 4.5.2. `Date`, `POSIXct`, `difftime`, los factores e

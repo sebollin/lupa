@@ -380,7 +380,7 @@ test_that("MySQL y MariaDB escalan media y desvio en los extremos", {
       e100 = 1e100 + runif(100L) * 1e88,
       borde149 = 1e149 + runif(40L) * 1e138
     )
-    tablas <- paste0("adv_extremos_", sufijo, "_", names(casos))
+    tablas <- paste0("a59_extremos_", sufijo, "_", names(casos))
     on.exit({
       for (tabla in tablas) {
         try(DBI::dbExecute(conexion, paste0("DROP TABLE IF EXISTS ", tabla)),
@@ -414,8 +414,18 @@ test_that("MySQL y MariaDB escalan media y desvio en los extremos", {
       ]
       esperado_media <- .adv_media_referencia_mysql(guardado$x)
       esperado_desvio <- .adv_sd_referencia_mysql(guardado$x)
+      ordenados <- sort(guardado$x)
+      esperado_mediana <- if (length(ordenados) %% 2L) {
+        ordenados[(length(ordenados) + 1L) / 2L]
+      } else {
+        ordenados[length(ordenados) / 2L] / 2 +
+          ordenados[length(ordenados) / 2L + 1L] / 2
+      }
       expect_equal(length(avisos), 0L, info = tabla)
       expect_equal(as.numeric(fila$media), esperado_media,
+                   tolerance = 1e-12,
+                   info = tabla)
+      expect_equal(as.numeric(fila$mediana), esperado_mediana,
                    tolerance = 1e-12,
                    info = tabla)
       expect_equal(as.numeric(fila$desvio), esperado_desvio,
@@ -460,4 +470,276 @@ test_that("la mediana de un DECIMAL se promedia exacta y llega como doble", {
   }
   .adec_mediana(FALSE)
   .adec_mediana(TRUE)
+})
+
+test_that("MySQL y MariaDB resuelven bloques extremos y modas exactas", {
+  skip_on_cran()
+  .abq_probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    sufijo <- if (maria) "maria" else "mysql"
+    tabla <- paste0("abq_bloques_", sufijo)
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+          silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    DBI::dbExecute(con, paste0(
+      "CREATE TABLE ", tabla,
+      " (id INT, x DOUBLE, d DECIMAL(38,0), b LONGBLOB)"
+    ))
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", tabla,
+      " VALUES (1,1e200,'12345678901234567890',UNHEX('')),",
+      "(2,2e200,'12345678901234567890',UNHEX('')),",
+      "(3,3e200,'7',UNHEX('00'))"
+    ))
+    por_bloques <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, bloque_filas = 1L,
+      metricas = c("basicos", "desvio", "moda"),
+      incluir_valores = TRUE, proteger_datos_personales = FALSE
+    )))
+    columnas <- por_bloques$resumen_tabla$columnas
+    fila_x <- columnas[columnas$columna == "x", , drop = FALSE]
+    expect_identical(fila_x$media, 2e200)
+    expect_identical(fila_x$desvio, 1e200)
+    fila_d <- columnas[columnas$columna == "d", , drop = FALSE]
+    expect_identical(fila_d$moda, "12345678901234567890")
+    expect_equal(fila_d$frecuencia_moda, 2)
+    fila_b <- columnas[columnas$columna == "b", , drop = FALSE]
+    expect_identical(fila_b$moda, "0:d41d8cd98f00b204e9800998ecf8427e")
+    expect_equal(fila_b$frecuencia_moda, 2)
+    estados <- por_bloques$resumen_tabla$sql
+    estados <- estados[estados$columna == "x" &
+                         estados$metrica %in% c("media", "desvio"), ,
+                       drop = FALSE]
+    expect_true(all(estados$estado == "calculado"))
+  }
+  .abq_probar(FALSE)
+  .abq_probar(TRUE)
+})
+
+test_that("MySQL y MariaDB guardan el motivo de precision decimal", {
+  skip_on_cran()
+  .abq_probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    sufijo <- if (maria) "maria" else "mysql"
+    tabla <- paste0("abq_guardas_", sufijo)
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+          silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    DBI::dbExecute(con, paste0(
+      "CREATE TABLE ", tabla,
+      " (ancho DECIMAL(38,0), borde DECIMAL(22,2))"
+    ))
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", tabla,
+      " VALUES ('9007199254740992','9007199254740991.99'),",
+      "('9007199254740993','1.00')"
+    ))
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, metricas = c("basicos", "desvio"),
+      incluir_valores = FALSE, proteger_datos_personales = FALSE
+    )))
+    sql <- resultado$resumen_tabla$sql
+    for (campo in c("ancho", "borde")) {
+      filas <- sql[sql$columna == campo &
+                     sql$metrica %in% c("media", "desvio"), , drop = FALSE]
+      expect_true(all(filas$estado == "no_disponible"), info = campo)
+      expect_true(all(grepl(
+        "decimal entregado como doble", filas$motivo, fixed = TRUE
+      )), info = campo)
+      expect_false(any(grepl(
+        "incluir_valores", filas$motivo, fixed = TRUE
+      )), info = campo)
+    }
+  }
+  .abq_probar(FALSE)
+  .abq_probar(TRUE)
+})
+
+test_that("MySQL y MariaDB centran el desvio de la muestra", {
+  skip_on_cran()
+  exactos <- c(
+    e6_m8 = 2.8324886649005893e-9,
+    epoch_hora = 964.2306713548253,
+    e6_u = 0.27123367509526173
+  )
+  .acn_probar <- function(maria = FALSE) {
+    con <- .arrm_conexion_mysql(maria = maria)
+    motor <- if (maria) "maria" else "mysql"
+    casos <- local({
+      set.seed(7)
+      list(
+        e6_m8 = 1e6 + runif(100L) * 1e-8,
+        epoch_hora = 1.7e9 + runif(100L) * 3600,
+        e6_u = 1e6 + runif(100L)
+      )
+    })
+    tablas <- c(
+      paste0("acn_muestra_", motor), paste0("acn_completa_", motor)
+    )
+    on.exit({
+      for (tabla in tablas) {
+        try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+            silent = TRUE)
+      }
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    for (nombre in names(casos)) {
+      tabla <- paste0("acn_muestra_", motor, "_", nombre)
+      tablas <- c(tablas, tabla)
+      DBI::dbExecute(con, paste0("CREATE TABLE ", tabla,
+                                 " (id INT, x DOUBLE)"))
+      valores <- paste0(
+        "(", seq_along(casos[[nombre]]), ",",
+        sprintf("%.17g", casos[[nombre]]), ")"
+      )
+      DBI::dbExecute(con, paste0(
+        "INSERT INTO ", tabla, " VALUES ", paste(valores, collapse = ",")
+      ))
+      resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+        con, tabla, universo = "muestra_motor", muestra_motor = 100000L,
+        bloque_muestra = "solo_agregados",
+        metricas = c("basicos", "desvio"),
+        proteger_datos_personales = FALSE
+      )))
+      fila <- resultado$resumen_tabla$columnas[
+        resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+      ]
+      expect_equal(as.numeric(fila$n), 100, info = paste(motor, nombre))
+      expect_true(
+        abs(as.numeric(fila$desvio) - exactos[[nombre]]) <= 1e-12,
+        info = paste(motor, nombre)
+      )
+      DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla))
+    }
+    tabla <- paste0("acn_completa_", motor)
+    valores <- paste0(
+      "(", seq_along(casos$e6_m8), ",",
+      sprintf("%.17g", casos$e6_m8), ")"
+    )
+    DBI::dbExecute(con, paste0("CREATE TABLE ", tabla,
+                               " (id INT, x DOUBLE)"))
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", tabla, " VALUES ", paste(valores, collapse = ",")
+    ))
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, universo = "tabla_completa",
+      bloque_muestra = "solo_agregados", metricas = "desvio",
+      proteger_datos_personales = FALSE
+    )))
+    fila <- resultado$resumen_tabla$columnas[
+      resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+    ]
+    expect_true(
+      abs(as.numeric(fila$desvio) - exactos[["e6_m8"]]) <= 1e-12,
+      info = paste(motor, "tabla_completa")
+    )
+  }
+  .acn_probar(FALSE)
+  .acn_probar(TRUE)
+})
+
+test_that("MySQL y MariaDB escalan sin basicos y sin valores", {
+  skip_on_cran()
+  es_cifra <- function(observado, esperado) {
+    is.finite(observado) && observado != 0 && is.finite(esperado) &&
+      esperado != 0 && abs(observado / esperado - 1) <= 1e-12
+  }
+  set.seed(20261104)
+  tiny <- 1e-160 * (1 + runif(30L))
+  invisible(runif(80L))
+  invisible(runif(40L))
+  invisible(runif(40L))
+  invisible(runif(30L))
+  invisible(runif(40L))
+  invisible(runif(30L))
+  alea <- runif(200L, 1e307, 1.7e308)
+  casos <- list(
+    tiny = list(x = tiny, desvio = 3.212636809309274e-161),
+    extremos = list(
+      x = c(1e300, 0, 0, 0), media = 2.5e299, desvio = 5e299
+    ),
+    alea = list(
+      x = alea, media = 8.621965374052524e307,
+      desvio = 4.508407076339053e307
+    )
+  )
+  probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    motor <- if (maria) "maria" else "mysql"
+    tablas <- paste0("aes_", motor, "_escala_", names(casos))
+    on.exit({
+      for (tabla in tablas) {
+        try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+            silent = TRUE)
+      }
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    for (nombre in names(casos)) {
+      tabla <- paste0("aes_", motor, "_escala_", nombre)
+      DBI::dbExecute(con, paste0("CREATE TABLE ", tabla,
+                                 " (id INT, x DOUBLE)"))
+      valores <- vapply(casos[[nombre]]$x, function(x) {
+        if (is.na(x)) "NULL" else sprintf("%.17g", x)
+      }, character(1L))
+      DBI::dbExecute(con, paste0(
+        "INSERT INTO ", tabla, " VALUES ",
+        paste0("(", seq_along(valores), ",", valores, ")", collapse = ",")
+      ))
+      metricas <- if (nombre == "tiny") "desvio" else c("basicos", "desvio")
+      resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+        con, tabla, universo = "tabla_completa", bloque_muestra = "solo_agregados",
+        metricas = metricas, incluir_valores = FALSE,
+        proteger_datos_personales = FALSE
+      )))
+      fila <- resultado$resumen_tabla$columnas[
+        resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+      ]
+      expect_true(es_cifra(as.numeric(fila$desvio), casos[[nombre]]$desvio),
+                  info = paste(motor, nombre, "desvio"))
+      if (nombre != "tiny") {
+        expect_true(es_cifra(as.numeric(fila$media), casos[[nombre]]$media),
+                    info = paste(motor, nombre, "media"))
+      }
+      expect_equal(nrow(resultado$resumen_tabla$meta$consultas$fallas), 0L)
+      DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla))
+    }
+  }
+  probar(FALSE)
+  probar(TRUE)
+})
+
+test_that("MySQL y MariaDB no repliegan un desvio con un solo valido", {
+  skip_on_cran()
+  probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    motor <- if (maria) "maria" else "mysql"
+    tabla <- paste0("aes_", motor, "_un_valido")
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+          silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    DBI::dbExecute(con, paste0("CREATE TABLE ", tabla,
+                               " (id INT, x DOUBLE)"))
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", tabla, " VALUES (1,1e300),(2,NULL),(3,NULL)"
+    ))
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, universo = "tabla_completa", bloque_muestra = "solo_agregados",
+      metricas = "desvio", proteger_datos_personales = FALSE
+    )))
+    registro <- resultado$resumen_tabla$sql[
+      resultado$resumen_tabla$sql$columna == "x" &
+        resultado$resumen_tabla$sql$metrica == "desvio", , drop = FALSE
+    ]
+    expect_identical(as.character(registro$estado[[1L]]), "no_aplica")
+    expect_match(as.character(registro$motivo[[1L]]), "al menos dos")
+    expect_equal(nrow(resultado$resumen_tabla$meta$consultas$fallas), 0L)
+  }
+  probar(FALSE)
+  probar(TRUE)
 })

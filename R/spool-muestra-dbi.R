@@ -976,8 +976,22 @@
 .resumen_muestra_desde_spool_dbi <- function(datos, campos, n_total,
                                              metricas, materializacion,
                                              muestreo, sql, consulta_id,
-                                             motivo_falla = NULL) {
+                                             motivo_falla = NULL,
+                                             consulta_n = NULL) {
   n_total_num <- .conteo_dbi(n_total)
+  n_conocido <- length(n_total_num) == 1L && is.finite(n_total_num)
+  motivo_n <- if (n_conocido) {
+    NA_character_
+  } else if (!is.null(consulta_n) && length(consulta_n$motivo) == 1L &&
+             !is.na(consulta_n$motivo) && nzchar(as.character(consulta_n$motivo))) {
+    as.character(consulta_n$motivo)
+  } else if (length(motivo_falla) == 1L && !is.na(motivo_falla) &&
+             nzchar(as.character(motivo_falla))) {
+    as.character(motivo_falla)
+  } else {
+    "No se pudo conocer `n` dentro del presupuesto de consultas."
+  }
+  estado_n <- if (n_conocido) "calculado" else "no_disponible"
   filas <- lapply(campos, function(campo) .fila_resumen_dbi(campo, n_total_num))
   columnas <- as.data.frame(do.call(rbind, lapply(filas, as.data.frame)),
                             stringsAsFactors = FALSE)
@@ -1025,7 +1039,7 @@
     )
   })
   sql_n <- .registro_sql_dbi(
-    campos, rep("n", length(campos)), "calculado", NA_character_,
+    campos, rep("n", length(campos)), estado_n, motivo_n,
     if (is.null(muestreo)) NA_character_ else muestreo$sql_muestra,
     metadatos = .metadatos_sql_dbi(
       alcance = "tabla_completa", universo = n_total_num,
@@ -1386,7 +1400,8 @@
       filas_solicitadas = preparacion$muestra_motor,
       filas_pedidas = filas_efectivas, filas_obtenidas = NA_real_,
       universo = n_total, muestra_id = muestra_id, snapshot_id = snapshot_id,
-      orden_id = orden_id, reproducible = FALSE, id_consulta_n = id_consulta_n
+      orden_id = orden_id, reproducible = FALSE, id_consulta_n = id_consulta_n,
+      motivo_filas_obtenidas = NA_character_
     )
   }
   materializacion$estimacion_bytes <- estimacion_bytes
@@ -1471,6 +1486,13 @@
   publico$filas_obtenidas <- if (is.finite(n_filas_spool)) {
     n_filas_spool
   } else NA_real_
+  publico$motivo_filas_obtenidas <- if (is.finite(n_filas_spool)) {
+    NA_character_
+  } else if (length(motivo) == 1L && !is.na(motivo) && nzchar(as.character(motivo))) {
+    as.character(motivo)
+  } else {
+    "No se pudo conocer cuantas filas devolvio la muestra."
+  }
   if (spool_valido) {
     publico$fraccion_solicitada <- publico$fraccion
     publico$fraccion <- .fraccion_muestreo_dbi(n_filas_spool, n_total)
@@ -1528,6 +1550,7 @@
   )
   if (isTRUE(leido$ok)) {
     publico$filas_obtenidas <- leido$n_filas
+    publico$motivo_filas_obtenidas <- NA_character_
     publico$tamano_muestra <- min(
       as.numeric(publico$tamano_muestra), as.numeric(leido$n_filas)
     )
@@ -1929,8 +1952,20 @@
   metricas_registro <- if (is.null(perfil)) {
     preparacion$metricas
   } else metricas
+  n_conocido <- length(n_total) == 1L && is.finite(n_total)
+  motivo_n <- if (n_conocido) {
+    NA_character_
+  } else if (!is.null(consulta_n) && length(consulta_n$motivo) == 1L &&
+             !is.na(consulta_n$motivo) && nzchar(as.character(consulta_n$motivo))) {
+    as.character(consulta_n$motivo)
+  } else if (length(motivo) == 1L && !is.na(motivo) && nzchar(as.character(motivo))) {
+    as.character(motivo)
+  } else {
+    "No se pudo conocer `n` dentro del presupuesto de consultas."
+  }
+  estado_n <- if (n_conocido) "calculado" else "no_disponible"
   registros <- list(.registro_sql_dbi(
-    campos, rep("n", length(campos)), "calculado", NA_character_,
+    campos, rep("n", length(campos)), estado_n, motivo_n,
     preparacion$sql_conteo,
     metadatos = .metadatos_sql_dbi(
       alcance = "tabla_completa", universo = n_total,

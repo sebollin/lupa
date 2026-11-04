@@ -125,13 +125,21 @@
       n_ceros = 0, n_negativos = 0
     ),
     cuantitativos = list(
-      n = 0, media = 0, media_abs = 0, m2 = 0, centro = NA_real_, minimo = Inf,
+      n = 0, media = 0, media_abs = 0, suma = 0,
+      suma_compensacion = 0, m2 = 0, centro = NA_real_, minimo = Inf,
       maximo = -Inf,
+      desplazamiento = if (length(configuracion$configuracion$desplazamiento) == 1L &&
+                           is.finite(configuracion$configuracion$desplazamiento)) {
+        as.numeric(configuracion$configuracion$desplazamiento)
+      } else 0,
       escala = if (length(configuracion$configuracion$escala) == 1L &&
                    is.finite(configuracion$configuracion$escala) &&
                    configuracion$configuracion$escala > 0) {
         as.numeric(configuracion$configuracion$escala)
       } else 1,
+      escala_adaptativa = isTRUE(
+        configuracion$configuracion$escala_adaptativa
+      ),
       n_nan = 0, n_infinito_positivo = 0, n_infinito_negativo = 0,
       n_ceros = 0, n_negativos = 0, contar_signos = TRUE
     ),
@@ -597,6 +605,21 @@
     acumulador$estado_familia <- estado
     return(acumulador)
   }
+  if (isTRUE(estado$escala_adaptativa)) {
+    extremos_previos <- c(estado$minimo, estado$maximo)
+    extremos_previos <- extremos_previos[is.finite(extremos_previos)]
+    max_abs <- max(c(abs(extremos_previos), abs(finitos)), na.rm = TRUE)
+    escala_nueva <- .escala_extrema_bloques(max_abs)
+    escala_actual <- if (length(estado$escala) == 1L &&
+                         is.finite(estado$escala) && estado$escala > 0) {
+      estado$escala
+    } else 1
+    if (!identical(escala_nueva, escala_actual)) {
+      estado <- .reescalar_estado_cuantitativo_bloques(
+        estado, escala_nueva
+      )
+    }
+  }
   # Los momentos se acumulan centrados en una constante -la media del primer
   # bloque-, y la media publicada es `centro + media`. Sin centrar, la fusion de
   # bloques operaba con medias absolutas: sobre 61 marcas de tiempo en
@@ -607,7 +630,32 @@
   escala <- if (length(estado$escala) == 1L && is.finite(estado$escala) &&
                 estado$escala > 0) estado$escala else 1
   escalado <- !identical(escala, 1)
-  valores_operacion <- if (escalado) finitos / escala else finitos
+  desplazamiento <- if (escalado && length(estado$desplazamiento) == 1L &&
+                        is.finite(estado$desplazamiento)) {
+    estado$desplazamiento
+  } else 0
+  valores_operacion <- if (escalado) {
+    (finitos - desplazamiento) / escala
+  } else finitos
+  # La media de Welford es excelente para los momentos, pero no para una
+  # cancelacion entre bloques como `c(1e200, 1, 1, -1e200)` leida de a una fila:
+  # la contribucion de los unos desaparece al sumar en la unidad escalada.
+  # Neumaier la conserva al juntar las sumas de los bloques. Cada bloque se suma
+  # con `sum()`, vectorial: compensar valor por valor, con un bucle de R, hacia
+  # nueve veces mas lento el resumen de una columna comun de dos millones de
+  # filas. Dentro de un mismo bloque queda la limitacion declarada de la media en
+  # coma flotante.
+  suma_bloque <- sum(valores_operacion)
+  total_suma <- estado$suma + suma_bloque
+  correccion <- if (abs(estado$suma) >= abs(suma_bloque)) {
+    (estado$suma - total_suma) + suma_bloque
+  } else {
+    (suma_bloque - total_suma) + estado$suma
+  }
+  if (is.finite(correccion)) {
+    estado$suma_compensacion <- estado$suma_compensacion + correccion
+  }
+  estado$suma <- total_suma
   centro <- if (escalado && !isTRUE(estado$n > 0)) {
     sum(valores_operacion) / length(valores_operacion)
   } else {
@@ -620,7 +668,7 @@
     mean(centrados)
   }
   media_bloque_abs <- if (escalado) {
-    sum(valores_operacion) / n_bloque
+    sum(valores_operacion) / n_bloque + desplazamiento / escala
   } else NULL
   diferencias <- centrados - media_bloque
   m2_bloque <- sum(diferencias * diferencias)
@@ -1407,6 +1455,43 @@
   centro
 }
 
+# Cambiar la unidad de los momentos no cambia el numero representado: ambas
+# escalas son potencias de dos. Esto permite que la fuente DBI descubra una
+# magnitud extrema despues de haber absorbido bloques anteriores, sin volver a
+# leerlos. `media_abs` conserva la media en la unidad normalizada para que la
+# salida no tenga que reconstruirla con una resta grande.
+.reescalar_estado_cuantitativo_bloques <- function(estado, escala_nueva) {
+  escala_vieja <- if (length(estado$escala) == 1L &&
+                      is.finite(estado$escala) && estado$escala > 0) {
+    estado$escala
+  } else 1
+  if (length(escala_nueva) != 1L || !is.finite(escala_nueva) ||
+      escala_nueva <= 0 || identical(escala_vieja, escala_nueva) ||
+      !isTRUE(estado$n > 0)) {
+    estado$escala <- if (length(escala_nueva) == 1L &&
+                         is.finite(escala_nueva) && escala_nueva > 0) {
+      escala_nueva
+    } else escala_vieja
+    return(estado)
+  }
+  factor <- escala_vieja / escala_nueva
+  centro <- .centro_estado_bloques(estado)
+  media <- estado$media
+  media_abs <- if (!identical(escala_vieja, 1) &&
+                   length(estado$media_abs) == 1L &&
+                   is.finite(estado$media_abs)) {
+    estado$media_abs
+  } else centro + media
+  estado$centro <- centro * factor
+  estado$media <- media * factor
+  estado$media_abs <- media_abs * factor
+  estado$suma <- estado$suma * factor
+  estado$suma_compensacion <- estado$suma_compensacion * factor
+  estado$m2 <- estado$m2 * factor * factor
+  estado$escala <- escala_nueva
+  estado
+}
+
 .fusionar_estado_cuantitativo <- function(a, b) {
   a$n_nan <- a$n_nan + b$n_nan
   a$n_infinito_positivo <- a$n_infinito_positivo + b$n_infinito_positivo
@@ -1423,6 +1508,22 @@
     return(b)
   }
   total <- a$n + b$n
+  escala_a <- if (length(a$escala) == 1L && is.finite(a$escala) &&
+                  a$escala > 0) a$escala else 1
+  escala_b <- if (length(b$escala) == 1L && is.finite(b$escala) &&
+                  b$escala > 0) b$escala else 1
+  factor_b <- escala_b / escala_a
+  suma_b <- b$suma * factor_b
+  suma_a <- a$suma
+  total_suma <- suma_a + suma_b
+  if (abs(suma_a) >= abs(suma_b)) {
+    correccion <- (suma_a - total_suma) + suma_b
+  } else {
+    correccion <- (suma_b - total_suma) + suma_a
+  }
+  a$suma <- total_suma
+  a$suma_compensacion <- a$suma_compensacion +
+    b$suma_compensacion * factor_b + correccion
   # Cada estado acumula centrado en su propia constante: la media de `b` se
   # lleva al centro de `a` antes de fusionar. La resta de dos centros cercanos es
   # exacta.
@@ -1430,8 +1531,6 @@
   diferencia <- media_b - a$media
   a$m2 <- a$m2 + b$m2 + diferencia * diferencia * a$n * b$n / total
   a$media <- a$media + diferencia * b$n / total
-  escala_a <- if (length(a$escala) == 1L && is.finite(a$escala) &&
-                  a$escala > 0) a$escala else 1
   if (!identical(escala_a, 1)) {
     media_a_abs <- if (length(a$media_abs) == 1L) a$media_abs else {
       .centro_estado_bloques(a) + a$media
@@ -1826,14 +1925,22 @@
                       is.finite(estado$escala) && estado$escala > 0) {
           estado$escala
         } else 1
-        media <- .centro_estado_bloques(estado) + estado$media
+        desplazamiento <- if (length(estado$desplazamiento) == 1L &&
+                              is.finite(estado$desplazamiento)) {
+          estado$desplazamiento
+        } else 0
+        media <- if (identical(estado$escala, 1)) {
+          .centro_estado_bloques(estado) + estado$media
+        } else {
+          (estado$suma + estado$suma_compensacion) / estado$n
+        }
         desvio <- if (estado$n > 1L) {
           sqrt(estado$m2 / (estado$n - 1))
         } else NA_real_
         if (!identical(escala, 1)) {
-          media <- (if (length(estado$media_abs) == 1L) {
-            estado$media_abs
-          } else media) * escala
+          # Con escala por dispersion los valores se sumaron desplazados por el
+          # minimo (ver `.resumen_cuantitativo_bloques()`).
+          media <- media * escala + desplazamiento
           desvio <- desvio * escala
         }
         list(
@@ -2070,6 +2177,26 @@
     acumulador$estado <- "finalizado"
     return(sobre)
   }
+  if (identical(acumulador$familia, "cuantitativos") &&
+      !identical(acumulador$estado, "no_disponible") &&
+      isTRUE(acumulador$estado_familia$n > 0)) {
+    resultado <- .resultado_acumulador(acumulador)
+    desvio_invalido <- isTRUE(acumulador$estado_familia$n > 1) &&
+      (length(resultado$desvio) != 1L || !is.finite(resultado$desvio))
+    media_invalida <- length(resultado$media) != 1L ||
+      !is.finite(resultado$media)
+    if (media_invalida || desvio_invalido) {
+      campos <- c(if (media_invalida) "media" else character(),
+                  if (desvio_invalido) "desvio" else character())
+      acumulador <- .marcar_fallo_acumulador(
+        acumulador,
+        paste0(
+          "estadisticos_cuantitativos_no_finitos:",
+          paste(campos, collapse = ",")
+        )
+      )
+    }
+  }
   if (identical(acumulador$estado, "iniciado") ||
       identical(acumulador$estado, "truncado") ||
       identical(acumulador$estado, "no_disponible")) {
@@ -2224,13 +2351,16 @@
        vigilante = vigilante)
 }
 
-.escala_extrema_bloques <- function(max_abs) {
+.escala_extrema_bloques <- function(max_abs, rango = NA_real_) {
   max_abs <- suppressWarnings(as.numeric(max_abs))
+  rango <- suppressWarnings(as.numeric(rango))
+  por_dispersion <- .rango_requiere_escala(rango)
   if (length(max_abs) != 1L || !is.finite(max_abs) || max_abs == 0 ||
-      (max_abs >= 1e-150 && max_abs <= 1e150)) {
+      (!por_dispersion && max_abs >= 1e-150 && max_abs <= 1e150)) {
     return(1)
   }
-  escala <- 2^(floor(log2(max_abs)) - 1)
+  base <- if (por_dispersion) rango else max_abs
+  escala <- 2^(floor(log2(base)) - 1)
   if (!is.finite(escala) || escala == 0) 1 else escala
 }
 
@@ -2317,11 +2447,22 @@
   } else x
   finitos_escala <- suppressWarnings(valores_escala[is.finite(valores_escala)])
   max_abs <- if (length(finitos_escala)) max(abs(finitos_escala)) else 0
+  rango <- if (length(finitos_escala) >= 2L) {
+    suppressWarnings(max(finitos_escala) - min(finitos_escala))
+  } else {
+    NA_real_
+  }
+  desplazamiento <- if (.rango_requiere_escala(rango)) {
+    min(finitos_escala)
+  } else {
+    0
+  }
   ejecucion <- .ejecutar_vector_bloques(
     x, "cuantitativos", k = k, tamano = tamano, max_bytes = max_bytes,
     configuracion = list(
       contar_signos = isTRUE(contar_signos),
-      escala = .escala_extrema_bloques(max_abs)
+      escala = .escala_extrema_bloques(max_abs, rango = rango),
+      desplazamiento = desplazamiento
     ),
     aplicable = aplicable
   )

@@ -1,3 +1,13 @@
+# La dispersion tambien puede perderse aunque la magnitud absoluta sea comun:
+# si el rango es menor que la raiz del menor doble normal, sus cuadrados caen
+# en subnormales y una suma de cuadrados pierde cifras. Un rango nulo no activa
+# la guarda: una columna constante no necesita cambiar de consulta.
+.rango_requiere_escala <- function(rango) {
+  rango <- suppressWarnings(as.numeric(rango))
+  length(rango) == 1L && is.finite(rango) && rango > 0 &&
+    rango < sqrt(.Machine$double.xmin)
+}
+
 # El orden por bytes (`method = "radix"`) exige que la codificacion este
 # DECLARADA: R rechaza con "Character encoding must be UTF-8, Latin-1 or bytes"
 # una cadena marcada `unknown` que contenga bytes no ASCII, aunque sean UTF-8

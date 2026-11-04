@@ -220,7 +220,7 @@ test_that("M3: un decimal desde 2^53 retiene sus metricas de magnitud aunque el 
     expect_true(is.na(rc[[metrica]]), info = metrica)
     fila <- sql[sql$columna == "d" & sql$metrica == metrica, , drop = FALSE]
     expect_identical(fila$estado, "no_disponible", info = metrica)
-    expect_match(fila$motivo, "decimal con un valor de valor absoluto de al menos 2^53",
+    expect_match(fila$motivo, "decimal entregado como doble con un valor de valor absoluto de al menos 2^53",
                  fixed = TRUE, info = metrica)
   }
   # Lo que el motor cuenta sobre el valor exacto se publica.

@@ -679,6 +679,9 @@
       salida[[.clave_par_identificador(campo, "cuantitativos", sep = "\u001f")]] <-
         .iniciar_acumulador(
           campo, tipo, familia = "cuantitativos",
+          configuracion = list(
+            escala = 1, escala_adaptativa = TRUE, contar_signos = TRUE
+          ),
           fuente_id = NA_character_, snapshot_id = NA_character_,
           universo_id = "tabla_completa", orden_id = NA_character_,
           max_bytes = max_bytes_estado
@@ -862,7 +865,8 @@
                                           acumuladores, prototipo, tipos,
                                           incluir_valores, fuente,
                                           metricas_publicas = metricas,
-                                          decisiones_costo = NULL) {
+                                          decisiones_costo = NULL,
+                                          moda_precalculada = NULL) {
   fila <- .fila_vacia_bloques_dbi(campo, n_total)
   registros <- list()
   registros[[1L]] <- .registro_sql_dbi(
@@ -1040,7 +1044,43 @@
   } else if (!nrow(mapa)) {
     "familia_sin_acumulador:mapa_distintos_vacio"
   } else NA_character_
-  if ("moda" %in% metricas && isTRUE(incluir_valores) && is.data.frame(mapa) && nrow(mapa)) {
+  if ("moda" %in% metricas && isTRUE(incluir_valores) &&
+      !is.null(moda_precalculada)) {
+    decision_moda <- decisiones_costo[[campo]]
+    if (!is.null(decision_moda) && identical(decision_moda$moda, FALSE)) {
+      estado_valores <- "omitido_por_costo"
+      motivo_valores <- .motivo_decision_costo_dbi(decision_moda, "moda")
+    } else if (!isTRUE(moda_precalculada$ok)) {
+      estado_valores <- "no_disponible"
+      motivo_valores <- moda_precalculada$motivo
+    } else if (is.data.frame(moda_precalculada$datos) &&
+               nrow(moda_precalculada$datos)) {
+      celda <- .valor_campo_dbi(moda_precalculada$datos, "valor")
+      frecuencia <- .valor_campo_dbi(
+        moda_precalculada$datos, "frecuencia"
+      )
+      valor_moda <- if (isTRUE(celda$ok)) tryCatch(
+        .texto_moda(celda$valor), error = function(e) e
+      ) else NULL
+      if (!isTRUE(celda$ok) || !isTRUE(frecuencia$ok) ||
+          inherits(valor_moda, "error")) {
+        estado_valores <- "no_disponible"
+        motivo_valores <- if (inherits(valor_moda, "error")) {
+          .mensaje_motor(valor_moda)
+        } else if (!isTRUE(celda$ok)) celda$motivo else frecuencia$motivo
+      } else {
+        fila$moda <- valor_moda
+        fila$frecuencia_moda <- .conteo_dbi(frecuencia$valor)
+        estado_valores <- "calculado"
+        motivo_valores <- NA_character_
+      }
+    } else {
+      fila$frecuencia_moda <- 0
+      estado_valores <- "sin_valores"
+      motivo_valores <- "La columna no contiene valores no nulos."
+    }
+  } else if ("moda" %in% metricas && isTRUE(incluir_valores) &&
+             is.data.frame(mapa) && nrow(mapa)) {
     decision_moda <- decisiones_costo[[campo]]
     if (!is.null(decision_moda) && identical(decision_moda$moda, FALSE)) {
       estado_valores <- "omitido_por_costo"
@@ -1162,8 +1202,11 @@
       any(is.finite(extremos) & abs(extremos) >= .MAX_ENTERO_EXACTO_DBI)) {
     retenidas <- c(
       "minimo", "maximo", "media", "n_ceros", "n_negativos", "mediana",
-      "desvio", "n_distintos", "tasa_distintos", "moda", "frecuencia_moda"
+      "desvio", "n_distintos", "tasa_distintos"
     )
+    if (is.null(moda_precalculada) || !isTRUE(moda_precalculada$ok)) {
+      retenidas <- c(retenidas, "moda", "frecuencia_moda")
+    }
     for (nombre in intersect(retenidas, names(fila))) {
       fila[[nombre]] <- if (is.character(fila[[nombre]])) {
         NA_character_
@@ -1715,11 +1758,61 @@
       if (isTRUE(avisado)) presupuesto$aviso_derrame_mediana_emitido <- TRUE
     }
   }
+  # Las columnas binarias llegan a R como listas de `raw`, que no pueden entrar
+  # en el mapa de distintos sin cambiar su representacion. La misma expresion
+  # de largo y MD5 que usa la via SQL permite resolver la moda exacta sin
+  # materializar los bytes ni escribir temporales.
+  modas_bloques <- list()
+  tipo_motor_de <- function(campo) {
+    posicion <- match(campo, preparacion$campos)
+    tipos_motor <- preparacion$esquema$tipos_motor
+    tipo <- if (!is.null(tipos_motor) && posicion <= length(tipos_motor)) {
+      tipos_motor[[posicion]]
+    } else NA_character_
+    if (length(tipo) != 1L || is.na(tipo) || !nzchar(as.character(tipo))) {
+      tipo <- if (posicion <= length(preparacion$tipos)) {
+        preparacion$tipos[[posicion]]
+      } else NA_character_
+    }
+    as.character(tipo)
+  }
+  if ("moda" %in% metricas && isTRUE(incluir_valores) &&
+      is.null(recorrido$error) && isTRUE(fuente$disponible)) {
+    for (campo in preparacion$campos) {
+      decision <- decisiones_costo[[campo]]
+      if (!is.null(decision) && identical(decision$moda, FALSE)) next
+      tipo <- tipo_motor_de(campo)
+      binaria <- .es_tipo_binario_muestra_dbi(
+        tipo, .senas_conexion_dbi(conexion)
+      )
+      decimal <- .tipo_declarado_decimal_dbi(tipo)
+      if (!binaria && !decimal) next
+      posicion <- match(campo, preparacion$campos)
+      columna_moda_sql <- .expresion_binaria_moda_dbi(
+        conexion, preparacion$campos_sql_proyeccion[[posicion]], tipo
+      )
+      valor_moda_sql <- .expresion_decimal_moda_dbi(
+        conexion, columna_moda_sql, tipo
+      )
+      # Un decimal solo se resuelve en el motor si este lo devuelve como texto
+      # exacto. Si el dialecto no tiene esa forma, la expresion es la misma
+      # columna, el controlador la entregaria como doble y la guarda del decimal
+      # tiene que seguir mandando sobre la moda.
+      if (decimal && !binaria && identical(valor_moda_sql, columna_moda_sql)) {
+        next
+      }
+      modas_bloques[[campo]] <- .moda_columna_dbi(
+        conexion, fuente$tabla_sql, columna_moda_sql,
+        preparacion$dialecto, presupuesto = presupuesto,
+        valor_sql = valor_moda_sql
+      )
+    }
+  }
   consultas_segunda <- as.integer(segunda_pasada$consultas_sql %||% 0L)
   fetches_segunda <- as.integer(segunda_pasada$fetches %||% 0L)
   recorrido$bloques$consultas_sql <- as.integer(
     recorrido$bloques$consultas_sql %||% 0L
-  ) + consultas_segunda
+  ) + consultas_segunda + length(modas_bloques)
   recorrido$bloques$fetches <- as.integer(recorrido$bloques$fetches) + fetches_segunda
   plan$n_consultas <- recorrido$bloques$consultas_sql
   plan$n_consultas_max <- recorrido$bloques$consultas_sql
@@ -1743,7 +1836,8 @@
         campo, n_total, metricas, recorrido$acumuladores,
         preparacion$prototipo, preparacion$tipos, incluir_valores, fuente,
         metricas_publicas = metricas_publicas,
-        decisiones_costo = decisiones_costo
+        decisiones_costo = decisiones_costo,
+        moda_precalculada = modas_bloques[[campo]]
       )
     } else {
       fila <- .fila_resumen_dbi(campo, NA_real_)
