@@ -111,6 +111,18 @@ jobs:
         with:
           token: ${{ secrets.RHUB_TOKEN }}
           job-config: ${{ matrix.config.job-config }}
+      # rJava esta en Suggests y en R-devel de macOS no hay binario de CRAN: se
+      # compila desde la fuente, y la maquina de GitHub no trae un JDK. Sin esto
+      # setup-deps aborta antes del check ("Cannot compile a simple JNI
+      # program", 2026-11-04, sobre 32ffa80).
+      - if: runner.os == 'macOS'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - if: runner.os == 'macOS'
+        shell: bash
+        run: sudo R CMD javareconf JAVA_HOME="$JAVA_HOME"
       - uses: r-hub/actions/setup-deps@v1
         with:
           job-config: ${{ matrix.config.job-config }}
