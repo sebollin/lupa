@@ -2375,16 +2375,16 @@ la clave (<code>setkeyv()</code>) y restituye la reserva de columnas
 </ul>
 <p>Los sugeridos son <code>bit64</code>, <code>covr</code>,
 <code>DBI</code>, <code>duckdb</code>, <code>jsonlite</code>,
-<code>knitr</code>, <code>odbc</code>, <code>rmarkdown</code>,
-<code>RPostgres</code>, <code>RSQLite</code>, <code>sf</code>,
-<code>stringdist</code>, <code>stringi</code>, <code>testthat</code>,
-<code>tibble</code> y <code>units</code>. Para la vía DBI importan
-<code>DBI</code>, el controlador de cada motor (<code>RSQLite</code>,
-<code>duckdb</code>, <code>RPostgres</code>, <code>odbc</code>) y
-<code>bit64</code>, que permite leer en la muestra enteros de 64 bits
-sin perder valores. Los controladores de otros motores
-(<code>RMariaDB</code>, <code>RMySQL</code>, <code>ROracle</code>,
-<code>bigrquery</code>) se instalan aparte.</p>
+<code>knitr</code>, <code>odbc</code>, <code>rJava</code>,
+<code>rmarkdown</code>, <code>RPostgres</code>, <code>RSQLite</code>,
+<code>sf</code>, <code>stringdist</code>, <code>stringi</code>,
+<code>testthat</code>, <code>tibble</code> y <code>units</code>. Para la
+vía DBI importan <code>DBI</code>, el controlador de cada motor
+(<code>RSQLite</code>, <code>duckdb</code>, <code>RPostgres</code>,
+<code>odbc</code>) y <code>bit64</code>, que permite leer en la muestra
+enteros de 64 bits sin perder valores. Los controladores de otros
+motores (<code>RMariaDB</code>, <code>RMySQL</code>,
+<code>ROracle</code>, <code>bigrquery</code>) se instalan aparte.</p>
 <p>El caso difícil no es el paquete de R sino la biblioteca del sistema
 que va debajo: <code>RMariaDB</code> no compila sin las cabeceras del
 cliente de MySQL o MariaDB, y <code>ROracle</code> necesita el Instant

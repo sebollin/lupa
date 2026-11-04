@@ -101,7 +101,7 @@ probados.</p>
 <p>Ante una conexión abierta, <code><a href="coleccion.html">coleccion()</a></code> y <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> piden el
 paquete del <strong>controlador con que se abrió</strong>, que reconocen por la clase de
 la conexión y el paquete que la define, no por el motor que informa el
-servidor: un MySQL abierto con <code><a href="https://rmariadb.r-dbi.org/reference/dbConnect-MariaDBDriver-method.html" class="external-link">RMariaDB::MariaDB()</a></code> usa RMariaDB y no pide
+servidor: un MySQL abierto con <code>RMariaDB::MariaDB()</code> usa RMariaDB y no pide
 ni carga RMySQL, cuya clase se llama igual y rompería la conexión.</p>
     </div>
 

@@ -1504,12 +1504,12 @@ funciones que reciben una tabla del usuario.
   siendo un `data.table` sano.
 
 Los sugeridos son `bit64`, `covr`, `DBI`, `duckdb`, `jsonlite`, `knitr`,
-`odbc`, `rmarkdown`, `RPostgres`, `RSQLite`, `sf`, `stringdist`,
-`stringi`, `testthat`, `tibble` y `units`. Para la vía DBI importan
-`DBI`, el controlador de cada motor (`RSQLite`, `duckdb`, `RPostgres`,
-`odbc`) y `bit64`, que permite leer en la muestra enteros de 64 bits sin
-perder valores. Los controladores de otros motores (`RMariaDB`,
-`RMySQL`, `ROracle`, `bigrquery`) se instalan aparte.
+`odbc`, `rJava`, `rmarkdown`, `RPostgres`, `RSQLite`, `sf`,
+`stringdist`, `stringi`, `testthat`, `tibble` y `units`. Para la vía DBI
+importan `DBI`, el controlador de cada motor (`RSQLite`, `duckdb`,
+`RPostgres`, `odbc`) y `bit64`, que permite leer en la muestra enteros
+de 64 bits sin perder valores. Los controladores de otros motores
+(`RMariaDB`, `RMySQL`, `ROracle`, `bigrquery`) se instalan aparte.
 
 El caso difícil no es el paquete de R sino la biblioteca del sistema que
 va debajo: `RMariaDB` no compila sin las cabeceras del cliente de MySQL

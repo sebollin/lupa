@@ -581,11 +581,13 @@ valores que el controlador entrega como `integer64` —un `BIGINT` o
 `bigserial` de PostgreSQL, un `INTEGER` de SQLite que no entra en 32
 bits—: por debajo de 2^53 se opera con el valor exacto, y desde 2^53 las
 siete métricas quedan `no_disponible` con su motivo. Un decimal o un
-entero ancho que llega como doble desde 2^53 deja ademas `n_distintos`,
-`tasa_distintos`, la moda y su frecuencia en `no_disponible`: con
-bloques se contarian en R sobre esos dobles, que no distinguen los
-valores. Las cifras de `perfil_muestra` de esa columna salen de los
-mismos dobles; sin bloques, la corroboracion avisa la diferencia en
+entero ancho que llega como doble desde 2^53 deja ademas `n_distintos` y
+`tasa_distintos` en `no_disponible`: con bloques se contarian en R sobre
+esos dobles, que no distinguen los valores. La moda de un decimal se le
+pide al motor como texto exacto en las tres vias, en PostgreSQL, SQL
+Server, MySQL y MariaDB; en otros motores sigue la regla de
+`n_distintos`. Las cifras de `perfil_muestra` de esa columna salen de
+los mismos dobles; sin bloques, la corroboracion avisa la diferencia en
 `n_distintos` y la moda contra las del motor. Un decimal por debajo de
 2^53 con mas cifras de las que guarda un doble -`numeric(30,20)`- no
 entra en esta guarda. Ninguna columna cambia la clase de un campo de la
@@ -594,10 +596,12 @@ tabla: `minimo`, `maximo`, `media`, `mediana` y `desvio` de
 `incluir_valores = FALSE`, la promesa de privacidad alcanza las tres
 vias de salida: resumen SQL, `perfil_muestra` y `bloque_filas`. Se
 omiten los valores de celda -incluidos moda, extremos, medianas,
-centinelas y ejemplos de patrones-, se limpian cobertura y motivos, y no
-se conservan familias de acumuladores ni una muestra cruda en el
-resultado. La limpieza recorre también los atributos de cada hoja del
-resultado, incluidos los resúmenes de patrones. Los conteos,
+centinelas y ejemplos de patrones-, se limpian la cobertura y los
+motivos de las metricas que publicarian un valor de celda (los de un
+estadistico como la media o el desvio se conservan: no contienen
+valores), y no se conservan familias de acumuladores ni una muestra
+cruda en el resultado. La limpieza recorre también los atributos de cada
+hoja del resultado, incluidos los resúmenes de patrones. Los conteos,
 proporciones y agregados que no son valores de celda pueden seguir
 publicandose. La marca queda registrada como
 `meta$incluir_valores = FALSE` en ambos resultados. Si se omite el
@@ -1070,16 +1074,23 @@ eso no es lo mismo que la tabla en R:
   cuadrados desbordan o caen en subnormales y pierden cifras—, el desvío
   se le pide al motor sobre `x / 2^k`, centrado en la media de esos
   mismos valores, y se multiplica por `2^k`: escalar por una potencia de
-  dos es exacto, y no cuesta una consulta para decidirlo. En MySQL y
-  MariaDB la media de esas columnas sale igual, `AVG(x / 2^k) * 2^k`,
-  porque la suma de `AVG()` desborda; y por encima de `1e65` el centro
-  va como doble, porque un `DECIMAL` tiene 65 cifras. Una columna
-  constante da `0`. Si el motor no puede, la métrica queda
-  `no_disponible` con su falla en `meta$consultas$fallas` y el aviso: no
-  se publica `Inf` ni un `0` sobre valores distintos.
+  dos es exacto, y no cuesta una consulta para decidirlo. También se
+  escala cuando el rango —el máximo menos el mínimo— es tan chico que
+  sus cuadrados caerían en subnormales, y la magnitud se conoce aunque
+  no se pidan los básicos ni se publiquen los valores. En MySQL, MariaDB
+  y SQL Server la media de esas columnas sale igual,
+  `AVG(x / 2^k) * 2^k`, porque la suma de `AVG()` desborda; la mediana
+  de dos centrales enormes se promedia como `a / 2 + b / 2`; y por
+  encima de `1e65` el centro va como doble, porque un `DECIMAL` tiene 65
+  cifras. Una columna constante da `0`. Si el motor no puede, la métrica
+  queda `no_disponible` con su falla en `meta$consultas$fallas` y el
+  aviso: no se publica `Inf` ni un `0` sobre valores distintos.
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  escala igual al acumular por bloques. Las columnas de magnitud común
-  no cambian de consulta ni de cifra.
+  y `perfilar_dbi(..., bloque_filas = n)` escalan igual al acumular por
+  bloques; en el recorrido por bloques, que no conoce la magnitud antes
+  del primer bloque, el estado acumulado se reescala por una potencia de
+  dos cuando llega un bloque que la escala vigente no cubre. Las
+  columnas de magnitud común no cambian de consulta ni de cifra.
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
@@ -1113,10 +1124,15 @@ eso no es lo mismo que la tabla en R:
   literal `float`, que no tiene el tope de 38 cifras de un decimal. Una
   columna decimal o entera resta en su tipo, que es exacto. Con
   `bloque_filas` los momentos se acumulan centrados. Bajo
-  `muestra_motor` no se vuelve a pedir, porque otra consulta vería otras
-  filas; ahí, como red en todas las vías, un desvío `0` sobre una
-  columna con dos valores distintos —un mínimo menor que el máximo— es
-  imposible y queda `no_disponible` con su motivo.
+  `muestra_motor`, la media y el desvío se piden en la misma consulta,
+  sobre las mismas filas de una sola evaluación de la muestra: una
+  relación derivada calcula la media de esas filas con una ventana
+  (`AVG(x) OVER ()`) y el desvío se pide centrado en ella; esa misma
+  evaluación da las filas obtenidas y decide el reintento. No se fija
+  una semilla ni se toca el generador de números aleatorios de R. Como
+  red en todas las vías, un desvío `0` sobre una columna con dos valores
+  distintos —un mínimo menor que el máximo— es imposible y queda
+  `no_disponible` con su motivo.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
