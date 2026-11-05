@@ -56,6 +56,9 @@ Primera versión publicada.
   de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos,
   colecciones y escala) y los 4 artículos de referencia están en el sitio,
   <https://sebollin.github.io/lupa/>.
+- El README muestra una captura del informe HTML de `reportar()`, rehecha con
+  `scripts/capturar-informe-html.R`. «El vacío por diseño» y «Marcos y modelos
+  de calidad» empiezan por el ejemplo y dejan la explicación para después.
 
 ## Rendimiento
 
@@ -194,6 +197,13 @@ Primera versión publicada.
   —DuckDB, o uno que no está en la matriz—, el perfil sigue sin caer en
   `dbGetQuery()`, pero ahora lo avisa (`lupa_aviso_muestra_motor`): antes todas
   las métricas quedaban `no_disponible` y el motivo solo estaba en la cobertura.
+- Con `universo = "muestra_motor"`, `estado` y `error_esperado` se deciden por
+  métrica y con la misma regla en las dos vías, como dice la ayuda. Antes, con
+  `bloque_muestra = "solo_agregados"`, los distintos y la mediana de la muestra
+  salían `error_esperado = "no_aplica"`, lo que se publica cuando no hubo
+  muestreo; y con `"con_muestra"` todas las métricas salían `no_estimable` —también
+  la media y los conteos— y los estadísticos `observado_muestra` en vez de
+  `estimado`. Los valores no cambian.
 - Con `bloque_filas`, las columnas binarias se leen como largo y MD5, igual
   que en la muestra: con RMySQL el controlador ya no las trunca (un aviso por
   fila, y largos y distintos falsos), y en PostgreSQL, SQL Server y MariaDB los

@@ -360,7 +360,17 @@ test_that("una muestra saturada conserva el limite y declara el spool", {
   expect_true(nrow(muestras) > 0L)
   expect_true(all(muestras$tamano_muestra == 100000))
   expect_true(all(muestras$fraccion == 1))
-  expect_true(all(muestras$estado == "observado_muestra"))
+  esperados_estado <- c(
+    n_validos = "observado_muestra", n_faltantes = "observado_muestra",
+    prop_faltantes = "observado_muestra", n_distintos = "observado_muestra",
+    tasa_distintos = "observado_muestra", moda = "estimado",
+    frecuencia_moda = "observado_muestra", minimo = "estimado",
+    maximo = "estimado", media = "estimado", n_ceros = "observado_muestra",
+    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado"
+  )
+  expect_identical(
+    muestras$estado, unname(esperados_estado[muestras$metrica])
+  )
   expect_true(all(muestras$memoria_trabajo == "creciente"))
   expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
   expect_identical(distintos$metodo[[1L]], "spool_sesion_cliente")

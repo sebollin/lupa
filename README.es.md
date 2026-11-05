@@ -309,6 +309,8 @@ en [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
 el análisis temporal, una propuesta de modelo de calidad con su tablero y un plan
 de limpieza; `reportar()` lo escribe en un HTML autocontenido para compartir.
 
+![Comienzo del informe HTML autocontenido: advertencias de alcance, resumen del perfil y el principio de la tabla de hallazgos](man/figures/informe-html.png)
+
 ``` r
 analisis <- analizar(datos_operativos)
 reportar(analisis, archivo = "informe-lupa.html")

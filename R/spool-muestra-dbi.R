@@ -1019,15 +1019,29 @@
     alcance = "muestra", universo = n_total_num,
     tamano_muestra = if (is.null(muestreo)) NA_real_ else muestreo$filas_obtenidas,
     fraccion = if (is.null(muestreo)) NA_real_ else muestreo$fraccion,
-    metodo = "spool_sesion_cliente", error_esperado = "no_estimable",
+    metodo = "spool_sesion_cliente", error_esperado = NA_character_,
     id_consulta = consulta_id
   )
+  metadatos$muestreo_regla <- if (is.null(muestreo)) {
+    list(disponible = FALSE)
+  } else muestreo
+  metadatos$fraccion_regla <- if (is.null(muestreo)) NA_real_ else
+    muestreo$fraccion
   registros <- lapply(seq_along(campos), function(i) {
     campo <- campos[[i]]
     campos_metrica <- unlist(.CAMPOS_METRICA_DBI[metricas], use.names = FALSE)
     if (!length(campos_metrica)) return(NULL)
+    motivo_metrica <- if (is.null(motivo_falla)) {
+      vapply(campos_metrica, function(nombre) {
+        .clasificar_metrica_muestreo_dbi(
+          nombre, metadatos$muestreo_regla, metadatos$fraccion_regla
+        )$motivo
+      }, character(1L))
+    } else {
+      rep_len(motivo, length(campos_metrica))
+    }
     .registro_sql_dbi(
-      campo, campos_metrica, estado, motivo, sql,
+      campo, campos_metrica, estado, motivo_metrica, sql,
       metadatos = metadatos,
       medicion = list(
         consulta_id = consulta_id, etapa = "lectura_spool_muestra",
@@ -1964,6 +1978,34 @@
     "No se pudo conocer `n` dentro del presupuesto de consultas."
   }
   estado_n <- if (n_conocido) "calculado" else "no_disponible"
+  metadatos_muestra <- .metadatos_sql_dbi(
+    alcance = "muestra", universo = n_total,
+    tamano_muestra = tamano_muestra_metricas,
+    fraccion = fraccion_muestra_metricas, metodo = "spool_sesion_cliente",
+    error_esperado = NA_character_, id_consulta = if (is.null(spool)) {
+      NA_integer_
+    } else spool$consulta$consulta_id
+  )
+  metadatos_muestra$muestreo_regla <- if (is.null(spool)) {
+    list(disponible = FALSE)
+  } else if (is.null(preparacion$muestreo)) {
+    list(disponible = FALSE)
+  } else preparacion$muestreo
+  metadatos_muestra$fraccion_regla <- fraccion_muestra_metricas
+  campos_metricas_publicas <- unlist(
+    .CAMPOS_METRICA_DBI[metricas_registro], use.names = FALSE
+  )
+  motivos_metricas_publicas <- if (is.null(perfil_aislado) &&
+                                   !is.null(perfil)) {
+    vapply(campos_metricas_publicas, function(nombre) {
+      .clasificar_metrica_muestreo_dbi(
+        nombre, metadatos_muestra$muestreo_regla,
+        metadatos_muestra$fraccion_regla
+      )$motivo
+    }, character(1L))
+  } else {
+    rep_len(motivo_metricas, length(campos_metricas_publicas))
+  }
   registros <- list(.registro_sql_dbi(
     campos, rep("n", length(campos)), estado_n, motivo_n,
     preparacion$sql_conteo,
@@ -1984,15 +2026,8 @@
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campos[[i]], campos_metrica,
       estado_metricas,
-      motivo_metricas, sql_muestra,
-      metadatos = .metadatos_sql_dbi(
-        alcance = "muestra", universo = n_total,
-        tamano_muestra = tamano_muestra_metricas,
-        fraccion = fraccion_muestra_metricas, metodo = "spool_sesion_cliente",
-        error_esperado = "no_estimable", id_consulta = if (is.null(spool)) {
-          NA_integer_
-        } else spool$consulta$consulta_id
-      ),
+      motivos_metricas_publicas, sql_muestra,
+      metadatos = metadatos_muestra,
       medicion = if (is.null(spool)) NULL else spool$consulta,
       etapa = "lectura_spool_muestra"
     )

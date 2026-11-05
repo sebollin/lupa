@@ -243,8 +243,26 @@ test_that("muestreado materializa una seleccion y marca su cobertura", {
   expect_true(all(metricas$tamano_muestra == 5))
   expect_true(all(metricas$fraccion == 0.25))
   expect_true(all(metricas$metodo == "spool_sesion_cliente"))
-  expect_true(all(metricas$estado == "observado_muestra"))
-  expect_true(all(metricas$error_esperado == "no_estimable"))
+  esperados <- c(
+    n_validos = "observado_muestra", n_faltantes = "observado_muestra",
+    prop_faltantes = "observado_muestra", n_distintos = "observado_muestra",
+    tasa_distintos = "observado_muestra", moda = "estimado",
+    frecuencia_moda = "observado_muestra", minimo = "estimado",
+    maximo = "estimado", media = "estimado", n_ceros = "observado_muestra",
+    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado"
+  )
+  errores <- c(
+    n_validos = "no_estimado", n_faltantes = "no_estimado",
+    prop_faltantes = "no_estimado", n_distintos = "no_estimable",
+    tasa_distintos = "no_estimable", moda = "no_estimable",
+    frecuencia_moda = "no_estimable", minimo = "no_estimado",
+    maximo = "no_estimado", media = "no_estimado", n_ceros = "no_estimado",
+    n_negativos = "no_estimado", mediana = "no_estimable", desvio = "no_estimado"
+  )
+  expect_identical(metricas$estado, unname(esperados[metricas$metrica]))
+  expect_identical(
+    metricas$error_esperado, unname(errores[metricas$metrica])
+  )
   expect_true(all(metricas$id_consulta == metricas$consulta_id))
   materializacion <- resultado$resumen_tabla$meta$materializacion
   expect_true(isTRUE(materializacion$externo))
@@ -354,7 +372,15 @@ test_that("una muestra no vacia con todos los valores nulos conserva sus estados
     alcance$estado[alcance$metrica %in% c("n_validos", "n_faltantes")] ==
       "observado_muestra"
   ))
-  expect_true(all(alcance$estado == "observado_muestra"))
+  esperados <- c(
+    n_validos = "observado_muestra", n_faltantes = "observado_muestra",
+    prop_faltantes = "observado_muestra", n_distintos = "observado_muestra",
+    tasa_distintos = "observado_muestra", moda = "estimado",
+    frecuencia_moda = "observado_muestra", minimo = "estimado",
+    maximo = "estimado", media = "estimado", n_ceros = "observado_muestra",
+    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado"
+  )
+  expect_identical(alcance$estado, unname(esperados[alcance$metrica]))
   expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
 })
 
@@ -451,7 +477,7 @@ test_that("sin TABLESAMPLE usa limite sobre un orden pseudoaleatorio", {
 
   expect_true(any(grepl("ORDER BY RANDOM", .capacidad_dbi_prueba$sql)))
   expect_true(all(metricas$metodo == "spool_sesion_cliente"))
-  expect_true(all(metricas$estado == "observado_muestra"))
+  expect_true(all(metricas$estado == "estimado"))
 })
 
 test_that("aproximada_motor usa APPROX_COUNT_DISTINCT cuando la sonda responde", {

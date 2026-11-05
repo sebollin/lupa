@@ -26,23 +26,11 @@ en todas las filas donde corresponde? Porque nadie le dijo al paquete dónde cor
 > - cómo declaramos el universo de una columna, y qué error nuevo se vuelve visible;
 > - todo lo que se le puede declarar al paquete, en una sola tabla.
 
-## El supuesto que `lupa` hace
-
-Todo perfilador de datos asume una forma de tabla. `lupa` asume tres cosas a la vez:
-
-1. una fila es un hecho sobre una entidad;
-2. una columna es un dominio semántico;
-3. una celda vacía debería tener un valor y no lo tiene.
-
-Las tres son razonables y ninguna es universal. La tercera es la que hace daño, porque
-una base administrativa está llena de vacíos legítimos: la celda que no corresponde que
-tenga valor. Sin declarar nada, `lupa` cuenta esos vacíos como ausencia y los informa
-como defecto. El conteo es correcto y la lectura es falsa.
-
 ## Qué pasa si no se declara nada
 
-Para que el vacío por diseño se vea entero usamos una encuesta construida acá, con una
-columna que sólo corresponde a parte de las filas; `datos_operativos` no tiene ninguna.
+Empezamos por el caso mínimo. Para que el vacío por diseño se vea entero usamos una
+encuesta construida acá, con una columna que sólo corresponde a parte de las filas;
+`datos_operativos` no tiene ninguna.
 Pregunta si la persona tiene auto y, sólo si tiene, de qué marca:
 
 ```{r}
@@ -75,6 +63,19 @@ diseño:
 | documento por tipo | quien tiene cédula no tiene pasaporte |
 | entidad-atributo-valor | cada fila llena una sola de las columnas de valor |
 | formato largo | la misma tabla de arriba, apilada |
+
+## El supuesto que `lupa` hace
+
+Todo perfilador de datos asume una forma de tabla. `lupa` asume tres cosas a la vez:
+
+1. una fila es un hecho sobre una entidad;
+2. una columna es un dominio semántico;
+3. una celda vacía debería tener un valor y no lo tiene.
+
+Las tres son razonables y ninguna es universal. La tercera es la que hace daño, porque
+una base administrativa está llena de vacíos legítimos: la celda que no corresponde que
+tenga valor. Sin declarar nada, `lupa` cuenta esos vacíos como ausencia y los informa
+como defecto. El conteo es correcto y la lectura es falsa.
 
 ## La señal que dice que hay algo para declarar
 

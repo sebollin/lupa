@@ -7240,6 +7240,45 @@
   if (is.null(medicion)) {
     medicion <- .medicion_consulta_vacia_dbi()
   }
+  metricas <- as.character(metricas)
+  # Los caminos que publican una muestra pueden llegar aca desde un agregado
+  # consolidado, una omision o el spool. La regla vive en un solo clasificador;
+  # esta guarda evita que una de esas salidas vuelva a copiar un estado/error de
+  # grupo antes de escribir la fila publica.
+  if (length(metricas) && !is.null(metadatos$muestreo_regla)) {
+    clasificaciones <- lapply(metricas, function(nombre) {
+      .clasificar_metrica_muestreo_dbi(
+        nombre, metadatos$muestreo_regla, metadatos$fraccion_regla
+      )
+    })
+    conocidas <- vapply(
+      clasificaciones, function(x) isTRUE(x$conocida), logical(1L)
+    )
+    if (all(conocidas)) {
+      metadatos$error_esperado <- vapply(
+        clasificaciones, `[[`, character(1L), "error_esperado"
+      )
+      estado_registro <- rep_len(as.character(estado), length(metricas))
+      estados_medidos <- estado_registro %in% c(
+        "calculado", "estimado", "estimado_motor", "estimado_catalogo",
+        "observado", "observado_muestra", "garantizado"
+      )
+      estados_muestra <- vapply(
+        clasificaciones, `[[`, character(1L), "estado"
+      )
+      estado_registro[estados_medidos & !is.na(estados_muestra)] <-
+        estados_muestra[estados_medidos & !is.na(estados_muestra)]
+      estado <- estado_registro
+      motivo_registro <- rep_len(as.character(motivo), length(metricas))
+      motivos_muestra <- vapply(
+        clasificaciones, `[[`, character(1L), "motivo"
+      )
+      completar <- estados_medidos & is.na(motivo_registro) &
+        !is.na(motivos_muestra)
+      motivo_registro[completar] <- motivos_muestra[completar]
+      motivo <- motivo_registro
+    }
+  }
   etapa_publicada <- if (!is.null(medicion$etapa) &&
                          length(medicion$etapa) == 1L &&
                          !is.na(medicion$etapa)) {
@@ -7257,7 +7296,7 @@
   }
   data.frame(
     columna = rep_len(as.character(columna), length(metricas)),
-    metrica = as.character(metricas),
+    metrica = metricas,
     estado = rep_len(as.character(estado), length(metricas)),
     motivo = rep_len(as.character(motivo), length(metricas)),
     sql = rep_len(as.character(sql), length(metricas)),
@@ -7304,8 +7343,9 @@
     bloques_temporales_escritos = rep_len(NA_real_, length(metricas)),
     fuente_derrame = rep_len(NA_character_, length(metricas)),
     llamadas_en_ventana = rep_len(NA_real_, length(metricas)),
-    memoria_trabajo = rep_len(
-      .memoria_trabajo_sql_dbi(estado, metadatos), length(metricas)
+    memoria_trabajo = vapply(
+      rep_len(as.character(estado), length(metricas)),
+      .memoria_trabajo_sql_dbi, character(1L), metadatos = metadatos
     ),
     stringsAsFactors = FALSE
   )
@@ -8637,58 +8677,80 @@
   "n_distintos", "tasa_distintos", "moda", "frecuencia_moda", "mediana"
 )
 
-.error_esperado_muestreo_dbi <- function(metricas, muestreo, fraccion) {
-  fraccion_numero <- suppressWarnings(as.numeric(fraccion))
-  sin_muestreo <- is.null(muestreo) || !isTRUE(muestreo$disponible) ||
-    (length(fraccion_numero) == 1L && is.finite(fraccion_numero) &&
-       fraccion_numero >= 1)
-  if (sin_muestreo) return("no_aplica")
-  if (any(metricas %in% .METRICAS_ERROR_NO_ESTIMABLE_DBI)) {
-    return("no_estimable")
-  }
-  "no_estimado"
-}
-
-.motivo_error_esperado_muestreo_dbi <- function(metricas, estado) {
-  if (identical(estado, "no_aplica")) return(NA_character_)
-  if (identical(estado, "no_estimable")) {
-    if (any(metricas %in% c("moda", "frecuencia_moda"))) {
-      return(paste(
-        "La moda de una muestra no tiene una cota simple de error sin",
-        "supuestos adicionales sobre la distribucion."
-      ))
-    }
-    if (any(metricas %in% "mediana")) {
-      return(paste(
-        "La mediana de una muestra no tiene una cota simple de error sin",
-        "supuestos adicionales sobre la distribucion."
-      ))
-    }
-    return(paste(
-      "La cardinalidad observada en una muestra no estima la del universo",
-      "sin un estimador declarado."
+.clasificar_metrica_muestreo_dbi <- function(metrica, muestreo, fraccion) {
+  metrica <- as.character(metrica)
+  metricas_conocidas <- unlist(.CAMPOS_METRICA_DBI, use.names = FALSE)
+  if (length(metrica) != 1L || is.na(metrica) ||
+      !metrica %in% metricas_conocidas) {
+    return(list(
+      conocida = FALSE, disponible = FALSE, efectivo = FALSE,
+      estado = NA_character_, error_esperado = NA_character_,
+      motivo = NA_character_
     ))
   }
-  paste(
-    "El error muestral podria estimarse bajo un plan probabilistico, pero no",
-    "se calculo en esta corrida."
+  fraccion_numero <- suppressWarnings(as.numeric(fraccion))
+  disponible <- !is.null(muestreo) && isTRUE(muestreo$disponible)
+  efectivo <- disponible && !(
+    length(fraccion_numero) == 1L && is.finite(fraccion_numero) &&
+      fraccion_numero >= 1
+  )
+  error_esperado <- if (!efectivo) {
+    "no_aplica"
+  } else if (metrica %in% .METRICAS_ERROR_NO_ESTIMABLE_DBI) {
+    "no_estimable"
+  } else {
+    "no_estimado"
+  }
+  motivo <- if (!efectivo) {
+    NA_character_
+  } else if (metrica %in% c("n_validos", "n_faltantes", "prop_faltantes")) {
+    paste(
+      "conteo exacto en la muestra; no estima la tabla completa.",
+      "El denominador es `n_total_consulta` de esa misma sentencia."
+    )
+  } else if (metrica %in% c("n_ceros", "n_negativos", "frecuencia_moda")) {
+    paste(
+      "conteo exacto en la muestra; no estima la tabla completa.",
+      "La escala es la de las filas observadas por esa consulta."
+    )
+  } else if (metrica %in% c("moda")) {
+    paste(
+      "La moda de una muestra no tiene una cota simple de error sin",
+      "supuestos adicionales sobre la distribucion."
+    )
+  } else if (metrica %in% c("mediana")) {
+    paste(
+      "La mediana de una muestra no tiene una cota simple de error sin",
+      "supuestos adicionales sobre la distribucion."
+    )
+  } else if (metrica %in% c("n_distintos", "tasa_distintos")) {
+    paste(
+      "La cardinalidad observada en una muestra no estima la del universo",
+      "sin un estimador declarado."
+    )
+  } else {
+    paste(
+      "El error muestral podria estimarse bajo un plan probabilistico, pero no",
+      "se calculo en esta corrida."
+    )
+  }
+  list(
+    conocida = TRUE, disponible = disponible, efectivo = efectivo,
+    estado = if (disponible) {
+      if (metrica %in% .METRICAS_OBSERVADAS_MUESTRA_DBI) {
+        "observado_muestra"
+      } else {
+        "estimado"
+      }
+    } else NA_character_,
+    error_esperado = error_esperado, motivo = motivo
   )
 }
 
-.motivo_conteo_observado_muestra_dbi <- function(metricas) {
-  if (any(metricas %in% c("n_validos", "n_faltantes", "prop_faltantes"))) {
-    return(paste(
-      "conteo exacto en la muestra; no estima la tabla completa.",
-      "El denominador es `n_total_consulta` de esa misma sentencia."
-    ))
-  }
-  if (any(metricas %in% c("n_ceros", "n_negativos", "frecuencia_moda"))) {
-    return(paste(
-      "conteo exacto en la muestra; no estima la tabla completa.",
-      "La escala es la de las filas observadas por esa consulta."
-    ))
-  }
-  NA_character_
+.error_esperado_muestreo_dbi <- function(metricas, muestreo, fraccion) {
+  vapply(metricas, function(metrica) {
+    .clasificar_metrica_muestreo_dbi(metrica, muestreo, fraccion)$error_esperado
+  }, character(1L))
 }
 
 .validar_politica_costo_dbi <- function(politica_costo,
@@ -12963,6 +13025,12 @@
       error_esperado = "no_aplica"
     )
   }
+  if (es_muestreado) {
+    metadatos$muestreo_regla <- if (is.null(muestreo)) {
+      list(disponible = FALSE)
+    } else muestreo
+    metadatos$fraccion_regla <- fraccion_muestra
+  }
   metadatos <- .agregar_metadatos_estrategia_distintos_dbi(
     metadatos, estrategia_distintos
   )
@@ -12986,52 +13054,58 @@
     ))
   }
   registrar <- function(registros, metrica, resultado, motivo_exito = NA_character_) {
-    if (es_muestreado && isTRUE(resultado$ok) && is.null(resultado$estado)) {
-      resultado$estado <- if (any(metrica %in% .METRICAS_OBSERVADAS_MUESTRA_DBI)) {
-        "observado_muestra"
-      } else "estimado"
-    }
-    if (es_muestreado && isTRUE(resultado$ok) &&
-        any(metrica %in% "mediana")) {
-      # Una mediana consolidada puede llegar con estado `calculado` porque la
-      # misma forma tambien sirve sobre la tabla completa. Bajo muestreo sigue
-      # siendo un estadistico de las filas observadas, no una medicion del
-      # universo.
-      resultado$estado <- "estimado"
-    }
+    metricas_registro <- as.character(metrica)
     metadatos_registro <- metadatos
+    motivos_registro <- rep_len(as.character(motivo_exito),
+                                length(metricas_registro))
     if (es_muestreado) {
-      error_esperado_registro <- .error_esperado_muestreo_dbi(
-        metrica, muestreo, fraccion_muestra
+      clasificaciones <- lapply(metricas_registro, function(nombre) {
+        .clasificar_metrica_muestreo_dbi(
+          nombre, muestreo, fraccion_muestra
+        )
+      })
+      conocidas <- vapply(
+        clasificaciones, function(x) isTRUE(x$conocida), logical(1L)
       )
-      metadatos_registro$error_esperado <- error_esperado_registro
-      motivo_error_esperado <- .motivo_error_esperado_muestreo_dbi(
-        metrica, error_esperado_registro
-      )
-      motivo_conteo <- .motivo_conteo_observado_muestra_dbi(metrica)
-      if (is.na(motivo_exito) && !is.na(motivo_conteo)) {
-        motivo_exito <- motivo_conteo
+      if (all(conocidas)) {
+        metadatos_registro$error_esperado <- vapply(
+          clasificaciones, `[[`, character(1L), "error_esperado"
+        )
+        if (isTRUE(resultado$ok)) {
+          estados <- vapply(
+            clasificaciones, `[[`, character(1L), "estado"
+          )
+          if (all(!is.na(estados))) resultado$estado <- estados
+        }
+        for (i in seq_along(metricas_registro)) {
+          if (is.na(motivos_registro[[i]])) {
+            motivos_registro[[i]] <- clasificaciones[[i]]$motivo
+          }
+        }
       }
-      if (isTRUE(resultado$ok) && all(is.na(motivo_exito)) &&
-          !is.na(motivo_error_esperado)) {
-        motivo_exito <- motivo_error_esperado
-      }
-      if (isTRUE(resultado$ok) && any(metrica %in% "mediana") &&
-          !is.null(muestreo) &&
-          length(muestreo$motivo) == 1L && !is.na(muestreo$motivo) &&
+      if (isTRUE(resultado$ok) &&
+          any(metricas_registro %in% "mediana") &&
+          !is.null(muestreo) && length(muestreo$motivo) == 1L &&
+          !is.na(muestreo$motivo) &&
           grepl("^sesgo_muestreo:", as.character(muestreo$motivo))) {
         motivo_muestreo <- as.character(muestreo$motivo)
-        motivo_exito <- if (length(motivo_exito) != 1L ||
-                            is.na(motivo_exito) ||
-                            !nzchar(as.character(motivo_exito))) {
-          motivo_muestreo
-        } else {
-          paste(motivo_muestreo, as.character(motivo_exito), sep = "; ")
+        indice_mediana <- match("mediana", metricas_registro)
+        if (!is.na(indice_mediana)) {
+          motivos_registro[[indice_mediana]] <- if (
+            is.na(motivos_registro[[indice_mediana]]) ||
+            !nzchar(as.character(motivos_registro[[indice_mediana]]))
+          ) {
+            motivo_muestreo
+          } else {
+            paste(motivo_muestreo,
+                  as.character(motivos_registro[[indice_mediana]]),
+                  sep = "; ")
+          }
         }
       }
     }
     .registrar_resultado_dbi(
-      registros, columna, metrica, resultado, motivo_exito,
+      registros, columna, metricas_registro, resultado, motivos_registro,
       metadatos = metadatos_registro
     )
   }

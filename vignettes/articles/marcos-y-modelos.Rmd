@@ -22,20 +22,7 @@ de la calidad nos importan, con qué métricas los medimos y cómo leemos los n�
 >   evaluamos con perfiles de madurez;
 > - conocemos los marcos incluidos: ISO/IEC 25012, CEA/CEPAL y AGESIC.
 
-## Un marco es una taxonomía
-
-`lupa` sigue el linaje de dimensiones, factores y métricas de Batini y Scannapieco
-(2016). Una dimensión reúne factores: la completitud reúne la densidad, por ejemplo.
-Un factor reúne métricas: `NoNulo` mide la densidad. Esa jerarquía sirve para
-clasificar y para navegar el modelo, no para calcular: el marco no define un
-"puntaje de exactitud" ni un índice global, y `agregar()` no sube de una métrica a
-su factor ni a su dimensión. Promediar factores sin una decisión explícita ocultaría
-prioridades y correlaciones entre ellos.
-
-Declaramos el marco de nuestra entrega, `datos_operativos`. Cada métrica trae su
-dimensión y su factor, y un modelo ligado a un marco exige que cada una caiga en uno
-de sus pares. Para las tres métricas del núcleo que vamos a usar tomamos los pares del
-catálogo de AGESIC, que los nombra; los otros dos factores son propios.
+Primero declaramos un marco pequeño para la entrega y vemos qué estructura devuelve.
 
 ```{r}
 library(lupa)
@@ -63,6 +50,21 @@ factores$como_resolverlo <- unname(instrucciones[factores$dimension])
 marco_entrega <- marco_calidad("Marco de la entrega operativa", factores)
 as.data.frame(marco_entrega)[, c("dimension", "factor", "perfil_mide")]
 ```
+
+## Un marco es una taxonomía
+
+`lupa` sigue el linaje de dimensiones, factores y métricas de Batini y Scannapieco
+(2016). Una dimensión reúne factores: la completitud reúne la densidad, por ejemplo.
+Un factor reúne métricas: `NoNulo` mide la densidad. Esa jerarquía sirve para
+clasificar y para navegar el modelo, no para calcular: el marco no define un
+"puntaje de exactitud" ni un índice global, y `agregar()` no sube de una métrica a
+su factor ni a su dimensión. Promediar factores sin una decisión explícita ocultaría
+prioridades y correlaciones entre ellos.
+
+El marco de arriba es el de nuestra entrega, `datos_operativos`. Cada métrica trae su
+dimensión y su factor, y un modelo ligado a un marco exige que cada una caiga en uno
+de sus pares. Para las tres métricas del núcleo que vamos a usar tomamos los pares del
+catálogo de AGESIC, que los nombra; los otros dos factores son propios.
 
 En un data frame, `perfil_mide` dice para qué factores el perfil por sí solo ya aporta
 evidencia suficiente; aquí, la no duplicación, porque `perfilar()` busca filas

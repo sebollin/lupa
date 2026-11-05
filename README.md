@@ -314,6 +314,8 @@ temporal analysis into one object, together with a proposed quality model, its
 dashboard and a cleaning plan; `reportar()` writes it all to a self-contained
 HTML file for sharing.
 
+![Top of the self-contained HTML report: scope warnings, the profile summary and the start of the findings table](man/figures/informe-html.png)
+
 ``` r
 analisis <- analizar(datos_operativos)
 reportar(analisis, archivo = "informe-lupa.html")
