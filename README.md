@@ -300,9 +300,10 @@ in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
     stays with the exact or sampled comparison, and `estrategia = "lsh"` forces it.
     `estimar_costo()` anticipates the switch ([Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html)).
   - **Wide tables.** From 100,000 cells up, an interactive session
-    gets a notice of how long `perfilar()` may take; the estimate relies on an
-    assumption built into the code (10,000 cells per second), not on a measurement
-    of the machine; the dated measurements are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+    gets a notice of how long `perfilar()` may take; the estimate relies on a
+    code reference (5,000 cells per second), set below the slowest
+    wide-table measurement with numeric and categorical columns (many columns of
+    similar text codes can take several times longer); the dated measurements are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
   - **Millions of rows in memory.** `perfilar()` and `analizar()` take minutes, not
     seconds: profile a sample or use `perfilar_dbi()` instead. The measured figures,
     with their dates, are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) (*Evidence and performance*).

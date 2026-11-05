@@ -184,7 +184,7 @@ test_that("los textos de estimacion declaran pares y cantidades enteras", {
   texto <- lupa:::.texto_tiempo_lsh(fijo)
   expect_match(texto, "491[.]344 candidatos")
   expect_match(texto, "382[.]654 pares")
-  expect_match(texto, "piso")
+  expect_match(texto, "referencia de la comparacion aislada")
   sin_reloj <- fijo
   sin_reloj$tiempo <- NA_real_
   expect_match(lupa:::.texto_tiempo_lsh(sin_reloj), "no se pudo medir")

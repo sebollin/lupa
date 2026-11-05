@@ -283,7 +283,9 @@ as_tibble.perfil <- function(x, ...) {
 #'   SQL**, que es la cobertura de ese objeto: sus diagnósticos no evaluados
 #'   viajan en `x$perfil_muestra$cobertura_diagnosticos`, con el esquema de
 #'   [perfilar()], y la impresión del perfil los declara—; `n_filas()` devuelve el conteo de filas del
-#'   alcance, o un vector con un conteo por tabla para una colección. Devuelve
+#'   alcance, o un vector nombrado con un conteo por tabla para una colección
+#'   —los nombres son los de `resumen_coleccion$tabla`, en el orden de la tabla—.
+#'   Devuelve
 #'   `NA` con su motivo cuando el objeto no conoce el conteo. El significado de
 #'   cada campo de `columnas()` se explica por familias en los detalles de
 #'   [perfilar()]. `sql_perfil()` devuelve la tabla de consultas emitidas;
@@ -356,7 +358,10 @@ n_filas <- function(x, ...) {
   if (inherits(x, "perfil_coleccion")) {
     # Una coleccion tiene un conteo por tabla, no un total de una relacion
     # unica. Devolver el vector conserva el dato sin inventar una suma.
-    return(as.numeric(x$resumen_coleccion$n_filas))
+    resumen <- x$resumen_coleccion
+    return(stats::setNames(
+      as.numeric(resumen$n_filas), as.character(resumen$tabla)
+    ))
   }
   NA_real_
 }

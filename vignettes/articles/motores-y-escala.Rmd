@@ -841,9 +841,10 @@ El bloque `perfil_muestra` pasa por `perfilar()`, y en una sesión interactiva
 recibe también su aviso de tabla ancha desde
 `r num(lupa:::.UMBRAL_CELDAS_AVISO_TABLA_ANCHA)` celdas. Ese aviso divide las
 celdas por una velocidad de referencia de
-`r num(lupa:::.VELOCIDAD_REFERENCIA_TABLA_ANCHA)` celdas por segundo: es un
-supuesto del código, no una medición de la corrida ni de la máquina, y la espera
-real puede ser mayor. El aviso se describe en
+`r num(lupa:::.VELOCIDAD_REFERENCIA_TABLA_ANCHA)` celdas por segundo, fijada por
+debajo de la medición más lenta de `benchmark/medir_referencias.R` (columnas
+numéricas y categóricas); con muchas columnas de códigos de texto parecidos la
+espera puede ser varias veces mayor. El aviso se describe en
 [Escala y duplicados](escala-y-duplicados.html) y las mediciones fechadas están
 en [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 

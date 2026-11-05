@@ -144,9 +144,11 @@ reemplaza por \verb{[valor protegido]}. La supresion queda indicada en cada par.
 \code{1000}; controla la memoria temporal, no el número de pares comparados.}
 
 \item{estrategia}{Estrategia de comparación: \code{"auto"} (por omisión),
-\code{"teselas"}, \code{"muestra"} o \code{"lsh"}. MinHash/LSH sólo se activa
-automáticamente por encima del tope exhaustivo; se puede forzar con
-\code{"lsh"}.}
+\code{"teselas"}, \code{"muestra"} o \code{"lsh"}. Con \code{"auto"}, MinHash/LSH
+se activa exactamente cuando hay más de 10.000 filas, \code{muestra = Inf} y
+\code{max_pares} es \code{Inf} o es mayor o igual que 50.000.000. Si falla
+cualquiera de esas condiciones, se conserva el camino exacto por teselas o el
+muestreado que corresponda; \code{"lsh"} lo fuerza.}
 
 \item{lsh_bandas}{Número de bandas del esquema LSH. Por defecto, 12.}
 
@@ -226,8 +228,8 @@ reloj queda en el resultado de esta función y no es necesaria para obtener
 }
 \details{
 En el camino LSH, \code{candidatos_previstos} es una estimación reproducible a
-partir de una muestra de firmas. \code{tiempo_estimado_segundos} es un piso de la
-medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
+partir de una muestra de firmas. \code{tiempo_estimado_segundos} es una referencia
+de la medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
 tienen \code{tiempo_determinista = FALSE}. Con \code{bloquear_por}, los pares entre
 bloques no entran en el pronóstico y la pérdida estructural y estimada queda
 en \code{alcance}. En el camino exacto, \code{candidatos_previstos} es la cantidad de

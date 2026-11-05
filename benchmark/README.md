@@ -164,13 +164,13 @@ Los scripts sólo cargan R base, `utils` y `lupa`; no adjuntan `stringdist` ni
 requieren `readr`, `dplyr` o `tibble`. `lupa` usa internamente aquella capacidad
 opcional durante el perfilado. Por omisión descargan los seis archivos de
 `https://raw.githubusercontent.com/BigDaMa/raha/master/datasets/<ds>/<dirty|clean>.csv`
-a un directorio temporal. Para repetir la corrida sin red sobre una copia ya
-obtenida se puede definir `RAHA_DATA_DIR`; sus archivos deben llamarse, por
-ejemplo, `hospital_dirty.csv` y `hospital_clean.csv`.
+a `benchmark/datos/.raha-descargas`. Para repetir la corrida sin red sobre una
+copia ya obtenida se puede definir `RAHA_DATA_DIR`; sus archivos deben llamarse,
+por ejemplo, `hospital_dirty.csv` y `hospital_clean.csv`.
 
-Cada salida registra URL, tamaño y una huella Adler-32 de los bytes obtenidos.
-La huella no es criptográfica: sirve como identificador reproducible para
-detectar que el archivo de origen cambió. El snapshot publicado está en
+Cada salida registra URL, tamaño, Adler-32 y SHA-256 de los bytes obtenidos.
+Adler-32 sirve como identificador rápido; SHA-256 es la huella criptográfica
+que permite comprobar exactamente el archivo de origen. El snapshot publicado está en
 [`resultados.md`](resultados.md).
 
 ## Interpretación
@@ -185,16 +185,20 @@ uno a uno entre celdas.
 ## Bancos adicionales
 
 `medir_topes_valores_ancho.R` mide la discriminacion de Jaro-Winkler en pares
-de textos que difieren en un caracter y en 1.000, y cronometra el perfilado de
-500 filas con 50, 300 y 1.000 columnas. Ejecutarlo despues de instalar la
-version construida desde estas fuentes:
+de textos que difieren en un caracter y en 1.000, usando el `p` predeterminado
+leido de la funcion. En la corrida publicada, la mediana con 1.000 cambios
+cruza el umbral 0,10 entre 15.000 y 20.000 caracteres; el tope de 10.000 deja
+el margen hasta el primer largo probado por debajo del umbral. También
+cronometra el perfilado de 500 filas con 50, 300 y 1.000 columnas. Ejecutarlo
+despues de instalar la version construida desde estas fuentes:
 
 ```sh
 Rscript benchmark/medir_topes_valores_ancho.R
 ```
 
-El script imprime la mediana de cinco semillas para la tabla de discriminacion
-y deja el aviso de tabla ancha desactivado durante el cronometraje.
+El script imprime la mediana de cinco semillas para la tabla de discriminacion,
+lee el `p` predeterminado desde el codigo de `lupa`, cronometra tres veces cada
+ancho y escribe un CSV en `benchmark/datos/` con fecha, entorno y huella.
 
 Los scripts siguientes son independientes de `verdad_raha.R` y no agregan
 dependencias al paquete:

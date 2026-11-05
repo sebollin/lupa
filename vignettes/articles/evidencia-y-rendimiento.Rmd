@@ -26,6 +26,38 @@ leer_banco <- function(nombre) {
 # El registro de sanciones: la ultima corrida de benchmark/medir_sanciones.R.
 sanciones <- leer_banco("medir-sanciones.csv")
 sanciones_fecha <- sub("T.*", "", sanciones$fecha[[1L]])
+raha_versiones <- leer_banco("verdad-raha-versiones.csv")
+# Tablas anchas: la referencia del aviso sale de benchmark/medir_referencias.R
+# (columnas numericas y categoricas) y el caso lento, de columnas de codigos de
+# texto parecidos, de benchmark/medir_topes_valores_ancho.R.
+referencias_ancho <- leer_banco("medir-referencias.csv")
+referencias_ancho <- referencias_ancho[
+  referencias_ancho$escenario == "tabla_ancha", , drop = FALSE
+]
+referencias_ancho <- data.frame(
+  n_columnas = referencias_ancho$n_columnas[referencias_ancho$medida == "perfilar"],
+  segundos = referencias_ancho$valor[referencias_ancho$medida == "perfilar"],
+  celdas_por_segundo = round(
+    referencias_ancho$valor[referencias_ancho$medida == "celdas_por_segundo"]
+  )
+)
+referencias_fecha <- sub("T.*", "", leer_banco("medir-referencias.csv")$fecha[[1L]])
+ancho_minima <- min(referencias_ancho$celdas_por_segundo)
+archivos_codigos <- sort(
+  list.files(
+    datos_banco,
+    pattern = "^medir-topes-valores-ancho-.*[.]csv$",
+    full.names = TRUE
+  ),
+  decreasing = TRUE
+)
+if (!length(archivos_codigos)) {
+  stop("No encuentro el CSV de medir_topes_valores_ancho.R.")
+}
+archivo_codigos <- basename(archivos_codigos[[1L]])
+codigos_ancho <- utils::read.csv(archivos_codigos[[1L]], stringsAsFactors = FALSE)
+codigos_ancho <- codigos_ancho[codigos_ancho$escenario == "tabla_ancha", , drop = FALSE]
+codigos_minima <- min(codigos_ancho$celdas_por_segundo)
 codigo <- function(x) paste0("`", x, "`")
 numero <- function(x, dec = 0L) {
   formatC(x, format = "f", digits = dec, big.mark = ".", decimal.mark = ",")
@@ -168,18 +200,29 @@ hospital  17 de 17 afectadas con hallazgo; 19 senaladas; 2 adicionales
 flights    4 de  4 afectadas con hallazgo;  6 senaladas; 2 adicionales
 beers      5 de  5 afectadas con hallazgo;  9 senaladas; 4 adicionales
 total     26 de 26 afectadas con hallazgo; 34 senaladas; 8 adicionales
-
-Version de los archivos obtenidos (bytes y Adler-32):
-hospital  dirty.csv 303306 bytes  f970da05
-hospital  clean.csv 303324 bytes  74435416
-flights   dirty.csv 154776 bytes  d3a57255
-flights   clean.csv 173159 bytes  ffe72679
-beers     dirty.csv 255295 bytes  b2bb7910
-beers     clean.csv 233019 bytes  71980a46
 ```
 
-La huella Adler-32 no es criptográfica: permite ver que cambiaron los bytes
-obtenidos. Las huellas de la corrida publicada también están en
+```{r raha-versiones-salida, echo = FALSE, results = "asis"}
+cat("Version de los archivos obtenidos (bytes, Adler-32 y SHA-256):\n")
+for (i in seq_len(nrow(raha_versiones))) {
+  x <- raha_versiones[i, ]
+  cat(sprintf(
+    "%-9s %-9s %6d bytes  %s  %s\n",
+    x$dataset, x$archivo, x$bytes, x$adler32, x$sha256
+  ))
+}
+```
+
+```{r raha-huellas, echo = FALSE}
+tabla_raha_huellas <- raha_versiones[, c(
+  "dataset", "archivo", "bytes", "adler32", "sha256"
+)]
+names(tabla_raha_huellas) <- c("Dataset", "Archivo", "Bytes", "Adler-32", "SHA-256")
+knitr::kable(tabla_raha_huellas, format = "pipe", row.names = FALSE)
+```
+
+Adler-32 permite detectar rápidamente que cambiaron los bytes; SHA-256 es la
+huella criptográfica publicada. Las huellas de la corrida también están en
 [`benchmark/resultados.md`](`r repo("benchmark/resultados.md")`), junto con el
 detalle de qué cuenta cada número.
 
@@ -490,30 +533,33 @@ En una sesión interactiva, `perfilar()` avisa antes de perfilar una tabla de
 `r numero(eval(formals(perfilar)$umbral_celdas_aviso_tabla_ancha, asNamespace("lupa")))`
 celdas o más (`umbral_celdas_aviso_tabla_ancha`) y proyecta la duración con una
 referencia de `r numero(interno(".VELOCIDAD_REFERENCIA_TABLA_ANCHA"))` celdas por
-segundo. Esa referencia es un supuesto del código, no una medición.
-
-La medición más reciente es la de `benchmark/medir_referencias.R`, que perfila
-tablas de 500 filas con 50, 300 y 1.000 columnas (dos de cada tres numéricas, el
-resto texto) y descarta una primera corrida de calentamiento. Dos corridas del
-2026-10-24 sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`, en la misma máquina que las figuras
-(`r entorno$cpu`, R 4.6.1); salida guardada:
+segundo. Esa referencia se fija por debajo de la medición más lenta de
+`benchmark/medir_referencias.R`, que perfila tablas de 500 filas con 50, 300 y
+1.000 columnas numéricas y categóricas y deja la corrida en
+`benchmark/datos/medir-referencias.csv` (`r referencias_fecha`):
 
 ```{r velocidad-ancha}
-anchas <- data.frame(
-  columnas = c(50, 300, 1000),
-  corrida_1_s = c(4.62, 18.54, 67.15),
-  corrida_2_s = c(4.44, 19.03, 64.36)
-)
-anchas$celdas_por_segundo <- round(
-  500 * anchas$columnas / rowMeans(anchas[c("corrida_1_s", "corrida_2_s")])
-)
-anchas
+referencias_ancho
 ```
 
-Medido así, una tabla ancha se perfila más despacio que la referencia, y la
-proyección del aviso puede quedarse corta. El guion imprime sus tiempos en la
-consola y no deja un CSV en `benchmark/datos/`, así que esta tabla es una salida
-guardada con su fecha.
+El caso más lento de esa tabla son `r numero(ancho_minima)` celdas por segundo. Es
+una referencia para el caso común y no una cota. Con muchas columnas de códigos de
+texto parecidos (`"valor_1"`, `"valor_2"`...), la búsqueda de casi duplicados del
+vocabulario domina el perfil: `benchmark/medir_topes_valores_ancho.R` repite esa
+columna en las mismas tres anchuras, tres veces cada una, y deja
+`r codigo(archivo_codigos)`, con su fecha, entorno y huella del código:
+
+```{r velocidad-ancha-codigos}
+codigos_ancho[, c(
+  "n_filas", "n_columnas", "celdas", "repeticion", "segundos",
+  "celdas_por_segundo"
+)]
+```
+
+Ahí el caso más lento son `r numero(codigos_minima)` celdas por segundo: con
+tablas así, la espera puede ser unas
+`r round(interno(".VELOCIDAD_REFERENCIA_TABLA_ANCHA") / codigos_minima)` veces
+mayor que la proyectada.
 
 ## Corridas sobre millones de filas
 

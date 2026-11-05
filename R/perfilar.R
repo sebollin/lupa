@@ -1,6 +1,6 @@
 .UMBRAL_FILAS_DATA_TABLE_DUPLICADOS <- 25L
 .UMBRAL_CELDAS_AVISO_TABLA_ANCHA <- 100000L
-.VELOCIDAD_REFERENCIA_TABLA_ANCHA <- 10000
+.VELOCIDAD_REFERENCIA_TABLA_ANCHA <- 5000
 .MAX_CELDAS_MUESTRA <- 1000000L
 .MAX_BYTES_MUESTRA <- 512 * 1024^2
 
@@ -12,10 +12,12 @@
     duracion_estimada_segundos = celdas / .VELOCIDAD_REFERENCIA_TABLA_ANCHA,
     umbral_celdas = umbral_celdas,
     fuente = paste0(
-      "mediciones de lupa con 500 filas y 50, 300 y 1.000 columnas; ",
-      "referencia conservadora de ",
+      "benchmark/medir_referencias.R, 500 filas y 50, 300 y 1.000 columnas ",
+      "num\u00e9ricas y categ\u00f3ricas; referencia de ",
       .formatear_numero_publicado(.VELOCIDAD_REFERENCIA_TABLA_ANCHA),
-      " celdas por segundo"
+      " celdas por segundo, por debajo de todas sus mediciones. Con muchas ",
+      "columnas de c\u00f3digos de texto parecidos la espera puede ser varias ",
+      "veces mayor (benchmark/medir_topes_valores_ancho.R)"
     )
   )
 }

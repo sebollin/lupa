@@ -9,14 +9,15 @@
 # Jaro-Winkler y las distancias de edicion fueron concebidas para nombres,
 # direcciones e identificadores, no para documentos.
 #
-# El motivo NO es que la metrica pierda discriminacion: medido, el cociente
-# entre 500 ediciones y 1 edicion se mantiene en unos 480 con largos de 1.000,
-# 10.000 y 25.000 caracteres. Lo que cambia es la ESCALA ABSOLUTA. Con 25.000
-# caracteres, 500 ediciones -un parrafo reescrito- dan una distancia normalizada
-# de 0,019, por debajo de cualquier umbral usable, asi que dos documentos que un
-# lector considera distintos quedan del lado de los casi-duplicados. La metrica
-# es invariante ante diferencias PROPORCIONALES y deja de servir ante diferencias
-# de tamano FIJO, que son las que ocurren en textos largos.
+# El motivo NO es que la metrica pierda discriminacion: el benchmark
+# `medir_topes_valores_ancho.R` mide el mismo `p` que la funcion. Lo que cambia
+# es la ESCALA ABSOLUTA: con 1.000 cambios, la mediana pasa de 0,116 a 10.000
+# caracteres a 0,063 a 25.000, y cruza el umbral 0,10 entre 15.000 y 20.000.
+# Por eso el tope predeterminado de 10.000 deja un margen de 5.000 caracteres
+# hasta el primer largo probado por debajo del umbral, no el margen mayor que se
+# publicaba con otra configuracion de Jaro-Winkler. La metrica es invariante
+# ante diferencias PROPORCIONALES y deja de servir ante diferencias de tamano
+# FIJO, que son las que ocurren en textos largos.
 #
 # Y esta el costo, que es el motivo principal: con valores de 20 KB la matriz de
 # distancias se lleva el 69 % del perfilado, y 2.000 filas de 200 KB tardan
@@ -1076,7 +1077,8 @@
       " candidatos previstos; referencia de ",
       format(round(estimacion$tiempo, 3), nsmall = 3,
         decimal.mark = ","),
-      " s (piso, no incluye firma ni cubetas; subir nucleos puede acortar ",
+      " s (referencia de la comparacion aislada; no incluye firma ni cubetas; ",
+      "subir nucleos puede acortar ",
       "esta etapa; hoy usa ", nucleos, " hilos), medida con ",
       .formato_pares_lsh(estimacion$pares_benchmark), " pares en ",
       format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
@@ -2565,8 +2567,11 @@
 #' El aviso interactivo señala esta perilla: subir `nucleos` puede acortar la
 #' etapa de comparación, pero la ganancia depende de la máquina y de los datos.
 #'
-#' Para tablas que superan el tope exhaustivo, `estrategia = "auto"` usa
-#' MinHash con bandas LSH sobre todas las filas cuando `muestra = Inf`. La
+#' `estrategia = "auto"` usa MinHash con bandas LSH sobre todas las filas
+#' exactamente cuando se cumplen estas tres condiciones: hay más de 10.000
+#' filas, `muestra = Inf` y `max_pares` es `Inf` o es mayor o igual que
+#' 50.000.000. Si falla cualquiera de ellas, conserva el camino exacto por
+#' teselas o el muestreado que corresponda. La
 #' salida declara las bandas, las filas por banda, las cubetas descartadas y la
 #' probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 #' los q-gramas, no a la medida final (`metodo`). `estrategia = "lsh"` fuerza
@@ -2589,9 +2594,9 @@
 #' esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
 #' publica una estimación reproducible de candidatos. El cronómetro de la medida
 #' se ejecuta durante al menos 50 ms y queda en `resultado$estimacion`, separado
-#' de `alcance` y marcado como no determinista. Es un piso de la medida aislada
-#' y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
-#' una sesión interactiva.
+#' de `alcance` y marcado como no determinista. Es una referencia de la medida
+#' aislada y no estima la firma, las cubetas ni el troceo; sólo se muestra como
+#' aviso en una sesión interactiva.
 #' Fuera de una sesión interactiva se señala una condición silenciosa de clase
 #' `lupa_tiempo_lsh`, sólo en el camino LSH: no se imprime en `stdout` ni
 #' `stderr`. Se puede capturar con
@@ -2730,9 +2735,11 @@
 #'   reemplaza por `[valor protegido]`. La supresion queda indicada en cada par.
 #'   `FALSE` por omision.
 #' @param estrategia Estrategia de comparación: `"auto"` (por omisión),
-#'   `"teselas"`, `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa
-#'   automáticamente por encima del tope exhaustivo; se puede forzar con
-#'   `"lsh"`.
+#'   `"teselas"`, `"muestra"` o `"lsh"`. Con `"auto"`, MinHash/LSH
+#'   se activa exactamente cuando hay más de 10.000 filas, `muestra = Inf` y
+#'   `max_pares` es `Inf` o es mayor o igual que 50.000.000. Si falla
+#'   cualquiera de esas condiciones, se conserva el camino exacto por teselas o el
+#'   muestreado que corresponda; `"lsh"` lo fuerza.
 #' @param lsh_bandas Número de bandas del esquema LSH. Por defecto, 12.
 #' @param lsh_filas Número de filas de firma por banda. Por defecto, 3.
 #' @param lsh_q Longitud de los q-gramas usados para MinHash. Por defecto, 3.
@@ -2771,7 +2778,7 @@
 #'   `estimacion`. `alcance` es reproducible; en el camino LSH,
 #'   `estimacion$tiempo_determinista` es `FALSE` y reúne la velocidad, duración
 #'   y tiempo de referencia medidos en esa corrida. El campo
-#'   `estimacion$tiempo_estimado_etapa` indica que ese piso cubre sólo la
+#'   `estimacion$tiempo_estimado_etapa` indica que esa referencia cubre sólo la
 #'   comparación `stringdist`, no la firma, las cubetas ni el troceo. En el camino exacto o cuando
 #'   no se puede comparar, `estimacion` es `NULL`. Si `lotes = TRUE`, se agrega
 #'   `lotes` con el directorio, los archivos RDS, sus tamaños, el estado de
@@ -2850,8 +2857,8 @@ detectar_duplicados_aproximados <- function(
 #' `alcance` reproducible en `detectar_duplicados_aproximados()`.
 #'
 #' En el camino LSH, `candidatos_previstos` es una estimación reproducible a
-#' partir de una muestra de firmas. `tiempo_estimado_segundos` es un piso de la
-#' medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
+#' partir de una muestra de firmas. `tiempo_estimado_segundos` es una referencia
+#' de la medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
 #' tienen `tiempo_determinista = FALSE`. Con `bloquear_por`, los pares entre
 #' bloques no entran en el pronóstico y la pérdida estructural y estimada queda
 #' en `alcance`. En el camino exacto, `candidatos_previstos` es la cantidad de

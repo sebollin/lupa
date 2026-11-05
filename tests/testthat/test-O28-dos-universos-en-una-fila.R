@@ -88,7 +88,7 @@ test_that("n_filas devuelve una fila por tabla en una coleccion", {
   col <- coleccion(con, c("a", "b"), nombre = "o28")
 
   perfil <- perfilar_coleccion(col)
-  expect_equal(n_filas(perfil), c(100, 10))
+  expect_equal(n_filas(perfil), c(a = 100, b = 10))
 
   comun <- perfilar_dbi(con, "a")
   expect_equal(as.numeric(n_filas(comun)), 100)

@@ -36,8 +36,8 @@
 > de Raha -26 de 26-, que rehace `revalidar.sh` en cada corrida.
 
 - Version declarada de `lupa`: `0.1.0`.
-- Las huellas de archivos son Adler-32 calculado en R base. No son
-  criptograficas y solo identifican cambios de los bytes obtenidos.
+- Las huellas de archivos incluyen Adler-32 y SHA-256 calculados sobre los bytes
+  obtenidos; SHA-256 es la identificación criptográfica publicada.
 - `benchmark/` esta fuera del tarball; los datos externos tampoco se
   redistribuyen.
 
@@ -445,14 +445,14 @@ la reproduccion anterior de Raha, cuyo alcance esta declarado arriba.
 
 ## Version de los archivos de Raha
 
-| Dataset | Archivo | Bytes | Adler-32 |
-| --- | --- | ---: | --- |
-| hospital | dirty.csv | 303306 | `f970da05` |
-| hospital | clean.csv | 303324 | `74435416` |
-| flights | dirty.csv | 154776 | `d3a57255` |
-| flights | clean.csv | 173159 | `ffe72679` |
-| beers | dirty.csv | 255295 | `b2bb7910` |
-| beers | clean.csv | 233019 | `71980a46` |
+| Dataset | Archivo | Bytes | Adler-32 | SHA-256 |
+| --- | --- | ---: | --- | --- |
+| hospital | dirty.csv | 303306 | `f970da05` | `dbc5575b915fe8b5e0ac6dc6172f38ba91e611fdb76d09a8f4a81cb7ea9925ac` |
+| hospital | clean.csv | 303324 | `74435416` | `ea3ee44998455c0b491750c348509de176c758a3bbf58e4530c0a136bb248b4b` |
+| flights | dirty.csv | 154776 | `d3a57255` | `1b5c1afa10aa0e7c20fd7e14d05c56772715b2771aa0f5fa67ed1709e1eecd46` |
+| flights | clean.csv | 173159 | `ffe72679` | `0acfcfd8985b06fdd363965c9e8d9522c43e7589a93d79ae7dc311e1c37fdf3b` |
+| beers | dirty.csv | 255295 | `b2bb7910` | `7110bf4931a9445a1675e544d6c996817c739136239f8a2b02e088c7ec0a1f68` |
+| beers | clean.csv | 233019 | `71980a46` | `373227df59ad197e154dd5149125789e415019535c7223355e9486ee1b3b93de` |
 
-La huella no es criptografica: permite detectar que cambiaron los bytes
-obtenidos sin prometer una funcion criptografica portable en R base.
+Adler-32 no es criptografico y permite detectar rapidamente que cambiaron los
+bytes obtenidos; SHA-256 es la huella criptografica publicada para comprobarlos.

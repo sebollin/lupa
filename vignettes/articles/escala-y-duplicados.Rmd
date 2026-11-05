@@ -7,6 +7,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 # knitr teje cada viñeta en su propia sesión; igual se devuelve el ancho al
 # terminar, como pide el CRAN Cookbook para toda opción que se cambie.
 .opciones_previas <- options(width = 90)
+library(lupa)
 # La comparación usa stringdist, que es sugerido: sin él los bloques no corren y
 # la viñeta se construye igual; las cifras en línea dicen entonces "varios".
 tiene_stringdist <- requireNamespace("stringdist", quietly = TRUE)
@@ -16,6 +17,36 @@ cifra <- function(x) {
   format(x, big.mark = ".", decimal.mark = ",", scientific = FALSE)
 }
 tope_largo <- tope_pares <- umbral_celdas <- velocidad_celdas <- NA
+raices <- unique(c(file.path("..", ".."), getNamespaceInfo("lupa", "path")))
+raices <- raices[file.exists(file.path(raices, "benchmark", "datos"))]
+if (!length(raices)) stop("No se encuentra benchmark/datos.")
+# La referencia del aviso sale de benchmark/medir_referencias.R (columnas
+# numericas y categoricas); el caso lento, de columnas de codigos de texto
+# parecidos, de benchmark/medir_topes_valores_ancho.R.
+referencias <- utils::read.csv(
+  file.path(raices[[1L]], "benchmark", "datos", "medir-referencias.csv"),
+  stringsAsFactors = FALSE
+)
+referencias <- referencias[
+  referencias$escenario == "tabla_ancha" &
+    referencias$medida == "celdas_por_segundo", , drop = FALSE
+]
+if (!nrow(referencias)) stop("medir-referencias.csv no trae tablas anchas.")
+velocidad_minima_medida <- min(referencias$valor)
+archivos_codigos <- sort(
+  list.files(
+    file.path(raices[[1L]], "benchmark", "datos"),
+    pattern = "^medir-topes-valores-ancho-.*[.]csv$",
+    full.names = TRUE
+  ),
+  decreasing = TRUE
+)
+if (!length(archivos_codigos)) {
+  stop("No se encuentra el CSV de medir_topes_valores_ancho.R.")
+}
+codigos <- utils::read.csv(archivos_codigos[[1L]], stringsAsFactors = FALSE)
+codigos <- codigos[codigos$escenario == "tabla_ancha", , drop = FALSE]
+velocidad_codigos <- min(codigos$celdas_por_segundo)
 ```
 
 Un registro de proveedores puede tener al mismo proveedor dos veces, escrito de
@@ -343,7 +374,10 @@ ids_conservados(invertidos, dos_invertidos)
 costo_ancho <- ajustado$meta$costo_tabla_ancha
 umbral_celdas <- costo_ancho$umbral_celdas
 velocidad_celdas <- costo_ancho$celdas / costo_ancho$duracion_estimada_segundos
-stopifnot(abs(velocidad_celdas - 10000) < 1e-6)
+stopifnot(
+  abs(velocidad_celdas - lupa:::.VELOCIDAD_REFERENCIA_TABLA_ANCHA) < 1e-6,
+  velocidad_celdas <= velocidad_minima_medida
+)
 ```
 
 Antes de empezar las etapas caras, `perfilar()` proyecta cuánto puede tardar una
@@ -358,10 +392,16 @@ str(ajustado$meta$costo_tabla_ancha[c(
 ```
 
 La duración sale de dividir las celdas por una velocidad de referencia de
-`r cifra(velocidad_celdas)` celdas por segundo. Esa velocidad es un supuesto del
-código, no una medición de la máquina que corre el perfil: las mediciones con
-tablas anchas, con su fecha y su entorno, están en el artículo
-[Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+`r cifra(velocidad_celdas)` celdas por segundo, por debajo de la medición más
+lenta de `benchmark/medir_referencias.R` (`r cifra(round(velocidad_minima_medida))`
+celdas por segundo, con 500 filas y columnas numéricas y categóricas). Es una
+referencia para el caso común, no una cota: con muchas columnas de códigos de
+texto parecidos (`"valor_1"`, `"valor_2"`...), la búsqueda de casi duplicados del
+vocabulario hace que `benchmark/medir_topes_valores_ancho.R` mida
+`r cifra(round(velocidad_codigos))` celdas por segundo: la espera puede ser unas
+`r round(velocidad_celdas / velocidad_codigos)` veces mayor que la proyectada.
+Los dos CSV, en `benchmark/datos/`, conservan la fecha, el entorno y la huella del
+código.
 El aviso se apaga con `avisar_costo_tabla_ancha = FALSE`, y
 `umbral_celdas_aviso_tabla_ancha = Inf` es la misma decisión, explícita.
 

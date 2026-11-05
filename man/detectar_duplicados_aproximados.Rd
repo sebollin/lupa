@@ -144,9 +144,11 @@ reemplaza por \verb{[valor protegido]}. La supresion queda indicada en cada par.
 \code{1000}; controla la memoria temporal, no el número de pares comparados.}
 
 \item{estrategia}{Estrategia de comparación: \code{"auto"} (por omisión),
-\code{"teselas"}, \code{"muestra"} o \code{"lsh"}. MinHash/LSH sólo se activa
-automáticamente por encima del tope exhaustivo; se puede forzar con
-\code{"lsh"}.}
+\code{"teselas"}, \code{"muestra"} o \code{"lsh"}. Con \code{"auto"}, MinHash/LSH
+se activa exactamente cuando hay más de 10.000 filas, \code{muestra = Inf} y
+\code{max_pares} es \code{Inf} o es mayor o igual que 50.000.000. Si falla
+cualquiera de esas condiciones, se conserva el camino exacto por teselas o el
+muestreado que corresponda; \code{"lsh"} lo fuerza.}
 
 \item{lsh_bandas}{Número de bandas del esquema LSH. Por defecto, 12.}
 
@@ -218,7 +220,7 @@ Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
 \code{estimacion}. \code{alcance} es reproducible; en el camino LSH,
 \code{estimacion$tiempo_determinista} es \code{FALSE} y reúne la velocidad, duración
 y tiempo de referencia medidos en esa corrida. El campo
-\code{estimacion$tiempo_estimado_etapa} indica que ese piso cubre sólo la
+\code{estimacion$tiempo_estimado_etapa} indica que esa referencia cubre sólo la
 comparación \code{stringdist}, no la firma, las cubetas ni el troceo. En el camino exacto o cuando
 no se puede comparar, \code{estimacion} es \code{NULL}. Si \code{lotes = TRUE}, se agrega
 \code{lotes} con el directorio, los archivos RDS, sus tamaños, el estado de
@@ -341,8 +343,11 @@ valida pero \code{stringdist} no lo utiliza.
 El aviso interactivo señala esta perilla: subir \code{nucleos} puede acortar la
 etapa de comparación, pero la ganancia depende de la máquina y de los datos.
 
-Para tablas que superan el tope exhaustivo, \code{estrategia = "auto"} usa
-MinHash con bandas LSH sobre todas las filas cuando \code{muestra = Inf}. La
+\code{estrategia = "auto"} usa MinHash con bandas LSH sobre todas las filas
+exactamente cuando se cumplen estas tres condiciones: hay más de 10.000
+filas, \code{muestra = Inf} y \code{max_pares} es \code{Inf} o es mayor o igual que
+50.000.000. Si falla cualquiera de ellas, conserva el camino exacto por
+teselas o el muestreado que corresponda. La
 salida declara las bandas, las filas por banda, las cubetas descartadas y la
 probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 los q-gramas, no a la medida final (\code{metodo}). \code{estrategia = "lsh"} fuerza
@@ -365,9 +370,9 @@ matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
 publica una estimación reproducible de candidatos. El cronómetro de la medida
 se ejecuta durante al menos 50 ms y queda en \code{resultado$estimacion}, separado
-de \code{alcance} y marcado como no determinista. Es un piso de la medida aislada
-y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
-una sesión interactiva.
+de \code{alcance} y marcado como no determinista. Es una referencia de la medida
+aislada y no estima la firma, las cubetas ni el troceo; sólo se muestra como
+aviso en una sesión interactiva.
 Fuera de una sesión interactiva se señala una condición silenciosa de clase
 \code{lupa_tiempo_lsh}, sólo en el camino LSH: no se imprime en \code{stdout} ni
 \code{stderr}. Se puede capturar con

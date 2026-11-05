@@ -163,11 +163,11 @@ for (i in seq_len(nrow(resultado_lupa))) {
       resultado_lupa$adicionales[[i]], "\n", sep = "")
 }
 
-cat("\nVersion de los archivos obtenidos (bytes y Adler-32):\n")
+cat("\nVersion de los archivos obtenidos (bytes, Adler-32 y SHA-256):\n")
 for (i in seq_len(nrow(versiones_raha))) {
   x <- versiones_raha[i, ]
   cat(sprintf(
-    "%-9s %-9s %6d bytes  %s\n",
-    x$dataset, x$archivo, x$bytes, x$adler32
+    "%-9s %-9s %6d bytes  Adler-32 %s  SHA-256 %s\n",
+    x$dataset, x$archivo, x$bytes, x$adler32, x$sha256
   ))
 }

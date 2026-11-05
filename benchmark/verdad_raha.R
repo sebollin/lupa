@@ -1,9 +1,21 @@
 ## Construye la referencia dirty/clean de Raha a nivel de celda.
-## Sólo usa R base y utils. Los CSV viven en un directorio temporal.
+## Sólo usa R base y utils. Los CSV se leen desde RAHA_DATA_DIR cuando está
+## definido; si no, se descargan en benchmark/datos/.raha-descargas.
 
 datasets_raha <- c("hospital", "flights", "beers")
 base_raha <- paste0(
   "https://raw.githubusercontent.com/BigDaMa/raha/master/datasets/"
+)
+.argumentos <- commandArgs(trailingOnly = FALSE)
+.archivo_script <- sub(
+  "^--file=", "", grep("^--file=", .argumentos, value = TRUE)[[1L]]
+)
+.raiz_paquete <- normalizePath(
+  file.path(dirname(normalizePath(.archivo_script, mustWork = TRUE)), ".."),
+  mustWork = TRUE
+)
+.fecha_corrida <- format(
+  Sys.time(), tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ"
 )
 
 .huella_adler32 <- function(ruta) {
@@ -40,9 +52,9 @@ base_raha <- paste0(
     if (!file.exists(ruta)) {
       stop("No existe el archivo local: ", ruta, call. = FALSE)
     }
-    ok <- file.copy(ruta, destino, overwrite = TRUE)
-    if (!ok) stop("No se pudo copiar ", ruta, call. = FALSE)
+    destino <- ruta
   } else {
+    dir.create(directorio, recursive = TRUE, showWarnings = FALSE)
     utils::download.file(url, destino, mode = "wb", quiet = TRUE)
   }
 
@@ -55,6 +67,7 @@ base_raha <- paste0(
       url = url,
       bytes = as.numeric(info$size),
       adler32 = .huella_adler32(destino),
+      sha256 = unname(tools::sha256sum(destino)),
       stringsAsFactors = FALSE
     )
   )
@@ -99,8 +112,7 @@ base_raha <- paste0(
   )
 }
 
-directorio_raha <- tempfile("lupa-raha-")
-dir.create(directorio_raha)
+directorio_raha <- file.path("benchmark", "datos", ".raha-descargas")
 
 verdad_raha <- setNames(lapply(
   datasets_raha, .comparar_raha, directorio = directorio_raha
@@ -121,8 +133,17 @@ resumen_raha <- do.call(rbind, lapply(verdad_raha, function(x) {
   )
 }))
 versiones_raha <- do.call(rbind, lapply(verdad_raha, `[[`, "versiones"))
+versiones_raha$fecha <- .fecha_corrida
 rownames(resumen_raha) <- NULL
 rownames(versiones_raha) <- NULL
+
+directorio_datos <- file.path(.raiz_paquete, "benchmark", "datos")
+dir.create(directorio_datos, recursive = TRUE, showWarnings = FALSE)
+utils::write.csv(
+  versiones_raha,
+  file.path(directorio_datos, "verdad-raha-versiones.csv"),
+  row.names = FALSE
+)
 
 if (!isTRUE(getOption("lupa.benchmark.silencioso"))) {
   cat("Raha: comparacion celda a celda de dirty contra clean\n")
@@ -143,12 +164,12 @@ if (!isTRUE(getOption("lupa.benchmark.silencioso"))) {
         x$vacias_sucio_con_limpio, "; duplicados exactos en dirty: ",
         x$duplicados_sucio, "\n", sep = "")
   }
-  cat("\nVersion de los archivos obtenidos (bytes y Adler-32):\n")
+  cat("\nVersion de los archivos obtenidos (bytes, Adler-32 y SHA-256):\n")
   for (i in seq_len(nrow(versiones_raha))) {
     x <- versiones_raha[i, ]
     cat(sprintf(
-      "%-9s %-9s %6d bytes  %s\n",
-      x$dataset, x$archivo, x$bytes, x$adler32
+      "%-9s %-9s %6d bytes  Adler-32 %s  SHA-256 %s\n",
+      x$dataset, x$archivo, x$bytes, x$adler32, x$sha256
     ))
   }
 }

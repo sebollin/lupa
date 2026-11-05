@@ -63,7 +63,8 @@ por_omision <- function(funcion, argumento) {
 }
 muestra_perfilar <- num(por_omision(perfilar, "muestra"))
 celdas_aviso_ancha <- num(por_omision(perfilar, "umbral_celdas_aviso_tabla_ancha"))
-# Supuesto del código para estimar la espera; no tiene argumento propio.
+# Referencia de velocidad fijada con benchmark/medir_referencias.R; no tiene
+# argumento propio.
 celdas_por_segundo <- num(lupa:::.VELOCIDAD_REFERENCIA_TABLA_ANCHA)
 max_celdas <- num(por_omision(perfilar_dbi, "max_celdas_muestra"))
 max_mib <- num(por_omision(perfilar_dbi, "max_bytes_muestra") / 1024^2)
