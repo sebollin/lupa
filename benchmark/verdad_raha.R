@@ -139,11 +139,27 @@ rownames(versiones_raha) <- NULL
 
 directorio_datos <- file.path(.raiz_paquete, "benchmark", "datos")
 dir.create(directorio_datos, recursive = TRUE, showWarnings = FALSE)
-utils::write.csv(
-  versiones_raha,
-  file.path(directorio_datos, "verdad-raha-versiones.csv"),
-  row.names = FALSE
-)
+# El CSV se reescribe solo si cambiaron los insumos. La revalidacion corre este
+# guion cada vez, y reescribirlo para cambiar la fecha dejaba el arbol con
+# cambios y la revalidacion sin sello. La fecha que queda es la de la primera
+# corrida que vio esos bytes.
+archivo_versiones <- file.path(directorio_datos, "verdad-raha-versiones.csv")
+columnas_huella <- c("dataset", "archivo", "url", "bytes", "adler32", "sha256")
+anteriores <- if (file.exists(archivo_versiones)) {
+  utils::read.csv(archivo_versiones, stringsAsFactors = FALSE)
+} else {
+  NULL
+}
+sin_cambios <- !is.null(anteriores) &&
+  all(columnas_huella %in% names(anteriores)) &&
+  nrow(anteriores) == nrow(versiones_raha) &&
+  identical(
+    lapply(anteriores[columnas_huella], as.character),
+    lapply(versiones_raha[columnas_huella], as.character)
+  )
+if (!sin_cambios) {
+  utils::write.csv(versiones_raha, archivo_versiones, row.names = FALSE)
+}
 
 if (!isTRUE(getOption("lupa.benchmark.silencioso"))) {
   cat("Raha: comparacion celda a celda de dirty contra clean\n")
