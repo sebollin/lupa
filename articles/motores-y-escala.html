@@ -108,6 +108,8 @@ R</a></li>
 <li><a href="#formas-de-muestreo">Formas de muestreo en el
 motor</a></li>
 <li><a href="#topes">Topes de la lectura a R</a></li>
+<li><a href="#topes-duplicados">Topes de la comparación
+aproximada</a></li>
 <li><a href="#no-traducido">Lo que los agregados SQL no
 traducen</a></li>
 <li><a href="#metricas">Métricas y estrategias</a></li>
@@ -855,6 +857,144 @@ un aviso <code>lupa_aviso_muestra_motor</code>.</p>
 <span><span class="co">#&gt; [1] 100</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="topes-duplicados">Topes de la comparación aproximada<a class="anchor" aria-label="anchor" href="#topes-duplicados"></a>
+</h2>
+<p>Los topes de <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> y del
+diagnóstico de vocabulario recortan trabajo en R, no las consultas que
+ya ejecutó un motor. Este ejemplo recrea la tabla pequeña de la guía
+para que cada salida sea independiente.</p>
+<div class="section level3">
+<h3 id="el-largo-de-los-valores">El largo de los valores<a class="anchor" aria-label="anchor" href="#el-largo-de-los-valores"></a>
+</h3>
+<p>Una distancia normalizada pierde capacidad de distinguir cuando los
+textos son largos. La medida que usa el detector (Jaro-Winkler con
+<code>p = 0.1</code>) permite verlo con dos textos que difieren en
+exactamente cien caracteres, a distintos largos.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">distancia_cien_cambios</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">largo</span>, <span class="va">semilla</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="va">semilla</span><span class="op">)</span></span>
+<span>  <span class="va">texto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="va">letters</span>, <span class="va">largo</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span>  <span class="va">otro</span> <span class="op">&lt;-</span> <span class="va">texto</span></span>
+<span>  <span class="va">cambios</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="va">largo</span>, <span class="fl">100</span><span class="op">)</span></span>
+<span>  <span class="va">otro</span><span class="op">[</span><span class="va">cambios</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">otro</span><span class="op">[</span><span class="va">cambios</span><span class="op">]</span> <span class="op">==</span> <span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"a"</span><span class="op">)</span></span>
+<span>  <span class="fu">stringdist</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/stringdist/man/stringdist.html" class="external-link">stringdist</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">texto</span>, collapse <span class="op">=</span> <span class="st">""</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">otro</span>, collapse <span class="op">=</span> <span class="st">""</span><span class="op">)</span>,</span>
+<span>    method <span class="op">=</span> <span class="st">"jw"</span>, p <span class="op">=</span> <span class="fl">0.1</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">largos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">1000</span>, <span class="fl">2000</span>, <span class="fl">4000</span>, <span class="fl">8000</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  largo <span class="op">=</span> <span class="va">largos</span>,</span>
+<span>  distancia <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">largos</span>, <span class="kw">function</span><span class="op">(</span><span class="va">largo</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/median.html" class="external-link">median</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, <span class="va">distancia_cien_cambios</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span>, largo <span class="op">=</span> <span class="va">largo</span><span class="op">)</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span>  <span class="op">}</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;   largo distancia</span></span>
+<span><span class="co">#&gt; 1   500     0.162</span></span>
+<span><span class="co">#&gt; 2  1000     0.142</span></span>
+<span><span class="co">#&gt; 3  2000     0.074</span></span>
+<span><span class="co">#&gt; 4  4000     0.047</span></span>
+<span><span class="co">#&gt; 5  8000     0.027</span></span></code></pre></div>
+<p>Las cien diferencias son las mismas; lo que cambia es cuánto pesan en
+el texto. Pasado cierto largo, la distancia baja del umbral de 0,10 y
+dos textos que difieren en cien caracteres cuentan como casi
+iguales.</p>
+<p>Por eso el detector no compara valores más largos que
+<code>max_largo_valor</code> (10.000 caracteres por omisión, un supuesto
+del código). El tope no elimina el efecto, lo acota: una columna de
+textos largos puede pedir uno menor. Se mide sobre la cadena que de
+verdad se compara, con las columnas ya unidas y normalizadas, y si se
+supera, la combinación entera queda fuera de alcance y se declara. Con
+un tope de 20 caracteres, la cadena de proveedor y rubro no entra:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">corto</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, max_largo_valor <span class="op">=</span> <span class="fl">20</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">corto</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"max_largo_valor"</span>, <span class="st">"largo_maximo"</span>, <span class="st">"columnas_excluidas_largo"</span>, <span class="st">"n_pares_hallados"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   max_largo_valor largo_maximo columnas_excluidas_largo n_pares_hallados</span></span>
+<span><span class="co">#&gt; 1              20           31         proveedor, rubro               NA</span></span></code></pre></div>
+<p><code>largo_maximo</code> es el largo de la cadena comparada, no el
+de cada columna, y <code>n_pares_hallados</code> vale <code>NA</code>,
+no cero: no se comparó nada. Con <code>max_largo_valor = Inf</code> no
+hay tope y no se mide ningún largo: ese campo vale <code>NA</code>, no
+cero. El diagnóstico de vocabulario de <code><a href="../reference/perfilar.html">perfilar()</a></code> tiene su
+propio tope, <code>max_largo_valor_vocabulario</code>, que no se hereda:
+al detector se le pasa con
+<code>perfilar(duplicados_aproximados = list(max_largo_valor = ...))</code>.
+En <code><a href="../reference/perfilar.html">perfilar()</a></code> el mismo tope también declara la cobertura de
+las operaciones textuales costosas que no se ejecutan sobre esos
+valores.</p>
+</div>
+<div class="section level3">
+<h3 id="el-trabajo-del-vocabulario-en-perfilar">El trabajo del vocabulario en <code>perfilar()</code><a class="anchor" aria-label="anchor" href="#el-trabajo-del-vocabulario-en-perfilar"></a>
+</h3>
+<p><code><a href="../reference/perfilar.html">perfilar()</a></code> busca variantes casi iguales dentro de cada
+columna de texto (<code>casi_duplicados_vocabulario</code>), comparando
+sus valores distintos de a pares. Comparar dos valores de largos
+<code>L1</code> y <code>L2</code> cuesta del orden de
+<code>L1 × L2</code>, así que el presupuesto,
+<code>max_trabajo_vocabulario</code>, se mide en comparaciones de
+carácter: <code>2e10</code> por omisión. Cuando no alcanza, compara las
+primeras formas en orden alfabético —no una muestra— y declara el resto.
+Con un presupuesto mínimo se ve:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">recorte</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">ajustado</span><span class="op">)</span></span>
+<span><span class="va">recorte</span> <span class="op">&lt;-</span> <span class="va">recorte</span><span class="op">[</span><span class="va">recorte</span><span class="op">$</span><span class="va">diagnostico</span> <span class="op">==</span> <span class="st">"proximidad_vocabulario"</span>, <span class="op">]</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">recorte</span><span class="op">$</span><span class="va">columna</span>, <span class="st">": "</span>, <span class="va">recorte</span><span class="op">$</span><span class="va">motivo</span><span class="op">)</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; proveedor: El vocabulario excede el alcance de comparacion: se evaluaron 7 de 7 valores</span></span>
+<span><span class="co">#&gt; distintos, que son 5 formas normalizadas, y se comparo entre si a las 4 primeras en</span></span>
+<span><span class="co">#&gt; orden alfabetico. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de</span></span>
+<span><span class="co">#&gt; caracter. Quedaron 1 formas y 4 pares sin comparar por max_trabajo.</span></span></code></pre></div>
+<p>El orden alfabético hace que el resultado no dependa del orden de las
+filas del archivo. La búsqueda de dependencias tiene su propio
+presupuesto, <code>max_trabajo_dependencias</code> (<code>1e8</code>
+comparaciones fila-par por omisión), y <code>Inf</code> desactiva
+cualquiera de los dos.</p>
+</div>
+<div class="section level3">
+<h3 id="cuántos-pares-se-devuelven">Cuántos pares se devuelven<a class="anchor" aria-label="anchor" href="#cu%C3%A1ntos-pares-se-devuelven"></a>
+</h3>
+<p><code>max_resultados</code> (100 por omisión) no decide qué se
+compara, sino cuántos pares se devuelven: conserva los más cercanos. Con
+un corte de dos, sobre los tres pares a distancia cero:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dos</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, max_resultados <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">dos</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   fila_1 fila_2 distancia           tipo_par</span></span>
+<span><span class="co">#&gt; 1      3      4         0             exacto</span></span>
+<span><span class="co">#&gt; 2      1      2         0 exacto_normalizado</span></span>
+<span><span class="va">dos</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"truncado"</span>, <span class="st">"distancia_corte"</span>, <span class="st">"corte_en_empate"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   truncado distancia_corte corte_en_empate</span></span>
+<span><span class="co">#&gt; 1     TRUE               0            TRUE</span></span></code></pre></div>
+<p><code>corte_en_empate = TRUE</code> avisa que quedó afuera al menos
+un par <strong>igual de cercano</strong> que los conservados. No es
+<code>truncado</code> con otro nombre: si el corte cae en una distancia
+única, vale <code>FALSE</code> aunque haya recorte. Para traer todos los
+empatados hay que subir <code>max_resultados</code>.</p>
+<p>Entre empatados, el desempate usa el contenido de los valores y no la
+posición de las filas, así que reordenar la tabla no cambia qué pares
+quedan:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ids_conservados</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">datos</span>, <span class="va">resultado</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">a</span> <span class="op">&lt;-</span> <span class="va">datos</span><span class="op">$</span><span class="va">id</span><span class="op">[</span><span class="va">resultado</span><span class="op">$</span><span class="va">pares</span><span class="op">$</span><span class="va">fila_1</span><span class="op">]</span></span>
+<span>  <span class="va">b</span> <span class="op">&lt;-</span> <span class="va">datos</span><span class="op">$</span><span class="va">id</span><span class="op">[</span><span class="va">resultado</span><span class="op">$</span><span class="va">pares</span><span class="op">$</span><span class="va">fila_2</span><span class="op">]</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmin</a></span><span class="op">(</span><span class="va">a</span>, <span class="va">b</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmax</a></span><span class="op">(</span><span class="va">a</span>, <span class="va">b</span><span class="op">)</span>, sep <span class="op">=</span> <span class="st">"-"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">invertidos</span> <span class="op">&lt;-</span> <span class="va">proveedores</span><span class="op">[</span><span class="fl">8</span><span class="op">:</span><span class="fl">1</span>, <span class="op">]</span></span>
+<span><span class="va">dos_invertidos</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">invertidos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, max_resultados <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu">ids_conservados</span><span class="op">(</span><span class="va">proveedores</span>, <span class="va">dos</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "1-2" "3-4"</span></span>
+<span><span class="fu">ids_conservados</span><span class="op">(</span><span class="va">invertidos</span>, <span class="va">dos_invertidos</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "1-2" "3-4"</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
 <h2 id="no-traducido">Lo que los agregados SQL no traducen<a class="anchor" aria-label="anchor" href="#no-traducido"></a>
 </h2>
 <p><code>sentinelas_numericos</code>, <code>aplicabilidad</code> y
@@ -865,7 +1005,7 @@ alguna, <code>resumen_tabla$cobertura</code> recibe una fila
 <code>degradado</code> que lo dice. Con treinta edades <code>-999</code>
 declaradas como centinela, los dos bloques publican dos medias distintas
 sobre las mismas filas:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">centinelas</span> <span class="op">&lt;-</span> <span class="va">tramites</span></span>
 <span><span class="va">centinelas</span><span class="op">$</span><span class="va">edad</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">30</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="op">-</span><span class="fl">999L</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"centinelas"</span>, <span class="va">centinelas</span><span class="op">)</span></span>
@@ -888,7 +1028,7 @@ las del resumen SQL; las del perfil de muestra se piden sobre
 cruza. Compara sólo lo que los dos miden con la misma semántica; lo que
 una declaración cambia a propósito queda en
 <code>meta$corroboracion_bloques$no_comparadas</code>, con su causa:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">corroboracion_bloques</span><span class="op">$</span><span class="va">no_comparadas</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   columna metrica                causa</span></span>
 <span><span class="co">#&gt; 1    edad   media sentinelas_numericos</span></span>
@@ -993,7 +1133,7 @@ PostgreSQL, publicado como <code>estimado_catalogo</code>, sólo con
 <p>No hay repliegue entre estrategias: una estrategia sin capacidad
 queda <code>no_disponible</code> y nunca se convierte en un conteo
 exacto. En SQLite, el catálogo no existe:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">por_catalogo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
 <span>  <span class="va">con</span>, <span class="st">"tramites"</span>, estrategia_distintos <span class="op">=</span> <span class="st">"catalogo"</span>,</span>
 <span>  bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span></span>
@@ -1063,7 +1203,7 @@ sonda acepta la división entera con <code>%</code> y
 <p><code>tamano_lote</code> fija los dos tamaños a la vez. La cantidad
 de consultas que cada tamaño produce sobre la tabla del ejemplo, según
 el plan:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">consultas_por_lote</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tramites"</span>, <span class="va">...</span><span class="op">)</span></span>
 <span>  <span class="va">tabla</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span></span>
@@ -1112,7 +1252,7 @@ hace falta, distintos, moda y mediana.</p>
 </h2>
 <p>La moda y la mediana son las métricas caras.
 <code>politica_costo</code> acepta dos valores, y ninguno más:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tramites"</span>, politica_costo <span class="op">=</span> <span class="st">"ninguna"</span><span class="op">)</span>,</span>
 <span>  error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
@@ -1133,7 +1273,7 @@ umbral vale <code>0.5</code> por omisión y se puede mover en cada
 llamada. La mediana no se omite por cardinalidad: su costo lo gobiernan
 las filas.</li>
 </ul>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">barato</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tramites"</span>, politica_costo <span class="op">=</span> <span class="st">"por_cardinalidad"</span><span class="op">)</span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">barato</span><span class="op">)</span></span>
 <span><span class="va">s</span><span class="op">[</span><span class="va">s</span><span class="op">$</span><span class="va">estado</span> <span class="op">==</span> <span class="st">"omitido_por_costo"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"metrica"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
@@ -1152,7 +1292,7 @@ consultas. La tabla que sigue tiene 200 filas y 158 columnas —60
 numéricas, 60 de texto, 20 enteras y 18 fechas guardadas como texto— y
 es la misma que usan <code>benchmark/medir_plan_ancho.R</code> y
 <code>benchmark/medir_politica_costo.R</code>:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">filas</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
 <span><span class="va">generar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">prefijo</span>, <span class="va">k</span>, <span class="va">valores</span><span class="op">)</span> <span class="op">{</span></span>
@@ -1210,7 +1350,7 @@ política nunca convierte una petición <code>"aproximada_motor"</code> o
 y, en PostgreSQL, sus estadísticas— y dice cuántas consultas emitiría el
 perfilado, de qué clase y con qué alcance. No escanea datos para decidir
 el costo.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tramites"</span><span class="op">)</span></span>
 <span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <table class="table">
@@ -1284,7 +1424,7 @@ la sonda de la corrida la acepte.</p>
 <p>La cuenta sigue a la composición de la tabla, no a la cantidad de
 columnas. Con la tabla ancha de la sección anterior y una de 158
 columnas, todas de texto:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan_ancho</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha"</span><span class="op">)</span></span>
 <span><span class="va">recorre</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">plan_ancho</span><span class="op">$</span><span class="va">alcance</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"una vez"</span>, <span class="st">"lee las filas pedidas"</span><span class="op">)</span></span>
 <span><span class="va">texto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu">generar</span><span class="op">(</span><span class="st">"txt"</span>, <span class="fl">158</span>, <span class="kw">function</span><span class="op">(</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="va">letters</span>, <span class="va">filas</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
@@ -1325,7 +1465,7 @@ si no se conoce el número de filas. El plan no cuenta filas; sólo en
 PostgreSQL, un <code>pg_class.reltuples</code> positivo aporta una
 estimación de catálogo, rotulada como tal. En SQLite queda
 desconocida:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"magnitud"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "desconocida"</span></span>
 <span><span class="fu">num</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"pares_texto"</span><span class="op">)</span><span class="op">)</span></span>
@@ -1403,7 +1543,7 @@ de las demás</td>
 de distintos no hay nada que proyectar. La proyección de distintos no
 usa <code>reltuples</code>, y si la moda no tiene cardinalidad la
 proyección lo declara en vez de suponerla.</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">costo</span> <span class="op">&lt;-</span> <span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">costo_distintos</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">costo</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"disponible"</span>, <span class="st">"n_lotes"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; List of 2</span></span>
@@ -1434,12 +1574,42 @@ queda no disponible: el tiempo transcurrido no se presenta como
 evidencia de derrame.</p>
 <p>El bloque <code>perfil_muestra</code> pasa por
 <code><a href="../reference/perfilar.html">perfilar()</a></code>, y en una sesión interactiva recibe también su
-aviso de tabla ancha desde 100.000 celdas. Ese aviso divide las celdas
-por una velocidad de referencia de 10.000 celdas por segundo: es un
-supuesto del código, no una medición de la corrida ni de la máquina, y
-la espera real puede ser mayor. El aviso se describe en <a href="escala-y-duplicados.html">Escala y duplicados</a> y las mediciones
-fechadas están en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
+aviso de tabla ancha. El detalle de la proyección, sus topes y las
+mediciones que le dan contexto quedan juntos aquí.</p>
+<div class="section level3">
+<h3 id="aviso-tabla-ancha">Tablas anchas<a class="anchor" aria-label="anchor" href="#aviso-tabla-ancha"></a>
+</h3>
+<p>Antes de empezar las etapas caras, <code><a href="../reference/perfilar.html">perfilar()</a></code> proyecta
+cuánto puede tardar una tabla por su cantidad de celdas. Desde 100.000
+celdas avisa la duración estimada, sólo en una sesión interactiva; en un
+guion queda en silencio. La proyección se guarda siempre:</p>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">ajustado</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">costo_tabla_ancha</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"celdas"</span>, <span class="st">"duracion_estimada_segundos"</span>, <span class="st">"umbral_celdas"</span></span>
+<span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 3</span></span>
+<span><span class="co">#&gt;  $ celdas                    : num 32</span></span>
+<span><span class="co">#&gt;  $ duracion_estimada_segundos: num 0.0064</span></span>
+<span><span class="co">#&gt;  $ umbral_celdas             : int 100000</span></span></code></pre></div>
+<p>La duración sale de dividir las celdas por una velocidad de
+referencia de 5.000 celdas por segundo, por debajo de la medición más
+lenta de <code>benchmark/medir_referencias.R</code> (7.492 celdas por
+segundo, con 500 filas y columnas numéricas y categóricas). Es una
+referencia para el caso común, no una cota: con muchas columnas de
+códigos de texto parecidos (<code>"valor_1"</code>,
+<code>"valor_2"</code>…), la búsqueda de casi duplicados del vocabulario
+hace que <code>benchmark/medir_topes_valores_ancho.R</code> mida 1.293
+celdas por segundo: la espera puede ser unas 4 veces mayor que la
+proyectada. Los dos CSV, en <code>benchmark/datos/</code>, conservan la
+fecha, el entorno y la huella del código. El aviso se apaga con
+<code>avisar_costo_tabla_ancha = FALSE</code>, y
+<code>umbral_celdas_aviso_tabla_ancha = Inf</code> es la misma decisión,
+explícita.</p>
+<p>Las mediciones fechadas de tablas anchas —el plan de consultas de una
+tabla administrativa de 158 columnas y las dos tablas de velocidad—
+están en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#tablas-anchas">Evidencia
 y rendimiento</a>.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="instrumentacion">Instrumentación y duraciones<a class="anchor" aria-label="anchor" href="#instrumentacion"></a>
@@ -1460,7 +1630,7 @@ mismo orden y esos campos quedan en <code>NA</code>.</p>
 <strong>consulta</strong>, repetida en cada fila que esa consulta
 produjo. Para sumar, sólo cuentan las filas de <code>nivel = 1</code>,
 la primera de cada <code>consulta_id</code>:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">por_omision</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">nivel</span>, useNA <span class="op">=</span> <span class="st">"ifany"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -1468,7 +1638,7 @@ la primera de cada <code>consulta_id</code>:</p>
 <span><span class="co">#&gt; 17 43</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.omit</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">consulta_id</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 10</span></span></code></pre></div>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">duracion_ms</span><span class="op">[</span><span class="va">s</span><span class="op">$</span><span class="va">nivel</span> <span class="op">==</span> <span class="fl">1</span><span class="op">]</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p>Dos identificadores responden preguntas distintas.
 <code>consulta_id</code> identifica la sentencia que produjo cada
@@ -1483,7 +1653,7 @@ trabajo del motor como <code>creciente</code>, <code>acotado</code> o
 <p><code>resumen_tabla$tiempos</code> reúne las etapas grandes del
 cliente en la misma unidad. Las de <code>nivel = 1</code> son disjuntas;
 las de nivel mayor están contenidas en alguna de ellas:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">tiempos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"etapa"</span>, <span class="st">"nivel"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;                            etapa nivel        estado</span></span>
 <span><span class="co">#&gt; 1           ausencia_estructural     2        medido</span></span>
@@ -1505,7 +1675,7 @@ la fuerza. No cambia ningún valor medido.</p>
 </h2>
 <p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> no estima la memoria del
 procesamiento en R, y lo declara:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">memoria</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"memoria_procesamiento"</span><span class="op">)</span></span>
 <span><span class="va">memoria</span><span class="op">$</span><span class="va">estado</span></span>
 <span><span class="co">#&gt; [1] "no_estimada"</span></span>
@@ -1514,7 +1684,7 @@ procesamiento en R, y lo declara:</p>
 <p>El atributo conserva la magnitud conocida del trabajo —filas, celdas
 y pares de texto—, rotulada como magnitud y no como consumo, y
 referencias de otras corridas, que son textos fijos del código:</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">memoria</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "estado"            "estimada"          "motivo"            "magnitud"         </span></span>
 <span><span class="co">#&gt; [5] "referencias"       "distincion"        "reparto_observado"</span></span>
@@ -1623,7 +1793,7 @@ y rendimiento</a>.</p>
 </h2>
 <p>Los agregados son sentencias separadas, y la tabla puede cambiar
 entre ellas. El resumen lo publica:</p>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">snapshot</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">nota_snapshot</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
@@ -1651,7 +1821,7 @@ suma de control en cada relectura; un registro ausente publica
 <code>spool_incompleto:trailer_ausente</code> y una suma que no
 coincide, <code>spool_checksum_invalido</code>. La copia no escribe en
 la conexión ni crea objetos temporales en el motor:</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">copia</span> <span class="op">&lt;-</span> <span class="va">del_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">materializacion</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">copia</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"backend"</span>, <span class="st">"estado"</span>, <span class="st">"externo"</span>, <span class="st">"objetos_temporales_motor"</span>,</span>
 <span>            <span class="st">"validado_relectura"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
@@ -1758,7 +1928,7 @@ dbFetch(n)</td>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dialecto</span> <span class="op">&lt;-</span> <span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">dialecto</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">dialecto</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"declarado"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; List of 2</span></span>
@@ -1771,7 +1941,7 @@ cliente con <code>dbSendQuery()</code> y <code>dbFetch(n)</code>, y la
 mediana exacta se declara no disponible en vez de traer media tabla a
 memoria. <code>dialecto =</code> declara la capacidad sin sondear, si la
 sonda no acierta:</p>
-<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">portable</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tramites"</span>, dialecto <span class="op">=</span> <span class="st">"portable"</span>,</span>
 <span>                         bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span><span class="op">)</span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">portable</span><span class="op">)</span></span>
@@ -1782,7 +1952,7 @@ sonda no acierta:</p>
 barata no alcanza, porque un motor puede aceptar una cláusula con un
 filtro trivialmente falso y rechazarla sin él. DuckDB lo hace con el
 muestreo por bloques:</p>
-<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">probar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">sql</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="op">{</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">duck</span>, <span class="va">sql</span><span class="op">)</span>; <span class="st">"aceptada"</span> <span class="op">}</span>,</span>
 <span>           error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="st">"rechazada"</span><span class="op">)</span></span>
@@ -1936,7 +2106,7 @@ recortaría; la corroboración declara la diferencia</td>
 </table>
 <p>La media de <code>{1e16, 1, -1e16}</code> es 1/3. Cada vía la calcula
 a su modo, y ninguna se toma por verdadera:</p>
-<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cancelan</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1e16</span>, <span class="fl">1</span>, <span class="op">-</span><span class="fl">1e16</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"cancelan"</span>, <span class="va">cancelan</span><span class="op">)</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">duck</span>, <span class="st">"cancelan"</span>, <span class="va">cancelan</span><span class="op">)</span></span>
@@ -1951,7 +2121,7 @@ a su modo, y ninguna se toma por verdadera:</p>
 la corroboración deja la fila <code>divergencia</code> con los dos
 valores.</p>
 <p>En SQLite, la diferencia de las fechas se ve así:</p>
-<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb37"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fechas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>f <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2019-03-01"</span><span class="op">)</span> <span class="op">+</span> <span class="fl">0</span><span class="op">:</span><span class="fl">9</span><span class="op">)</span></span>
 <span><span class="va">perfilar_fechas</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">base</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -2050,7 +2220,7 @@ queda <code>desconocida</code>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">crear</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">conexion</span>, <span class="va">sql</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="va">sql</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu">crear</span><span class="op">(</span><span class="va">con</span>, <span class="st">"CREATE TABLE con_nulos (id INTEGER PRIMARY KEY, x TEXT)"</span><span class="op">)</span></span>
 <span><span class="fu">crear</span><span class="op">(</span><span class="va">con</span>, <span class="st">"CREATE TABLE sin_nulos (id INTEGER NOT NULL PRIMARY KEY, x TEXT)"</span><span class="op">)</span></span>
@@ -2228,7 +2398,7 @@ que <code>resumen_tabla$cobertura</code> sea una tabla.</li>
 <li>Termina con código distinto de cero si alguna comprobación
 falla.</li>
 </ul>
-<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
 <span>  <span class="va">con</span>, <span class="st">"tramites"</span>, muestra <span class="op">=</span> <span class="fl">500L</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  duplicados_aproximados <span class="op">=</span> <span class="cn">FALSE</span>, proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -2336,7 +2506,7 @@ y locales</a>.</li>
 <code>lupa_error_codificacion_dbi</code>,
 <code>lupa_error_argumento_dbi</code> y
 <code>lupa_error_transaccion_dbi</code>.</p>
-<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">error</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"no_existe"</span><span class="op">)</span>, error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="va">e</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">error</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "lupa_error_tabla_dbi" "lupa_error_dbi"       "error"               </span></span>
@@ -2394,7 +2564,7 @@ chocarse. Su catálogo tiene 12 entradas: 9 de motores con nombre,
 contando por separado las dos versiones de Oracle, y tres genéricas
 (<code>dbi</code>, <code>odbc</code> y <code>otro_dbi</code>), que no
 son motores medidos.</p>
-<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="va">r</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_motor"</span>, <span class="st">"motor"</span>, <span class="st">"version"</span>, <span class="st">"paquete_r"</span>, <span class="st">"dialecto"</span>,</span>
 <span>                   <span class="st">"estado_prueba"</span><span class="op">)</span><span class="op">]</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
@@ -2517,7 +2687,7 @@ son motores medidos.</p>
 <p>Cada entrada declara además la biblioteca del sistema con su paquete
 en Debian y en Fedora, y la salida sin permisos de administrador cuando
 existe:</p>
-<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"sql_server"</span><span class="op">)</span><span class="op">$</span><span class="va">alternativa_sin_administrador</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Compilar FreeTDS en un prefijo del usuario y pasar la ruta directa del controlador en</span></span>
 <span><span class="co">#&gt; la cadena de conexión; no hace falta registrar un DSN.</span></span></code></pre></div>

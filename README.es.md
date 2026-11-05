@@ -341,8 +341,10 @@ base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
 - **Tablas anchas.** Desde 100.000 celdas, una sesión interactiva recibe
   un aviso de cuánto puede tardar
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
-  la estimación usa un supuesto del código (10.000 celdas por segundo),
-  no una medición de la máquina; las mediciones fechadas están en
+  la estimación usa una referencia del código (5.000 celdas por
+  segundo), fijada por debajo de la medición más lenta con columnas
+  numéricas y categóricas (muchas columnas de códigos de texto parecidos
+  pueden tardar varias veces más); las mediciones fechadas están en
   [Evidencia y
   rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 - **Millones de filas en memoria.**
@@ -362,6 +364,13 @@ análisis temporal, una propuesta de modelo de calidad con su tablero y
 un plan de limpieza;
 [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md) lo
 escribe en un HTML autocontenido para compartir.
+
+![Comienzo del informe HTML autocontenido: advertencias de alcance,
+resumen del perfil y el principio de la tabla de
+hallazgos](reference/figures/informe-html.png)
+
+Comienzo del informe HTML autocontenido: advertencias de alcance,
+resumen del perfil y el principio de la tabla de hallazgos
 
 ``` r
 

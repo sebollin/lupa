@@ -217,8 +217,8 @@ table(estado = sql$estado, error_esperado = sql$error_esperado)
 #> estado              no_aplica no_estimable no_estimado
 #>   calculado                10            0           0
 #>   estimado                  0           13          12
-#>   no_aplica                 0           49           0
-#>   observado_muestra        20           10          36
+#>   no_aplica                 0            7          42
+#>   observado_muestra         0           30          36
 
 DBI::dbDisconnect(conexion)
 ```

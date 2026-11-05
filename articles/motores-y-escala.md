@@ -27,22 +27,23 @@ y con su fuente.
 3.  [Metadatos del muestreo: dos rutas](#metadatos)
 4.  [Formas de muestreo en el motor](#formas-de-muestreo)
 5.  [Topes de la lectura a R](#topes)
-6.  [Lo que los agregados SQL no traducen](#no-traducido)
-7.  [Métricas y estrategias](#metricas)
-8.  [Consultas por lote](#lotes)
-9.  [Política de costo](#politica-de-costo)
-10. [El plan antes de correr](#plan)
-11. [Avisos de costo y derrame](#avisos)
-12. [Instrumentación y duraciones](#instrumentacion)
-13. [Memoria del procesamiento](#memoria)
-14. [Consistencia entre consultas](#consistencia)
-15. [Dialectos y sondas](#dialectos)
-16. [Lo que el motor guarda distinto que R](#diferencias-con-r)
-17. [La clave primaria según el motor](#clave-primaria)
-18. [Motores probados](#motores-probados)
-19. [Fallos parciales y errores](#fallos)
-20. [Dependencias e instalación](#dependencias)
-21. [Hilos](#hilos)
+6.  [Topes de la comparación aproximada](#topes-duplicados)
+7.  [Lo que los agregados SQL no traducen](#no-traducido)
+8.  [Métricas y estrategias](#metricas)
+9.  [Consultas por lote](#lotes)
+10. [Política de costo](#politica-de-costo)
+11. [El plan antes de correr](#plan)
+12. [Avisos de costo y derrame](#avisos)
+13. [Instrumentación y duraciones](#instrumentacion)
+14. [Memoria del procesamiento](#memoria)
+15. [Consistencia entre consultas](#consistencia)
+16. [Dialectos y sondas](#dialectos)
+17. [Lo que el motor guarda distinto que R](#diferencias-con-r)
+18. [La clave primaria según el motor](#clave-primaria)
+19. [Motores probados](#motores-probados)
+20. [Fallos parciales y errores](#fallos)
+21. [Dependencias e instalación](#dependencias)
+22. [Hilos](#hilos)
 
 ## Valores por omisión
 
@@ -443,6 +444,158 @@ por_bloques$resumen_tabla$meta$bloques$filas_vistas
 #> [1] 2000
 n_filas(por_bloques$perfil_muestra)
 #> [1] 100
+```
+
+## Topes de la comparación aproximada
+
+Los topes de
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+y del diagnóstico de vocabulario recortan trabajo en R, no las consultas
+que ya ejecutó un motor. Este ejemplo recrea la tabla pequeña de la guía
+para que cada salida sea independiente.
+
+### El largo de los valores
+
+Una distancia normalizada pierde capacidad de distinguir cuando los
+textos son largos. La medida que usa el detector (Jaro-Winkler con
+`p = 0.1`) permite verlo con dos textos que difieren en exactamente cien
+caracteres, a distintos largos.
+
+``` r
+
+distancia_cien_cambios <- function(largo, semilla) {
+  set.seed(semilla)
+  texto <- sample(letters, largo, replace = TRUE)
+  otro <- texto
+  cambios <- sample(largo, 100)
+  otro[cambios] <- ifelse(otro[cambios] == "a", "b", "a")
+  stringdist::stringdist(
+    paste(texto, collapse = ""), paste(otro, collapse = ""),
+    method = "jw", p = 0.1
+  )
+}
+largos <- c(500, 1000, 2000, 4000, 8000)
+data.frame(
+  largo = largos,
+  distancia = vapply(largos, function(largo) {
+    round(median(vapply(1:5, distancia_cien_cambios, numeric(1), largo = largo)), 3)
+  }, numeric(1))
+)
+#>   largo distancia
+#> 1   500     0.162
+#> 2  1000     0.142
+#> 3  2000     0.074
+#> 4  4000     0.047
+#> 5  8000     0.027
+```
+
+Las cien diferencias son las mismas; lo que cambia es cuánto pesan en el
+texto. Pasado cierto largo, la distancia baja del umbral de 0,10 y dos
+textos que difieren en cien caracteres cuentan como casi iguales.
+
+Por eso el detector no compara valores más largos que `max_largo_valor`
+(10.000 caracteres por omisión, un supuesto del código). El tope no
+elimina el efecto, lo acota: una columna de textos largos puede pedir
+uno menor. Se mide sobre la cadena que de verdad se compara, con las
+columnas ya unidas y normalizadas, y si se supera, la combinación entera
+queda fuera de alcance y se declara. Con un tope de 20 caracteres, la
+cadena de proveedor y rubro no entra:
+
+``` r
+
+corto <- detectar_duplicados_aproximados(
+  proveedores, columnas = c("proveedor", "rubro"), max_largo_valor = 20
+)
+corto$alcance[, c(
+  "max_largo_valor", "largo_maximo", "columnas_excluidas_largo", "n_pares_hallados"
+)]
+#>   max_largo_valor largo_maximo columnas_excluidas_largo n_pares_hallados
+#> 1              20           31         proveedor, rubro               NA
+```
+
+`largo_maximo` es el largo de la cadena comparada, no el de cada
+columna, y `n_pares_hallados` vale `NA`, no cero: no se comparó nada.
+Con `max_largo_valor = Inf` no hay tope y no se mide ningún largo: ese
+campo vale `NA`, no cero. El diagnóstico de vocabulario de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+tiene su propio tope, `max_largo_valor_vocabulario`, que no se hereda:
+al detector se le pasa con
+`perfilar(duplicados_aproximados = list(max_largo_valor = ...))`. En
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) el
+mismo tope también declara la cobertura de las operaciones textuales
+costosas que no se ejecutan sobre esos valores.
+
+### El trabajo del vocabulario en `perfilar()`
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+busca variantes casi iguales dentro de cada columna de texto
+(`casi_duplicados_vocabulario`), comparando sus valores distintos de a
+pares. Comparar dos valores de largos `L1` y `L2` cuesta del orden de
+`L1 × L2`, así que el presupuesto, `max_trabajo_vocabulario`, se mide en
+comparaciones de carácter: `2e10` por omisión. Cuando no alcanza,
+compara las primeras formas en orden alfabético —no una muestra— y
+declara el resto. Con un presupuesto mínimo se ve:
+
+``` r
+
+recorte <- cobertura(ajustado)
+recorte <- recorte[recorte$diagnostico == "proximidad_vocabulario", ]
+writeLines(strwrap(paste0(recorte$columna, ": ", recorte$motivo), 88))
+#> proveedor: El vocabulario excede el alcance de comparacion: se evaluaron 7 de 7 valores
+#> distintos, que son 5 formas normalizadas, y se comparo entre si a las 4 primeras en
+#> orden alfabetico. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de
+#> caracter. Quedaron 1 formas y 4 pares sin comparar por max_trabajo.
+```
+
+El orden alfabético hace que el resultado no dependa del orden de las
+filas del archivo. La búsqueda de dependencias tiene su propio
+presupuesto, `max_trabajo_dependencias` (`1e8` comparaciones fila-par
+por omisión), y `Inf` desactiva cualquiera de los dos.
+
+### Cuántos pares se devuelven
+
+`max_resultados` (100 por omisión) no decide qué se compara, sino
+cuántos pares se devuelven: conserva los más cercanos. Con un corte de
+dos, sobre los tres pares a distancia cero:
+
+``` r
+
+dos <- detectar_duplicados_aproximados(
+  proveedores, columnas = c("proveedor", "rubro"), max_resultados = 2
+)
+dos$pares[, c("fila_1", "fila_2", "distancia", "tipo_par")]
+#>   fila_1 fila_2 distancia           tipo_par
+#> 1      3      4         0             exacto
+#> 2      1      2         0 exacto_normalizado
+dos$alcance[, c("truncado", "distancia_corte", "corte_en_empate")]
+#>   truncado distancia_corte corte_en_empate
+#> 1     TRUE               0            TRUE
+```
+
+`corte_en_empate = TRUE` avisa que quedó afuera al menos un par **igual
+de cercano** que los conservados. No es `truncado` con otro nombre: si
+el corte cae en una distancia única, vale `FALSE` aunque haya recorte.
+Para traer todos los empatados hay que subir `max_resultados`.
+
+Entre empatados, el desempate usa el contenido de los valores y no la
+posición de las filas, así que reordenar la tabla no cambia qué pares
+quedan:
+
+``` r
+
+ids_conservados <- function(datos, resultado) {
+  a <- datos$id[resultado$pares$fila_1]
+  b <- datos$id[resultado$pares$fila_2]
+  sort(paste(pmin(a, b), pmax(a, b), sep = "-"))
+}
+invertidos <- proveedores[8:1, ]
+dos_invertidos <- detectar_duplicados_aproximados(
+  invertidos, columnas = c("proveedor", "rubro"), max_resultados = 2
+)
+ids_conservados(proveedores, dos)
+#> [1] "1-2" "3-4"
+ids_conservados(invertidos, dos_invertidos)
+#> [1] "1-2" "3-4"
 ```
 
 ## Lo que los agregados SQL no traducen
@@ -920,14 +1073,47 @@ tiempo transcurrido no se presenta como evidencia de derrame.
 
 El bloque `perfil_muestra` pasa por
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
-en una sesión interactiva recibe también su aviso de tabla ancha desde
-100.000 celdas. Ese aviso divide las celdas por una velocidad de
-referencia de 10.000 celdas por segundo: es un supuesto del código, no
-una medición de la corrida ni de la máquina, y la espera real puede ser
-mayor. El aviso se describe en [Escala y
-duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.md)
-y las mediciones fechadas están en [Evidencia y
-rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+en una sesión interactiva recibe también su aviso de tabla ancha. El
+detalle de la proyección, sus topes y las mediciones que le dan contexto
+quedan juntos aquí.
+
+### Tablas anchas
+
+Antes de empezar las etapas caras,
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+proyecta cuánto puede tardar una tabla por su cantidad de celdas. Desde
+100.000 celdas avisa la duración estimada, sólo en una sesión
+interactiva; en un guion queda en silencio. La proyección se guarda
+siempre:
+
+``` r
+
+str(ajustado$meta$costo_tabla_ancha[c(
+  "celdas", "duracion_estimada_segundos", "umbral_celdas"
+)])
+#> List of 3
+#>  $ celdas                    : num 32
+#>  $ duracion_estimada_segundos: num 0.0064
+#>  $ umbral_celdas             : int 100000
+```
+
+La duración sale de dividir las celdas por una velocidad de referencia
+de 5.000 celdas por segundo, por debajo de la medición más lenta de
+`benchmark/medir_referencias.R` (7.492 celdas por segundo, con 500 filas
+y columnas numéricas y categóricas). Es una referencia para el caso
+común, no una cota: con muchas columnas de códigos de texto parecidos
+(`"valor_1"`, `"valor_2"`…), la búsqueda de casi duplicados del
+vocabulario hace que `benchmark/medir_topes_valores_ancho.R` mida 1.293
+celdas por segundo: la espera puede ser unas 4 veces mayor que la
+proyectada. Los dos CSV, en `benchmark/datos/`, conservan la fecha, el
+entorno y la huella del código. El aviso se apaga con
+`avisar_costo_tabla_ancha = FALSE`, y
+`umbral_celdas_aviso_tabla_ancha = Inf` es la misma decisión, explícita.
+
+Las mediciones fechadas de tablas anchas —el plan de consultas de una
+tabla administrativa de 158 columnas y las dos tablas de velocidad—
+están en [Evidencia y
+rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#tablas-anchas).
 
 ## Instrumentación y duraciones
 

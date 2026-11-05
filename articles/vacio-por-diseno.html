@@ -101,28 +101,13 @@ vuelve visible;</li>
 </ul>
 </blockquote>
 <div class="section level2">
-<h2 id="el-supuesto-que-lupa-hace">El supuesto que <code>lupa</code> hace<a class="anchor" aria-label="anchor" href="#el-supuesto-que-lupa-hace"></a>
-</h2>
-<p>Todo perfilador de datos asume una forma de tabla. <code>lupa</code>
-asume tres cosas a la vez:</p>
-<ol style="list-style-type: decimal">
-<li>una fila es un hecho sobre una entidad;</li>
-<li>una columna es un dominio semántico;</li>
-<li>una celda vacía debería tener un valor y no lo tiene.</li>
-</ol>
-<p>Las tres son razonables y ninguna es universal. La tercera es la que
-hace daño, porque una base administrativa está llena de vacíos
-legítimos: la celda que no corresponde que tenga valor. Sin declarar
-nada, <code>lupa</code> cuenta esos vacíos como ausencia y los informa
-como defecto. El conteo es correcto y la lectura es falsa.</p>
-</div>
-<div class="section level2">
 <h2 id="qué-pasa-si-no-se-declara-nada">Qué pasa si no se declara nada<a class="anchor" aria-label="anchor" href="#qu%C3%A9-pasa-si-no-se-declara-nada"></a>
 </h2>
-<p>Para que el vacío por diseño se vea entero usamos una encuesta
-construida acá, con una columna que sólo corresponde a parte de las
-filas; <code>datos_operativos</code> no tiene ninguna. Pregunta si la
-persona tiene auto y, sólo si tiene, de qué marca:</p>
+<p>Empezamos por el caso mínimo. Para que el vacío por diseño se vea
+entero usamos una encuesta construida acá, con una columna que sólo
+corresponde a parte de las filas; <code>datos_operativos</code> no tiene
+ninguna. Pregunta si la persona tiene auto y, sólo si tiene, de qué
+marca:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tiene_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Si"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">600</span>, <span class="fl">1400</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">encuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -182,6 +167,22 @@ son parte del diseño:</p>
 </tr>
 </tbody>
 </table>
+</div>
+<div class="section level2">
+<h2 id="el-supuesto-que-lupa-hace">El supuesto que <code>lupa</code> hace<a class="anchor" aria-label="anchor" href="#el-supuesto-que-lupa-hace"></a>
+</h2>
+<p>Todo perfilador de datos asume una forma de tabla. <code>lupa</code>
+asume tres cosas a la vez:</p>
+<ol style="list-style-type: decimal">
+<li>una fila es un hecho sobre una entidad;</li>
+<li>una columna es un dominio semántico;</li>
+<li>una celda vacía debería tener un valor y no lo tiene.</li>
+</ol>
+<p>Las tres son razonables y ninguna es universal. La tercera es la que
+hace daño, porque una base administrativa está llena de vacíos
+legítimos: la celda que no corresponde que tenga valor. Sin declarar
+nada, <code>lupa</code> cuenta esos vacíos como ausencia y los informa
+como defecto. El conteo es correcto y la lectura es falsa.</p>
 </div>
 <div class="section level2">
 <h2 id="la-señal-que-dice-que-hay-algo-para-declarar">La señal que dice que hay algo para declarar<a class="anchor" aria-label="anchor" href="#la-se%C3%B1al-que-dice-que-hay-algo-para-declarar"></a>

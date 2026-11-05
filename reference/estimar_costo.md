@@ -188,8 +188,11 @@ estimar_costo(
 - estrategia:
 
   Estrategia de comparación: `"auto"` (por omisión), `"teselas"`,
-  `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa automáticamente por
-  encima del tope exhaustivo; se puede forzar con `"lsh"`.
+  `"muestra"` o `"lsh"`. Con `"auto"`, MinHash/LSH se activa exactamente
+  cuando hay más de 10.000 filas, `muestra = Inf` y `max_pares` es `Inf`
+  o es mayor o igual que 50.000.000. Si falla cualquiera de esas
+  condiciones, se conserva el camino exacto por teselas o el muestreado
+  que corresponda; `"lsh"` lo fuerza.
 
 - lsh_bandas:
 
@@ -289,11 +292,11 @@ sobre una corrida que va a muestrear no serviría para decidir.
 ## Details
 
 En el camino LSH, `candidatos_previstos` es una estimación reproducible
-a partir de una muestra de firmas. `tiempo_estimado_segundos` es un piso
-de la medida aislada y no incluye firmas, cubetas ni troceo; sus campos
-de reloj tienen `tiempo_determinista = FALSE`. Con `bloquear_por`, los
-pares entre bloques no entran en el pronóstico y la pérdida estructural
-y estimada queda en `alcance`. En el camino exacto,
+a partir de una muestra de firmas. `tiempo_estimado_segundos` es una
+referencia de la medida aislada y no incluye firmas, cubetas ni troceo;
+sus campos de reloj tienen `tiempo_determinista = FALSE`. Con
+`bloquear_por`, los pares entre bloques no entran en el pronóstico y la
+pérdida estructural y estimada queda en `alcance`. En el camino exacto,
 `candidatos_previstos` es la cantidad de pares que se compararán, sujeta
 a `muestra`, `max_pares` y `bloquear_por`.
 

@@ -196,8 +196,11 @@ detectar_duplicados_aproximados(
 - estrategia:
 
   Estrategia de comparación: `"auto"` (por omisión), `"teselas"`,
-  `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa automáticamente por
-  encima del tope exhaustivo; se puede forzar con `"lsh"`.
+  `"muestra"` o `"lsh"`. Con `"auto"`, MinHash/LSH se activa exactamente
+  cuando hay más de 10.000 filas, `muestra = Inf` y `max_pares` es `Inf`
+  o es mayor o igual que 50.000.000. Si falla cualquiera de esas
+  condiciones, se conserva el camino exacto por teselas o el muestreado
+  que corresponda; `"lsh"` lo fuerza.
 
 - lsh_bandas:
 
@@ -297,15 +300,15 @@ Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 `estimacion`. `alcance` es reproducible; en el camino LSH,
 `estimacion$tiempo_determinista` es `FALSE` y reúne la velocidad,
 duración y tiempo de referencia medidos en esa corrida. El campo
-`estimacion$tiempo_estimado_etapa` indica que ese piso cubre sólo la
-comparación `stringdist`, no la firma, las cubetas ni el troceo. En el
-camino exacto o cuando no se puede comparar, `estimacion` es `NULL`. Si
-`lotes = TRUE`, se agrega `lotes` con el directorio, los archivos RDS,
-sus tamaños, el estado de completitud y `reanudable = FALSE`. El loteo
-cruza todos los grupos, por lo que no pierde pares; su resultado de
-`pares`, `hallazgos` y `alcance` es el mismo que el recorrido exacto sin
-lotes. Cada fila de `hallazgos` declara `n_evaluados`, `n_afectados` y
-`unidad_conteo`; los conteos desconocidos son `NA`, nunca cero.
+`estimacion$tiempo_estimado_etapa` indica que esa referencia cubre sólo
+la comparación `stringdist`, no la firma, las cubetas ni el troceo. En
+el camino exacto o cuando no se puede comparar, `estimacion` es `NULL`.
+Si `lotes = TRUE`, se agrega `lotes` con el directorio, los archivos
+RDS, sus tamaños, el estado de completitud y `reanudable = FALSE`. El
+loteo cruza todos los grupos, por lo que no pierde pares; su resultado
+de `pares`, `hallazgos` y `alcance` es el mismo que el recorrido exacto
+sin lotes. Cada fila de `hallazgos` declara `n_evaluados`, `n_afectados`
+y `unidad_conteo`; los conteos desconocidos son `NA`, nunca cero.
 
 ## Details
 
@@ -415,24 +418,27 @@ se valida pero `stringdist` no lo utiliza. El aviso interactivo señala
 esta perilla: subir `nucleos` puede acortar la etapa de comparación,
 pero la ganancia depende de la máquina y de los datos.
 
-Para tablas que superan el tope exhaustivo, `estrategia = "auto"` usa
-MinHash con bandas LSH sobre todas las filas cuando `muestra = Inf`. La
-salida declara las bandas, las filas por banda, las cubetas descartadas
-y la probabilidad teorica de colision. Esa probabilidad se refiere al
-Jaccard de los q-gramas, no a la medida final (`metodo`).
-`estrategia = "lsh"` fuerza este camino; `"teselas"` y `"muestra"`
-fuerzan el camino exacto por teselas o el muestreado. Las cubetas que
-superan `lsh_max_cubeta` se procesan igualmente por lotes; el parámetro
-identifica cubetas potencialmente costosas, pero no descarta sus pares.
-El alcance separa `lsh_teselas_cubetas_grandes` (matrices del primer
-tramo) de `lsh_lotes_cubetas_grandes` (lotes de filas de las bandas
-posteriores), pues no son la misma unidad. Los pares aceptados por ambos
-recorridos entran al resumen de Jaccard. Si alguna implementación futura
-descarta una cubeta, la garantía se devuelve como `NA` y
-`lsh_garantia_estado` lo deja explícito. La familia MinHash usa un hash
-entero biyectivo y determinista del vocabulario, con una semilla
-distinta por función de hash. No usa el generador de números aleatorios
-de R ni toca su estado: el resultado no depende de
+`estrategia = "auto"` usa MinHash con bandas LSH sobre todas las filas
+exactamente cuando se cumplen estas tres condiciones: hay más de 10.000
+filas, `muestra = Inf` y `max_pares` es `Inf` o es mayor o igual que
+50.000.000. Si falla cualquiera de ellas, conserva el camino exacto por
+teselas o el muestreado que corresponda. La salida declara las bandas,
+las filas por banda, las cubetas descartadas y la probabilidad teorica
+de colision. Esa probabilidad se refiere al Jaccard de los q-gramas, no
+a la medida final (`metodo`). `estrategia = "lsh"` fuerza este camino;
+`"teselas"` y `"muestra"` fuerzan el camino exacto por teselas o el
+muestreado. Las cubetas que superan `lsh_max_cubeta` se procesan
+igualmente por lotes; el parámetro identifica cubetas potencialmente
+costosas, pero no descarta sus pares. El alcance separa
+`lsh_teselas_cubetas_grandes` (matrices del primer tramo) de
+`lsh_lotes_cubetas_grandes` (lotes de filas de las bandas posteriores),
+pues no son la misma unidad. Los pares aceptados por ambos recorridos
+entran al resumen de Jaccard. Si alguna implementación futura descarta
+una cubeta, la garantía se devuelve como `NA` y `lsh_garantia_estado` lo
+deja explícito. La familia MinHash usa un hash entero biyectivo y
+determinista del vocabulario, con una semilla distinta por función de
+hash. No usa el generador de números aleatorios de R ni toca su estado:
+el resultado no depende de
 [`set.seed()`](https://rdrr.io/r/base/Random.html) ni de
 [`RNGkind()`](https://rdrr.io/r/base/Random.html), y la muestra de la
 estimación sale del mismo hash. La tabla de consulta de cada hash evita
@@ -441,10 +447,10 @@ resultado no dependa de cómo se numeraron esos q-gramas. Antes de
 recorrer las bandas se toma una muestra interna y se publica una
 estimación reproducible de candidatos. El cronómetro de la medida se
 ejecuta durante al menos 50 ms y queda en `resultado$estimacion`,
-separado de `alcance` y marcado como no determinista. Es un piso de la
-medida aislada y no estima la firma, las cubetas ni el troceo; sólo se
-muestra como aviso en una sesión interactiva. Fuera de una sesión
-interactiva se señala una condición silenciosa de clase
+separado de `alcance` y marcado como no determinista. Es una referencia
+de la medida aislada y no estima la firma, las cubetas ni el troceo;
+sólo se muestra como aviso en una sesión interactiva. Fuera de una
+sesión interactiva se señala una condición silenciosa de clase
 `lupa_tiempo_lsh`, sólo en el camino LSH: no se imprime en `stdout` ni
 `stderr`. Se puede capturar con
 `withCallingHandlers(resultado <- detectar_duplicados_aproximados(...), lupa_tiempo_lsh = function(c) { ... })`.

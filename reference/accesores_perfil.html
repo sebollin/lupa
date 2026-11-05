@@ -113,7 +113,9 @@ diagnósticos no evaluados —y, sobre un <code>perfil_dbi</code>, la de <strong
 SQL</strong>, que es la cobertura de ese objeto: sus diagnósticos no evaluados
 viajan en <code>x$perfil_muestra$cobertura_diagnosticos</code>, con el esquema de
 <code><a href="perfilar.html">perfilar()</a></code>, y la impresión del perfil los declara—; <code>n_filas()</code> devuelve el conteo de filas del
-alcance, o un vector con un conteo por tabla para una colección. Devuelve
+alcance, o un vector nombrado con un conteo por tabla para una colección
+—los nombres son los de <code>resumen_coleccion$tabla</code>, en el orden de la tabla—.
+Devuelve
 <code>NA</code> con su motivo cuando el objeto no conoce el conteo. El significado de
 cada campo de <code>columnas()</code> se explica por familias en los detalles de
 <code><a href="perfilar.html">perfilar()</a></code>. <code>sql_perfil()</code> devuelve la tabla de consultas emitidas;

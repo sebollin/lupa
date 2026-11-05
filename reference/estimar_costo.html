@@ -231,9 +231,11 @@ reemplaza por <code>[valor protegido]</code>. La supresion queda indicada en cad
 
 <dt id="arg-estrategia">estrategia<a class="anchor" aria-label="anchor" href="#arg-estrategia"></a></dt>
 <dd><p>Estrategia de comparación: <code>"auto"</code> (por omisión),
-<code>"teselas"</code>, <code>"muestra"</code> o <code>"lsh"</code>. MinHash/LSH sólo se activa
-automáticamente por encima del tope exhaustivo; se puede forzar con
-<code>"lsh"</code>.</p></dd>
+<code>"teselas"</code>, <code>"muestra"</code> o <code>"lsh"</code>. Con <code>"auto"</code>, MinHash/LSH
+se activa exactamente cuando hay más de 10.000 filas, <code>muestra = Inf</code> y
+<code>max_pares</code> es <code>Inf</code> o es mayor o igual que 50.000.000. Si falla
+cualquiera de esas condiciones, se conserva el camino exacto por teselas o el
+muestreado que corresponda; <code>"lsh"</code> lo fuerza.</p></dd>
 
 
 <dt id="arg-lsh-bandas">lsh_bandas<a class="anchor" aria-label="anchor" href="#arg-lsh-bandas"></a></dt>
@@ -334,8 +336,8 @@ corrida que va a muestrear no serviría para decidir.</p>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>En el camino LSH, <code>candidatos_previstos</code> es una estimación reproducible a
-partir de una muestra de firmas. <code>tiempo_estimado_segundos</code> es un piso de la
-medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
+partir de una muestra de firmas. <code>tiempo_estimado_segundos</code> es una referencia
+de la medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
 tienen <code>tiempo_determinista = FALSE</code>. Con <code>bloquear_por</code>, los pares entre
 bloques no entran en el pronóstico y la pérdida estructural y estimada queda
 en <code>alcance</code>. En el camino exacto, <code>candidatos_previstos</code> es la cantidad de

@@ -254,207 +254,40 @@ La respuesta es idéntica a la de la primera detección. El objeto declara
 además los archivos, sus tamaños y el directorio, y que los parciales no
 sirven para retomar una corrida cortada.
 
-## Los topes que recortan, y dónde lo dicen
+## Qué recorta cada tope
 
-### El largo de los valores
+Después de los lotes, cada límite queda resumido en la señal que se
+puede leer en la salida. El detalle reproducible está en los artículos
+de referencia:
 
-Una distancia normalizada pierde capacidad de distinguir cuando los
-textos son largos. Lo vemos con la medida que usa el detector
-(Jaro-Winkler con `p = 0.1`): dos textos al azar que difieren en
-exactamente cien caracteres, a distintos largos.
-
-``` r
-
-distancia_cien_cambios <- function(largo, semilla) {
-  set.seed(semilla)
-  texto <- sample(letters, largo, replace = TRUE)
-  otro <- texto
-  cambios <- sample(largo, 100)
-  otro[cambios] <- ifelse(otro[cambios] == "a", "b", "a")
-  stringdist::stringdist(
-    paste(texto, collapse = ""), paste(otro, collapse = ""),
-    method = "jw", p = 0.1
-  )
-}
-largos <- c(500, 1000, 2000, 4000, 8000)
-data.frame(
-  largo = largos,
-  distancia = vapply(largos, function(largo) {
-    round(median(vapply(1:5, distancia_cien_cambios, numeric(1), largo = largo)), 3)
-  }, numeric(1))
-)
-#>   largo distancia
-#> 1   500     0.162
-#> 2  1000     0.142
-#> 3  2000     0.074
-#> 4  4000     0.047
-#> 5  8000     0.027
-```
-
-Las cien diferencias son las mismas; lo que cambia es cuánto pesan en el
-texto. Pasado cierto largo, la distancia baja del umbral de 0,10 y dos
-textos que difieren en cien caracteres cuentan como casi iguales.
-
-Por eso el detector no compara valores más largos que `max_largo_valor`
-(10.000 caracteres por omisión, un supuesto del código). El tope no
-elimina el efecto, lo acota: una columna de textos largos puede pedir
-uno menor. Se mide sobre la cadena que de verdad se compara, con las
-columnas ya unidas y normalizadas, y si se supera, la combinación entera
-queda fuera de alcance y se declara. Con un tope de 20 caracteres,
-nuestra cadena de proveedor y rubro no entra:
-
-``` r
-
-corto <- detectar_duplicados_aproximados(
-  proveedores, columnas = c("proveedor", "rubro"), max_largo_valor = 20
-)
-corto$alcance[, c(
-  "max_largo_valor", "largo_maximo", "columnas_excluidas_largo", "n_pares_hallados"
-)]
-#>   max_largo_valor largo_maximo columnas_excluidas_largo n_pares_hallados
-#> 1              20           31         proveedor, rubro               NA
-```
-
-`largo_maximo` es el largo de la cadena comparada, no el de cada
-columna, y `n_pares_hallados` vale `NA`, no cero: no se comparó nada.
-Con `max_largo_valor = Inf` no hay tope y no se mide ningún largo: ese
-campo vale `NA`, no cero. El diagnóstico de vocabulario de
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-tiene su propio tope, `max_largo_valor_vocabulario`, que no se hereda:
-al detector se le pasa con
-`perfilar(duplicados_aproximados = list(max_largo_valor = ...))`. En
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) el
-mismo tope también declara la cobertura de las operaciones textuales
-costosas que no se ejecutan sobre esos valores.
-
-### El trabajo del vocabulario en `perfilar()`
-
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-busca variantes casi iguales dentro de cada columna de texto
-(`casi_duplicados_vocabulario`), comparando sus valores distintos de a
-pares. Comparar dos valores de largos `L1` y `L2` cuesta del orden de
-`L1 × L2`, así que el presupuesto, `max_trabajo_vocabulario`, se mide en
-comparaciones de carácter: `2e10` por omisión. Cuando no alcanza,
-compara las primeras formas en orden alfabético —no una muestra— y
-declara el resto. Con un presupuesto mínimo se ve:
-
-``` r
-
-ajustado <- perfilar(
-  proveedores, analizar_dependencias = FALSE, max_trabajo_vocabulario = 2000
-)
-recorte <- cobertura(ajustado)
-recorte <- recorte[recorte$diagnostico == "proximidad_vocabulario", ]
-writeLines(strwrap(paste0(recorte$columna, ": ", recorte$motivo), 88))
-#> proveedor: El vocabulario excede el alcance de comparacion: se evaluaron 7 de 7 valores
-#> distintos, que son 5 formas normalizadas, y se comparo entre si a las 4 primeras en
-#> orden alfabetico. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de
-#> caracter. Quedaron 1 formas y 4 pares sin comparar por max_trabajo.
-```
-
-El orden alfabético hace que el resultado no dependa del orden de las
-filas del archivo. La búsqueda de dependencias tiene su propio
-presupuesto, `max_trabajo_dependencias` (`1e8` comparaciones fila-par
-por omisión), y `Inf` desactiva cualquiera de los dos.
-
-### Cuántos pares se devuelven
-
-`max_resultados` (100 por omisión) no decide qué se compara, sino
-cuántos pares se devuelven: conserva los más cercanos. Con un corte de
-dos, sobre los tres pares a distancia cero:
-
-``` r
-
-dos <- detectar_duplicados_aproximados(
-  proveedores, columnas = c("proveedor", "rubro"), max_resultados = 2
-)
-dos$pares[, c("fila_1", "fila_2", "distancia", "tipo_par")]
-#>   fila_1 fila_2 distancia           tipo_par
-#> 1      3      4         0             exacto
-#> 2      1      2         0 exacto_normalizado
-dos$alcance[, c("truncado", "distancia_corte", "corte_en_empate")]
-#>   truncado distancia_corte corte_en_empate
-#> 1     TRUE               0            TRUE
-```
-
-`corte_en_empate = TRUE` avisa que quedó afuera al menos un par **igual
-de cercano** que los conservados. No es `truncado` con otro nombre: si
-el corte cae en una distancia única, vale `FALSE` aunque haya recorte.
-Para traer todos los empatados hay que subir `max_resultados`.
-
-Entre empatados, el desempate usa el contenido de los valores y no la
-posición de las filas, así que reordenar la tabla no cambia qué pares
-quedan:
-
-``` r
-
-ids_conservados <- function(datos, resultado) {
-  a <- datos$id[resultado$pares$fila_1]
-  b <- datos$id[resultado$pares$fila_2]
-  sort(paste(pmin(a, b), pmax(a, b), sep = "-"))
-}
-invertidos <- proveedores[8:1, ]
-dos_invertidos <- detectar_duplicados_aproximados(
-  invertidos, columnas = c("proveedor", "rubro"), max_resultados = 2
-)
-ids_conservados(proveedores, dos)
-#> [1] "1-2" "3-4"
-ids_conservados(invertidos, dos_invertidos)
-#> [1] "1-2" "3-4"
-```
-
-## El aviso de las tablas anchas
-
-Antes de empezar las etapas caras,
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-proyecta cuánto puede tardar una tabla por su cantidad de celdas. Desde
-100.000 celdas avisa la duración estimada, sólo en una sesión
-interactiva; en un guion queda en silencio. La proyección se guarda
-siempre:
-
-``` r
-
-str(ajustado$meta$costo_tabla_ancha[c(
-  "celdas", "duracion_estimada_segundos", "umbral_celdas"
-)])
-#> List of 3
-#>  $ celdas                    : num 32
-#>  $ duracion_estimada_segundos: num 0.0032
-#>  $ umbral_celdas             : int 100000
-```
-
-La duración sale de dividir las celdas por una velocidad de referencia
-de 10.000 celdas por segundo. Esa velocidad es un supuesto del código,
-no una medición de la máquina que corre el perfil: las mediciones con
-tablas anchas, con su fecha y su entorno, están en el artículo
-[Evidencia y
-rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
-El aviso se apaga con `avisar_costo_tabla_ancha = FALSE`, y
-`umbral_celdas_aviso_tabla_ancha = Inf` es la misma decisión, explícita.
-
-## Los hilos
-
-La comparación de `stringdist` usa
-`nucleos = getOption("lupa.nucleos", 2L)` hilos. Se cambia por llamada o
-con la opción, y el valor efectivo queda en `alcance$nucleos_usados`. La
-cantidad de hilos cambia el tiempo, no la respuesta:
-
-``` r
-
-un_hilo <- detectar_duplicados_aproximados(
-  proveedores, columnas = c("proveedor", "rubro"), nucleos = 1
-)
-un_hilo$alcance$nucleos_usados
-#> [1] 1
-identical(un_hilo$pares, pares$pares)
-#> [1] TRUE
-```
-
-Cuánto se gana con más hilos depende de qué parte del trabajo cae en la
-comparación, que es la única que se reparte. Por eso conviene medir el
-caso propio; las mediciones de escala por hilos están en el artículo
-[Evidencia y
-rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+- **Largo de los valores.** `max_largo_valor` deja fuera la combinación
+  completa cuando la cadena ya unida y normalizada supera el límite;
+  `alcance$columnas_excluidas_largo` lo declara y
+  `n_pares_hallados = NA` distingue «no se comparó» de cero. El detalle
+  está en [Motores y
+  escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes-duplicados).
+- **Trabajo del vocabulario.** `max_trabajo_vocabulario` recorta las
+  comparaciones entre formas distintas;
+  [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  conserva el diagnóstico y el motivo del recorte, sin presentar los
+  valores no revisados como limpios. El detalle está en [Motores y
+  escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes-duplicados).
+- **Pares devueltos.** `max_resultados` limita la salida a los pares más
+  cercanos, y `alcance$truncado` junto con `alcance$corte_en_empate`
+  muestran si quedó fuera otro par igual de cercano. El desempate y el
+  detalle están en [Motores y
+  escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes-duplicados).
+- **Tablas anchas.**
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  proyecta el costo en `meta$costo_tabla_ancha` y, sólo en una sesión
+  interactiva, emite el aviso cuando corresponde; la salida y los
+  interruptores están en [Motores y
+  escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#aviso-tabla-ancha).
+- **Hilos.** `nucleos` cambia el tiempo de la comparación de
+  `stringdist`, no sus pares; `alcance$nucleos_usados` muestra el valor
+  efectivo. Las mediciones sobre distintos números de hilos están en
+  [Evidencia y
+  rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#hilos-medidos).
 
 ## Resumen
 

@@ -104,24 +104,8 @@ con pesos declarados y evaluamos con perfiles de madurez;</li>
 AGESIC.</li>
 </ul>
 </blockquote>
-<div class="section level2">
-<h2 id="un-marco-es-una-taxonomía">Un marco es una taxonomía<a class="anchor" aria-label="anchor" href="#un-marco-es-una-taxonom%C3%ADa"></a>
-</h2>
-<p><code>lupa</code> sigue el linaje de dimensiones, factores y métricas
-de Batini y Scannapieco (2016). Una dimensión reúne factores: la
-completitud reúne la densidad, por ejemplo. Un factor reúne métricas:
-<code>NoNulo</code> mide la densidad. Esa jerarquía sirve para
-clasificar y para navegar el modelo, no para calcular: el marco no
-define un “puntaje de exactitud” ni un índice global, y
-<code><a href="../reference/agregar.html">agregar()</a></code> no sube de una métrica a su factor ni a su
-dimensión. Promediar factores sin una decisión explícita ocultaría
-prioridades y correlaciones entre ellos.</p>
-<p>Declaramos el marco de nuestra entrega,
-<code>datos_operativos</code>. Cada métrica trae su dimensión y su
-factor, y un modelo ligado a un marco exige que cada una caiga en uno de
-sus pares. Para las tres métricas del núcleo que vamos a usar tomamos
-los pares del catálogo de AGESIC, que los nombra; los otros dos factores
-son propios.</p>
+<p>Primero declaramos un marco pequeño para la entrega y vemos qué
+estructura devuelve.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span></span>
@@ -153,6 +137,24 @@ son propios.</p>
 <span><span class="co">#&gt; 3     Unicidad         No-duplicación        TRUE</span></span>
 <span><span class="co">#&gt; 4 Trazabilidad     Origen documentado       FALSE</span></span>
 <span><span class="co">#&gt; 5     Frescura             Actualidad       FALSE</span></span></code></pre></div>
+<div class="section level2">
+<h2 id="un-marco-es-una-taxonomía">Un marco es una taxonomía<a class="anchor" aria-label="anchor" href="#un-marco-es-una-taxonom%C3%ADa"></a>
+</h2>
+<p><code>lupa</code> sigue el linaje de dimensiones, factores y métricas
+de Batini y Scannapieco (2016). Una dimensión reúne factores: la
+completitud reúne la densidad, por ejemplo. Un factor reúne métricas:
+<code>NoNulo</code> mide la densidad. Esa jerarquía sirve para
+clasificar y para navegar el modelo, no para calcular: el marco no
+define un “puntaje de exactitud” ni un índice global, y
+<code><a href="../reference/agregar.html">agregar()</a></code> no sube de una métrica a su factor ni a su
+dimensión. Promediar factores sin una decisión explícita ocultaría
+prioridades y correlaciones entre ellos.</p>
+<p>El marco de arriba es el de nuestra entrega,
+<code>datos_operativos</code>. Cada métrica trae su dimensión y su
+factor, y un modelo ligado a un marco exige que cada una caiga en uno de
+sus pares. Para las tres métricas del núcleo que vamos a usar tomamos
+los pares del catálogo de AGESIC, que los nombra; los otros dos factores
+son propios.</p>
 <p>En un data frame, <code>perfil_mide</code> dice para qué factores el
 perfil por sí solo ya aporta evidencia suficiente; aquí, la no
 duplicación, porque <code><a href="../reference/perfilar.html">perfilar()</a></code> busca filas repetidas.

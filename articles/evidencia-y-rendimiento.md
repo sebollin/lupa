@@ -98,18 +98,34 @@ hospital  17 de 17 afectadas con hallazgo; 19 senaladas; 2 adicionales
 flights    4 de  4 afectadas con hallazgo;  6 senaladas; 2 adicionales
 beers      5 de  5 afectadas con hallazgo;  9 senaladas; 4 adicionales
 total     26 de 26 afectadas con hallazgo; 34 senaladas; 8 adicionales
-
-Version de los archivos obtenidos (bytes y Adler-32):
-hospital  dirty.csv 303306 bytes  f970da05
-hospital  clean.csv 303324 bytes  74435416
-flights   dirty.csv 154776 bytes  d3a57255
-flights   clean.csv 173159 bytes  ffe72679
-beers     dirty.csv 255295 bytes  b2bb7910
-beers     clean.csv 233019 bytes  71980a46
 ```
 
-La huella Adler-32 no es criptográfica: permite ver que cambiaron los
-bytes obtenidos. Las huellas de la corrida publicada también están en
+Version de los archivos obtenidos (bytes, Adler-32 y SHA-256): hospital
+dirty.csv 303306 bytes f970da05
+dbc5575b915fe8b5e0ac6dc6172f38ba91e611fdb76d09a8f4a81cb7ea9925ac
+hospital clean.csv 303324 bytes 74435416
+ea3ee44998455c0b491750c348509de176c758a3bbf58e4530c0a136bb248b4b flights
+dirty.csv 154776 bytes d3a57255
+1b5c1afa10aa0e7c20fd7e14d05c56772715b2771aa0f5fa67ed1709e1eecd46 flights
+clean.csv 173159 bytes ffe72679
+0acfcfd8985b06fdd363965c9e8d9522c43e7589a93d79ae7dc311e1c37fdf3b beers
+dirty.csv 255295 bytes b2bb7910
+7110bf4931a9445a1675e544d6c996817c739136239f8a2b02e088c7ec0a1f68 beers
+clean.csv 233019 bytes 71980a46
+373227df59ad197e154dd5149125789e415019535c7223355e9486ee1b3b93de
+
+| Dataset | Archivo | Bytes | Adler-32 | SHA-256 |
+|:---|:---|---:|:---|:---|
+| hospital | dirty.csv | 303306 | f970da05 | dbc5575b915fe8b5e0ac6dc6172f38ba91e611fdb76d09a8f4a81cb7ea9925ac |
+| hospital | clean.csv | 303324 | 74435416 | ea3ee44998455c0b491750c348509de176c758a3bbf58e4530c0a136bb248b4b |
+| flights | dirty.csv | 154776 | d3a57255 | 1b5c1afa10aa0e7c20fd7e14d05c56772715b2771aa0f5fa67ed1709e1eecd46 |
+| flights | clean.csv | 173159 | ffe72679 | 0acfcfd8985b06fdd363965c9e8d9522c43e7589a93d79ae7dc311e1c37fdf3b |
+| beers | dirty.csv | 255295 | b2bb7910 | 7110bf4931a9445a1675e544d6c996817c739136239f8a2b02e088c7ec0a1f68 |
+| beers | clean.csv | 233019 | 71980a46 | 373227df59ad197e154dd5149125789e415019535c7223355e9486ee1b3b93de |
+
+Adler-32 permite detectar rápidamente que cambiaron los bytes; SHA-256
+es la huella criptográfica publicada. Las huellas de la corrida también
+están en
 [`benchmark/resultados.md`](https://github.com/sebollin/lupa/blob/main/benchmark/resultados.md),
 junto con el detalle de qué cuenta cada número.
 
@@ -270,6 +286,8 @@ memoria los siguen: 16,2 s y 511 MiB a 20.000 filas, 41 min y 2,6 GiB a
 500.000. De los pares sembrados que la medida final acepta no se pierde
 ninguno en ningún tamaño (exhaustividad contra el techo: 100 %).
 
+### Hilos: qué cambia y qué se mide
+
 El cuarto panel mide lo que cuestan los hilos a 100.000 filas: 123, 102,
 88, 79, 84 segundos con 2, 4, 8, 16, 29 hilos (1,6 veces entre dos y
 dieciséis). Los candidatos y los pares no cambian con los hilos, sólo el
@@ -277,7 +295,36 @@ reloj. El valor por omisión es de dos hilos, el máximo que la política
 de CRAN admite al comprobar un paquete, y se cambia con
 `options(lupa.nucleos = )`; la ganancia depende de qué fracción del
 trabajo cae en la comparación, y sobre otro padrón la curva puede ser
-más plana.
+más plana. La comparación de `stringdist` usa
+`nucleos = getOption("lupa.nucleos", 2L)` hilos, se puede cambiar por
+llamada y el valor efectivo queda en `alcance$nucleos_usados`.
+
+``` r
+
+proveedores_hilos <- data.frame(
+  id = 1:8,
+  proveedor = c(
+    "Ferretería Central", "Ferreteria Central", "Distribuidora Sur",
+    "Distribuidora Sur", "Lácteos del Este", "Lacteos del Este",
+    "Imprenta Norte", "Imprenta Nortes"
+  ),
+  rubro = c(
+    "ferretería", "ferretería", "alimentos", "alimentos", "alimentos",
+    "alimentos", "gráfica", "gráfica"
+  ),
+  stringsAsFactors = FALSE
+)
+pares_hilos <- detectar_duplicados_aproximados(
+  proveedores_hilos, columnas = c("proveedor", "rubro")
+)
+un_hilo <- detectar_duplicados_aproximados(
+  proveedores_hilos, columnas = c("proveedor", "rubro"), nucleos = 1
+)
+un_hilo$alcance$nucleos_usados
+#> [1] 1
+identical(un_hilo$pares, pares_hilos$pares)
+#> [1] TRUE
+```
 
 ![Estimación previa: error en cuatro tamaños y pérdida del bloqueo por
 clave](evidencia-y-rendimiento_files/figure-html/banco-estimacion.png)
@@ -378,37 +425,50 @@ En una sesión interactiva,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 avisa antes de perfilar una tabla de 100.000 celdas o más
 (`umbral_celdas_aviso_tabla_ancha`) y proyecta la duración con una
-referencia de 10.000 celdas por segundo. Esa referencia es un supuesto
-del código, no una medición.
-
-La medición más reciente es la de `benchmark/medir_referencias.R`, que
-perfila tablas de 500 filas con 50, 300 y 1.000 columnas (dos de cada
-tres numéricas, el resto texto) y descarta una primera corrida de
-calentamiento. Dos corridas del 2026-10-24 sobre la revisión
-`0.1.0; R/ md5 08c0a1af7ccb`, en la misma máquina que las figuras
-(Intel(R) Core(TM) i9-14900HX, R 4.6.1); salida guardada:
+referencia de 5.000 celdas por segundo. Esa referencia se fija por
+debajo de la medición más lenta de `benchmark/medir_referencias.R`, que
+perfila tablas de 500 filas con 50, 300 y 1.000 columnas numéricas y
+categóricas y deja la corrida en `benchmark/datos/medir-referencias.csv`
+(2026-11-05):
 
 ``` r
 
-anchas <- data.frame(
-  columnas = c(50, 300, 1000),
-  corrida_1_s = c(4.62, 18.54, 67.15),
-  corrida_2_s = c(4.44, 19.03, 64.36)
-)
-anchas$celdas_por_segundo <- round(
-  500 * anchas$columnas / rowMeans(anchas[c("corrida_1_s", "corrida_2_s")])
-)
-anchas
-#>   columnas corrida_1_s corrida_2_s celdas_por_segundo
-#> 1       50        4.62        4.44               5519
-#> 2      300       18.54       19.03               7985
-#> 3     1000       67.15       64.36               7604
+referencias_ancho
+#>   n_columnas segundos celdas_por_segundo
+#> 1         50    3.337               7492
+#> 2        300    9.820              15275
+#> 3       1000   36.678              13632
 ```
 
-Medido así, una tabla ancha se perfila más despacio que la referencia, y
-la proyección del aviso puede quedarse corta. El guion imprime sus
-tiempos en la consola y no deja un CSV en `benchmark/datos/`, así que
-esta tabla es una salida guardada con su fecha.
+El caso más lento de esa tabla son 7.492 celdas por segundo. Es una
+referencia para el caso común y no una cota. Con muchas columnas de
+códigos de texto parecidos (`"valor_1"`, `"valor_2"`…), la búsqueda de
+casi duplicados del vocabulario domina el perfil:
+`benchmark/medir_topes_valores_ancho.R` repite esa columna en las mismas
+tres anchuras, tres veces cada una, y deja
+`medir-topes-valores-ancho-20261105T055002Z.csv`, con su fecha, entorno
+y huella del código:
+
+``` r
+
+codigos_ancho[, c(
+  "n_filas", "n_columnas", "celdas", "repeticion", "segundos",
+  "celdas_por_segundo"
+)]
+#>    n_filas n_columnas celdas repeticion segundos celdas_por_segundo
+#> 41     500         50  25000          1    3.472           7200.461
+#> 42     500         50  25000          2    3.218           7768.800
+#> 43     500         50  25000          3    2.150          11627.907
+#> 44     500        300 150000          1   34.429           4356.792
+#> 45     500        300 150000          2   32.676           4590.525
+#> 46     500        300 150000          3   32.294           4644.826
+#> 47     500       1000 500000          1  386.634           1293.213
+#> 48     500       1000 500000          2  379.442           1317.724
+#> 49     500       1000 500000          3  380.699           1313.374
+```
+
+Ahí el caso más lento son 1.293 celdas por segundo: con tablas así, la
+espera puede ser unas 4 veces mayor que la proyectada.
 
 ## Corridas sobre millones de filas
 

@@ -91,6 +91,20 @@ Primera versión publicada.
   al plan de limpieza. Las guías 7 a 12 (métricas, marcos, histórico,
   bases de datos, colecciones y escala) y los 4 artículos de referencia
   están en el sitio, <https://sebollin.github.io/lupa/>.
+- Los guiones de `benchmark/` que publican cifras dejan su CSV en
+  `benchmark/datos/` con fecha, entorno y huella del código; el de Raha
+  agrega el SHA-256 de cada insumo, y el del tope de largo mide
+  Jaro-Winkler con el mismo `p` que el paquete (el margen publicado para
+  `max_largo_valor = 10000` era mayor que el real).
+- El README muestra una captura del informe HTML de
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md),
+  rehecha con `scripts/capturar-informe-html.R`. «El vacío por diseño» y
+  «Marcos y modelos de calidad» empiezan por el ejemplo y dejan la
+  explicación para después.
+- La guía «Escala y duplicados aproximados» termina en los lotes sin
+  pérdida y resume cada tope en una línea. El detalle de los topes y del
+  aviso de tabla ancha pasa a «Motores y escala», y el de los hilos a
+  «Evidencia y rendimiento».
 
 ### Rendimiento
 
@@ -263,6 +277,27 @@ Primera versión publicada.
   `dbGetQuery()`, pero ahora lo avisa (`lupa_aviso_muestra_motor`):
   antes todas las métricas quedaban `no_disponible` y el motivo solo
   estaba en la cobertura.
+- Con `universo = "muestra_motor"`, `estado` y `error_esperado` se
+  deciden por métrica y con la misma regla en las dos vías, como dice la
+  ayuda. Antes, con `bloque_muestra = "solo_agregados"`, los distintos y
+  la mediana de la muestra salían `error_esperado = "no_aplica"`, lo que
+  se publica cuando no hubo muestreo; y con `"con_muestra"` todas las
+  métricas salían `no_estimable` —también la media y los conteos— y los
+  estadísticos `observado_muestra` en vez de `estimado`. Los valores no
+  cambian.
+- [`n_filas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  de una colección devuelve el vector con el nombre de cada tabla.
+- El aviso de tabla ancha proyecta con 5.000 celdas por segundo, por
+  debajo de todas las mediciones de `benchmark/medir_referencias.R`; los
+  10.000 de antes eran más rápidos que lo medido (unas 5.200 con 50
+  columnas), así que la espera anunciada se quedaba corta.
+  `meta$costo_tabla_ancha$fuente` nombra el guion y advierte que muchas
+  columnas de códigos de texto parecidos pueden tardar varias veces más.
+- La ayuda de `estrategia` en
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  dice exactamente cuándo `"auto"` pasa a LSH (más de 10.000 filas,
+  `muestra = Inf` y `max_pares` de 50.000.000 o más), y el aviso de LSH
+  ya no llama «piso» a una referencia de la comparación aislada.
 - Con `bloque_filas`, las columnas binarias se leen como largo y MD5,
   igual que en la muestra: con RMySQL el controlador ya no las trunca
   (un aviso por fila, y largos y distintos falsos), y en PostgreSQL, SQL
