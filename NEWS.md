@@ -64,6 +64,9 @@ Primera versión publicada.
 - El README muestra una captura del informe HTML de `reportar()`, rehecha con
   `scripts/capturar-informe-html.R`. «El vacío por diseño» y «Marcos y modelos
   de calidad» empiezan por el ejemplo y dejan la explicación para después.
+- La guía «Escala y duplicados aproximados» termina en los lotes sin pérdida y
+  resume cada tope en una línea. El detalle de los topes y del aviso de tabla
+  ancha pasa a «Motores y escala», y el de los hilos a «Evidencia y rendimiento».
 
 ## Rendimiento
 

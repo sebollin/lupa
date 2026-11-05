@@ -386,6 +386,8 @@ memoria los siguen: `r tiempo(primero$tiempo_s_mediana)` y
 pierde ninguno en ningún tamaño (exhaustividad contra el techo:
 `r porcentaje(min(escala$recall_techo))`).
 
+### Hilos: qué cambia y qué se mide {#hilos-medidos}
+
 El cuarto panel mide lo que cuestan los hilos a `r numero(hilos$filas[[1]])`
 filas: `r paste(numero(hilos$tiempo_s_mediana), collapse = ", ")` segundos con
 `r paste(hilos$nucleos, collapse = ", ")` hilos
@@ -394,7 +396,33 @@ Los candidatos y los pares no cambian con los hilos, sólo el reloj. El valor po
 omisión es de dos hilos, el máximo que la política de CRAN admite al comprobar un
 paquete, y se cambia con `options(lupa.nucleos = )`; la ganancia
 depende de qué fracción del trabajo cae en la comparación, y sobre otro padrón la
-curva puede ser más plana.
+curva puede ser más plana. La comparación de `stringdist` usa
+`nucleos = getOption("lupa.nucleos", 2L)` hilos, se puede cambiar por llamada y
+el valor efectivo queda en `alcance$nucleos_usados`.
+
+```{r hilos-ejemplo}
+proveedores_hilos <- data.frame(
+  id = 1:8,
+  proveedor = c(
+    "Ferretería Central", "Ferreteria Central", "Distribuidora Sur",
+    "Distribuidora Sur", "Lácteos del Este", "Lacteos del Este",
+    "Imprenta Norte", "Imprenta Nortes"
+  ),
+  rubro = c(
+    "ferretería", "ferretería", "alimentos", "alimentos", "alimentos",
+    "alimentos", "gráfica", "gráfica"
+  ),
+  stringsAsFactors = FALSE
+)
+pares_hilos <- detectar_duplicados_aproximados(
+  proveedores_hilos, columnas = c("proveedor", "rubro")
+)
+un_hilo <- detectar_duplicados_aproximados(
+  proveedores_hilos, columnas = c("proveedor", "rubro"), nucleos = 1
+)
+un_hilo$alcance$nucleos_usados
+identical(un_hilo$pares, pares_hilos$pares)
+```
 
 ```{r figura-estimacion, echo = FALSE, out.width = "100%", fig.alt = "Estimación previa: error en cuatro tamaños y pérdida del bloqueo por clave"}
 mostrar_figura("banco-estimacion.png")
@@ -467,7 +495,7 @@ Las repeticiones cronometradas que guardan `escala.csv` y `hilos.csv` suman
 una máquina como la medida. Con `LUPA_FIGURAS_SOLO_BARATAS=1` el medidor corre
 sólo los tamaños chicos, como prueba de humo.
 
-## Tablas anchas
+## Tablas anchas {#tablas-anchas}
 
 ### El plan de consultas de una tabla ancha
 
