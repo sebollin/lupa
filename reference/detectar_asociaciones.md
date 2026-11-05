@@ -102,9 +102,9 @@ detectar_asociaciones(d, umbral = 0)
 #> 2         x     grupo numerica categorica             eta2
 #> 3         y     grupo numerica categorica             eta2
 #>                                                                              supuesto
-#> 1 Las columnas numericas se tratan como cuantitativas; la escala no queda confirmada.
-#> 2            La columna numerica se trata como cuantitativa y la otra como categoria.
-#> 3            La columna numerica se trata como cuantitativa y la otra como categoria.
+#> 1 Las columnas numéricas se tratan como cuantitativas; la escala no queda confirmada.
+#> 2            La columna numérica se trata como cuantitativa y la otra como categoría.
+#> 3            La columna numérica se trata como cuantitativa y la otra como categoría.
 #>    asociacion n_pares
 #> 1 1.000000000      20
 #> 2 0.007518797      20

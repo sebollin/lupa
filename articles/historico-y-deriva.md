@@ -300,7 +300,7 @@ guardar_historico(historico, archivo)
 identical(leer_historico(archivo), historico)
 #> [1] TRUE
 tryCatch(guardar_historico(historico, archivo), error = conditionMessage)
-#> [1] "El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo."
+#> [1] "El archivo ya existe; usar `sobrescribir = TRUE` para reemplazarlo."
 unlink(archivo)
 ```
 

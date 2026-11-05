@@ -25,8 +25,8 @@ Seguimos con `datos_operativos` y la clave de la guía 1.
 
 library(lupa)
 perfil <- perfilar(datos_operativos, clave = "id_evento")
-#> Warning: La clave declarada no es única: entre las 13 filas con la clave completa, 1 repite su
-#> valor (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
+#> Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor
+#> (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
 #> valores ausentes.
 h <- hallazgos(perfil)
 ```
@@ -326,8 +326,8 @@ clase. Declarada como clave, `clave_no_unica` señala más filas que
 ``` r
 
 por_registro <- perfilar(datos_operativos, clave = "id_registro")
-#> Warning: La clave declarada no es única: entre las 13 filas con la clave completa, 2 repiten su
-#> valor (4 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
+#> Warning: La clave declarada no es única: entre 13 filas con la clave completa, 2 repiten su valor
+#> (4 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
 #> valores ausentes.
 hr <- hallazgos(por_registro)
 hr[hr$tipo_hallazgo %in% c("clave_no_unica", "filas_duplicadas"),

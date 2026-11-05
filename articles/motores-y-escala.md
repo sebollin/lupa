@@ -541,10 +541,10 @@ declara el resto. Con un presupuesto mínimo se ve:
 recorte <- cobertura(ajustado)
 recorte <- recorte[recorte$diagnostico == "proximidad_vocabulario", ]
 writeLines(strwrap(paste0(recorte$columna, ": ", recorte$motivo), 88))
-#> proveedor: El vocabulario excede el alcance de comparacion: se evaluaron 7 de 7 valores
-#> distintos, que son 5 formas normalizadas, y se comparo entre si a las 4 primeras en
-#> orden alfabetico. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de
-#> caracter. Quedaron 1 formas y 4 pares sin comparar por max_trabajo.
+#> proveedor: El vocabulario excede el alcance de comparación: se evaluaron 7 de 7 valores
+#> distintos, que son 5 formas normalizadas, y se comparó entre sí a las 4 primeras en
+#> orden alfabético. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de
+#> caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo.
 ```
 
 El orden alfabético hace que el resultado no dependa del orden de las
@@ -715,7 +715,7 @@ estrategia <- por_catalogo$resumen_tabla$meta$estrategia_distintos
 estrategia$estado
 #> [1] "no_disponible"
 writeLines(strwrap(estrategia$motivo, 88))
-#> `catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estadistica portable de
+#> `catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estadística portable de
 #> cardinalidad para este motor.
 ```
 
@@ -851,8 +851,8 @@ s[s$estado == "omitido_por_costo", c("columna", "metrica", "estado")]
 writeLines(strwrap(barato$resumen_tabla$meta$decisiones_costo$monto$detalle$motivo, 88))
 #> Se omitió la moda de la columna `monto`: tiene 2000 valores distintos de 2000 válidos
 #> (1.000) sobre la tabla completa; la política optativa considera que agrupar u ordenar
-#> toda la columna no justifica el costo. Para pedirla igual, use `politica_costo =
-#> "todas"`; para mover el criterio, cambie `umbral_cardinalidad`.
+#> toda la columna no justifica el costo. Para pedirla igual, usar `politica_costo =
+#> "todas"`; para mover el criterio, cambiar `umbral_cardinalidad`.
 ```
 
 Sobre una tabla más ancha, la diferencia se nota en la cantidad de
@@ -1048,7 +1048,7 @@ str(costo[c("disponible", "n_lotes")])
 #>  $ disponible: logi TRUE
 #>  $ n_lotes   : int 2
 writeLines(strwrap(costo$fuente, 88))
-#> mediana de 1 consulta(s) del primer lote de distintos medidas en esta corrida
+#> mediana de 1 consulta del primer lote de distintos medido en esta corrida
 ```
 
 Cuando una mediana total no deja una medición local, la proyección usa
@@ -1189,7 +1189,7 @@ memoria <- attr(plan, "memoria_procesamiento")
 memoria$estado
 #> [1] "no_estimada"
 writeLines(strwrap(memoria$motivo, 88))
-#> no escala de forma predecible con las filas ni con las celdas; se midio.
+#> no escala de forma predecible con las filas ni con las celdas; se midió.
 ```
 
 El atributo conserva la magnitud conocida del trabajo —filas, celdas y
@@ -1274,7 +1274,7 @@ ellas. El resumen lo publica:
 por_omision$resumen_tabla$meta$snapshot
 #> [1] FALSE
 writeLines(strwrap(por_omision$resumen_tabla$meta$nota_snapshot, 88))
-#> No hubo lectura instantanea: cada agregado se midio en su propio momento y la tabla
+#> No hubo lectura instantánea: cada agregado se midió en su propio momento y la tabla
 #> pudo cambiar entre consultas. La cobertura declara las comparaciones incoherentes entre
 #> grupos de consistencia distintos.
 ```
@@ -1347,7 +1347,7 @@ capacidad que acepta:
 | `"top"` | TOP (n), y OFFSET k ROWS FETCH NEXT n ROWS ONLY con orden | SQL Server 2012 o posterior, Sybase |
 | `"fetch_first"` | OFFSET k ROWS FETCH FIRST n ROWS ONLY | Oracle 12c o posterior, DB2, Derby, H2 |
 | `"rownum"` | ROWNUM \<= n; no expresa salto | Oracle anterior a 12c |
-| `"portable"` | sin clausula de limite: se acota con dbSendQuery() y dbFetch(n) | cualquier motor con DBI |
+| `"portable"` | sin cláusula de límite: se acota con dbSendQuery() y dbFetch(n) | cualquier motor con DBI |
 
 ``` r
 

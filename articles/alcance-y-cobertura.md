@@ -361,7 +361,7 @@ su fila en `cobertura_diagnosticos` con el motivo medido.
 
 envolver(cobertura(p_num)$motivo[cobertura(p_num)$columna == "numeracion"][[1]])
 #> No aplica la ley de Benford. Precondiciones fallidas: parece un identificador: el
-#> perfil publico `posible_identificador` y los valores forman una secuencia correlativa.
+#> perfil público `posible_identificador` y los valores forman una secuencia correlativa.
 ```
 
 El campo `secuencia_entera_densa` contesta otra pregunta, de cobertura:
@@ -423,11 +423,11 @@ sospecha <- perfilar(montos, analizar_dependencias = FALSE)
 centinela <- hallazgos(sospecha)
 centinela <- centinela[centinela$tipo_hallazgo == "posible_centinela_numerico", ]
 envolver(centinela$evidencia)
-#> Valor: 9999; repeticiones: 30; valores fuera de los límites: 52
+#> Valor: 9999; repeticiones: 30 veces; valores fuera de los límites: 52 valores
 envolver(centinela$sugerencia)
 #> Si es un código de ausencia, agregarlo a `sentinelas_numericos`: pasa a contarse como
 #> faltante y sale de `media`, `mediana`, `minimo`, `maximo` y `desvio`, que declaran
-#> cuantos valores dejaron afuera en `n_valores_excluidos_resumen`. `moda` y `n_distintos`
+#> cuántos valores dejaron afuera en `n_valores_excluidos_resumen`. `moda` y `n_distintos`
 #> siguen describiendo lo que hay guardado. Si es un dato real, no hay nada que hacer.
 
 declarado <- perfilar(montos, analizar_dependencias = FALSE, sentinelas_numericos = 9999)
@@ -534,7 +534,7 @@ conc$columna
 #> [1] "un_cuarto"
 envolver(conc$evidencia)
 #> Valor modal: 250; frecuencia de la moda: 40; frecuencia del segundo valor: 3; cociente
-#> moda/segundo: 13.333; fraccion de la moda sobre validos: 0.250
+#> moda/segundo: 13.333; fracción de la moda sobre válidos: 0.250
 ```
 
 La columna donde el valor modal ocupa un octavo de los válidos no recibe

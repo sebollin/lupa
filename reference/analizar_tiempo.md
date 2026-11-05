@@ -145,8 +145,8 @@ analizar_tiempo(data.frame(fecha = fechas))
 #> $propuestas
 #>   columna frecuencia_dias confianza contiguidad cobertura_periodo    calendario
 #> 1   fecha               1       0.4   0.8888889               0.4 1,2,3,4,5,6,7
-#>   confirmada                                            evidencia
-#> 1      FALSE Moda de intervalos: 1 dias; 9 intervalos observados.
+#>   confirmada                                           evidencia
+#> 1      FALSE Moda de intervalos: 1 día; 9 intervalos observados.
 #> 
 #> attr(,"class")
 #> [1] "analisis_temporal"

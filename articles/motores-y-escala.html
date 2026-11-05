@@ -943,10 +943,10 @@ Con un presupuesto mínimo se ve:</p>
 <code class="sourceCode R"><span><span class="va">recorte</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">ajustado</span><span class="op">)</span></span>
 <span><span class="va">recorte</span> <span class="op">&lt;-</span> <span class="va">recorte</span><span class="op">[</span><span class="va">recorte</span><span class="op">$</span><span class="va">diagnostico</span> <span class="op">==</span> <span class="st">"proximidad_vocabulario"</span>, <span class="op">]</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">recorte</span><span class="op">$</span><span class="va">columna</span>, <span class="st">": "</span>, <span class="va">recorte</span><span class="op">$</span><span class="va">motivo</span><span class="op">)</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; proveedor: El vocabulario excede el alcance de comparacion: se evaluaron 7 de 7 valores</span></span>
-<span><span class="co">#&gt; distintos, que son 5 formas normalizadas, y se comparo entre si a las 4 primeras en</span></span>
-<span><span class="co">#&gt; orden alfabetico. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de</span></span>
-<span><span class="co">#&gt; caracter. Quedaron 1 formas y 4 pares sin comparar por max_trabajo.</span></span></code></pre></div>
+<span><span class="co">#&gt; proveedor: El vocabulario excede el alcance de comparación: se evaluaron 7 de 7 valores</span></span>
+<span><span class="co">#&gt; distintos, que son 5 formas normalizadas, y se comparó entre sí a las 4 primeras en</span></span>
+<span><span class="co">#&gt; orden alfabético. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de</span></span>
+<span><span class="co">#&gt; caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo.</span></span></code></pre></div>
 <p>El orden alfabético hace que el resultado no dependa del orden de las
 filas del archivo. La búsqueda de dependencias tiene su propio
 presupuesto, <code>max_trabajo_dependencias</code> (<code>1e8</code>
@@ -1142,7 +1142,7 @@ exacto. En SQLite, el catálogo no existe:</p>
 <span><span class="va">estrategia</span><span class="op">$</span><span class="va">estado</span></span>
 <span><span class="co">#&gt; [1] "no_disponible"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">estrategia</span><span class="op">$</span><span class="va">motivo</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; `catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estadistica portable de</span></span>
+<span><span class="co">#&gt; `catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estadística portable de</span></span>
 <span><span class="co">#&gt; cardinalidad para este motor.</span></span></code></pre></div>
 <p>Lo pedido, lo resuelto y el estado quedan en
 <code>meta$estrategia_distintos</code> y en las columnas
@@ -1285,8 +1285,8 @@ las filas.</li>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">barato</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">decisiones_costo</span><span class="op">$</span><span class="va">monto</span><span class="op">$</span><span class="va">detalle</span><span class="op">$</span><span class="va">motivo</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Se omitió la moda de la columna `monto`: tiene 2000 valores distintos de 2000 válidos</span></span>
 <span><span class="co">#&gt; (1.000) sobre la tabla completa; la política optativa considera que agrupar u ordenar</span></span>
-<span><span class="co">#&gt; toda la columna no justifica el costo. Para pedirla igual, use `politica_costo =</span></span>
-<span><span class="co">#&gt; "todas"`; para mover el criterio, cambie `umbral_cardinalidad`.</span></span></code></pre></div>
+<span><span class="co">#&gt; toda la columna no justifica el costo. Para pedirla igual, usar `politica_costo =</span></span>
+<span><span class="co">#&gt; "todas"`; para mover el criterio, cambiar `umbral_cardinalidad`.</span></span></code></pre></div>
 <p>Sobre una tabla más ancha, la diferencia se nota en la cantidad de
 consultas. La tabla que sigue tiene 200 filas y 158 columnas —60
 numéricas, 60 de texto, 20 enteras y 18 fechas guardadas como texto— y
@@ -1550,7 +1550,7 @@ proyección lo declara en vez de suponerla.</p>
 <span><span class="co">#&gt;  $ disponible: logi TRUE</span></span>
 <span><span class="co">#&gt;  $ n_lotes   : int 2</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">costo</span><span class="op">$</span><span class="va">fuente</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; mediana de 1 consulta(s) del primer lote de distintos medidas en esta corrida</span></span></code></pre></div>
+<span><span class="co">#&gt; mediana de 1 consulta del primer lote de distintos medido en esta corrida</span></span></code></pre></div>
 <p>Cuando una mediana total no deja una medición local, la proyección
 usa una referencia de 68 ms por millón de filas. Es una constante del
 código tomada de otra corrida, sin guion que la rehaga, y no se presenta
@@ -1680,7 +1680,7 @@ procesamiento en R, y lo declara:</p>
 <span><span class="va">memoria</span><span class="op">$</span><span class="va">estado</span></span>
 <span><span class="co">#&gt; [1] "no_estimada"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">memoria</span><span class="op">$</span><span class="va">motivo</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; no escala de forma predecible con las filas ni con las celdas; se midio.</span></span></code></pre></div>
+<span><span class="co">#&gt; no escala de forma predecible con las filas ni con las celdas; se midió.</span></span></code></pre></div>
 <p>El atributo conserva la magnitud conocida del trabajo —filas, celdas
 y pares de texto—, rotulada como magnitud y no como consumo, y
 referencias de otras corridas, que son textos fijos del código:</p>
@@ -1797,7 +1797,7 @@ entre ellas. El resumen lo publica:</p>
 <code class="sourceCode R"><span><span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">snapshot</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">nota_snapshot</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; No hubo lectura instantanea: cada agregado se midio en su propio momento y la tabla</span></span>
+<span><span class="co">#&gt; No hubo lectura instantánea: cada agregado se midió en su propio momento y la tabla</span></span>
 <span><span class="co">#&gt; pudo cambiar entre consultas. La cobertura declara las comparaciones incoherentes entre</span></span>
 <span><span class="co">#&gt; grupos de consistencia distintos.</span></span></code></pre></div>
 <p>Las cotas duras se comprueban sólo dentro de una sentencia: la
@@ -1922,7 +1922,7 @@ orden</td>
 </tr>
 <tr class="odd">
 <td align="left"><code>"portable"</code></td>
-<td align="left">sin clausula de limite: se acota con dbSendQuery() y
+<td align="left">sin cláusula de límite: se acota con dbSendQuery() y
 dbFetch(n)</td>
 <td align="left">cualquier motor con DBI</td>
 </tr>

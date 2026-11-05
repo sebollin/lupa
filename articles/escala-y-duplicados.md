@@ -109,7 +109,7 @@ corte <- tryCatch(
 )
 writeLines(strwrap(corte, 88))
 #> La estimación exacta (28 pares) supera `presupuesto_pares` (10). No se inició la
-#> comparación; aumente el presupuesto, reduzca los datos, suba el umbral o divida el
+#> comparación; aumentar el presupuesto, reducir los datos, subir el umbral o dividir el
 #> conjunto por una clave.
 ```
 

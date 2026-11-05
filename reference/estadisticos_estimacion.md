@@ -38,8 +38,8 @@ estadisticos_estimacion()
 #> 6        deff          EfectoDiseno    numero_real     defecto
 #> 7         ess TamanoMuestraEfectivo    numero_real conformidad
 #>                    unidad
-#> 1 unidad de la estimacion
-#> 2 unidad de la estimacion
+#> 1 unidad de la estimación
+#> 2 unidad de la estimación
 #> 3              proporcion
 #> 4                   casos
 #> 5                  grados

@@ -301,7 +301,7 @@ resultado <- analizar(
 )
 resultado
 #> 
-#> ── Analisis de datos: datos_administrativos[, columnas] ────────────────────────
+#> ── Análisis de datos: datos_administrativos[, columnas] ────────────────────────
 #> Filas: 13
 #> Columnas: 4
 #> Hallazgos del perfil: 10
@@ -350,5 +350,5 @@ resultado
 #>   variables   escalas_no_confirmadas
 #>                                                                       descripcion
 #>  Las frecuencias temporales son propuestas observadas, no requisitos confirmados.
-#>        Algunas escalas se propusieron desde los valores y requieren confirmacion.
+#>        Algunas escalas se propusieron desde los valores y requieren confirmación.
 ```

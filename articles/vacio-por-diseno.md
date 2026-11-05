@@ -164,7 +164,7 @@ cobertura_declarada <- cobertura(declarado)
 writeLines(strwrap(
   cobertura_declarada$motivo[cobertura_declarada$columna == "marca_auto"], 88
 ))
-#> La completitud se midió sobre 600 filas aplicables de 2000; la regla declarada es
+#> La completitud se midió sobre 600 filas aplicables de 2000 filas; la regla declarada es
 #> `~tiene_auto == "Si"`.
 ```
 
@@ -214,7 +214,7 @@ fuera_de_universo[, c("columna", "severidad", "n_afectados")]
 #>      columna  severidad n_afectados
 #> 2 marca_auto sospechoso           1
 writeLines(strwrap(fuera_de_universo$evidencia, 88))
-#> 1 valores presentes fuera del universo aplicable de 2 filas.
+#> 1 valor presente fuera del universo aplicable de 2 filas.
 fuera_de_universo$trazabilidad[[1]]$indices_fila
 #> [1] 3
 ```
@@ -318,10 +318,10 @@ head(attr(por_grupo, "cobertura_grupos"), 3)
 #> 1   pais            TRUE           300
 #> 2   edad            TRUE           300
 #> 3 correo            TRUE           300
-#>                                                                            motivo
-#> 1 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
-#> 2 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
-#> 3 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
+#>                                                                          motivo
+#> 1 Se descartaron 1 columna enteramente ausente en este grupo antes de perfilar.
+#> 2 Se descartaron 1 columna enteramente ausente en este grupo antes de perfilar.
+#> 3 Se descartaron 1 columna enteramente ausente en este grupo antes de perfilar.
 #>   columnas_descartadas
 #> 1            valor_num
 #> 2          valor_texto

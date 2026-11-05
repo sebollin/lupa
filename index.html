@@ -280,8 +280,8 @@
 <p>Con <code>clave</code>, cada hallazgo trae los valores que identifican sus filas, y el caso se busca en el sistema de origen sin abrir la tabla:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">con_clave</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="st">"id_evento"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: La clave declarada no es única: entre las 13 filas con la clave completa, 1 repite su</span></span>
-<span><span class="co">#&gt; valor (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene</span></span>
+<span><span class="co">#&gt; Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor</span></span>
+<span><span class="co">#&gt; (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene</span></span>
 <span><span class="co">#&gt; valores ausentes.</span></span>
 <span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">con_clave</span><span class="op">)</span></span>
 <span><span class="va">fila</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes_disfrazados"</span> <span class="op">&amp;</span></span>

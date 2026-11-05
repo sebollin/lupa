@@ -167,7 +167,7 @@ faltan[, c("tabla", "alcance")]
 for (i in seq_len(nrow(faltan))) {
   writeLines(strwrap(paste0(faltan$tabla[i], ": ", faltan$motivo[i]), 88))
 }
-#> devoluciones: La tabla tiene cero filas: se leyo su estructura pero no hay nada que
+#> devoluciones: La tabla tiene cero filas: se leyó su estructura pero no hay nada que
 #> medir. Las proporciones quedan en NA, no en cero.
 #> pagos: No se pudo perfilar la tabla: La tabla solicitada no existe en la conexión DBI,
 #> o la credencial no tiene permiso para verla. El motor no distinguio entre las dos, y

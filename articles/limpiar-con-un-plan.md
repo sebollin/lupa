@@ -127,7 +127,7 @@ representación de comparación y nunca los datos:
 ``` r
 
 normalizacion(acentos = FALSE, puntuacion = TRUE)
-#> Perfil de normalizacion de lupa
+#> Perfil de normalización de lupa
 #>   minusculas = TRUE
 #>   espacios = TRUE
 #>   acentos = FALSE

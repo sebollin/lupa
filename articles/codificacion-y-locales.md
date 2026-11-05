@@ -131,12 +131,12 @@ evidencia_concentrada <- function() {
 }
 envolver(evidencia_concentrada())
 #> Valor modal: 1234567.5; frecuencia de la moda: 40; frecuencia del segundo valor: 1;
-#> cociente moda/segundo: 40.000; fraccion de la moda sobre validos: 0.250
+#> cociente moda/segundo: 40.000; fracción de la moda sobre válidos: 0.250
 
 previas <- options(OutDec = ",", scipen = -9, digits = 2)
 envolver(evidencia_concentrada())
 #> Valor modal: 1234567,5; frecuencia de la moda: 40; frecuencia del segundo valor: 1;
-#> cociente moda/segundo: 40,000; fraccion de la moda sobre validos: 0,250
+#> cociente moda/segundo: 40,000; fracción de la moda sobre válidos: 0,250
 options(previas)
 ```
 

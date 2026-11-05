@@ -95,5 +95,5 @@ senal_redundante(
 #> Señal redundante: fecha = anio_fiscal
 #> Columnas: fecha, anio_fiscal
 #> Ventana: 0
-#> Transformadas: fecha
+#> Transformadas:
 ```

@@ -148,7 +148,7 @@ base ni crea tablas temporales.</p>
 <span><span class="co">#&gt; Derrame estimado: no se pudo estimar (No se pudo estimar el derrame: la conexión no fue</span></span>
 <span><span class="co">#&gt; reconocida como PostgreSQL y no hay un `pg_stats` portable.).</span></span>
 <span><span class="co">#&gt; Derrame: no disponible (El controlador no fue reconocido como PostgreSQL; no se puede</span></span>
-<span><span class="co">#&gt; consultar una estadistica de bloques temporales portable.).</span></span>
+<span><span class="co">#&gt; consultar una estadística de bloques temporales portable.).</span></span>
 <span><span class="co">#&gt; Perfil de muestra: 1000 filas, reproducible: FALSE</span></span>
 <span><span class="co">#&gt; Diagnósticos no evaluados sobre la muestra: 3, en `perfil_muestra$cobertura_diagnosticos`</span></span>
 <span><span class="co">#&gt; No se imprime ningún valor de celda: están en `resumen_tabla$columnas`.</span></span></code></pre></div>
@@ -397,7 +397,7 @@ hay: <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> d
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">sin_filas</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">aviso</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Este perfil DBI no solicito la muestra, asi que no hay hallazgos por fila. El resumen</span></span>
+<span><span class="co">#&gt; Este perfil DBI no solicitó la muestra, así que no hay hallazgos por fila. El resumen</span></span>
 <span><span class="co">#&gt; por columna sigue disponible en columnas(); el detalle, en cobertura().</span></span>
 <span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">agregados</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bloque"</span>, <span class="st">"elemento"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;           bloque elemento        estado</span></span>
@@ -412,7 +412,7 @@ una y otra. El resumen lo declara:</p>
 <code class="sourceCode R"><span><span class="va">completo</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">snapshot</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">completo</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">nota_snapshot</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; No hubo lectura instantanea: cada agregado se midio en su propio momento y la tabla</span></span>
+<span><span class="co">#&gt; No hubo lectura instantánea: cada agregado se midió en su propio momento y la tabla</span></span>
 <span><span class="co">#&gt; pudo cambiar entre consultas. La cobertura declara las comparaciones incoherentes entre</span></span>
 <span><span class="co">#&gt; grupos de consistencia distintos.</span></span></code></pre></div>
 <p>Si <code>n_validos</code> y <code>n_distintos</code> salen

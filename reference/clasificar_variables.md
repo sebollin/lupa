@@ -122,7 +122,7 @@ clasificar_variables(d)
 #> 2       0.8
 #>                                                                 evidencia
 #> 1                               La clase ordered declara niveles y orden.
-#> 2 Se observaron dos estados; pueden ser codigos y requieren confirmacion.
+#> 2 Se observaron dos estados; pueden ser códigos y requieren confirmación.
 #>   confirmada unidad n_niveles_declarados n_niveles_observados
 #> 1       TRUE   <NA>                    3                    2
 #> 2      FALSE   <NA>                    0                    2

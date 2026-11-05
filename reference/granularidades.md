@@ -60,7 +60,7 @@ granularidades()
 #>                                               motivo_agregacion
 #> 1                                                          <NA>
 #> 2                                                          <NA>
-#> 3  No hay transiciones de agregacion hacia ni desde este nivel.
+#> 3  No hay transiciones de agregación hacia ni desde este nivel.
 #> 4                                                          <NA>
 #> 5                                                          <NA>
 #> 6                                                          <NA>

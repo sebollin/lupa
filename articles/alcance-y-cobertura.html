@@ -532,7 +532,7 @@ se apaga en silencio: deja su fila en
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">envolver</span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">p_num</span><span class="op">)</span><span class="op">$</span><span class="va">motivo</span><span class="op">[</span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">p_num</span><span class="op">)</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"numeracion"</span><span class="op">]</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; No aplica la ley de Benford. Precondiciones fallidas: parece un identificador: el</span></span>
-<span><span class="co">#&gt; perfil publico `posible_identificador` y los valores forman una secuencia correlativa.</span></span></code></pre></div>
+<span><span class="co">#&gt; perfil público `posible_identificador` y los valores forman una secuencia correlativa.</span></span></code></pre></div>
 <p>El campo <code>secuencia_entera_densa</code> contesta otra pregunta,
 de cobertura: si la columna llena su tramo con el umbral que publica
 <code>umbral_densidad_secuencia_entera</code> y al menos
@@ -599,11 +599,11 @@ forma.</p>
 <span><span class="va">centinela</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">sospecha</span><span class="op">)</span></span>
 <span><span class="va">centinela</span> <span class="op">&lt;-</span> <span class="va">centinela</span><span class="op">[</span><span class="va">centinela</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_centinela_numerico"</span>, <span class="op">]</span></span>
 <span><span class="fu">envolver</span><span class="op">(</span><span class="va">centinela</span><span class="op">$</span><span class="va">evidencia</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Valor: 9999; repeticiones: 30; valores fuera de los límites: 52</span></span>
+<span><span class="co">#&gt; Valor: 9999; repeticiones: 30 veces; valores fuera de los límites: 52 valores</span></span>
 <span><span class="fu">envolver</span><span class="op">(</span><span class="va">centinela</span><span class="op">$</span><span class="va">sugerencia</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Si es un código de ausencia, agregarlo a `sentinelas_numericos`: pasa a contarse como</span></span>
 <span><span class="co">#&gt; faltante y sale de `media`, `mediana`, `minimo`, `maximo` y `desvio`, que declaran</span></span>
-<span><span class="co">#&gt; cuantos valores dejaron afuera en `n_valores_excluidos_resumen`. `moda` y `n_distintos`</span></span>
+<span><span class="co">#&gt; cuántos valores dejaron afuera en `n_valores_excluidos_resumen`. `moda` y `n_distintos`</span></span>
 <span><span class="co">#&gt; siguen describiendo lo que hay guardado. Si es un dato real, no hay nada que hacer.</span></span>
 <span></span>
 <span><span class="va">declarado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">montos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>, sentinelas_numericos <span class="op">=</span> <span class="fl">9999</span><span class="op">)</span></span>
@@ -700,7 +700,7 @@ es un <code>error</code>.</p>
 <span><span class="co">#&gt; [1] "un_cuarto"</span></span>
 <span><span class="fu">envolver</span><span class="op">(</span><span class="va">conc</span><span class="op">$</span><span class="va">evidencia</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Valor modal: 250; frecuencia de la moda: 40; frecuencia del segundo valor: 3; cociente</span></span>
-<span><span class="co">#&gt; moda/segundo: 13.333; fraccion de la moda sobre validos: 0.250</span></span></code></pre></div>
+<span><span class="co">#&gt; moda/segundo: 13.333; fracción de la moda sobre válidos: 0.250</span></span></code></pre></div>
 <p>La columna donde el valor modal ocupa un octavo de los válidos no
 recibe el hallazgo: está por debajo de la fracción mínima. Ese es uno de
 los puntos ciegos de la regla, que forman parte de su contrato:</p>

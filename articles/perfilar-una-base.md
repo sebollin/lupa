@@ -68,7 +68,7 @@ completo
 #> Derrame estimado: no se pudo estimar (No se pudo estimar el derrame: la conexión no fue
 #> reconocida como PostgreSQL y no hay un `pg_stats` portable.).
 #> Derrame: no disponible (El controlador no fue reconocido como PostgreSQL; no se puede
-#> consultar una estadistica de bloques temporales portable.).
+#> consultar una estadística de bloques temporales portable.).
 #> Perfil de muestra: 1000 filas, reproducible: FALSE
 #> Diagnósticos no evaluados sobre la muestra: 3, en `perfil_muestra$cobertura_diagnosticos`
 #> No se imprime ningún valor de celda: están en `resumen_tabla$columnas`.
@@ -318,7 +318,7 @@ sin_filas <- withCallingHandlers(
 nrow(sin_filas)
 #> [1] 0
 writeLines(strwrap(aviso, 88))
-#> Este perfil DBI no solicito la muestra, asi que no hay hallazgos por fila. El resumen
+#> Este perfil DBI no solicitó la muestra, así que no hay hallazgos por fila. El resumen
 #> por columna sigue disponible en columnas(); el detalle, en cobertura().
 cobertura(agregados)[, c("bloque", "elemento", "estado")]
 #>           bloque elemento        estado
@@ -335,7 +335,7 @@ una y otra. El resumen lo declara:
 completo$resumen_tabla$meta$snapshot
 #> [1] FALSE
 writeLines(strwrap(completo$resumen_tabla$meta$nota_snapshot, 88))
-#> No hubo lectura instantanea: cada agregado se midio en su propio momento y la tabla
+#> No hubo lectura instantánea: cada agregado se midió en su propio momento y la tabla
 #> pudo cambiar entre consultas. La cobertura declara las comparaciones incoherentes entre
 #> grupos de consistencia distintos.
 ```

@@ -78,7 +78,7 @@ compara como `piedras`.
 ``` r
 # El perfil por omisión: minúsculas, espacios, acentos y comillas.
 normalizacion()
-#> Perfil de normalizacion de lupa
+#> Perfil de normalización de lupa
 #>   minusculas = TRUE
 #>   espacios = TRUE
 #>   acentos = TRUE
