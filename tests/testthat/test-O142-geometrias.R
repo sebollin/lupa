@@ -73,7 +73,7 @@ test_that("C: con universo, los evaluados cuentan solo lo que se evaluo", {
   expect_identical(as.numeric(invalida$n_evaluados), 3)
   recorte <- cobertura_r28g(perfil, "perfil_geometria")$motivo
   expect_true(any(grepl(
-    "se analizaron 3 de sus 6 valores presentes; los 3 restantes",
+    "se analizaron 3 de sus 6 valores presentes; quedan 3 restantes sin evaluar",
     recorte, fixed = TRUE
   )))
 
@@ -265,7 +265,7 @@ test_that("H: un valor que no convierte no borra una columna WKB", {
   expect_identical(
     length(conversion$indices) + length(conversion$fallidas), length(mezcla)
   )
-  expect_match(conversion$error, "se dejo de aislar valor por valor",
+  expect_match(conversion$error, "se dej\u00f3 de aislar valor por valor",
                fixed = TRUE)
   sin_techo <- lupa:::.convertir_a_sfc(mezcla, "WKB", seq_along(mezcla))
   expect_identical(sin_techo$indices, 21L)
@@ -542,7 +542,7 @@ test_that("C2: con universo, el presupuesto se gasta primero en el universo", {
   # El trabajo publicado sigue siendo el de la columna: el tope entero.
   expect_identical(fila$n_geometrias_analizadas, 5L)
   recorte <- cobertura_r28g(perfil, "perfil_geometria")$motivo
-  expect_true(any(grepl("el recorte cayo fuera de el", recorte, fixed = TRUE)))
+  expect_true(any(grepl("el recorte cay\u00f3 fuera de \u00e9l", recorte, fixed = TRUE)))
   expect_false(any(grepl("quedaron sin evaluar", recorte, fixed = TRUE)))
 
   # La misma columna en WKT: el tope de la conversion sigue la misma regla.

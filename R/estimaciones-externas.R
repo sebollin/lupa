@@ -32,7 +32,7 @@
       "conformidad", "conformidad", "defecto", "conformidad"
     ),
     unidad = c(
-      "unidad de la estimacion", "unidad de la estimacion", "proporcion",
+      "unidad de la estimaci\u00f3n", "unidad de la estimaci\u00f3n", "proporcion",
       "casos", "grados", "razon", "casos"
     ),
     stringsAsFactors = FALSE
@@ -166,16 +166,16 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
                                         atributo = NULL, columnas = NULL,
                                         fecha = Sys.time()) {
   if (!inherits(estimaciones, "data.frame") || !nrow(estimaciones)) {
-    .detener("`estimaciones` debe ser un data.frame no vacio.", call. = FALSE)
+    .detener("`estimaciones` debe ser un data.frame no vac\u00edo.", call. = FALSE)
   }
   estimaciones <- .tabla_base(estimaciones)
   if (!.es_texto_escalar(entidad)) {
-    .detener("`entidad` debe ser una cadena no vacia.", call. = FALSE)
+    .detener("`entidad` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   if (!.es_texto_escalar(fuente)) {
     .detener(
-      "`fuente` debe declarar quien calculo las estimaciones: sin eso, el ",
-      "resultado no dice de donde viene.", call. = FALSE
+      "`fuente` debe declarar qui\u00e9n calcul\u00f3 las estimaciones: sin eso, el ",
+      "resultado no dice de d\u00f3nde viene.", call. = FALSE
     )
   }
   if (!is.null(columnas) &&
@@ -193,7 +193,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     )
     if (length(desconocidos)) {
       .detener(
-        "`columnas` nombra estadisticos que no se reconocen: ",
+        "`columnas` nombra estad\u00edsticos que no se reconocen: ",
         paste(desconocidos, collapse = ", "),
         ". Reconocidos: ", paste(catalogo$estadistico, collapse = ", "), ".",
         call. = FALSE
@@ -203,7 +203,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     ausentes <- unname(columnas)[is.na(indices_columnas)]
     if (length(ausentes)) {
       .detener(
-        "`columnas` apunta a columnas que no estan en `estimaciones`: ",
+      "`columnas` apunta a columnas que no est\u00e1n en `estimaciones`: ",
         paste(ausentes, collapse = ", "), ".", call. = FALSE
       )
     }
@@ -263,13 +263,13 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     if (length(sin_valores)) {
       .detener(
         "`estimaciones` trae ", paste(sin_valores, collapse = ", "),
-        " pero sin ningun valor utilizable: no hay nada que medir. Una columna ",
-        "vacia no produce medidas, y no se rellena con ceros ni se estima.",
+        " pero sin ning\u00fan valor utilizable: no hay nada que medir. Una columna ",
+        "vac\u00eda no produce medidas, y no se rellena con ceros ni se estima.",
         call. = FALSE
       )
     }
     .detener(
-      "`estimaciones` no trae ningun estadistico reconocido. Reconocidos: ",
+      "`estimaciones` no trae ning\u00fan estad\u00edstico reconocido. Reconocidos: ",
       paste(catalogo$estadistico, collapse = ", "), ".", call. = FALSE
     )
   }

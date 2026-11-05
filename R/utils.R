@@ -343,7 +343,7 @@
   if (is.null(x) || !length(x)) return("")
   if (is.factor(x)) return(.texto_celda_publicada(as.character(x)))
   if (is.data.frame(x)) return("<data.frame>")
-  if (is.function(x)) return("<funcion>")
+  if (is.function(x)) return("<funci\u00f3n>")
   if (is.list(x)) {
     resultado <- paste(
       vapply(x, .texto_celda_publicada, character(1L)), collapse = "; "
@@ -986,8 +986,8 @@
     "Las columnas `integer64`", nombradas, " necesitan R 4.2.0 y bit64 4.6.0",
     " o posteriores. Con versiones anteriores, `match()` de R iguala entre s\u00ed",
     " todos los valores negativos, y los distintos, la moda y la mediana",
-    " saldr\u00edan mal sin aviso. Instale o actualice bit64 desde CRAN; o",
-    " convierta la columna con `as.numeric()` si sus valores no pasan de 2^53, o",
+    " saldr\u00edan mal sin aviso. Instalar o actualizar bit64 desde CRAN; o",
+    " convertir la columna con `as.numeric()` si sus valores no pasan de 2^53, o",
     " desde una base conecte con `bigint = \"numeric\"`."
   )
   condicion <- list(message = mensaje, call = NULL)
@@ -1019,7 +1019,7 @@
 .orden_por_bytes <- function(..., na.last = TRUE, decreasing = FALSE,
                              method = "radix") {
   if (!identical(method, "radix")) {
-    .detener("`.orden_por_bytes()` solo ordena con `method = \"radix\"`.", call. = FALSE)
+    .detener("`.orden_por_bytes()` s\u00f3lo ordena con `method = \"radix\"`.", call. = FALSE)
   }
   claves <- lapply(list(...), .clave_de_orden)
   do.call(order, c(unname(claves), list(
@@ -2515,7 +2515,8 @@
   }
   paste0(
     "; medido sobre una muestra de ", .miles_trabajo(analizados), " de ",
-    .miles_trabajo(total), " valores, no sobre la columna entera: los ",
+    .miles_trabajo(total), if (total == 1L) " valor, no sobre la columna entera: los " else
+      " valores, no sobre la columna entera: los ",
     "conteos son de la muestra"
   )
 }
@@ -2721,7 +2722,7 @@
 # texto vive en una constante porque `detectar_discordancias()` escapa por su
 # cuenta -por punto de codigo, solo en la fila que lo necesita- y tiene que
 # decirlo con las mismas palabras.
-.NOTA_ESCAPES <- " [valores escapados para que se vean; en los datos estan sin escapar]"
+.NOTA_ESCAPES <- " [valores escapados para que se vean; en los datos est\u00e1n sin escapar]"
 
 .nota_escapes <- function(x) {
   if (.hay_escapes_al_publicar(x)) .NOTA_ESCAPES else ""

@@ -35,7 +35,7 @@ test_that("una perdida medida marca la accion destructiva aunque la columna no s
   expect_true(plan$destructiva[caso$fila])
 
   plan$aplicar <- caso$fila
-  expect_message(print(plan), "destructivas activas")
+  expect_message(print(plan), "acci\u00f3n destructiva activa")
   registro <- as.data.frame(aplicar(plan, caso$datos)$registro)
   expect_true(registro$destructiva)
   expect_equal(registro$n_no_reversibles, 5L)

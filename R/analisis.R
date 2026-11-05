@@ -11,23 +11,23 @@
   }
   if (any(distribuciones$alcance$muestreado)) agregar(
     "distribuciones", "muestreo",
-    "Al menos una distribucion o sus cuantiles se estimaron sobre una muestra."
+    "Al menos una distribuci\u00f3n o sus cuantiles se estimaron sobre una muestra."
   )
   if (any(distribuciones$alcance$truncado)) agregar(
     "distribuciones", "truncamiento",
-    "Las tablas de frecuencia muestran solo los valores mas frecuentes."
+    "Las tablas de frecuencia muestran s\u00f3lo los valores m\u00e1s frecuentes."
   )
   if (isTRUE(attr(asociaciones, "muestreado", exact = TRUE))) agregar(
     "asociaciones", "muestreo",
-    "Las asociaciones se calcularon sobre una muestra comun de filas."
+    "Las asociaciones se calcularon sobre una muestra com\u00fan de filas."
   )
   if (length(attr(asociaciones, "columnas_omitidas_limite", exact = TRUE))) agregar(
     "asociaciones", "columnas_omitidas",
-    "Algunas columnas analizables excedieron el limite configurado."
+    "Algunas columnas analizables excedieron el l\u00edmite configurado."
   )
   if (isTRUE(attr(asociaciones, "truncado", exact = TRUE))) agregar(
     "asociaciones", "truncamiento",
-    "La salida de asociaciones se recorto despues de ordenarla."
+    "La salida de asociaciones se recort\u00f3 despu\u00e9s de ordenarla."
   )
   if (nrow(temporal$propuestas) && any(!temporal$propuestas$confirmada)) agregar(
     "tiempo", "frecuencia_no_confirmada",
@@ -35,15 +35,15 @@
   )
   if (any(temporal$resumen$huecos_truncados)) agregar(
     "tiempo", "huecos_truncados",
-    "Al menos una serie tiene mas grupos de huecos que los mostrados."
+    "Al menos una serie tiene m\u00e1s grupos de huecos que los mostrados."
   )
   if (isTRUE(attr(temporal, "truncado", exact = TRUE))) agregar(
     "tiempo", "columnas_omitidas",
-    "El analisis temporal alcanzo el maximo de columnas configurado."
+    "El an\u00e1lisis temporal alcanz\u00f3 el m\u00e1ximo de columnas configurado."
   )
   if (nrow(variables) && any(!variables$confirmada)) agregar(
     "variables", "escalas_no_confirmadas",
-    "Algunas escalas se propusieron desde los valores y requieren confirmacion."
+    "Algunas escalas se propusieron desde los valores y requieren confirmaci\u00f3n."
   )
   if (nrow(variables) && any(variables$n_niveles_ausentes > 0L)) agregar(
     "variables", "niveles_ausentes",
@@ -63,7 +63,7 @@
         "perfil", "casi_clave",
         paste0(
           "La columna '", casi_claves$columna[[i]],
-          "' tiene colisiones concentradas y no es una clave valida. ",
+          "' tiene colisiones concentradas y no es una clave v\u00e1lida. ",
           casi_claves$evidencia[[i]]
         )
       )
@@ -379,11 +379,11 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
       !is.logical(medir_propuesta) || length(medir_propuesta) != 1L ||
       !is.logical(conservar_detalle_medicion) ||
       length(conservar_detalle_medicion) != 1L || anyNA(logicos)) {
-    .detener("Los controles de medicion, conservacion y proteccion deben ser logicos.",
+    .detener("Los controles de medici\u00f3n, conservaci\u00f3n y protecci\u00f3n deben ser l\u00f3gicos.",
          call. = FALSE)
   }
   if (!is.null(modelo_confirmado) && !is.null(propuesta_confirmada)) {
-    .detener("Use `modelo_confirmado` o `propuesta_confirmada`, no ambos.",
+    .detener("Usar `modelo_confirmado` o `propuesta_confirmada`, no ambos.",
          call. = FALSE)
   }
   if (!is.null(modelo_confirmado) && !inherits(modelo_confirmado, "modelo_calidad")) {
@@ -674,7 +674,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
 print.analisis <- function(x, ...) {
   original <- x
   x <- .marcar_objeto_para_exhibir(x)
-  cli::cli_h1(.cli_literal(paste("Analisis de datos:", x$meta$nombre)))
+  cli::cli_h1(.cli_literal(paste("An\u00e1lisis de datos:", x$meta$nombre)))
   cli::cli_dl(.cli_literal(c(
     "Filas" = x$perfil$general$filas,
     "Columnas" = x$perfil$general$columnas,
@@ -769,10 +769,14 @@ print.analisis <- function(x, ...) {
       "sospechoso", levels = c("ok", "sospechoso", "error"), ordered = TRUE
     ),
     descripcion = paste0(
-      "El analisis fue releido despues de sustituir ", sustituidas,
-      " funcion(es) de reglas por descriptores. La propuesta se volvio a ",
-      "derivar sin esas funciones y puede no coincidir con la decision de ",
-      "medicion registrada en la corrida original; la decision original se ",
+      "El an\u00e1lisis fue releido despu\u00e9s de sustituir ", sustituidas,
+      if (sustituidas == 1) {
+        " funci\u00f3n de reglas por descriptores. La propuesta se volvi\u00f3 a "
+      } else {
+        " funciones de reglas por descriptores. La propuesta se volvi\u00f3 a "
+      },
+      "derivar sin esas funciones y puede no coincidir con la decisi\u00f3n de ",
+      "medici\u00f3n registrada en la corrida original; la decisi\u00f3n original se ",
       "conserva."
     ),
     stringsAsFactors = FALSE
@@ -1428,7 +1432,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   if (!is.logical(incluir_datos) || length(incluir_datos) != 1L ||
       !is.logical(sobrescribir) || length(sobrescribir) != 1L ||
       anyNA(logicos)) {
-    .detener("Los controles de persistencia deben ser logicos.", call. = FALSE)
+    .detener("Los controles de persistencia deben ser l\u00f3gicos.", call. = FALSE)
   }
   # La lista incluia las CADENAS "TRUE" y "FALSE" y la comparacion se hacia
   # sobre `as.character(comprimir)`, asi que `comprimir = "TRUE"` -la cadena-
@@ -1469,16 +1473,16 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   # leia "No existe el directorio de destino." sin saber cual.
   .validar_destino_archivo(archivo, sobrescribir)
   if (incluir_datos && is.null(x$datos)) {
-    .detener("El analisis no conservo datos; use `conservar_datos = TRUE`.",
+    .detener("El an\u00e1lisis no conserv\u00f3 datos; usar `conservar_datos = TRUE`.",
          call. = FALSE)
   }
   sensibles <- .columnas_personales_protegidas(x$perfil)
   if (incluir_datos && proteger_datos_personales && length(sensibles)) {
     .detener(
       paste(
-        "Incluir datos personales exige crear el analisis con",
+        "Incluir datos personales exige crear el an\u00e1lisis con",
         "`proteger_datos_personales = FALSE` en `analizar()` y usar la misma",
-        "opcion al guardar; el guardado no recupera valores ya protegidos."
+        "opci\u00f3n al guardar; el guardado no recupera valores ya protegidos."
       ),
       call. = FALSE
     )
@@ -1538,7 +1542,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   # bit alto y corrompe el texto en silencio.
   saveRDS(copia, temporal, version = 2L, compress = comprimir)
   if (!file.copy(temporal, archivo, overwrite = sobrescribir)) {
-    .detener("No se pudo escribir el analisis.", call. = FALSE)
+    .detener("No se pudo escribir el an\u00e1lisis.", call. = FALSE)
   }
   invisible(normalizePath(archivo, winslash = "/", mustWork = TRUE))
 }
@@ -1551,10 +1555,10 @@ leer_analisis <- function(archivo) {
   }
   x <- readRDS(archivo)
   if (!inherits(x, "analisis") || is.null(x$meta$version_esquema)) {
-    .detener("El archivo no contiene un analisis versionado.", call. = FALSE)
+    .detener("El archivo no contiene un an\u00e1lisis versionado.", call. = FALSE)
   }
   if (!identical(as.integer(x$meta$version_esquema), .version_esquema_analisis)) {
-    .detener("La version del esquema de analisis no es compatible.", call. = FALSE)
+    .detener("La versi\u00f3n del esquema de an\u00e1lisis no es compatible.", call. = FALSE)
   }
   x$propuesta_modelo <- .hidratar_propuesta(x$propuesta_modelo, x$datos)
   advertencia <- .advertencia_persistencia_propuesta(x)

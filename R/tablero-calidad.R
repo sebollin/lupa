@@ -464,7 +464,8 @@
   }
   if (length(presentes) == 1L) {
     return(paste0(
-      "Los ", NROW(componentes), " componentes salen del mismo universo (",
+      if (NROW(componentes) == 1L) "La componente sale del mismo universo (" else
+        paste0("Los ", NROW(componentes), " componentes salen del mismo universo ("),
       presentes, "), as\u00ed que el \u00edndice combina unidades comparables. Los pesos ",
       "siguen siendo los que declar\u00f3 quien lo solicit\u00f3."
     ))
@@ -614,7 +615,7 @@
     all(!medidas$granularidad %in% c("instanciaAtributo", "instanciaEntidad"))
   if (ya_agregadas && (!is.null(agregaciones) || !is.null(umbrales))) {
     .detener(
-      "Una medici\u00f3n ya agregada conserva su agregaci\u00f3n; para cambiarla use las medidas de origen.",
+      "Una medici\u00f3n ya agregada conserva su agregaci\u00f3n; para cambiarla, usar las medidas de origen.",
       call. = FALSE
     )
   }
@@ -710,7 +711,7 @@
     repetidas <- unique(clave_celda[duplicated(clave_celda)])
     cuales <- which(clave_celda %in% repetidas)
     .detener(
-      "Dos celdas del tablero tendrian la misma identidad, y la identidad de ",
+      "Dos celdas del tablero tendr\u00edan la misma identidad, y la identidad de ",
       "una celda son `metrica_instanciada`, `entidad` y `objeto`: ",
       paste0(
         "`", tablero$metrica_instanciada[cuales], "` + `",
@@ -718,7 +719,7 @@
         "` (valor ", format(tablero$valor[cuales]), ")",
         collapse = "; "
       ),
-      ". Revise que las medidas provengan de una sola corrida.",
+      ". Revisar que las medidas provengan de una sola corrida.",
       call. = FALSE
     )
   }

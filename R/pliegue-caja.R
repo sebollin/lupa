@@ -191,7 +191,7 @@
   function(patron) {
     if (!is.character(patron) || length(patron) != 1L || is.na(patron) ||
         !nzchar(patron)) {
-      .detener("`patron` debe ser un texto no vacio.", call. = FALSE)
+      .detener("`patron` debe ser un texto no vac\u00edo.", call. = FALSE)
     }
     hecho <- get0(patron, envir = memoria, inherits = FALSE)
     if (!is.null(hecho)) return(hecho)
@@ -203,7 +203,7 @@
     letra <- function(x) grepl("^[A-Za-z]$", x, perl = TRUE)
     salida <- vapply(piezas, function(pieza) {
       if (startsWith(pieza, "(?") && grepl("^\\(\\?[A-Za-z^-]$", pieza, perl = TRUE)) {
-        .detener("El patron trae un modificador en linea: ", pieza, call. = FALSE)
+        .detener("El patr\u00f3n trae un modificador en l\u00ednea: ", pieza, call. = FALSE)
       }
       if (startsWith(pieza, "[") && nchar(pieza, type = "bytes") > 1L) {
         cuerpo <- gsub(

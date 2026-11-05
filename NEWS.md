@@ -212,6 +212,11 @@ Primera versión publicada.
   muestreo; y con `"con_muestra"` todas las métricas salían `no_estimable` —también
   la media y los conteos— y los estadísticos `observado_muestra` en vez de
   `estimado`. Los valores no cambian.
+- Los mensajes, avisos, evidencias e informes concuerdan en número («1 fila»,
+  «1 valor») en todo el paquete, llevan sus tildes y dan las indicaciones en forma
+  impersonal («revisar», «aumentar») en lugar de «usted». Los valores que el
+  paquete publica como dato —estados, motivos codificados, unidades, las marcas
+  de protección y las clases de consulta del plan— no cambian.
 - `n_filas()` de una colección devuelve el vector con el nombre de cada tabla.
 - El aviso de tabla ancha proyecta con 5.000 celdas por segundo, por debajo de
   todas las mediciones de `benchmark/medir_referencias.R`; los 10.000 de antes

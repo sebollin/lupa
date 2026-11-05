@@ -628,7 +628,7 @@
   list(
     estado = "no_disponible", exacto = NA, resultado = NULL,
     motivo = motivo, como_resolverlo = paste(
-      "Usar un driver con retencion incremental demostrada o mantener la via",
+      "Usar un driver con retenci\u00f3n incremental demostrada o mantener la v\u00eda",
       "SQL existente; no se reemplaza silenciosamente por dbGetQuery()."
     ), cota = NULL, alcance = NULL, bytes_retenidos = 0
   )
@@ -778,7 +778,7 @@
     if (identical(metrica, "desvio") && n < 2) {
       return(list(
         valor = NA_real_, estado = "no_aplica",
-        motivo = "El desvio muestral requiere al menos dos valores no nulos."
+        motivo = "El desv\u00edo muestral requiere al menos dos valores no nulos."
       ))
     }
     valor <- switch(
@@ -850,8 +850,8 @@
   }
   if (!any(is.finite(como_doble$valores) & frecuencias > 0)) {
     return(paste(
-      "La columna no contiene valores finitos: los estadisticos de magnitud",
-      "se calculan solo con valores finitos."
+      "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+      "se calculan s\u00f3lo con valores finitos."
     ))
   }
   "familia_sin_acumulador:mediana_requiere_mapa_no_truncado"
@@ -973,7 +973,7 @@
   } else {
     for (nombre in c("n_validos", "n_faltantes", "prop_faltantes")) {
       registros[[length(registros) + 1L]] <- .registro_sql_dbi(
-        campo, nombre, "no_solicitado", "La metrica no fue solicitada.",
+        campo, nombre, "no_solicitado", "La m\u00e9trica no fue solicitada.",
         NA_character_, metadatos = .metadatos_sql_dbi()
       )
     }
@@ -999,7 +999,7 @@
   } else {
     for (nombre in c("n_distintos", "tasa_distintos")) {
       registros[[length(registros) + 1L]] <- .registro_sql_dbi(
-        campo, nombre, "no_solicitado", "La metrica no fue solicitada.",
+        campo, nombre, "no_solicitado", "La m\u00e9trica no fue solicitada.",
         NA_character_, metadatos = .metadatos_sql_dbi()
       )
     }
@@ -1071,11 +1071,11 @@
           ) "no_aplica" else "no_solicitado",
           if (disponible) {
             paste(
-              "No se pudo iniciar el acumulador cuantitativo; la metrica",
-              "queda no disponible por el presupuesto de la via por bloques."
+              "No se pudo iniciar el acumulador cuantitativo; la m\u00e9trica",
+              "queda no disponible por el presupuesto de la v\u00eda por bloques."
             )
-          } else if (grupo %in% metricas) "La columna no es numerica." else
-            "La metrica no fue solicitada.", NA_character_,
+          } else if (grupo %in% metricas) "La columna no es num\u00e9rica." else
+            "La m\u00e9trica no fue solicitada.", NA_character_,
           metadatos = .metadatos_sql_dbi()
         )
       }
@@ -1182,7 +1182,7 @@
     motivo_valores <- motivo_mapa
   } else {
     estado_valores <- "no_solicitado"
-    motivo_valores <- "La metrica no fue solicitada."
+    motivo_valores <- "La m\u00e9trica no fue solicitada."
   }
   if ("moda" %in% metricas) {
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
@@ -1200,7 +1200,7 @@
   } else {
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campo, c("moda", "frecuencia_moda"), "no_solicitado",
-      "La metrica no fue solicitada.", NA_character_,
+      "La m\u00e9trica no fue solicitada.", NA_character_,
       metadatos = .metadatos_sql_dbi()
     )
   }
@@ -1211,7 +1211,7 @@
   # sobre un texto que lee como numero ("3,75").
   if ("mediana" %in% metricas && isFALSE(columna_numerica)) {
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
-      campo, "mediana", "no_aplica", "La columna no es numerica.",
+      campo, "mediana", "no_aplica", "La columna no es num\u00e9rica.",
       NA_character_, metadatos = .metadatos_sql_dbi()
     )
   } else if ("mediana" %in% metricas && is.na(columna_numerica)) {
@@ -1240,7 +1240,7 @@
     )
   } else {
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
-      campo, "mediana", "no_solicitado", "La metrica no fue solicitada.",
+      campo, "mediana", "no_solicitado", "La m\u00e9trica no fue solicitada.",
       NA_character_, metadatos = .metadatos_sql_dbi()
     )
   }
@@ -1295,8 +1295,8 @@
     sql$estado[afectadas] <- "no_disponible"
     sql$motivo[afectadas] <- if (unsigned_inconsistente) {
       paste(
-        "El controlador entrego un `UNSIGNED` fuera del rango del doble con",
-        "signo: los valores aparecen negativos. Las metricas de magnitud no",
+        "El controlador entreg\u00f3 un `UNSIGNED` fuera del rango del doble con",
+        "signo: los valores aparecen negativos. Las m\u00e9tricas de magnitud no",
         "se publican como calculadas."
       )
     } else if (entero_ancho) {
@@ -1339,7 +1339,7 @@
   )
   attr(plan, "pasadas") <- list(
     primera = "dbFetch incremental", valor = "acumuladores por bloques",
-    indice = "solo con orden estable y snapshot demostrado",
+    indice = "s\u00f3lo con orden estable y snapshot demostrado",
     lsh = "fuera_de_alcance_I1", materializacion = "fuera_de_alcance_I1"
   )
   attr(plan, "muestra_diagnostica") <- list(
@@ -1527,14 +1527,14 @@
     "no_solicitado"
   } else "no_disponible"
   motivo <- if (identical(estado, "no_solicitado")) {
-    "La muestra diagnostica no fue solicitada en la lectura por bloques."
+    "La muestra diagn\u00f3stica no fue solicitada en la lectura por bloques."
   } else {
     "muestra_diagnostica_acotada:se_resuelve_en_perfil_muestra"
   }
   for (familia in familias_no_fusionables) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "perfil_muestra", familia, estado, motivo,
-      "Solicitar el bloque de muestra para ejecutar diagnosticos acotados.",
+      "Solicitar el bloque de muestra para ejecutar diagn\u00f3sticos acotados.",
       NA_character_
     ))
   }
@@ -1655,7 +1655,7 @@
       columnas = columnas, sql = sql,
       cobertura = .registro_cobertura_dbi(
         "fuente_bloques", .texto_tabla_dbi(tabla), "no_disponible", motivo,
-        "Usar `bloque_filas` solo con `universo = \"tabla_completa\"` en la lectura por bloques.",
+        "Usar `bloque_filas` s\u00f3lo con `universo = \"tabla_completa\"` en la lectura por bloques.",
         NA_character_
       ),
       meta = list(
@@ -1747,8 +1747,8 @@
         .registro_cobertura_dbi(
           "fuente_bloques", .texto_tabla_dbi(tabla), "no_disponible",
           paste0(
-            "El recorrido por bloques fallo (", recorrido$error,
-            "); se devolvio el resumen SQL aislado por columna."
+            "El recorrido por bloques fall\u00f3 (", recorrido$error,
+            "); se devolvi\u00f3 el resumen SQL aislado por columna."
           ),
           paste(
             "Corregir la vista o usar el resumen SQL hasta contar con un",
@@ -2094,7 +2094,7 @@
     # decia por que.
     criterio_moda = paste(
       "mayor frecuencia; empates resueltos por el valor ascendente: los",
-      "numeros por su valor y el texto por sus bytes, como en `perfilar()`"
+      "n\u00fameros por su valor y el texto por sus bytes, como en `perfilar()`"
     ),
     criterio_comparacion = paste(
       "el recorrido por bloques lee las filas y compara en R, que distingue",
@@ -2108,10 +2108,10 @@
     incluir_valores = incluir_valores,
     solo_lectura = TRUE, objetos_temporales = FALSE,
     nota_inf = paste(
-      "Los acumuladores calculan estadisticos sobre valores finitos; las",
+      "Los acumuladores calculan estad\u00edsticos sobre valores finitos; las",
       "banderas de NA, NaN e infinitos se conservan por separado. La posible",
       "divergencia de un resumen SQL que no pueda leer +/-Inf se debe a la",
-      "representacion del controlador, no a una conversion silenciosa."
+      "representaci\u00f3n del controlador, no a una conversi\u00f3n silenciosa."
     )
   )
   resumen <- list(columnas = columnas, sql = sql, cobertura = cobertura,
@@ -2125,7 +2125,7 @@
       .registro_cobertura_dbi(
         "perfil_muestra", .texto_tabla_dbi(tabla), "no_disponible",
         "fuente_bloques_no_disponible:se_omite_lectura_adicional",
-        "Resolver la capacidad incremental del driver antes de pedir diagnosticos.",
+        "Resolver la capacidad incremental del driver antes de pedir diagn\u00f3sticos.",
         NA_character_
       )
     )

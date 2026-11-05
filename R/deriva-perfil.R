@@ -51,7 +51,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     if (inherits(x, "perfil_dbi")) {
       .detener(
         "`", nombre, "` es un objeto de `perfilar_dbi()`: para comparar dos ",
-        "entregas pase su perfil de muestra, `", nombre, "$perfil_muestra`. ",
+        "entregas: pasar su perfil de muestra, `", nombre, "$perfil_muestra`. ",
         "El resumen SQL de la tabla completa no es un perfil.",
         call. = FALSE
       )
@@ -1175,10 +1175,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   actual_seg <- trunc(as.numeric(fecha_actual))
   if (anterior_seg <= actual_seg) return(invisible(NULL))
   .detener(
-    "`anterior` esta fechado despues que `actual` (",
+    "`anterior` est\u00e1 fechado despu\u00e9s que `actual` (",
     format(fecha_anterior, "%Y-%m-%d %H:%M:%S"), " contra ",
-    format(fecha_actual, "%Y-%m-%d %H:%M:%S"), "), asi que ", funcion,
-    " publicaria la direccion del cambio al reves. Invierta los argumentos.",
+    format(fecha_actual, "%Y-%m-%d %H:%M:%S"), "), as\u00ed que ", funcion,
+    " publicar\u00eda la direcci\u00f3n del cambio al rev\u00e9s. Invertir los argumentos.",
     call. = FALSE
   )
 }
@@ -1627,8 +1627,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         columna, "alcance_resumen", "modificado", "sospechoso",
         .texto_numero_deriva(excluidos_a), .texto_numero_deriva(excluidos_b),
         descripcion = paste(
-          "Los dos resumenes se calcularon sobre distinta cantidad de valores,",
-          "asi que las diferencias de media, rango o cardinalidad pueden venir",
+          "Los dos res\u00famenes se calcularon sobre distinta cantidad de valores,",
+          "as\u00ed que las diferencias de media, rango o cardinalidad pueden venir",
           "del alcance y no de los datos."
         ),
         evidencia = paste0(
@@ -2127,12 +2127,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       texto_aplicabilidad(aplicabilidad_b),
       descripcion = paste(
         "Cambiaron las columnas con regla de aplicabilidad; esa regla redefine",
-        "el universo aplicable, asi que las diferencias de faltantes,",
-        "cardinalidad y rango pueden ser del metodo y no de los datos."
+        "el universo aplicable, as\u00ed que las diferencias de faltantes,",
+        "cardinalidad y rango pueden ser del m\u00e9todo y no de los datos."
       ),
       evidencia = paste(
         "Se mantienen las comparaciones para que las corridas siguientes sigan",
-        "detectando deriva con la politica vigente."
+        "detectando deriva con la pol\u00edtica vigente."
       )
     )
   }
@@ -2151,12 +2151,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       texto_opcionales(opcionales_b),
       descripcion = paste(
         "Cambiaron las columnas declaradas en `columnas_opcionales`; su",
-        "universo de completitud son las celdas presentes, asi que las",
-        "diferencias de faltantes pueden ser del metodo y no de los datos."
+        "universo de completitud son las celdas presentes, as\u00ed que las",
+        "diferencias de faltantes pueden ser del m\u00e9todo y no de los datos."
       ),
       evidencia = paste(
         "Se mantienen las comparaciones para que las corridas siguientes sigan",
-        "detectando deriva con la politica vigente."
+        "detectando deriva con la pol\u00edtica vigente."
       )
     )
   }
@@ -2249,7 +2249,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         x$tipo_hallazgo, NA_character_,
         descripcion = paste0(
           "El hallazgo cuenta filas de la tabla, pero no se puede decidir si",
-          " se resolvio porque cambio el universo de columnas: ",
+          " se resolvi\u00f3 porque cambi\u00f3 el universo de columnas: ",
           motivo_columnas_cambiadas, "."
         ),
         evidencia = paste0(
@@ -2683,7 +2683,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   if (!is.numeric(a) || !is.numeric(b) ||
       !isTRUE(is.finite(a)) || !isTRUE(is.finite(b))) {
     .detener(
-      "Los campos del eje `flotante` deben contener numeros finitos o faltantes.",
+      "Los campos del eje `flotante` deben contener n\u00fameros finitos o faltantes.",
       call. = FALSE
     )
   }
@@ -2828,7 +2828,7 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   if (!is.numeric(tolerancia) || length(tolerancia) != 1L ||
       is.na(tolerancia) || !is.finite(tolerancia) || tolerancia < 0) {
     .detener(
-      "`tolerancia` debe ser un escalar numerico finito, sin NA y mayor o igual a 0.",
+      "`tolerancia` debe ser un escalar num\u00e9rico finito, sin NA y mayor o igual a 0.",
       call. = FALSE
     )
   }

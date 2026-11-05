@@ -390,7 +390,9 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
       nota_opcional <- if (opcional) {
         paste0(
           " La columna se declar\u00f3 opcional: se mide sobre sus ",
-          fila$n_aplicables[[1L]], " celdas presentes y sus `NA` no cuentan ",
+      fila$n_aplicables[[1L]],
+      if (fila$n_aplicables[[1L]] == 1L) " celda presente y su `NA` no cuenta " else
+        " celdas presentes y sus `NA` no cuentan ",
           "como faltantes."
         )
       } else ""
@@ -501,7 +503,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
           "La dependencia cumple en ",
           .formatear_decimal_publicado(dependencia$cumplimiento[[1L]], 4L),
           " de ",
-          dependencia$n_evaluados[[1L]], " pares presentes."
+      dependencia$n_evaluados[[1L]],
+      if (dependencia$n_evaluados[[1L]] == 1L) " par presente." else " pares presentes."
         ), configuracion = configuracion,
         estado = if (puede_materializar) "lista" else "requiere_datos"
       ))

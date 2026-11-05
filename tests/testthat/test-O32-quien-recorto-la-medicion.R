@@ -20,7 +20,7 @@ test_that("el resumen no le imputa al motor un recorte del presupuesto", {
   fila <- cobertura[cobertura$alcance == "metricas", , drop = FALSE]
 
   expect_equal(nrow(fila), 1L)
-  expect_false(grepl("El motor rechazo", fila$motivo[[1L]], fixed = TRUE))
+  expect_false(grepl("El motor rechaz\u00f3", fila$motivo[[1L]], fixed = TRUE))
   expect_match(fila$motivo[[1L]], "No se calcularon", fixed = TRUE)
   expect_match(fila$como_resolverlo[[1L]], "presupuesto declarado",
                fixed = TRUE)

@@ -67,7 +67,7 @@ test_that("sin ninguna fila comparable la señal se declara no evaluada", {
   # No se afirma cero discordancias: no se midió.
   expect_true(is.na(resultado$n_discordantes))
   expect_true(is.na(resultado$proporcion))
-  expect_true(grepl("no se evaluo", resultado$evidencia, fixed = TRUE))
+  expect_true(grepl("no se evalu\u00f3", resultado$evidencia, fixed = TRUE))
 })
 
 test_that("tres o más columnas se comparan entre sí", {
@@ -89,7 +89,7 @@ test_that("las columnas de texto se comparan por igualdad exacta", {
     datos, senal_redundante(c("depto", "depto_ficha"))
   )
   expect_equal(resultado$n_discordantes, 1)
-  expect_true(grepl("comparacion textual exacta", resultado$evidencia, fixed = TRUE))
+  expect_true(grepl("comparaci\u00f3n textual exacta", resultado$evidencia, fixed = TRUE))
 })
 
 test_that("una señal mal declarada se rechaza diciendo qué hay", {
@@ -99,11 +99,11 @@ test_that("una señal mal declarada se rechaza diciendo qué hay", {
   expect_error(senal_redundante(c("a", "b"), ventana = -1), "no negativo")
   expect_error(
     senal_redundante(c("a", "b"), transformacion = list(z = identity)),
-    "no estan en la senal"
+    "no est\u00e1n en la se\u00f1al"
   )
   expect_error(
     senal_redundante(c("a", "b"), transformacion = list(a = 1)),
-    "debe ser una funcion"
+    "debe ser una funci\u00f3n"
   )
   expect_error(
     detectar_discordancias(datos, senal_redundante(c("a", "z"))),
@@ -118,6 +118,6 @@ test_that("una transformación que cambia el largo se rechaza", {
     detectar_discordancias(datos, senal_redundante(
       c("a", "b"), transformacion = list(a = function(x) x[1])
     )),
-    "devolvio 1 valores"
+    "devolvi\u00f3 1 valor"
   )
 })

@@ -132,8 +132,8 @@ test_that("una incoherencia entre grupos declara que la tabla cambio", {
 
   expect_equal(nrow(cambio), 1L)
   expect_false(resultado$resumen_tabla$meta$snapshot)
-  expect_match(resultado$resumen_tabla$meta$nota_snapshot, "instantanea")
-  expect_match(cambio$motivo, "la tabla cambio", ignore.case = TRUE)
+  expect_match(resultado$resumen_tabla$meta$nota_snapshot, "instant\u00e1nea")
+  expect_match(cambio$motivo, "la tabla cambi", ignore.case = TRUE)
   expect_match(cambio$motivo, "n_validos", fixed = TRUE)
   expect_match(cambio$motivo, "n_distintos", fixed = TRUE)
   expect_match(cambio$motivo, as.character(validos$consulta_id), fixed = TRUE)

@@ -30,7 +30,7 @@ test_that("un BIGINT grande entregado como doble no se publica como medido", {
 
   expect_equal(maximo_sql$estado, "no_disponible")
   expect_true(is.na(fila_sql$maximo))
-  expect_match(maximo_sql$motivo, "driver entrego como doble")
+  expect_match(maximo_sql$motivo, "driver entreg\u00f3 como doble")
   expect_identical(fila_muestra$estado_resumen_cuantitativo, "omitidos_precision")
   expect_true(is.na(fila_muestra$minimo))
   expect_true(is.na(fila_muestra$maximo))

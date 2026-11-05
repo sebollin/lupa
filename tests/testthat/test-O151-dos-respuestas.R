@@ -63,7 +63,7 @@ test_that("H4: sin bloques, una columna con infinitos publica sus magnitudes fin
     sql <- p$resumen_tabla$sql
     magnitudes <- sql[sql$metrica %in% c("minimo", "media", "mediana"), ]
     expect_true(all(magnitudes$estado == "calculado"))
-    expect_false(any(grepl("no se pudo leer como numero", sql$motivo, fixed = TRUE)))
+    expect_false(any(grepl("no se pudo leer como n\u00famero", sql$motivo, fixed = TRUE)))
     cobertura <- p$resumen_tabla$cobertura
     expect_false(any(grepl("Causa medida", cobertura$motivo, fixed = TRUE)))
     # Por la sonda de magnitud -sin basicos-: el `-Inf` queda al principio del

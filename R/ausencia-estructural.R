@@ -386,20 +386,23 @@
       "`", determinante_texto, "` predice la presencia de `", columna_texto,
       "` en ", .formatear_decimal_publicado(100 * ajuste$cumplimiento, 1L),
       " % de ",
-      ajuste$n_usables, " filas",
+      ajuste$n_usables, if (ajuste$n_usables == 1L) " fila" else " filas",
       if (por_umbral) {
         ", por un umbral"
       } else {
-        paste0(", con ", ajuste$n_niveles, " valores distintos")
+        paste0(", con ", ajuste$n_niveles,
+               if (ajuste$n_niveles == 1L) " valor distinto" else " valores distintos")
       },
       if (ajuste$n_indeterminados > 0L) {
         paste0(" y ", ajuste$n_indeterminados,
-               " filas donde el determinante falta")
+               if (ajuste$n_indeterminados == 1L) " fila" else " filas",
+               " donde el determinante falta")
       } else {
         ""
       },
-      ". La regla explica ", explicados, " de las ", n_ausentes,
-      " ausencias de la columna",
+      ". La regla explica ", explicados,
+      if (n_ausentes == 1L) " ausencia de la columna" else
+        paste0(" de las ", n_ausentes, " ausencias de la columna"),
       ". La columna corresponde cuando ", determinante_texto,
       if (por_umbral) {
         paste0(" ", ajuste$sentido, " ", .texto_corte_umbral(ajuste))
@@ -442,9 +445,12 @@
     paste0(
       "`", columna_texto, "` no coincide con ",
       paste0("`", otras_texto, "`", collapse = ", "),
-      ": entre las ", length(grupo), " columnas cubren ",
+      if (length(grupo) == 1L) ": la columna cubre " else
+        paste0(": las ", length(grupo),
+               if (length(grupo) == 1L) " columna cubre " else " columnas cubren "),
       .formatear_decimal_publicado(100 * cobertura, 1L),
-      " % de las ", n, " filas y se pisan en ",
+      if (n == 1L) " % de la fila y se pisa en " else
+        " % de las filas y se pisan en ",
       solapamiento, if (solapamiento == 1L) " fila." else " filas."
     ),
     paste0(
@@ -492,11 +498,14 @@
         "expl\u00edcita y no un efecto de la declaraci\u00f3n."
       ),
       paste0(
-        "Faltan ", n_ausentes, " de ", n_aplicables,
+        if (n_ausentes == 1L) "Falta " else "Faltan ", n_ausentes,
+        if (n_aplicables == 1L) " de 1 " else paste0(" de ", n_aplicables, " "),
         if (identical(origen, "columnas_opcionales")) {
-          " celdas de la columna ("
+          if (n_aplicables == 1L) "celda de la columna (" else
+            "celdas de la columna ("
         } else {
-          " celdas del universo declarado ("
+          if (n_aplicables == 1L) "celda del universo declarado (" else
+            "celdas del universo declarado ("
         },
       .formatear_decimal_publicado(100 * proporcion, 1L),
       " %), y la columna se declar\u00f3 con `",
@@ -622,8 +631,10 @@
         paste(nombres[indices], collapse = ", "),
         paste0(
           "No se busc\u00f3 ausencia estructural: la tabla tiene ", n,
-          " filas y se necesitan al menos ", .min_filas_ausencia_estructural,
-          " para que un reparto entre columnas signifique algo."
+          if (nrow(datos) == 1L) " fila y se necesita al menos " else
+            " filas y se necesitan al menos ", .min_filas_ausencia_estructural,
+          if (.min_filas_ausencia_estructural == 1L) " para que un reparto entre columnas signifique algo." else
+            " para que un reparto entre columnas signifique algo."
         ),
         "Perfilar una tabla con m\u00e1s filas si interesa esta se\u00f1al."
       ))
@@ -637,7 +648,8 @@
       paste(recortadas, collapse = ", "),
       paste0(
         "No se busc\u00f3 ausencia estructural en ", length(recortadas),
-        " columnas: el examen compara columnas de a pares y se detiene en ",
+        if (length(recortadas) == 1L) " columna: el examen compara columnas de a pares y se detiene en " else
+          " columnas: el examen compara columnas de a pares y se detiene en ",
         .max_columnas_ausencia_estructural,
         " para que el costo no crezca al cuadrado."
       ),
@@ -654,7 +666,8 @@
       paste(no_atomicas, collapse = ", "),
       paste0(
         "No se busc\u00f3 ausencia estructural en ", length(no_atomicas),
-        " columnas que no son vectores at\u00f3micos: el patr\u00f3n se mide sobre ",
+        if (length(no_atomicas) == 1L) " columna que no es vector at\u00f3mico: el patr\u00f3n se mide sobre " else
+          " columnas que no son vectores at\u00f3micos: el patr\u00f3n se mide sobre ",
         "presencia y ausencia celda a celda."
       ),
       "No corresponde resolverlo; queda declarado."
@@ -672,7 +685,8 @@
         NA_character_,
         paste0(
           "Se examinaron ", .max_determinantes_ausencia,
-          " columnas como posibles determinantes de la ausencia y el resto no ",
+          if (.max_determinantes_ausencia == 1L) " columna como posible determinante de la ausencia y el resto no " else
+            " columnas como posibles determinantes de la ausencia y el resto no ",
           "se prob\u00f3: el examen es de a pares y el tope acota el costo."
         ),
         "Perfilar por subconjuntos de columnas si interesa probarlas todas."

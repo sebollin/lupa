@@ -40,6 +40,8 @@
   # `fuente` viene del usuario, asi que la frase entera pasa por el marcado
   # antes de publicarse: sin eso, bajo `LC_CTYPE = C` salia `f_a<c3><b1>o`,
   # los bytes crudos, mientras el texto del paquete salia legible.
+  # Y el texto del paquete de esta frase queda en ASCII: una letra acentuada la
+  # marca como UTF-8 y, bajo C, la fuente vuelve a salir en bytes crudos.
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado del perfilado de tabla ancha: ~", segundos,
     " s para ", celdas, " celdas. Fuente: ", proyeccion$fuente,
@@ -76,12 +78,12 @@
     .nuevo_diagnostico_no_evaluado(
       diagnostico, columna,
       paste0(
-        "No se evaluo `", diagnostico,
+        "No se evalu\u00f3 `", diagnostico,
         "` sobre los valores que superan el tope de texto largo."
       ),
       paste0(
         "Subir `max_largo_valor_vocabulario` si `", diagnostico,
-        "` debe incluir esos valores, o usar `Inf` explicitamente."
+      "` debe incluir esos valores, o usar `Inf` expl\u00edcitamente."
       ),
       dependencia = "texto_largo_no_evaluado", columnas = columna
     )
@@ -101,14 +103,20 @@
       "texto_largo_no_evaluado", nombres[[i]],
       paste0(
         "No se evaluaron ", largo$n_valores,
-        " valor(es) de texto que superan `max_largo_valor_vocabulario = ",
+        if (largo$n_valores == 1L) {
+          " valor de texto que supera `max_largo_valor_vocabulario = "
+        } else {
+          " valores de texto que superan `max_largo_valor_vocabulario = "
+        },
         max_largo, "`: hasta ", largo$max_bytes,
-        " bytes y ", largo$max_caracteres, " caracteres. Los conteos y",
+      " bytes y ", largo$max_caracteres,
+      if (largo$max_caracteres == 1L) " car\u00e1cter. Los conteos y" else
+        " caracteres. Los conteos y",
         " longitudes de la columna completa se conservaron."
       ),
       paste0(
         "Subir `max_largo_valor_vocabulario` si esos valores deben entrar",
-        " en los diagnosticos textuales, o usar `Inf` explicitamente."
+      " en los diagn\u00f3sticos textuales, o usar `Inf` expl\u00edcitamente."
       ), columnas = nombres[[i]]
     )
     c(list(base), .filas_dependientes_texto_largo(
@@ -188,8 +196,8 @@
     if (bytes_vacios > max_bytes_muestra) {
       .detener(
         paste0(
-          "`max_bytes_muestra` es menor que el tamano minimo de la muestra ",
-          "vacia (", bytes_vacios, " bytes)."
+          "`max_bytes_muestra` es menor que el tama\u00f1o m\u00ednimo de la muestra ",
+          "vac\u00eda (", bytes_vacios, " bytes)."
         ),
         call. = FALSE
       )
@@ -335,13 +343,16 @@
     return(.cobertura_diagnosticos_vacia())
   }
   detalles <- paste0(
-    "La muestra se redujo de ", alcance$filas_solicitadas, " a ",
-    alcance$filas_efectivas, " filas"
+    "La muestra se redujo de ", alcance$filas_solicitadas,
+    if (alcance$filas_solicitadas == 1L) " fila a " else " filas a ",
+    alcance$filas_efectivas,
+    if (alcance$filas_efectivas == 1L) " fila" else " filas"
   )
   if (is.finite(alcance$max_celdas_muestra)) {
     detalles <- paste0(
       detalles, "; celdas observadas: ", alcance$celdas_solicitadas,
-      " (umbral ", alcance$max_celdas_muestra, ")"
+      if (alcance$celdas_solicitadas == 1L) " celda (umbral " else " celdas (umbral ",
+      alcance$max_celdas_muestra, ")"
     )
   }
   if (is.finite(alcance$max_bytes_muestra)) {
@@ -358,7 +369,7 @@
   data.frame(
     diagnostico = "muestra_perfilado", columna = "", motivo = motivo,
     como_resolverlo = paste0(
-      "Aumente `max_celdas_muestra` o `max_bytes_muestra`, o use `Inf` ",
+      "Aumentar `max_celdas_muestra` o `max_bytes_muestra`, o usar `Inf` ",
       "si acepta analizar la muestra solicitada completa."
     ),
     dependencia = NA_character_, columnas = I(list(character())),
@@ -670,7 +681,7 @@
         n_filas_colision_con_ausentes
       ),
       nota = paste(
-        "La trazabilidad agrupa valores de la clave con la semantica de R;",
+        "La trazabilidad agrupa valores de la clave con la sem\u00e1ntica de R;",
         "dos NULL de SQL no son iguales, pero una ausencia sigue violando",
         "la exigencia de NOT NULL."
       )
@@ -689,16 +700,17 @@
   mensajes <- character()
   if (identical(unicidad$estado, "refutada")) {
     mensajes <- c(mensajes, paste0(
-      "La clave declarada no es \u00fanica: entre las ", unicidad$filas_evaluadas,
-      " filas con la clave completa, ", unicidad$filas_repetidas,
+      "La clave declarada no es \u00fanica: entre ", unicidad$filas_evaluadas,
+      if (unicidad$filas_evaluadas == 1L) " fila con la clave completa, " else " filas con la clave completa, ",
+      unicidad$filas_repetidas,
       if (identical(as.numeric(unicidad$filas_repetidas), 1)) " repite" else " repiten",
       " su valor (", unicidad$filas_en_colision,
-      " filas participan en colisiones)."
+      if (unicidad$filas_en_colision == 1L) " fila participa en colisiones)." else " filas participan en colisiones)."
     ))
   } else if (identical(unicidad$estado, "verificada")) {
     mensajes <- c(mensajes, paste0(
-      "La clave declarada no se repite entre las ", unicidad$filas_evaluadas,
-      " filas con la clave completa."
+      "La clave declarada no se repite entre ", unicidad$filas_evaluadas,
+      if (unicidad$filas_evaluadas == 1L) " fila con la clave completa." else " filas con la clave completa."
     ))
   } else if (identical(unicidad$estado, "sin_casos_evaluables")) {
     # No es "verificada" -seria cierto sobre un conjunto vacio y enganoso- ni
@@ -707,7 +719,8 @@
     mensajes <- c(mensajes, paste0(
       "No se pudo evaluar la unicidad: ninguna de las ",
       unicidad$filas_totales,
-      " filas tiene la clave completa, as\u00ed que no hay casos que comparar."
+      if (unicidad$filas_totales == 1L) " fila tiene la clave completa, as\u00ed que no hay casos que comparar." else
+        " filas tiene la clave completa, as\u00ed que no hay casos que comparar."
     ))
   } else {
     mensajes <- c(mensajes,
@@ -2705,7 +2718,7 @@ perfilar <- function(datos,
     faltantes <- clave[is.na(indices_clave)]
     if (length(faltantes)) {
       .detener(
-        "`clave` nombra columnas que no estan en los datos: ",
+        "`clave` nombra columnas que no est\u00e1n en los datos: ",
         paste(faltantes, collapse = ", "),
         ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
         call. = FALSE
@@ -2839,7 +2852,7 @@ perfilar <- function(datos,
       is.na(max_asimetria_equifrecuente_vocabulario) ||
       max_asimetria_equifrecuente_vocabulario < 1) {
     .detener(
-      "`max_asimetria_equifrecuente_vocabulario` debe ser un numero mayor o igual a 1.",
+      "`max_asimetria_equifrecuente_vocabulario` debe ser un n\u00famero mayor o igual a 1.",
       call. = FALSE
     )
   }
@@ -3143,13 +3156,13 @@ perfilar <- function(datos,
       .nuevo_diagnostico_no_evaluado(
         "relacion_orden_columnas", paste(omitidas, collapse = ","),
         paste0(
-          "La busqueda de relaciones de orden se limito a las primeras ",
+          "La b\u00fasqueda de relaciones de orden se limit\u00f3 a las primeras ",
           relaciones_orden$alcance$max_columnas,
           " columnas comparables; las columnas restantes no se evaluaron."
         ),
         paste0(
           "Aumentar `max_columnas_orden` si las columnas omitidas deben",
-          " intervenir en el diagnostico."
+          " intervenir en el diagn\u00f3stico."
         ),
         columnas = omitidas
       )

@@ -39,7 +39,7 @@ test_that("un catalogo vacio no se presenta como clave no declarada", {
   expect_identical(resultado$columnas, character())
   expect_identical(resultado$garantia, "desconocida")
   expect_true(is.na(resultado$estado$visible))
-  expect_match(resultado$motivo, "no devolvio filas")
+  expect_match(resultado$motivo, "no devolvi\u00f3 filas")
   expect_match(resultado$motivo, "no ser visible")
 })
 

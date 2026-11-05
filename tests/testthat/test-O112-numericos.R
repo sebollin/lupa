@@ -45,6 +45,6 @@ test_that("el motivo de Benford no publica una comparacion que se lee falsa", {
   expect_false(any(grepl("3.000 < 3", motivos, fixed = TRUE)))
   expect_true(any(grepl("2.9996 < 3", motivos, fixed = TRUE)))
   # Control: lo que ya se distinguia con tres decimales no cambia.
-  expect_true(any(grepl("proporcion de positivos 0.900 < 1.000", motivos,
+  expect_true(any(grepl("proporci\u00f3n de positivos 0.900 < 1.000", motivos,
                         fixed = TRUE)))
 })

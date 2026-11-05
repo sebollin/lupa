@@ -85,7 +85,7 @@ test_that("la validez geografica declara el criterio planar y no afirma error", 
   expect_equal(nrow(hallazgo), 1L)
   expect_equal(as.character(hallazgo$severidad), "sospechoso")
   expect_match(hallazgo$descripcion, "planar")
-  expect_match(hallazgo$evidencia, "esferica")
+  expect_match(hallazgo$evidencia, "esf\u00e9rica")
 
   autointerseccion <- rbind(
     c(500000, 6200000), c(500100, 6200100), c(500100, 6200000),

@@ -66,7 +66,7 @@ test_that("el hash convierte n_distinct negativo con reltuples", {
   expect_identical(estimacion$memoria_efectiva_bytes, 2 * 1024^2)
   expect_false(isTRUE(estimacion$supera_memoria))
   expect_true(estimacion$es_estimacion)
-  expect_match(estimacion$motivo, "estimacion, no una medicion")
+  expect_match(estimacion$motivo, "estimaci\u00f3n, no una medici\u00f3n")
   expect_match(estimacion$motivo, "puede quedar corto")
 })
 
@@ -170,7 +170,7 @@ test_that("el aviso identifica estimacion, memoria vigente y accion de sesion", 
 
   expect_message(
     lupa:::.avisar_derrame_estimado_postgresql_dbi(estimacion),
-    "estimacion.*no una medicion.*1MB.*sesion.*pg_stat_statements"
+    "estimaci\u00f3n.*no una medici\u00f3n.*1MB.*sesi\u00f3n.*pg_stat_statements"
   )
 })
 

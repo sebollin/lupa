@@ -358,7 +358,7 @@ test_that("M3: la FK con la referencia truncada se declara aunque otra columna d
   # Y la FK queda declarada sin conclusion, con su cota, en una sola fila.
   expect_identical(nrow(r$cobertura_pares), 1L)
   motivo <- r$cobertura_pares$motivo
-  expect_match(motivo, "^Sin conclusion")
+  expect_match(motivo, "^Sin conclusi\u00f3n")
   expect_match(motivo, paste0("`id` -> `cliente_id` ", signif(cota, 4)),
                fixed = TRUE)
   expect_identical(r$meta$pares_sin_conclusion, 1L)

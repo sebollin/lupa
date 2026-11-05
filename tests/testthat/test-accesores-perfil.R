@@ -39,7 +39,7 @@ test_that("un perfil DBI sin muestra avisa en vez de aparentar cero hallazgos", 
 
   perfil <- perfilar_dbi(con, "t", muestra = 10)
   perfil$perfil_muestra <- NULL
-  expect_warning(salida <- hallazgos(perfil), "no trae muestra leida")
+  expect_warning(salida <- hallazgos(perfil), "no trae muestra le\u00edda")
   expect_equal(nrow(salida), 0L)
   # El resumen por columna sigue estando: lo que falta es la parte por fila.
   expect_equal(nrow(columnas(perfil)), 1L)

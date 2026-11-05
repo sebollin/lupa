@@ -4,6 +4,11 @@
 # suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
 testthat::skip_on_cran()
 
+.coincide_mensaje_locale_O110 <- function(mensajes, unicode, escapado) {
+  any(grepl(unicode, enc2utf8(mensajes), fixed = TRUE)) ||
+    any(grepl(escapado, mensajes, fixed = TRUE))
+}
+
 .estimacion_moda_O110 <- function(metodo_lote = "hash", metodo = NULL) {
   lotes <- data.frame(
     lote = 1L, columnas = "codigo", tamano_estimado_bytes = 1e9,
@@ -26,7 +31,9 @@ test_that("el aviso de derrame de la moda nombra el metodo de sus lotes", {
     type = "message"
   )
   # Antes: "Metodo: ." -el metodo es de cada lote, no de la estimacion-.
-  expect_true(any(grepl("Metodo: hash.", mensajes, fixed = TRUE)))
+  expect_true(.coincide_mensaje_locale_O110(
+    mensajes, "M\u00e9todo: hash.", "M<U+00E9>todo: hash."
+  ))
   expect_false(any(grepl("Metodo: .", mensajes, fixed = TRUE)))
   # Control: sin metodo en los lotes, el de la estimacion.
   mensajes <- utils::capture.output(
@@ -36,13 +43,15 @@ test_that("el aviso de derrame de la moda nombra el metodo de sus lotes", {
     ),
     type = "message"
   )
-  expect_true(any(grepl("Metodo: sort.", mensajes, fixed = TRUE)))
+  expect_true(.coincide_mensaje_locale_O110(
+    mensajes, "M\u00e9todo: sort.", "M<U+00E9>todo: sort."
+  ))
 })
 
 test_that("el aviso de costo de la moda no deja un espacio antes del punto", {
   proyeccion <- list(
     disponible = TRUE, duracion_estimada_ms = 1e7, n_columnas = 2L,
-    fuente = "una fuente", fuentes_cardinalidad = "medicion de la corrida",
+    fuente = "una fuente", fuentes_cardinalidad = "medici\u00f3n de la corrida",
     columnas_sin_cardinalidad = character()
   )
   mensajes <- utils::capture.output(
@@ -50,7 +59,9 @@ test_that("el aviso de costo de la moda no deja un espacio antes del punto", {
                                   umbral_segundos = 1),
     type = "message"
   )
-  expect_true(any(grepl("medicion de la corrida.", mensajes, fixed = TRUE)))
+  expect_true(.coincide_mensaje_locale_O110(
+    mensajes, "medici\u00f3n de la corrida.", "medici<U+00F3>n de la corrida."
+  ))
   expect_false(any(grepl("corrida .", mensajes, fixed = TRUE)))
 })
 

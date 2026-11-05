@@ -384,7 +384,7 @@ test_that("H5: una candidata o un orden que la sesion no puede escribir se decla
   expect_identical(charToRaw(poda$columna_tabla1), charToRaw(ano))
   expect_identical(poda$columna_tabla2, "persona_id")
   lectura <- con_candidata$meta$lecturas
-  expect_true(grepl("no se puede escribir en la codificacion",
+  expect_true(grepl("no se puede escribir en la codificaci\u00f3n",
                     lectura$motivo[lectura$tabla == "o163_per"], fixed = TRUE))
   # `orden` por esa columna: la lectura va sin `ORDER BY`, lo declara, y
   # `estable` no se afirma.
@@ -405,7 +405,7 @@ test_that("H5: una candidata o un orden que la sesion no puede escribir se decla
   ))
   motivo <- sin_nada$cobertura_pares$motivo
   expect_identical(length(motivo), 1L)
-  expect_true(grepl("no se puede escribir en la codificacion", motivo, fixed = TRUE))
+  expect_true(grepl("no se puede escribir en la codificaci\u00f3n", motivo, fixed = TRUE))
   expect_false(grepl("literal omitido", motivo, fixed = TRUE))
   expect_true(grepl("locale UTF-8", sin_nada$cobertura_pares$como_resolverlo,
                     fixed = TRUE))

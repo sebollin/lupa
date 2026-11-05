@@ -426,15 +426,16 @@
     character()
   }
   paste0(
-    "El catalogo devolvio la clave primaria de ", distintas,
-    " relaciones distintas para ese nombre",
+    "El cat\u00e1logo devolvi\u00f3 la clave primaria de ", distintas,
+    if (distintas == 1L) " relaci\u00f3n distinta para ese nombre" else
+      " relaciones distintas para ese nombre",
     if (length(esquemas) > 1L) {
       paste0(" -esquemas: ", paste(esquemas, collapse = ", "), "-")
     } else {
       ""
     },
-    ". Fusionarlas daria una clave que no existe en ninguna, asi que no se ",
-    "publica ninguna: calificar el nombre con su esquema resuelve cual es."
+    ". Fusionarlas dar\u00eda una clave que no existe en ninguna, as\u00ed que no se ",
+    "publica ninguna: calificar el nombre con su esquema resuelve cu\u00e1l es."
   )
 }
 
@@ -616,13 +617,13 @@
   list(
     garantia = "desconocida", estado = estado,
     motivo = paste0(
-      "La clave esta declarada y sus columnas se leyeron del catalogo, pero ",
-      "el motor no permite confirmar que la restriccion este aplicada: la via ",
+      "La clave est\u00e1 declarada y sus columnas se leyeron del cat\u00e1logo, pero ",
+      "el motor no permite confirmar que la restricci\u00f3n est\u00e9 aplicada: la v\u00eda ",
       "`", via, "` sobre `", motor, "` no expone ",
       if (length(faltantes)) paste0("`", paste(faltantes, collapse = "`, `"), "`")
       else "un estado comparable",
       ". No es un privilegio que falte ni un defecto de la tabla: es lo que ",
-      "ese catalogo publica."
+      "ese cat\u00e1logo publica."
     )
   )
 }
@@ -708,12 +709,12 @@
   catalogo$columnas <- character()
   catalogo$garantia <- "desconocida"
   catalogo$motivo <- paste0(
-    "El catalogo declaro una clave primaria sobre ",
+    "El cat\u00e1logo declar\u00f3 una clave primaria sobre ",
     paste(ajenas, collapse = ", "),
-    if (length(ajenas) > 1L) ", que no estan " else ", que no esta ",
+    if (length(ajenas) > 1L) ", que no est\u00e1n " else ", que no est\u00e1 ",
     "entre las columnas de la tabla medida: la respuesta pertenece a otra ",
-    "relacion con el mismo nombre en otro esquema. No se publica clave; ",
-    "calificar el nombre con su esquema resuelve cual es."
+    "relaci\u00f3n con el mismo nombre en otro esquema. No se publica clave; ",
+    "calificar el nombre con su esquema resuelve cu\u00e1l es."
   )
   catalogo$estado <- .estado_clave_vacio(visible = TRUE)
   catalogo
@@ -730,7 +731,7 @@
     )
   }
   if (!length(tabla) || is.na(tabla) || !nzchar(tabla)) {
-    return(vacio(NA_character_, "No se indico la tabla."))
+    return(vacio(NA_character_, "No se indic\u00f3 la tabla."))
   }
   nombre_via <- .via_clave_primaria(conexion)
   motor <- .motor_clave_primaria(conexion)
@@ -770,7 +771,7 @@
       # Cero filas pidiendo todas las columnas: la tabla no esta.
       return(vacio(via$nombre, paste0(
         via$nombre, ": la tabla no existe o no es visible, ",
-        "asi que no se pudo preguntar por su clave."
+        "as\u00ed que no se pudo preguntar por su clave."
       ), visible = NA))
     }
     if (.catalogo_clave_visible(via$nombre, motor)) {
@@ -788,7 +789,7 @@
     return(vacio(
       via$nombre,
       motivo = paste0(
-        via$nombre, ": no devolvio filas; la clave puede no estar declarada ",
+        via$nombre, ": no devolvi\u00f3 filas; la clave puede no estar declarada ",
         "o no ser visible para esta credencial."
       ),
       garantia = "desconocida", visible = NA
@@ -799,7 +800,7 @@
     if (is.null(nombre_clave)) {
       return(vacio(
         via$nombre,
-        "show_index: la consulta no devolvio el campo `Key_name`.",
+        "show_index: la consulta no devolvi\u00f3 el campo `Key_name`.",
         visible = NA
       ))
     }

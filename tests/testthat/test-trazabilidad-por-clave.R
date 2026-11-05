@@ -119,7 +119,7 @@ test_that("la clave declarada se protege como la evidencia", {
 
 test_that("una clave mal declarada se rechaza diciendo qué hay", {
   datos <- .tabla_con_clave()
-  expect_error(perfilar(datos, clave = "no_existe", proteger_datos_personales = TRUE), "no estan en los datos")
+  expect_error(perfilar(datos, clave = "no_existe", proteger_datos_personales = TRUE), "no est\u00e1n en los datos")
   expect_error(perfilar(datos, clave = "no_existe", proteger_datos_personales = TRUE), "Disponibles")
   expect_error(perfilar(datos, clave = c("id", "id"), proteger_datos_personales = TRUE), "repite")
   expect_error(perfilar(datos, clave = 1, proteger_datos_personales = TRUE), "nombres de columna")

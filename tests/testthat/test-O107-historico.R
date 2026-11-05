@@ -87,7 +87,7 @@ test_that("la deriva no dice que cambio un tipo cuando cambio el conjunto", {
   # cambio de tipo que no ocurrio.
   expect_false(grepl("tipo_resultado de una o mas metricas", fila$descripcion,
                      fixed = TRUE))
-  expect_match(fila$descripcion, "o el conjunto de metricas", fixed = TRUE)
+  expect_match(fila$descripcion, "o el conjunto de m\u00e9tricas", fixed = TRUE)
 })
 
 test_that("el diagnostico de una serie sin par nombra su tabla", {

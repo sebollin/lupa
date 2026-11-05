@@ -76,7 +76,7 @@ test_that("la muestra vacia declara cero filas en PostgreSQL", {
     })
     expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 0)
     expect_equal(resultado$resumen_tabla$meta$materializacion$n_filas, 0)
-    expect_match(conditionMessage(aviso), "0 fila\\(s\\)")
+    expect_match(conditionMessage(aviso), "0 filas")
     try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
         silent = TRUE)
     DBI::dbDisconnect(con)
@@ -102,7 +102,7 @@ test_that("orden_muestra queda declarado cuando gobierna TABLESAMPLE o RANDOM", 
     orden <- resultado$resumen_tabla$meta$orden_muestra
     expect_identical(orden$solicitado, "id")
     expect_identical(orden$aplicado, FALSE)
-    expect_match(orden$motivo, "no se aplico", ignore.case = TRUE)
+    expect_match(orden$motivo, "No se aplic")
     try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
         silent = TRUE)
     DBI::dbDisconnect(con)

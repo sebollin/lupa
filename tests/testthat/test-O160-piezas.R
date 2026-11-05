@@ -581,7 +581,7 @@ test_that("Segfault: una columna que la sesion no puede escribir se declara, por
     cobertura <- r$resumen_tabla$cobertura
     fila <- cobertura[cobertura$elemento == ano, , drop = FALSE]
     expect_identical(fila$estado, "no_disponible")
-    expect_true(grepl("no se puede escribir en la codificacion", fila$motivo,
+    expect_true(grepl("no se puede escribir en la codificaci\u00f3n", fila$motivo,
                       fixed = TRUE))
     expect_true(grepl("locale UTF-8", fila$como_resolverlo, fixed = TRUE))
   }

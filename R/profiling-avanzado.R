@@ -662,7 +662,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   }
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0 || umbral > 1) {
-    .detener("`umbral` debe ser una proporcion finita en [0, 1].", call. = FALSE)
+    .detener("`umbral` debe ser una proporci\u00f3n finita en [0, 1].", call. = FALSE)
   }
   limite <- .validar_muestra(muestra)
   max_columnas <- .validar_entero_positivo(max_columnas, "max_columnas")
@@ -742,7 +742,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
           columna_1 = a, columna_2 = b, tipo_1 = tipos[[i]],
           tipo_2 = tipos[[j]], metodo = metodo,
           n_pares_completos = as.integer(n_completos),
-          motivo = "La medida de asociacion no fue finita.",
+          motivo = "La medida de asociaci\u00f3n no fue finita.",
           stringsAsFactors = FALSE
         )
         next
@@ -755,13 +755,13 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
         supuesto = switch(
           metodo,
           pearson_absoluto =
-            "Las columnas numericas se tratan como cuantitativas; la escala no queda confirmada.",
+            "Las columnas num\u00e9ricas se tratan como cuantitativas; la escala no queda confirmada.",
           spearman_absoluto = paste(
-            "Se mide asociacion monotona sobre los rangos: no supone",
+            "Se mide asociaci\u00f3n mon\u00f3tona sobre los rangos: no supone",
             "linealidad ni que la escala sea de intervalo."
           ),
-          cramer_v = "Las columnas se tratan como categorias sin orden.",
-          "La columna numerica se trata como cuantitativa y la otra como categoria."
+          cramer_v = "Las columnas se tratan como categor\u00edas sin orden.",
+          "La columna num\u00e9rica se trata como cuantitativa y la otra como categor\u00eda."
         ),
         asociacion = as.numeric(valor), n_pares = length(x),
         stringsAsFactors = FALSE
@@ -817,7 +817,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       motivo = omitidos$motivo,
       como_resolverlo = paste(
         "Completar al menos 3 filas para el par y revisar que la medida sea",
-        "finita antes de interpretar que no hay asociacion."
+        "finita antes de interpretar que no hay asociaci\u00f3n."
       ),
       dependencia = NA_character_,
       columnas = I(lapply(seq_len(nrow(omitidos)), function(i) {
@@ -1122,7 +1122,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       calendario = paste(calendario, collapse = ","), confirmada = FALSE,
       evidencia = if (is.finite(frecuencia)) paste0(
         "Moda de intervalos: ", .formatear_numero_publicado(frecuencia),
-        " dias; ", length(positivas),
+        if (frecuencia == 1) " d\u00eda; " else " d\u00edas; ", length(positivas),
         " intervalos observados."
       ) else "No hay intervalos suficientes para proponer frecuencia.",
       stringsAsFactors = FALSE

@@ -174,7 +174,7 @@ test_that("una columna que el controlador rechaza no se lleva puesta la muestra"
   # cualquier fallo de lectura habiendo columnas de tipo largo declaradas; que
   # esas columnas sean el motivo es probable, no medido.
   expect_match(fila$motivo, "No se comprob")
-  expect_false(grepl("que el controlador rechazo", fila$motivo, fixed = TRUE))
+  expect_false(grepl("que el controlador rechaz\u00f3", fila$motivo, fixed = TRUE))
 
   # `meta` es donde se mira para saber que se hizo, asi que no puede quedar
   # congelado con la lectura que fallo. Declaraba haber leido justamente la

@@ -36,7 +36,7 @@ test_that("el validador de correo declara un subconjunto sintactico", {
   )
   largo <- paste0(strrep("a", 65), "@example.org")
   expect_false(validar_correo(largo))
-  expect_error(validar_correo(list("a@example.org")), "atomico")
+  expect_error(validar_correo(list("a@example.org")), "at\u00f3mico")
 })
 
 test_that("Luhn y MOD 97 no convierten enteros largos a double", {
@@ -109,7 +109,7 @@ test_that("los packs se conectan a Formato y son extensibles", {
                c(TRUE, FALSE, NA))
 
   expect_error(pack_validadores("", list(x = identity)), "nombre")
-  expect_error(pack_validadores("x", list(identity)), "nombres unicos")
+  expect_error(pack_validadores("x", list(identity)), "nombres \u00fanicos")
   expect_error(pack_validadores("x", list(x = 1)), "funciones")
   expect_error(pack_validadores("x", list(x = identity), pais = "ZZ"), "ISO")
   expect_error(

@@ -72,7 +72,7 @@ test_that("la moda trae su guardian en la misma sentencia", {
   expect_true(grepl("SUM(COUNT(*) ) OVER", moda$sql, fixed = TRUE) ||
               grepl("SUM(COUNT(*)) OVER", moda$sql, fixed = TRUE))
   expect_true(grepl("n_validos_guard", moda$sql, fixed = TRUE))
-  expect_match(moda$motivo, "se comprobo", ignore.case = TRUE)
+  expect_match(moda$motivo, "se comprob\u00f3", ignore.case = TRUE)
   expect_false(grepl("No se pudo comprobar", moda$motivo, fixed = TRUE))
   expect_equal(length(unique(moda$consulta_id)), 1L)
 })
@@ -92,7 +92,7 @@ test_that("una sonda rechazada conserva la consulta de moda anterior", {
   guardian <- resultado$resumen_tabla$meta$moda_guardian
 
   expect_false(guardian$disponible)
-  expect_match(guardian$motivo, "rechazo", ignore.case = TRUE)
+  expect_match(guardian$motivo, "rechaz\u00f3", ignore.case = TRUE)
   expect_false(grepl("n_validos_guard", moda$sql, fixed = TRUE))
   expect_match(moda$metodo, "sin_guardian", fixed = TRUE)
   expect_match(moda$motivo, "No se pudo comprobar", fixed = TRUE)

@@ -288,7 +288,7 @@ test_that("B1: con scipen negativo la fuente de la mediana no sale en notacion c
   options(anterior)
   # A mano: la referencia de banco son 68 ms por millon de filas.
   expect_identical(
-    fuente, "referencia de banco de otra corrida: 68 ms por millon de filas"
+    fuente, "referencia de banco de otra corrida: 68 ms por mill\u00f3n de filas"
   )
 })
 
@@ -361,7 +361,7 @@ test_that("B3: sf instalado que no se puede cargar no se publica como paquete au
   ]
   expect_identical(nrow(fila), 1L)
   if (instalado) {
-    expect_true(grepl("esta instalado pero no se pudo cargar", fila$motivo, fixed = TRUE))
+    expect_true(grepl("est\u00e1 instalado pero no se pudo cargar", fila$motivo, fixed = TRUE))
     expect_false(grepl("Instalar", fila$como_resolverlo, fixed = TRUE))
   } else {
     expect_true(grepl("falta el paquete opcional 'sf'", fila$motivo, fixed = TRUE))

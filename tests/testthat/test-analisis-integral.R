@@ -313,7 +313,7 @@ test_that("clasificar_variables valida metadatos y declara muestreo", {
     datos, metadatos = data.frame(
       columna = c("x", "x"), escala = c("nominal", "nominal")
     ), proteger_datos_personales = TRUE
-  ), "fila unica")
+  ), "fila \u00fanica")
   expect_error(clasificar_variables(
     datos, metadatos = data.frame(
       columna = "x", escala = "nominal", confianza = 2
@@ -321,7 +321,7 @@ test_that("clasificar_variables valida metadatos y declara muestreo", {
   ), ".*0, 1.*")
   expect_error(clasificar_variables(
     datos, metadatos = data.frame(columna = "x", confirmada = NA), proteger_datos_personales = TRUE
-  ), "logica")
+  ), "l\u00f3gica")
   expect_equal(nrow(clasificar_variables(data.frame(), proteger_datos_personales = TRUE)), 0L)
 })
 
@@ -359,7 +359,7 @@ test_that("las señales explícitas y los tipos restantes se distinguen", {
   expect_equal(lupa:::.metricas_por_escala("nominal", "identificador"),
                "Unicidad; integridad referencial")
   expect_equal(lupa:::.metricas_por_escala("desconocida", "otro"),
-               "Requiere declaracion")
+               "Requiere declaraci\u00f3n")
 
   confirmacion <- clasificar_variables(
     data.frame(x = c(1, 2, 3)),
@@ -397,7 +397,7 @@ test_that("analizar mide por omision sin conservar el detalle", {
   expect_false(resultado$meta$propuesta_confirmada)
   expect_equal(resultado$meta$fecha, fecha)
   mensajes <- salida_cli(salida <- capture.output(impreso <- print(resultado)))
-  expect_match(paste(mensajes, collapse = "\n"), "Analisis de datos")
+  expect_match(paste(mensajes, collapse = "\n"), "An\u00e1lisis de datos")
   expect_identical(impreso, resultado)
   expect_true(length(salida) > 0L)
 })
@@ -472,7 +472,7 @@ test_that("analizar valida decisiones y argumentos coordinados", {
                "no puede reemplazar")
   expect_error(analizar(datos, argumentos_perfil = list(a = 1), a = 2, proteger_datos_personales = TRUE),
                "repetirse")
-  expect_error(analizar(datos, conservar_datos = NA, proteger_datos_personales = TRUE), "logicos")
+  expect_error(analizar(datos, conservar_datos = NA, proteger_datos_personales = TRUE), "l\u00f3gicos")
   expect_error(analizar(datos, modelo_confirmado = data.frame(), proteger_datos_personales = TRUE), "modelo")
   expect_error(analizar(datos, propuesta_confirmada = data.frame(), proteger_datos_personales = TRUE), "propuesta")
   expect_error(analizar(
@@ -624,7 +624,7 @@ test_that("guardar y leer analisis aplican salvaguardas", {
   archivo <- tempfile(fileext = ".rds")
   expect_error(guardar_analisis(data.frame(), archivo, proteger_datos_personales = TRUE), "analizar")
   expect_error(guardar_analisis(resultado, "", proteger_datos_personales = TRUE), "ruta")
-  expect_error(guardar_analisis(resultado, archivo, incluir_datos = NA, proteger_datos_personales = TRUE), "logicos")
+  expect_error(guardar_analisis(resultado, archivo, incluir_datos = NA, proteger_datos_personales = TRUE), "l\u00f3gicos")
   # El ancla es `comprimir` y no la palabra del mensaje: lo que esta prueba
   # sostiene es que el rechazo lo hace EL PAQUETE. `saveRDS()` tambien
   # rechaza esto, pero con `invalid 'compress' argument`, un error crudo de
@@ -643,7 +643,7 @@ test_that("guardar y leer analisis aplican salvaguardas", {
   sin_datos$perfil$datos_personales <- sin_datos$perfil$datos_personales[0, ]
   expect_error(guardar_analisis(
     sin_datos, tempfile(fileext = ".rds"), incluir_datos = TRUE, proteger_datos_personales = TRUE
-  ), "no conservo datos")
+  ), "no conserv\u00f3 datos")
   guardar_analisis(resultado, archivo, proteger_datos_personales = TRUE)
   expect_error(guardar_analisis(resultado, archivo, proteger_datos_personales = TRUE), "ya existe")
   expect_silent(guardar_analisis(resultado, archivo, sobrescribir = TRUE, proteger_datos_personales = TRUE))

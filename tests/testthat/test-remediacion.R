@@ -225,7 +225,7 @@ test_that("sin datos completos la reversibilidad queda bloqueada", {
   expect_false(accion$recomendada[[1L]])
   expect_false(accion$aplicar[[1L]])
   expect_equal(as.character(accion$estado[[1L]]), "bloqueada")
-  expect_match(accion$justificacion[[1L]], "pase `datos`")
+  expect_match(accion$justificacion[[1L]], "pasar `datos`")
 })
 
 test_that("una conversión imposible se registra sin abortar el plan", {

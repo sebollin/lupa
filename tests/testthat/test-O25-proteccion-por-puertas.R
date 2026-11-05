@@ -60,7 +60,7 @@ test_that("el guardado declara la proteccion que ya trae el analisis", {
 
   expect_error(
     guardar_analisis(protegido, archivo, incluir_datos = TRUE, proteger_datos_personales = TRUE),
-    "crear el analisis"
+    "crear el an\u00e1lisis"
   )
   guardar_analisis(
     protegido, archivo, incluir_datos = TRUE,

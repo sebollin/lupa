@@ -68,7 +68,7 @@ test_that("el retiro de los diagnosticos de palabras se declara", {
   declarada <- cobertura[cobertura$columna == "wkt" &
                            cobertura$diagnostico == "proximidad_vocabulario", ]
   expect_equal(nrow(declarada), 1L)
-  expect_match(declarada$motivo, "geometria escrita como texto", fixed = TRUE)
+  expect_match(declarada$motivo, "geometr\u00eda escrita como texto", fixed = TRUE)
 })
 
 test_that("una columna WKT con un valor corrupto se reconoce y declara la perdida", {

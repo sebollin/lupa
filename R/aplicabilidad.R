@@ -69,7 +69,7 @@
   ]
   if (length(no_formulas)) {
     .detener(
-      "Cada elemento de `aplicabilidad` debe ser una formula de un solo lado, ",
+      "Cada elemento de `aplicabilidad` debe ser una f\u00f3rmula de un solo lado, ",
       "como `~ tiene_auto == \"Si\"`. No lo son: ",
       paste(no_formulas, collapse = ", "), ".", call. = FALSE
     )
@@ -80,7 +80,7 @@
   )]
   if (length(ambas)) {
     .detener(
-      "Estas columnas estan declaradas en `columnas_opcionales` y en ",
+      "Estas columnas est\u00e1n declaradas en `columnas_opcionales` y en ",
       "`aplicabilidad` a la vez: ", paste(ambas, collapse = ", "),
       ". Corresponde una sola de las dos.", call. = FALSE
     )
@@ -119,8 +119,8 @@
   if (!.aplicabilidad_es_predicado_fila(f[[2L]])) {
     .detener(
       "aplicabilidad_no_fila:", .formula_a_texto(f),
-      ". La regla debe evaluar una condicion por fila; no puede calcular un ",
-      "estadistico global.", call. = FALSE
+      ". La regla debe evaluar una condici\u00f3n por fila; no puede calcular un ",
+      "estad\u00edstico global.", call. = FALSE
     )
   }
   # `eval(..., envir = data.frame)` y `list2env(as.list(datos))` intentan
@@ -144,14 +144,16 @@
   if (!is.logical(valor)) {
     .detener(
       "La regla de aplicabilidad de `", columna,
-      "` debe dar un valor logico y dio ", class(valor)[[1L]], ".", call. = FALSE
+      "` debe dar un valor l\u00f3gico y dio ", class(valor)[[1L]], ".", call. = FALSE
     )
   }
   if (length(valor) == 1L) valor <- rep(valor, n)
   if (length(valor) != n) {
     .detener(
       "La regla de aplicabilidad de `", columna, "` dio ", length(valor),
-      " valores y la tabla tiene ", n, " filas.", call. = FALSE
+      if (length(valor) == 1L) " valor y la tabla tiene " else
+        " valores y la tabla tiene ",
+      n, if (n == 1L) " fila." else " filas.", call. = FALSE
     )
   }
   valor
@@ -240,18 +242,22 @@
     reglas$origen == "columnas_opcionales",
     paste0(
       "La completitud se midi\u00f3 sobre ", reglas$n_aplicables,
-      " celdas presentes: la columna se declar\u00f3 opcional, as\u00ed que la ausencia ",
+      ifelse(reglas$n_aplicables == 1L, " celda presente: la columna se declar\u00f3 opcional, as\u00ed que la ausencia ",
+             " celdas presentes: la columna se declar\u00f3 opcional, as\u00ed que la ausencia "),
       "no se cuenta como defecto."
     ),
     paste0(
       "La completitud se midi\u00f3 sobre ", reglas$n_aplicables,
-      " filas aplicables de ", reglas$n_aplicables + reglas$n_no_aplica +
-        reglas$n_indeterminados,
+      ifelse(reglas$n_aplicables == 1L, " fila aplicable de ", " filas aplicables de "),
+      reglas$n_aplicables + reglas$n_no_aplica + reglas$n_indeterminados,
+      ifelse(reglas$n_aplicables + reglas$n_no_aplica + reglas$n_indeterminados == 1L,
+             " fila", " filas"),
       "; la regla declarada es `", reglas$regla, "`",
       ifelse(
         reglas$n_indeterminados > 0L,
         paste0(" y en ", reglas$n_indeterminados,
-               " filas la regla no se pudo determinar."),
+               ifelse(reglas$n_indeterminados == 1L, " fila", " filas"),
+               " la regla no se pudo determinar."),
         "."
       )
     )

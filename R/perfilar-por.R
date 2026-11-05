@@ -186,7 +186,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   por <- names(datos)[[indice_por]]
   if (!is.atomic(datos[[por]])) {
-    .detener("`por` debe nombrar una columna atomica.", call. = FALSE)
+    .detener("`por` debe nombrar una columna at\u00f3mica.", call. = FALSE)
   }
   if (!is.null(clave)) {
     if (!is.character(clave)) {
@@ -317,7 +317,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         n_grupos = length(grupos),
         motivo = paste0(
           "Las etiquetas de grupo son valores de `", por, "`, clasificada como ",
-          clasificada$tipo[1L], ". `perfilar()` enmascara esa columna; aca no, ",
+          clasificada$tipo[1L], ". `perfilar()` enmascara esa columna; ac\u00e1 no, ",
           "porque la etiqueta es el eje del resultado. La salida lleva esos ",
           "valores: agrupe por una columna seudonimizada si no deben publicarse."
         ),
@@ -346,9 +346,14 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
             tipo = "contiene_valor_protegido",
             n_grupos = sum(cambiadas),
             motivo = paste0(
-              sum(cambiadas), " etiqueta(s) de grupo de `", por, "` contienen ",
+              sum(cambiadas),
+              if (sum(cambiadas) == 1L) {
+                " etiqueta de grupo de `"
+              } else {
+                " etiquetas de grupo de `"
+              }, por, "` contienen ",
               "un valor de una columna protegida. `perfilar()` lo enmascara; ",
-              "aca no, porque la etiqueta es el eje del resultado. La salida ",
+              "ac\u00e1 no, porque la etiqueta es el eje del resultado. La salida ",
               "lleva esas etiquetas: agrupe por una columna seudonimizada si no ",
               "deben publicarse."
             ),
@@ -381,7 +386,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     if (length(claves_por)) {
       clave_recortada <- paste0(
         claves_por,
-        " [clave: la columna de agrupacion no esta en la rebanada]"
+        " [clave: la columna de agrupaci\u00f3n no est\u00e1 en la rebanada]"
       )
     }
   }
@@ -417,10 +422,12 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       grupo_perfilado = NA,
       n_filas_grupo = length(grupos[["(ausente)"]]),
       motivo = paste0(
-        "El grupo `(ausente)` junta ", sum(ausentes), " fila(s) con la columna ",
-        "de agrupacion ausente y ", colision, " fila(s) cuyo valor real es el ",
+        "El grupo `(ausente)` junta ", sum(ausentes),
+        if (sum(ausentes) == 1L) " fila con la columna " else " filas con la columna ",
+        "de agrupaci\u00f3n ausente y ", colision,
+        if (colision == 1L) " fila cuyo valor real es el " else " filas cuyo valor real es el ",
         "texto `(ausente)`. Son dos cosas distintas bajo una sola etiqueta: ",
-        "distingalas antes de leer este grupo."
+        "conviene distinguirlas antes de leer este grupo."
       ),
       columnas_descartadas = NA_character_, stringsAsFactors = FALSE
     )
@@ -451,8 +458,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       cobertura[[length(cobertura) + 1L]] <- data.frame(
         grupo = nivel, grupo_perfilado = FALSE, n_filas_grupo = 0L,
         motivo = paste0(
-          "El nivel `", nivel, "` esta declarado en la columna de agrupacion y no ",
-          "tiene ninguna fila: no se perfilo."
+          "El nivel `", nivel, "` est\u00e1 declarado en la columna de agrupaci\u00f3n y no ",
+          "tiene ninguna fila: no se perfil\u00f3."
         ),
         columnas_descartadas = NA_character_, stringsAsFactors = FALSE
       )
@@ -663,7 +670,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         grupo = nombre_grupo, grupo_perfilado = FALSE,
         n_filas_grupo = length(filas),
         motivo = paste0(
-          "El grupo tiene ", length(filas), " filas y `min_filas` es ",
+          "El grupo tiene ", length(filas),
+          if (length(filas) == 1L) " fila y `min_filas` es " else " filas y `min_filas` es ",
           min_filas, ": no se perfilo."
         ),
         columnas_descartadas = NA_character_, stringsAsFactors = FALSE
@@ -712,7 +720,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         for (indice in which(recortar)) {
           registrar_recorte(paste0(
             declaradas[[indice]], " [", arg,
-            ": la columna no esta en la rebanada]"
+            ": la columna no est\u00e1 en la rebanada]"
           ))
         }
         extras_grupo[[arg]] <- declaradas[!recortar]
@@ -754,15 +762,19 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         conservar[[indice]] <- FALSE
         detalles <- character()
         if (destino_falta) {
-          detalles <- c(detalles, "la columna declarada no esta en la rebanada")
+          detalles <- c(detalles, "la columna declarada no est\u00e1 en la rebanada")
         }
         if (length(variables_faltantes)) {
           detalles <- c(
             detalles,
             paste0(
-              "la formula referencia ",
+              "la f\u00f3rmula referencia ",
               paste(unique(variables_faltantes), collapse = ", "),
-              ", ausente(s) de la rebanada"
+              if (length(unique(variables_faltantes)) == 1L) {
+                ", ausente de la rebanada"
+              } else {
+                ", ausentes de la rebanada"
+              }
             )
           )
         }
@@ -782,11 +794,11 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       # ausente, y el texto unico afirmaba que todas lo estaban: falso, y con
       # `columnas_descartadas` vacio, que lo desmentia en la misma fila.
       motivo_grupo <- if (length(descartables)) {
-        "Todas las columnas del grupo estan enteramente ausentes."
+          "Todas las columnas del grupo est\u00e1n enteramente ausentes."
       } else {
         paste(
           "No queda ninguna columna para perfilar en este grupo: la tabla no",
-          "tiene mas columnas que la de agrupacion."
+          "tiene m\u00e1s columnas que la de agrupaci\u00f3n."
         )
       }
       if (length(recortes_declaracion)) {
@@ -950,7 +962,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
             .nombres_para_operar(columnas_centinales_no_evaluables),
         "centinelas_numericos",
         paste(
-          "No se pudo medir la numeracion de la columna `integer64` sin su",
+          "No se pudo medir la numeraci\u00f3n de la columna `integer64` sin su",
           "soporte exacto; el hallazgo del grupo no se publica para no",
           "conjeturar sobre una medida incompleta."
         )
@@ -976,7 +988,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
           motivo_descartes,
           paste0(
             "Se descartaron ", length(descartables),
-            " columnas enteramente ausentes en este grupo antes de perfilar."
+            if (length(descartables) == 1L) {
+              " columna enteramente ausente en este grupo antes de perfilar."
+            } else " columnas enteramente ausentes en este grupo antes de perfilar."
           )
         )
       }
@@ -985,7 +999,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
           motivo_descartes,
           paste0(
             "Se recortaron ", length(recortes_declaracion),
-            " declaraciones porque nombraban columnas que no estan en la",
+            if (length(recortes_declaracion) == 1L) {
+              " declaraci\u00f3n porque nombraba columnas que no est\u00e1n en la"
+            } else " declaraciones porque nombraban columnas que no est\u00e1n en la",
             " rebanada."
           )
         )

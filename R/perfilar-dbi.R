@@ -100,20 +100,20 @@
   )
   if (bytes_sueltos) {
     return(paste0(
-      que, " trae bytes que no son UTF-8 valido y no declara su codificacion ",
+      que, " trae bytes que no son UTF-8 v\u00e1lido y no declara su codificaci\u00f3n ",
       "(LC_CTYPE ", Sys.getlocale("LC_CTYPE"), ", ", l10n_info()[["codeset"]],
-      "): no se puede escribir en la consulta sin adivinarla, asi que no se ",
-      "envio. Es lo que deja ",
+      "): no se puede escribir en la consulta sin adivinarla, as\u00ed que no se ",
+      "envi\u00f3. Es lo que deja ",
       "`read.csv()` sin `fileEncoding` sobre un archivo latin1: leerlo con ",
       "`fileEncoding = \"latin1\"`, o convertirlo con ",
       "`iconv(x, from = \"latin1\", to = \"UTF-8\")`, y volver a pedirlo."
     ))
   }
   paste0(
-    que, " no se puede escribir en la codificacion de la sesion (",
+    que, " no se puede escribir en la codificaci\u00f3n de la sesi\u00f3n (",
     "LC_CTYPE ", Sys.getlocale("LC_CTYPE"), ", ", l10n_info()[["codeset"]],
-    "): odbc pasa la consulta por esa codificacion, asi que no se envio. ",
-    "Correr la sesion con un locale UTF-8 -por ejemplo LC_ALL=C.UTF-8- para ",
+    "): odbc pasa la consulta por esa codificaci\u00f3n, as\u00ed que no se envi\u00f3. ",
+    "Correr la sesi\u00f3n con un locale UTF-8 -por ejemplo LC_ALL=C.UTF-8- para ",
     "leer esta columna o tabla."
   )
 }
@@ -336,7 +336,7 @@
     # de la base. `HAS_PERMS_BY_NAME()` da NULL para una permision que la clase
     # no tiene, y si la consulta falla se pide solo la de la base.
     sql_mascaras <- function(por_columna) paste0(
-      "SELECT m.name AS columna, m.masking_function AS mascara, ",
+      "SELECT m.name AS columna, m.masking_function AS m\u00e1scara, ",
       if (por_columna) paste0(
         "COALESCE(HAS_PERMS_BY_NAME(", objeto,
         ", 'OBJECT', 'UNMASK', QUOTENAME(m.name), 'COLUMN'), 0) AS sin_mascara_columna, "
@@ -531,28 +531,28 @@
 .motivo_columna_sin_permiso_dbi <- function() {
   paste(
     "La credencial no tiene permiso SELECT sobre la columna (lo dice el",
-    "catalogo del motor), asi que no se envio ninguna consulta que la nombre:",
-    "el motor la rechazaria."
+    "cat\u00e1logo del motor), as\u00ed que no se envi\u00f3 ninguna consulta que la nombre:",
+    "el motor la rechazar\u00eda."
   )
 }
 
 .remedio_columna_sin_permiso_dbi <- function() {
   paste(
-    "Las demas columnas se midieron enteras. Para medirla, pedir permiso de",
+    "Las dem\u00e1s columnas se midieron enteras. Para medirla, pedir permiso de",
     "lectura sobre la columna (`GRANT SELECT`)."
   )
 }
 
 .motivo_columna_enmascarada_dbi <- function(mascara = NA_character_) {
   paste0(
-    "La columna esta enmascarada para esta credencial (enmascaramiento ",
+    "La columna est\u00e1 enmascarada para esta credencial (enmascaramiento ",
     "dinamico de SQL Server",
     if (length(mascara) == 1L && !is.na(mascara) && nzchar(mascara)) {
-      paste0(", funcion `", mascara, "`")
+      paste0(", funci\u00f3n `", mascara, "`")
     } else "",
-    "): el motor devuelve la mascara y no el dato. Se publica su completitud,",
-    " que el motor cuenta sin mascara; los distintos, la moda, los extremos,",
-    " la media, la mediana y el desvio describirian la mascara, y la columna no",
+    "): el motor devuelve la m\u00e1scara y no el dato. Se publica su completitud,",
+    " que el motor cuenta sin m\u00e1scara; los distintos, la moda, los extremos,",
+    " la media, la mediana y el desv\u00edo describir\u00edan la m\u00e1scara, y la columna no",
     " entra en la muestra ni en las relaciones."
   )
 }
@@ -560,7 +560,7 @@
 .remedio_columna_enmascarada_dbi <- function() {
   paste(
     "Perfilar con una credencial con permiso `UNMASK` sobre la columna o la",
-    "base para medir sus valores; las demas columnas se midieron enteras."
+    "base para medir sus valores; las dem\u00e1s columnas se midieron enteras."
   )
 }
 
@@ -572,11 +572,11 @@
   for (campo in esquema$ilegibles) {
     sin_permiso <- campo %in% esquema$sin_permiso
     como <- if (campo %in% esquema$no_representables) {
-      "Correr la sesion con un locale UTF-8; las demas columnas se midieron enteras."
+      "Correr la sesi\u00f3n con un locale UTF-8; las dem\u00e1s columnas se midieron enteras."
     } else if (sin_permiso) {
       .remedio_columna_sin_permiso_dbi()
     } else paste(
-      "Las demas columnas se midieron enteras. Revisar el tipo de la",
+      "Las dem\u00e1s columnas se midieron enteras. Revisar el tipo de la",
       "columna y los permisos a nivel de columna."
     )
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -635,7 +635,7 @@
     .detener_dbi(
       "lupa_error_transaccion_dbi",
       paste0(
-        "La via DBI no puede continuar: SQL Server recibio una transaccion",
+        "La v\u00eda DBI no puede continuar: SQL Server recibi\u00f3 una transacci\u00f3n",
         " no utilizable antes de `", etapa, "` (@@TRANCOUNT = ",
         estado$trancount, ", XACT_STATE() = ", estado$xact_state, ")."
       ),
@@ -662,15 +662,15 @@
       (despues$trancount != vigilancia$antes$trancount ||
        despues$xact_state != vigilancia$antes$xact_state)) {
     sujeto <- if (isTRUE(vigilancia$antes$implicit_transactions)) {
-      "una transaccion implicita de la sesion"
-    } else "la transaccion del usuario"
+      "una transacci\u00f3n impl\u00edcita de la sesi\u00f3n"
+    } else "la transacci\u00f3n del usuario"
     mensaje <- paste0(
-      "La via DBI detecto que SQL Server cambio ", sujeto,
+      "La v\u00eda DBI detect\u00f3 que SQL Server cambi\u00f3 ", sujeto,
       " durante `", etapa_detectada, "`: antes @@TRANCOUNT = ",
       vigilancia$antes$trancount, ", XACT_STATE() = ",
-      vigilancia$antes$xact_state, "; despues @@TRANCOUNT = ",
+      vigilancia$antes$xact_state, "; despu\u00e9s @@TRANCOUNT = ",
       despues$trancount, ", XACT_STATE() = ", despues$xact_state,
-      ". Se detiene la via y no se continua leyendo fuera de esa transaccion."
+      ". Se detiene la v\u00eda y no se contin\u00faa leyendo fuera de esa transacci\u00f3n."
     )
     .detener_dbi(
       "lupa_error_transaccion_dbi", mensaje,
@@ -1028,20 +1028,20 @@
   )
   if (isTRUE(l10n_info()[["UTF-8"]])) {
     return(paste0(
-      "El controlador entrego ", columna, " en latin1 con la marca UTF-8 (",
-      sesion, "): se leyo como latin1, que es lo que es, y no como texto UTF-8 ",
-      "roto. Un caracter que no esta en latin1 llega como `?`, reemplazado por ",
+      "El controlador entreg\u00f3 ", columna, " en latin1 con la marca UTF-8 (",
+      sesion, "): se ley\u00f3 como latin1, que es lo que es, y no como texto UTF-8 ",
+      "roto. Un car\u00e1cter que no est\u00e1 en latin1 llega como `?`, reemplazado por ",
       "el controlador antes de leerlo, y no se puede recuperar."
     ))
   }
   paste0(
-    "La sesion no es UTF-8 (", sesion, "): el controlador ODBC -FreeTDS lo ",
+    "La sesi\u00f3n no es UTF-8 (", sesion, "): el controlador ODBC -FreeTDS lo ",
     "hace- entrega ", columna, ", texto no Unicode, en latin1, y odbc lo marca ",
     "UTF-8 sin convertirlo",
     if (isTRUE(en_latin1)) {
       "; los valores con tilde se leyeron como latin1, que es lo que son, y no como texto UTF-8 roto"
     } else "",
-    ". Un caracter que no esta en latin1 llega como `?`, reemplazado por el ",
+    ". Un car\u00e1cter que no est\u00e1 en latin1 llega como `?`, reemplazado por el ",
     "controlador antes de leerlo: no se distingue de un `?` escrito."
   )
 }
@@ -1055,7 +1055,7 @@
     )
   } else {
     paste(
-      "Correr la sesion con un locale UTF-8 -por ejemplo LC_ALL=C.UTF-8- para",
+      "Correr la sesi\u00f3n con un locale UTF-8 -por ejemplo LC_ALL=C.UTF-8- para",
       "leer el texto sin reemplazos."
     )
   }
@@ -1292,7 +1292,7 @@
   if (!is.function(codigo)) {
     .detener_dbi(
       "lupa_error_interno_dbi",
-      "La guarda de transaccion recibio una operacion que no se puede diferir."
+    "La guarda de transacci\u00f3n recibi\u00f3 una operaci\u00f3n que no se puede diferir."
     )
   }
   if (is.null(guarda)) {
@@ -2536,7 +2536,7 @@
   estado$estimacion_derrame <- list(
     estado = "no_solicitado", disponible = FALSE, es_estimacion = TRUE,
     fuente = NA_character_, motivo = paste(
-      "No se solicito una estimacion de derrame porque no se pidio",
+      "No se solicit\u00f3 una estimaci\u00f3n de derrame porque no se pidi\u00f3",
       "COUNT(DISTINCT) exacto."
     ), work_mem = NA_character_, work_mem_bytes = NA_real_,
     hash_mem_multiplier = NA_real_, hash_mem_multiplier_disponible = FALSE,
@@ -2545,17 +2545,17 @@
     lotes_sobre_memoria = integer()
   )
   estado$estimacion_derrame_moda <- .estimacion_derrame_familia_vacia_dbi(
-    "moda", "No se solicito una estimacion de derrame para la moda."
+    "moda", "No se solicit\u00f3 una estimaci\u00f3n de derrame para la moda."
   )
   estado$estimacion_derrame_mediana <- .estimacion_derrame_familia_vacia_dbi(
-    "mediana", "No se solicito una estimacion de derrame para la mediana."
+    "mediana", "No se solicit\u00f3 una estimaci\u00f3n de derrame para la mediana."
   )
   # La lectura de pg_stat_statements es opcional: si el servidor no la expone,
   # el informe conserva la incertidumbre y no deduce un derrame del reloj.
   estado$derrame <- list(
     estado = "no_solicitado", disponible = FALSE,
     fuente = NA_character_, motivo = paste(
-      "No se solicito una medicion de derrame porque no se pidio",
+      "No se solicit\u00f3 una medici\u00f3n de derrame porque no se pidi\u00f3",
       "COUNT(DISTINCT) exacto."
     ), consultas = NULL
   )
@@ -2586,8 +2586,8 @@
 }
 
 .proyeccion_distintos_vacia_dbi <- function(n_lotes, motivo = paste(
-    "No hay una duracion medida del primer lote de distintos en esta corrida;",
-    "no se publica una proyeccion temporal."
+    "No hay una duraci\u00f3n medida del primer lote de distintos en esta corrida;",
+    "no se publica una proyecci\u00f3n temporal."
   )) {
   list(
     disponible = FALSE, duracion_estimada_ms = NA_real_,
@@ -2606,7 +2606,7 @@
     return(.proyeccion_distintos_vacia_dbi(
       n_lotes,
       paste(
-        "Hay un solo lote de distintos: el costo ya se pago y no hay nada",
+        "Hay un solo lote de distintos: el costo ya se pag\u00f3 y no hay nada",
         "que proyectar ni que evitar."
       )
     ))
@@ -2631,12 +2631,16 @@
     n_referencias = as.integer(length(duraciones)),
     fuente = paste(
       "mediana de", length(duraciones),
-      "consulta(s) del primer lote de distintos medidas en esta corrida"
+      if (length(duraciones) == 1L) {
+        "consulta del primer lote de distintos medido en esta corrida"
+      } else {
+        "consultas del primer lote de distintos medidas en esta corrida"
+      }
     ),
     motivo = paste(
-      "La proyeccion usa la mediana del primer lote de `COUNT(DISTINCT)`",
+      "La proyecci\u00f3n usa la mediana del primer lote de `COUNT(DISTINCT)`",
       "medido en esta corrida y la multiplica por la cantidad de lotes; es",
-      "una estimacion, no una medicion del agregado exacto total."
+      "una estimaci\u00f3n, no una medici\u00f3n del agregado exacto total."
     )
   )
 }
@@ -2670,8 +2674,8 @@
 
 .proyeccion_moda_vacia_dbi <- function(
     motivo = paste(
-      "No hay una duracion medida de una moda y una cardinalidad utilizable",
-      "en esta corrida; no se publica una proyeccion temporal."
+      "No hay una duraci\u00f3n medida de una moda y una cardinalidad utilizable",
+      "en esta corrida; no se publica una proyecci\u00f3n temporal."
     ), columnas_sin_cardinalidad = character()) {
   list(
     disponible = FALSE, duracion_estimada_ms = NA_real_,
@@ -2686,7 +2690,7 @@
 .proyectar_costo_moda_dbi <- function(presupuesto, cardinalidades) {
   if (is.null(cardinalidades)) {
     return(.proyeccion_moda_vacia_dbi(
-      "No se recibio la cardinalidad de las columnas pendientes; no se puede proyectar la moda."
+      "No se recibi\u00f3 la cardinalidad de las columnas pendientes; no se puede proyectar la moda."
     ))
   }
   if (is.numeric(cardinalidades)) {
@@ -2697,7 +2701,7 @@
   }
   if (!is.list(cardinalidades) || !length(cardinalidades)) {
     return(.proyeccion_moda_vacia_dbi(
-      "No hay modas pendientes con cardinalidad; no se publica una proyeccion."
+      "No hay modas pendientes con cardinalidad; no se publica una proyecci\u00f3n."
     ))
   }
   nombres <- names(cardinalidades)
@@ -2731,7 +2735,7 @@
         "No hay una primera moda medida en esta corrida para convertir la",
         "cardinalidad en tiempo; no se puede proyectar la moda.",
         if (length(sin_cardinalidad)) paste(
-          "Tambien falta cardinalidad para:", paste(sin_cardinalidad, collapse = ", ")
+          "Tambi\u00e9n falta cardinalidad para:", paste(sin_cardinalidad, collapse = ", ")
         ) else ""
       ),
       columnas_sin_cardinalidad = sin_cardinalidad
@@ -2754,7 +2758,7 @@
   tasas <- tasas[is.finite(tasas) & tasas > 0]
   if (!length(tasas)) {
     return(.proyeccion_moda_vacia_dbi(
-      "Las modas ya medidas no tienen una duracion utilizable para convertir la cardinalidad.",
+      "Las modas ya medidas no tienen una duraci\u00f3n utilizable para convertir la cardinalidad.",
       columnas_sin_cardinalidad = sin_cardinalidad
     ))
   }
@@ -2763,7 +2767,7 @@
   estimada <- referencia * unidades
   if (!is.finite(estimada)) {
     return(.proyeccion_moda_vacia_dbi(
-      "La proyeccion de la moda no es finita; no se publica un numero.",
+      "La proyecci\u00f3n de la moda no es finita; no se publica un n\u00famero.",
       columnas_sin_cardinalidad = sin_cardinalidad
     ))
   }
@@ -2776,7 +2780,7 @@
     }
   }, character(1L))
   motivo <- paste(
-    "La proyeccion usa la mediana de las tasas ms por distinto de las modas",
+    "La proyecci\u00f3n usa la mediana de las tasas ms por distinto de las modas",
     "medidas en esta corrida y la multiplica por la cardinalidad disponible",
     "de las columnas pendientes. Fuentes de cardinalidad:",
     paste0(paste(unique(fuentes_disponibles), collapse = ", "), "."),
@@ -2793,7 +2797,11 @@
     n_referencias = as.integer(length(tasas)),
     fuente = paste(
       "mediana de", length(tasas),
-      "moda(s) medida(s) en esta corrida (ms por distinto)"
+      if (length(tasas) == 1L) {
+        "moda medida en esta corrida (ms por distinto)"
+      } else {
+        "modas medidas en esta corrida (ms por distinto)"
+      }
     ),
     columnas_sin_cardinalidad = as.character(sin_cardinalidad),
     fuentes_cardinalidad = unique(fuentes_disponibles),
@@ -2815,7 +2823,7 @@
     return(invisible(FALSE))
   }
   detalle <- if (length(proyeccion$columnas_sin_cardinalidad)) paste(
-    " La proyeccion es parcial porque no hay cardinalidad para:",
+    " La proyecci\u00f3n es parcial porque no hay cardinalidad para:",
     paste0(paste(proyeccion$columnas_sin_cardinalidad, collapse = ", "), ".")
   ) else ""
   detalle_fuente <- if (length(proyeccion$fuentes_cardinalidad)) paste(
@@ -2825,8 +2833,10 @@
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de la moda: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
-    proyeccion$n_columnas, " columna(s). Fuente: ", proyeccion$fuente,
-    ". Es una estimacion, no una medicion.", detalle_fuente, detalle
+    proyeccion$n_columnas,
+    if (proyeccion$n_columnas == 1L) " columna. Fuente: " else " columnas. Fuente: ",
+    proyeccion$fuente,
+      ". Es una estimaci\u00f3n, no una medici\u00f3n.", detalle_fuente, detalle
   ))))
   invisible(TRUE)
 }
@@ -2868,7 +2878,7 @@
   } else NA_real_
   if (length(valor) == 1L && is.finite(valor) && !is.na(valor) && valor >= 0) {
     return(list(
-      disponible = TRUE, n_distintos = valor, fuente = "medicion de la corrida",
+      disponible = TRUE, n_distintos = valor, fuente = "medici\u00f3n de la corrida",
       motivo = "La cardinalidad sale del agregado disponible antes de la moda."
     ))
   }
@@ -2890,7 +2900,7 @@
     ))
   }
   motivo <- if (is.null(fuente) || is.null(fuente$motivo)) {
-    "No hay cardinalidad medida, estructural ni de catalogo para esta columna."
+    "No hay cardinalidad medida, estructural ni de cat\u00e1logo para esta columna."
   } else {
     as.character(fuente$motivo)
   }
@@ -2936,8 +2946,8 @@
 
 .proyeccion_mediana_vacia_dbi <- function(
     motivo = paste(
-      "No hay una duracion medida de mediana en esta corrida y no se",
-      "publica una proyeccion temporal."
+      "No hay una duraci\u00f3n medida de mediana en esta corrida y no se",
+      "publica una proyecci\u00f3n temporal."
     )) {
   list(
     disponible = FALSE, duracion_estimada_ms = NA_real_,
@@ -2956,7 +2966,7 @@
   if (length(filas) != 1L || is.na(filas) || !is.finite(filas) || filas <= 0 ||
       length(medianas) != 1L || is.na(medianas) || !is.finite(medianas) ||
       medianas < 1) {
-    vacia$motivo <- "No hay un numero utilizable de filas o medianas pendientes; no se puede proyectar la mediana."
+    vacia$motivo <- "No hay un n\u00famero utilizable de filas o medianas pendientes; no se puede proyectar la mediana."
     return(vacia)
   }
   referencias <- if (is.null(presupuesto)) list() else presupuesto$referencias_mediana
@@ -2983,10 +2993,14 @@
     referencia <- stats::median(tasas)
     fuente <- paste(
       "mediana de", length(tasas),
-      "consulta(s) de mediana medida(s) en esta corrida (ms por fila)"
+      if (length(tasas) == 1L) {
+        "consulta de mediana medida en esta corrida (ms por fila)"
+      } else {
+        "consultas de medianas medidas en esta corrida (ms por fila)"
+      }
     )
     motivo <- paste(
-      "La proyeccion usa la mediana de las tasas ms por fila de las",
+      "La proyecci\u00f3n usa la mediana de las tasas ms por fila de las",
       "medianas medidas en esta corrida y la multiplica por las filas y",
       "medianas pendientes."
     )
@@ -2999,18 +3013,18 @@
       .formatear_numero_publicado(
         .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI
       ),
-      "ms por millon de filas"
+      "ms por mill\u00f3n de filas"
     )
     motivo <- paste(
-      "No hubo una primera medicion local de mediana en esta corrida; se",
+      "No hubo una primera medici\u00f3n local de mediana en esta corrida; se",
       "usa la referencia de banco declarada de otra corrida, no como una",
-      "medicion local."
+      "medici\u00f3n local."
     )
     declarada <- TRUE
   } else {
     vacia$motivo <- paste(
-      "Todavia no hay una primera medicion local de mediana para convertir",
-      "las filas en tiempo; la referencia de banco solo se usa cuando no hay",
+      "Todav\u00eda no hay una primera medici\u00f3n local de mediana para convertir",
+      "las filas en tiempo; la referencia de banco s\u00f3lo se usa cuando no hay",
       "una mediana total local que pueda proyectarse."
     )
     return(vacia)
@@ -3033,14 +3047,14 @@
         )
         motivo <- paste(
           motivo,
-          "La proyeccion no baja de la cota observada de lectura de la consulta que obtuvo las filas; esa cota no es una medicion de mediana.",
+          "La proyecci\u00f3n no baja de la cota observada de lectura de la consulta que obtuvo las filas; esa cota no es una medici\u00f3n de mediana.",
           sep = " "
         )
       }
     }
   }
   if (!is.finite(estimada)) {
-    vacia$motivo <- "La proyeccion de la mediana no es finita; no se publica un numero."
+    vacia$motivo <- "La proyecci\u00f3n de la mediana no es finita; no se publica un n\u00famero."
     return(vacia)
   }
   list(
@@ -3069,8 +3083,10 @@
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de la mediana: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
-    proyeccion$n_medianas, " mediana(s) sobre ",
-    .entero_sql_dbi(proyeccion$n_filas), " filas. Fuente: ",
+    proyeccion$n_medianas,
+    if (proyeccion$n_medianas == 1L) " mediana sobre " else " medianas sobre ",
+    .entero_sql_dbi(proyeccion$n_filas),
+    if (proyeccion$n_filas == 1L) " fila. Fuente: " else " filas. Fuente: ",
     proyeccion$fuente, ". ", proyeccion$motivo
   ))))
   invisible(TRUE)
@@ -3167,11 +3183,11 @@
     umbral_proyeccion_ms = .MAX_PROYECCION_NEWID_MS_DBI,
     condiciones = condiciones,
     razon = if (aceptado) {
-      "NEWID fue aceptado dentro de los tres limites de la politica de costo."
+      "NEWID fue aceptado dentro de los tres l\u00edmites de la pol\u00edtica de costo."
     } else {
       paste(
-        "NEWID no se ejecuta: la proyeccion conservadora o el tamano y la",
-        "fraccion de la muestra quedan fuera de la politica."
+        "NEWID no se ejecuta: la proyecci\u00f3n conservadora o el tama\u00f1o y la",
+        "fracci\u00f3n de la muestra quedan fuera de la pol\u00edtica."
       )
     }
   )
@@ -3196,13 +3212,13 @@
     }
     guardia$razon <- if (isTRUE(guardia$aceptado)) {
       paste0(
-        funcion, " fue aceptado dentro de los tres limites de la politica de",
+        funcion, " fue aceptado dentro de los tres l\u00edmites de la pol\u00edtica de",
         " costo."
       )
     } else {
       paste(
-        funcion, "no se ejecuta: la proyeccion conservadora o el tamano y la",
-        "fraccion de la muestra quedan fuera de la politica."
+        funcion, "no se ejecuta: la proyecci\u00f3n conservadora o el tama\u00f1o y la",
+        "fracci\u00f3n de la muestra quedan fuera de la pol\u00edtica."
       )
     }
   }
@@ -3224,7 +3240,7 @@
       (!is.infinite(valor) && !is.finite(valor))) {
     .detener_dbi(
       "lupa_error_argumento_dbi",
-      paste0("`", nombre, "` debe ser un numero no negativo o Inf.")
+      paste0("`", nombre, "` debe ser un n\u00famero no negativo o Inf.")
     )
   }
   as.numeric(valor)
@@ -3246,9 +3262,11 @@
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de `COUNT(DISTINCT)`: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
-    proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
-    ". Es una estimacion, no una medicion; el derrame real se informa",
-    " despues si la instrumentacion del servidor lo permite."
+    proyeccion$n_lotes,
+    if (proyeccion$n_lotes == 1L) " lote. Fuente: " else " lotes. Fuente: ",
+    proyeccion$fuente,
+    ". Es una estimaci\u00f3n, no una medici\u00f3n; el derrame real se informa",
+    " despu\u00e9s si la instrumentaci\u00f3n del servidor lo permite."
   ))))
   invisible(NULL)
 }
@@ -3343,7 +3361,7 @@
 }
 
 .denominador_catalogo_vacio_dbi <- function(
-    motivo = "No hay una estimacion utilizable de `pg_class.reltuples`.") {
+    motivo = "No hay una estimaci\u00f3n utilizable de `pg_class.reltuples`.") {
   list(
     disponible = FALSE, estado = "no_disponible", filas = NA_real_,
     fuente = NA_character_, n_relaciones = 0L, motivo = motivo
@@ -3359,7 +3377,7 @@
     "relacion_oid", "reltuples", "hoja"
   ) %in% names(datos))) {
     vacio$motivo <- paste(
-      "La respuesta del catalogo no trae la jerarquia y `reltuples` necesarios;",
+      "La respuesta del cat\u00e1logo no trae la jerarqu\u00eda y `reltuples` necesarios;",
       "se conserva `sin dato filas`."
     )
     return(vacio)
@@ -3370,8 +3388,8 @@
                             , drop = FALSE]
   if (!nrow(relaciones)) {
     vacio$motivo <- paste(
-      "El catalogo no devolvio relaciones hoja visibles; no hay una",
-      "estimacion utilizable de `pg_class.reltuples`."
+      "El cat\u00e1logo no devolvi\u00f3 relaciones hoja visibles; no hay una",
+      "estimaci\u00f3n utilizable de `pg_class.reltuples`."
     )
     return(vacio)
   }
@@ -3397,8 +3415,8 @@
     fuente = "pg_class.reltuples", n_relaciones = as.integer(nrow(relaciones)),
     motivo = paste(
       "Las filas se estiman como la suma de `pg_class.reltuples` de las",
-      "relaciones hoja de la jerarquia ya leida. Es una estimacion de catalogo,",
-      "no una medicion del universo de la tabla."
+      "relaciones hoja de la jerarqu\u00eda ya le\u00edda. Es una estimaci\u00f3n de cat\u00e1logo,",
+      "no una medici\u00f3n del universo de la tabla."
     )
   )
 }
@@ -3428,7 +3446,7 @@
   if (!length(posicion_work)) {
     return(list(
       ok = FALSE, motivo = paste(
-        "No se pudo estimar el derrame: `pg_settings` no devolvio `work_mem`."
+        "No se pudo estimar el derrame: `pg_settings` no devolvi\u00f3 `work_mem`."
       )
     ))
   }
@@ -3437,7 +3455,7 @@
   if (!is.finite(work_bytes)) {
     return(list(
       ok = FALSE, motivo = paste0(
-        "No se pudo estimar el derrame: `SHOW work_mem` devolvio un valor",
+        "No se pudo estimar el derrame: `SHOW work_mem` devolvi\u00f3 un valor",
         " no interpretable (", work_texto, ")."
       )
     ))
@@ -3454,7 +3472,7 @@
     hash_disponible <- is.finite(multiplicador) && multiplicador > 0
     if (!hash_disponible) {
       multiplicador <- 1
-      motivo_hash <- "`SHOW hash_mem_multiplier` devolvio un valor no utilizable."
+      motivo_hash <- "`SHOW hash_mem_multiplier` devolvi\u00f3 un valor no utilizable."
     }
   } else {
     motivo_hash <- paste(
@@ -3481,7 +3499,7 @@
   if (is.null(piezas$tabla) || length(piezas$tabla) != 1L ||
       is.na(piezas$tabla) || !nzchar(piezas$tabla)) {
     return(list(
-      ok = FALSE, motivo = "No se pudo identificar la relacion para consultar `pg_stats`."
+      ok = FALSE, motivo = "No se pudo identificar la relaci\u00f3n para consultar `pg_stats`."
     ))
   }
   citar <- function(valor) as.character(DBI::dbQuoteString(conexion, valor))
@@ -3571,7 +3589,7 @@
   if (!isTRUE(exacto)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       "no_solicitado", paste(
-        "No se solicito una estimacion de derrame porque la estrategia de",
+        "No se solicit\u00f3 una estimaci\u00f3n de derrame porque la estrategia de",
         "distintos no emite `COUNT(DISTINCT)` exacto."
       )
     ))
@@ -3579,7 +3597,7 @@
   if (identical(universo, "muestra_motor")) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       motivo = paste(
-        "No se pudo estimar el derrame de una muestra con las estadisticas",
+        "No se pudo estimar el derrame de una muestra con las estad\u00edsticas",
         "de la tabla completa; no se inventa una equivalencia."
       )
     ))
@@ -3587,7 +3605,7 @@
   if (!length(columnas)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       "no_solicitado", paste(
-        "No se solicito una estimacion de derrame porque no hay columnas",
+        "No se solicit\u00f3 una estimaci\u00f3n de derrame porque no hay columnas",
         "que vayan a pasar por `COUNT(DISTINCT)`."
       )
     ))
@@ -3639,18 +3657,18 @@
     motivo <- NULL
     if (!nrow(relaciones)) {
       motivo <- paste(
-        "`pg_stats` no devolvio ninguna relacion visible; la tabla puede no",
+        "`pg_stats` no devolvi\u00f3 ninguna relaci\u00f3n visible; la tabla puede no",
         "haber sido `ANALYZE` o la credencial puede no tener privilegios sobre",
         "sus columnas."
       )
     } else if (!length(filas)) {
       motivo <- paste(
-        "`pg_stats` no devolvio una fila para esta columna; puede no haber",
+        "`pg_stats` no devolvi\u00f3 una fila para esta columna; puede no haber",
         "`ANALYZE` o la credencial puede no tener privilegio sobre la columna."
       )
     } else if (length(faltantes)) {
       motivo <- paste(
-        "No hay una estadistica visible para todas las relaciones que se",
+        "No hay una estad\u00edstica visible para todas las relaciones que se",
         "leen; faltan particiones o columnas sin `ANALYZE`/permiso."
       )
     }
@@ -3762,14 +3780,14 @@
   if (!n_estimadas) {
     estado <- "no_disponible"
     motivo <- paste(
-      "No se pudo estimar el derrame: `pg_stats` no devolvio estadisticas",
+      "No se pudo estimar el derrame: `pg_stats` no devolvi\u00f3 estad\u00edsticas",
       "utilizables para las columnas de `COUNT(DISTINCT)`."
     )
   } else if (n_estimadas < length(columnas)) {
     estado <- "parcial"
     motivo <- paste(
-      "La estimacion de derrame es parcial: no se pudo estimar al menos una",
-      "columna. No se afirma que el hash quede dentro o fuera del limite para",
+      "La estimaci\u00f3n de derrame es parcial: no se pudo estimar al menos una",
+      "columna. No se afirma que el hash quede dentro o fuera del l\u00edmite para",
       "los lotes incompletos."
     )
   } else {
@@ -3777,9 +3795,9 @@
     motivo <- paste(
       "El tama\u00f1o del hash se estima con `pg_stats.n_distinct`,",
       "`pg_stats.avg_width` y `pg_class.reltuples`. `n_distinct` viene de una",
-      "muestra y puede quedar corto: esto es una estimacion, no una medicion.",
-      "Que el tama\u00f1o estimado quede dentro del limite no demuestra que no haya",
-      "derrame; si se mide despues, manda `pg_stat_statements`."
+      "muestra y puede quedar corto: esto es una estimaci\u00f3n, no una medici\u00f3n.",
+      "Que el tama\u00f1o estimado quede dentro del l\u00edmite no demuestra que no haya",
+      "derrame; si se mide despu\u00e9s, manda `pg_stat_statements`."
     )
   }
   if (length(no_estimadas_df)) {
@@ -3814,9 +3832,9 @@
 }
 
 .limite_decision_derrame_dbi <- function(estimacion, familia = NULL) {
-  if (is.null(estimacion)) return("no resoluble: falta la estimacion")
+  if (is.null(estimacion)) return("no resoluble: falta la estimaci\u00f3n")
   if (identical(estimacion$metodo, "por_columna")) {
-    return("no resoluble: las columnas usan metodos de memoria distintos")
+    return("no resoluble: las columnas usan m\u00e9todos de memoria distintos")
   }
   valor <- if (identical(estimacion$metodo, "sort") ||
                identical(familia, "mediana")) {
@@ -3824,7 +3842,7 @@
   } else estimacion$memoria_efectiva
   if (is.null(valor) || length(valor) != 1L || is.na(valor) ||
       !nzchar(as.character(valor))) {
-    return("no resoluble: el limite del motor no estuvo disponible")
+    return("no resoluble: el l\u00edmite del motor no estuvo disponible")
   }
   as.character(valor)
 }
@@ -3833,7 +3851,7 @@
   fuente <- estimacion$fuente_denominador
   if (is.null(fuente) || length(fuente) != 1L || is.na(fuente) ||
       !nzchar(fuente)) {
-    fuente <- "estimacion de catalogo"
+    fuente <- "estimaci\u00f3n de cat\u00e1logo"
   }
   as.character(fuente)
 }
@@ -3889,14 +3907,14 @@
   if (sin_valor(metodo)) metodo <- "no determinado"
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Derrame potencial estimado", etiqueta,
-    " (es una estimacion, no una medicion): ",
+    " (es una estimaci\u00f3n, no una medici\u00f3n): ",
     detalle, " supera el `work_mem` vigente de ", work_mem,
-    ". Metodo: ", metodo, ". Limite de decision: ", limite,
+    ". M\u00e9todo: ", metodo, ". L\u00edmite de decisi\u00f3n: ", limite,
     ". Denominador: con ",
     .denominador_derrame_dbi(estimacion), ". ",
-    "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
-    " derrame; lupa no modifica la configuracion. El derrame real, si ocurre,",
-    " se informa despues mediante `pg_stat_statements`."
+    "Subir `work_mem` en esta sesi\u00f3n por encima de ese tama\u00f1o puede evitar el",
+    " derrame; lupa no modifica la configuraci\u00f3n. El derrame real, si ocurre,",
+    " se informa despu\u00e9s mediante `pg_stat_statements`."
   ))))
   invisible(TRUE)
 }
@@ -3973,7 +3991,7 @@
       !nrow(explicacion$datos)) {
     return(list(
       ok = FALSE, metodo = NA_character_, motivo = paste(
-        "No se pudo derivar el metodo de la moda desde `EXPLAIN (FORMAT JSON,",
+        "No se pudo derivar el m\u00e9todo de la moda desde `EXPLAIN (FORMAT JSON,",
         "COSTS OFF)`.", if (is.null(explicacion$motivo)) "" else explicacion$motivo
       )
     ))
@@ -4036,7 +4054,7 @@
   }
   list(
     ok = FALSE, metodo = NA_character_, motivo = paste(
-      "`EXPLAIN` no devolvio una estrategia `Hashed` o `Sorted` para el",
+      "`EXPLAIN` no devolvi\u00f3 una estrategia `Hashed` o `Sorted` para el",
       "nodo Aggregate de la moda."
     )
   )
@@ -4073,7 +4091,7 @@
     "avg_width", "null_frac"
   ) %in% names(datos))) {
     return(list(ok = FALSE, motivo = paste(
-      "La respuesta del catalogo no contiene `null_frac`, `avg_width` y",
+      "La respuesta del cat\u00e1logo no contiene `null_frac`, `avg_width` y",
       "`reltuples` para estimar la salida."
     )))
   }
@@ -4088,7 +4106,7 @@
                  , drop = FALSE]
   if (!nrow(relaciones) || !nrow(filas)) {
     return(list(ok = FALSE, motivo = paste(
-      "No hay estadisticas visibles para todas las relaciones hoja de la",
+      "No hay estad\u00edsticas visibles para todas las relaciones hoja de la",
       "columna; puede faltar `ANALYZE` o permiso de lectura."
     )))
   }
@@ -4098,7 +4116,7 @@
   )
   if (length(faltantes)) {
     return(list(ok = FALSE, motivo = paste(
-      "No hay una estadistica para todas las relaciones hoja de la columna."
+      "No hay una estad\u00edstica para todas las relaciones hoja de la columna."
     )))
   }
   n_validos <- numeric(nrow(filas))
@@ -4126,7 +4144,7 @@
   distintos <- sum(n_distintos)
   ancho <- if (validos > 0) sum(n_validos * anchos) / validos else mean(anchos)
   if (!is.finite(validos) || !is.finite(distintos) || !is.finite(ancho)) {
-    return(list(ok = FALSE, motivo = "La suma de las estadisticas no es utilizable."))
+    return(list(ok = FALSE, motivo = "La suma de las estad\u00edsticas no es utilizable."))
   }
   tipo <- tipos[!is.na(tipos) & nzchar(tipos)]
   list(
@@ -4150,13 +4168,13 @@
   if (identical(universo, "muestra_motor")) {
     return(vacia(motivo = paste(
       "No se pudo estimar el derrame de", familia,
-      "sobre `muestra_motor` con estadisticas de la tabla completa; no se",
+      "sobre `muestra_motor` con estad\u00edsticas de la tabla completa; no se",
       "inventa una equivalencia."
     )))
   }
   if (!length(columnas)) {
     return(vacia("no_solicitado", paste(
-      "No se solicito una estimacion de derrame porque no hay columnas que",
+      "No se solicit\u00f3 una estimaci\u00f3n de derrame porque no hay columnas que",
       "vayan a emitir", familia, "."
     )))
   }
@@ -4325,16 +4343,16 @@
     n_estimadas < length(columnas)
   ) "parcial" else "estimado"
   motivo <- if (identical(familia, "moda")) paste(
-    "El metodo de la moda sale del nodo Aggregate de la consulta exacta",
+    "El m\u00e9todo de la moda sale del nodo Aggregate de la consulta exacta",
     "mediante `EXPLAIN (FORMAT JSON, COSTS OFF)` sin ANALYZE. El estado hash",
     "usa `n_distinct * (avg_width + 64)`; el estado sort usa la huella de",
-    "decision y el tape declarados por familia. Las estadisticas pueden estar",
+    "decisi\u00f3n y el tape declarados por familia. Las estad\u00edsticas pueden estar",
     "viejas: un margen no demuestra que no haya derrame."
   ) else paste(
     "La mediana se estima como un sort de los valores no nulos. La huella de",
-    "decision usa `n_validos * (avg_width + 24)` con piso por familia y el",
+    "decisi\u00f3n usa `n_validos * (avg_width + 24)` con piso por familia y el",
     "tape `n_validos * (avg_width + 8)` es informativo; el tape nunca decide.",
-    "El limite de la mediana es `work_mem`, sin multiplicador."
+    "El l\u00edmite de la mediana es `work_mem`, sin multiplicador."
   )
   if (length(no_estimadas_df)) motivo <- paste(
     motivo, paste(no_estimadas_df$columna, no_estimadas_df$motivo,
@@ -4398,7 +4416,7 @@
   estimacion$fuente_denominador <- if (tiene_medido) {
     "n_validos medido"
   } else {
-    "estimacion de catalogo"
+    "estimaci\u00f3n de cat\u00e1logo"
   }
   if (tiene_medido) {
     for (i in seq_len(nrow(estimacion$columnas))) {
@@ -4427,16 +4445,16 @@
       estimacion$fuente <- paste(
         estimacion$fuente,
         "n_validos medido por los agregados planos de esta corrida cuando la",
-        "familia `validos` fue solicitada; avg_width y el resto vienen del catalogo."
+        "familia `validos` fue solicitada; avg_width y el resto vienen del cat\u00e1logo."
       )
       estimacion$motivo <- paste(
-        estimacion$motivo, "Para esta salida se uso `n_validos` medido cuando",
-        "estuvo disponible; las columnas sin medicion conservan el catalogo."
+        estimacion$motivo, "Para esta salida se us\u00f3 `n_validos` medido cuando",
+        "estuvo disponible; las columnas sin medici\u00f3n conservan el cat\u00e1logo."
       )
     }
   } else if (identical(salida, "meta")) {
     estimacion$motivo <- paste(
-      estimacion$motivo, "No se midio `n_validos` para esta salida porque",
+      estimacion$motivo, "No se midi\u00f3 `n_validos` para esta salida porque",
       "la familia `validos` no fue solicitada o su consulta no fue utilizable;",
       "se conserva el `n_validos_catalogo` del plan."
     )
@@ -4812,8 +4830,9 @@
 
 .motivo_presupuesto_dbi <- function(presupuesto) {
   paste0(
-    "Se agoto el presupuesto declarado en `max_consultas` (",
-    format(presupuesto$max, scientific = FALSE), " consultas)."
+    "Se agot\u00f3 el presupuesto declarado en `max_consultas` (",
+    format(presupuesto$max, scientific = FALSE),
+    if (presupuesto$max == 1L) " consulta)." else " consultas)."
   )
 }
 
@@ -5078,7 +5097,7 @@
     ),
     portable = list(
       nombre = "portable",
-      descripcion = "sin clausula de limite: se acota con dbSendQuery() y dbFetch(n)",
+      descripcion = "sin cl\u00e1usula de l\u00edmite: se acota con dbSendQuery() y dbFetch(n)",
       motores = "cualquier motor con DBI",
       patron = NA_character_,
       alias_tabla = function(nombre) paste0(" AS ", nombre),
@@ -5160,7 +5179,7 @@
     ),
     random_limit = list(
       nombre = "random_limit",
-      descripcion = "ORDER BY funcion pseudoaleatoria con limite del dialecto",
+      descripcion = "ORDER BY funci\u00f3n pseudoaleatoria con l\u00edmite del dialecto",
       patron = NA_character_,
       tipo = "aleatorio",
       funciones = list(
@@ -5571,19 +5590,19 @@
         paste0(
           "El dialecto `", dialecto$nombre,
           "` no declara una forma de mediana con subconsulta escalar; se",
-          " conserva la via de dos consultas."
+          " conserva la v\u00eda de dos consultas."
         )
       } else if (presupuesto_bloqueado) {
         .motivo_presupuesto_dbi(presupuesto)
       } else {
         paste(
-          "El motor no acepto la mediana con subconsulta escalar o no",
-          "conservo la division entera esperada; se conserva la via de dos",
+          "El motor no acept\u00f3 la mediana con subconsulta escalar o no",
+          "conserv\u00f3 la divisi\u00f3n entera esperada; se conserva la v\u00eda de dos",
           "consultas."
         )
       }
     } else {
-      "El motor acepto la mediana con subconsulta escalar y division entera."
+      "El motor acept\u00f3 la mediana con subconsulta escalar y divisi\u00f3n entera."
     }
   )
 }
@@ -5707,7 +5726,7 @@
         "capacidad_no_aceptada:sonda_mediana_cte_ventana"
       }
     } else {
-      "La sonda de la CTE de ventanas devolvio 2,5 y su control negativo fallo."
+      "La sonda de la CTE de ventanas devolvi\u00f3 2,5 y su control negativo fall\u00f3."
     }
   )
   if (!is.null(presupuesto)) presupuesto$mediana_cte_ventana <- resultado
@@ -5791,13 +5810,13 @@
         .motivo_presupuesto_dbi(presupuesto)
       } else {
         paste(
-          "El motor rechazo la forma de moda con guardian o no devolvio el",
+          "El motor rechaz\u00f3 la forma de moda con guardian o no devolvi\u00f3 el",
           "resultado esperado; se conserva la consulta actual sin guardian."
         )
       }
     } else {
       paste(
-        "El motor acepto la forma de moda con guardian; la cota se comprueba",
+        "El motor acept\u00f3 la forma de moda con guardian; la cota se comprueba",
         "dentro de la misma sentencia."
       )
     }
@@ -5931,7 +5950,7 @@
   motivo_sin_candidato <- if (!length(candidatos)) {
     "No hay una forma consolidada declarada para este motor; se conserva la mediana por columna."
   } else {
-    "El motor no acepto una consulta consolidada de `PERCENTILE_CONT`; se conserva la mediana por columna."
+    "El motor no acept\u00f3 una consulta consolidada de `PERCENTILE_CONT`; se conserva la mediana por columna."
   }
   if (length(motivos_motor)) {
     motivo_sin_candidato <- paste0(
@@ -5949,7 +5968,7 @@
         motivo_sin_candidato
       }
     } else {
-      paste0("El motor acepto `", elegida$nombre,
+      paste0("El motor acept\u00f3 `", elegida$nombre,
              "` para consolidar medianas.")
     }
   )
@@ -6123,10 +6142,10 @@
       if (presupuesto_bloqueado) {
         .motivo_presupuesto_dbi(presupuesto)
       } else {
-        paste0("El motor no acepto una funcion aproximada para `", tipo, "`.")
+        paste0("El motor no acept\u00f3 una funci\u00f3n aproximada para `", tipo, "`.")
       }
     } else {
-      paste0("El motor acepto `", elegida$nombre, "` para `", tipo, "`.")
+      paste0("El motor acept\u00f3 `", elegida$nombre, "` para `", tipo, "`.")
     }
   )
 }
@@ -6139,7 +6158,7 @@
   if (!length(solicitado)) {
     return(list(
       solicitado = character(), aplicado = NA,
-      motivo = "No se solicito `orden_muestra`."
+      motivo = "No se solicit\u00f3 `orden_muestra`."
     ))
   }
   aplicado <- if (!is.null(muestreo) &&
@@ -6151,11 +6170,11 @@
               perl = TRUE, useBytes = TRUE)) FALSE else NA
   }
   motivo <- if (isTRUE(aplicado)) {
-    "Se aplico `orden_muestra`."
+    "Se aplic\u00f3 `orden_muestra`."
   } else if (identical(aplicado, FALSE)) {
-    "No se aplico `orden_muestra`: el metodo de muestreo por bloques o filas gobierna la seleccion."
+    "No se aplic\u00f3 `orden_muestra`: el m\u00e9todo de muestreo por bloques o filas gobierna la selecci\u00f3n."
   } else {
-    "No se pudo verificar si se aplico `orden_muestra`."
+    "No se pudo verificar si se aplic\u00f3 `orden_muestra`."
   }
   list(solicitado = solicitado, aplicado = aplicado, motivo = motivo)
 }
@@ -6399,7 +6418,7 @@
   if (!identical(dialecto, "auto")) {
     return(list(
       dialecto = dialectos[[dialecto]], sondas = character(),
-      motivo = "Declarado por el usuario en `dialecto`; no se sondeo el motor.",
+      motivo = "Declarado por el usuario en `dialecto`; no se sonde\u00f3 el motor.",
       declarado = TRUE
     ))
   }
@@ -6420,7 +6439,7 @@
       return(list(
         dialecto = candidato, sondas = sondas, declarado = FALSE,
         motivo = paste0(
-          "El motor acepto la sonda de cero filas del dialecto `", nombre, "`."
+          "El motor acept\u00f3 la sonda de cero filas del dialecto `", nombre, "`."
         )
       ))
     }
@@ -6432,7 +6451,7 @@
       .motivo_presupuesto_dbi(presupuesto)
     } else {
       paste(
-        "Ningun dialecto de limite conocido paso la sonda; las filas se acotan",
+        "Ning\u00fan dialecto de l\u00edmite conocido pas\u00f3 la sonda; las filas se acotan",
         "en el cliente con dbSendQuery() y dbFetch(n)."
       )
     }
@@ -6689,14 +6708,14 @@
   } else if (is.null(presupuesto) || !isTRUE(presupuesto$instrumentar)) {
     estado$estado <- "no_medido"
     estado$motivo <- paste(
-      "La instrumentacion esta apagada; DBI no mide bloques temporales."
+      "La instrumentaci\u00f3n est\u00e1 apagada; DBI no mide bloques temporales."
     )
   } else if (!grepl(.regex_sin_caja("postgres|pqconnection"),
                     .senas_conexion_dbi(conexion), perl = TRUE)) {
     estado$estado <- "no_disponible"
     estado$motivo <- paste(
       "El controlador no fue reconocido como PostgreSQL; no se puede",
-      "consultar una estadistica de bloques temporales portable."
+      "consultar una estad\u00edstica de bloques temporales portable."
     )
   } else {
     antes <- .estadisticas_derrame_postgresql_dbi(conexion)
@@ -6726,7 +6745,7 @@
     estado$estado <- "no_disponible"
     estado$disponible <- FALSE
     estado$motivo <- paste(
-      "La lectura final de `pg_stat_statements` fallo; no se publica el",
+        "La lectura final de `pg_stat_statements` fall\u00f3; no se publica el",
       "derrame porque no se puede separar esta corrida."
     )
     presupuesto$derrame <- estado
@@ -6833,7 +6852,7 @@
       )
     } else {
       paste(
-        "`pg_stat_statements` no devolvio una pareja atribuible por `queryid`",
+        "`pg_stat_statements` no devolvi\u00f3 una pareja atribuible por `queryid`",
         "para esta corrida; no se publica el derrame."
       )
     }
@@ -6845,7 +6864,7 @@
     estado$motivo <- paste(
       "Los bloques temporales se publican como agregado sobre el texto SQL",
       "normalizado; `llamadas_en_ventana` =", llamadas,
-      "y puede incluir otra sesion o llamada concurrente."
+      "y puede incluir otra sesi\u00f3n o llamada concurrente."
     )
   }
   presupuesto$derrame <- estado
@@ -6857,7 +6876,7 @@
   if (is.null(estado)) {
     return(list(
       disponible = FALSE, estado = "no_disponible", fuente = NA_character_,
-      motivo = "No se pudo iniciar la instrumentacion de derrame.",
+      motivo = "No se pudo iniciar la instrumentaci\u00f3n de derrame.",
       consultas_observadas = 0L, consultas_con_derrame = 0L,
       bloques_temporales_leidos = NA_real_,
       bloques_temporales_escritos = NA_real_, llamadas_en_ventana = NA_real_
@@ -6909,20 +6928,20 @@
   if (is.null(datos) || !nrow(datos)) {
     return(list(
       ok = FALSE, valor = NULL,
-      motivo = "La consulta no devolvio ninguna fila."
+      motivo = "La consulta no devolvi\u00f3 ninguna fila."
     ))
   }
   posicion <- .campo_resultado_dbi(datos, campo)
   if (is.na(posicion)) {
     return(list(ok = FALSE, valor = NULL, motivo = paste0(
-      "La consulta no devolvio el campo `", campo, "`; devolvio ",
+      "La consulta no devolvi\u00f3 el campo `", campo, "`; devolvi\u00f3 ",
       paste0("`", names(datos), "`", collapse = ", "), "."
     )))
   }
   valores <- datos[[posicion]]
   if (!length(valores)) {
     return(list(ok = FALSE, valor = NULL, motivo = paste0(
-      "El campo `", campo, "` volvio vacio."
+      "El campo `", campo, "` volvi\u00f3 vac\u00edo."
     )))
   }
   list(ok = TRUE, valor = valores[[1L]], motivo = NA_character_)
@@ -6985,9 +7004,9 @@
 
 .MOTIVO_INTEGER64_FUERA_DE_PRECISION_DBI <- paste(
   # Lleva `.FRAGMENTO_ENTERO_64_DBI`, que la corroboracion reconoce.
-  "La columna es un entero de 64 bits con algun valor de valor absoluto de al",
-  "menos 2^53, que un doble no representa con exactitud: minimo, maximo,",
-  "media, n_ceros, n_negativos, mediana y desvio no se publican como",
+  "La columna es un entero de 64 bits con alg\u00fan valor de valor absoluto de al",
+  "menos 2^53, que un doble no representa con exactitud: m\u00ednimo, m\u00e1ximo,",
+  "media, n_ceros, n_negativos, mediana y desv\u00edo no se publican como",
   "calculados. n_distintos y la moda se cuentan sobre el valor exacto."
 )
 
@@ -7003,8 +7022,8 @@
   if (!inherits(x, "integer64")) return(list(ok = TRUE, valores = x))
   if (!.bit64_disponible()) {
     return(list(ok = FALSE, motivo = paste(
-      "requiere_bit64: la columna llego como entero de 64 bits y el paquete",
-      "bit64 no esta disponible para operarla."
+      "requiere_bit64: la columna lleg\u00f3 como entero de 64 bits y el paquete",
+      "bit64 no est\u00e1 disponible para operarla."
     )))
   }
   exactos <- .integer64_exacto_en_doble(x)
@@ -7489,15 +7508,15 @@
       registros[[length(registros) + 1L]] <- .registro_cobertura_dbi(
         "resumen_tabla", paste0(columna, "::", campo), "degradado",
         paste0(
-          "La clasificacion automatica de datos personales cubrio solo ",
-          texto_filas(observado), " de ", texto_filas(total),
-          " filas. La cifra SQL de `", columna, "::", campo,
+          "La clasificaci\u00f3n autom\u00e1tica de datos personales cubri\u00f3 s\u00f3lo ",
+        texto_filas(observado), " de ", texto_filas(total),
+        if (total == 1L) " fila. La cifra SQL de `" else " filas. La cifra SQL de `", columna, "::", campo,
           "` cubre la tabla completa y no se puede justificar con esa",
-          " clasificacion parcial."
+          " clasificaci\u00f3n parcial."
         ),
         paste(
           "Aumentar `max_celdas_muestra` o `max_bytes_muestra`, o usar `Inf`,",
-          "para que la clasificacion cubra las filas publicadas."
+          "para que la clasificaci\u00f3n cubra las filas publicadas."
         ),
         NA_character_
       )
@@ -7542,14 +7561,14 @@
       "resumen_tabla", argumento, "degradado",
       paste0(
         "El resumen SQL no honra `", argumento,
-        "`; sus agregados se calculan sin esa politica, mientras",
+        "`; sus agregados se calculan sin esa pol\u00edtica, mientras",
         " `perfil_muestra` si la aplica. Los dos bloques pueden publicar",
         " medidas distintas sobre las mismas filas."
       ),
       paste0(
-        "Usar `perfil_muestra` para esta politica. Para que",
+        "Usar `perfil_muestra` para esta pol\u00edtica. Para que",
         " `resumen_tabla` la honre, traducir `", argumento,
-        "` al SQL del motor en una futura implementacion."
+        "` al SQL del motor en una futura implementaci\u00f3n."
       )
     )
   }))
@@ -7586,12 +7605,12 @@
         .registro_cobertura_dbi(
           "resumen_tabla", columna, "no_aplica",
           paste(
-            "La columna se declaro en `columnas_codigo`: es un codigo y no",
-            "una magnitud, asi que `media`, `mediana` y `desvio` no se",
+            "La columna se declar\u00f3 en `columnas_codigo`: es un c\u00f3digo y no",
+            "una magnitud, as\u00ed que `media`, `mediana` y `desvio` no se",
             "publican. `minimo`, `maximo` y los conteos describen sus valores."
           ),
           paste(
-            "Si la columna es una magnitud y no un codigo, quitarla de",
+            "Si la columna es una magnitud y no un c\u00f3digo, quitarla de",
             "`columnas_codigo`."
           )
         )
@@ -7706,19 +7725,19 @@
       return(NULL)
     }
     motivo <- paste0(
-      "No hubo lectura instantanea de la tabla: `n_validos` = ",
-      texto_valor(n_validos), " salio de ", texto_sentencia(validos),
-      " y `n_distintos` = ", texto_valor(n_distintos), " salio de ",
+      "No hubo lectura instant\u00e1nea de la tabla: `n_validos` = ",
+      texto_valor(n_validos), " sali\u00f3 de ", texto_sentencia(validos),
+      " y `n_distintos` = ", texto_valor(n_distintos), " sali\u00f3 de ",
       texto_sentencia(distintos), ". Ambos valores son exactos dentro de su",
       " sentencia, pero pertenecen a grupos de consistencia distintos y no se",
-      " pueden comparar como una sola fotografia. La diferencia es evidencia",
-      " de que la tabla cambio durante la corrida; no se atribuye al motor ni",
+      " pueden comparar como una sola fotograf\u00eda. La diferencia es evidencia",
+      " de que la tabla cambi\u00f3 durante la corrida; no se atribuye al motor ni",
       " al paquete."
     )
     .registro_cobertura_dbi(
       "consistencia", columna, "alcance_distinto", motivo,
       paste(
-        "Repetir el perfil bajo una instantanea o una transaccion con el nivel",
+        "Repetir el perfil bajo una instant\u00e1nea o una transacci\u00f3n con el nivel",
         "de aislamiento que garantice una lectura consistente."
       ),
       NA_character_
@@ -7942,8 +7961,8 @@
 # como valor donde R no, o devolvio algo que no se lee como numero -SQLite con
 # texto en una columna numerica-. Se reconocen por el fragmento que escribe cada
 # motivo, la misma regla para quien lo escribe y quien lo lee.
-.FRAGMENTO_NAN_DBI <- "El motor respondio `NaN` para"
-.FRAGMENTO_INFINITO_DBI <- "El motor respondio un infinito para"
+.FRAGMENTO_NAN_DBI <- "El motor respondi\u00f3 `NaN` para"
+.FRAGMENTO_INFINITO_DBI <- "El motor respondi\u00f3 un infinito para"
 
 .no_disponible_que_se_compara_dbi <- function(motivo) {
   motivo <- as.character(motivo)
@@ -7975,13 +7994,13 @@
 # como numero, y su reconocimiento: una sola regla para quien lo escribe -la
 # sonda de magnitud y las metricas basicas- y para la corroboracion, que lo usa
 # como CAUSA de la divergencia.
-.FRAGMENTO_NO_NUMERO_DBI <- "que no se pudo leer como numero"
+.FRAGMENTO_NO_NUMERO_DBI <- "que no se pudo leer como n\u00famero"
 
 .motivo_no_numero_dbi <- function(que, valor = "") {
   paste0(
-    "El motor devolvio un valor para ", que, " ", .FRAGMENTO_NO_NUMERO_DBI,
+    "El motor devolvi\u00f3 un valor para ", que, " ", .FRAGMENTO_NO_NUMERO_DBI,
     valor, ": probablemente la columna no es de la magnitud que estas ",
-    "metricas suponen. No se publica como calculada."
+    "m\u00e9tricas suponen. No se publica como calculada."
   )
 }
 
@@ -8015,7 +8034,7 @@
   if (!isTRUE(n > 0)) return("")
   paste0(
     " La columna tiene ", format(n, scientific = FALSE, trim = TRUE),
-    " valores ", .FRAGMENTO_TEXTO_MEDIDO_DBI, "."
+    if (n == 1L) " valor " else " valores ", .FRAGMENTO_TEXTO_MEDIDO_DBI, "."
   )
 }
 
@@ -8050,10 +8069,10 @@
   }
   paste(
     "Causa medida: el motor guarda en esta columna valores que no son",
-    "numeros -`typeof()` cuenta valores guardados como texto o blob- y",
-    "el controlador la entrego a la muestra como numerica, asi que",
+    "n\u00fameros -`typeof()` cuenta valores guardados como texto o blob- y",
+    "el controlador la entreg\u00f3 a la muestra como num\u00e9rica, as\u00ed que",
     "`perfil_muestra` describe esos valores ya convertidos por el controlador",
-    "(RSQLite convierte a 0 el texto de una columna que tipa como numerica, y",
+    "(RSQLite convierte a 0 el texto de una columna que tipa como num\u00e9rica, y",
     "lo avisa: \"mixed type\"). Las cifras de magnitud de `perfil_muestra` para",
     "esta columna no describen lo guardado."
   )
@@ -8240,7 +8259,7 @@
     disponible = FALSE, estado = "no_disponible", filas_resumen = NA_real_,
     filas_muestra = NA_real_, fraccion = NA_real_, metricas =
       .METRICAS_CORROBORACION_DBI,
-    motivo = "No hay dos bloques publicos que comparar."
+    motivo = "No hay dos bloques p\u00fablicos que comparar."
   )
   if (!is.list(resumen) || !is.list(perfil) ||
       !is.data.frame(resumen$columnas) || !is.data.frame(perfil$columnas)) {
@@ -8291,8 +8310,8 @@
       length(observado) != 1L || !is.finite(observado) || observado < 0) {
     meta$estado <- "no_comparable_por_filas"
     meta$motivo <- paste(
-      "No se pudo establecer cuantas filas cubre cada bloque; no se",
-      "declara una divergencia numerica sin esa evidencia."
+          "No se pudo establecer cu\u00e1ntas filas cubre cada bloque; no se",
+      "declara una divergencia num\u00e9rica sin esa evidencia."
     )
     return(list(cobertura = vacia, meta = meta))
   }
@@ -8304,7 +8323,7 @@
     paste(
       "La muestra cubre menos del 100%: las diferencias ordinarias de",
       "momentos, mediana, moda y conteos se atribuyen al muestreo y no se",
-      "declaran. Solo se declaran valores NA en un lado o contradicciones",
+      "declaran. S\u00f3lo se declaran valores NA en un lado o contradicciones",
       "unilaterales imposibles para una submuestra."
     )
   }
@@ -8462,23 +8481,23 @@
         if (identical(comparacion$motivo, "faltante_un_lado")) {
           "uno de los caminos no produjo un valor utilizable."
         } else {
-          "la relacion entre la tabla completa y la submuestra es imposible."
+          "la relaci\u00f3n entre la tabla completa y la submuestra es imposible."
         }
       )
       motivo <- paste0(
-        "Corroboracion cruzada: `resumen_tabla` y `perfil_muestra` no",
+        "Corroboraci\u00f3n cruzada: `resumen_tabla` y `perfil_muestra` no",
         " coinciden en `", metrica, "` para `", columna, "`. ",
         "`resumen_tabla` (SQL) = ", valor_sql, "; `perfil_muestra`",
         " (`perfilar()` sobre ", format(observado, scientific = FALSE,
           trim = TRUE), " de ", format(total, scientific = FALSE, trim = TRUE),
-        " filas) = ", valor_muestra, ". ",
+        if (total == 1L) " fila) = " else " filas) = ", valor_muestra, ". ",
         if (!is.null(causa_medida)) {
           causa_medida
         } else if (completa) {
           paste(
             "La cobertura es 100%; la diferencia supera la tolerancia o",
-            "un lado quedo en NA. Puede deberse al motor, al controlador,",
-            "a la conversion, a que las lecturas no compartieron snapshot,",
+            "un lado qued\u00f3 en NA. Puede deberse al motor, al controlador,",
+            "a la conversi\u00f3n, a que las lecturas no compartieron snapshot,",
             "o -en una media- a la suma en coma flotante cuando la columna",
             "mezcla magnitudes muy distintas, que cada lado acumula a su modo."
           )
@@ -8487,14 +8506,14 @@
       )
       como_resolverlo <- if (!is.null(causa_medida)) {
         paste(
-          "Limpiar en el origen los valores que no son numeros, o leer la",
+          "Limpiar en el origen los valores que no son n\u00fameros, o leer la",
           "columna como texto (`CAST(columna AS TEXT)` en una vista) y",
           "perfilar esa lectura. No reemplazar un bloque por el otro."
         )
       } else if (completa) {
         paste(
-          "Revisar el SQL, el controlador y la conversion de tipos; repetir",
-          "la corroboracion bajo un snapshot si se necesita separar un cambio",
+          "Revisar el SQL, el controlador y la conversi\u00f3n de tipos; repetir",
+          "la corroboraci\u00f3n bajo un snapshot si se necesita separar un cambio",
           "de tabla de una diferencia del motor. No reemplazar un bloque por el otro."
         )
       } else {
@@ -8518,11 +8537,14 @@
       "corroboracion", paste(claves, collapse = ", "),
       "no_corroborada",
       paste0(
-        "Hay ", length(claves), " comparaciones entre `resumen_tabla` y ",
+        "Hay ", length(claves),
+        if (length(claves) == 1L) " comparaci\u00f3n entre `resumen_tabla` y " else
+          " comparaciones entre `resumen_tabla` y ",
         "`perfil_muestra` que no coinciden y no se declaran divergencia: la ",
         "muestra cubre ", format(observado, scientific = FALSE, trim = TRUE),
         " de ", format(total, scientific = FALSE, trim = TRUE),
-        " filas, y una diferencia ordinaria de momentos, mediana, moda o ",
+        if (total == 1L) " fila, y una diferencia ordinaria de momentos, mediana, moda o " else
+          " filas, y una diferencia ordinaria de momentos, mediana, moda o ",
         "conteos es esperable en una submuestra."
       ),
       paste(
@@ -8538,12 +8560,14 @@
       "corroboracion", paste(claves, collapse = ", "),
       "no_corroborada",
       paste0(
-        "Hay ", length(claves), " comparaciones entre `resumen_tabla` y ",
+        "Hay ", length(claves),
+        if (length(claves) == 1L) " comparaci\u00f3n entre `resumen_tabla` y " else
+          " comparaciones entre `resumen_tabla` y ",
         "`perfil_muestra` que no coinciden y no se declaran divergencia: el ",
         "resumen SQL agrupa y ordena con el cotejamiento del motor y el perfil ",
         "de muestra compara byte a byte (`meta$criterio_comparacion` y ",
         "`meta$criterio_moda`). En una columna de texto, menos distintos en el ",
-        "resumen SQL -con la moda y la frecuencia que de ahi se siguen-, o una ",
+        "resumen SQL -con la moda y la frecuencia que de ah\u00ed se siguen-, o una ",
         "moda empatada que cada lado desempata con su orden, es lo que ese ",
         "criterio anticipa."
       ),
@@ -8716,12 +8740,12 @@
   } else if (metrica %in% c("moda")) {
     paste(
       "La moda de una muestra no tiene una cota simple de error sin",
-      "supuestos adicionales sobre la distribucion."
+      "supuestos adicionales sobre la distribuci\u00f3n."
     )
   } else if (metrica %in% c("mediana")) {
     paste(
       "La mediana de una muestra no tiene una cota simple de error sin",
-      "supuestos adicionales sobre la distribucion."
+      "supuestos adicionales sobre la distribuci\u00f3n."
     )
   } else if (metrica %in% c("n_distintos", "tasa_distintos")) {
     paste(
@@ -8730,8 +8754,8 @@
     )
   } else {
     paste(
-      "El error muestral podria estimarse bajo un plan probabilistico, pero no",
-      "se calculo en esta corrida."
+      "El error muestral podr\u00eda estimarse bajo un plan probabil\u00edstico, pero no",
+      "se calcul\u00f3 en esta corrida."
     )
   }
   list(
@@ -8782,7 +8806,7 @@
       umbral_cardinalidad < 0 || umbral_cardinalidad > 1) {
     .detener_dbi(
       "lupa_error_argumento_dbi",
-      "`umbral_cardinalidad` debe ser un numero entre 0 y 1."
+      "`umbral_cardinalidad` debe ser un n\u00famero entre 0 y 1."
     )
   }
   list(
@@ -8836,27 +8860,27 @@
   estimado <- NA_real_
   if (!is.finite(raw)) {
     motivo <- paste0(
-      "`pg_stats.n_distinct` no tiene una estimacion utilizable para `",
+      "`pg_stats.n_distinct` no tiene una estimaci\u00f3n utilizable para `",
       columna, "`; puede no haberse ejecutado ANALYZE. No se supone cero."
     )
   } else if (raw >= 0) {
     estimado <- raw
     motivo <- paste0(
-      "Estimacion de catalogo `pg_stats.n_distinct = ", raw,
+      "Estimaci\u00f3n de cat\u00e1logo `pg_stats.n_distinct = ", raw,
       "`; el valor no fue medido recorriendo la tabla."
     )
   } else if (is.finite(filas_catalogo) && filas_catalogo >= 0) {
     estimado <- round(abs(raw) * filas_catalogo)
     motivo <- paste0(
-      "Estimacion de catalogo: `pg_stats.n_distinct = ", raw,
-      "` es una fraccion de las filas y `pg_class.reltuples = ",
+      "Estimaci\u00f3n de cat\u00e1logo: `pg_stats.n_distinct = ", raw,
+      "` es una fracci\u00f3n de las filas y `pg_class.reltuples = ",
       filas_catalogo, "; se estima n_distintos = ", estimado,
       ". No fue medido recorriendo la tabla."
     )
   } else {
     motivo <- paste0(
       "`pg_stats.n_distinct = ", raw,
-      "` es una fraccion, pero `pg_class.reltuples` no tiene un valor utilizable;",
+      "` es una fracci\u00f3n, pero `pg_class.reltuples` no tiene un valor utilizable;",
       " puede no haberse ejecutado ANALYZE. No se supone cero."
     )
   }
@@ -8894,8 +8918,8 @@
   if (is.na(nombre_columna) || is.na(nombre_inherited) ||
       is.na(nombre_sin_hijas)) {
     return(sin_decision(paste(
-      "La respuesta de `pg_stats` no informa `inherited` y si la relacion",
-      "tiene hijas; no se puede decidir que fila describe lo que se lee."
+      "La respuesta de `pg_stats` no informa `inherited` y si la relaci\u00f3n",
+      "tiene hijas; no se puede decidir qu\u00e9 fila describe lo que se lee."
     )))
   }
   filas <- which(
@@ -8910,8 +8934,8 @@
       length(unique(sin_hijas)) != 1L) {
     return(sin_decision(paste0(
       "Hay filas de `pg_stats` para `", columna,
-      "` cuyo `inherited` o relacion de hijas no se puede interpretar;",
-      " no hay estimacion utilizable."
+      "` cuyo `inherited` o relaci\u00f3n de hijas no se puede interpretar;",
+      " no hay estimaci\u00f3n utilizable."
     )))
   }
   heredadas <- filas[which(inherited)]
@@ -8919,7 +8943,7 @@
   if (length(heredadas) > 1L) {
     return(sin_decision(paste0(
       "Hay ", length(heredadas), " filas de `pg_stats` con `inherited = TRUE`",
-      " para `", columna, "`; no se puede decidir cual describe lo que se lee."
+      " para `", columna, "`; no se puede decidir cu\u00e1l describe lo que se lee."
     )))
   }
   if (length(heredadas) == 1L) {
@@ -8930,15 +8954,15 @@
   }
   if (length(propias) == 1L) {
     return(sin_decision(paste0(
-      "La relacion tiene hijas pero `pg_stats` no devolvio una fila con",
+      "La relaci\u00f3n tiene hijas pero `pg_stats` no devolvi\u00f3 una fila con",
       " `inherited = TRUE` para `", columna,
-      "`; la fila propia describe otro universo y no hay estimacion utilizable."
+      "`; la fila propia describe otro universo y no hay estimaci\u00f3n utilizable."
     )))
   }
   sin_decision(paste0(
     "Hay ", length(propias), " filas de `pg_stats` con `inherited = FALSE`",
     " para `", columna,
-    "` y no se puede decidir cual describe lo que se lee; no hay estimacion",
+    "` y no se puede decidir cu\u00e1l describe lo que se lee; no hay estimaci\u00f3n",
     " utilizable."
   ))
 }
@@ -8951,7 +8975,7 @@
     return(list(
       disponible = FALSE, estimaciones = vacias, fuentes = vacias,
       sql = NA_character_, motivo = paste(
-        "`catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estadistica",
+        "`catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estad\u00edstica",
         "portable de cardinalidad para este motor."
       )
     ))
@@ -8962,7 +8986,7 @@
     return(list(
       disponible = FALSE, estimaciones = vacias, fuentes = vacias,
       sql = NA_character_,
-      motivo = "No se pudo resolver la relacion o sus columnas para leer `pg_stats`."
+      motivo = "No se pudo resolver la relaci\u00f3n o sus columnas para leer `pg_stats`."
     ))
   }
   literal <- function(x) as.character(DBI::dbQuoteString(conexion, x))
@@ -9029,7 +9053,7 @@
   if (!isTRUE(consulta$ok) || is.null(consulta$datos)) {
     motivo <- paste(
       "No se pudo leer `pg_stats.n_distinct`:",
-      if (isTRUE(consulta$ok)) "la consulta no devolvio una tabla." else
+      if (isTRUE(consulta$ok)) "la consulta no devolvi\u00f3 una tabla." else
         consulta$motivo
     )
     return(list(
@@ -9100,8 +9124,8 @@
     disponible = any(disponibles), estimaciones = estimaciones,
     fuentes = fuentes, sql = sql,
     motivo = if (any(disponibles)) paste(
-      "Se leyo `pg_stats.n_distinct` como estimacion de catalogo;",
-      "no es una medicion del universo de la tabla y puede faltar sin ANALYZE."
+      "Se ley\u00f3 `pg_stats.n_distinct` como estimaci\u00f3n de cat\u00e1logo;",
+      "no es una medici\u00f3n del universo de la tabla y puede faltar sin ANALYZE."
     ) else paste(
       "No hay estimaciones utilizables de `pg_stats.n_distinct`; puede no",
       "haberse ejecutado ANALYZE. No se supone cero."
@@ -9116,7 +9140,7 @@
   if (!isTRUE(hay_metrica)) {
     estrategia$estado <- "no_solicitado"
     estrategia$motivo <- paste(
-      "La metrica `distintos` no se pidio en esta corrida."
+      "La m\u00e9trica `distintos` no se pidi\u00f3 en esta corrida."
     )
     return(estrategia)
   }
@@ -9127,7 +9151,7 @@
       estrategia$estado <- "calculado"
       estrategia$disponible <- TRUE
       estrategia$motivo <- paste(
-        "Se calculara la cardinalidad exacta sobre las filas de la corrida."
+        "Se calcular\u00e1 la cardinalidad exacta sobre las filas de la corrida."
       )
       estrategia$error_esperado <- "no_aplica"
     },
@@ -9155,10 +9179,10 @@
         estrategia$disponible <- FALSE
         estrategia$estado <- "no_disponible"
         estrategia$motivo <- paste0(
-          "La estrategia `catalogo` no esta disponible con `universo = ",
+          "La estrategia `catalogo` no est\u00e1 disponible con `universo = ",
           universo,
-          "`: el catalogo describe la relacion entera y la corrida mide un",
-          " subconjunto; usarlo publicaria la cardinalidad de un universo como",
+          "`: el cat\u00e1logo describe la relaci\u00f3n entera y la corrida mide un",
+          " subconjunto; usarlo publicar\u00eda la cardinalidad de un universo como",
           " si fuera de otro."
         )
       } else {
@@ -9236,7 +9260,7 @@
     return(list(
       estrategia_solicitada = solicitada,
       estrategia_resuelta = NA_character_, estado = "no_solicitado",
-      motivo = "La metrica `mediana` no se pidio en esta corrida."
+      motivo = "La m\u00e9trica `mediana` no se pidi\u00f3 en esta corrida."
     ))
   }
   guardia_newid <- if (is.null(preparacion$presupuesto)) NULL else
@@ -9262,7 +9286,7 @@
         estrategia_solicitada = solicitada,
         estrategia_resuelta = metodo,
         estado = "calculado",
-        motivo = "Se uso la CTE de ventanas sobre una sola relacion muestreada.",
+        motivo = "Se us\u00f3 la CTE de ventanas sobre una sola relaci\u00f3n muestreada.",
         sondas = cte$sondas
       ))
     }
@@ -9287,7 +9311,7 @@
       estrategia_solicitada = solicitada,
       estrategia_resuelta = consolidada$candidato$nombre,
       estado = "calculado",
-      motivo = "Se uso una forma exacta consolidada aceptada por el motor."
+      motivo = "Se us\u00f3 una forma exacta consolidada aceptada por el motor."
     ))
   }
   escalar <- preparacion$mediana_escalar_resolucion
@@ -9296,7 +9320,7 @@
       estrategia_solicitada = solicitada,
       estrategia_resuelta = escalar$candidato$nombre,
       estado = "calculado",
-      motivo = "Se uso una forma exacta escalar aceptada por el motor."
+      motivo = "Se us\u00f3 una forma exacta escalar aceptada por el motor."
     ))
   }
   aproximada <- preparacion$aproximaciones_resolucion$mediana
@@ -9305,13 +9329,13 @@
       estrategia_solicitada = solicitada,
       estrategia_resuelta = aproximada$candidato$nombre,
       estado = "estimado",
-      motivo = "No hubo una forma exacta aceptada; se uso la aproximacion nativa al final."
+      motivo = "No hubo una forma exacta aceptada; se us\u00f3 la aproximaci\u00f3n nativa al final."
     ))
   }
   list(
     estrategia_solicitada = solicitada,
     estrategia_resuelta = "exacta_por_columna", estado = "calculado",
-    motivo = "Se uso la forma exacta por columna como ultimo camino."
+    motivo = "Se us\u00f3 la forma exacta por columna como \u00faltimo camino."
   )
 }
 
@@ -9319,8 +9343,8 @@
   list(
     nombre = "desconocida", exacta = FALSE,
     proporcion_distintos = NA_real_, motivo = paste(
-      "No hay una garantia estructural ni una estimacion de catalogo utilizable;",
-      "la cardinalidad solo se puede conocer midiendo `distintos`."
+      "No hay una garant\u00eda estructural ni una estimaci\u00f3n de cat\u00e1logo utilizable;",
+      "la cardinalidad s\u00f3lo se puede conocer midiendo `distintos`."
     )
   )
 }
@@ -9343,7 +9367,7 @@
   desconocidas <- setdiff(metricas, .METRICAS_DBI)
   if (length(desconocidas)) {
     .detener_dbi("lupa_error_argumento_dbi", paste0(
-      "Metricas desconocidas: ", paste(desconocidas, collapse = ", "),
+      "M\u00e9tricas desconocidas: ", paste(desconocidas, collapse = ", "),
       ". Las disponibles son: ", paste(.METRICAS_DBI, collapse = ", "), "."
     ))
   }
@@ -9355,7 +9379,7 @@
       is.na(max_consultas) || max_consultas < 1) {
     .detener_dbi(
       "lupa_error_argumento_dbi",
-      "`max_consultas` debe ser un numero mayor o igual a 1, o Inf."
+      "`max_consultas` debe ser un n\u00famero mayor o igual a 1, o Inf."
     )
   }
   as.numeric(max_consultas)
@@ -9487,9 +9511,9 @@
     motivo = paste(
       "El tope de celdas se resuelve antes de leer con el ancho del esquema;",
       if (is.finite(max_bytes_muestra)) {
-        "el tope de bytes requiere una sonda de hasta 100 filas antes de fijar el limite final."
+        "el tope de bytes requiere una sonda de hasta 100 filas antes de fijar el l\u00edmite final."
       } else {
-        "el tope de bytes esta desactivado con `Inf`."
+        "el tope de bytes est\u00e1 desactivado con `Inf`."
       }
     )
   )
@@ -9649,7 +9673,7 @@
 .motivo_tipo_sqlserver_sin_agregados_dbi <- function(tipo) {
   paste0(
     "SQL Server no admite el tipo `", as.character(tipo[[1L]]),
-    "` en los agregados y ordenamientos solicitados; la metrica queda",
+    "` en los agregados y ordenamientos solicitados; la m\u00e9trica queda",
     " `no_disponible` y no se emite una consulta sobre la columna."
   )
 }
@@ -9674,7 +9698,7 @@
       grepl(.regex_sin_caja(.PATRON_PERMISO_DBI), motivo, perl = TRUE)) {
     return(paste(
       "La tabla existe pero la credencial no tiene permiso para verla: el",
-      "motor lo dijo explicitamente.", detalle
+      "motor lo dijo expl\u00edcitamente.", detalle
     ))
   }
   paste(
@@ -9770,9 +9794,9 @@
     .FRAGMENTO_INFINITO_DBI, " ", if (identical(que, "la sonda de magnitud"))
       que else paste0("`", que, "`"),
     ": la columna guarda valores infinitos y el motor los cuenta en `MIN`, ",
-    "`MAX`, `AVG` y el orden de la mediana, mientras que los estadisticos de ",
-    "magnitud se calculan solo con valores finitos. En este motor la consulta ",
-    "no los pudo excluir, y las metricas de magnitud de esta columna no se ",
+    "`MAX`, `AVG` y el orden de la mediana, mientras que los estad\u00edsticos de ",
+    "magnitud se calculan s\u00f3lo con valores finitos. En este motor la consulta ",
+    "no los pudo excluir, y las m\u00e9tricas de magnitud de esta columna no se ",
     "publican como calculadas."
   )
 }
@@ -9911,8 +9935,8 @@
   sin_finitos <- as.character(sql$estado) == "sin_valores"
   if (any(sin_finitos)) {
     sql$motivo[sin_finitos] <- paste(
-      "La columna no contiene valores finitos: los estadisticos de magnitud",
-      "se calculan solo con valores finitos."
+      "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+      "se calculan s\u00f3lo con valores finitos."
     )
   }
   list(fila = interno$fila[campos], sql = sql, literales = interno$literales)
@@ -9924,7 +9948,7 @@
       que else paste0("`", que, "`"),
     ": la columna guarda valores `NaN` y el motor los cuenta como valores -en ",
     "`MAX`, `AVG` y el orden de la mediana-, mientras que en R son ausentes. ",
-    "Las metricas de magnitud de esta columna no se publican como calculadas."
+    "Las m\u00e9tricas de magnitud de esta columna no se publican como calculadas."
   )
 }
 
@@ -10003,8 +10027,8 @@
         inicio, "es un ", .FRAGMENTO_ENTERO_64_DBI, " con un valor de valor ",
         "absoluto de al menos 2^53:"
       ),
-      "el controlador lo entrego exacto, como `integer64`, pero un doble no",
-      "lo representa y las metricas de magnitud se publican como dobles. No se",
+      "el controlador lo entreg\u00f3 exacto, como `integer64`, pero un doble no",
+      "lo representa y las m\u00e9tricas de magnitud se publican como dobles. No se",
       "publica como calculada. `n_distintos` y la moda se cuentan sobre el",
       "valor exacto."
     ))
@@ -10013,7 +10037,7 @@
   paste(
     paste0(
       inicio,
-      "es un ", fragmento, " que el driver entrego como doble;"
+      "es un ", fragmento, " que el driver entreg\u00f3 como doble;"
     ),
     "un valor con valor absoluto de al menos 2^53 puede haber perdido",
     "exactitud. No se publica como calculada.",
@@ -10033,9 +10057,9 @@
     paste0(
       "La columna es un ", .FRAGMENTO_DECIMAL_DOBLE_DBI, ":"
     ),
-    "desde ahi un doble no distingue dos valores consecutivos",
-    "-90071992547409001 y 90071992547409002 son el mismo doble-, asi que",
-    "minimo, maximo, media, n_ceros, n_negativos, mediana y desvio no se",
+    "desde ah\u00ed un doble no distingue dos valores consecutivos",
+    "-90071992547409001 y 90071992547409002 son el mismo doble-, as\u00ed que",
+    "m\u00ednimo, m\u00e1ximo, media, n_ceros, n_negativos, mediana y desv\u00edo no se",
     "publican como calculados.",
     if (isTRUE(bloques)) {
       paste(
@@ -10113,9 +10137,9 @@
   fuente <- fuente_cardinalidad_costo
   if (is.null(fuente)) fuente <- .fuente_cardinalidad_desconocida_dbi()
   motivo_mediana <- paste(
-    "La mediana se conserva: no se aplica un umbral de proporcion porque su",
+    "La mediana se conserva: no se aplica un umbral de proporci\u00f3n porque su",
     "costo medido permanece plano frente a la cardinalidad y lo gobierna el",
-    "numero de filas. `umbral_cardinalidad` gobierna solo la moda."
+    "n\u00famero de filas. `umbral_cardinalidad` gobierna s\u00f3lo la moda."
   )
   detalle <- list(
     n_validos = n_validos, n_distintos = n_distintos,
@@ -10175,23 +10199,23 @@
     detalle$moda$estado <- "omitida_por_costo"
     detalle$moda$motivo <- paste0(
       "Se omiti\u00f3 la moda de la columna `", columna, "`: tiene ", distintos,
-      " valores distintos de ",
+        if (isTRUE(distintos == 1L)) " valor distinto de " else " valores distintos de ",
       validos, " v\u00e1lidos (", formatC(proporcion, format = "f", digits = 3),
       ") sobre ", alcance, "; la pol\u00edtica optativa considera que agrupar u",
-      " ordenar toda la columna no justifica el costo. Para pedirla igual, use",
-      " `politica_costo = \"todas\"`; para mover el criterio, cambie",
+      " ordenar toda la columna no justifica el costo. Para pedirla igual, usar",
+      " `politica_costo = \"todas\"`; para mover el criterio, cambiar",
       " `umbral_cardinalidad`."
     )
   } else if (is.finite(proporcion)) {
     detalle$moda$motivo <- paste0(
-      "La moda se conserva: la proporcion de distintos (",
+      "La moda se conserva: la proporci\u00f3n de distintos (",
       formatC(proporcion, format = "f", digits = 3), ") queda por debajo de ",
       "`umbral_cardinalidad` (",
       formatC(politica$umbral, format = "f", digits = 3), ")."
     )
   } else {
     detalle$moda$motivo <- paste(
-      "La moda se conserva porque no se pudo determinar una proporcion de",
+      "La moda se conserva porque no se pudo determinar una proporci\u00f3n de",
       "distintos utilizable para aplicar `umbral_cardinalidad`."
     )
   }
@@ -10299,8 +10323,8 @@
       fuentes[[columna]] <- list(
         nombre = "clave_primaria_garantizada", exacta = TRUE,
         proporcion_distintos = 1, motivo = paste(
-          "La clave primaria simple esta declarada y garantizada por el",
-          "catalogo; sus valores validos son unicos."
+          "La clave primaria simple est\u00e1 declarada y garantizada por el",
+          "cat\u00e1logo; sus valores v\u00e1lidos son \u00fanicos."
         )
       )
     }
@@ -11378,7 +11402,7 @@
       (length(valor) != 1L || !is.finite(valor))) {
     resultado$ok <- FALSE
     resultado$motivo <- paste(
-      "El motor no devolvio un desvio finito despues del repliegue escalado."
+      "El motor no devolvi\u00f3 un desv\u00edo finito despu\u00e9s del repliegue escalado."
     )
   }
   resultado
@@ -11463,7 +11487,7 @@
       (length(valor) != 1L || !is.finite(valor))) {
     resultado$ok <- FALSE
     resultado$motivo <- paste(
-      "El motor no devolvio una media finita despues del repliegue escalado."
+      "El motor no devolvi\u00f3 una media finita despu\u00e9s del repliegue escalado."
     )
   }
   resultado
@@ -11579,7 +11603,7 @@
 
 .motivo_cota_moda_comprobable_dbi <- function() {
   paste(
-    "La cota simple `frecuencia_moda <= n_validos` se comprobo dentro de la misma",
+    "La cota simple `frecuencia_moda <= n_validos` se comprob\u00f3 dentro de la misma",
     "sentencia mediante `n_validos_guard`."
   )
 }
@@ -11595,7 +11619,7 @@
 .motivo_cota_moda_no_comprobable_dbi <- function() {
   paste(
     "No se pudo comprobar una cota simple de frecuencia de la moda: la frecuencia",
-    "y el numero de valores validos no tienen un guardian en la misma",
+    "y el n\u00famero de valores v\u00e1lidos no tienen un guardian en la misma",
     "sentencia y pueden provenir de consultas distintas. No se atribuye una",
     "inconsistencia al motor."
   )
@@ -12811,7 +12835,7 @@
   agregados$sql_conteo <- if (is.null(conteo$sql)) NA_character_ else conteo$sql
   agregados$estimacion_derrame <- if (is.null(presupuesto)) {
     .estimacion_derrame_vacia_postgresql_dbi(
-      "no_solicitado", "No se solicito una estimacion de derrame."
+      "no_solicitado", "No se solicit\u00f3 una estimaci\u00f3n de derrame."
     )
   } else presupuesto$estimacion_derrame
   agregados
@@ -13125,7 +13149,7 @@
   }
   if (es_muestreado && (is.null(muestreo) || !isTRUE(muestreo$disponible))) {
     motivo <- if (is.null(muestreo)) {
-      "No se resolvio una capacidad de muestreo del motor."
+      "No se resolvi\u00f3 una capacidad de muestreo del motor."
     } else {
       muestreo$motivo
     }
@@ -13145,7 +13169,7 @@
   }
   registros <- list()
   motivo_no_pedida <- paste(
-    "La metrica no se pidio en esta corrida; ver `metricas`."
+    "La m\u00e9trica no se pidi\u00f3 en esta corrida; ver `metricas`."
   )
   motivo_privacidad <- paste(
     "El valor no se informa por `incluir_valores = FALSE`;",
@@ -13408,7 +13432,7 @@
           list(
             ok = FALSE, valor = NULL,
             motivo = if (is.null(estimacion)) paste0(
-              "No se obtuvo una estimacion de `pg_stats.n_distinct` para `",
+              "No se obtuvo una estimaci\u00f3n de `pg_stats.n_distinct` para `",
               columna, "`."
             ) else estimacion$motivo,
             sql = NA_character_, estado = NULL,
@@ -13433,7 +13457,7 @@
       if (is.null(distintos)) {
         distintos <- list(
           ok = FALSE, valor = NULL,
-          motivo = "La estrategia resolvio una medicion pero no se obtuvo su resultado.",
+          motivo = "La estrategia resolvi\u00f3 una medici\u00f3n pero no se obtuvo su resultado.",
           sql = NA_character_
         )
       }
@@ -13470,9 +13494,10 @@
           distintos$ok <- FALSE
           distintos$estado <- NULL
           distintos$motivo <- paste0(
-            "Se comprobo en la consulta que el motor informo ", candidato,
-            " valores distintos sobre ", guardian$valor,
-            " validos, que es imposible; la metrica no se publica."
+            "Se comprob\u00f3 en la consulta que el motor inform\u00f3 ", candidato,
+            if (candidato == 1L) " valor distinto sobre " else " valores distintos sobre ", guardian$valor,
+            if (guardian$valor == 1L) " v\u00e1lido, que es imposible; la m\u00e9trica no se publica." else
+              " v\u00e1lidos, que es imposible; la m\u00e9trica no se publica."
           )
           motivo_cota <- NA_character_
         } else if (isTRUE(publica_distintos)) {
@@ -13578,9 +13603,10 @@
           if (cota_invalida) {
             moda$ok <- FALSE
             moda$motivo <- paste0(
-              "Se comprobo en la consulta que la frecuencia de la moda (",
+              "Se comprob\u00f3 en la consulta que la frecuencia de la moda (",
               candidato, ") supera los ", guardian$valor,
-              " valores validos; la metrica no se publica."
+              if (guardian$valor == 1L) " valor v\u00e1lido; la m\u00e9trica no se publica." else
+                " valores v\u00e1lidos; la m\u00e9trica no se publica."
             )
             motivo_cota <- NA_character_
           } else {
@@ -13648,7 +13674,7 @@
       paste0(
         "DBI expuso la columna como `", paste(class(prototipo), collapse = "/"),
         "`", if (length(tipo_declarado) == 1L && !is.na(tipo_declarado)) {
-          paste0(" y el controlador informo el tipo del motor como `",
+          paste0(" y el controlador inform\u00f3 el tipo del motor como `",
                  tipo_declarado, "`")
         } else "",
         "; no se aplicaron agregados cuantitativos."
@@ -13991,9 +14017,9 @@
           rango[[2L]] < rango[[1L]]) {
         basicos$ok <- FALSE
         basicos$motivo <- paste0(
-          "El motor informo un maximo (", rango[[2L]], ") menor que el minimo (",
+          "El motor inform\u00f3 un m\u00e1ximo (", rango[[2L]], ") menor que el m\u00ednimo (",
           rango[[1L]], "), que es imposible: probablemente el tipo no entra en ",
-          "la representacion del controlador. Las metricas no se publican."
+          "la representaci\u00f3n del controlador. Las m\u00e9tricas no se publican."
         )
         leidos <- list()
       }
@@ -14035,7 +14061,7 @@
       }
     } else if (basicos$ok) {
       basicos$ok <- FALSE
-      basicos$motivo <- "La consulta de agregados no devolvio ninguna fila."
+      basicos$motivo <- "La consulta de agregados no devolvi\u00f3 ninguna fila."
     }
     if (is.null(basicos$sql)) basicos$sql <- NA_character_
     calculados_basicos <- if (is.null(media_escalada)) {
@@ -14220,7 +14246,8 @@
           paste0(
             "El dialecto `", dialecto$nombre, "` no expresa un salto de filas; ",
             "la mediana exacta exigiria traer ",
-            .entero_sql_dbi(desplazamiento + limite), " filas a memoria."
+            .entero_sql_dbi(desplazamiento + limite),
+            if (desplazamiento + limite == 1L) " fila a memoria." else " filas a memoria."
           ),
           NA_character_, metadatos = metadatos
         )))
@@ -14306,7 +14333,7 @@
                is.finite(n_validos_desvio) && n_validos_desvio < 2) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "desvio", "no_aplica",
-        "El desvio muestral requiere al menos dos valores no nulos.",
+        "El desv\u00edo muestral requiere al menos dos valores no nulos.",
         NA_character_, metadatos = metadatos
       )))
     } else {
@@ -14423,17 +14450,17 @@
         if (isTRUE(centrado$ok)) {
           motivo_desvio <- if (isTRUE(.escalar_finito_dbi(desvio$valor) == 0)) {
             paste(
-              "El desvio se recalculo en el motor sobre los valores centrados en",
-              "la media: la consulta compartida respondio 0 sobre una columna",
+              "El desv\u00edo se recalcul\u00f3 en el motor sobre los valores centrados en",
+              "la media: la consulta compartida respondi\u00f3 0 sobre una columna",
               "con valores distintos, que pierde las cifras en una sola pasada o",
               "al pasar a doble valores que difieren por debajo de su",
-              "resolucion. Centrar no cambia el desvio."
+              "resoluci\u00f3n. Centrar no cambia el desv\u00edo."
             )
           } else {
             paste(
-              "El desvio se recalculo en el motor sobre los valores centrados en",
-              "la media: la media es mucho mayor que el desvio, y el desvio de una",
-              "sola pasada pierde cifras. Centrar no cambia el desvio."
+              "El desv\u00edo se recalcul\u00f3 en el motor sobre los valores centrados en",
+              "la media: la media es mucho mayor que el desv\u00edo, y el desv\u00edo de una",
+              "sola pasada pierde cifras. Centrar no cambia el desv\u00edo."
             )
           }
           desvio <- centrado
@@ -14449,10 +14476,10 @@
         registros <- c(registros, list(.registro_sql_dbi(
           columna, "desvio", "no_disponible",
           paste(
-            "El motor respondio desvio 0 sobre una columna con al menos dos",
-            "valores distintos, que es imposible: el calculo perdio las cifras",
+            "El motor respondi\u00f3 desv\u00edo 0 sobre una columna con al menos dos",
+            "valores distintos, que es imposible: el c\u00e1lculo perdi\u00f3 las cifras",
             "-en una sola pasada, o al pasar a doble valores que difieren por",
-            "debajo de su resolucion-. No se publica como calculado."
+            "debajo de su resoluci\u00f3n-. No se publica como calculado."
           ),
           if (is.null(desvio$sql)) NA_character_ else desvio$sql,
           metadatos = metadatos
@@ -14499,7 +14526,7 @@
   if (length(sobrantes)) {
     registros <- c(registros, list(.registro_sql_dbi(
       columna, sobrantes, "no_disponible",
-      "La metrica no se pudo calcular en esta corrida.", NA_character_,
+      "La m\u00e9trica no se pudo calcular en esta corrida.", NA_character_,
       metadatos = metadatos
     )))
   }
@@ -14675,7 +14702,7 @@
     } else if (!isTRUE(conteo$ok)) {
       paste0("No se pudo contar la tabla: ", conteo$motivo)
     } else {
-      "La consulta de conteo no devolvio un numero utilizable."
+      "La consulta de conteo no devolvi\u00f3 un n\u00famero utilizable."
     }
     # El presupuesto es una degradacion esperable, no un error fatal: las
     # metricas que ya entraron siguen siendo utiles aunque el denominador no
@@ -14890,12 +14917,12 @@
          isTRUE(presupuesto$avisar_costo_mediana))) {
       cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
         "Mediana muestreada no disponible: ", guardia_newid$motivo,
-        ". Proyeccion NEWID: ",
+        ". Proyecci\u00f3n NEWID: ",
         if (is.finite(guardia_newid$proyeccion_newid_ms)) {
           formatC(guardia_newid$proyeccion_newid_ms, format = "f", digits = 1)
         } else "sin dato",
         " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
-        ", fraccion = ", formatC(guardia_newid$fraccion,
+        ", fracci\u00f3n = ", formatC(guardia_newid$fraccion,
                                   format = "f", digits = 3), "."
       ))))
     }
@@ -15090,7 +15117,7 @@
       sql_conteo_filas = sql_conteo,
       criterio_moda = paste(
         "mayor frecuencia; empates resueltos por el valor ascendente",
-        "segun el orden del motor"
+        "seg\u00fan el orden del motor"
       ),
       # El motor compara con su cotejamiento y R con `==`. Sobre una columna
       # `utf8mb4_general_ci`, `"A"` y `"a"` son un valor para el motor y dos
@@ -15113,7 +15140,7 @@
       objetos_temporales = FALSE,
       snapshot = FALSE,
       nota_snapshot = paste(
-        "No hubo lectura instantanea: cada agregado se midio en su propio",
+        "No hubo lectura instant\u00e1nea: cada agregado se midi\u00f3 en su propio",
         "momento y la tabla pudo cambiar entre consultas. La cobertura declara",
         "las comparaciones incoherentes entre grupos de consistencia distintos."
       ),
@@ -15125,12 +15152,12 @@
       estimacion_derrame = agregados$estimacion_derrame,
       estimacion_derrame_moda = if (is.null(presupuesto)) {
         .estimacion_derrame_familia_vacia_dbi(
-          "moda", "No se solicito una estimacion de derrame."
+          "moda", "No se solicit\u00f3 una estimaci\u00f3n de derrame."
         )
       } else presupuesto$estimacion_derrame_moda,
       estimacion_derrame_mediana = if (is.null(presupuesto)) {
         .estimacion_derrame_familia_vacia_dbi(
-          "mediana", "No se solicito una estimacion de derrame."
+          "mediana", "No se solicit\u00f3 una estimaci\u00f3n de derrame."
         )
       } else presupuesto$estimacion_derrame_mediana
     )
@@ -15167,11 +15194,11 @@
     motivo = if (!resultado$ok) {
       paste0("No se pudo verificar la unicidad del orden: ", resultado$motivo)
     } else if (is.na(repetidos)) {
-      "La verificacion de unicidad no devolvio un conteo utilizable."
+      "La verificaci\u00f3n de unicidad no devolvi\u00f3 un conteo utilizable."
     } else if (repetidos > 0) {
-      "Las columnas de orden no identifican cada fila de forma unica."
+      "Las columnas de orden no identifican cada fila de forma \u00fanica."
     } else {
-      "Las columnas de orden identifican cada fila de forma unica."
+      "Las columnas de orden identifican cada fila de forma \u00fanica."
     }
   )
 }
@@ -15200,7 +15227,7 @@
   motivo <- if (inherits(campos, "condition")) {
     .mensaje_motor(campos)
   } else {
-    "dbListFields() no devolvio ningun campo."
+    "dbListFields() no devolvi\u00f3 ning\u00fan campo."
   }
   # El metodo por omision de DBI emite `SELECT * ... LIMIT 0`, asi que un motor
   # sin `LIMIT` muere aca, en la primera consulta, con el texto crudo del
@@ -15221,7 +15248,7 @@
   .detener_dbi("lupa_error_campos_dbi", paste0(
     "No se pudieron enumerar las columnas de la tabla. dbListFields(): ",
     motivo, ". Consulta de cero filas: ",
-    if (respaldo$ok) "no devolvio campos" else respaldo$motivo, "."
+    if (respaldo$ok) "no devolvi\u00f3 campos" else respaldo$motivo, "."
   ))
 }
 
@@ -15325,8 +15352,8 @@
   if (all(negadas)) {
     .detener_dbi("lupa_error_esquema_dbi", paste(
       "No se pudo leer el esquema de la tabla: la credencial no tiene permiso",
-      "SELECT sobre ninguna de sus columnas (lo dice el catalogo del motor), y",
-      "no se envio ninguna consulta que las nombre."
+      "SELECT sobre ninguna de sus columnas (lo dice el cat\u00e1logo del motor), y",
+      "no se envi\u00f3 ninguna consulta que las nombre."
     ))
   }
   esquema <- .esquema_legibles_dbi(
@@ -15398,7 +15425,7 @@
   if (!length(campos)) {
     .detener_dbi(
       "lupa_error_esquema_dbi",
-      "No se pudo leer el esquema: ninguna columna se puede escribir en la codificacion de la sesion."
+      "No se pudo leer el esquema: ninguna columna se puede escribir en la codificaci\u00f3n de la sesi\u00f3n."
     )
   }
   campos_sql <- vapply(campos, function(campo) {
@@ -15447,8 +15474,8 @@
       motivos[[campos[[i]]]] <- if (isTRUE(parcial$no_representable)) {
         parcial$motivo
       } else paste0(
-        "El motor rechazo la lectura de la columna: ",
-        if (parcial$ok) "no devolvio campos" else parcial$motivo, "."
+        "El motor rechaz\u00f3 la lectura de la columna: ",
+        if (parcial$ok) "no devolvi\u00f3 campos" else parcial$motivo, "."
       )
     }
   }
@@ -15888,7 +15915,7 @@
   )
   if (isTRUE(incluir_muestra)) {
     clases[[length(clases) + 1L]] <- c(
-      "muestra", consultas_muestra, "lee las filas pedidas"
+      "muestra", consultas_muestra, .ALCANCE_BLOQUE_CLIENTE_DBI
     )
   }
   plan <- data.frame(
@@ -16171,16 +16198,16 @@
 
 .SUPUESTO_COSTO_DISTINTOS_PLAN_DBI <- paste(
   "El plan no proyecta el costo temporal de `COUNT(DISTINCT)` antes de",
-  "correr: la unica referencia honesta es el primer lote de distintos medido",
+  "correr: la \u00fanica referencia honesta es el primer lote de distintos medido",
   "en esta corrida, y el plan no emite consultas de datos."
 )
 
 .MOTIVO_MEMORIA_PROCESAMIENTO_DBI <- paste(
-  "no escala de forma predecible con las filas ni con las celdas; se midio."
+  "no escala de forma predecible con las filas ni con las celdas; se midi\u00f3."
 )
 
 .REFERENCIAS_MEMORIA_PROCESAMIENTO_DBI <- list(
-  traer = "~0,13 GB por millon de filas",
+  traer = "~0,13 GB por mill\u00f3n de filas",
   procesar = "~1,0-1,5 MB por cada mil filas",
   variacion = "1,62x entre tablas de la misma magnitud"
 )
@@ -16213,8 +16240,8 @@
     ),
     reparto_observado = paste(
       "En corridas de referencia, 4,5 M de filas entraron en 0,6 GB y tardaron",
-      "25 s; procesar 4,5 M requirio aproximadamente 7 GB y 12,8 M",
-      "aproximadamente 19 GB. El problema observado esta en el procesamiento",
+      "25 s; procesar 4,5 M requiri\u00f3 aproximadamente 7 GB y 12,8 M",
+      "aproximadamente 19 GB. El problema observado est\u00e1 en el procesamiento",
       "en R, no en la red ni en el motor."
     )
   )
@@ -16222,7 +16249,7 @@
 
 .filas_plan_dbi <- function(preparacion) {
   vacio <- .denominador_catalogo_vacio_dbi(paste(
-    "No hay una estimacion utilizable de filas en el catalogo ya leido;",
+    "No hay una estimaci\u00f3n utilizable de filas en el cat\u00e1logo ya le\u00eddo;",
     "se conserva `sin dato filas`."
   ))
   estimacion <- preparacion$estimacion_derrame
@@ -16260,8 +16287,8 @@
         fuente = "pg_class.reltuples", n_relaciones = NA_integer_,
         motivo = paste(
           "Las filas se toman de `pg_class.reltuples` a traves de la",
-          "jerarquia que ya leyo la estrategia `catalogo`. Es una estimacion",
-          "de catalogo, no una medicion del universo de la tabla."
+          "jerarqu\u00eda que ya ley\u00f3 la estrategia `catalogo`. Es una estimaci\u00f3n",
+          "de cat\u00e1logo, no una medici\u00f3n del universo de la tabla."
         )
       ))
     }
@@ -16288,7 +16315,7 @@
   if (!isTRUE(filas_plan$disponible)) {
     return(list(moda = vacia_moda, mediana = vacia_mediana))
   }
-  fuente <- "estimacion de catalogo: pg_class.reltuples"
+  fuente <- "estimaci\u00f3n de cat\u00e1logo: pg_class.reltuples"
   if ("moda" %in% preparacion$metricas_ejecucion &&
       isTRUE(incluir_valores)) {
     datos <- preparacion$estimacion_derrame$columnas
@@ -16327,13 +16354,13 @@
             n_columnas = as.integer(sum(conocidos)), n_medianas = 0L,
             n_distintos_proyectados = n_distintos,
             fuente = paste(
-              "estimacion de catalogo:",
+              "estimaci\u00f3n de cat\u00e1logo:",
               "pg_stats.n_distinct + pg_class.reltuples"
             ),
             motivo = paste(
               "La magnitud de moda usa la suma de `n_distintos` estimados",
-              "por el catalogo; no es una duracion ni una medicion. Las",
-              "columnas sin estadistica quedan fuera de esta proyeccion."
+              "por el cat\u00e1logo; no es una duraci\u00f3n ni una medici\u00f3n. Las",
+              "columnas sin estad\u00edstica quedan fuera de esta proyecci\u00f3n."
             )
           )
         }
@@ -16341,7 +16368,7 @@
     }
   } else {
     vacia_moda$estado <- "no_solicitado"
-    vacia_moda$motivo <- "La moda no se solicito en este plan."
+    vacia_moda$motivo <- "La moda no se solicit\u00f3 en este plan."
   }
   if ("mediana" %in% preparacion$metricas_ejecucion &&
       isTRUE(incluir_valores)) {
@@ -16356,13 +16383,13 @@
         n_distintos_proyectados = NA_real_, fuente = fuente,
         motivo = paste(
           "La magnitud de mediana usa las filas estimadas por",
-          "`pg_class.reltuples`; no es una duracion ni una medicion."
+          "`pg_class.reltuples`; no es una duraci\u00f3n ni una medici\u00f3n."
         )
       )
     }
   } else {
     vacia_mediana$estado <- "no_solicitado"
-    vacia_mediana$motivo <- "La mediana no se solicito en este plan."
+    vacia_mediana$motivo <- "La mediana no se solicit\u00f3 en este plan."
   }
   list(moda = vacia_moda, mediana = vacia_mediana)
 }
@@ -16375,9 +16402,9 @@
   texto <- .miles_dbi(numero)
   if (!is.null(fuente) && length(fuente) && !is.na(fuente) &&
       grepl("pg_class\\.reltuples", fuente, fixed = FALSE)) {
-    paste0("~", texto, " filas (estimacion de catalogo)")
+    paste0("~", texto, if (numero == 1L) " fila (estimaci\u00f3n de cat\u00e1logo)" else " filas (estimaci\u00f3n de cat\u00e1logo)")
   } else {
-    paste0(texto, " filas")
+    paste0(texto, if (numero == 1L) " fila" else " filas")
   }
 }
 
@@ -16784,7 +16811,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
   )) {
     paste(
       "La forma muestreada no se puede construir; el plan no incluye sus",
-      "metricas SQL. Motivo:", muestreo_plan_publico$motivo
+      "m\u00e9tricas SQL. Motivo:", muestreo_plan_publico$motivo
     )
   } else ""
   # El total es un RANGO, no una prediccion exacta ni un techo. Ademas de las
@@ -16792,16 +16819,16 @@ plan_perfilado_dbi <- function(conexion, tabla,
   # moda que la politica puede omitir despues de medir.
   attr(plan, "supuesto") <- paste(
     "El plan no escanea datos para decidir el costo. Cuando la fuente de",
-    "cardinalidad es desconocida, `total` supone que la politica omite la",
+    "cardinalidad es desconocida, `total` supone que la pol\u00edtica omite la",
     "moda y `total_maximo` que la ejecuta; la mediana se conserva porque su",
     "costo medido es plano frente a la cardinalidad; la corrida mide `distintos`",
-    "si la politica lo necesita y sigue esa decision.",
+    "si la pol\u00edtica lo necesita y sigue esa decisi\u00f3n.",
     if ("distintos" %in% preparacion$metricas_ejecucion) {
       .SUPUESTO_COSTO_DISTINTOS_PLAN_DBI
     } else "",
     "Las fuentes estructurales exactas cierran ese intervalo. En cualquiera",
     "de los dos extremos, si el motor rechaza un lote se vuelve a sondear el",
-    "arbol de biseccion, hasta 2n - 1 consultas adicionales por lote; las",
+    "\u00e1rbol de bisecci\u00f3n, hasta 2n - 1 consultas adicionales por lote; las",
     "respuestas aceptadas se reutilizan.", motivo_muestreo
   )
   attr(plan, "columnas") <- length(preparacion$campos)
@@ -16917,7 +16944,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
     if (is.null(costo_plan) || !is.list(costo_plan)) costo_plan <- list()
     costo_plan$materializacion <- spool_plan$costo
     costo_plan$seleccion_unica <- spool_plan$seleccion_unica
-    costo_plan$spool <- "una seleccion; lecturas posteriores en cliente"
+    costo_plan$spool <- "una selecci\u00f3n; lecturas posteriores en cliente"
     attr(plan, "costo") <- costo_plan
   }
   class(plan) <- unique(c("plan_perfilado_dbi", class(plan)))
@@ -16944,7 +16971,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (is.null(total)) {
     cli::cli_alert_warning(.cli_literal(paste(
       "Este objeto conserva la clase del plan pero no sus atributos;",
-      "seguramente sea un subconjunto. Se imprime solo la tabla."
+      "seguramente sea un subconjunto. Se imprime s\u00f3lo la tabla."
     )))
     .print_data_frame_bytes(x, ...)
     return(invisible(x))
@@ -16959,20 +16986,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # El rango se imprime como rango. Decir "techo" era exactamente lo que el
   # atributo `supuesto` desmiente dos lineas mas abajo.
   cuenta <- if (!is.null(techo) && !is.na(techo) && techo > total) {
-    paste0("entre ", .miles_dbi(total), " y ", .miles_dbi(techo), " consultas")
+    paste0("entre ", .miles_dbi(total), " y ", .miles_dbi(techo),
+           if (techo == 1L) " consulta" else " consultas")
   } else {
-    paste0(.miles_dbi(total), " consultas")
+    paste0(.miles_dbi(total), if (total == 1L) " consulta" else " consultas")
   }
   cli::cli_alert_info(.cli_literal(paste0(
     cuenta, " sobre ",
     texto_filas, " y ",
-    .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
+    .miles_dbi(attr(x, "columnas", exact = TRUE)),
+    if (attr(x, "columnas", exact = TRUE) == 1L) " columna (dialecto " else " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
   )))
   spool_plan <- attr(x, "materializacion", exact = TRUE)
   if (is.list(spool_plan)) {
     cli::cli_text(
-      "Muestra: una seleccion materializada en spool externo de sesion cliente;",
+      "Muestra: una selecci\u00f3n materializada en spool externo de sesi\u00f3n cliente;",
       " resultsets = ", spool_plan$costo$resultsets,
       ", presupuesto = ", .miles_dbi(spool_plan$presupuesto), " bytes."
     )
@@ -17001,16 +17030,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
     if (is.list(bloques_plan)) {
       cli::cli_text(
         "Bloques previstos: objetivo ", .miles_dbi(bloques_plan$objetivo),
-        " filas; minimo ", .miles_dbi(bloques_plan$minimo),
-        "; maximo ", .miles_dbi(bloques_plan$maximo), "."
+        if (bloques_plan$objetivo == 1L) " fila; m\u00ednimo " else " filas; m\u00ednimo ", .miles_dbi(bloques_plan$minimo),
+        "; m\u00e1ximo ", .miles_dbi(bloques_plan$maximo), "."
       )
     }
     pasadas_plan <- attr(x, "pasadas", exact = TRUE)
     if (is.list(pasadas_plan)) {
       cli::cli_text(
         "Pasadas: valor = ", pasadas_plan$valor,
-        "; indice = ", pasadas_plan$indice,
-        "; materializacion = ", pasadas_plan$materializacion, "."
+        "; \u00edndice = ", pasadas_plan$indice,
+        "; materializaci\u00f3n = ", pasadas_plan$materializacion, "."
       )
     }
   }
@@ -17021,7 +17050,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
         "Proyecci\u00f3n de moda: ~",
         .miles_dbi(proyecciones$moda$magnitud),
         " distintos acumulados en ", proyecciones$moda$n_columnas,
-        " columna(s); estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: ",
+        if (proyecciones$moda$n_columnas == 1L) " columna; estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: " else
+          " columnas; estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: ",
         proyecciones$moda$fuente, "."
       )
     }
@@ -17029,7 +17059,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       cli::cli_text(
         "Proyecci\u00f3n de mediana: ~",
         .miles_dbi(proyecciones$mediana$magnitud),
-        " filas-mediana; estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: ",
+        if (proyecciones$mediana$magnitud == 1L) " fila-mediana; estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: " else
+          " filas-mediana; estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: ",
         proyecciones$mediana$fuente, "."
       )
     }
@@ -17045,13 +17076,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else estimacion$memoria_efectiva
     cli::cli_text(
       "Derrame estimado de ", familia, ": ", estimacion$estado,
-      "; metodo/forma = ", estimacion$metodo, "/", estimacion$forma,
-      "; limite de decision = ", limite, "; motivo: ", estimacion$motivo
+      "; m\u00e9todo/forma = ", estimacion$metodo, "/", estimacion$forma,
+      "; l\u00edmite de decisi\u00f3n = ", limite, "; motivo: ", estimacion$motivo
     )
   }
   if (identical(attr(x, "bloque_muestra", exact = TRUE), "solo_agregados")) {
     cli::cli_text(
-      "Perfil de muestra: no solicitado; el plan incluye solo agregados SQL."
+      "Perfil de muestra: no solicitado; el plan incluye s\u00f3lo agregados SQL."
     )
   } else {
     tope <- attr(x, "tope_muestra", exact = TRUE)
@@ -17059,13 +17090,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
       if (isTRUE(tope$recortada_por_celdas)) {
         cli::cli_text(
           "Perfil de muestra: el tope de celdas lo limita a como m\u00e1ximo ",
-          .miles_dbi(tope$filas_maximas), " filas antes de leer."
+          .miles_dbi(tope$filas_maximas), if (tope$filas_maximas == 1L) " fila antes de leer." else " filas antes de leer."
         )
       } else {
         cli::cli_text(
           "Perfil de muestra: se solicitan ",
           .miles_dbi(tope$filas_solicitadas),
-          " filas; el tope de celdas no reduce ese pedido conocido."
+          if (tope$filas_solicitadas == 1L) " fila; el tope de celdas no reduce ese pedido conocido." else
+            " filas; el tope de celdas no reduce ese pedido conocido."
         )
       }
       if (isTRUE(tope$requiere_sonda_bytes)) {
@@ -17085,9 +17117,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     magnitud_memoria <- memoria$magnitud
     cli::cli_text(
       "Magnitud del trabajo (no consumo de memoria): ",
-      .miles_dbi(magnitud_memoria$filas), " filas; ",
-      .miles_dbi(magnitud_memoria$celdas), " celdas; ",
-      .miles_dbi(magnitud_memoria$pares_texto), " pares de texto."
+      .miles_dbi(magnitud_memoria$filas), if (isTRUE(magnitud_memoria$filas == 1L)) " fila; " else " filas; ",
+      .miles_dbi(magnitud_memoria$celdas), if (isTRUE(magnitud_memoria$celdas == 1L)) " celda; " else " celdas; ",
+      .miles_dbi(magnitud_memoria$pares_texto), if (isTRUE(magnitud_memoria$pares_texto == 1L)) " par de texto." else " pares de texto."
     )
     cli::cli_text(
       "Datos de referencia medidos, no predicci\u00f3n: traer la tabla cost\u00f3 ",
@@ -17115,9 +17147,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # repetido se lee como un error del que lo escribio, no como enfasis.
   } else {
     trabajo <- paste0(
-      .miles_dbi(attr(x, "filas_leidas", exact = TRUE)), " lecturas de fila y ",
+      .miles_dbi(attr(x, "filas_leidas", exact = TRUE)),
+      if (isTRUE(attr(x, "filas_leidas", exact = TRUE) == 1L)) " lectura de fila y " else
+        " lecturas de fila y ",
       .miles_dbi(attr(x, "ordenaciones_completas", exact = TRUE)),
-      " ordenaciones completas"
+      if (isTRUE(attr(x, "ordenaciones_completas", exact = TRUE) == 1L)) {
+        " ordenaci\u00f3n completa"
+      } else " ordenaciones completas"
     )
     # El trabajo en R no se puede dejar afuera del titular. Cuando la mitad que
     # decide el reloj es esta, un "bajo" a secas manda al usuario a esperar
@@ -17192,7 +17228,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         paste0(" -", .texto_filas_plan_dbi(filas_plan, filas_fuente), "-")
       } else "",
       ": es el valor por omisi\u00f3n y sobre una tabla grande puede demorar. ",
-      "`muestra = n` acota cuantas filas se traen, a cambio de mirar menos."
+      "`muestra = n` acota cu\u00e1ntas filas se traen, a cambio de mirar menos."
     )
   }
   # Los supuestos son largos y solo pesan cuando el numero incomoda. Sobre una
@@ -17334,9 +17370,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
     if (length(valores) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
       return(list(valores = character(), completo = FALSE, motivo = paste0(
-        "las columnas protegidas tienen mas de ",
+        "las columnas protegidas tienen m\u00e1s de ",
         format(.MAXIMO_VALORES_PROTEGIDOS_DBI, big.mark = ".", scientific = FALSE),
-        " valores distintos y no se traen"
+        if (.MAXIMO_VALORES_PROTEGIDOS_DBI == 1L) " valor distinto y no se trae" else
+          " valores distintos y no se traen"
       )))
     }
   }
@@ -17764,11 +17801,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )) {
         paste(
           "Sin muestra no se pudo clasificar la columna como dato personal o",
-          "no, y se protegio por omision: el valor no se publica."
+          "no, y se protegi\u00f3 por omisi\u00f3n: el valor no se publica."
         )
       } else {
         paste(
-          "La columna se protegio como dato personal: el valor no se publica",
+          "La columna se protegi\u00f3 como dato personal: el valor no se publica",
           "(`detalle_proteccion_personal`)."
         )
       }
@@ -17973,13 +18010,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
   lista <- paste(columnas, collapse = ", ")
   motor <- if (length(motivo_motor) != 1L || is.na(motivo_motor) ||
                !nzchar(as.character(motivo_motor))) {
-    " El motor no informo un motivo."
+    " El motor no inform\u00f3 un motivo."
   } else {
     paste0(" El motor dijo: ", as.character(motivo_motor), ".")
   }
   if (identical(tipo_omision, "descarte")) {
     paste0(
-      "La lectura completa de la muestra fallo. Se aislo por descarte, con ",
+      "La lectura completa de la muestra fall\u00f3. Se aisl\u00f3 por descarte, con ",
       sondas, if (sondas == 1L) " sonda" else " sondas", " al motor, ",
       if (n == 1L) {
         "la columna que no se puede leer: "
@@ -17987,18 +18024,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
         paste0("las ", n, " columnas que no se pueden leer: ")
       },
       lista,
-      ". Cada una fallo por si sola y el resto se leyo junto.", motor
+      ". Cada una fall\u00f3 por s\u00ed sola y el resto se ley\u00f3 junto.", motor
     )
   } else {
     paste0(
-      "La lectura completa de la muestra fallo y se reintento sin ",
+      "La lectura completa de la muestra fall\u00f3 y se reintent\u00f3 sin ",
       if (n == 1L) {
         "la columna de tipo largo declarada: "
       } else {
         paste0("las ", n, " columnas de tipo largo declaradas: ")
       },
       lista,
-      ". No se comprobo que sean la causa;", motor
+      ". No se comprob\u00f3 que sean la causa;", motor
     )
   }
 }
@@ -18006,14 +18043,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 .motivo_orden_ilegible_muestra_dbi <- function(columnas, motivo_motor) {
   motor <- if (length(motivo_motor) != 1L || is.na(motivo_motor) ||
                !nzchar(as.character(motivo_motor))) {
-    " El motor no informo un motivo."
+    " El motor no inform\u00f3 un motivo."
   } else {
     paste0(" El motor dijo: ", as.character(motivo_motor), ".")
   }
   paste0(
-    "La lectura completa de la muestra fallo al evaluar `orden_muestra`: ",
+    "La lectura completa de la muestra fall\u00f3 al evaluar `orden_muestra`: ",
     "no se pudo aplicar el orden con ", paste(columnas, collapse = ", "),
-    ". La muestra recuperada se leyo sin ese orden.", motor
+    ". La muestra recuperada se ley\u00f3 sin ese orden.", motor
   )
 }
 
@@ -18040,9 +18077,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     .nuevo_diagnostico_no_evaluado(
       "constante", as.character(hallazgos$columna[[i]]),
       paste0(
-        "No se evaluo si la columna es constante: el perfil describe ", filas,
-        " filas de las ", total, " de la tabla. En la muestra se observo un ",
-        "unico valor, y eso no prueba que sea el unico de la tabla."
+        "No se evalu\u00f3 si la columna es constante: el perfil describe ", filas,
+        if (filas == 1L) " fila de las " else " filas de las ", total, " de la tabla. En la muestra se observ\u00f3 un ",
+        "\u00fanico valor, y eso no prueba que sea el \u00fanico de la tabla."
       ),
       paste(
         "Perfilar la tabla completa, o contar los valores distintos con",
@@ -18572,8 +18609,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (length(columnas_binarias_prefijo)) {
     perfil$meta$representacion_binaria <- paste(
       perfil$meta$representacion_binaria,
-      "Para SQL Server anterior a 13, o cuando la version no se pudo saber,",
-      "el MD5 usa solo el prefijo de 8000 bytes y conserva el largo completo."
+      "Para SQL Server anterior a 13, o cuando la versi\u00f3n no se pudo saber,",
+      "el MD5 usa s\u00f3lo el prefijo de 8000 bytes y conserva el largo completo."
     )
     perfil$meta$columnas_binarias_prefijo <- as.character(
       columnas_binarias_prefijo
@@ -18640,13 +18677,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
         "texto_largo_no_evaluado", columna,
         paste0(
           "No se evaluaron ", length(largos_largos),
-          " valor(es) de texto que superan `max_largo_valor_vocabulario = ",
+          if (length(largos_largos) == 1L) {
+            " valor de texto que supera `max_largo_valor_vocabulario = "
+          } else {
+            " valores de texto que superan `max_largo_valor_vocabulario = "
+          },
           max_largo, ": hasta ", max(largos_largos),
           " bytes. Se conservaron los conteos, duplicados y longitudes."
         ),
         paste0(
           "Subir `max_largo_valor_vocabulario` si esos valores deben entrar",
-          " en los diagnosticos textuales, o usar `Inf` explicitamente."
+          " en los diagn\u00f3sticos textuales, o usar `Inf` expl\u00edcitamente."
         ), dependencia = NA_character_, columnas = columna
       ))
       cobertura <- do.call(rbind, c(list(cobertura), .filas_dependientes_texto_largo(
@@ -18727,7 +18768,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       motivo <- paste0(
         "La columna `", columna,
-        "` se trajo como texto para conservar los digitos exactos, pero",
+        "` se trajo como texto para conservar los d\u00edgitos exactos, pero",
         " falta el paquete opcional `bit64` para convertirla a `integer64`."
       )
     }
@@ -18874,14 +18915,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "faltantes", NA_character_, "advertido",
       paste(
-        "En este motor la cadena vacia y el nulo son el mismo valor, asi que",
-        "los faltantes informados incluyen las cadenas vacias y no se pueden",
-        "separar. Medido: las mismas tres filas dan dos faltantes aqui y uno",
+        "En este motor la cadena vac\u00eda y el nulo son el mismo valor, as\u00ed que",
+        "los faltantes informados incluyen las cadenas vac\u00edas y no se pueden",
+        "separar. Medido: las mismas tres filas dan dos faltantes aqu\u00ed y uno",
         "en un motor que las distingue."
       ),
       paste(
         "Al comparar completitud entre motores, tener presente que la",
-        "diferencia puede venir de esta semantica y no del dato. Si importa",
+        "diferencia puede venir de esta sem\u00e1ntica y no del dato. Si importa",
         "distinguirlas, hay que marcarlas con un valor propio antes de cargar."
       )
     ))
@@ -18991,13 +19032,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
     orden_aplicado <- is.null(origen) && length(orden_para) > 0L
     motivo_orden <- if (length(orden_muestra) && !is.null(origen)) {
-      "No se aplico `orden_muestra`: el metodo de muestreo por bloques o filas gobierna la seleccion."
+      "No se aplic\u00f3 `orden_muestra`: el m\u00e9todo de muestreo por bloques o filas gobierna la selecci\u00f3n."
     } else if (length(orden_muestra) && !length(orden_para)) {
-      "No se aplico `orden_muestra` en este subconjunto: falta una columna del orden. La muestra recuperada no es estable."
+      "No se aplic\u00f3 `orden_muestra` en este subconjunto: falta una columna del orden. La muestra recuperada no es estable."
     } else if (length(orden_para)) {
-      "Se aplico `orden_muestra`."
+      "Se aplic\u00f3 `orden_muestra`."
     } else {
-      "No se solicito `orden_muestra`."
+      "No se solicit\u00f3 `orden_muestra`."
     }
     list(
       fuente = origen,
@@ -19074,8 +19115,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
           .detener_dbi(
             "lupa_error_argumento_dbi",
             paste0(
-              "`max_bytes_muestra` es menor que el tamano minimo de la",
-              " muestra vacia (", bytes_vacios, " bytes)."
+              "`max_bytes_muestra` es menor que el tama\u00f1o m\u00ednimo de la",
+              " muestra vac\u00eda (", bytes_vacios, " bytes)."
             )
           )
         }
@@ -19285,8 +19326,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
         )
         if (fallo_orden && !isTRUE(candidato$orden_muestra_aplicado)) {
           candidato$motivo_orden_muestra <- paste0(
-            "No se aplico `orden_muestra` porque el motor no pudo evaluar",
-            " la columna solicitada; se recupero la muestra sin ese orden."
+            "No se aplic\u00f3 `orden_muestra` porque el motor no pudo evaluar",
+            " la columna solicitada; se recuper\u00f3 la muestra sin ese orden."
           )
         }
         prueba <- .consultar_dbi(
@@ -19380,31 +19421,31 @@ print.plan_perfilado_dbi <- function(x, ...) {
       # ser uno solo.
       detalle <- if (fallo_orden && length(culpables_orden)) {
         paste0(
-          "la evaluacion del `ORDER BY` fallo en las columnas ",
+          "la evaluaci\u00f3n del `ORDER BY` fall\u00f3 en las columnas ",
           paste(campos[culpables_orden], collapse = ", "),
           "; la muestra sin ese orden no se pudo recuperar."
         )
       } else if (fallo_orden && !length(culpables)) {
-        "el `ORDER BY` fallo, pero las sondas sin orden no localizaron una columna culpable."
+        "el `ORDER BY` fall\u00f3, pero las sondas sin orden no localizaron una columna culpable."
       } else if (!length(culpables)) {
         paste(
-          "ninguna fallo por si sola: el fallo no es de una columna en",
+          "ninguna fall\u00f3 por s\u00ed sola: el fallo no es de una columna en",
           "particular."
         )
       } else if (length(culpables) == length(campos_sql)) {
-        "todas fallan por si solas: no queda ningun subconjunto legible."
+        "todas fallan por si solas: no queda ning\u00fan subconjunto legible."
       } else {
-        "la lectura sin las que fallan tampoco salio."
+        "la lectura sin las que fallan tampoco sali\u00f3."
       }
       if (descarte_agotado) {
         detalle <- paste0(
           "se agoto el tope de sondas (", tope_descarte,
-          ") y el aislamiento quedo parcial; ", detalle
+          ") y el aislamiento qued\u00f3 parcial; ", detalle
         )
       }
       consulta$motivo <- paste0(
         motivo_original, " Se sondearon ", sondas_descarte,
-        " subconjuntos de columnas para aislar cual no se puede leer, y ",
+        " subconjuntos de columnas para aislar cu\u00e1l no se puede leer, y ",
         detalle
       )
     }
@@ -19424,7 +19465,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "perfil_muestra", .texto_tabla_dbi(tabla), "no_disponible",
       paste0("No se pudo leer la muestra: ", consulta$motivo),
       paste(
-        "El resumen de tabla completa se devolvio igual. Para reintentar solo",
+        "El resumen de tabla completa se devolvi\u00f3 igual. Para reintentar s\u00f3lo",
         "la muestra, declarar `dialecto` o `orden_muestra`, o reducir",
         "`muestra`."
       ),
@@ -19463,12 +19504,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "perfil_muestra", .texto_tabla_dbi(tabla), "alcance_distinto",
       paste0(
-        "La consulta de muestra devolvio ", n_obtenidas, " filas; se esperaban ",
-        .entero_sql_dbi(n_obtener), ". La tabla pudo cambiar durante la lectura."
+        "La consulta de muestra devolvi\u00f3 ", n_obtenidas,
+        if (n_obtenidas == 1L) " fila; se esperaba " else " filas; se esperaban ",
+        .entero_sql_dbi(n_obtener), if (n_obtener == 1L) ". La tabla pudo cambiar durante la lectura." else ". La tabla pudo cambiar durante la lectura."
       ),
       paste(
-        "El perfil de la muestra describe las filas efectivamente leidas;",
-        "`filas_obtenidas` declara cuantas son."
+        "El perfil de la muestra describe las filas efectivamente le\u00eddas;",
+        "`filas_obtenidas` declara cu\u00e1ntas son."
       ),
       sql_muestra
     ))
@@ -19500,11 +19542,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "perfil_muestra", .texto_tabla_dbi(tabla), "no_disponible",
       paste0(
-        "La muestra se leyo pero no se pudo perfilar: ",
+        "La muestra se ley\u00f3 pero no se pudo perfilar: ",
         .motivo_perfilado_muestra_dbi(perfil, datos_muestra, argumentos)
       ),
       paste(
-        "El resumen de tabla completa se devolvio igual. Revisar los",
+        "El resumen de tabla completa se devolvi\u00f3 igual. Revisar los",
         "argumentos enviados a perfilar()."
       ),
       sql_muestra
@@ -20031,13 +20073,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     if (identical(estrategia_mediana, "aproximada_motor")) {
       .detener_dbi(
         "lupa_error_argumento_dbi",
-        "`universo = \"muestra_motor\"` no se puede combinar con `estrategia_mediana = \"aproximada_motor\"`: la muestra ya es una aproximacion del universo."
+        "`universo = \"muestra_motor\"` no se puede combinar con `estrategia_mediana = \"aproximada_motor\"`: la muestra ya es una aproximaci\u00f3n del universo."
       )
     }
   } else if (!is.null(muestra_motor)) {
     .detener_dbi(
       "lupa_error_argumento_dbi",
-      "`muestra_motor` solo se puede usar con `universo = \"muestra_motor\"`."
+      "`muestra_motor` s\u00f3lo se puede usar con `universo = \"muestra_motor\"`."
     )
   }
   bloque_muestra <- .argumento_dbi(.elegir_opcion(
@@ -20079,13 +20121,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (!.es_conexion_dbi(conexion)) {
     .detener_dbi(
       "lupa_error_conexion_dbi",
-      "`conexion` debe ser una conexion DBI: no hereda de `DBIConnection`."
+      "`conexion` debe ser una conexi\u00f3n DBI: no hereda de `DBIConnection`."
     )
   }
   if (!.conexion_valida_dbi(conexion)) {
     .detener_dbi(
       "lupa_error_conexion_dbi",
-      "`conexion` debe ser una conexion DBI abierta y valida."
+      "`conexion` debe ser una conexi\u00f3n DBI abierta y v\u00e1lida."
     )
   }
   presupuesto <- .presupuesto_dbi(max_consultas, instrumentar = instrumentar)
@@ -20282,7 +20324,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         .detener_dbi("lupa_error_esquema_dbi", paste0(
           "No se puede ordenar la muestra por `orden_muestra`: la credencial ",
           "no tiene permiso SELECT sobre ", paste(negadas, collapse = ", "),
-          " (lo dice el catalogo del motor). Elegir columnas legibles."
+          " (lo dice el cat\u00e1logo del motor). Elegir columnas legibles."
         ))
       }
       # Una columna que la sesion no puede escribir no la rechazo el motor: no
@@ -20307,7 +20349,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         if (is.null(motivo)) "" else paste0(" (", motivo, ")")
       }, character(1L), USE.NAMES = FALSE)
       .detener_dbi("lupa_error_esquema_dbi", paste0(
-        "El motor rechazo las columnas de `orden_muestra`: ",
+        "El motor rechaz\u00f3 las columnas de `orden_muestra`: ",
         paste0(faltan, motivos, collapse = ", "), "."
       ))
     }
@@ -20588,7 +20630,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       n_total <- .conteo_dbi(conteo$valor)
       if (is.na(n_total)) {
         .detener_dbi("lupa_error_conteo_dbi", paste0(
-          "La consulta de conteo no devolvio un numero utilizable. SQL: ",
+          "La consulta de conteo no devolvi\u00f3 un n\u00famero utilizable. SQL: ",
           sql_conteo
         ), datos = list(sql = sql_conteo))
       }
@@ -22251,7 +22293,8 @@ perfilar_dbi <- function(conexion, tabla,
       paste0(
         "El perfilado de agregados sobre la tabla completa puede ser costoso: ",
         .entero_sql_dbi(aviso_costo_agregados$filas),
-        " filas estimadas. Para reducir la lectura, usar `",
+        if (aviso_costo_agregados$filas == 1L) " fila estimada. Para reducir la lectura, usar `" else
+          " filas estimadas. Para reducir la lectura, usar `",
         aviso_costo_agregados$sugerencia, "`."
       ),
       datos = aviso_costo_agregados
@@ -22354,8 +22397,8 @@ perfilar_dbi <- function(conexion, tabla,
     if (is.list(fuente_bloques) && isFALSE(fuente_bloques$disponible)) {
       .avisar_muestra_motor_dbi(
         paste0(
-          "La lectura por bloques no esta disponible con este controlador (",
-          fuente_bloques$motivo, "): las metricas quedan `no_disponible`. ",
+          "La lectura por bloques no est\u00e1 disponible con este controlador (",
+          fuente_bloques$motivo, "): las m\u00e9tricas quedan `no_disponible`. ",
           "Sin `bloque_filas`, el resumen se calcula en el motor con agregados."
         ),
         datos = list(motivo = fuente_bloques$motivo)
@@ -22474,13 +22517,13 @@ perfilar_dbi <- function(conexion, tabla,
       if (isTRUE(avisar_costo_mediana)) {
         cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
           "Mediana muestreada no disponible: ", guardia_newid$motivo,
-          ". Proyeccion NEWID: ",
+          ". Proyecci\u00f3n NEWID: ",
           if (is.finite(guardia_newid$proyeccion_newid_ms)) {
             formatC(guardia_newid$proyeccion_newid_ms,
                     format = "f", digits = 1)
           } else "sin dato",
           " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
-          ", fraccion = ", formatC(guardia_newid$fraccion,
+          ", fracci\u00f3n = ", formatC(guardia_newid$fraccion,
                                     format = "f", digits = 3), "."
         ))))
       }
@@ -22635,8 +22678,8 @@ perfilar_dbi <- function(conexion, tabla,
           }
           es_numerico_consolidados <- preparacion$es_numerico[quedan_muestra]
           motivos_aislados <- paste(
-            "La lectura de la muestra fallo; la columna se aislo por descarte",
-            "sobre las mismas filas y se dejo fuera de los agregados."
+            "La lectura de la muestra fall\u00f3; la columna se aisl\u00f3 por descarte",
+            "sobre las mismas filas y se dej\u00f3 fuera de los agregados."
           )
           motivos_resumen[preparacion$campos[culpables_muestra]] <-
             motivos_aislados
@@ -22648,10 +22691,10 @@ perfilar_dbi <- function(conexion, tabla,
             "resumen_tabla", paste(preparacion$campos[culpables_muestra], collapse = ", "),
             "alcance_distinto",
             paste(
-              motivos_aislados, "La muestra queda disponible para las demas",
+              motivos_aislados, "La muestra queda disponible para las dem\u00e1s",
               "columnas; `n` sigue describiendo el universo declarado."
             ),
-            "Corregir la vista para incluir la columna; mientras tanto, sus metricas quedan no disponibles."
+            "Corregir la vista para incluir la columna; mientras tanto, sus m\u00e9tricas quedan no disponibles."
           )
         }
       }
@@ -22958,7 +23001,7 @@ perfilar_dbi <- function(conexion, tabla,
       muestreo_publico <- .publicar_muestreo_dbi(
         if (is.null(preparacion$muestreo)) {
           list(disponible = FALSE, candidato = NULL, sondas = character(),
-               motivo = "No se resolvio una capacidad de muestreo del motor.")
+               motivo = "No se resolvi\u00f3 una capacidad de muestreo del motor.")
         } else preparacion$muestreo,
         n_total = preparacion$n_total
       )
@@ -23005,7 +23048,7 @@ perfilar_dbi <- function(conexion, tabla,
     cpu = "proc.time()[['user.self']] + proc.time()[['sys.self']]",
     unidad_cpu = "ms",
     precision = paste(
-      "La precision efectiva es la de la plataforma; los intervalos que el",
+      "La precisi\u00f3n efectiva es la de la plataforma; los intervalos que el",
       "reloj no puede resolver quedan en NA y nunca se publican como cero.",
       "El CPU queda en NA si proc.time() no pudo leerse."
     ),
@@ -23067,18 +23110,19 @@ perfilar_dbi <- function(conexion, tabla,
     motivo_muestreo <- if (isTRUE(muestra_corta_sql)) {
       paste0(
         "La muestra final contiene ", .entero_sql_dbi(filas_cobertura),
-        " filas y quedo por debajo de la mitad de lo pedido."
+        if (filas_cobertura == 1L) " fila y qued\u00f3 por debajo de la mitad de lo pedido." else
+          " filas y qued\u00f3 por debajo de la mitad de lo pedido."
       )
     } else {
       paste0(
-        "La muestra inicial fue corta y el reintento con `",
-        as.character(muestreo_publico$metodo), "` alcanzo el tamano pedido."
+        "La muestra inicial fue corta y el reintent\u00f3 con `",
+        as.character(muestreo_publico$metodo), "` alcanz\u00f3 el tama\u00f1o pedido."
       )
     }
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "resumen_tabla", .texto_tabla_dbi(tabla), estado_muestreo,
       motivo_muestreo,
-      "Revisar `meta$muestreo` para los metodos y filas de cada intento.",
+      "Revisar `meta$muestreo` para los m\u00e9todos y filas de cada intento.",
       muestreo_publico$sql
     ))
   }
@@ -23109,7 +23153,7 @@ perfilar_dbi <- function(conexion, tabla,
           preparacion$muestreo$motivo
         },
         paste(
-          "El universo `muestra_motor` no reemplaza la estimacion por un calculo",
+          "El universo `muestra_motor` no reemplaza la estimaci\u00f3n por un c\u00e1lculo",
           "sobre la tabla completa. Usar `universo = \"tabla_completa\"` o un",
           "adaptador compatible."
         ),
@@ -23128,7 +23172,7 @@ perfilar_dbi <- function(conexion, tabla,
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "resumen_tabla", .texto_tabla_dbi(tabla), "degradado",
       preparacion$lista_campos$motivo,
-      "No hace falta hacer nada: los nombres se obtuvieron por otra via.",
+      "No hace falta hacer nada: los nombres se obtuvieron por otra v\u00eda.",
       NA_character_
     ))
   }
@@ -23165,11 +23209,11 @@ perfilar_dbi <- function(conexion, tabla,
       cobertura = .registro_cobertura_dbi(
         "perfil_muestra", .texto_tabla_dbi(tabla), "no_solicitado",
         paste(
-          "No se solicito el perfil de muestra: este resultado contiene",
-          "unicamente los agregados SQL de la configuracion elegida."
+          "No se solicit\u00f3 el perfil de muestra: este resultado contiene",
+          "\u00fanicamente los agregados SQL de la configuraci\u00f3n elegida."
         ),
         paste(
-          "Para obtener diagnosticos sobre valores y hallazgos por fila, volver",
+          "Para obtener diagn\u00f3sticos sobre valores y hallazgos por fila, volver",
           "a perfilar con `bloque_muestra = \"con_muestra\"`."
         )
       ),
@@ -23209,7 +23253,7 @@ perfilar_dbi <- function(conexion, tabla,
       .motivo_presupuesto_dbi(presupuesto),
       paste0(
         "Subir `max_consultas` o reducir el trabajo con `universo`, `metricas` o la estrategia elegida. ",
-        "El plan previo esta en `meta$plan` y en plan_perfilado_dbi()."
+        "El plan previo est\u00e1 en `meta$plan` y en plan_perfilado_dbi()."
       ),
       NA_character_
     ))
@@ -23228,7 +23272,7 @@ perfilar_dbi <- function(conexion, tabla,
       "resumen_tabla", .texto_tabla_dbi(tabla), "degradado",
       paste0(
         "Fallaron ", nrow(fallas_consultas),
-        " consultas solicitadas; revisar",
+        if (nrow(fallas_consultas) == 1L) " consulta solicitada; revisar" else " consultas solicitadas; revisar",
         " `resumen_tabla$meta$consultas$fallas`."
       ),
       "Revisar el motivo del motor, reducir el alcance o usar `muestra_motor`.",
@@ -23268,7 +23312,7 @@ perfilar_dbi <- function(conexion, tabla,
       bloque$cobertura$estado == "no_disponible"
     ]
     .avisar_muestra_motor_dbi(paste0(
-      "El resumen SQL se calculo y se devuelve, pero la muestra no: ",
+      "El resumen SQL se calcul\u00f3 y se devuelve, pero la muestra no: ",
       paste(motivos, collapse = " "),
       " Ver `resumen_tabla$cobertura`."
     ), conserva_clase_vieja = TRUE)
@@ -23277,7 +23321,7 @@ perfilar_dbi <- function(conexion, tabla,
   if (is.data.frame(fallas_consultas) && nrow(fallas_consultas)) {
     .avisar_muestra_motor_dbi(
       paste0(
-        "Una o mas consultas solicitadas no estuvieron disponibles (",
+        "Una o m\u00e1s consultas solicitadas no estuvieron disponibles (",
         nrow(fallas_consultas), "). El detalle queda en",
         " `resumen_tabla$meta$consultas$fallas`."
       ),
@@ -23289,7 +23333,7 @@ perfilar_dbi <- function(conexion, tabla,
       isTRUE(muestra_corta_sql)) {
     .avisar_muestra_motor_dbi(
       paste0(
-        "La muestra del motor se degrado: se obtuvieron ",
+        "La muestra del motor se degrad\u00f3: se obtuvieron ",
         .entero_sql_dbi(filas_obtenidas_muestreo_sql), " de menos de la mitad",
         " de las filas pedidas. El detalle queda en `meta$muestreo`."
       ),
@@ -23304,11 +23348,13 @@ perfilar_dbi <- function(conexion, tabla,
 
   if (isTRUE(derrame$disponible) && derrame$consultas_con_derrame > 0) {
     .avisar_dbi("lupa_aviso_derrame_dbi", paste0(
-      "Se observo derrame real en ", derrame$consultas_con_derrame,
-      " consulta(s) exacta(s) de distintos, moda o mediana: ",
-      derrame$bloques_temporales_leidos, " bloques temporales leidos y ",
+      "Se observ\u00f3 derrame real en ", derrame$consultas_con_derrame,
+      if (derrame$consultas_con_derrame == 1L) " consulta exacta de distintos, moda o mediana: " else
+        " consultas exactas de distintos, moda o mediana: ",
+      derrame$bloques_temporales_leidos,
+      if (derrame$bloques_temporales_leidos == 1L) " bloque temporal le\u00eddo y " else " bloques temporales le\u00eddos y ",
       derrame$bloques_temporales_escritos,
-      " escritos. Fuente: `", derrame$fuente,
+      if (derrame$bloques_temporales_escritos == 1L) " escrito. Fuente: `" else " escritos. Fuente: `", derrame$fuente,
       "`. El detalle queda en `resumen_tabla$sql`."
     ))
   }
@@ -23362,24 +23408,24 @@ perfilar_dbi <- function(conexion, tabla,
     ""
   }
   if (is.na(visible)) {
-    texto <- "no se pudo preguntar al catalogo"
+    texto <- "no se pudo preguntar al cat\u00e1logo"
     if (nzchar(motivo)) texto <- paste0(texto, ": ", motivo)
   } else if (identical(visible, FALSE)) {
-    texto <- "el catalogo no deja ver la clave"
+    texto <- "el cat\u00e1logo no deja ver la clave"
   } else if (identical(clave$garantia, "no_declarada")) {
     texto <- "no declara clave"
   } else {
-    texto <- paste0("garantia `", as.character(clave$garantia), "` en ", columnas)
+    texto <- paste0("garant\u00eda `", as.character(clave$garantia), "` en ", columnas)
   }
   detalles <- character()
   if (is.list(estado) && isTRUE(estado$restriccion_diferible)) {
-    detalles <- c(detalles, "restriccion diferible")
+    detalles <- c(detalles, "restricci\u00f3n diferible")
   }
   if (is.list(estado) && isTRUE(estado$universo_incluye_descendientes)) {
     detalles <- c(detalles, "universo con descendientes")
   }
   if (is.list(estado) && isTRUE(estado$indice_no_unico)) {
-    detalles <- c(detalles, "indice no unico")
+    detalles <- c(detalles, "\u00edndice no \u00fanico")
   }
   if (length(detalles)) {
     texto <- paste0(texto, " (", paste(detalles, collapse = "; "), ")")
@@ -23422,8 +23468,11 @@ print.perfil_dbi <- function(x, ...) {
     "tabla completa"
   }
   cli::cli_text("Perfil DBI de {.strong {meta$tabla}}")
+  n_columnas <- nrow(x$resumen_tabla$columnas)
+  n_filas <- suppressWarnings(as.numeric(meta$filas))
+  palabra_filas <- if (isTRUE(n_filas == 1)) "fila" else "filas"
   cli::cli_text(
-    "Resumen de {alcance}: {nrow(x$resumen_tabla$columnas)} columnas sobre {meta$filas} filas"
+    "Resumen de {alcance}: {n_columnas} columna{?s} sobre {meta$filas} {palabra_filas}"
   )
   texto_clave <- .texto_clave_dbi(meta$clave)
   if (!is.null(texto_clave)) cli::cli_text(.cli_literal(texto_clave))
@@ -23445,12 +23494,12 @@ print.perfil_dbi <- function(x, ...) {
         paste("parcial;", estimacion$motivo)
       } else if (isTRUE(estimacion$supera_memoria)) {
         paste(
-          "el tama\u00f1o estimado supera el limite efectivo para hash de",
+          "el tama\u00f1o estimado supera el l\u00edmite efectivo para hash de",
           estimacion$memoria_efectiva
         )
       } else {
         paste(
-          "el tama\u00f1o estimado no supera el limite efectivo para hash de",
+          "el tama\u00f1o estimado no supera el l\u00edmite efectivo para hash de",
           estimacion$memoria_efectiva,
           "; esto no demuestra que no haya derrame"
         )
@@ -23479,13 +23528,13 @@ print.perfil_dbi <- function(x, ...) {
     )
     limite <- .limite_decision_derrame_dbi(estimacion_familia, familia)
     detalle <- if (isTRUE(estimacion_familia$supera_memoria)) {
-      paste("supera el limite de decision", limite)
+      paste("supera el l\u00edmite de decisi\u00f3n", limite)
     } else if (identical(estimacion_familia$estado, "estimado")) {
-      paste("no supera el limite de decision", limite)
+      paste("no supera el l\u00edmite de decisi\u00f3n", limite)
     } else estimacion_familia$motivo
     cli::cli_text(.cli_literal(paste0(
       "Derrame estimado de ", familia, " (no medido): ", detalle,
-      ". Metodo/forma: ", estimacion_familia$metodo, "/",
+      ". M\u00e9todo/forma: ", estimacion_familia$metodo, "/",
       estimacion_familia$forma, ". Fuente: `", estimacion_familia$fuente, "`."
     )))
   }
@@ -23493,9 +23542,9 @@ print.perfil_dbi <- function(x, ...) {
   if (!is.null(derrame) && !identical(derrame$estado, "no_solicitado")) {
     if (isTRUE(derrame$disponible)) {
       cli::cli_text(
-        "Derrame medido: {derrame$consultas_con_derrame} consulta{?/s}, ",
-        "{derrame$bloques_temporales_leidos} bloques temporales leidos, ",
-        "{derrame$bloques_temporales_escritos} escritos."
+        "Derrame medido: {derrame$consultas_con_derrame} consulta{?s}, ",
+        "{derrame$bloques_temporales_leidos} bloque{?s} temporal{?es} le\u00eddo{?s}, ",
+        "{derrame$bloques_temporales_escritos} escrito{?s}."
       )
     } else {
       cli::cli_text(
@@ -23515,7 +23564,7 @@ print.perfil_dbi <- function(x, ...) {
   } else {
     muestreo <- x$perfil_muestra$meta$origen_dbi$muestreo
     cli::cli_text(
-      "Perfil de muestra: {muestreo$filas_obtenidas} filas, reproducible: {muestreo$reproducible}"
+      "Perfil de muestra: {muestreo$filas_obtenidas} fila{?s}, reproducible: {muestreo$reproducible}"
     )
   }
   n_cobertura <- if (is.null(x$resumen_tabla$cobertura)) {

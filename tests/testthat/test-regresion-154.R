@@ -161,7 +161,7 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
   expect_equal(decisiones$id$detalle$mediana$estado, "conservada")
   expect_match(
     decisiones$id$detalle$mediana$motivo,
-    "no se aplica un umbral de proporcion"
+    "no se aplica un umbral de proporci\u00f3n"
   )
 
   plan <- plan_perfilado_dbi(

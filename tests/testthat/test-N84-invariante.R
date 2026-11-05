@@ -58,13 +58,13 @@ test_that("una estimacion vacia no se publica como medida", {
   # inservible, porque `evaluar()` la rechaza entera.
   expect_error(
     desde(data.frame(celda = "A", cv = NA_real_, n = NA_integer_)),
-    "sin ningun valor utilizable"
+    "sin ning\u00fan valor utilizable"
   )
   # Y el mensaje distingue esta causa de la otra, porque la accion del usuario
   # es distinta: aca las columnas se reconocieron.
   expect_error(
     desde(data.frame(celda = "A", otra = 1)),
-    "no trae ningun estadistico reconocido"
+    "no trae ning\u00fan estad\u00edstico reconocido"
   )
 
   # La celda vacia dentro de una columna que si trae datos se descarta, y el

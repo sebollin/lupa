@@ -159,7 +159,9 @@
   if (is.null(x) || !length(x)) return("")
   if (is.function(x)) return("<funci\u00f3n>")
   if (inherits(x, "data.frame")) {
-    return(paste0("<tabla: ", nrow(x), " filas \u00d7 ", ncol(x), " columnas>"))
+    return(paste0("<tabla: ", nrow(x),
+                  if (nrow(x) == 1L) " fila \u00d7 " else " filas \u00d7 ",
+                  ncol(x), if (ncol(x) == 1L) " columna>" else " columnas>"))
   }
   if (is.list(x) && !is.null(x$estado) &&
       "indices_fila" %in% names(x) && "mostrados" %in% names(x)) {
@@ -168,7 +170,7 @@
       .formatear_numero_publicado(x$total)
     return(paste0(
       "estado=", x$estado,
-      "; filas mostradas=", x$mostrados,
+      "; ", if (x$mostrados == 1L) "fila mostrada=" else "filas mostradas=", x$mostrados,
       " de ", total,
       "; alcance=", x$alcance
     ))
@@ -403,7 +405,8 @@
       paste0(
         "<p class=\"nota\">Patrones estimados sobre ",
         .html_texto(attr(patrones, "analizados", exact = TRUE)), " de ",
-        .html_texto(attr(patrones, "total", exact = TRUE)), " valores.</p>"
+        .html_texto(attr(patrones, "total", exact = TRUE)),
+        if (identical(as.integer(attr(patrones, "total", exact = TRUE)), 1L)) " valor.</p>" else " valores.</p>"
       )
     } else {
       ""
@@ -415,7 +418,7 @@
         paste0(
           "<p class=\"nota\">Se muestran ", .html_texto(limite), " de ",
           .html_texto(total),
-          " patrones distintos.</p>"
+          if (total == 1L) " patr\u00f3n distinto.</p>" else " patrones distintos.</p>"
         )
       } else {
         ""
@@ -424,7 +427,8 @@
     )
   }, character(1L))
   nota_columnas_patron <- .nota_truncamiento(
-    length(indices_patrones), n_columnas_patrones, "columnas con patrones"
+    length(indices_patrones), n_columnas_patrones,
+    if (n_columnas_patrones == 1L) "columna con patrones" else "columnas con patrones"
   )
   formatos <- lapply(seq_along(x$formatos_fecha), function(i) {
     tabla <- x$formatos_fecha[[i]]
@@ -442,9 +446,9 @@
     paste0(
       "<p class=\"nota\">La b\u00fasqueda de dependencias se limit\u00f3 a ",
       .html_texto(length(attr(dependencias, "columnas_analizadas", exact = TRUE))),
-      " columnas; quedaron fuera ",
+      if (length(attr(dependencias, "columnas_analizadas", exact = TRUE)) == 1L) " columna; quedaron fuera " else " columnas; quedaron fuera ",
       .html_texto(length(attr(dependencias, "columnas_omitidas", exact = TRUE))),
-      ".</p>"
+      if (length(attr(dependencias, "columnas_omitidas", exact = TRUE)) == 1L) " columna.</p>" else " columnas.</p>"
     )
   } else {
     ""
@@ -462,7 +466,9 @@
       " de ",
       .html_texto(format(attr(dependencias, "filas_totales", exact = TRUE),
                          big.mark = ".", decimal.mark = ",", scientific = FALSE)),
-      " filas: el cumplimiento y la exactitud son los de la muestra, no los de ",
+      if (identical(as.integer(attr(dependencias, "filas_totales", exact = TRUE)), 1L)) {
+        " fila: el cumplimiento y la exactitud son los de la muestra, no los de "
+      } else " filas: el cumplimiento y la exactitud son los de la muestra, no los de ",
       "la tabla entera.</p>"
     )
   }
@@ -473,9 +479,13 @@
     if (proteger_datos_personales && n_protegidas) {
       paste0(
         "<p class=\"nota\">Se protegieron modas, ejemplos, evidencia y ",
-        "estadisticos de orden de ",
+        "estad\u00edsticos de orden de ",
         .html_texto(n_protegidas),
-        " columna(s) con evidencia suficiente de datos personales.</p>"
+        if (n_protegidas == 1L) {
+          " columna con evidencia suficiente de datos personales.</p>"
+        } else {
+          " columnas con evidencia suficiente de datos personales.</p>"
+        }
       )
     } else "",
     .resumen_severidades(severidades, nrow(cobertura_diagnosticos)),
@@ -654,12 +664,14 @@
   # cifra de la seccion.
   corridas <- if ("id_medicion" %in% names(x)) {
     paste0(
-      " medidas en ", .html_texto(length(.identificadores_unicos(x$id_medicion))),
-      " corrida(s)."
+      if (nrow(x) == 1L) " medida en " else " medidas en ",
+      .html_texto(length(.identificadores_unicos(x$id_medicion))),
+      if (length(.identificadores_unicos(x$id_medicion)) == 1L) " corrida." else " corridas."
     )
   } else {
     paste0(
-      " medidas. La cantidad de corridas no se puede establecer: a la ",
+      if (nrow(x) == 1L) " medida. La cantidad de corridas no se puede establecer: a la " else
+        " medidas. La cantidad de corridas no se puede establecer: a la ",
       "medici\u00f3n le falta la columna <code>id_medicion</code>."
     )
   }
@@ -881,9 +893,9 @@
       if (identical(x$alcance$modo_comparacion[[1L]], "lsh_minhash")) paste0(
         "<p class=\"nota\">Con MinHash/LSH el conjunto de <em>candidatos</em> ",
         "depende del orden de las filas: el vocabulario de q-gramas se numera ",
-        "por orden de primera aparicion y esa numeracion alimenta las firmas. ",
-        "Ocurre dentro de la garantia declarada en <code>lsh_garantia_jaccard_*</code>",
-        " -medido, ningun par con Jaccard de q-gramas sobre 0,8 se pierde al ",
+        "por orden de primera aparici\u00f3n y esa numeraci\u00f3n alimenta las firmas. ",
+        "Ocurre dentro de la garant\u00eda declarada en <code>lsh_garantia_jaccard_*</code>",
+        " -medido, ning\u00fan par con Jaccard de q-gramas sobre 0,8 se pierde al ",
         "reordenar-, pero conviene saberlo antes de comparar dos corridas sobre ",
         "el mismo contenido exportado en distinto orden.</p>"
       ) else ""
@@ -891,18 +903,18 @@
   }
   paste0(
     "<section><h2>Duplicados aproximados</h2>", nota,
-    "<p class=\"nota\">`muestra` es el limite solicitado; `muestra_efectiva` y ",
-    "`n_filas_muestra` indican cuantas filas entraron realmente en la comparacion. ",
-    "La comparacion por bloques es exhaustiva para esas filas; el tamano del bloque ",
+    "<p class=\"nota\">`muestra` es el l\u00edmite solicitado; `muestra_efectiva` y ",
+    "`n_filas_muestra` indican cu\u00e1ntas filas entraron realmente en la comparaci\u00f3n. ",
+    "La comparaci\u00f3n por bloques es exhaustiva para esas filas; el tama\u00f1o del bloque ",
     "y los pares que quedaron fuera se declaran en el alcance.</p>",
     "<p class=\"nota\"><code>tipo_par</code> distingue texto guardado ",
-    "igual (<code>exacto</code>), coincidencia creada por la normalizacion ",
+    "igual (<code>exacto</code>), coincidencia creada por la normalizaci\u00f3n ",
     "(<code>exacto_normalizado</code>) y similitud (<code>aproximado</code>). ",
-    "<code>igualo_normalizar</code> marca solo el segundo caso.</p>",
+    "<code>igualo_normalizar</code> marca s\u00f3lo el segundo caso.</p>",
     "<h3>Alcance de la comparaci\u00f3n</h3>", .html_tabla(alcance, Inf),
     if (!is.null(estimacion)) paste0(
       "<h3>Referencia temporal</h3><p class=\"nota\">",
-      "La referencia se midio en esta corrida, no es determinista y solo ",
+      "La referencia se midi\u00f3 en esta corrida, no es determinista y s\u00f3lo ",
       "estima la medida aislada; no incluye firmas, cubetas ni troceo.</p>",
       .html_tabla(estimacion, Inf)
     ) else "",
@@ -913,13 +925,15 @@
         "total hallado permanece en el alcance.",
         if (isTRUE(x$alcance$corte_en_empate[[1L]])) paste0(
           " <strong>El corte cay\u00f3 dentro de un empate</strong>: ",
-          x$alcance$n_en_distancia_corte[[1L]], " de los pares conservados ",
-          "estan a la misma distancia (", x$alcance$distancia_corte[[1L]],
-          "), asi que quedaron afuera pares igual de cercanos. Cuales se ",
-          "conservan se decide por el orden canonico de los valores, no por el ",
+          x$alcance$n_en_distancia_corte[[1L]],
+          if (x$alcance$n_en_distancia_corte[[1L]] == 1L) " del par conservado " else
+            " de los pares conservados ",
+          "est\u00e1n a la misma distancia (", x$alcance$distancia_corte[[1L]],
+          "), as\u00ed que quedaron afuera pares igual de cercanos. Cu\u00e1les se ",
+          "conservan se decide por el orden can\u00f3nico de los valores, no por el ",
           "orden en que llegaron las filas, de modo que el resultado no cambia ",
           "si se reordena la tabla; pero sigue siendo un subconjunto. Para no ",
-          "dejar afuera pares empatados, suba <code>max_resultados</code> por ",
+          "dejar afuera pares empatados, subir <code>max_resultados</code> por ",
           "encima del empate."
         ) else "",
         "</p>"
@@ -1047,7 +1061,7 @@
     return(paste0(
       "<section><h2>Hist\u00f3rico de calidad</h2>",
       "<p class=\"meta\">Esta secci\u00f3n no se pudo armar: al hist\u00f3rico le ",
-      "falta(n) la(s) columna(s) ",
+      if (length(faltantes) == 1L) "falta la columna " else "faltan las columnas ",
       .html_texto(paste(faltantes, collapse = ", ")),
       ". Su ausencia no es conformidad. Para armarla, reportar el objeto que ",
       "devuelve <code>historico_calidad()</code> sin quitarle columnas.</p>",
@@ -1085,7 +1099,11 @@
   paste0(
     "<section><h2>Hist\u00f3rico de calidad</h2>",
     "<p class=\"meta\">", .html_texto(length(.identificadores_unicos(x$id_medicion))),
-    " corrida(s); esquema ", .html_texto(attr(x, "version_esquema")), ".</p>",
+    if (length(.identificadores_unicos(x$id_medicion)) == 1L) {
+      " corrida; esquema "
+    } else {
+      " corridas; esquema "
+    }, .html_texto(attr(x, "version_esquema")), ".</p>",
     "<h3>Evoluci\u00f3n de perfiles de madurez</h3>",
     .html_tabla(.evolucion_historico(x), max_filas),
     no_medido,
@@ -1205,7 +1223,7 @@
   alcance_asociaciones <- .tabla_indicadores_reporte(
     c(
       "Filas analizadas", "Muestreado", "Columnas analizadas",
-      "Columnas no analizables", "Columnas omitidas por limite",
+      "Columnas no analizables", "Columnas omitidas por l\u00edmite",
       "Pares examinables", "Pares omitidos por dependencia",
       "Asociaciones antes del recorte", "Salida truncada", "Umbral"
     ),
@@ -1248,7 +1266,7 @@
   )
   asociaciones <- paste0(
     "<section><h2>Asociaciones entre columnas</h2>",
-    "<p class=\"nota\">Metodo y soporte se declaran por par; el resultado no implica causalidad.</p>",
+    "<p class=\"nota\">M\u00e9todo y soporte se declaran por par; el resultado no implica causalidad.</p>",
     "<h3>Alcance y recortes</h3>", .html_tabla(alcance_asociaciones, Inf),
     "<h3>Asociaciones informadas</h3>",
     .html_tabla(x$asociaciones, max_filas), "</section>"
@@ -1264,14 +1282,14 @@
     "<h3>Resumen</h3>", .html_tabla(x$temporal$resumen, max_filas),
     "<h3>Propuestas de frecuencia</h3>",
     .html_tabla(x$temporal$propuestas, max_filas),
-    "<h3>Distribucion por dia de semana</h3>",
+    "<h3>Distribuci\u00f3n por d\u00eda de semana</h3>",
     .html_tabla(x$temporal$dias_semana, max_filas),
     "<h3>Huecos</h3>", .html_tabla(x$temporal$huecos, max_filas),
     "</section>"
   )
   variables <- paste0(
     "<section><h2>Escalas y roles propuestos</h2>",
-    "<p class=\"nota\">Una escala basada solo en valores requiere confirmacion.</p>",
+    "<p class=\"nota\">Una escala basada s\u00f3lo en valores requiere confirmaci\u00f3n.</p>",
     .html_tabla(x$variables, max_filas), "</section>"
   )
   propuesta <- paste0(
@@ -1343,16 +1361,16 @@
       # recorria por dentro y el error salia sobre alguno de sus componentes:
       # el usuario leia una enumeracion de clases que no le decia que hacer.
       .detener(
-        "Un objeto de `perfilar_dbi()` no se reporta entero: pase su perfil ",
+        "Un objeto de `perfilar_dbi()` no se reporta entero: pasar su perfil ",
         "de muestra, `x$perfil_muestra`. El resumen SQL de la tabla completa ",
-        "esta en `x$resumen_tabla` y no es un perfil.",
+        "est\u00e1 en `x$resumen_tabla` y no es un perfil.",
         call. = FALSE
       )
     } else if (is.list(x) && !inherits(x, "data.frame")) {
       for (elemento in x) recorrer(elemento)
     } else {
       .detener(
-        "Cada objeto debe ser un analisis, perfil, medicion, evaluacion_calidad, ",
+      "Cada objeto debe ser un an\u00e1lisis, perfil, medici\u00f3n, evaluacion_calidad, ",
         "historico_calidad, deriva_perfil, deriva_calidad, plan_limpieza o ",
         "duplicados_aproximados.",
         call. = FALSE
@@ -1401,9 +1419,11 @@
       .html_texto(paste0(
         "Un objeto de clase `", class(x)[[1L]], "` se arm\u00f3 con la ",
         "protecci\u00f3n de datos personales desactivada y lleva en claro ",
-        length(sin_proteger), " columna(s) personal(es). El informe protege y ",
+        length(sin_proteger),
+        if (length(sin_proteger) == 1L) " columna personal. El informe protege y " else
+          " columnas personales. El informe protege y ",
         "no puede volver a tapar ese objeto, as\u00ed que no lo publica. Para ",
-        "incluirlo, genere el objeto con la protecci\u00f3n activa o use ",
+        "incluirlo, generar el objeto con la protecci\u00f3n activa o usar ",
         "`reportar(..., proteger_datos_personales = FALSE)`."
       )),
       "</p></section>"
@@ -1428,7 +1448,7 @@
         "desactivada. El informe lo vuelve a proteger con lo que el perfil ",
         "conserva, sin la tabla: una variante de un valor protegido escrita en ",
         "otra columna puede quedar a la vista. Para la protecci\u00f3n completa, ",
-        "genere el perfil con la protecci\u00f3n activa."
+        "generar el perfil con la protecci\u00f3n activa."
       )), "</p>")
     }
   }
@@ -1511,7 +1531,7 @@
     }
     utf8 <- enc2utf8(.declarar_utf8_valido(contenido))
     if (!isTRUE(validUTF8(utf8))) {
-      .detener("el contenido no es UTF-8 valido")
+      .detener("el contenido no es UTF-8 v\u00e1lido")
     }
     c(charToRaw(utf8), as.raw(0x0a))
   }, error = function(e) {
@@ -1524,7 +1544,7 @@
     tamano <- file.info(ruta)$size
     if (length(tamano) != 1L || is.na(tamano) || tamano != length(bytes)) {
       .detener(
-        "tamano inesperado en ", etapa, " (esperados ", length(bytes),
+        "tama\u00f1o inesperado en ", etapa, " (esperados ", length(bytes),
         ", escritos ", if (length(tamano)) tamano else "NA", ")"
       )
     }
@@ -1556,7 +1576,7 @@
   tryCatch(
     withCallingHandlers({
       if (!isTRUE(.copiar_archivo_reporte(temporal, archivo, sobrescribir))) {
-        .detener("la copia al destino devolvio FALSE", call. = FALSE)
+        .detener("la copia al destino devolvi\u00f3 FALSE", call. = FALSE)
       }
       verificar(archivo, "el destino")
     }, warning = function(e) {

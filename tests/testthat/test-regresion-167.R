@@ -25,7 +25,7 @@ test_that("la clave se descarta entera cuando nombra columnas ajenas", {
   # partir de una equivocada.
   expect_length(r$columnas, 0L)
   expect_identical(r$garantia, "desconocida")
-  expect_match(r$motivo, "no esta entre las columnas de la tabla medida")
+  expect_match(r$motivo, "no est\u00e1 entre las columnas de la tabla medida")
   # El estado tambien se limpia: describia la restriccion de la OTRA relacion.
   expect_true(is.na(r$estado$aplicada))
   expect_true(is.na(r$estado$validada))
@@ -34,9 +34,9 @@ test_that("la clave se descarta entera cuando nombra columnas ajenas", {
 test_that("el motivo concuerda en numero con las columnas ajenas", {
   base <- list(columnas = "a", fuente = "f", motivo = NA_character_,
                garantia = "garantizada", estado = list())
-  expect_match(lupa:::.clave_de_otra_relacion(base, "x")$motivo, "que no esta ")
+  expect_match(lupa:::.clave_de_otra_relacion(base, "x")$motivo, "que no est\u00e1 ")
   expect_match(
-    lupa:::.clave_de_otra_relacion(base, c("x", "z"))$motivo, "que no estan "
+    lupa:::.clave_de_otra_relacion(base, c("x", "z"))$motivo, "que no est\u00e1n "
   )
 })
 

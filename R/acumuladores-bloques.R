@@ -277,7 +277,7 @@
   }
   if (is.null(aplicable)) aplicable <- rep(TRUE, n_filas)
   if (!is.logical(aplicable) || length(aplicable) != n_filas) {
-    .detener("La mascara `aplicable` debe ser logica y tener el largo del bloque.",
+    .detener("La m\u00e1scara `aplicable` debe ser l\u00f3gica y tener el largo del bloque.",
          call. = FALSE)
   }
   if (!is.null(ordinales) && length(ordinales) != n_filas) {
@@ -324,14 +324,14 @@
   if (length(inicio) != 1L || length(fin) != 1L || is.na(inicio) ||
       is.na(fin) || inicio < 1 || fin < inicio - 1 ||
       (n && is.null(ordinales) && fin - inicio + 1 != n)) {
-    .detener("El bloque no tiene ordinales globales validos.", call. = FALSE)
+    .detener("El bloque no tiene ordinales globales v\u00e1lidos.", call. = FALSE)
   }
   if (!is.null(ordinales) && length(ordinales)) {
     if (any(!is.finite(ordinales)) || any(ordinales != floor(ordinales)) ||
         any(ordinales < 1) || anyDuplicated(ordinales) ||
         any(diff(ordinales) <= 0) || min(ordinales) < inicio ||
         max(ordinales) > fin) {
-      .detener("El bloque no tiene ordinales globales validos.", call. = FALSE)
+      .detener("El bloque no tiene ordinales globales v\u00e1lidos.", call. = FALSE)
     }
   }
   if (acumulador$requiere_orden && length(acumulador$intervalos)) {
@@ -1412,7 +1412,7 @@
     .detener("`acumulador` no es un acumulador de bloques.", call. = FALSE)
   }
   if (identical(acumulador$estado, "finalizado")) {
-    .detener("No se puede absorber despues de `finalizar()`.", call. = FALSE)
+    .detener("No se puede absorber despu\u00e9s de `finalizar()`.", call. = FALSE)
   }
   if (identical(acumulador$estado, "no_disponible")) return(acumulador)
   bloque <- .extraer_bloque(bloque)
@@ -2142,7 +2142,7 @@
     cota <- list(
       direccion = ">=",
       valor = minimo,
-      significado = "cantidad minima de valores distintos observados"
+      significado = "cantidad m\u00ednima de valores distintos observados"
     )
   }
   list(
@@ -2170,7 +2170,7 @@
       "Aumentar el tope o habilitar un derrame exacto en una etapa posterior."
     } else if (identical(acumulador$familia, "trazabilidad") &&
                isTRUE(acumulador$estado_familia$truncado)) {
-      "Aumentar `max_filas_hallazgo` para conservar mas indices de evidencia."
+      "Aumentar `max_filas_hallazgo` para conservar m\u00e1s \u00edndices de evidencia."
     } else if (identical(estado, "no_disponible")) {
       if (identical(acumulador$familia, "outliers") ||
           identical(acumulador$familia, "centinela")) {
@@ -2314,7 +2314,7 @@
                                      orden_id = "orden_entrada") {
   if (!is.null(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != length(x))) {
-    .detener("`aplicable` debe ser logico y tener el largo del vector.",
+    .detener("`aplicable` debe ser l\u00f3gico y tener el largo del vector.",
          call. = FALSE)
   }
   if (identical(familia, "cuantitativos") &&
@@ -3117,7 +3117,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   }
   if (length(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != length(base))) {
-    .detener("`aplicable` debe ser logico y tener el largo de los vectores.",
+    .detener("`aplicable` debe ser l\u00f3gico y tener el largo de los vectores.",
          call. = FALSE)
   }
   if (is.null(aplicable)) aplicable <- rep(TRUE, length(base))
@@ -3350,7 +3350,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   if (length(ordinal_inicio) != 1L || length(ordinal_fin) != 1L ||
       is.na(ordinal_inicio) || is.na(ordinal_fin) ||
       ordinal_inicio < 1L || ordinal_fin < ordinal_inicio - 1L) {
-    .detener("El intervalo del bloque no es valido.", call. = FALSE)
+    .detener("El intervalo del bloque no es v\u00e1lido.", call. = FALSE)
   }
   indices <- .indices_muestra_globales(n, muestra)
   if (!length(indices) || ordinal_fin < ordinal_inicio) return(integer())
@@ -3399,7 +3399,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   }), use.names = FALSE)
   aplicados <- as.integer(aplicados)
   if (!identical(aplicados, indices)) {
-    .detener("La particion no reprodujo los indices globales de la muestra.",
+    .detener("La partici\u00f3n no reprodujo los \u00edndices globales de la muestra.",
          call. = FALSE)
   }
   list(
@@ -3459,27 +3459,27 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   n <- length(x)
   if (!is.null(mascara) &&
       (!is.logical(mascara) || length(mascara) != n)) {
-    .detener("`mascara` debe ser logica y tener el largo del vector.",
+    .detener("`mascara` debe ser l\u00f3gica y tener el largo del vector.",
          call. = FALSE)
   }
   if (!is.null(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != n)) {
-    .detener("`aplicable` debe ser logica y tener el largo del vector.",
+    .detener("`aplicable` debe ser l\u00f3gica y tener el largo del vector.",
          call. = FALSE)
   }
   if (!is.null(criterio) && !is.function(criterio)) {
-    .detener("`criterio` debe ser una funcion.", call. = FALSE)
+    .detener("`criterio` debe ser una funci\u00f3n.", call. = FALSE)
   }
   if (!is.null(indices)) {
     if (is.logical(indices)) {
       if (length(indices) != n) {
-        .detener("`indices` logicos debe tener el largo del vector.", call. = FALSE)
+        .detener("`indices` l\u00f3gicos debe tener el largo del vector.", call. = FALSE)
       }
       indices <- which(!is.na(indices) & indices)
     } else {
       if (!is.numeric(indices) || anyNA(indices) ||
           any(indices != floor(indices)) || any(indices < 1L | indices > n)) {
-        .detener("`indices` debe contener posiciones globales validas.",
+        .detener("`indices` debe contener posiciones globales v\u00e1lidas.",
              call. = FALSE)
       }
       indices <- .sort_por_bytes(unique(as.integer(indices)))
@@ -3589,7 +3589,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
     .detener("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.atomic(x) && !is.factor(x)) {
-    .detener("`x` debe ser un vector atomico.", call. = FALSE)
+    .detener("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
   n <- length(x)
   bloques <- if (n <= .validar_muestra(muestra)) {

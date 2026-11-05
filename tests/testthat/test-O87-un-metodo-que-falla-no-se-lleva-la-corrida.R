@@ -64,7 +64,7 @@ test_that("la otra metrica del modelo se mide igual", {
                 info = nombre)
     expect_true(grepl(caso$mensaje, cobertura$motivo), info = nombre)
     expect_true(nzchar(cobertura$como_resolverlo))
-    expect_true(any(grepl("no se midieron porque su m", r$avisos, fixed = TRUE)),
+    expect_true(any(grepl("no se midi\u00f3 porque su m", r$avisos, fixed = TRUE)),
                 info = nombre)
   }
 })

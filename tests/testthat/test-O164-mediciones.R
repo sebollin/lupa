@@ -172,7 +172,7 @@ test_that("B3: un desvio 0 sobre valores distintos se vuelve a pedir centrado au
   fila <- .desvio_sql_O164(p, "v")
   expect_identical(fila$estado, "calculado")
   expect_lt(abs(p$resumen_tabla$columnas$desvio - esperado) / esperado, 1e-12)
-  expect_match(fila$motivo, "respondio 0 sobre una columna", fixed = TRUE)
+  expect_match(fila$motivo, "respondi\u00f3 0 sobre una columna", fixed = TRUE)
   expect_true(lupa:::.riesgo_cancelacion_desvio_dbi(1000, 0, 1000, 1000, 60))
   expect_false(lupa:::.riesgo_cancelacion_desvio_dbi(1000, 0, 1000, 1000, 1))
 })

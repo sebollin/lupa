@@ -516,7 +516,7 @@ test_that("ratio rechaza una medida booleana con valores intermedios", {
   intermedia$resultado <- c(1, 1, 0, 0.5, 1)
   expect_error(
     agregar(intermedia, destino = "columna", funcion = "ratio"),
-    "solo puede valer 0 o 1"
+    "s\u00f3lo puede valer 0 o 1"
   )
   # Y `promedio`, que si puede con un valor intermedio, lo sigue aceptando:
   # la guarda es de `ratio`, no del tipo de medida.
@@ -570,7 +570,7 @@ test_that("ratio sigue agregando lo que medir() produce", {
         ),
         error = function(e) NULL,
         warning = function(w) {
-          if (grepl("no se midieron porque su m", conditionMessage(w),
+          if (grepl("no se midi", conditionMessage(w),
                     fixed = TRUE)) NULL else stop(w)
         }
       )

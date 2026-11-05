@@ -214,14 +214,14 @@
   }
   if (tipo_resultado == "booleano" && orientacion == "no_aplica") {
     .detener(
-      "Una metrica booleana debe declarar orientacion 'conformidad' o 'defecto'.",
+      "Una m\u00e9trica booleana debe declarar orientaci\u00f3n 'conformidad' o 'defecto'.",
       call. = FALSE
     )
   }
   if (!tipo_resultado %in% c("booleano", "real") &&
       orientacion != "no_aplica") {
     .detener(
-      "Una metrica no acotada debe declarar orientacion 'no_aplica'.",
+      "Una m\u00e9trica no acotada debe declarar orientaci\u00f3n 'no_aplica'.",
       call. = FALSE
     )
   }
@@ -234,7 +234,7 @@
   invalidas <- !is.na(orientacion) &
     !orientacion %in% .orientaciones_metricas
   if (any(invalidas)) {
-    .detener("La medicion contiene orientaciones no reconocidas.", call. = FALSE)
+    .detener("La medici\u00f3n contiene orientaciones no reconocidas.", call. = FALSE)
   }
   orientacion
 }
@@ -323,7 +323,7 @@
         "entidad", "atributos", "nombre_instancia", "referencial"
       ))) {
         .detener(
-          "La f\u00e1brica gen\u00e9rica debe especializarse primero; use ",
+          "La f\u00e1brica gen\u00e9rica debe especializarse primero; usar ",
           "metrica()(entidad = ..., atributos = ...).", call. = FALSE
         )
       }
@@ -820,7 +820,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
     .detener(
       "En `instanciar()`, `metodo` es la funci\u00f3n que mide. `",
       declaracion$nombre, "` tiene adem\u00e1s una propiedad `metodo`, y las ",
-      "propiedades se fijan al especializar: `especializar(metrica, metodo = ",
+      "propiedades se fijan al especializar: `especializar(m\u00e9trica, metodo = ",
       "...)`.", call. = FALSE
     )
   }
@@ -1041,7 +1041,7 @@ modelo <- function(..., marco = NULL) {
       !(inherits(configuracion$aplicable, "formula") &&
         length(configuracion$aplicable) == 2L)) {
     .detener(
-      "`aplicable` debe ser una formula de un solo lado, como ",
+      "`aplicable` debe ser una f\u00f3rmula de un solo lado, como ",
       "`~ tiene_auto == \"Si\"`.", call. = FALSE
     )
   }
@@ -1109,7 +1109,8 @@ modelo <- function(..., marco = NULL) {
       length(instancia$atributos) != n_atributos) {
     .detener(
       "La m\u00e9trica ", instancia$declaracion$nombre, " requiere ",
-      n_entidades, " entidad(es) y ", n_atributos, " atributo(s).",
+      n_entidades, if (n_entidades == 1L) " entidad y " else " entidades y ",
+      n_atributos, if (n_atributos == 1L) " atributo." else " atributos.",
       call. = FALSE
     )
   }
@@ -1168,15 +1169,16 @@ modelo <- function(..., marco = NULL) {
   crudo <- eval(aplicable[[2L]], envir = tabla, enclos = environment(aplicable))
   if (!is.logical(crudo)) {
     .detener(
-      "`aplicable` debe dar un valor logico y dio ", class(crudo)[[1L]], ".",
+      "`aplicable` debe dar un valor l\u00f3gico y dio ", class(crudo)[[1L]], ".",
       call. = FALSE
     )
   }
   if (length(crudo) == 1L) crudo <- rep(crudo, n)
   if (length(crudo) != n) {
     .detener(
-      "`aplicable` dio ", length(crudo), " valores y la entidad `", entidad,
-      "` tiene ", n, " filas.", call. = FALSE
+      "`aplicable` dio ", length(crudo),
+      if (length(crudo) == 1L) " valor y la entidad `" else " valores y la entidad `",
+      entidad, "` tiene ", n, if (n == 1L) " fila." else " filas.", call. = FALSE
     )
   }
   presentes & !is.na(crudo) & crudo
@@ -1673,7 +1675,8 @@ metricas_nucleo <- function() {
     if (any(salida$fila[filas] > length(originales))) {
       .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` mayor que ",
-        "las ", length(originales), " filas que recibi\u00f3 de `", entidad,
+        "las ", length(originales),
+        if (length(originales) == 1L) " fila que recibi\u00f3 de `" else " filas que recibi\u00f3 de `", entidad,
         "`: `fila` es la posici\u00f3n en la tabla que recibe el m\u00e9todo.",
         call. = FALSE
       )
@@ -1793,7 +1796,7 @@ metricas_nucleo <- function() {
   if (tipo == "numero_real" &&
       (!is.numeric(resultado) || anyNA(resultado) ||
        any(!is.finite(resultado)))) {
-    .detener("Una m\u00e9trica numero_real debe devolver n\u00fameros finitos.",
+      .detener("Una m\u00e9trica numero_real debe devolver n\u00fameros finitos.",
          call. = FALSE)
   }
   if (tipo == "entero" &&
@@ -1859,7 +1862,8 @@ metricas_nucleo <- function() {
         if (any(filas_entidad[!is.na(filas_entidad)] > tope)) {
           .detener(
             "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` mayor ",
-            "que las ", tope, " filas de `", entidad, "`: la posici\u00f3n no existe.",
+            "que las ", tope, if (tope == 1L) " fila de `" else " filas de `", entidad,
+            "`: la posici\u00f3n no existe.",
             call. = FALSE
           )
         }
@@ -1945,7 +1949,9 @@ metricas_nucleo <- function() {
   # afirmaria algo que no paso.
   otras <- n_metricas > sum(fallidas)
   .avisar(
-    sum(fallidas), " m\u00e9trica(s) no se midieron porque su m\u00e9todo ",
+    sum(fallidas),
+    if (sum(fallidas) == 1L) " m\u00e9trica no se midi\u00f3 porque su m\u00e9todo " else
+      " m\u00e9tricas no se midieron porque su m\u00e9todo ",
     "fall\u00f3",
     if (otras) "; la corrida sigui\u00f3 con las dem\u00e1s del modelo" else "",
     ". ",
@@ -2045,7 +2051,9 @@ metricas_nucleo <- function() {
       sujeto, " no se pudo medir: el universo aplicable de la entidad `", entidad,
       "` qued\u00f3 vac\u00edo -ninguna de sus ",
       .filas_originales_entidad(tablas_originales, entidad),
-      " filas cumple la regla de `aplicabilidad`-. No hay nada que medir; no es ",
+      if (.filas_originales_entidad(tablas_originales, entidad) == 1L) {
+        " fila cumple la regla de `aplicabilidad`-. No hay nada que medir; no es "
+      } else " filas cumplen la regla de `aplicabilidad`-. No hay nada que medir; no es ",
       "un fallo, es un alcance vac\u00edo."
     )
   } else if (is.null(tabla) || !nrow(tabla)) {
@@ -2064,7 +2072,9 @@ metricas_nucleo <- function() {
     motivo <- paste0(
       sujeto, " no se pudo medir: el universo que la m\u00e9trica declara con ",
       "`aplicable` qued\u00f3 vac\u00edo -ninguna de las ", nrow(tabla),
-      " filas lo cumple-. No hay nada que medir; no es un fallo, es un alcance ",
+      if (nrow(tabla) == 1L) {
+        " fila lo cumple-. No hay nada que medir; no es un fallo, es un alcance "
+      } else " filas lo cumplen-. No hay nada que medir; no es un fallo, es un alcance ",
       "vac\u00edo."
     )
   } else if (length(instancia$atributos)) {
@@ -2215,14 +2225,17 @@ metricas_nucleo <- function() {
     )
   } else {
     paste0(
-      "; las otras ", .formatear_numero_publicado(no_medidas),
-      " no produjeron medida y no cuentan como ",
+      if (no_medidas == 1L) "; la otra " else "; las otras ",
+      .formatear_numero_publicado(no_medidas),
+      if (no_medidas == 1L) " no produjo medida y no cuenta como " else
+        " no produjeron medida y no cuentan como ",
       "incumplimiento",
       # Solo si cierra: un metodo que mide filas FUERA del universo deja menos no
       # medidas que celdas sin valor, y la frase decia "las otras 1 ... (2 de
       # ellas sin valor)".
       if (!is.na(sin_valor) && sin_valor <= no_medidas) {
-        paste0(" (", .formatear_numero_publicado(sin_valor), " de ellas sin valor)")
+        paste0(" (", .formatear_numero_publicado(sin_valor),
+               if (sin_valor == 1L) " de ella sin valor)" else " de ellas sin valor)")
       } else "",
       "."
     )

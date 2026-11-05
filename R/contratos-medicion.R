@@ -341,7 +341,7 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
       instancia,
       paste0(
         "DesactualizacionPorCambios no se midi\u00f3: el contrato de vigencia no ",
-        "trae `frecuencia_cambio`, que es la unidad en la que esta m\u00e9trica ",
+        "trae `frecuencia_cambio`, que es la unidad en la que est\u00e1 m\u00e9trica ",
         "cuenta."
       ),
       paste0(

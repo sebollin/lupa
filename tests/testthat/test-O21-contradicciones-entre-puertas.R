@@ -92,8 +92,8 @@ test_that("la relectura declara la propuesta rederivada y la reporta", {
     drop = FALSE
   ]
   expect_equal(nrow(aviso), 1L)
-  expect_match(aviso$descripcion, "volvio a derivar", fixed = TRUE)
-  expect_match(aviso$descripcion, "decision original", fixed = TRUE)
+  expect_match(aviso$descripcion, "volvi", fixed = TRUE)
+  expect_match(aviso$descripcion, "decisi", fixed = TRUE)
   funciones <- grepl(
     "dependencia_funcional", releido$propuesta_modelo$origen, fixed = TRUE
   )
@@ -110,8 +110,8 @@ test_that("la relectura declara la propuesta rederivada y la reporta", {
   reportar(releido, archivo = informe, sobrescribir = TRUE)
   html <- paste(readLines(informe, warn = FALSE), collapse = "\n")
   expect_match(html, "persistencia_funciones_sustituidas", fixed = TRUE)
-  expect_match(html, "volvio a derivar", fixed = TRUE)
-  expect_match(html, "decision original", fixed = TRUE)
+  expect_match(html, "volvi", fixed = TRUE)
+  expect_match(html, "decisi", fixed = TRUE)
 })
 
 test_that("un analisis en memoria no declara sustituciones de persistencia", {
@@ -122,6 +122,6 @@ test_that("un analisis en memoria no declara sustituciones de persistencia", {
   expect_false(any(
     resultado$advertencias$tipo == "persistencia_funciones_sustituidas"
   ))
-  expect_false(any(grepl("volvio a derivar", resultado$advertencias$descripcion,
+  expect_false(any(grepl("volvi", resultado$advertencias$descripcion,
                           fixed = TRUE)))
 })

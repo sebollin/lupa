@@ -171,9 +171,9 @@ test_that("el presupuesto LSH corta antes del recorrido", {
   )
   expect_s3_class(error, "error")
   expect_match(conditionMessage(error), "presupuesto_pares.*No se inició")
-  expect_match(conditionMessage(error), "reduzca los datos")
-  expect_match(conditionMessage(error), "suba el umbral")
-  expect_match(conditionMessage(error), "divida el conjunto")
+  expect_match(conditionMessage(error), "reducir los datos")
+  expect_match(conditionMessage(error), "subir el umbral")
+  expect_match(conditionMessage(error), "dividir el conjunto")
 })
 
 test_that("los textos de estimacion declaran pares y cantidades enteras", {
@@ -184,7 +184,7 @@ test_that("los textos de estimacion declaran pares y cantidades enteras", {
   texto <- lupa:::.texto_tiempo_lsh(fijo)
   expect_match(texto, "491[.]344 candidatos")
   expect_match(texto, "382[.]654 pares")
-  expect_match(texto, "referencia de la comparacion aislada")
+  expect_match(texto, "referencia de la comparaci\u00f3n aislada")
   sin_reloj <- fijo
   sin_reloj$tiempo <- NA_real_
   expect_match(lupa:::.texto_tiempo_lsh(sin_reloj), "no se pudo medir")
@@ -260,7 +260,7 @@ test_that("bloquear_por valida columnas atomicas y filtra candidatos", {
   expect_error(
     detectar_duplicados_aproximados(datos, columnas = "nombre",
                                      bloquear_por = "matriz", proteger_datos_personales = TRUE),
-    "columna atomica"
+    "columna at\u00f3mica"
   )
   comparado <- lupa:::.comparar_bloques_duplicados(
     c("Ana", "Ana"), 1:2, "jw", 0.2, 10L, Inf,
@@ -1020,7 +1020,7 @@ test_that("la seleccion automatica evita mezclar demasiadas columnas", {
   datos <- data.frame(a = "x", b = "y", c = "z")
   resultado <- detectar_duplicados_aproximados(datos, proteger_datos_personales = TRUE)
   expect_length(resultado$columnas, 0L)
-  expect_match(resultado$razon, "indique `columnas`", fixed = TRUE)
+  expect_match(resultado$razon, "indicar `columnas`", fixed = TRUE)
 })
 
 test_that("valida entradas y tipos no comparables", {

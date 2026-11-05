@@ -13,12 +13,12 @@
     numerica <- Sys.getlocale("LC_NUMERIC")
     con_numerica <- nzchar(numerica) && !numerica %in% c("C", "POSIX")
     list(
-      causa = "el paquete opcional 'sf' esta instalado pero no se pudo cargar en esta sesion",
+      causa = "el paquete opcional 'sf' est\u00e1 instalado pero no se pudo cargar en esta sesi\u00f3n",
       remedio = paste0(
-        "Ejecutar `library(sf)` en esta sesion para ver por que no carga",
+        "Ejecutar `library(sf)` en esta sesi\u00f3n para ver por qu\u00e9 no carga",
         if (con_numerica) {
           paste0(
-            "; la sesion tiene `LC_NUMERIC` en \"", numerica, "\", y con ",
+            "; la sesi\u00f3n tiene `LC_NUMERIC` en \"", numerica, "\", y con ",
             "una marca decimal que no es la de \"C\" la dependencia `units` ",
             "de sf no carga: `Sys.setlocale(\"LC_NUMERIC\", \"C\")`"
           )
@@ -31,7 +31,7 @@
   } else {
     list(
       causa = "falta el paquete opcional 'sf'",
-      remedio = "Instalar el paquete 'sf' para medir CRS, tipo, validez, vacios, dominio y bbox."
+      remedio = "Instalar el paquete 'sf' para medir CRS, tipo, validez, vac\u00edos, dominio y bbox."
     )
   }
 }
@@ -220,16 +220,20 @@
     indices = seleccion$indices, recortado = TRUE, n_total = n,
     n_vertices = seleccion$n_vertices,
     motivo = paste0(
-      "El presupuesto geometrico recorto el analisis por geometria: se ",
-      "evaluaron ", length(seleccion$indices), " de ", n, " geometrias, con ",
-      format(seleccion$n_vertices, scientific = FALSE), " vertices. Los topes son ",
+      "El presupuesto geom\u00e9trico recort\u00f3 el an\u00e1lisis por geometr\u00eda: se ",
+      "evaluaron ", length(seleccion$indices), " de ", n,
+      if (n == 1L) " geometr\u00eda, con " else " geometr\u00edas, con ",
+      format(seleccion$n_vertices, scientific = FALSE),
+      if (seleccion$n_vertices == 1L) " v\u00e9rtice. Los topes son " else " v\u00e9rtices. Los topes son ",
       "max_geometrias=", format(max_geometrias, scientific = FALSE),
       " y max_vertices=", format(max_vertices, scientific = FALSE),
       "; se suben con options(lupa.max_geometrias=) y options(lupa.max_vertices=).",
       if (prioritario) {
         paste0(
-          " El presupuesto se aplico primero a las ", sum(prioridad),
-          " geometrias del universo aplicable declarado y lo que sobro, al resto."
+          " El presupuesto se aplic\u00f3 primero a ", sum(prioridad),
+          if (sum(prioridad) == 1L) " geometr\u00eda del universo aplicable declarado" else
+            " geometr\u00edas del universo aplicable declarado",
+          " y lo que sobro, al resto."
         )
       } else ""
     )
@@ -322,7 +326,7 @@
   if (length(wkt) != 1L || is.na(wkt) || !nzchar(wkt)) {
     return(list(
       evaluada = FALSE, bbox = numeric(), global = NA,
-      motivo = "El WKT del CRS no esta disponible para extraer su BBOX de uso."
+      motivo = "El WKT del CRS no est\u00e1 disponible para extraer su BBOX de uso."
     ))
   }
 
@@ -407,7 +411,7 @@
   list(
     evaluada = FALSE, bbox = numeric(), global = NA,
     motivo = paste0(
-      "El WKT del CRS no contiene una BBOX de area de uso extraible; ",
+      "El WKT del CRS no contiene una BBOX de \u00e1rea de uso extra\u00edble; ",
       "no se supuso una cobertura mundial."
     )
   )
@@ -491,7 +495,7 @@
 .evaluar_dominio_geometria <- function(x, crs, vacias, srids = NULL) {
   if (length(vacias) != length(x) || anyNA(vacias)) {
     return(.dominio_no_evaluado(
-      "No se pudo identificar el universo de geometrias no vacias."
+      "No se pudo identificar el universo de geometr\u00edas no vac\u00edas."
     ))
   }
   srids_validos <- if (is.null(srids) || length(srids) != length(x)) {
@@ -547,14 +551,14 @@
     }
     if (!evaluados && length(which(!vacias))) {
       return(.dominio_no_evaluado(paste(
-        "No se pudo evaluar el dominio para ninguna geometria con SRID mixto:",
+        "No se pudo evaluar el dominio para ninguna geometr\u00eda con SRID mixto:",
         paste(motivos, collapse = "; ")
       )))
     }
     motivo <- if (length(no_evaluados)) {
       paste0(
-        "El dominio se evaluo por SRID para ", evaluados,
-        " geometrias; quedaron sin evaluar ", length(no_evaluados),
+        "El dominio se evalu\u00f3 por SRID para ", evaluados,
+        " geometr\u00edas; quedaron sin evaluar ", length(no_evaluados),
         ". ", paste(motivos, collapse = "; ")
       )
     } else {
@@ -580,7 +584,7 @@
     if (inherits(x_transformacion, "error")) {
       return(.dominio_no_evaluado(paste0(
         "No se pudieron retirar las dimensiones Z/M antes de transformar al",
-        " sistema geografico: ", conditionMessage(x_transformacion)
+        " sistema geogr\u00e1fico: ", conditionMessage(x_transformacion)
       )))
     }
   }
@@ -661,8 +665,10 @@
   motivo <- if (length(no_evaluados)) {
     paste0(
       "No se pudo transformar ", length(no_evaluados), " de ",
-      length(evaluables), " geometrias al sistema geografico; el resultado ",
-      "cubre las ", n_evaluados, " restantes. Ultimo error: ", ultimo_error
+      length(evaluables), if (length(evaluables) == 1L) " geometr\u00eda" else
+        " geometr\u00edas", " al sistema geogr\u00e1fico; el resultado cubre ",
+      if (n_evaluados == 1L) "la restante" else paste0("las ", n_evaluados, " restantes"),
+      ". \u00daltimo error: ", ultimo_error
     )
   } else {
     NA_character_
@@ -1020,7 +1026,7 @@
     ultimo_error <- if (inherits(convertida, "error")) {
       conditionMessage(convertida)
     } else {
-      "la conversion no devolvio una geometria por valor"
+      "la conversi\u00f3n no devolvi\u00f3 una geometr\u00eda por valor"
     }
     intentos_fallidos <- intentos_fallidos + 1L
     if (length(tramo) == 1L) {
@@ -1039,8 +1045,10 @@
   }
   if (sin_aislar > 0L) {
     ultimo_error <- paste0(
-      ultimo_error, "; tras ", max_intentos_fallidos, " intentos fallidos se ",
-      "dejo de aislar valor por valor y ", sin_aislar, " se cuentan por el ",
+      ultimo_error, "; tras ", max_intentos_fallidos,
+      if (max_intentos_fallidos == 1L) " intento fallido se " else " intentos fallidos se ",
+      "dej\u00f3 de aislar valor por valor y ", sin_aislar,
+      if (sin_aislar == 1L) " valor se cuenta por el " else " valores se cuentan por el ",
       "tramo que los contenia"
     )
   }
@@ -1084,7 +1092,7 @@
                                     error, n_nulos = 0L) {
   forma <- if (identical(representacion, "WKT")) {
     paste(
-      "una forma WKT que el paquete mida (texto corrupto, vacio o un tipo",
+      "una forma WKT que el paquete mida (texto corrupto, vac\u00edo o un tipo",
       "que no mide, como las curvas)"
     )
   } else {
@@ -1095,7 +1103,7 @@
       paste0(
         n_descartados,
         if (n_descartados == 1L) " no tiene " else " no tienen ", forma,
-        if (n_descartados == 1L) " y no se entrego" else " y no se entregaron",
+        if (n_descartados == 1L) " y no se entreg\u00f3" else " y no se entregaron",
         " a sf",
         if (n_nulos > 0L) {
           paste0(" (", n_nulos, if (n_nulos == 1L) " es NULL)" else " son NULL)")
@@ -1106,7 +1114,7 @@
       paste0(
         n_fallidos,
         if (n_fallidos == 1L) " no lo pudo leer sf" else " no los pudo leer sf",
-        " (ultimo error: ", error, ")"
+        " (\u00faltimo error: ", error, ")"
       )
     }
   )
@@ -1138,7 +1146,7 @@
       indices = integer(), n_total = length(x),
       motivo = paste0(
         "La columna llega como ", representacion,
-        " y no se convirtio a geometria porque ", .sf_no_disponible()$causa,
+        " y no se convirti\u00f3 a geometr\u00eda porque ", .sf_no_disponible()$causa,
         "."
       )
     ))
@@ -1185,23 +1193,32 @@
       srids_declarados = unique(srids[!is.na(srids)]),
       n_no_convertidos = n_no_convertidos,
       motivo = paste0(
-        "La columna llega como ", representacion,
-        " y no se pudo convertir a geometria ninguno de sus ",
-        length(intentadas), universo_intento,
+        if (length(intentadas) == 1L) paste0(
+          "La columna llega como ", representacion,
+          " y su \u00fanico valor no se pudo convertir a geometr\u00eda"
+        ) else paste0(
+          "La columna llega como ", representacion,
+          " y no se pudo convertir a geometr\u00eda ninguno de sus ",
+          length(intentadas), " valores que se intentaron convertir"
+        ),
         if (nzchar(detalle)) paste0(": ", detalle) else "",
-        ". Las metricas espaciales quedan sin medir."
+        ". Las m\u00e9tricas espaciales quedan sin medir."
       )
     ))
   }
 
   motivo_conversion <- if (n_no_convertidos > 0L) {
     paste0(
-      "La columna llega como ", representacion, " y ", n_no_convertidos,
-      " de ", length(intentadas), universo_intento,
+      "La columna llega como ", representacion, " y ",
+      if (length(intentadas) == 1L) {
+        paste0(n_no_convertidos, " valor presente")
+      } else {
+        paste0(n_no_convertidos, " de ", length(intentadas), " valores presentes")
+      },
       if (n_no_convertidos == 1L) " no se pudo" else " no se pudieron",
-      " convertir a geometria: ", detalle,
-      ". Las metricas espaciales cubren las ", length(conversion$indices),
-      " restantes."
+      " convertir a geometr\u00eda: ", detalle,
+      ". Las m\u00e9tricas espaciales cubren ", length(conversion$indices),
+      if (length(conversion$indices) == 1L) " valor restante." else " valores restantes."
     )
   } else {
     NA_character_
@@ -1254,11 +1271,13 @@
   list(
     indices = indices, recortado = TRUE,
     motivo = paste0(
-      "La conversion a geometria se limito a ", length(indices), " de ", n,
-      " valores; se sube con options(lupa.max_geometrias=).",
+      "La conversi\u00f3n a geometr\u00eda se limit\u00f3 a ", length(indices), " de ", n,
+      if (length(indices) == 1L) " valor; se sube con options(lupa.max_geometrias=)." else
+        " valores; se sube con options(lupa.max_geometrias=).",
       if (prioritario) {
         paste0(
-          " Se convirtieron primero los ", sum(prioridad), " valores del ",
+          " Se convirtieron primero ", sum(prioridad),
+          if (sum(prioridad) == 1L) " valor del " else " valores del ",
           "universo aplicable declarado y lo que sobro del tope, del resto."
         )
       } else ""
@@ -1480,15 +1499,17 @@
       if (no_analizadas > 0L) {
         paste0(
           " Del universo aplicable declarado se analizaron ",
-          length(analizadas), " de sus ", length(presentes),
-          " valores presentes; los ", no_analizadas, " restantes quedaron sin ",
+          length(analizadas), if (length(analizadas) == 1L) " de su " else " de sus ", length(presentes),
+          if (length(presentes) == 1L) " valor presente; queda " else " valores presentes; quedan ", no_analizadas,
+          if (no_analizadas == 1L) " restante sin " else " restantes sin ",
           "evaluar y no integran los conteos de validez ni de dominio."
         )
       } else {
         paste0(
           " Del universo aplicable declarado se analizaron sus ",
-          length(presentes), " valores presentes: el recorte cayo fuera de el y ",
-          "solo alcanza a lo que se publica de la columna entera."
+          length(presentes), if (length(presentes) == 1L) " valor presente: el recorte cay\u00f3 fuera de \u00e9l y " else
+            " valores presentes: el recorte cay\u00f3 fuera de \u00e9l y ",
+          "s\u00f3lo alcanza a lo que se publica de la columna entera."
         )
       }
     )
@@ -1624,7 +1645,7 @@
     salida$motivo_validez <- if (inherits(validas, "error")) {
       conditionMessage(validas)
     } else {
-      "st_is_valid() no devolvio un resultado para todas las geometrias."
+      "st_is_valid() no devolvi\u00f3 un resultado para todas las geometr\u00edas."
     }
   } else {
     # Antes, un solo NA de st_is_valid() descartaba el conteo y los indices de
@@ -1638,9 +1659,11 @@
     salida$indices_validez_no_evaluados <- as.integer(indices[which(!evaluadas)])
     if (any(!evaluadas)) {
       salida$motivo_validez <- paste0(
-        "st_is_valid() no devolvio un resultado para ", sum(!evaluadas), " de ",
-        length(validas), " geometrias; el conteo cubre las ", sum(evaluadas),
-        " restantes."
+        "st_is_valid() no devolvi\u00f3 un resultado para ", sum(!evaluadas), " de ",
+        length(validas), if (length(validas) == 1L) " geometr\u00eda" else " geometr\u00edas",
+        "; el conteo cubre ",
+        if (sum(evaluadas) == 1L) "la restante." else
+          paste0("las ", sum(evaluadas), " restantes.")
       )
     }
     if (isFALSE(salida$validez_evaluada)) {
@@ -1759,13 +1782,13 @@
     .nuevo_diagnostico_no_evaluado(
       retirados$diagnostico[[i]], retirados$columna[[i]],
       paste0(
-        "La columna es una geometria escrita como texto (", representacion[[i]],
-        "): sus valores no son palabras ni claves, y este diagnostico de texto ",
+        "La columna es una geometr\u00eda escrita como texto (", representacion[[i]],
+        "): sus valores no son palabras ni claves, y este diagn\u00f3stico de texto ",
         "no aplica."
       ),
       paste(
-        "Convertirla con `sf::st_as_sfc()` para perfilarla como geometria. Los",
-        "diagnosticos de la escritura -espacios, codificacion, invisibles- se",
+        "Convertirla con `sf::st_as_sfc()` para perfilarla como geometr\u00eda. Los",
+        "diagn\u00f3sticos de la escritura -espacios, codificaci\u00f3n, invisibles- se",
         "siguen publicando."
       )
     )

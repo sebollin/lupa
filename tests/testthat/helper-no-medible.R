@@ -15,7 +15,7 @@
   testthat::expect_gte(nrow(fallidas), 1L)
   testthat::expect_true(any(grepl(patron, fallidas$motivo)), info = patron)
   testthat::expect_true(
-    any(grepl("no se midieron porque su m", avisos, fixed = TRUE)),
+    any(grepl("no se midi\u00f3 porque su m", avisos, fixed = TRUE)),
     info = patron
   )
   invisible(medicion)

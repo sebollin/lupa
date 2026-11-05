@@ -67,7 +67,7 @@ test_that("las formas equifrecuentes tienen un diagnostico separado", {
   ]
   expect_equal(nrow(nuevo), 1L)
   expect_equal(as.character(nuevo$severidad), "sospechoso")
-  expect_match(nuevo$descripcion, "ninguna evidencia dice cual es la correcta")
+  expect_match(nuevo$descripcion, "ninguna evidencia dice cu\u00e1l es la correcta")
   expect_match(nuevo$evidencia, "origen=distancia_equifrecuente")
   expect_equal(nuevo$n_afectados, 2L)
 })
@@ -144,6 +144,6 @@ test_that("la razon de permutacion queda como evidencia descriptiva", {
     drop = FALSE
   ]
   expect_equal(nrow(hallazgo), 1L)
-  expect_match(hallazgo$evidencia, "Razon de permutacion descriptiva", fixed = TRUE)
-  expect_match(hallazgo$evidencia, "no filtra la deteccion", fixed = TRUE)
+  expect_match(hallazgo$evidencia, "Raz\u00f3n de permutaci\u00f3n descriptiva", fixed = TRUE)
+  expect_match(hallazgo$evidencia, "no filtra la detecci\u00f3n", fixed = TRUE)
 })

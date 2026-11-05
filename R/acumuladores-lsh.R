@@ -1184,7 +1184,7 @@
         unidos$max_cache %||% 0
       )
       if (unidos$faltantes > 0L) .detener(
-        "merge-join del diccionario dejo q-gramas sin identificador.",
+        "merge-join del diccionario dej\u00f3 q-gramas sin identificador.",
         call. = FALSE
       )
       firmas <- .lsh_firmas_desde_ids(

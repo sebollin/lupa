@@ -275,7 +275,9 @@
   if (length(resumen$valores) > max_valores) {
     evidencia <- paste0(
       evidencia, "; ... ", length(resumen$valores) - max_valores,
-      " valores no mostrados"
+      if (length(resumen$valores) - max_valores == 1L) {
+        " valor no mostrado"
+      } else " valores no mostrados"
     )
   }
   evidencia
@@ -571,7 +573,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       if (length(sin_analizar) > 1L) "s" else "", " de columna repetido",
       if (length(sin_analizar) > 1L) "s" else "", " (",
       paste0("`", .marcar_para_exhibir(sin_analizar), "`", collapse = ", "),
-      "): una clave se nombra por sus columnas, y ese nombre no dice cual es. ",
+      "): una clave se nombra por sus columnas, y ese nombre no dice cu\u00e1l es. ",
       "Renombrarlas -por ejemplo con `make.unique()`- y volver a buscar.",
       call. = FALSE
     )
@@ -730,8 +732,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       motivo = "columna_no_comparable",
       detalle = paste0(
         "la columna es una magnitud con unidad (", .unidad_declarada(x),
-        "): el mismo numero en otra unidad es otro valor; convertirla a un ",
-        "numero en una unidad explicita y volver a comparar"
+        "): el mismo n\u00famero en otra unidad es otro valor; convertirla a un ",
+        "n\u00famero en una unidad expl\u00edcita y volver a comparar"
       )
     ))
   }
@@ -799,7 +801,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       any(!nzchar(columnas))) {
     .detener(
       "`columnas_candidatas` para ", lado,
-      " debe ser un vector de nombres no vacios.", call. = FALSE
+      " debe ser un vector de nombres no vac\u00edos.", call. = FALSE
     )
   }
   indices <- .indice_nombre(columnas, nombres)
@@ -958,7 +960,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       return(list(
         motivo = "cardinalidades_imposibles",
         detalle = paste0(
-          "con ", x$n_distintos, " distintos en tabla1, los valores mas ",
+          "con ", x$n_distintos,
+          if (x$n_distintos == 1L) " distinto en tabla1, el valor m\u00e1s " else
+            " distintos en tabla1, los valores m\u00e1s ",
           "frecuentes de tabla2 cubren a lo sumo ",
           .formatear_numero_publicado(signif(cota, 4)),
           " de sus filas, por debajo del umbral ",
@@ -1098,7 +1102,7 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   }
   if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
       is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
-    .detener("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
+    .detener("`tope_memoria_mb` debe ser un n\u00famero no negativo.", call. = FALSE)
   }
   limite_muestra <- .validar_muestra(muestra)
   nombres_1 <- names(tabla1)
@@ -1252,8 +1256,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
         list(
           motivo = "nombre_repetido",
           detalle = paste0(
-            "la tabla tiene mas de una columna con ese nombre y no se puede ",
-            "decir cual se compara; renombrarlas con `make.unique()`"
+            "la tabla tiene m\u00e1s de una columna con ese nombre y no se puede ",
+            "decir cu\u00e1l se compara; renombrarlas con `make.unique()`"
           )
         )
       } else if (setequal(c(x$familia, y$familia), c("fecha", "fecha-hora"))) {
@@ -1262,7 +1266,7 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           detalle = paste0(
             "una fecha de calendario y un instante no comparten escritura; ",
             "convertir una de las dos a la clase de la otra, con `tz` ",
-            "explicito, y volver a comparar"
+            "expl\u00edcito, y volver a comparar"
           )
         )
       } else if (!is.null(x$no_comparable)) {

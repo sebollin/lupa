@@ -53,7 +53,7 @@ test_that("sugerir_clave no mide una columna cuyo nombre se repite", {
   fila <- s[s$columna == "id", , drop = FALSE]
   expect_equal(nrow(fila), 1L)
   expect_true(is.na(fila$identifica))
-  expect_match(fila$motivo, "no se midio", fixed = TRUE)
+  expect_match(fila$motivo, "no se midi\u00f3", fixed = TRUE)
   expect_true(isTRUE(s$identifica[s$columna == "z"]))
   mensajes <- character()
   withCallingHandlers(

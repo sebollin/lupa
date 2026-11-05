@@ -21,7 +21,7 @@
          "archivo dentro de \u00e9l.", call. = FALSE)
   }
   if (file.exists(archivo) && !sobrescribir) {
-    .detener("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
+    .detener("El archivo ya existe; usar `sobrescribir = TRUE` para reemplazarlo.",
          call. = FALSE)
   }
   directorio
@@ -1121,7 +1121,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     return(.normalizar_evaluacion_historico(x, detalle))
   }
   .detener(
-    "Cada objeto debe ser una medicion, evaluacion_calidad o historico_calidad.",
+    "Cada objeto debe ser una medici\u00f3n, evaluacion_calidad o historico_calidad.",
     call. = FALSE
   )
 }
@@ -1778,7 +1778,8 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
           as.character(datos$perfil[[indices[[1L]]]])
         },
         paste0(
-          "no_comparable: ", sum(sin_configuracion), " par(es) sin la ",
+          "no_comparable: ", sum(sin_configuracion),
+          if (sum(sin_configuracion) == 1L) " par sin la " else " pares sin la ",
           "configuraci\u00f3n de sus corridas"
         ),
         paste0(
@@ -1918,30 +1919,30 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
             modelo = ifelse(
               marco_cambiado[i] & tipos_cambiados[i],
               paste(
-                "Cambio el marco y el tipo_resultado de una metrica o el",
-                "conjunto de metricas del modelo;"
+                "Cambio el marco y el tipo_resultado de una m\u00e9trica o el",
+                "conjunto de m\u00e9tricas del modelo;"
               ),
               ifelse(
                 marco_cambiado[i], "Cambio el marco de calidad de la corrida;",
                 ifelse(
                   tipos_cambiados[i],
                   paste(
-                    "Cambio el tipo_resultado de una metrica o el conjunto de",
-                    "metricas del modelo;"
+                    "Cambio el tipo_resultado de una m\u00e9trica o el conjunto de",
+                    "m\u00e9tricas del modelo;"
                   ),
                   "Cambio el modelo de calidad de la corrida;"
                 )
               )
             ),
             aplicabilidad = "Cambio la aplicabilidad de la corrida;",
-            perfil = "Cambio el perfil de evaluacion de la corrida;"
+            perfil = "Cambio el perfil de evaluaci\u00f3n de la corrida;"
           ),
           ifelse(
             marco_cambiado[i] | tipos_cambiados[i],
             if (nombre == "modelo") {
-              "no se publica la comparacion del resultado."
+              "no se publica la comparaci\u00f3n del resultado."
             } else {
-              "la comparacion no se publica porque tambien cambio el modelo."
+              "la comparaci\u00f3n no se publica porque tambi\u00e9n cambi\u00f3 el modelo."
             },
             paste(
               "se mantienen las comparaciones para que la deriva de datos no",

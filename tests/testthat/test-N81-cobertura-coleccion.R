@@ -233,7 +233,7 @@ test_that("los seis alcances de cobertura se enumeran y tres explican la tabla",
   motivo <- as.character(final$motivo_sin_medir)[
     as.character(final$tablas_sin_medir) == "incompleta"
   ]
-  expect_match(motivo, "no se pudo medir la proporcion")
+  expect_match(motivo, "no se pudo medir la proporci\u00f3n")
   expect_false(grepl("No hay una medida de esta tabla", motivo, fixed = TRUE))
 })
 

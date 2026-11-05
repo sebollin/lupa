@@ -121,7 +121,7 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
     if (is.null(nombres_umbrales) || anyNA(nombres_umbrales) ||
         !all(nzchar(nombres_umbrales)) ||
         anyDuplicated(.nombres_para_operar(nombres_umbrales))) {
-      .detener("`umbrales` debe tener nombres unicos y no vacios.", call. = FALSE)
+      .detener("`umbrales` debe tener nombres \u00fanicos y no vac\u00edos.", call. = FALSE)
     }
     argumentos_condicion <- names(formals(condicion))
     if (!"..." %in% argumentos_condicion) {
@@ -288,10 +288,12 @@ perfil_evaluacion <- function(nombre, ...) {
         if (any(no_aplica)) {
           .detener(
             "El perfil de madurez usa un umbral en [0, 1] y no puede juzgar una ",
-            "metrica no acotada. Declara orientacion `no_aplica`: ",
+            "m\u00e9trica no acotada. Declara orientaci\u00f3n `no_aplica`: ",
             paste(unique(seq_along(valor)[no_aplica]), collapse = ", "),
-            " de ", length(valor), " medida(s). Declare una regla propia para ",
-            "esa metrica, con la escala que le corresponde.",
+            " de ", length(valor),
+            if (length(valor) == 1L) " medida. Declarar una regla propia para " else
+              " medidas. Declarar una regla propia para ",
+            "esa m\u00e9trica, con la escala que le corresponde.",
             call. = FALSE
           )
         }
@@ -402,7 +404,11 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     } else as.character(which(sin_valor))
     .detener(
       sum(sin_valor), if (sum(sin_valor) == 1L) " medida tiene" else " medidas tienen",
-      " `resultado` NA sin estar suprimida(s) -la primera, `", ids[[1L]], "`-: ",
+      if (sum(sin_valor) == 1L) {
+        " `resultado` NA sin estar suprimida -la primera, `"
+      } else {
+        " `resultado` NA sin estar suprimidas -la primera, `"
+      }, ids[[1L]], "`-: ",
       "una medida sin valor no se eval\u00faa. Si la m\u00e9trica no pudo medirse, ",
       "`medir()` la declara en `cobertura_metricas` en vez de publicar NA.",
       call. = FALSE
@@ -512,7 +518,11 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       estado = rep("sin_medidas", length(sin_medidas)),
       motivo = rep(paste0(
         "La regla declara ", declaradas,
-        " m\u00e9trica(s) y esta medici\u00f3n no trae ninguna medida de esta: ",
+        if (declaradas == 1L) {
+          " m\u00e9trica y esta medici\u00f3n no trae ninguna medida de esta: "
+        } else {
+          " m\u00e9tricas y esta medici\u00f3n no trae ninguna medida de esta: "
+        },
         "el veredicto cubre ", declaradas - length(sin_medidas), " de ",
         declaradas, "."
       ), length(sin_medidas)),
@@ -732,7 +742,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     resumen$n_cumplen[[i]] <- sum(componentes$resultado)
     metricas <- .identificadores_unicos(componentes$metrica_instanciada)
     resumen$universo[[i]] <- paste0(
-      nrow(componentes), " medidas seleccionadas: ",
+      nrow(componentes), if (nrow(componentes) == 1L) {
+        " medida seleccionada: "
+      } else " medidas seleccionadas: ",
       paste(metricas, collapse = ", ")
     )
     indice_regla <- .indice_identificador(
@@ -1052,10 +1064,10 @@ rbind.medicion <- function(..., deparse.level = 1) {
              !mismo("configuracion_aplicabilidad")) {
     .detener(
       "No se pueden unir con `rbind()` mediciones de modelos o universos ",
-      "distintos: una medicion conserva un solo modelo, y una deriva posterior ",
-      "no podria distinguir el cambio de modelo del de datos. Para seguir ",
-      "corridas de modelos distintos, use `historico_calidad()`, que conserva ",
-      "la configuracion de cada una.",
+      "distintos: una medici\u00f3n conserva un solo modelo, y una deriva posterior ",
+      "no podr\u00eda distinguir el cambio de modelo del de datos. Para seguir ",
+      "corridas de modelos distintos, usar `historico_calidad()`, que conserva ",
+      "la configuraci\u00f3n de cada una.",
       call. = FALSE
     )
   }
@@ -1203,7 +1215,7 @@ print.medicion <- function(x, ...) {
         alcance_medidas$metrica_instanciada, " ", alcance_medidas$medidas,
         " de ", alcance_medidas$en_el_universo, " ", alcance_medidas$unidad, "s"
       ), collapse = "; "),
-      ". El detalle esta en `attr(medicion, \"alcance_medidas\")`."
+      ". El detalle est\u00e1 en `attr(medicion, \"alcance_medidas\")`."
     )))
   }
   # Y la metrica que NO se pudo medir. Es la cuarta capa con la misma pregunta -el
@@ -1267,7 +1279,7 @@ print.evaluacion_calidad <- function(x, ...) {
       " en esta medici\u00f3n: ",
       paste(unique(as.character(cobertura_reglas$metrica_instanciada)),
             collapse = ", "),
-      ". El detalle esta en `attr(evaluacion, \"cobertura_reglas\")`."
+      ". El detalle est\u00e1 en `attr(evaluacion, \"cobertura_reglas\")`."
     )))
   }
   .imprimir_coberturas_frontera(original)
@@ -1333,7 +1345,7 @@ evaluar <- function(medicion, perfil) {
     }
     .detener(
       "El segundo argumento `perfil` debe ser un perfil creado por ",
-      "perfil_evaluacion(); se recibio ", recibido, ".",
+      "perfil_evaluacion(); se recibi\u00f3 ", recibido, ".",
       call. = FALSE
     )
   }
@@ -1375,11 +1387,15 @@ evaluar <- function(medicion, perfil) {
     .avisar(
       "El veredicto de ",
       length(.identificadores_unicos(cobertura_reglas$regla)),
-      " regla(s) cubre menos m\u00e9tricas de las que la regla declara: ",
+      if (length(.identificadores_unicos(cobertura_reglas$regla)) == 1L) {
+        " regla cubre menos m\u00e9tricas de las que la regla declara: "
+      } else {
+        " reglas cubren menos m\u00e9tricas de las que la regla declara: "
+      },
       paste(unique(paste0(
         cobertura_reglas$regla, " sin ", cobertura_reglas$metrica_instanciada
       )), collapse = "; "),
-      ". El detalle esta en `attr(evaluacion, \"cobertura_reglas\")`.",
+      ". El detalle est\u00e1 en `attr(evaluacion, \"cobertura_reglas\")`.",
       call. = FALSE
     )
   }

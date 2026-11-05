@@ -215,7 +215,7 @@ test_that("el bloque de memoria declara la ausencia y separa magnitud de consumo
   expect_match(salida, "Magnitud del trabajo \\(no consumo de memoria\\)")
   expect_match(salida, "pares de texto")
   expect_match(salida, "Datos de referencia medidos, no predicción")
-  expect_match(salida, "0,13 GB por millon de filas")
+  expect_match(salida, "0,13 GB por mill\u00f3n de filas")
   expect_match(salida, "1,0-1,5 MB por cada mil filas")
   expect_match(salida, "1,62x")
   expect_match(salida, "Ver todas las filas y tener todas las filas en memoria")

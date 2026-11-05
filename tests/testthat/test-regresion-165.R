@@ -78,8 +78,8 @@ test_that("el tope de vocabulario cuenta valores distintos y filas por separado"
 
   perfil <- perfilar(datos, proteger_datos_personales = FALSE)
   motivo <- perfil$cobertura_diagnosticos$motivo[[1L]]
-  expect_match(motivo, "1 valor(es) distinto(s)", fixed = TRUE)
-  expect_match(motivo, "100 fila(s)", fixed = TRUE)
+  expect_match(motivo, "1 valor distinto", fixed = TRUE)
+  expect_match(motivo, "100 filas", fixed = TRUE)
 })
 
 # El mismo desvio vivia en la regla HERMANA y quedo sin arreglar la primera vez:

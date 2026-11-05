@@ -552,7 +552,7 @@ test_that("un WKB declarado con un valor invalido declara la perdida sin sf", {
   expect_identical(metricas$n_validez_evaluados, 1L)
   expect_identical(metricas$n_valores_no_convertidos, 1L)
   expect_match(metricas$motivo_representacion, "1 de 2 valores presentes")
-  expect_match(metricas$motivo_representacion, "no se entrego a sf")
+  expect_match(metricas$motivo_representacion, "no se entreg\u00f3 a sf")
 })
 
 test_that("el perfil publica las metricas espaciales de una columna WKT", {

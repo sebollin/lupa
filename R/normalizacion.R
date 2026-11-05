@@ -73,10 +73,10 @@ normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
   )
   if (any(!vapply(valores, function(x) is.logical(x) && length(x) == 1L &&
                   !is.na(x), logical(1L)))) {
-    .detener("Los pasos de normalizacion() deben ser logicos escalares.", call. = FALSE)
+    .detener("Los pasos de normalizacion() deben ser l\u00f3gicos escalares.", call. = FALSE)
   }
   if (!is.character(proteger) || anyNA(proteger) || any(!nzchar(proteger))) {
-    .detener("proteger debe ser un vector de caracteres no vacio ni NA.", call. = FALSE)
+    .detener("proteger debe ser un vector de caracteres no vac\u00edo ni NA.", call. = FALSE)
   }
   if (any(vapply(proteger, function(x) {
     codigos <- .normalizacion_ordenar(
@@ -85,7 +85,7 @@ normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
     !length(codigos) || .normalizacion_clase(codigos[[1L]]) != 0L ||
       any(vapply(codigos[-1L], .normalizacion_clase, integer(1L)) == 0L)
   }, logical(1L)))) {
-    .detener("Cada elemento de proteger debe ser un grafema Unicode valido.",
+    .detener("Cada elemento de proteger debe ser un grafema Unicode v\u00e1lido.",
          call. = FALSE)
   }
   structure(c(valores, list(proteger = unique(proteger))),
@@ -100,7 +100,7 @@ print.normalizacion_lupa <- function(x, ...) {
       "ligaduras", "ancho"),
     "normalizacion()"
   )
-  cat("Perfil de normalizacion de lupa\n")
+  cat("Perfil de normalizaci\u00f3n de lupa\n")
   pasos <- c("minusculas", "espacios", "acentos", "comillas", "puntuacion",
              "ligaduras", "ancho")
   .cat_publicado(
@@ -153,7 +153,7 @@ print.normalizacion_lupa <- function(x, ...) {
     nombres <- names(normalizar)
     if (is.null(nombres) || anyNA(nombres) || any(!nzchar(nombres)) ||
         anyDuplicated(.nombres_para_operar(nombres))) {
-      .detener("La lista de normalizar debe tener nombres de columnas unicos.", call. = FALSE)
+    .detener("La lista de normalizar debe tener nombres de columnas \u00fanicos.", call. = FALSE)
     }
     perfiles <- lapply(normalizar, function(x) {
       if (is.character(x) && length(x) == 1L) x <- .normalizacion_preset(x)
@@ -162,7 +162,7 @@ print.normalizacion_lupa <- function(x, ...) {
                            comillas = x)
       }
       if (!inherits(x, "normalizacion_lupa")) {
-        .detener("Cada valor de la lista normalizar debe ser un perfil valido.",
+        .detener("Cada valor de la lista normalizar debe ser un perfil v\u00e1lido.",
              call. = FALSE)
       }
       x

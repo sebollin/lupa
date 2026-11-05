@@ -558,8 +558,8 @@
       vacio$moda_sobresale <- NA
       vacio$no_evaluada <- TRUE
       vacio$motivo_no_evaluada <- paste(
-        "No se evaluo la secuencia entera: hay valores por encima de 2^53, que",
-        "en un doble se redondean, y no se mide una densidad sobre numeros",
+        "No se evalu\u00f3 la secuencia entera: hay valores por encima de 2^53, que",
+        "en un doble se redondean, y no se mide una densidad sobre n\u00fameros",
         "redondeados."
       )
       return(vacio)
@@ -1386,8 +1386,8 @@
     estado_outliers <- "no_evaluado"
     motivo_outliers <- paste(
       "No se evaluaron los l\u00edmites de Tukey porque el recorrido",
-      "intercuartilico es cero; no hay una distancia distributiva que medir.",
-      "Reunir valores con variacion o declarar otro criterio antes de",
+      "intercuart\u00edlico es cero; no hay una distancia distributiva que medir.",
+      "Reunir valores con variaci\u00f3n o declarar otro criterio antes de",
       "interpretar outliers."
     )
   } else {
@@ -1543,7 +1543,7 @@
       paste0(origen, " -> ", .comillas_sin_locale(reparados[[i]], quote = '"'),
              " [", estados[[i]], "]")
     } else {
-      paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
+      paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
     }
   }, character(1L)), collapse = "; ")
   list(
@@ -2355,7 +2355,8 @@
   if (length(preparacion$posiciones)) {
     mostradas <- utils::head(preparacion$posiciones, 8L)
     vacio$evidencia_codificacion_invalida <- paste0(
-      length(preparacion$posiciones), " valores; filas: ",
+      length(preparacion$posiciones),
+      if (length(preparacion$posiciones) == 1L) " valor; fila: " else " valores; filas: ",
       paste(mostradas, collapse = ", "),
       if (length(preparacion$posiciones) > length(mostradas)) ", ..." else ""
     )

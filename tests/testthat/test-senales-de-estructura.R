@@ -63,7 +63,7 @@ test_that("sin valores observados no se propone una escala", {
   expect_true(all(clasificacion$escala_propuesta == "desconocida"))
   expect_true(all(is.na(clasificacion$confianza)))
   expect_false(any(clasificacion$confirmada))
-  expect_true(all(grepl("ningun valor observado", clasificacion$evidencia)))
+  expect_true(all(grepl("ning\u00fan valor observado", clasificacion$evidencia)))
 })
 
 # El control, y decide el alcance de la guarda: donde la CLASE determina la

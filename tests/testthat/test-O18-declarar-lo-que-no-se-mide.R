@@ -14,7 +14,7 @@ test_that("Tukey no publica outliers con IQR cero", {
     perfil$cobertura_diagnosticos$diagnostico == "outliers", , drop = FALSE
   ]
   expect_equal(nrow(cobertura), 1L)
-  expect_match(cobertura$motivo, "intercuartilico")
+  expect_match(cobertura$motivo, "intercuart\u00edlico")
 
   sano <- perfilar(
     data.frame(x = c(1:20, 100)),

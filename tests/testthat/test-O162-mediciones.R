@@ -382,7 +382,7 @@ test_that("B3: con el BIGINT entregado como doble, el consejo nombra el argument
   ))
   sql <- suppressWarnings(perfilar_dbi(con, "big", proteger_datos_personales = FALSE))$resumen_tabla$sql
   motivo <- sql$motivo[sql$columna == "v" & sql$metrica == "maximo"]
-  expect_match(motivo, "driver entrego como doble", fixed = TRUE)
+  expect_match(motivo, "driver entreg\u00f3 como doble", fixed = TRUE)
   expect_match(motivo, "`DBI::dbConnect()` en RSQLite, RPostgres, RMariaDB y odbc",
                fixed = TRUE)
 })

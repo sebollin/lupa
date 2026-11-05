@@ -464,7 +464,7 @@ test_that("un motor que rechaza LIMIT ya no tira todos los pares", {
   # el descarte en silencio.
   expect_false(any(grepl("No se pudo leer", resultado$cobertura_pares$motivo,
                          fixed = TRUE)))
-  expect_true(all(grepl("^Sin conclusion", resultado$cobertura_pares$motivo)))
+  expect_true(all(grepl("^Sin conclusi\u00f3n", resultado$cobertura_pares$motivo)))
   expect_equal(nrow(resultado$relaciones), 1L)
   expect_equal(resultado$meta$pares_comparados, 1L)
   expect_true(all(resultado$meta$lecturas$via == "fetch_acotado"))
@@ -550,9 +550,9 @@ test_that("un punto al principio, al final o repetido se rechaza", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   # `esquema.` daba la tabla `esquema` -otra tabla distinta- y `.tabla` producia
   # el SQL ``.`tabla`.
-  expect_error(coleccion(con, "esquema."), "vacia")
-  expect_error(coleccion(con, ".tabla"), "vacia")
-  expect_error(coleccion(con, "."), "vacia")
+  expect_error(coleccion(con, "esquema."), "vac\u00eda")
+  expect_error(coleccion(con, ".tabla"), "vac\u00eda")
+  expect_error(coleccion(con, "."), "vac\u00eda")
   expect_error(coleccion(con, "a..b"), "3 partes")
 })
 
@@ -703,11 +703,11 @@ test_that("el data.frame de tablas valida NA, cadenas vacias y tipos", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   # El vector de texto ya validaba; el data.frame no.
   expect_error(coleccion(con, data.frame(tabla = c("a", NA))), "no admite `NA`")
-  expect_error(coleccion(con, data.frame(tabla = c("a", ""))), "cadenas vacias")
+  expect_error(coleccion(con, data.frame(tabla = c("a", ""))), "cadenas vac\u00edas")
   expect_error(coleccion(con, data.frame(tabla = 1:2)), "debe ser de texto")
   expect_error(
     coleccion(con, data.frame(esquema = "", tabla = "a", stringsAsFactors = FALSE)),
-    "cadenas vacias"
+    "cadenas vac\u00edas"
   )
   # Y el `NA` logico de `data.frame(esquema = NA)` sigue siendo la forma normal
   # de declarar "sin esquema".

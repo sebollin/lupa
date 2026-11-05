@@ -79,7 +79,7 @@ test_that("sin patron dominante suficiente, la ausencia se declara", {
   ]
 
   expect_identical(nrow(declaracion), 1L)
-  expect_match(as.character(declaracion$motivo), "patron dominante ocupa")
+  expect_match(as.character(declaracion$motivo), "patr\u00f3n dominante ocupa")
   expect_false("patron_raro" %in% hallazgos(perfil)$tipo_hallazgo)
 })
 

@@ -60,7 +60,7 @@ test_that("la evidencia de Benford publica el desglose por digito", {
   hallazgo <- as.data.frame(hallazgos(perfil))
   fila <- hallazgo[grepl("benford", hallazgo$tipo_hallazgo), , drop = FALSE]
   expect_equal(nrow(fila), 1L)
-  expect_match(fila$evidencia, "observado/esperado por digito", fixed = TRUE)
+  expect_match(fila$evidencia, "observado/esperado por d\u00edgito", fixed = TRUE)
   # Ni un solo NA: los nueve digitos traen su observado y su esperado.
   expect_false(grepl("NA/NA", fila$evidencia, fixed = TRUE))
   expect_match(fila$evidencia, "1:1.000/0.301", fixed = TRUE)

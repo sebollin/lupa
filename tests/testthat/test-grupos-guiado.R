@@ -590,7 +590,7 @@ test_that("la impresión hace visibles las acciones y resultados destructivos", 
 
   resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
   mensajes <- salida_cli(print(resultado))
-  expect_match(paste(mensajes, collapse = "\n"), "filas y.*columnas eliminadas")
+  expect_match(paste(mensajes, collapse = "\n"), "1 fila y 0 columnas eliminadas")
 })
 
 # `NA` no es "no hacer nada". Lo era, y con eso un selector cuya lectura fallara
@@ -654,7 +654,7 @@ test_that("la cobertura por grupo distingue por que no quedo nada que perfilar",
     attr(perfilar_por(solo_eje, por = "zona", min_filas = 1), "cobertura_grupos")
   )
   expect_true(nrow(cobertura) > 0L)
-  expect_true(all(grepl("no tiene mas columnas que la de agrupacion",
+  expect_true(all(grepl("no tiene m\u00e1s columnas que la de agrupaci\u00f3n",
                         cobertura$motivo)))
   expect_true(all(!nzchar(cobertura$columnas_descartadas)))
 

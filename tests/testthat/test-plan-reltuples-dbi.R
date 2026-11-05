@@ -11,7 +11,7 @@ test_that("el denominador del catalogo reutiliza solo las hojas", {
   expect_equal(filas$filas, 1200)
   expect_equal(filas$n_relaciones, 1L)
   expect_identical(filas$fuente, "pg_class.reltuples")
-  expect_match(filas$motivo, "estimacion de catalogo")
+  expect_match(filas$motivo, "estimaci\u00f3n de cat\u00e1logo")
 })
 
 test_that("reltuples cero o negativo conserva sin dato filas", {
@@ -42,7 +42,7 @@ test_that("las proyecciones del plan declaran el catalogo y no segundos", {
   filas <- list(
     disponible = TRUE, estado = "estimado_catalogo", filas = 4500,
     fuente = "pg_class.reltuples", n_relaciones = 1L,
-    motivo = "estimacion de catalogo"
+    motivo = "estimaci\u00f3n de cat\u00e1logo"
   )
   proyecciones <- .proyecciones_plan_catalogo_dbi(prep, filas)
 
@@ -50,7 +50,7 @@ test_that("las proyecciones del plan declaran el catalogo y no segundos", {
   expect_equal(proyecciones$moda$magnitud, 1750)
   expect_true(proyecciones$mediana$disponible)
   expect_equal(proyecciones$mediana$magnitud, 9000)
-  expect_match(proyecciones$moda$motivo, "no es una duracion")
+  expect_match(proyecciones$moda$motivo, "no es una duraci\u00f3n")
   expect_match(proyecciones$mediana$fuente, "pg_class.reltuples")
 })
 
@@ -70,7 +70,7 @@ test_that("la proyeccion de moda reutiliza el catalogo ya leido por la estrategi
     estado = "estimado_catalogo",
     filas = 100,
     fuente = "pg_class.reltuples",
-    motivo = "estimacion de catalogo"
+    motivo = "estimaci\u00f3n de cat\u00e1logo"
   )
 
   proyeccion <- .proyecciones_plan_catalogo_dbi(preparacion, filas)$moda

@@ -321,7 +321,7 @@ test_that("la cifra del motivo se cuenta, no se deriva restando", {
     expect_length(motivo, 1L)
     expect_match(
       motivo[[1L]],
-      paste0("se calculo sobre ", caso$usados, " valores"),
+      paste0("se calcul\u00f3 sobre ", caso$usados, " valores"),
       fixed = TRUE, info = nombre
     )
     # El otro camino: la media es la de esos valores y de ningun otro numero.

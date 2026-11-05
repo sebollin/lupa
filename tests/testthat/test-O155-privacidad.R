@@ -211,7 +211,7 @@ test_that("H4: los avisos de la coleccion pasan por el piso tambien si se corta"
       perfil <- original(conexion, tabla, ...)
       aviso <- structure(class = c("lupa_aviso_dbi", "warning", "condition"),
                          list(message = paste(
-                           "El resumen SQL se calculo y se devuelve, pero la",
+                           "El resumen SQL se calcul\u00f3 y se devuelve, pero la",
                            "muestra no: typen Campos Cadena till int"
                          ), call = NULL))
       warning(aviso)
@@ -231,7 +231,8 @@ test_that("H4: los avisos de la coleccion pasan por el piso tambien si se corta"
       }
     )
     expect_identical(resultado, "cortada")
-    salieron <- grepl("El resumen SQL se calculo", avisos, fixed = TRUE)
+    salieron <- grepl("El resumen SQL se calcul", avisos, fixed = TRUE) &
+      grepl("y se devuelve, pero la", avisos, fixed = TRUE)
     expect_true(any(salieron), info = paste("conservar_perfiles =", conservar))
     expect_false(any(grepl("Campos", avisos, fixed = TRUE)), info = paste("conservar_perfiles =", conservar))
     expect_false(any(grepl("Cadena", avisos, fixed = TRUE)), info = paste("conservar_perfiles =", conservar))

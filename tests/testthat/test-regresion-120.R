@@ -157,7 +157,7 @@ test_that("dentro de un grupo se separa la escritura de la errata", {
   expect_equal(nrow(grupo), 1L)
   # De las tres variantes, dos son la dominante escrita distinto y una no.
   expect_match(as.character(grupo$evidencia[[1L]]),
-               "2 de 3 variantes difieren de la forma dominante solo en")
+               "2 de 3 variantes difieren de la forma dominante s\u00f3lo en")
 })
 
 test_that("la funcion que separa escritura de contenido no se equivoca", {
@@ -223,7 +223,7 @@ test_that("la nota de escritura no afirma que sean la misma palabra", {
       "casi_duplicados_vocabulario", , drop = FALSE
   ]
   evidencia <- as.character(grupo$evidencia[[1L]])
-  expect_match(evidencia, "difieren de la forma dominante solo en")
+  expect_match(evidencia, "difieren de la forma dominante s\u00f3lo en")
   # Y avisa del limite en vez de callarlo.
   expect_match(evidencia, "el acento puede cambiar la palabra")
 })
@@ -258,7 +258,7 @@ test_that("el valor centinela no se publica en una columna protegida", {
                      fixed = TRUE))
   expect_false(grepl("9999", as.character(hallazgo$evidencia[[1L]]),
                      fixed = TRUE))
-  expect_match(as.character(hallazgo$descripcion[[1L]]), "esta protegida")
+  expect_match(as.character(hallazgo$descripcion[[1L]]), "est\u00e1 protegida")
 })
 
 test_that("sin proteccion el valor centinela se dice, que para eso esta", {

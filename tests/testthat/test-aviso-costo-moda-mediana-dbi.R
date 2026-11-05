@@ -41,7 +41,7 @@ test_that("la mediana usa el banco declarado cuando no hay referencia local", {
   expect_equal(proyeccion$n_referencias, 0L)
   expect_true(proyeccion$referencia_declarada)
   expect_match(proyeccion$fuente, "otra corrida")
-  expect_match(proyeccion$motivo, "no como una medicion local")
+  expect_match(proyeccion$motivo, "no como una medici\u00f3n local")
 })
 
 test_that("la cota observada de lectura no se confunde con la referencia bancaria", {
@@ -56,7 +56,7 @@ test_that("la cota observada de lectura no se confunde con la referencia bancari
   expect_equal(proyeccion$duracion_estimada_ms, 40000)
   expect_equal(proyeccion$cota_lectura_ms, 40000)
   expect_match(proyeccion$fuente, "cota de lectura observada")
-  expect_match(proyeccion$motivo, "no es una medicion de mediana")
+  expect_match(proyeccion$motivo, "no es una medici\u00f3n de mediana")
 })
 
 test_that("la moda usa cardinalidades disponibles y declara las que faltan", {
@@ -122,7 +122,7 @@ test_that("el costo de moda conserva la fuente real de cada cardinalidad", {
   expect_equal(clave$n_distintos, 100)
   expect_identical(clave$fuente, "clave_primaria_garantizada")
   expect_equal(corrida$n_distintos, 7)
-  expect_identical(corrida$fuente, "medicion de la corrida")
+  expect_identical(corrida$fuente, "medici\u00f3n de la corrida")
 })
 
 test_that("la moda no inventa una proyeccion sin cardinalidad", {

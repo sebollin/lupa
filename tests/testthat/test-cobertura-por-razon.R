@@ -341,7 +341,7 @@ test_that("el resumen cuantitativo declara por que quedo corto", {
       datos = data.frame(x = c(stats::rnorm(90), rep(-999, 10L)),
                          id = seq_len(100L)),
       args = list(sentinelas_numericos = -999),
-      clave = "dejo afuera"
+      clave = "afuera"
     ),
     dias_de_mes = list(
       datos = data.frame(f = c(rep("2024-01-15", 20L), rep("2024-02", 10L)),
@@ -440,7 +440,7 @@ test_that("los grupos bajo el piso de asimetría se declaran, no desaparecen", {
   # Pero queda declarado.
   fila <- .fila_cobertura(seis_cuatro, "proximidad_vocabulario")
   expect_equal(nrow(fila), 1L)
-  expect_true(grepl("asimetria de frecuencias", fila$motivo, fixed = TRUE))
+  expect_true(grepl("asimetr\u00eda de frecuencias", fila$motivo, fixed = TRUE))
   expect_true(grepl("min_asimetria_vocabulario", fila$como_resolverlo,
                     fixed = TRUE))
 

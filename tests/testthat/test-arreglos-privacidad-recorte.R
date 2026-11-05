@@ -36,8 +36,8 @@ test_that("una columna con forma de documento sin verificar se protege igual", {
   personal <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "dato_personal_posible",
   ]
-  expect_match(personal$evidencia, "proteccion automatica: si")
-  expect_match(personal$evidencia, "por precaucion")
+  expect_match(personal$evidencia, "protecci\u00f3n autom\u00e1tica: s\u00ed")
+  expect_match(personal$evidencia, "por precauci\u00f3n")
 })
 
 test_that("una forma verificada sigue declarandose verificada", {

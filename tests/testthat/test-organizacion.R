@@ -148,7 +148,7 @@ test_that("los dos niveles institucionales exigen pesos declarados", {
   # inventado que el paquete se niega a hacer un piso mas abajo.
   expect_error(
     agregar(medidas, "organizacion", "promedio", organizacion = organismo),
-    "solo se admite 'promedio_ponderado'"
+    "promedio_ponderado.*combinar alcances distintos"
   )
 })
 
@@ -161,13 +161,13 @@ test_that("una medida de fuera de la frontera no entra al numero", {
   expect_error(
     agregar(medidas, "organizacion", "promedio_ponderado",
             pesos = rep(1 / 3, 3), organizacion = organismo),
-    "no pertenecen a la organizacion"
+    "no pertenecen a la organizaci"
   )
 })
 
 test_that("una declaracion que no identifica sus partes se rechaza", {
-  expect_error(organizacion("", "padron"), "texto no vacio")
-  expect_error(organizacion("Organismo A", character()), "lista no vacia")
+  expect_error(organizacion("", "padron"), "texto no vac")
+  expect_error(organizacion("Organismo A", character()), "lista no vac")
   expect_error(organizacion("Organismo A", c("a", "a")), "repite nombres")
   expect_error(organizacion("Organismo A", list(1L)), "quedar identificado")
 })
@@ -195,7 +195,7 @@ test_that("la cobertura de una parte incompleta no se pierde al subir", {
   cobertura <- attr(conjunto, "cobertura_conjunto_organizaciones")
   expect_false(isTRUE(cobertura$completo))
   expect_true(length(cobertura$partes_incompletas) > 0L)
-  expect_match(cobertura$advertencia, "venian")
+  expect_match(cobertura$advertencia, "partes que entraron al n")
   expect_true(!is.null(attr(conjunto, "cobertura_de_partes")))
 })
 

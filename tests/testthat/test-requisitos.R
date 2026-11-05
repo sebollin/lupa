@@ -97,7 +97,7 @@ test_that("un fallo de biblioteca del controlador queda traducido sin afirmar qu
   expect_s3_class(error, "lupa_error_conexion_dbi")
   expect_s3_class(error, "lupa_error_dbi")
   expect_match(conditionMessage(error), "biblioteca externa", fixed = TRUE)
-  expect_match(conditionMessage(error), "No se comprobo", fixed = TRUE)
+  expect_match(conditionMessage(error), "No se comprob\u00f3", fixed = TRUE)
   expect_match(conditionMessage(error), "libmariadb.so", fixed = TRUE)
   expect_match(conditionMessage(error), "libmariadb-dev", fixed = TRUE)
 })

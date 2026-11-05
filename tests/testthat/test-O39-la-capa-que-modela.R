@@ -45,7 +45,7 @@ test_that("madurez reconoce tipo, unidad y rango no acotados", {
   )
   expect_error(
     evaluar(medidas, perfiles_madurez()$Intermedio),
-    "El perfil de madurez usa un umbral en [0, 1] y no puede juzgar una metrica no acotada",
+    "El perfil de madurez usa un umbral en [0, 1] y no puede juzgar una m\u00e9trica no acotada",
     fixed = TRUE
   )
 
@@ -53,7 +53,7 @@ test_that("madurez reconoce tipo, unidad y rango no acotados", {
   por_unidad$unidad <- "casos"
   expect_error(
     evaluar(por_unidad, perfiles_madurez()$Intermedio),
-    "no puede juzgar una metrica no acotada", fixed = TRUE
+    "no puede juzgar una m\u00e9trica no acotada", fixed = TRUE
   )
 
   por_valor <- medidas[medidas$metrica == "TamanoMuestra", , drop = FALSE]
@@ -61,7 +61,7 @@ test_that("madurez reconoce tipo, unidad y rango no acotados", {
   por_valor$unidad <- "proporcion"
   expect_error(
     evaluar(por_valor, perfiles_madurez()$Intermedio),
-    "no puede juzgar una metrica no acotada", fixed = TRUE
+    "no puede juzgar una m\u00e9trica no acotada", fixed = TRUE
   )
 
   nucleo <- metricas_nucleo()

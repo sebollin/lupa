@@ -81,7 +81,7 @@ test_that("las dos etiquetas estadisticas se entienden sin saber estadistica", {
   expect_equal(nrow(benford), 1L)
   descripcion <- as.character(benford$descripcion[[1L]])
   # Dice que reparto se esperaba antes de nombrar la ley.
-  expect_match(descripcion, "primer digito")
+  expect_match(descripcion, "primer d\u00edgito")
   expect_match(descripcion, "30 %")
   expect_match(descripcion, "no evidencia de fraude")
 

@@ -39,7 +39,7 @@
   if (is.character(elementos)) elementos <- as.list(elementos)
   if (!is.list(elementos) || !length(elementos)) {
     .detener(
-      "`", argumento, "` debe ser un vector de nombres o una lista no vacia.",
+      "`", argumento, "` debe ser un vector de nombres o una lista no vac\u00eda.",
       call. = FALSE
     )
   }
@@ -142,7 +142,7 @@
 organizacion <- function(nombre, colecciones) {
   if (!is.character(nombre) || length(nombre) != 1L || is.na(nombre) ||
       !nzchar(nombre)) {
-    .detener("`nombre` debe ser un texto no vacio.", call. = FALSE)
+    .detener("`nombre` debe ser un texto no vac\u00edo.", call. = FALSE)
   }
   identidad <- .nombres_declarados_frontera(
     colecciones, "colecciones", con_alias = TRUE
@@ -178,7 +178,7 @@ print.organizacion_lupa <- function(x, ...) {
     .detener(
       "`organizacion` debe provenir de organizacion(): la granularidad ",
       "'organizacion' agrega sobre una frontera declarada, y sin ella el ",
-      "numero no describiria a ningun organismo.", call. = FALSE
+      "n\u00famero no describiria a ning\u00fan organismo.", call. = FALSE
     )
   }
   # El alias -el nombre del objeto de cada coleccion- reconoce la medida que
@@ -191,7 +191,7 @@ print.organizacion_lupa <- function(x, ...) {
 .validar_conjunto_organizaciones <- function(organizaciones) {
   if (!is.list(organizaciones) || !length(organizaciones)) {
     .detener(
-      "`organizaciones` debe ser una lista no vacia de objetos creados por ",
+      "`organizaciones` debe ser una lista no vac\u00eda de objetos creados por ",
       "organizacion().", call. = FALSE
     )
   }

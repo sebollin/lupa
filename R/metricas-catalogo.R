@@ -136,7 +136,8 @@
     .detener(
       "La m\u00e9trica ", instancia$declaracion$nombre,
       " requiere una entidad y al menos ", minimo,
-      " atributo(s) distinto(s).", call. = FALSE
+      if (minimo == 1L) " atributo distinto." else " atributos distintos.",
+      call. = FALSE
     )
   }
   faltantes <- instancia$atributos[
@@ -234,20 +235,20 @@
   if (is.null(p)) p <- 0.1
   if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
       p < 0 || p > 0.25) {
-    .detener("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+    .detener("`p` debe ser un n\u00famero finito entre 0 y 0.25.", call. = FALSE)
   }
   umbral <- configuracion$umbral
   if (is.null(umbral)) umbral <- 0.10
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0) {
-    .detener("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`umbral` debe ser un n\u00famero finito no negativo.", call. = FALSE)
   }
   normalizar <- configuracion$normalizar
   if (is.null(normalizar)) normalizar <- TRUE
   normalizacion_resuelta <- tryCatch(
     .resolver_normalizacion(normalizar),
     error = function(e) {
-      .detener("normalizar no describe un perfil valido: ",
+    .detener("normalizar no describe un perfil v\u00e1lido: ",
            conditionMessage(e), call. = FALSE)
     }
   )
@@ -1031,7 +1032,7 @@ catalogo_agesic <- function() {
     "Admite expresi\u00f3n regular, diccionario o funci\u00f3n validadora.",
     "Especializa Formato con el diccionario ISO Alpha-3 provisto al medir.",
     "Especializa Formato con el diccionario CIE-10 provisto al medir.",
-    "Especializa Formato con validar_ci_uy(); comprueba estructura y digito de control, no existencia registral.",
+    "Especializa Formato con validar_ci_uy(); comprueba estructura y d\u00edgito de control, no existencia registral.",
     "Requiere configuraci\u00f3n experta mediante escala(); no usa referencial.",
     "Sigue la tabla 16.5: devuelve desviaci\u00f3n est\u00e1ndar muestral.",
     "M\u00e9trica posicional geogr\u00e1fica; no se implementa en el n\u00facleo tabular.",

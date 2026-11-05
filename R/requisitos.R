@@ -35,24 +35,24 @@
       "MariaDB Connector/C",
       "Oracle Instant Client y libaio en Linux",
       "Oracle Instant Client y libaio en Linux",
-      "libcurl para la compilacion si R no trae soporte; no hay cliente de base de datos",
+      "libcurl para la compilaci\u00f3n si R no trae soporte; no hay cliente de base de datos",
       "unixODBC y el controlador ODBC del motor",
       "Depende del paquete R y del controlador elegido"
     ),
     paquete_debian_ubuntu = c(
       NA_character_, NA_character_, "libpq-dev", "default-libmysqlclient-dev",
       "unixodbc-dev y el paquete msodbcsql18 del proveedor", NA_character_,
-      "libmariadb-dev", "libaio1; no hay un paquete de distribucion garantizado para Instant Client: usar el zip de Oracle",
-      "libaio1; no hay un paquete de distribucion garantizado para Instant Client: usar el zip de Oracle",
-      "libcurl4-openssl-dev si la instalacion lo solicita", "unixodbc-dev y el paquete del controlador",
+      "libmariadb-dev", "libaio1; no hay un paquete de distribuci\u00f3n garantizado para Instant Client: usar el zip de Oracle",
+      "libaio1; no hay un paquete de distribuci\u00f3n garantizado para Instant Client: usar el zip de Oracle",
+      "libcurl4-openssl-dev si la instalaci\u00f3n lo solicita", "unixodbc-dev y el paquete del controlador",
       "El que indique el controlador"
     ),
     paquete_fedora_rhel = c(
       NA_character_, NA_character_, "libpq-devel", "mariadb-connector-c-devel",
       "unixODBC-devel y el paquete msodbcsql18 del proveedor", NA_character_,
-      "mariadb-connector-c-devel", "libaio; no hay un paquete de distribucion garantizado para Instant Client: usar el zip de Oracle",
-      "libaio; no hay un paquete de distribucion garantizado para Instant Client: usar el zip de Oracle",
-      "libcurl-devel si la instalacion lo solicita", "unixODBC-devel y el paquete del controlador",
+      "mariadb-connector-c-devel", "libaio; no hay un paquete de distribuci\u00f3n garantizado para Instant Client: usar el zip de Oracle",
+      "libaio; no hay un paquete de distribuci\u00f3n garantizado para Instant Client: usar el zip de Oracle",
+      "libcurl-devel si la instalaci\u00f3n lo solicita", "unixODBC-devel y el paquete del controlador",
       "El que indique el controlador"
     ),
     alternativa_sin_administrador = c(
@@ -65,7 +65,7 @@
       "Compilar MariaDB Connector/C en un prefijo del usuario y se\u00f1alarlo mediante `MARIADB_HOME` al instalar `RMariaDB`.",
       "Descargar el Instant Client como zip, descomprimirlo en una carpeta del usuario y declarar `OCI_LIB` y `OCI_INC` al compilar `ROracle`.",
       "Descargar el Instant Client como zip, descomprimirlo en una carpeta del usuario y declarar `OCI_LIB` y `OCI_INC` al compilar `ROracle`.",
-      "Usar la biblioteca libcurl de la instalacion de R; si no alcanza, compilar libcurl en un prefijo del usuario.",
+      "Usar la biblioteca libcurl de la instalaci\u00f3n de R; si no alcanza, compilar libcurl en un prefijo del usuario.",
       "Compilar FreeTDS en un prefijo del usuario y pasar la ruta del controlador en la cadena de conexi\u00f3n; no hace falta registrarlo en el sistema.",
       "Instalar el paquete R y su cliente en un prefijo del usuario, usando las variables que documente ese controlador."
     ),
@@ -145,7 +145,7 @@
   ))
 }
 
-.requerir_dbi_accionable <- function(accion = "usar una conexion DBI") {
+.requerir_dbi_accionable <- function(accion = "usar una conexi\u00f3n DBI") {
   if (!.hay_paquete("DBI")) {
     .detener_error_requisito(
       "lupa_error_requisito_dbi",
@@ -183,14 +183,14 @@
       c(
         paste0(
           "No se puede ", accion, ": el motor ", fila$motor,
-          " requiere el paquete R `", paquete, "`, que no esta instalado. ",
+          " requiere el paquete R `", paquete, "`, que no est\u00e1 instalado. ",
           "Instalarlo con `install.packages(\"", paquete, "\")`. ",
-          "Si la compilacion falla, revisar `", fila$biblioteca_sistema,
+          "Si la compilaci\u00f3n falla, revisar `", fila$biblioteca_sistema,
           "`; sin administrador: ", fila$alternativa_sin_administrador
         ),
         "i" = paste0("Instalarlo con `install.packages(\"", paquete, "\")`."),
         "i" = paste0(
-          "Si la compilacion falla, revisar `", fila$biblioteca_sistema,
+          "Si la compilaci\u00f3n falla, revisar `", fila$biblioteca_sistema,
           "`. En Debian/Ubuntu: ", fila$paquete_debian_ubuntu,
           "; en Fedora/RHEL: ", fila$paquete_fedora_rhel, "."
         ),
@@ -281,14 +281,14 @@
   NA_character_
 }
 
-.validar_conexion_dbi <- function(conexion, accion = "usar una conexion DBI") {
+.validar_conexion_dbi <- function(conexion, accion = "usar una conexi\u00f3n DBI") {
   .requerir_dbi_accionable(accion)
   if (!inherits(conexion, "DBIConnection")) {
     .detener_error_requisito(
       "lupa_error_conexion_dbi",
       c(
-        "La conexion no hereda de `DBIConnection`.",
-        "i" = "Abrirla con un controlador DBI instalado y pasar esa conexion a `lupa`."
+        "La conexi\u00f3n no hereda de `DBIConnection`.",
+        "i" = "Abrirla con un controlador DBI instalado y pasar esa conexi\u00f3n a `lupa`."
       )
     )
   }
@@ -310,7 +310,7 @@
     .detener_error_requisito(
       "lupa_error_conexion_dbi",
       c(
-        paste0("No se puede ", accion, ": la conexion DBI no esta abierta y valida."),
+        paste0("No se puede ", accion, ": la conexi\u00f3n DBI no est\u00e1 abierta y v\u00e1lida."),
         "i" = "Volver a abrirla con el controlador del motor."
       )
     )
@@ -337,7 +337,7 @@
 }
 
 .detener_error_conexion_dbi <- function(error, motor = NULL,
-                                        accion = "abrir una conexion DBI") {
+                                        accion = "abrir una conexi\u00f3n DBI") {
   texto <- conditionMessage(error)
   requisito <- if (!is.null(motor)) .fila_requisito_motor(motor) else NULL
   if (is.null(requisito) || !nrow(requisito)) {
@@ -352,15 +352,15 @@
       c(
         paste0(
           "No se pudo ", accion,
-          ". El controlador informo un problema con una biblioteca externa. ",
-          "No se comprobo que este instalada. Debian/Ubuntu: ",
+          ". El controlador inform\u00f3 un problema con una biblioteca externa. ",
+          "No se comprob\u00f3 que est\u00e9 instalada. Debian/Ubuntu: ",
           fila$paquete_debian_ubuntu, "; Fedora/RHEL: ", fila$paquete_fedora_rhel,
           ". Sin administrador: ", fila$alternativa_sin_administrador,
           " Mensaje original del controlador: ", texto
         ),
         "x" = paste0("Mensaje original del controlador: ", texto),
         "i" = paste0(
-          "No se comprobo que la biblioteca este instalada. Para ", fila$motor,
+          "No se comprob\u00f3 que la biblioteca est\u00e9 instalada. Para ", fila$motor,
           ": ", fila$biblioteca_sistema, "."
         ),
         "i" = paste0(
@@ -374,7 +374,7 @@
   .detener_error_requisito(
     "lupa_error_conexion_dbi",
     c(
-      paste0("No se pudo ", accion, ". El controlador informo: ", texto),
+      paste0("No se pudo ", accion, ". El controlador inform\u00f3: ", texto),
       "i" = "Comprobar el servidor, las credenciales, el controlador y la ruta de sus bibliotecas."
     )
   )
@@ -463,7 +463,7 @@ requisitos_motor <- function(motor = NULL) {
        !nzchar(trimws(motor)))) {
     .detener_error_requisito(
       "lupa_error_argumento_requisitos",
-      "`motor` debe ser NULL o el nombre de un motor en una cadena no vacia."
+      "`motor` debe ser NULL o el nombre de un motor en una cadena no vac\u00eda."
     )
   }
   catalogo <- .catalogo_requisitos_motor()
@@ -499,8 +499,8 @@ requisitos_motor <- function(motor = NULL) {
   )
   catalogo$diagnostico_biblioteca_sistema <- ifelse(
     catalogo$estado_biblioteca_sistema == "no_requerida",
-    "No requiere una biblioteca externa del sistema segun este catalogo.",
-    "No se comprobo la biblioteca del sistema; si falla la compilacion del paquete R, revisar el requisito documentado."
+    "No requiere una biblioteca externa del sistema seg\u00fan este cat\u00e1logo.",
+    "No se comprob\u00f3 la biblioteca del sistema; si falla la compilaci\u00f3n del paquete R, revisar el requisito documentado."
   )
   class(catalogo) <- c("requisitos_motor", "data.frame")
   catalogo

@@ -163,7 +163,7 @@ test_that("H5: una columna sin valor comparable por fila se declara en relacione
     s <- detectar_discordancias(d, senal_redundante(c("id", "z")))
     expect_identical(s$n_evaluadas, 0)
     expect_true(is.na(s$n_discordantes))
-    expect_match(s$evidencia, "no se evaluo", fixed = TRUE)
+    expect_match(s$evidencia, "no se evalu\u00f3", fixed = TRUE)
   }
   # Control: una lista de escalares se compara (3 contra 4 en la fila 3).
   d <- data.frame(id = 1:3)

@@ -394,7 +394,7 @@ test_that("H7: con scipen negativo las cifras publicadas como texto no salen en 
   # analizar_tiempo(): diez dias seguidos, nueve intervalos de un dia.
   tiempo <- analizar_tiempo(data.frame(d = as.Date("2026-01-01") + 0:9))
   expect_identical(tiempo$propuestas$evidencia,
-                   "Moda de intervalos: 1 dias; 9 intervalos observados.")
+                   "Moda de intervalos: 1 d\u00eda; 9 intervalos observados.")
   # El reporte: 8448 bytes son 8.25 Kb, que la consola redondea a 8.2.
   expect_identical(lupa:::.memoria_publicada_reporte(8448), "8448 bytes (8.2 Kb)")
   muestra <- list(estado = "disponible", indices_fila = 1:12, mostrados = 12L,

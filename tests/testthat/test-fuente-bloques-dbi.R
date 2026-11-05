@@ -76,7 +76,7 @@ test_that("La lectura por bloques conserva la identidad de los acumuladores con 
   expect_true(nrow(muchas$resumen_tabla$meta$eventos) >= 4L)
   expect_match(
     muchas$resumen_tabla$meta$nota_inf,
-    "representacion del controlador",
+    "representaci\u00f3n del controlador",
     fixed = TRUE
   )
 })
@@ -145,8 +145,8 @@ test_that("La lectura por bloques inicia el mapa para moda y mediana sin publica
   expect_equal(fila_moda$moda, "1")
   expect_identical(distinto_mediana$estado, "no_solicitado")
   expect_identical(distinto_moda$estado, "no_solicitado")
-  expect_identical(distinto_mediana$motivo, "La metrica no fue solicitada.")
-  expect_identical(distinto_moda$motivo, "La metrica no fue solicitada.")
+  expect_identical(distinto_mediana$motivo, "La m\u00e9trica no fue solicitada.")
+  expect_identical(distinto_moda$motivo, "La m\u00e9trica no fue solicitada.")
 })
 
 test_that("La lectura por bloques distingue mapa truncado del tope de reconstruccion de mediana", {

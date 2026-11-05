@@ -739,7 +739,7 @@ names(.ftfy_tablas_bytes) <- c(
   evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
     origen <- .comillas_sin_locale(valores[[i]], quote = '"')
     if (reparables[[i]] || parciales[[i]]) paste0(origen, " -> ", .comillas_sin_locale(reparados[[i]], quote = '"'), " [", estados[[i]], "]")
-    else if (irreparables[[i]]) paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
+    else if (irreparables[[i]]) paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
     else paste0(origen, " (mal convertido; el motor no pudo repararlo)")
   }, character(1L)), collapse = "; ")
   list(n = sum(afectados), n_reparables = sum(reparables),

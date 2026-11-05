@@ -129,7 +129,7 @@ test_that("no hay lectura instantánea, y el objeto lo declara", {
 
   perfil <- perfilar_coleccion(coleccion(con, c("personas", "hogares")))
   expect_false(perfil$meta$snapshot)
-  expect_true(grepl("instantanea", perfil$meta$nota_snapshot, fixed = TRUE))
+  expect_true(grepl("instant\u00e1nea", perfil$meta$nota_snapshot, fixed = TRUE))
   # Cada tabla trae el momento en que se midió.
   expect_true(inherits(perfil$resumen_coleccion$momento, "POSIXct"))
   expect_false(anyNA(perfil$resumen_coleccion$momento))
@@ -202,7 +202,7 @@ test_that("la política de pesos no se puede esquivar con un promedio simple", {
   for (funcion in c("promedio", "ratio", "ratio_umbral")) {
     expect_error(
       agregar(medidas, "coleccion", funcion, coleccion = perfil, umbral = 0.5),
-      "solo se admite 'promedio_ponderado'"
+      "promedio_ponderado.*combinar alcances distintos"
     )
   }
 })
@@ -231,7 +231,7 @@ test_that("el número de la colección viaja con su cobertura", {
   expect_equal(cobertura$tablas_sin_medir, "sin_permiso")
   expect_true(nzchar(cobertura$motivo_sin_medir))
   # Y dice por qué leerlo sin la cobertura sería un error.
-  expect_true(grepl("no se midio", cobertura$advertencia, fixed = TRUE))
+  expect_true(grepl("no se midi\u00f3", cobertura$advertencia, fixed = TRUE))
 })
 
 test_that("la granularidad coleccion ya figura como implementada", {
@@ -312,7 +312,7 @@ test_that("los pares se declaran: explorar todos no es una opción", {
     relaciones_coleccion(col, pares = data.frame(
       tabla_1 = "personas", tabla_2 = "inexistente"
     )),
-    "no estan declaradas"
+    "no est\u00e1n declaradas"
   )
 })
 
@@ -338,7 +338,7 @@ test_that("una clave foránea candidata aparece con su cardinalidad y alcance", 
 
   # Y el objeto dice que un indicio sobre una muestra no es una clave
   # comprobada.
-  expect_true(grepl("no es una clave foranea", resultado$meta$alcance,
+  expect_true(grepl("no es una clave for\u00e1nea", resultado$meta$alcance,
                     fixed = TRUE))
 })
 
@@ -383,7 +383,7 @@ test_that("un número de colección no puede mezclar entidades ajenas", {
   expect_error(
     agregar(medidas, "coleccion", "promedio_ponderado",
             pesos = c(0.5, 0.5), coleccion = col),
-    "no estan declaradas en la coleccion"
+    "no est\u00e1n declaradas en la colecci\u00f3n"
   )
 })
 

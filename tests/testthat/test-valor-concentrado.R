@@ -67,7 +67,7 @@ test_that("el relleno al 25 y 50 por ciento dispara y el 10 por ciento no", {
   expect_match(hallazgo$evidencia, "frecuencia de la moda: 25", fixed = TRUE)
   expect_match(hallazgo$evidencia, "frecuencia del segundo valor: 1", fixed = TRUE)
   expect_match(hallazgo$evidencia, "cociente moda/segundo: 25.000", fixed = TRUE)
-  expect_match(hallazgo$evidencia, "fraccion de la moda sobre validos: 0.250", fixed = TRUE)
+  expect_match(hallazgo$evidencia, "fracci\u00f3n de la moda sobre v\u00e1lidos: 0.250", fixed = TRUE)
   expect_equal(hallazgo$trazabilidad[[1L]]$total, 25)
   expect_identical(hallazgo$trazabilidad[[1L]]$indices_fila, seq_len(25L))
 })

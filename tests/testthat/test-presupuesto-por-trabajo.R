@@ -167,7 +167,7 @@ test_that("el recorte dice que no es una muestra, porque no lo es", {
   # El corte toma las primeras formas del alfabeto. Decir cuantas quedaron
   # afuera sin decir cuales deja suponer que se comparo una muestra al azar, y
   # lo que queda afuera es el tramo final del alfabeto.
-  expect_match(fila$motivo[[1L]], "primeras en orden alfabetico")
+  expect_match(fila$motivo[[1L]], "primeras en orden alfab\u00e9tico")
   expect_match(fila$como_resolverlo[[1L]], "no una muestra")
   expect_match(fila$como_resolverlo[[1L]], "no depende del orden de las filas")
 })

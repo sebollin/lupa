@@ -110,7 +110,7 @@ test_that("una regla indeterminada se declara y no se cuenta como aplicable", {
   cobertura <- p$cobertura_diagnosticos
   motivo <- cobertura$motivo[cobertura$columna == "marca" &
                                cobertura$diagnostico == "faltantes"]
-  expect_match(motivo, "1 filas la regla no se pudo determinar")
+  expect_match(motivo, "1 fila la regla no se pudo determinar")
 })
 
 test_that("la aplicabilidad se rechaza con mensaje claro cuando esta mal escrita", {
@@ -121,11 +121,11 @@ test_that("la aplicabilidad se rechaza con mensaje claro cuando esta mal escrita
   )
   expect_error(
     perfilar(datos, aplicabilidad = list(b = "a > 1")),
-    "formula de un solo lado"
+    "f\u00f3rmula de un solo lado"
   )
   expect_error(
     perfilar(datos, aplicabilidad = list(b = ~ a)),
-    "logico"
+    "l\u00f3gico"
   )
   expect_error(
     perfilar(datos, columnas_opcionales = "b", aplicabilidad = list(b = ~ a > 1)),
@@ -201,7 +201,7 @@ test_that("perfilar_por perfila cada grupo y declara lo que descarta", {
 
   cobertura <- attr(por_grupo, "cobertura_grupos")
   expect_true(all(c("grupo", "motivo", "columnas_descartadas") %in% names(cobertura)))
-  expect_true(any(grepl("enteramente ausentes", cobertura$motivo)))
+  expect_true(any(grepl("columna enteramente ausente", cobertura$motivo)))
 })
 
 test_that("perfilar_por declara los grupos que no alcanzan el minimo", {

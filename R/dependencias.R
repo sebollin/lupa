@@ -638,7 +638,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   if (length(no_analizables)) {
     motivos <- c(motivos, paste0(
       "No se buscaron dependencias en ", length(no_analizables),
-      " columnas cuyo tipo no se puede agrupar -listas, matrices y vectores ",
+      if (length(no_analizables) == 1L) " columna cuyo tipo no se puede agrupar -lista, matriz o vector " else
+        " columnas cuyo tipo no se puede agrupar -listas, matrices y vectores ",
       "de bytes-: ", paste(no_analizables, collapse = ", "), "."
     ))
     soluciones <- c(soluciones, paste0(
@@ -661,8 +662,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     motivos <- c(motivos, paste0(
       "La b\u00fasqueda de dependencias se limit\u00f3 a las primeras ",
       if (is.null(tope)) length(analizadas) else tope,
-      " columnas analizables por posici\u00f3n: analiz\u00f3 ", length(analizadas),
-      " y dej\u00f3 ", length(omitidas), " fuera del diagn\u00f3stico."
+      if (length(analizadas) == 1L) " columna analizable por posici\u00f3n: analiz\u00f3 " else
+        " columnas analizables por posici\u00f3n: analiz\u00f3 ", length(analizadas),
+      if (length(omitidas) == 1L) " y dej\u00f3 1 fuera del diagn\u00f3stico." else
+        paste0(" y dej\u00f3 ", length(omitidas), " fuera del diagn\u00f3stico.")
     ))
     soluciones <- c(soluciones, paste0(
       "Aumentar `max_columnas_dependencias` o perfilar por bloques si las ",
@@ -673,7 +676,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   if (nrow(por_muestra)) {
     motivos <- c(motivos, paste0(
       "La muestra de ", attr(dependencias, "filas_analizadas", exact = TRUE),
-      " filas hizo parecer clave o constante a columnas que en la tabla ",
+      if (attr(dependencias, "filas_analizadas", exact = TRUE) == 1L) " fila hizo parecer clave o constante a columnas que en la tabla " else
+        " filas hicieron parecer clave o constante a columnas que en la tabla ",
       "completa no lo son, y se descartaron: ",
       paste0(por_muestra$columna, " (", por_muestra$motivo, ")", collapse = ", "),
       ". Sus dependencias no se evaluaron: que no aparezcan no significa que no ",
@@ -682,7 +686,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     soluciones <- c(soluciones, paste0(
       "Perfilar con `muestra = Inf` -o llamar a `detectar_dependencias()` con ",
       "`muestra = Inf`- si la tabla lo permite. Pasa cuando los datos vienen ",
-      "agrupados en filas consecutivas y la muestra, que es sistematica, toma ",
+      "agrupados en filas consecutivas y la muestra, que es sistem\u00e1tica, toma ",
       "una fila de cada grupo."
     ))
   }
@@ -691,13 +695,16 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       "El presupuesto de trabajo se agot\u00f3: se compararon ",
       attr(dependencias, "n_pares_comparados", exact = TRUE), " de ",
       attr(dependencias, "n_pares_posibles", exact = TRUE),
-      " pares determinante-dependiente y ",
+      if (attr(dependencias, "n_pares_posibles", exact = TRUE) == 1L) " par determinante-dependiente y " else
+        " pares determinante-dependiente y ",
       attr(dependencias, "trabajo_comparado", exact = TRUE), " de ",
       attr(dependencias, "trabajo_estimado", exact = TRUE),
-      " unidades fila-par; quedaron ",
+      if (attr(dependencias, "trabajo_estimado", exact = TRUE) == 1L) " unidad fila-par; quedaron " else
+        " unidades fila-par; quedaron ",
       attr(dependencias, "n_pares_sin_comparar", exact = TRUE),
-      " pares y ", attr(dependencias, "trabajo_sin_comparar", exact = TRUE),
-      " unidades sin comparar."
+      if (attr(dependencias, "n_pares_sin_comparar", exact = TRUE) == 1L) " par y " else " pares y ",
+      attr(dependencias, "trabajo_sin_comparar", exact = TRUE),
+      if (attr(dependencias, "trabajo_sin_comparar", exact = TRUE) == 1L) " unidad sin comparar." else " unidades sin comparar."
     ))
     soluciones <- c(soluciones, paste0(
       "Aumentar `max_trabajo` o `max_comparaciones`, o reducir `muestra`, si se ",

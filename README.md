@@ -184,8 +184,8 @@ the case can be looked up in the source system without opening the table:
 
 ``` r
 con_clave <- perfilar(datos_operativos, clave = "id_evento")
-#> Warning: La clave declarada no es única: entre las 13 filas con la clave completa, 1 repite su
-#> valor (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
+#> Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor
+#> (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
 #> valores ausentes.
 h <- hallazgos(con_clave)
 fila <- which(h$tipo_hallazgo == "faltantes_disfrazados" &

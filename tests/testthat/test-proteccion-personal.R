@@ -229,7 +229,7 @@ test_that("el HTML protege incluso un analisis originalmente abierto", {
   expect_false(any(vapply(
     crudos, function(valor) grepl(valor, html, fixed = TRUE), logical(1L)
   )))
-  expect_match(html, "estadisticos de orden", fixed = TRUE)
+  expect_match(html, "estad\u00edsticos de orden", fixed = TRUE)
   expect_match(html, "valor_protegido", fixed = TRUE)
   expect_match(html, "rangos y huecos protegidos", fixed = TRUE)
 })

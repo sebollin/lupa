@@ -174,16 +174,18 @@
       "relacion_aritmetica_columnas",
       paste(alcance$columnas_numericas, collapse = ","),
       paste0(
-        "No se buscaron relaciones aritmeticas: la tabla tiene ",
+        "No se buscaron relaciones aritm\u00e9ticas: la tabla tiene ",
         alcance$filas_totales,
         if (identical(alcance$filas_totales, 1)) " fila" else " filas",
         " y se necesitan al menos ",
-        alcance$minimo_filas_comparables, " filas comparables."
+        alcance$minimo_filas_comparables,
+        if (alcance$minimo_filas_comparables == 1L) " fila comparable." else " filas comparables."
       ),
       paste0(
         "Perfilar una tabla con al menos ",
         alcance$minimo_filas_comparables,
-        " filas, o bajar `min_filas_aritmetica`."
+        if (alcance$minimo_filas_comparables == 1L) " fila, o bajar `min_filas_aritmetica`." else
+          " filas, o bajar `min_filas_aritmetica`."
       ),
       columnas = alcance$columnas_numericas
     )
@@ -200,11 +202,13 @@
     paste(omitidas, collapse = ","),
     paste0(
       "La b\u00fasqueda aritm\u00e9tica se limit\u00f3 a las primeras ",
-      alcance$max_columnas, " columnas num\u00e9ricas: analiz\u00f3 ",
+      alcance$max_columnas, if (alcance$max_columnas == 1L) " columna num\u00e9rica: analiz\u00f3 " else " columnas num\u00e9ricas: analiz\u00f3 ",
       alcance$identidades_aditivas_analizadas, " de ",
-      alcance$identidades_aditivas_posibles, " identidades aditivas y ",
+      alcance$identidades_aditivas_posibles,
+      if (alcance$identidades_aditivas_posibles == 1L) " identidad aditiva y " else " identidades aditivas y ",
       alcance$pares_proporcionales_analizados, " de ",
-      alcance$pares_proporcionales_posibles, " pares proporcionales."
+      alcance$pares_proporcionales_posibles,
+      if (alcance$pares_proporcionales_posibles == 1L) " par proporcional." else " pares proporcionales."
     ),
     paste0(
       "Aumentar `max_columnas_aritmetica` o perfilar por bloques si las ",
@@ -303,7 +307,8 @@
       " no se distingue de cero frente a `", nombres_texto[[total]],
       "`: la identidad sin ese sumando ya alcanza el criterio. Se publica ",
       "porque se cumple exacta, salvo el redondeo del tipo double, en ",
-      sum(exactas), " de ", n_evaluados, " filas comparables. "
+      sum(exactas), " de ", n_evaluados,
+      if (n_evaluados == 1L) " fila comparable. " else " filas comparables. "
     )
   }
   filas_comparables <- which(comparables)
@@ -336,8 +341,10 @@
     paste0(
       .formatear_decimal_publicado(proporcion),
       " de cumplimiento; ", length(indices_incumplen), " de ", n_evaluados,
-      " filas discrepantes (universo: ", n_evaluados, " de ", nrow(datos),
-      " filas con valores finitos en las tres columnas). ",
+      if (length(indices_incumplen) == 1L) " fila discrepante (universo: " else " filas discrepantes (universo: ",
+      n_evaluados, " de ", nrow(datos),
+      if (nrow(datos) == 1L) " fila con valores finitos en las tres columnas). " else
+        " filas con valores finitos en las tres columnas). ",
       .texto_criterio_aritmetica(umbral, min_filas),
       "Forma equivalente observada: ", alternativa, ". ",
       "Tolerancia declarada: ", tolerancia_texto,
@@ -437,12 +444,15 @@
     paste0(
       .formatear_decimal_publicado(proporcion),
       " de cumplimiento; ", length(indices_incumplen), " de ", n_evaluados,
-      " filas discrepantes (universo: ", n_evaluados, " de ", nrow(datos),
-      " filas con valores finitos en ambas columnas). ",
+      if (length(indices_incumplen) == 1L) " fila discrepante (universo: " else " filas discrepantes (universo: ",
+      n_evaluados, if (n_evaluados == 1L) " de " else " de ", nrow(datos),
+      if (nrow(datos) == 1L) " fila con valores finitos en ambas columnas). " else
+        " filas con valores finitos en ambas columnas). ",
       .texto_criterio_aritmetica(umbral, min_filas),
       "Constante observada k=", constante_texto,
       " (mediana de respuesta/base en ", sum(utilizables),
-      " filas finitas con base distinta de cero); forma equivalente: ",
+      if (sum(utilizables) == 1L) " fila finita con base distinta de cero); forma equivalente: " else
+        " filas finitas con base distinta de cero); forma equivalente: ",
       inversa, ". Tolerancia declarada: ", tolerancia_texto,
       "; criterio |observado - esperado| <= ", tolerancia_texto,
       " * max(1, |observado|, |esperado|). ", ejemplos
@@ -490,11 +500,11 @@
       .nuevo_diagnostico_no_evaluado(
         "relacion_aritmetica_columnas", names(datos)[[i]],
         paste(
-          "No se buscaron relaciones aritmeticas con la columna: se declaro en",
+          "No se buscaron relaciones aritm\u00e9ticas con la columna: se declar\u00f3 en",
           "`columnas_codigo`, as\u00ed que es un c\u00f3digo y no una magnitud por fila."
         ),
         paste(
-          "Si la columna es una magnitud y no un codigo, quitarla de",
+          "Si la columna es una magnitud y no un c\u00f3digo, quitarla de",
           "`columnas_codigo`."
         )
       )

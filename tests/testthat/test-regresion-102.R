@@ -49,13 +49,13 @@ test_that("los controles negativos no producen desviaciones de Benford", {
   expect_true(all(medicion$cobertura),
               info = paste(capture.output(medicion), collapse = "\n"))
   expect_match(
-    medicion$motivo[medicion$caso == "edades"], "ordenes de magnitud"
+    medicion$motivo[medicion$caso == "edades"], "\u00f3rdenes de magnitud"
   )
   expect_match(
-    medicion$motivo[medicion$caso == "notas"], "ordenes de magnitud"
+    medicion$motivo[medicion$caso == "notas"], "\u00f3rdenes de magnitud"
   )
   expect_match(
-    medicion$motivo[medicion$caso == "porcentajes"], "proporcion de positivos"
+    medicion$motivo[medicion$caso == "porcentajes"], "proporci\u00f3n de positivos"
   )
   expect_match(
     medicion$motivo[medicion$caso == "identificadores"],
@@ -63,13 +63,13 @@ test_that("los controles negativos no producen desviaciones de Benford", {
   )
   expect_match(
     medicion$motivo[medicion$caso == "no_positivos"],
-    "proporcion de positivos"
+    "proporci\u00f3n de positivos"
   )
   expect_match(
     medicion$motivo[medicion$caso == "muestra_50"],
     "observaciones positivas"
   )
-  expect_match(medicion$motivo[medicion$caso == "constante"], "sin variacion")
+  expect_match(medicion$motivo[medicion$caso == "constante"], "sin variaci\u00f3n")
 })
 
 test_that("un control Benford pasa y una desviacion construida se describe", {

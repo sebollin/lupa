@@ -362,7 +362,7 @@
     n_no_reversibles = 0L,
     justificacion = paste0(
       "La reversibilidad no se puede comprobar sin los datos completos de `",
-      columna, "`; pase `datos` a `planificar_limpieza()` para habilitar esta acci\u00f3n."
+      columna, "`; pasar `datos` a `planificar_limpieza()` para habilitar esta acci\u00f3n."
     ), error = NULL
   )
   if (is.null(datos)) return(sin_datos)
@@ -407,14 +407,18 @@
     riesgos <- c(
       riesgos,
       paste0(evaluacion$n_ceros_iniciales,
-             " valores tienen cero inicial y se conserva su identidad textual")
+             if (evaluacion$n_ceros_iniciales == 1L) {
+               " valor tiene cero inicial y se conserva su identidad textual"
+             } else " valores tienen cero inicial y se conserva su identidad textual")
     )
   }
   if (!evaluacion$inyectiva) {
     riesgos <- c(
       riesgos,
       paste0(evaluacion$n_colisionados,
-             " valores participan en una conversi\u00f3n no inyectiva")
+             if (evaluacion$n_colisionados == 1L) {
+               " valor participa en una conversi\u00f3n no inyectiva"
+             } else " valores participan en una conversi\u00f3n no inyectiva")
     )
   }
   # Sin esto la justificacion salia con un punto suelto adelante -"`. Se declara
@@ -425,7 +429,9 @@
       riesgos,
       paste0(
         evaluacion$n_redondeados,
-        " valores tienen m\u00e1s cifras de las que guarda un n\u00famero de ",
+        if (evaluacion$n_redondeados == 1L) {
+          " valor tiene m\u00e1s cifras de las que guarda un n\u00famero de "
+        } else " valores tienen m\u00e1s cifras de las que guarda un n\u00famero de ",
         "doble precisi\u00f3n y se redondear\u00edan sin poder recuperarse"
       )
     )
@@ -760,7 +766,8 @@
             fila$n_faltantes[[1L]] + fuera
           resultado$justificacion[[i]] <- paste0(
             resultado$justificacion[[i]], " La conversi\u00f3n cambia la ",
-            "columna entera, incluidas ", fuera, " celdas fuera del universo ",
+            "columna entera, incluidas ", fuera,
+            if (fuera == 1L) " celda fuera del universo " else " celdas fuera del universo ",
             "aplicable: una columna tiene un solo tipo."
           )
         }
@@ -793,8 +800,8 @@
     # alinea con las que quedan. Rastrear cuales sobrevivieron seria fragil;
     # tocar la columna entera seria el defecto. Se falla y se dice.
     ejecutada$error <- paste(
-      "No se puede respetar la aplicabilidad despues de eliminar filas:",
-      "aplique las acciones por celda antes de las que eliminan filas."
+      "No se puede respetar la aplicabilidad despu\u00e9s de eliminar filas:",
+      "aplicar las acciones por celda antes de las que eliminan filas."
     )
     return(ejecutada)
   }
@@ -1477,11 +1484,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "normalizar_espacios_invisibles", TRUE,
           paste0(
-            "Los espacios Unicode se convierten a un espacio comun para ",
-            "comparar y exportar. Queda un espacio, asi que el valor sigue ah\u00ed ",
-            "con otra forma; lo que se pierde es la distincion del espacio ",
+            "Los espacios Unicode se convierten a un espacio com\u00fan para ",
+            "comparar y exportar. Queda un espacio, as\u00ed que el valor sigue ah\u00ed ",
+            "con otra forma; lo que se pierde es la distinci\u00f3n del espacio ",
             "original. No toca los invisibles significativos -ZWJ y ZWNJ-, que ",
-            "no estan en su conjunto. Si al normalizar dos valores que eran ",
+            "no est\u00e1n en su conjunto. Si al normalizar dos valores que eran ",
             "distintos quedan iguales, el registro cuenta esas celdas en ",
             "`n_no_reversibles`."
           ), n_espacios, FALSE,
@@ -1556,7 +1563,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
               "tambi\u00e9n."
             ),
             if (n_sin_reparacion > 0L) paste0(
-              " ", n_sin_reparacion, " valor(es) sin reparaci\u00f3n local (con ",
+              " ", n_sin_reparacion,
+              if (n_sin_reparacion == 1L) " valor sin reparaci\u00f3n local (con " else
+                " valores sin reparaci\u00f3n local (con ",
               "el car\u00e1cter de reemplazo, o que el motor no pudo reparar) ",
               "quedan como est\u00e1n."
             )
@@ -2126,8 +2135,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
             paste0(
               "La relaci\u00f3n ", candidata$determinante, " -> ",
               candidata$dependiente, " es exacta en ", candidata$soporte,
-              " filas presentes y cada valor usado tiene al menos ",
-              soporte_minimo_dependencia, " observaciones de soporte. ",
+              if (candidata$soporte == 1L) " fila presente y cada valor usado tiene al menos " else
+                " filas presentes y cada valor usado tiene al menos ",
+              soporte_minimo_dependencia,
+              if (soporte_minimo_dependencia == 1L) " observaci\u00f3n de soporte. " else " observaciones de soporte. ",
               "Debe confirmarse como regla antes de imputar."
             ),
             candidata$n, FALSE, estado = "lista", aplicar = FALSE,
@@ -2324,8 +2335,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
       # las dos: es una edicion contradictoria, y el paquete ya rechaza las
       # otras dos de esta familia en vez de adivinar cual gana.
       .detener(
-        "El grupo '", grupo, "' esta marcado como elegido y no tiene ninguna ",
-        "accion activa. Active la accion elegida o cambie la decision.",
+        "El grupo '", grupo, "' est\u00e1 marcado como elegido y no tiene ninguna ",
+        "acci\u00f3n activa. Activar la acci\u00f3n elegida o cambiar la decisi\u00f3n.",
         call. = FALSE
       )
     }
@@ -2457,7 +2468,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     .detener(
       "La lista `valores` de la acci\u00f3n est\u00e1 vac\u00eda: no hay ",
       "marcadores autorizados para convertir. Para conservarlos todos, ",
-      "desactive la acci\u00f3n.", call. = FALSE
+      "desactivar la acci\u00f3n.", call. = FALSE
     )
   }
   normalizados <- .minusculas_para_comparar(.texto_analizable(x)$valores)
@@ -2657,7 +2668,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
                           .valores_relacion(claves[piden]))
         .detener(
           "La dependencia funcional del plan no se puede aplicar sobre los ",
-          "datos recibidos: ", n_celdas, " celda(s) para imputar tienen una ",
+          "datos recibidos: ", n_celdas,
+          if (n_celdas == 1L) " celda para imputar tiene una " else
+            " celdas para imputar tienen una ",
           "clave cuya fila el plan public\u00f3 tapada, y los datos no traen ",
           "un par de esa clave que la resuelva -ni, quiz\u00e1, el valor ",
           "protegido que la tap\u00f3-. Sin proteger, el plan las ",
@@ -3008,7 +3021,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .normalizar_espacios_invisibles <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    .detener("La normalizacion de espacios Unicode requiere una columna de texto.",
+    .detener("La normalizaci\u00f3n de espacios Unicode requiere una columna de texto.",
          call. = FALSE)
   }
   anterior <- as.character(x)
@@ -3770,7 +3783,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (length(mascara) != nrow(datos)) {
     .detener(
       "No se pudo respetar la aplicabilidad de `", columna,
-      "`: la regla no devolvio una marca por fila.", call. = FALSE
+      "`: la regla no devolvi\u00f3 una marca por fila.", call. = FALSE
     )
   }
   !is.na(mascara) & mascara
@@ -4046,7 +4059,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     }
     if (length(aplicable) != length(x)) {
       .detener(
-        "No se pudo respetar la aplicabilidad despues de eliminar filas.",
+        "No se pudo respetar la aplicabilidad despu\u00e9s de eliminar filas.",
         call. = FALSE
       )
     }
@@ -4069,7 +4082,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     }
     if (length(aplicable) != length(x)) {
       .detener(
-        "No se pudo respetar la aplicabilidad despues de eliminar filas.",
+        "No se pudo respetar la aplicabilidad despu\u00e9s de eliminar filas.",
         call. = FALSE
       )
     }
@@ -4107,7 +4120,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     if (nrow(original) != nrow(datos)) {
       .detener(
         "No se puede respetar la aplicabilidad despu\u00e9s de eliminar filas: ",
-        "aplique las acciones de outliers antes de las que eliminan filas.",
+        "aplicar las acciones de outliers antes de las que eliminan filas.",
         call. = FALSE
       )
     }
@@ -4189,7 +4202,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   for (nombre in nombres) {
     valor <- parametros[[nombre]]
     problema <- if (length(valor) != 1L) {
-      paste0("recibi\u00f3 ", length(valor), " valores")
+      paste0("recibi\u00f3 ", length(valor),
+             if (length(valor) == 1L) " valor" else " valores")
     } else if (is.na(valor)) {
       "recibi\u00f3 NA"
     } else if (!nzchar(trimws(as.character(valor)))) {
@@ -4334,7 +4348,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       "`permitir_eliminacion = TRUE`: ",
       paste(plan$estrategia[destructivas], collapse = ", "), ". ",
       "No se aplic\u00f3 ninguna acci\u00f3n y `datos` qued\u00f3 intacto; ",
-      "vuelva a llamar con el consentimiento, o desactive esas acciones ",
+      "volver a llamar con el consentimiento, o desactivar esas acciones ",
       "-`plan$aplicar[...] <- FALSE`- para aplicar el resto.",
       call. = FALSE
     )
@@ -4845,7 +4859,7 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
       opciones = c(etiquetas, etiqueta_no_hacer)
     )
     respuesta <- if (is.null(selector)) {
-      utils::menu(decision$opciones, title = paste("Seleccione para", grupo))
+      utils::menu(decision$opciones, title = paste("Seleccionar para", grupo))
     } else {
       selector(decision)
     }
@@ -4868,23 +4882,29 @@ print.plan_limpieza <- function(x, ...) {
   original <- x
   x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Plan de limpieza")
-  cli::cli_alert_success(.cli_literal(paste(sum(x$aplicar), "acciones activadas")))
-  cli::cli_alert_info(.cli_literal(paste(sum(!x$aplicar), "acciones desactivadas")))
+  cli::cli_alert_success(.cli_literal(paste0(
+    sum(x$aplicar), if (sum(x$aplicar) == 1L) " acci\u00f3n activada" else " acciones activadas"
+  )))
+  cli::cli_alert_info(.cli_literal(paste0(
+    sum(!x$aplicar), if (sum(!x$aplicar) == 1L) " acci\u00f3n desactivada" else " acciones desactivadas"
+  )))
   n_destructivas <- sum(x$aplicar & x$destructiva)
   n_eliminatorias <- sum(
     x$aplicar & x$destructiva &
       x$estrategia %in% .estrategias_eliminatorias()
   )
   if (n_destructivas) {
-    cli::cli_alert_danger(.cli_literal(paste(
+    cli::cli_alert_danger(.cli_literal(paste0(
       n_destructivas,
-      "acciones destructivas activas; revise la p\u00e9rdida declarada"
+      if (n_destructivas == 1L) " acci\u00f3n destructiva activa; revisar la p\u00e9rdida declarada" else
+        " acciones destructivas activas; revisar la p\u00e9rdida declarada"
     )))
   }
   if (n_eliminatorias) {
-    cli::cli_alert_danger(.cli_literal(paste(
+    cli::cli_alert_danger(.cli_literal(paste0(
       n_eliminatorias,
-      "acciones eliminatorias activas; requieren un segundo consentimiento"
+      if (n_eliminatorias == 1L) " acci\u00f3n eliminatoria activa; requiere un segundo consentimiento" else
+        " acciones eliminatorias activas; requieren un segundo consentimiento"
     )))
   }
   # Lo que no se evaluo se dice aca, no solo en el perfil. Un plan que enumera
@@ -4905,7 +4925,7 @@ print.plan_limpieza <- function(x, ...) {
       # frase entera si un nombre lo esta, y la frase del paquete salia
       # `diagn\xc3\xb3sticos`, escapada junto con el nombre.
       paste(.texto_publicable(columnas), collapse = ", "),
-      ". El motivo medido de cada uno esta en ",
+      ". El motivo medido de cada uno est\u00e1 en ",
       "`attr(plan, \"cobertura_diagnosticos\")`."
     )))
   }
@@ -4922,7 +4942,7 @@ print.plan_limpieza <- function(x, ...) {
       " porque su columna comparte nombre con otra, en: ",
       paste(.texto_publicable(unique(as.character(sin_accion$columna))),
             collapse = ", "),
-      ". El detalle esta en ",
+      ". El detalle est\u00e1 en ",
       "`attr(plan, \"hallazgos_sin_accion_por_columna_ambigua\")`."
     )))
   }
@@ -4938,7 +4958,7 @@ print.plan_limpieza <- function(x, ...) {
       ", en: ",
       paste(.texto_publicable(unique(as.character(sin_rama$columna))),
             collapse = ", "),
-      ". El motivo de cada uno esta en ",
+      ". El motivo de cada uno est\u00e1 en ",
       "`attr(plan, \"hallazgos_sin_accion\")`."
     )))
   }
@@ -4970,22 +4990,31 @@ print.resultado_limpieza <- function(x, ...) {
   } else {
     0L
   }
-  cli::cli_alert_success(.cli_literal(paste(ejecutadas, "acciones ejecutadas")))
+  cli::cli_alert_success(.cli_literal(paste0(
+    ejecutadas, if (ejecutadas == 1L) " acci\u00f3n ejecutada" else " acciones ejecutadas"
+  )))
   if (fallidas) {
-    cli::cli_alert_danger(.cli_literal(paste(fallidas, "acciones fallidas; revise `registro$error`")))
+    cli::cli_alert_danger(.cli_literal(paste0(
+      fallidas,
+      if (fallidas == 1L) " acci\u00f3n fallida; revisar `registro$error`" else
+        " acciones fallidas; revisar `registro$error`"
+    )))
   }
   # Es una suma de lo que conto cada accion, no de celdas distintas: una celda
   # que tocan dos acciones cuenta dos veces, y una fila o un nombre cuentan uno.
   # Decia "celdas o marcas afectadas", y el usuario lee primero esa cifra.
   cli::cli_text(.cli_literal(paste0(
-    sum(x$registro$n_cambiadas), " cambios contados por las acciones (una celda ",
+    sum(x$registro$n_cambiadas),
+    if (sum(x$registro$n_cambiadas) == 1L) " cambio contado por las acciones (una celda " else
+      " cambios contados por las acciones (una celda ",
     "que tocan dos acciones cuenta dos veces; el detalle est\u00e1 en `registro`)"
   )))
   n_filas <- sum(x$registro$n_filas_eliminadas)
   n_columnas <- sum(x$registro$n_columnas_eliminadas)
   if (n_filas || n_columnas) {
     cli::cli_alert_warning(.cli_literal(paste(
-      n_filas, "filas y", n_columnas, "columnas eliminadas"
+      n_filas, if (n_filas == 1L) " fila y " else " filas y ", n_columnas,
+      if (n_columnas == 1L) " columna eliminada" else " columnas eliminadas"
     )))
   }
   invisible(original)

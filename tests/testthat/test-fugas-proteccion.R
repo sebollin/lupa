@@ -247,7 +247,7 @@ test_that("perfilar_por declara cuando el grupo (ausente) junta dos cosas", {
                     drop = FALSE]
   expect_equal(nrow(fila), 1L)
   expect_equal(fila$n_filas_grupo, 40L)
-  expect_match(fila$motivo, "20 fila(s) con la columna de agrupacion ausente",
+  expect_match(fila$motivo, "20 filas con la columna de agrupaci\u00f3n ausente",
                fixed = TRUE)
 
   # No se pierde ni se duplica ninguna fila: la invariante que importa.

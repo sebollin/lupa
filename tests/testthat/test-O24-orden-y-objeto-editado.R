@@ -32,7 +32,7 @@ test_that("comparar_perfiles exige que anterior sea anterior", {
   # El invertido no publica la direccion al reves: para y dice como arreglarlo.
   expect_error(
     comparar_perfiles(febrero, enero),
-    "Invierta los argumentos", fixed = TRUE
+    "Invertir los argumentos", fixed = TRUE
   )
   expect_error(comparar_perfiles(febrero, enero), "2026-02-01", fixed = TRUE)
 
@@ -67,7 +67,7 @@ test_that("comparar_evaluaciones exige el mismo orden", {
   expect_gt(derecho$delta[[1L]], 0)
   expect_error(
     comparar_evaluaciones(febrero, enero),
-    "Invierta los argumentos", fixed = TRUE
+    "Invertir los argumentos", fixed = TRUE
   )
 })
 

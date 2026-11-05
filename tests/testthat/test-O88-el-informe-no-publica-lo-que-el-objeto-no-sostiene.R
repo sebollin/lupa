@@ -87,11 +87,11 @@ test_that("una medicion sin `id_medicion` no publica cero corridas", {
   on.exit(unlink(archivo), add = TRUE)
   reportar(rota, archivo = archivo)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "")
-  expect_false(grepl("0 corrida(s)", html, fixed = TRUE))
+  expect_false(grepl("en 0 corrida", html, fixed = TRUE))
   expect_true(grepl("le falta la columna <code>id_medicion</code>", html,
                     fixed = TRUE))
   # El control: la medicion entera sigue contando su corrida.
   reportar(medicion, archivo = archivo, sobrescribir = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "")
-  expect_true(grepl("2 medidas en 1 corrida(s)", html, fixed = TRUE))
+  expect_true(grepl("2 medidas en 1 corrida.", html, fixed = TRUE))
 })

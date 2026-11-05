@@ -133,7 +133,7 @@ test_that("la agregacion conserva alcances distintos y requiere pesos", {
 
   expect_error(
     agregar(medidas, "coleccion", "promedio", coleccion = frontera),
-    "solo se admite 'promedio_ponderado'"
+    "promedio_ponderado.*combinar alcances distintos"
   )
   agregado <- agregar(
     medidas, "coleccion", "promedio_ponderado",
@@ -168,7 +168,7 @@ test_that("un conjunto de colecciones exige una frontera y pesos", {
       medidas_conjunto, "conjuntoColecciones", "promedio",
       colecciones = list(base_a = base_a, base_b = base_b)
     ),
-    "solo se admite 'promedio_ponderado'"
+    "promedio_ponderado.*combinar alcances distintos"
   )
   agregado <- agregar(
     medidas_conjunto, "conjuntoColecciones", "promedio_ponderado",
@@ -192,7 +192,7 @@ test_that("la entrada data.frame valida los mismos faltantes y tipos", {
   )
   expect_error(
     coleccion(con, data.frame(tabla = c("a", ""))),
-    "cadenas vacias"
+    "cadenas vac"
   )
   expect_error(
     coleccion(con, data.frame(tabla = 1:2)),

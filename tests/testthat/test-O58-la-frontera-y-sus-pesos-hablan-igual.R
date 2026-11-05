@@ -64,7 +64,7 @@ if (requireNamespace("DBI", quietly = TRUE) &&
     texto <- paste(salida, collapse = " ")
     expect_true(grepl("Cobertura de la colecci", texto))
     expect_true(grepl("t2_ausente", texto, fixed = TRUE))
-    expect_true(grepl("no la coleccion declarada", texto, fixed = TRUE))
+    expect_true(grepl("no la colecci\u00f3n declarada", texto, fixed = TRUE))
   })
 
   test_that("una coleccion sin tablas caidas no anuncia cobertura parcial", {

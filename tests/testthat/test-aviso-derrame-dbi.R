@@ -18,7 +18,7 @@ test_that("la proyeccion de distintos usa el primer lote de esta corrida", {
   expect_identical(proyeccion$n_referencias, 2L)
   expect_match(proyeccion$fuente, "primer lote de distintos")
   expect_false(grepl("agregados planos", proyeccion$fuente, fixed = TRUE))
-  expect_match(proyeccion$motivo, "estimacion")
+  expect_match(proyeccion$motivo, "estimaci\u00f3n")
 
   presupuesto$referencias_distintos <- list()
   sin_referencia <- lupa:::.proyectar_costo_distintos_dbi(presupuesto, 2L)

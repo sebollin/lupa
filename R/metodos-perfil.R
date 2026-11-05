@@ -11,10 +11,10 @@ print.perfil <- function(x, ...) {
   } else 0L
 
   cli::cli_h1(.cli_literal(paste("Perfil de datos:", x$meta$nombre)))
-  cli::cli_alert_danger(.cli_literal(paste(errores, "hallazgos con severidad error")))
-  cli::cli_alert_warning(.cli_literal(paste(sospechosos, "hallazgos sospechosos")))
-  cli::cli_alert_success(.cli_literal(paste(correctos, "hallazgos informativos ok")))
-  cli::cli_alert_info(.cli_literal(paste(no_evaluados, "diagn\u00f3sticos no evaluados")))
+  cli::cli_alert_danger(.cli_literal(paste(errores, if (errores == 1L) "hallazgo con severidad error" else "hallazgos con severidad error")))
+  cli::cli_alert_warning(.cli_literal(paste(sospechosos, if (sospechosos == 1L) "hallazgo sospechoso" else "hallazgos sospechosos")))
+  cli::cli_alert_success(.cli_literal(paste(correctos, if (correctos == 1L) "hallazgo informativo ok" else "hallazgos informativos ok")))
+  cli::cli_alert_info(.cli_literal(paste(no_evaluados, if (no_evaluados == 1L) "diagn\u00f3stico no evaluado" else "diagn\u00f3sticos no evaluados")))
   # Lo que se midio sobre la muestra se dice aca, donde se lee el veredicto: un
   # "0 hallazgos sospechosos" sobre 10 de 10.000 filas no es lo mismo que sobre
   # la tabla, y la consola no lo mencionaba en ninguna parte.
@@ -27,7 +27,8 @@ print.perfil <- function(x, ...) {
       " de ",
       format(original$general$filas, big.mark = ".", decimal.mark = ",",
              scientific = FALSE),
-      " filas: sus conteos son de la muestra"
+      if (original$general$filas == 1L) " fila: sus conteos son de la muestra" else
+        " filas: sus conteos son de la muestra"
     )))
   }
 
@@ -170,7 +171,7 @@ as_tibble.perfil <- function(x, ...) {
   perfiles <- x$perfiles
   if (!length(perfiles)) {
     .avisar(
-      "Esta coleccion no conservo los perfiles de sus tablas, asi que no hay ",
+      "Esta colecci\u00f3n no conserv\u00f3 los perfiles de sus tablas, as\u00ed que no hay ",
       "hallazgos por fila. Se conservan con perfilar_coleccion(..., ",
       "conservar_perfiles = TRUE); el resumen por tabla sigue en columnas() y ",
       "lo no evaluado, en cobertura().", call. = FALSE
@@ -192,10 +193,10 @@ as_tibble.perfil <- function(x, ...) {
   }
   if (length(sin_muestra)) {
     .avisar(
-      "Sin muestra leida no hay hallazgos por fila de ",
+      "Sin muestra le\u00edda no hay hallazgos por fila de ",
       if (length(sin_muestra) == 1L) "la tabla " else "las tablas ",
       paste(sin_muestra, collapse = ", "),
-      "; el motivo esta en cobertura().", call. = FALSE
+      "; el motivo est\u00e1 en cobertura().", call. = FALSE
     )
   }
   if (!length(partes)) return(vacia())
@@ -307,13 +308,13 @@ hallazgos <- function(x, ...) {
     if (inherits(x, "perfil_dbi")) {
       if (identical(.estado_bloque_muestra_dbi(x), "no_solicitado")) {
         .avisar(
-          "Este perfil DBI no solicito la muestra, asi que no hay hallazgos por ",
+          "Este perfil DBI no solicit\u00f3 la muestra, as\u00ed que no hay hallazgos por ",
           "fila. El resumen por columna sigue disponible en columnas(); el ",
           "detalle, en cobertura().", call. = FALSE
         )
       } else {
         .avisar(
-          "Este perfil DBI no trae muestra leida, asi que no hay hallazgos por ",
+          "Este perfil DBI no trae muestra le\u00edda, as\u00ed que no hay hallazgos por ",
           "fila. El resumen por columna sigue disponible en columnas(); el ",
           "motivo, en cobertura().", call. = FALSE
         )

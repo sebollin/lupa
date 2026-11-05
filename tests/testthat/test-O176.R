@@ -236,7 +236,7 @@ test_that("la etapa publicada distingue dbSendQuery y transaccion implicita", {
   ), error = function(e) e)
   expect_s3_class(resultado, "lupa_error_transaccion_dbi")
   expect_match(conditionMessage(resultado), "dbSendQuery", fixed = TRUE)
-  expect_match(conditionMessage(resultado), "transaccion implicita", fixed = TRUE)
+  expect_match(conditionMessage(resultado), "transacci\u00f3n impl\u00edcita", fixed = TRUE)
 })
 
 test_that("columnas_opcionales con bytes tiene clase propia", {

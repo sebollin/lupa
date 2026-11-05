@@ -20,12 +20,12 @@
   sobrantes <- names(transformacion)[is.na(indices)]
   if (length(sobrantes)) {
     .detener(
-      "`transformacion` nombra columnas que no estan en la senal: ",
+      "`transformacion` nombra columnas que no est\u00e1n en la se\u00f1al: ",
       paste(sobrantes, collapse = ", "), ".", call. = FALSE
     )
   }
   if (!all(vapply(transformacion, is.function, logical(1L)))) {
-    .detener("Cada elemento de `transformacion` debe ser una funcion.",
+    .detener("Cada elemento de `transformacion` debe ser una funci\u00f3n.",
          call. = FALSE)
   }
   names(transformacion) <- columnas[indices]
@@ -102,11 +102,11 @@ senal_redundante <- function(columnas, ventana = 0, transformacion = NULL,
   }
   if (!is.numeric(ventana) || length(ventana) != 1L || is.na(ventana) ||
       !is.finite(ventana) || ventana < 0) {
-    .detener("`ventana` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`ventana` debe ser un n\u00famero finito no negativo.", call. = FALSE)
   }
   transformacion <- .validar_transformacion_senal(transformacion, columnas)
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
-    .detener("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
+    .detener("`nombre` debe ser NULL o una cadena no vac\u00eda.", call. = FALSE)
   }
   estructura <- list(
     nombre = if (is.null(nombre)) paste(columnas, collapse = " = ") else nombre,
@@ -127,7 +127,7 @@ print.senal_redundante <- function(x, ...) {
   cli::cli_text("Ventana: {x$ventana}")
   if (length(x$transformacion)) {
     cli::cli_text(
-      "Transformadas: {paste(names(x$transformacion), collapse = ', ')}"
+      "Transformadas: {paste(names(x$transformaci\u00f3n), collapse = ', ')}"
     )
   }
   invisible(original)
@@ -154,8 +154,9 @@ print.senal_redundante <- function(x, ...) {
     if (is.null(funcion) && .es_columna_compuesta(valores)) return(valores)
     if (length(valores) != nrow(datos)) {
       .detener(
-        "La transformacion de `", columna, "` devolvio ", length(valores),
-        " valores para ", nrow(datos), " filas.", call. = FALSE
+        "La transformaci\u00f3n de `", columna, "` devolvi\u00f3 ", length(valores),
+        if (length(valores) == 1L) " valor para " else " valores para ",
+        nrow(datos), if (nrow(datos) == 1L) " fila." else " filas.", call. = FALSE
       )
     }
     valores
@@ -362,7 +363,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     faltantes <- senal$columnas[is.na(indices)]
     if (length(faltantes)) {
       .detener(
-        "La senal '", senal$nombre, "' nombra columnas que no estan en los ",
+        "La se\u00f1al '", senal$nombre, "' nombra columnas que no est\u00e1n en los ",
         "datos: ", paste(faltantes, collapse = ", "),
         ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
         call. = FALSE
@@ -391,7 +392,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
         n_discordantes = NA_real_, proporcion = NA_real_,
         ventana = senal$ventana,
         evidencia = paste0(
-          "La senal no se evaluo: ",
+          "La se\u00f1al no se evalu\u00f3: ",
           paste0(
             "`", senal$columnas[afuera], "`, ",
             vapply(no_comparables[afuera], `[[`, character(1L), "detalle"),
@@ -412,8 +413,8 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
         n_discordantes = NA_real_, proporcion = NA_real_,
         ventana = senal$ventana,
         evidencia = paste(
-          "No hubo filas con todas las columnas presentes: la senal no se",
-          "evaluo."
+          "No hubo filas con todas las columnas presentes: la se\u00f1al no se",
+          "evalu\u00f3."
         ),
         stringsAsFactors = FALSE
       ))
@@ -548,8 +549,9 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
         detalle,
         if (escapo_texto) .NOTA_ESCAPES else "",
         "; universo: ", n_evaluadas, " de ", nrow(datos),
-        " filas con todas las columnas presentes",
-        if (!numericos) "; comparacion textual exacta" else "",
+        if (nrow(datos) == 1L) " fila con todas las columnas presentes" else
+          " filas con todas las columnas presentes",
+        if (!numericos) "; comparaci\u00f3n textual exacta" else "",
         if (senal$ventana > 0 && numericos) {
           paste0("; ventana declarada: ", senal$ventana)
         } else ""

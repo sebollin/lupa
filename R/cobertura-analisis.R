@@ -162,7 +162,7 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   if (!inherits(perfil, "perfil")) {
     .detener(
       "El primer argumento `perfil` debe ser un objeto creado por perfilar() o",
-      " perfilar_dbi(); no es un perfil de evaluacion.", call. = FALSE
+      " perfilar_dbi(); no es un perfil de evaluaci\u00f3n.", call. = FALSE
     )
   }
   if (!is.null(medicion) && !inherits(medicion, "medicion")) {
@@ -275,9 +275,11 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     parciales <- factores$estado == "medida"
     factores$motivo[parciales] <- paste0(
       "Parcial: el perfil obtuvo resumen en ", resumidas, " de ",
-      total_columnas, " columnas. En las otras ",
+      total_columnas, if (total_columnas == 1L) " columna. En la otra " else " columnas. En las otras ",
       total_columnas - resumidas,
-      " no hubo evidencia para este factor."
+      if (total_columnas - resumidas == 1L) {
+        " no hubo evidencia para este factor."
+      } else " no hubo evidencia para este factor."
     )
   }
 
@@ -293,7 +295,7 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   if (es_perfil_dbi && !muestra_completa) {
     factores$motivo <- paste0(
       factores$motivo,
-      " La cobertura se calculo sobre `perfil_muestra`; no representa la tabla completa."
+      " La cobertura se calcul\u00f3 sobre `perfil_muestra`; no representa la tabla completa."
     )
   }
   factores$estado <- factor(

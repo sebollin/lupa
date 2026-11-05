@@ -4,10 +4,10 @@ test_that("catalogo interpreta la semantica positiva y negativa de n_distinct", 
 
   expect_true(unico$disponible)
   expect_equal(unico$n_distintos, 20000)
-  expect_match(unico$motivo, "fraccion")
+  expect_match(unico$motivo, "fracci\u00f3n")
   expect_match(unico$motivo, "reltuples")
   expect_equal(cinco$n_distintos, 5)
-  expect_match(cinco$motivo, "Estimacion de catalogo")
+  expect_match(cinco$motivo, "Estimaci\u00f3n de cat\u00e1logo")
 })
 
 test_that("catalogo no convierte la falta de reltuples en cero", {
@@ -42,7 +42,7 @@ test_that("catalogo se degrada fuera del universo completo", {
     expect_identical(salida$estado, "no_disponible")
     expect_false(salida$disponible)
     expect_true(is.na(salida$estrategia_resuelta))
-    expect_match(salida$motivo, "relacion entera")
+    expect_match(salida$motivo, "relaci.n entera")
     expect_match(salida$motivo, "subconjunto")
     expect_match(salida$motivo, "universo")
   }

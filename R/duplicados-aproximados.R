@@ -258,7 +258,7 @@
   }
   x <- names(datos)[[.indice_nombre(x, names(datos))]]
   if (.es_columna_compuesta(datos[[x]]) || is.list(datos[[x]])) {
-    .detener("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
+    .detener("`bloquear_por` debe nombrar una columna at\u00f3mica.", call. = FALSE)
   }
   x
 }
@@ -289,7 +289,7 @@
   if (isTRUE(interactive())) {
     respuesta <- readline(paste0(
       "La estimaci\u00f3n exacta es de ", .formato_pares_lsh(estimados),
-      " pares (presupuesto ", .formato_pares_lsh(presupuesto),
+      if (estimados == 1L) " par (presupuesto " else " pares (presupuesto ", .formato_pares_lsh(presupuesto),
       "). \u00bfContinuar? [s/N] "
     ))
     continuar <- .minusculas_para_comparar(respuesta) %in% c(
@@ -299,10 +299,10 @@
   if (!continuar) {
     .detener(
       "La estimaci\u00f3n exacta (", .formato_pares_lsh(estimados),
-      " pares) supera `presupuesto_pares` (",
+      if (estimados == 1L) " par) supera `presupuesto_pares` (" else " pares) supera `presupuesto_pares` (",
       .formato_pares_lsh(presupuesto),
-      "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto, reduzca los datos, ",
-      "suba el umbral o divida el conjunto por una clave.",
+      "). No se inici\u00f3 la comparaci\u00f3n; aumentar el presupuesto, reducir los datos, ",
+      "subir el umbral o dividir el conjunto por una clave.",
       call. = FALSE
     )
   }
@@ -1077,10 +1077,12 @@
       " candidatos previstos; referencia de ",
       format(round(estimacion$tiempo, 3), nsmall = 3,
         decimal.mark = ","),
-      " s (referencia de la comparacion aislada; no incluye firma ni cubetas; ",
+      " s (referencia de la comparaci\u00f3n aislada; no incluye firma ni cubetas; ",
       "subir nucleos puede acortar ",
-      "esta etapa; hoy usa ", nucleos, " hilos), medida con ",
-      .formato_pares_lsh(estimacion$pares_benchmark), " pares en ",
+      "esta etapa; hoy usa ", nucleos,
+      if (nucleos == 1L) " hilo), medida con " else " hilos), medida con ",
+      .formato_pares_lsh(estimacion$pares_benchmark),
+      if (estimacion$pares_benchmark == 1L) " par en " else " pares en ",
       format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
         decimal.mark = ","), " s."
     )
@@ -1089,7 +1091,8 @@
       "LSH: no se pudo medir una velocidad con ",
       .formato_pares_lsh(estimacion$pares_benchmark),
       " pares; el tiempo queda sin estimar (subir nucleos puede acortar ",
-      "esta etapa; hoy usa ", nucleos, " hilos)."
+      "esta etapa; hoy usa ", nucleos,
+      if (nucleos == 1L) " hilo)." else " hilos)."
     )
   }
 }
@@ -1578,7 +1581,7 @@
       candidatas <- structure(
         character(),
         motivo_sin_columnas = paste0(
-          "Hay ", length(candidatas), " columnas de texto; indique `columnas` ",
+          "Hay ", length(candidatas), " columnas de texto; indicar `columnas` ",
           "para evitar combinar campos que pueden diluir la similitud."
         )
       )
@@ -1592,7 +1595,7 @@
       anyNA(columnas) || any(!nzchar(columnas)) ||
       length(indices) != length(columnas) || anyNA(indices) ||
       anyDuplicated(indices)) {
-    .detener("`columnas` debe nombrar columnas atomicas existentes y sin repetir.",
+    .detener("`columnas` debe nombrar columnas at\u00f3micas existentes y sin repetir.",
          call. = FALSE)
   }
   columnas <- names(datos)[indices]
@@ -1891,11 +1894,11 @@
   }
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0) {
-    .detener("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`umbral` debe ser un n\u00famero finito no negativo.", call. = FALSE)
   }
   if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
       p < 0 || p > 0.25) {
-    .detener("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+    .detener("`p` debe ser un n\u00famero finito entre 0 y 0.25.", call. = FALSE)
   }
   .validar_bandera_proteccion(proteger_datos_personales)
   largos <- .columnas_largas_duplicados(
@@ -1905,7 +1908,7 @@
     motivo <- paste0(
       "Se excluyeron las columnas ",
       paste0("`", largos$columnas, "`", collapse = ", "),
-      " de la comparacion: al menos un valor supera `max_largo_valor = ",
+      " de la comparaci\u00f3n: al menos un valor supera `max_largo_valor = ",
       max_largo_valor, "` caracteres. Como las columnas se comparan juntas,",
       " no se compararon sus filas; no se recortaron valores en silencio."
     )
@@ -1928,7 +1931,7 @@
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = FALSE, bloque = bloque, p = p,
-      razon = "No esta instalado el paquete opcional 'stringdist'.",
+      razon = "No est\u00e1 instalado el paquete opcional 'stringdist'.",
       nucleos_usados = nucleos, max_largo_valor = max_largo_valor
     )
     if (!is.null(resumen_bloqueo)) {
@@ -1957,10 +1960,10 @@
     motivo <- paste0(
       "Hay columnas de texto con el mismo nombre (",
       paste0("`", nombres_repetidos, "`", collapse = ", "),
-      "): la comparacion identifica las columnas por nombre, asi que no se puede ",
-      "decir cual de ellas se compara. No se compararon sus filas. Renombre las ",
+      "): la comparaci\u00f3n identifica las columnas por nombre, as\u00ed que no se puede ",
+      "decir cu\u00e1l de ellas se compara. No se compararon sus filas. Renombrar las ",
       "repetidas -por ejemplo con `names(datos) <- make.unique(names(datos))`- y ",
-      "vuelva a comparar."
+      "volver a comparar."
     )
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
@@ -1977,7 +1980,7 @@
   if (!length(columnas)) {
     motivo <- attr(columnas, "motivo_sin_columnas", exact = TRUE)
     if (is.null(motivo)) {
-      motivo <- "No hay columnas de texto comparables; indique `columnas` explicitamente."
+      motivo <- "No hay columnas de texto comparables; indicar `columnas` expl\u00edcitamente."
     }
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
@@ -2308,7 +2311,7 @@
         pares$evidencia_1, " / ", pares$evidencia_2
       ),
       sugerencia = rep(
-        "Revisar manualmente; no eliminar ni fusionar filas por esta senal.", n
+        "Revisar manualmente; no eliminar ni fusionar filas por esta se\u00f1al.", n
       ),
       n_evaluados = rep(n_pares_comparados, n),
       n_afectados = rep(1, n),
@@ -2335,7 +2338,9 @@
       "El bloqueo excluye pares cuya clave no coincide; no se evaluaron.",
       paste0(
         resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]],
-        " pares quedaron fuera del alcance de `bloquear_por`.",
+        if (resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]] == 1L) {
+          " par qued\u00f3 fuera del alcance de `bloquear_por`."
+        } else " pares quedaron fuera del alcance de `bloquear_por`.",
         " Las filas con NA forman un bloque propio."
       ),
       "Revisar la clave y no interpretar la ausencia de un par como evidencia de que no existe.",

@@ -70,7 +70,7 @@ test_that("la procedencia viaja en cada medida y es obligatoria", {
     medicion_desde_estimaciones(
       .estimaciones_de_prueba(), entidad = "ech2024", fuente = ""
     ),
-    "de donde viene"
+    "resultado no dice"
   )
 })
 
@@ -118,7 +118,7 @@ test_that("una tabla sin estadísticos reconocidos se rechaza", {
     medicion_desde_estimaciones(
       data.frame(a = 1, b = 2), entidad = "t", fuente = "x"
     ),
-    "ningun estadistico reconocido"
+    "ning\u00fan estad\u00edstico reconocido"
   )
   expect_error(
     medicion_desde_estimaciones(

@@ -31,7 +31,7 @@ test_that("un rango de muestra no poda un solape del universo", {
   # comparo", y con eso sostenia el descarte en silencio; ahora el par queda
   # declarado sin conclusion.
   expect_equal(nrow(resultado$cobertura_pares), 1L)
-  expect_match(resultado$cobertura_pares$motivo, "^Sin conclusion")
+  expect_match(resultado$cobertura_pares$motivo, "^Sin conclusi\u00f3n")
 })
 
 test_that("rangos disjuntos del universo conservan la poda cierta", {

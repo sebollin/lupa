@@ -104,7 +104,8 @@
       evaluados[[indice]] >= total) {
     return("")
   }
-  paste0(" sobre ", evaluados[[indice]], " de ", total, " valores")
+  paste0(" sobre ", evaluados[[indice]], " de ", total,
+         if (total == 1L) " valor" else " valores")
 }
 
 .proporcion_validadores <- function(textos, validadores, umbral,
@@ -1744,10 +1745,10 @@
         "Tipo posible: ", fila$tipo[[1L]], "; fundamento: ",
         fila$fundamento[[1L]],
         "; poder discriminante: ", fila$poder_discriminante[[1L]],
-        "; proteccion automatica: ", if (fila$proteger[[1L]]) "si" else "no",
+        "; protecci\u00f3n autom\u00e1tica: ", if (fila$proteger[[1L]]) "s\u00ed" else "no",
         if (identical(fila$poder_discriminante[[1L]], "debil") &&
             isTRUE(fila$proteger[[1L]])) {
-          " (por precaucion: la forma es compatible y no se pudo verificar)"
+          " (por precauci\u00f3n: la forma es compatible y no se pudo verificar)"
         } else "",
         if (is.finite(fila$proporcion_compatible[[1L]])) {
           paste0("; proporci\u00f3n compatible: ",
@@ -1760,11 +1761,11 @@
         if (fila$proteger[[1L]]) {
           paste0(
             "Mantener protegidos la moda, los ejemplos, la evidencia y los ",
-            "estadisticos de orden al compartir salidas."
+            "estad\u00edsticos de orden al compartir salidas."
           )
         } else {
           paste0(
-        "Confirmar la semantica de la columna si se necesita decidir si ",
+        "Confirmar la sem\u00e1ntica de la columna si se necesita decidir si ",
             "sus valores deben protegerse."
           )
         }
@@ -1910,7 +1911,7 @@
         paste(situaciones, collapse = " y "), "."
       ),
       paste0(
-        "Se aplicaron limites de plausibilidad sin publicar las fechas ",
+        "Se aplicaron l\u00edmites de plausibilidad sin publicar las fechas ",
         "observadas."
       ),
       "Revisar los registros se\u00f1alados contra la fuente antes de corregirlos.",
@@ -4445,16 +4446,16 @@
       "[evidencia protegida]"
     } else paste0(
       inicio,
-      ". La columna corresponde segun ", tipo_criterio,
+      ". La columna corresponde seg\u00fan ", tipo_criterio,
       " de `", determinante,
-      "` que no se publica porque esa columna esta protegida."
+      "` que no se publica porque esa columna est\u00e1 protegida."
     )
     columna <- as.character(hallazgos$columna[[i]])
     hallazgos$sugerencia[[i]] <- paste0(
-      "Si es asi, declararlo y volver a perfilar con `aplicabilidad` usando en `",
+      "Si es as\u00ed, declararlo y volver a perfilar con `aplicabilidad` usando en `",
       determinante,
-      "` el criterio confirmado en la fuente. El criterio no se reproduce aqui",
-      " porque esa columna esta protegida. Con la regla declarada, la ausencia",
+      "` el criterio confirmado en la fuente. El criterio no se reproduce aqu\u00ed",
+      " porque esa columna est\u00e1 protegida. Con la regla declarada, la ausencia",
       " fuera de ese universo deja de contarse como defecto y el alcance queda",
       " escrito en `cobertura_diagnosticos` para `", columna, "`."
     )
@@ -4715,7 +4716,7 @@
     )
     hallazgos$descripcion[con_valor] <- paste(
       hallazgos$descripcion[con_valor],
-      "El valor no se nombra porque la columna esta protegida."
+      "El valor no se nombra porque la columna est\u00e1 protegida."
     )
   }
   # La clave declarada es, por definicion, lo que identifica una fila: es la

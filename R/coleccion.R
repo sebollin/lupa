@@ -148,9 +148,9 @@
 }
 
 .salida_data_frame_identificador <- paste(
-  "Declare la tabla con `data.frame(esquema = , tabla = )`, que conserva los",
+  "Declarar la tabla con `data.frame(esquema = , tabla = )`, que conserva los",
   "nombres literales -puntos, espacios y comillas incluidos- y no los parsea,",
-  "o pase un `DBI::Id`."
+  "o pasar un `DBI::Id`."
 )
 
 # Devuelve un data.frame de una fila por entrada con `esquema`, `tabla` y si el
@@ -164,7 +164,7 @@
     cortado <- .partir_identificador(entrada)
     if (cortado$abierto) {
       .error_identificador(
-        entrada, "quedo una comilla o un corchete sin cerrar.",
+        entrada, "qued\u00f3 una comilla o un corchete sin cerrar.",
         .salida_data_frame_identificador
       )
     }
@@ -174,10 +174,12 @@
       .error_identificador(
         entrada,
         paste0(
-          "tiene ", length(partes), " partes separadas por puntos y `lupa` solo ",
-          "interpreta la forma 'esquema.tabla'. No se adivina cual parte es el ",
-          "catalogo, cual el esquema y cual pertenece al nombre: partirlo mal ",
-          "produce un identificador valido contra una tabla que no existe, y el ",
+          "tiene ", length(partes),
+          if (length(partes) == 1L) " parte separada por puntos y `lupa` s\u00f3lo " else
+            " partes separadas por puntos y `lupa` s\u00f3lo ",
+          "interpreta la forma 'esquema.tabla'. No se adivina cu\u00e1l parte es el ",
+          "cat\u00e1logo, cu\u00e1l el esquema y cu\u00e1l pertenece al nombre: partirlo mal ",
+          "produce un identificador v\u00e1lido contra una tabla que no existe, y el ",
           "fallo posterior parece un problema de permisos."
         ),
         .salida_data_frame_identificador
@@ -187,7 +189,7 @@
       .error_identificador(
         entrada,
         paste0(
-          "una de las partes separadas por puntos quedo vacia (un punto al ",
+          "una de las partes separadas por puntos qued\u00f3 vac\u00eda (un punto al ",
           "principio, al final o repetido)."
         ),
         .salida_data_frame_identificador
@@ -213,7 +215,7 @@
   nombres <- tryCatch(id@name, error = function(e) NULL)
   if (!length(nombres) || !is.character(nombres)) {
     .detener(
-      "Un `DBI::Id` de la coleccion no trae componentes de nombre utilizables.",
+      "Un `DBI::Id` de la colecci\u00f3n no trae componentes de nombre utilizables.",
       call. = FALSE
     )
   }
@@ -225,8 +227,8 @@
   # como un problema suyo de permisos.
   if (length(nombres) > 3L) {
     .detener(
-      "`lupa` no admite un `DBI::Id` de mas de tres componentes: por encima del ",
-      "catalogo no hay un nivel que la coleccion sepa declarar. Revise el ",
+      "`lupa` no admite un `DBI::Id` de m\u00e1s de tres componentes: por encima del ",
+      "cat\u00e1logo no hay un nivel que la colecci\u00f3n sepa declarar. Revisar el ",
       "identificador; si el nombre lleva puntos, decl\u00e1relo con ",
       "`data.frame(catalogo = , esquema = , tabla = )`.",
       call. = FALSE
@@ -260,7 +262,7 @@
     ajenas <- setdiff(con_nombre, conocidas)
     if (length(ajenas)) {
       .detener(
-        "Un `DBI::Id` de la coleccion nombra componentes que `lupa` no modela: ",
+        "Un `DBI::Id` de la colecci\u00f3n nombra componentes que `lupa` no modela: ",
         paste(ajenas, collapse = ", "),
         ". La identidad de una tabla es `catalog`, `schema` y `table`; si su ",
         "motor usa otro nivel, decl\u00e1relo con ",
@@ -271,9 +273,9 @@
     repetidas <- unique(con_nombre[duplicated(con_nombre)])
     if (length(repetidas)) {
       .detener(
-        "Un `DBI::Id` de la coleccion repite el componente ",
+        "Un `DBI::Id` de la colecci\u00f3n repite el componente ",
         paste(repetidas, collapse = ", "),
-        ": no se puede saber cual de los dos nombra la tabla.",
+        ": no se puede saber cu\u00e1l de los dos nombra la tabla.",
         call. = FALSE
       )
     }
@@ -328,7 +330,7 @@
   vacias <- !is.na(valores) & !nzchar(valores)
   if (any(vacias)) {
     .detener(
-      "La columna `", campo, "` de `tablas` no admite cadenas vacias.",
+      "La columna `", campo, "` de `tablas` no admite cadenas vac\u00edas.",
       call. = FALSE
     )
   }
@@ -499,10 +501,10 @@
   faltan <- setdiff(.COLUMNAS_EXIGIDAS_COLECCION, names(tablas))
   if (length(faltan)) {
     .detener(
-      "La coleccion declarada no tiene la columna ",
+      "La colecci\u00f3n declarada no tiene la columna ",
       paste0("`", faltan, "`", collapse = ", "),
       ", que es parte del nombre de la tabla y no se puede completar. ",
-      "Vuelva a declararla con coleccion().",
+      "Volver a declararla con coleccion().",
       call. = FALSE
     )
   }
@@ -574,10 +576,10 @@
       collapse = "; "
     )
     .detener(
-      "Dos tablas declaradas distintas producen el mismo identificador, asi que ",
-      "una no se podria nombrar: ", detalle,
-      ". Declare la que tiene el punto en el nombre con su esquema real, o ",
-      "renombre una de las dos en la base.",
+      "Dos tablas declaradas distintas producen el mismo identificador, as\u00ed que ",
+      "una no se podr\u00eda nombrar: ", detalle,
+      ". Declarar la que tiene el punto en el nombre con su esquema real, o ",
+      "renombrar una de las dos en la base.",
       call. = FALSE
     )
   }
@@ -668,7 +670,7 @@
 #' }
 coleccion <- function(conexion, tablas, nombre = NULL) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
-  .validar_conexion_dbi(conexion, accion = "declarar una coleccion")
+  .validar_conexion_dbi(conexion, accion = "declarar una colecci\u00f3n")
   declaradas <- .normalizar_tablas_coleccion(tablas)
   # Los nombres declarados -por texto, por `data.frame` o por `DBI::Id`- son los
   # que van a la conexion, y se normalizan una vez, aca, como en
@@ -695,7 +697,7 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
     .detener("`tablas` repite una tabla.", call. = FALSE)
   }
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
-    .detener("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
+    .detener("`nombre` debe ser NULL o una cadena no vac\u00eda.", call. = FALSE)
   }
   declaradas <- .derivar_columnas_coleccion(declaradas)
   estructura <- list(
@@ -727,7 +729,7 @@ print.coleccion_lupa <- function(x, ...) {
   partidas <- sum(x$tablas$declaracion %in% "texto_partido")
   if (partidas) {
     cli::cli_text(
-      "Nombres partidos en el punto: {partidas} (declare con data.frame para ",
+      "Nombres partidos en el punto: {partidas} (declarar con data.frame para ",
       "conservarlos literales)."
     )
   }
@@ -777,11 +779,11 @@ print.coleccion_lupa <- function(x, ...) {
 .como_resolver_tabla_ilegible <- function(fila) {
   if (identical(fila$declaracion, "texto_partido")) {
     return(paste0(
-      "Antes de sospechar de los permisos: el nombre se declaro como texto y ",
+      "Antes de sospechar de los permisos: el nombre se declar\u00f3 como texto y ",
       "`lupa` lo partio en el punto, tomando '", fila$esquema,
       "' como esquema y '", fila$tabla, "' como tabla. Si el punto pertenece ",
-      "al nombre, declarelo con data.frame(esquema = , tabla = ), que no lo ",
-      "parsea. Si la particion es correcta, comprobar que la tabla existe y ",
+      "al nombre, declararlo con data.frame(esquema = , tabla = ), que no lo ",
+      "parsea. Si la partici\u00f3n es correcta, comprobar que la tabla existe y ",
       "que la credencial la puede leer."
     ))
   }
@@ -794,25 +796,25 @@ print.coleccion_lupa <- function(x, ...) {
 .como_resolver_metrica <- function(estado) {
   salidas <- c(
     no_disponible = paste(
-      "El motor rechazo la consulta. Comprobar si el agregado existe en este",
+      "El motor rechaz\u00f3 la consulta. Comprobar si el agregado existe en este",
       "motor y si la credencial puede ejecutarlo; el SQL exacto queda en",
       "`resumen_tabla$sql` del perfil (`conservar_perfiles = TRUE`)."
     ),
     no_aplica = paste(
       "No corresponde: el tipo con que el driver expone la columna no admite",
-      "ese agregado. Si el motor si puede calcularlo, revisar como el driver",
+      "ese agregado. Si el motor s\u00ed puede calcularlo, revisar c\u00f3mo el driver",
       "mapea el tipo de la columna."
     ),
     sin_valores = paste(
       "La columna no tiene valores no nulos: no hay nada que agregar. No es",
-      "un fallo, es un alcance vacio."
+      "un fallo, es un alcance vac\u00edo."
     )
   )
   salida <- unname(salidas[estado])
   ifelse(
     is.na(salida),
     paste(
-      "Revisar el estado y el motivo del registro por metrica en",
+      "Revisar el estado y el motivo del registro por m\u00e9trica en",
       "`resumen_tabla$sql` del perfil."
     ),
     salida
@@ -1087,7 +1089,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   if (!inherits(coleccion, "coleccion_lupa")) {
     .detener(
-      "`coleccion` debe ser una coleccion declarada por coleccion().",
+      "`coleccion` debe ser una colecci\u00f3n declarada por coleccion().",
       call. = FALSE
     )
   }
@@ -1124,12 +1126,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       length(tope_cobertura_metricas) != 1L ||
       is.na(tope_cobertura_metricas) || tope_cobertura_metricas < 0) {
     .detener(
-      "`tope_cobertura_metricas` debe ser un numero no negativo.", call. = FALSE
+      "`tope_cobertura_metricas` debe ser un n\u00famero no negativo.", call. = FALSE
     )
   }
   tope_cobertura_metricas <- as.numeric(tope_cobertura_metricas)
   conexion <- coleccion$conexion
-  .validar_conexion_dbi(conexion, accion = "perfilar una coleccion")
+  .validar_conexion_dbi(conexion, accion = "perfilar una colecci\u00f3n")
   # Un objeto de otra generacion del esquema se completa antes de leerlo: el
   # paquete ya establecio ese precedente para `catalogo`, y el recorrido mostro
   # que habia cinco columnas mas en el mismo estado.
@@ -1268,14 +1270,14 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     if (!identical(fila$tipo, "tabla")) {
       saltear_tabla(
         paste0(
-          "El objeto se declaro como '", fila$tipo,
-          "' y no como tabla base; no se perfilo."
+          "El objeto se declar\u00f3 como '", fila$tipo,
+          "' y no como tabla base; no se perfil\u00f3."
         ),
         paste(
           "Declarar el objeto con tipo 'tabla' si corresponde perfilarlo, o",
           "perfilar la tabla base que lo respalda."
         ),
-        paste0("se declaro '", fila$tipo, "' y no se perfilo")
+        paste0("se declar\u00f3 '", fila$tipo, "' y no se perfil\u00f3")
       )
       next
     }
@@ -1370,11 +1372,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     if (inherits(piezas, "condition")) {
       saltear_tabla(
         paste0(
-          "La tabla se perfilo pero su resultado no tiene la forma esperada: ",
+          "La tabla se perfil\u00f3 pero su resultado no tiene la forma esperada: ",
           .mensaje_motor(piezas)
         ),
         paste(
-          "Comprobar que la version instalada de lupa y la que produjo el",
+          "Comprobar que la versi\u00f3n instalada de lupa y la que produjo el",
           "perfil sean la misma."
         ),
         "no se pudo perfilar"
@@ -1410,13 +1412,17 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
         fila, "divergencias",
         paste0(
-          "El perfil interno declaro ", nrow(divergencias_metricas),
-          " divergencia(s) entre sus bloques. El detalle por columna y",
-          " metrica queda en `cobertura_metricas`."
+          "El perfil interno declar\u00f3 ", nrow(divergencias_metricas),
+          if (nrow(divergencias_metricas) == 1L) {
+            " divergencia entre sus bloques. El detalle por columna y"
+          } else {
+            " divergencias entre sus bloques. El detalle por columna y"
+          },
+          " m\u00e9trica queda en `cobertura_metricas`."
         ),
         paste(
           "Revisar la divergencia y repetir bajo una lectura consistente si",
-          "se necesita decidir cual valor representa al dato."
+          "se necesita decidir cu\u00e1l valor representa al dato."
         )
       )
     }
@@ -1486,12 +1492,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
         fila, "tabla_vacia",
         paste(
-          "La tabla tiene cero filas: se leyo su estructura pero no hay nada",
+          "La tabla tiene cero filas: se ley\u00f3 su estructura pero no hay nada",
           "que medir. Las proporciones quedan en NA, no en cero."
         ),
         paste(
-          "Comprobar si la tabla deberia tener datos -staging truncada,",
-          "particion futura, carga pendiente-. Si esta vacia por diseno, no",
+          "Comprobar si la tabla deber\u00eda tener datos -staging truncada,",
+          "partici\u00f3n futura, carga pendiente-. Si est\u00e1 vac\u00eda por dise\u00f1o, no",
           "hay nada que corregir."
         )
       )
@@ -1499,11 +1505,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
         fila, "medicion_incompleta",
         paste0(
-          "La tabla se perfilo pero no se pudo medir la proporcion de ",
-          "ausentes en ninguna de sus ", piezas$n_columnas, " columnas."
+          "La tabla se perfilo pero no se pudo medir la proporci\u00f3n de ",
+          "ausentes en ninguna de sus ", piezas$n_columnas,
+          if (piezas$n_columnas == 1L) " columna." else " columnas."
         ),
         paste(
-          "Revisar `cobertura_metricas` para ver que rechazo el motor en cada",
+          "Revisar `cobertura_metricas` para ver qu\u00e9 rechaz\u00f3 el motor en cada",
           "columna."
         )
       )
@@ -1539,7 +1546,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           } else if (length(motivos) > 1L) {
             paste0(
               "Los motivos no son uno solo: hay ", length(motivos),
-              " distintos, por columna y metrica. "
+              if (length(motivos) == 1L) {
+                " distinto, por columna y m\u00e9trica. "
+              } else " distintos, por columna y m\u00e9trica. "
             )
           } else {
             ""
@@ -1547,9 +1556,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           "La tabla se perfilo, pero no completa."
         ),
         paste(
-          "El detalle por columna y metrica esta en `cobertura_metricas`, con",
+          "El detalle por columna y m\u00e9trica est\u00e1 en `cobertura_metricas`, con",
           "el motivo de cada uno: puede ser el motor, un tipo que no admite el",
-          "agregado o un presupuesto declarado que se agoto."
+          "agregado o un presupuesto declarado que se agot\u00f3."
         )
       )
     }
@@ -1809,15 +1818,15 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       fin = Sys.time(),
       snapshot = FALSE,
       nota_snapshot = paste(
-        "No hubo lectura instantanea: cada tabla se midio en su propio",
+        "No hubo lectura instant\u00e1nea: cada tabla se midi\u00f3 en su propio",
         "momento y la base pudo cambiar entre consultas. La columna `momento`",
-        "de `resumen_coleccion` declara cuando se midio cada una."
+        "de `resumen_coleccion` declara cu\u00e1ndo se midi\u00f3 cada una."
       ),
       nota_cobertura = paste(
-        "Donde no hubo medicion va NA, nunca 0 ni -Inf.",
-        "`n_columnas_medidas` declara sobre cuantas columnas se conoce la",
-        "proporcion de ausentes, `cobertura_metricas` que agregado no se",
-        "pudo calcular y que divergencia se declaro en cada columna."
+        "Donde no hubo medici\u00f3n va NA, nunca 0 ni -Inf.",
+        "`n_columnas_medidas` declara sobre cu\u00e1ntas columnas se conoce la",
+      "proporci\u00f3n de ausentes, `cobertura_metricas` qu\u00e9 agregado no se",
+      "pudo calcular y qu\u00e9 divergencia se declar\u00f3 en cada columna."
       ),
       frontera = "declarada por el usuario"
     )
@@ -1892,7 +1901,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # seguro, sin leer nada, como cuando la lectura falla.
   if (!identical(proteccion$base, "perfil_muestra")) {
     return(incompleto(
-      "una tabla no se pudo clasificar porque su muestra no se leyo"
+      "una tabla no se pudo clasificar porque su muestra no se ley\u00f3"
     ))
   }
   tryCatch({
@@ -1927,10 +1936,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       if (!NROW(respuesta$datos)) next
       if (NROW(respuesta$datos) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
         return(incompleto(paste0(
-          "`", columna, "` tiene mas de ",
+          "`", columna, "` tiene m\u00e1s de ",
           format(.MAXIMO_VALORES_PROTEGIDOS_DBI, big.mark = ".",
                  scientific = FALSE),
-          " valores distintos"
+          if (as.numeric(.MAXIMO_VALORES_PROTEGIDOS_DBI) == 1L) {
+            " valor distinto"
+          } else " valores distintos"
         )))
       }
       leidos <- .texto_de_valores_dbi(respuesta$datos[[1L]])
@@ -2424,7 +2435,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     sin_esquema <- names(anchos)[is.na(anchos)]
     n_pares_declarados <- NA_real_
     n_pares_sin_estimar <- n_pares_dirigidos - n_pares_estimados
-    alcance <- "todos los pares dirigidos de la coleccion"
+    alcance <- "todos los pares dirigidos de la colecci\u00f3n"
   } else {
     pares <- .validar_pares_coleccion(coleccion, pares, exigir = FALSE)
     identificadores <- .identificadores_unicos(c(pares$tabla_1, pares$tabla_2))
@@ -2482,9 +2493,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     tablas_sin_esquema = sin_esquema,
     alcance = alcance,
     nota = paste(
-      "Una clave foranea es dirigida, asi que los pares son n*(n-1) y no",
+      "Una clave for\u00e1nea es dirigida, as\u00ed que los pares son n*(n-1) y no",
       "n*(n-1)/2. El costo real lo dan las comparaciones de columnas, no el",
-      "numero de tablas. Las tablas sin esquema legible no se suman como cero:",
+      "n\u00famero de tablas. Las tablas sin esquema legible no se suman como cero:",
       "quedan en `tablas_sin_esquema` y sus pares en `n_pares_sin_estimar`."
     )
   )
@@ -2499,9 +2510,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   if (is.null(pares)) {
     if (exigir) {
       .detener(
-        "`pares` debe declarar que tablas se comparan. Explorar todos los ",
-        "pares no es viable: una coleccion de mil tablas tiene casi un millon ",
-        "de pares dirigidos. Use estimar_costo_coleccion() para verlo.",
+        "`pares` debe declarar qu\u00e9 tablas se comparan. Explorar todos los ",
+        "pares no es viable: una colecci\u00f3n de mil tablas tiene casi un mill\u00f3n ",
+        "de pares dirigidos. Usar estimar_costo_coleccion() para verlo.",
         call. = FALSE
       )
     }
@@ -2533,7 +2544,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   if (anyNA(tabla_1) || anyNA(tabla_2) ||
       !all(nzchar(tabla_1)) || !all(nzchar(tabla_2))) {
     .detener(
-      "`pares` no admite `NA` ni cadenas vacias en `tabla_1` ni en `tabla_2`.",
+      "`pares` no admite `NA` ni cadenas vac\u00edas en `tabla_1` ni en `tabla_2`.",
       call. = FALSE
     )
   }
@@ -2542,7 +2553,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   )
   if (length(desconocidas)) {
     .detener(
-      "`pares` nombra tablas que no estan declaradas en la coleccion: ",
+      "`pares` nombra tablas que no est\u00e1n declaradas en la colecci\u00f3n: ",
       paste(unique(desconocidas), collapse = ", "),
       ". Declaradas: ", paste(declaradas, collapse = ", "), ".",
       call. = FALSE
@@ -2558,7 +2569,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       paste(.identificadores_unicos(tabla_1[autorreferenciales]),
             collapse = ", "),
       ". Comparar una tabla contra si misma devuelve cada columna emparejada ",
-      "con ella misma y vuelve a leer la tabla dos veces; las claves foraneas ",
+      "con ella misma y vuelve a leer la tabla dos veces; las claves for\u00e1neas ",
       "autorreferenciales no se detectan por este camino.",
       call. = FALSE
     )
@@ -2617,7 +2628,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   desconocidas <- .identificadores_setdiff(names(columnas), declaradas)
   if (length(desconocidas)) {
     .detener(
-      "`columnas_candidatas` nombra tablas no declaradas en la coleccion: ",
+      "`columnas_candidatas` nombra tablas no declaradas en la colecci\u00f3n: ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
   }
@@ -2627,7 +2638,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         anyNA(candidatas) || any(!nzchar(candidatas))) {
       .detener(
         "`columnas_candidatas` para `", identificador,
-        "` debe ser un vector de nombres no vacio.", call. = FALSE
+        "` debe ser un vector de nombres no vac\u00edo.", call. = FALSE
       )
     }
     k <- .indice_identificador(identificador, declaradas)
@@ -2678,7 +2689,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   desconocidas <- .identificadores_setdiff(nombres, declaradas)
   if (length(desconocidas)) {
     .detener(
-      "`orden` nombra tablas no declaradas en la coleccion: ",
+      "`orden` nombra tablas no declaradas en la colecci\u00f3n: ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
   }
@@ -2689,7 +2700,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         any(!nzchar(columnas))) {
       .detener(
         "`orden` para `", identificador,
-        "` debe ser un vector de nombres no vacio.", call. = FALSE
+        "` debe ser un vector de nombres no vac\u00edo.", call. = FALSE
       )
     }
   }
@@ -2724,7 +2735,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # es lo que la ayuda promete cuando el motor no puede entregarlo.
       numerico <- function(v) is.numeric(v) || inherits(v, "integer64")
       if (!numerico(minimo) || !numerico(maximo)) {
-        .detener("extremos no numericos", call. = FALSE)
+        .detener("extremos no num\u00e9ricos", call. = FALSE)
       }
       valores <- suppressWarnings(as.numeric(valores))
     }
@@ -2835,7 +2846,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   if (length(no_escribibles)) {
     partes <- c(partes, paste0(
       if (length(no_escribibles) == 1L) {
-        "No se leyo la columna "
+        "No se ley\u00f3 la columna "
       } else "No se leyeron las columnas ",
       # Escrito sin consultar el locale: un nombre con bytes sueltos dejaba el
       # motivo entero sin ser UTF-8 valido, y eso aborta al imprimirlo.
@@ -2846,7 +2857,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   }
   if (length(orden_omitido)) {
     partes <- c(partes, paste0(
-      "La lectura va sin `ORDER BY`: se declaro `orden` (",
+            "La lectura va sin `ORDER BY`: se declar\u00f3 `orden` (",
       paste(.comillas_sin_locale(orden_omitido), collapse = ", "), ") y ",
       .motivo_no_representable_dbi(
         "el nombre de una de esas columnas", texto = orden_omitido
@@ -2939,7 +2950,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   }
   if (length(orden_fuera)) {
     partes <- c(partes, paste0(
-      "La lectura va sin `ORDER BY`: se declaro `orden` (",
+      "La lectura va sin `ORDER BY`: se declar\u00f3 `orden` (",
       paste(.comillas_sin_locale(orden_fuera), collapse = ", "),
       ") y una de esas columnas no se puede leer o llega enmascarada."
     ))
@@ -3239,7 +3250,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         motivo <- if (inherits(resultado, "condition")) {
           .mensaje_motor(resultado)
         } else {
-          "la consulta de rangos no devolvio una fila"
+          "la consulta de rangos no devolvi\u00f3 una fila"
         }
         for (k in medibles) {
           salida[[nombres[[k]]]] <- sin_evidencia(
@@ -3309,7 +3320,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       )
       if (any(no_ordenables, na.rm = TRUE)) {
         .detener(
-          "SQL Server no puede ordenar la coleccion por las columnas de tipo ",
+          "SQL Server no puede ordenar la colecci\u00f3n por las columnas de tipo ",
           "no comparable: ",
           paste(columnas_orden[which(no_ordenables)], collapse = ", "), ".",
           call. = FALSE
@@ -3581,9 +3592,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           fuera <- fuera[!duplicated(names(fuera))]
           assign(.clave_cache_coleccion(identificador), fuera, envir = cache_fuera)
           nota_aislamiento <- paste(
-            "La lectura conjunta fallo; se aislaron por descarte las columnas",
+            "La lectura conjunta fall\u00f3; se aislaron por descarte las columnas",
             paste(columnas_para_aislar[culpables], collapse = ", "),
-            "y se compararon las demas."
+            "y se compararon las dem\u00e1s."
           )
         }
       }
@@ -3610,7 +3621,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         motivo_llano,
         if (length(columnas_orden)) {
           paste0(
-            ". Se declaro `orden` (", paste(columnas_orden, collapse = ", "),
+            ". Se declar\u00f3 `orden` (", paste(columnas_orden, collapse = ", "),
             "): comprobar que esas columnas existen en la tabla."
           )
         } else "",
@@ -3945,11 +3956,11 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     }
     if (!is.numeric(tope_cache_mb) || length(tope_cache_mb) != 1L ||
         is.na(tope_cache_mb) || tope_cache_mb < 0) {
-      .detener("`tope_cache_mb` debe ser un numero no negativo.", call. = FALSE)
+      .detener("`tope_cache_mb` debe ser un n\u00famero no negativo.", call. = FALSE)
     }
     if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
         is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
-      .detener("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
+      .detener("`tope_memoria_mb` debe ser un n\u00famero no negativo.", call. = FALSE)
     }
     if (!is.null(orden) && !is.character(orden) && !is.list(orden)) {
       .detener(
@@ -4009,7 +4020,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         ),
         como_resolverlo = paste(
           "Aumentar `tope_memoria_mb` o procesar los pares en varias corridas;",
-          "las combinaciones pendientes no se interpretan como ausencia de relacion."
+          "las combinaciones pendientes no se interpretan como ausencia de relaci\u00f3n."
         ), stringsAsFactors = FALSE
       )
       next
@@ -4048,9 +4059,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         ),
         como_resolverlo = if (propia && isTRUE(fallo$codificacion)) {
           paste(
-            "La sesion no puede escribir un nombre de la consulta (ver el",
-            "motivo): correr la sesion con un locale UTF-8, o declarar la",
-            "codificacion del nombre al leerlo. El SQL exacto de cada intento",
+            "La sesi\u00f3n no puede escribir un nombre de la consulta (ver el",
+            "motivo): correr la sesi\u00f3n con un locale UTF-8, o declarar la",
+            "codificaci\u00f3n del nombre al leerlo. El SQL exacto de cada intento",
             "queda en `meta$lecturas`."
           )
         } else {
@@ -4231,11 +4242,19 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
         tabla_1 = t1, tabla_2 = t2,
         motivo = paste0(
-          "Sin conclusion: la tabla de referencia `", t1, "` se leyo ",
-          "truncada (", nrow(d1), " filas) y ",
+        "Sin conclusi\u00f3n: la tabla de referencia `", t1, "` se ley\u00f3 ",
+          "truncada (", nrow(d1),
+          if (nrow(d1) == 1L) " fila) y " else " filas) y ",
           if (nrow(candidatas)) {
-            paste0(sin_conclusion, " combinacion(es) de columnas no alcanzaron ")
-          } else "ninguna columna alcanzo ",
+          paste0(
+            sin_conclusion,
+            if (sin_conclusion == 1L) {
+              " combinaci\u00f3n de columnas no alcanz\u00f3 "
+            } else {
+              " combinaciones de columnas no alcanzaron "
+            }
+          )
+          } else "ninguna columna alcanz\u00f3 ",
           "`umbral_cobertura` (", umbral_cobertura, ")",
           if (!is.na(cotas)) {
             paste0(
@@ -4244,20 +4263,22 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
               if (sin_conclusion > length(mostradas)) {
                 paste0(
                   "; ", sin_conclusion - length(mostradas),
-                  if (length(medidas) > length(mostradas)) " mas" else " en 0"
+                  if (length(medidas) > length(mostradas)) " m\u00e1s" else " en 0"
                 )
               } else "",
               "-"
             )
-          } else " -todas en 0 sobre las filas leidas-",
+          } else " -todas en 0 sobre las filas le\u00eddas-",
           ". Con la referencia incompleta la cobertura medida es una cota ",
-          "inferior, asi que ",
+          "inferior, as\u00ed que ",
           if (nrow(candidatas)) "no se descartan" else "el par no se descarta",
-          " como sin relacion.",
+          " como sin relaci\u00f3n.",
           if (nrow(candidatas)) {
             paste0(
-              " Lo alcanzaron ", nrow(candidatas), " combinacion(es), que ",
-              "estan en `relaciones`."
+              " Lo alcanzaron ", nrow(candidatas),
+              if (nrow(candidatas) == 1L) " combinaci\u00f3n, que " else
+                " combinaciones, que ",
+              "est\u00e1n en `relaciones`."
             )
           } else ""
         ),
@@ -4386,32 +4407,32 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         } else integer()
         sin_orden <- realizadas[!bitacora$orden_declarado[realizadas]]
         if (!length(realizadas)) {
-          "No hubo ninguna lectura, asi que no se afirma nada sobre su repetibilidad."
+          "No hubo ninguna lectura, as\u00ed que no se afirma nada sobre su repetibilidad."
         } else if (!length(sin_orden)) {
           paste(
-            "Se declaro `orden` para todas las tablas leidas: la lectura es",
+            "Se declar\u00f3 `orden` para todas las tablas le\u00eddas: la lectura es",
             "repetible mientras las columnas de orden identifiquen las filas de",
-            "forma unica."
+            "forma \u00fanica."
           )
         } else if (length(sin_orden) == length(realizadas)) {
           paste(
-            "Ninguna lectura llevo `ORDER BY`, asi que una lectura acotada",
+            "Ninguna lectura llev\u00f3 `ORDER BY`, as\u00ed que una lectura acotada",
             "devuelve un subconjunto arbitrario: el resultado no es repetible",
             "entre corridas ni entre motores."
           )
         } else {
           paste0(
-            "Solo parte de las tablas se leyo con `ORDER BY`. Sin orden, la ",
+            "Solo parte de las tablas se ley\u00f3 con `ORDER BY`. Sin orden, la ",
             "lectura de ",
             paste0("`", bitacora$tabla[sin_orden], "`", collapse = ", "),
-            " devuelve un subconjunto arbitrario, asi que el resultado no es ",
+            " devuelve un subconjunto arbitrario, as\u00ed que el resultado no es ",
             "repetible."
           )
         }
       }),
       alcance = paste(
-        "Cada par se comparo sobre una muestra de filas de cada tabla. Una",
-        "relacion candidata sobre una muestra no es una clave foranea",
+        "Cada par se compar\u00f3 sobre una muestra de filas de cada tabla. Una",
+        "relaci\u00f3n candidata sobre una muestra no es una clave for\u00e1nea",
         "comprobada: es un indicio que hay que confirmar contra el diccionario",
         "de datos."
       )

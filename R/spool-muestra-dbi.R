@@ -500,7 +500,7 @@
     return(list(
       disponible = TRUE, bytes_por_fila = bytes, filas_catalogo = filas,
       fuente = if (length(nombres_proyeccion)) {
-        "pg_stats.avg_width sobre la proyeccion; pg_table_size / reltuples como respaldo"
+        "pg_stats.avg_width sobre la proyecci\u00f3n; pg_table_size / reltuples como respaldo"
       } else "pg_table_size / pg_class.reltuples",
       motivo = NA_character_, version_sqlserver = NA_real_,
       consulta = resultado
@@ -567,11 +567,11 @@
   if (grepl("postgres|pqconnection", senas, perl = TRUE) &&
       "tablesample_bernoulli" %in% names(candidatos)) {
     alternativa <- candidatos[["tablesample_bernoulli"]]
-    motivo <- "Se prefirio BERNOULLI para recuperar filas sin ordenar la tabla."
+    motivo <- "Se prefiri\u00f3 BERNOULLI para recuperar filas sin ordenar la tabla."
   } else if (!is.null(por_bloques)) {
     alternativa <- por_bloques
     motivo <- paste(
-      "Se mantuvo el metodo por bloques y se aumento la fraccion para evitar",
+      "Se mantuvo el m\u00e9todo por bloques y se aument\u00f3 la fracci\u00f3n para evitar",
       "un ordenamiento de la tabla completa."
     )
   } else if ("random_limit" %in% names(candidatos)) {
@@ -586,15 +586,15 @@
       return(list(
         candidato = NULL, guardia = guardia,
         motivo = paste(
-          "El fallback aleatorio no se ejecuto porque la guarda de costo lo",
-          "rechazo y no hay un metodo por bloques utilizable."
+          "El fallback aleatorio no se ejecut\u00f3 porque la guarda de costo lo",
+          "rechaz\u00f3 y no hay un m\u00e9todo por bloques utilizable."
         )
       ))
     }
     motivo <- paste0(
-      "Se uso `", funcion,
-      "` porque el dialecto no ofrecio un metodo por bloques y la guarda de",
-      " costo lo acepto."
+      "Se us\u00f3 `", funcion,
+      "` porque el dialecto no ofreci\u00f3 un m\u00e9todo por bloques y la guarda de",
+      " costo lo acept\u00f3."
     )
     return(list(candidato = alternativa, guardia = guardia, motivo = motivo))
   }
@@ -887,7 +887,7 @@
     costo = list(sql = 1L, resultsets = 1L, fetches = NA_real_,
                  filas = preparacion$muestra_motor, bytes = NA_real_),
     pasadas = list(valor = "spool", indice = "spool", lsh = "spool",
-                   materializacion = "una seleccion materializada antes de la primera pasada")
+                   materializacion = "una selecci\u00f3n materializada antes de la primera pasada")
   )
 }
 
@@ -902,7 +902,7 @@
         "El orden de la muestra del motor no fue demostrado como estable; la",
         " familia `", familia, "` no se publica como exhaustiva."
       ),
-      "Declarar y verificar un orden unico, o consumir solo los diagnosticos disponibles."
+      "Declarar y verificar un orden \u00fanico, o consumir s\u00f3lo los diagn\u00f3sticos disponibles."
     )
   })
   perfil$cobertura_diagnosticos <- do.call(rbind, c(list(cobertura), nuevas))
@@ -1011,8 +1011,8 @@
   estado <- if (is.null(motivo_falla)) "observado_muestra" else "no_disponible"
   motivo <- if (is.null(motivo_falla)) {
     paste(
-      "Medido sobre la unica muestra materializada en el spool de sesion",
-      "cliente; todas las pasadas de esta salida leen esa relacion."
+      "Medido sobre la \u00fanica muestra materializada en el spool de sesi\u00f3n",
+      "cliente; todas las pasadas de esta salida leen esa relaci\u00f3n."
     )
   } else as.character(motivo_falla)
   metadatos <- .metadatos_sql_dbi(
@@ -1186,8 +1186,8 @@
       publico$orden_id <- orden_id
       publico$reproducible <- FALSE
       publico$motivo_reproducibilidad <- paste(
-        "El orden interno del result set no fue demostrado como unico y",
-        "reproducible entre corridas; el ordinal del spool solo identifica esta",
+        "El orden interno del result set no fue demostrado como \u00fanico y",
+        "reproducible entre corridas; el ordinal del spool s\u00f3lo identifica esta",
         "materializacion."
       )
     }
@@ -1391,14 +1391,14 @@
         } else {
           try(unlink(spool_reintento$path, force = TRUE), silent = TRUE)
           motivo_nuevo <- paste(
-            "La primera muestra se conservo porque el reintento no trajo mas filas."
+            "La primera muestra se conserv\u00f3 porque el reintent\u00f3 no trajo m\u00e1s filas."
           )
           motivo_reintento <- if (is.na(motivo_reintento)) motivo_nuevo else
             paste(motivo_reintento, motivo_nuevo)
         }
         if (!isTRUE(spool_reintento$ok)) {
           motivo_nuevo <- paste(
-            "El reintento fallo y la primera muestra valida se conservo."
+            "El reintent\u00f3 fall\u00f3 y la primera muestra v\u00e1lida se conserv\u00f3."
           )
           motivo_reintento <- if (is.na(motivo_reintento)) motivo_nuevo else
             paste(motivo_reintento, motivo_nuevo)
@@ -1505,7 +1505,7 @@
   } else if (length(motivo) == 1L && !is.na(motivo) && nzchar(as.character(motivo))) {
     as.character(motivo)
   } else {
-    "No se pudo conocer cuantas filas devolvio la muestra."
+    "No se pudo conocer cu\u00e1ntas filas devolvi\u00f3 la muestra."
   }
   if (spool_valido) {
     publico$fraccion_solicitada <- publico$fraccion
@@ -1560,7 +1560,7 @@
   )
   pasadas <- list(
     primera = "spool", valor = "spool", indice = "spool", lsh = "spool",
-    materializacion = "una seleccion materializada antes de la primera pasada"
+    materializacion = "una selecci\u00f3n materializada antes de la primera pasada"
   )
   if (isTRUE(leido$ok)) {
     publico$filas_obtenidas <- leido$n_filas
@@ -1610,13 +1610,13 @@
   perfil_resumen <- if (is.null(perfil_aislado)) perfil else NULL
   motivo_metricas <- if (!is.null(perfil_aislado)) {
     paste(
-      "La materializacion completa fallo; el perfil aislado es solo",
-      "diagnostico y no representa la materializacion solicitada.",
-      "Las metricas del resumen quedan no_disponible."
+      "La materializaci\u00f3n completa fall\u00f3; el perfil aislado es s\u00f3lo",
+      "diagn\u00f3stico y no representa la materializaci\u00f3n solicitada.",
+      "Las m\u00e9tricas del resumen quedan no_disponible."
     )
   } else if (is.null(motivo)) {
     paste(
-      "Medido sobre la unica seleccion materializada en el spool de sesion",
+      "Medido sobre la \u00fanica selecci\u00f3n materializada en el spool de sesi\u00f3n",
       "cliente; las pasadas de esta salida leen el mismo `muestra_id`."
     )
   } else as.character(motivo)
@@ -1637,18 +1637,19 @@
     motivo_muestreo <- if (muestreo_corto) {
       paste0(
         "La muestra final contiene ", .entero_sql_dbi(n_filas_spool),
-        " de ", .entero_sql_dbi(filas_efectivas), " filas pedidas."
+        " de ", .entero_sql_dbi(filas_efectivas),
+        if (filas_efectivas == 1L) " fila pedida." else " filas pedidas."
       )
     } else {
       paste0(
-        "La muestra inicial fue corta y el reintento con `",
-        as.character(publico$metodo), "` alcanzo el tamano pedido."
+        "La muestra inicial fue corta y el reintent\u00f3 con `",
+        as.character(publico$metodo), "` alcanz\u00f3 el tama\u00f1o pedido."
       )
     }
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "resumen_tabla", .texto_tabla_dbi(tabla), estado_muestreo,
       motivo_muestreo,
-      "Revisar `meta$muestreo` para los metodos y filas de cada intento.",
+      "Revisar `meta$muestreo` para los m\u00e9todos y filas de cada intento.",
       publico$sql
     ))
   }
@@ -1658,7 +1659,7 @@
       .registro_cobertura_dbi(
         "resumen_tabla", paste(campos, collapse = ", "), "no_disponible",
         motivo_metricas,
-        "Corregir la vista o repetir la materializacion completa antes de usar el resumen."
+        "Corregir la vista o repetir la materializaci\u00f3n completa antes de usar el resumen."
       )
     )
   }
@@ -1801,32 +1802,33 @@
     if (recorte_bytes) motivos_aviso <- c(
       motivos_aviso,
       paste0(
-        "la materializacion se acoto a ",
-        .entero_sql_dbi(n_filas_spool), " fila(s) por el presupuesto de bytes"
+        "la materializaci\u00f3n se acot\u00f3 a ",
+        .entero_sql_dbi(n_filas_spool), if (n_filas_spool == 1L) " fila por el presupuesto de bytes" else " filas por el presupuesto de bytes"
       )
     )
     if (recorte_celdas) motivos_aviso <- c(
       motivos_aviso,
       paste0(
-        "la muestra se acoto a ", .entero_sql_dbi(filas_efectivas),
-        " fila(s) por el presupuesto de celdas"
+        "la muestra se acot\u00f3 a ", .entero_sql_dbi(filas_efectivas),
+        if (filas_efectivas == 1L) " fila por el presupuesto de celdas" else " filas por el presupuesto de celdas"
       )
     )
     if (recorte_procesamiento) motivos_aviso <- c(
       motivos_aviso,
-      "el perfil local se descarto porque supero el presupuesto de procesamiento"
+      "el perfil local se descart\u00f3 porque super\u00f3 el presupuesto de procesamiento"
     )
     if (muestreo_corto) motivos_aviso <- c(
       motivos_aviso,
       paste0(
-        "el motor devolvio ", .entero_sql_dbi(n_filas_spool),
-        " de ", .entero_sql_dbi(filas_efectivas), " fila(s) pedidas"
+        "el motor devolvi\u00f3 ", .entero_sql_dbi(n_filas_spool),
+        " de ", .entero_sql_dbi(filas_efectivas),
+        if (filas_efectivas == 1L) " fila pedida" else " filas pedidas"
       )
     )
     if (reintentos_muestreo > 0L && !muestreo_corto) motivos_aviso <- c(
       motivos_aviso,
       paste0(
-        "la primera muestra fue corta y se reintento con `",
+        "la primera muestra fue corta y se reintent\u00f3 con `",
         as.character(publico$metodo), "`"
       )
     )
@@ -1848,13 +1850,13 @@
   # la marca queda cerrada aunque el perfil aislado haya llegado.
   motivo_metricas <- if (!is.null(perfil_aislado)) {
     paste(
-      "La materializacion completa fallo; el perfil aislado es solo",
-      "diagnostico y no representa la materializacion solicitada.",
-      "Las metricas del resumen quedan no_disponible."
+      "La materializaci\u00f3n completa fall\u00f3; el perfil aislado es s\u00f3lo",
+      "diagn\u00f3stico y no representa la materializaci\u00f3n solicitada.",
+      "Las m\u00e9tricas del resumen quedan no_disponible."
     )
   } else if (is.null(motivo)) {
     paste(
-      "Medido sobre la unica seleccion materializada en el spool de sesion",
+      "Medido sobre la \u00fanica selecci\u00f3n materializada en el spool de sesi\u00f3n",
       "cliente; las pasadas de esta salida leen el mismo `muestra_id`."
     )
   } else as.character(motivo)
@@ -1897,17 +1899,20 @@
     perfil$meta$tope_que_mando <- tope_que_mando
     perfil$meta$tope_que_mando_texto <- if (recorte_topes) {
       if (recorte_procesamiento) {
-        "El perfil local se descarto al superar el presupuesto de procesamiento."
+        "El perfil local se descart\u00f3 al superar el presupuesto de procesamiento."
       } else if (recorte_bytes) {
         paste0(
-          "La materializacion se acoto a ",
+          "La materializaci\u00f3n se acot\u00f3 a ",
           .entero_sql_dbi(n_filas_spool),
-          " filas por el presupuesto de bytes."
+          if (n_filas_spool == 1L) " fila por el presupuesto de bytes." else
+            " filas por el presupuesto de bytes."
         )
       } else {
         paste0(
-          "La muestra del motor quedo acotada a ",
-          .entero_sql_dbi(filas_efectivas), " filas antes de leerla."
+          "La muestra del motor qued\u00f3 acotada a ",
+          .entero_sql_dbi(filas_efectivas),
+          if (filas_efectivas == 1L) " fila antes de leerla." else
+            " filas antes de leerla."
         )
       }
     } else NA_character_
@@ -2064,7 +2069,7 @@
       "perfil_muestra", .texto_tabla_dbi(tabla), "no_disponible", motivo,
       paste(
         "No se publica una muestra parcial: corregir el presupuesto, la",
-        "capacidad o el error declarado y repetir la materializacion."
+        "capacidad o el error declarado y repetir la materializaci\u00f3n."
       ), sql_muestra
     ))
   }
@@ -2085,8 +2090,8 @@
     materializacion = materializacion,
     solo_lectura = TRUE, objetos_temporales = FALSE, snapshot = FALSE,
     nota_snapshot = paste(
-      "`snapshot_id` identifica la fotografia del spool cliente y no demuestra",
-      "una instantanea transaccional del motor. Solo se publica evidencia",
+      "`snapshot_id` identifica la fotograf\u00eda del spool cliente y no demuestra",
+      "una instant\u00e1nea transaccional del motor. S\u00f3lo se publica evidencia",
       "positiva de snapshot cuando el adaptador la demuestra."
     ),
     clave = preparacion$catalogo_cardinalidad,
@@ -2183,7 +2188,7 @@
   if (is.data.frame(fallas_consultas) && nrow(fallas_consultas)) {
     .avisar_muestra_motor_dbi(
       paste0(
-        "Una o mas consultas solicitadas no estuvieron disponibles (",
+        "Una o m\u00e1s consultas solicitadas no estuvieron disponibles (",
         nrow(fallas_consultas), "). El detalle queda en",
         " `resumen_tabla$meta$consultas$fallas`."
       ),

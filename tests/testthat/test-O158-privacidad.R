@@ -179,7 +179,7 @@ test_that("H1: por bloques el piso por valor corre sobre todas las columnas, com
     resumen$sql$motivo[1:2] <- c(motivo, control)
     perfil$resumen_tabla <- resumen
     .avisar_dbi("lupa_muestra_dbi_no_disponible", paste(
-      "El resumen SQL se calculo y se devuelve, pero la muestra no:", motivo
+      "El resumen SQL se calcul\u00f3 y se devuelve, pero la muestra no:", motivo
     ))
     perfil
   })

@@ -187,7 +187,7 @@
     },
     if (isTRUE(posible_identificador) &&
         (isTRUE(clave_declarada) || !repite)) {
-      "el perfil publico `posible_identificador`"
+        "el perfil p\u00fablico `posible_identificador`"
     },
     if (.parece_correlativo_benford(x)) {
       "los valores forman una secuencia correlativa"
@@ -274,7 +274,7 @@
   # atribuye al paquete una deduccion que no hizo, y ademas invita a discutirle
   # el criterio cuando no hubo criterio.
   etiquetas <- c(
-    sin_variacion = "sin variacion",
+    sin_variacion = "sin variaci\u00f3n",
     codigo_declarado = paste(
       "la columna se declar\u00f3 en `columnas_codigo`, as\u00ed que es un c\u00f3digo y no",
       "una magnitud"
@@ -290,7 +290,7 @@
       #
       # Lo que si cubre el caso comun: si la columna declarada repite valores,
       # `clave_no_unica` lo informa con severidad `error`.
-      "la clave fue declarada, asi que la columna identifica filas y no es una magnitud"
+      "la clave fue declarada, as\u00ed que la columna identifica filas y no es una magnitud"
     } else if (length(resultado$motivos_identificador)) {
       paste0(
         "parece un identificador: ",
@@ -300,13 +300,14 @@
       "parece un identificador"
     },
     observaciones_utilizables_insuficientes = paste0(
-      "observaciones positivas utilizables ",
+      if (resultado$n_positivos == 1L) "observaci\u00f3n positiva utilizable " else
+        "observaciones positivas utilizables ",
       .formatear_numero_publicado(resultado$n_positivos),
       " < ",
       .formatear_numero_publicado(umbrales$minimo_observaciones_utilizables)
     ),
     proporcion_positivos_insuficiente = paste0(
-      "proporcion de positivos ",
+      "proporci\u00f3n de positivos ",
       .decimal_frente_a_umbral(
         resultado$proporcion_positivos, umbrales$minima_proporcion_positivos
       ),
@@ -314,7 +315,7 @@
       .formatear_decimal_publicado(umbrales$minima_proporcion_positivos)
     ),
     ordenes_magnitud_insuficientes = paste0(
-      "ordenes de magnitud log10(max/min) ",
+      "\u00f3rdenes de magnitud log10(max/min) ",
       if (is.finite(resultado$ordenes_magnitud)) {
         .decimal_frente_a_umbral(
           resultado$ordenes_magnitud, umbrales$minimo_ordenes_magnitud
@@ -362,12 +363,12 @@
       "ley_benford", names(datos)[[i]],
       paste0(
         "La columna se guarda como `", .clase_declarada_columna(datos[[i]]),
-        "` y el diagnostico no se evalua sobre ese tipo."
+        "` y el diagn\u00f3stico no se eval\u00faa sobre ese tipo."
       ),
       paste0(
         "No leer la ausencia de hallazgo como conformidad. Para evaluar Benford ",
         "sobre esta columna, convertirla a `double` si sus valores entran en la ",
-        "precision de ese tipo."
+        "precisi\u00f3n de ese tipo."
       )
     )
   })
@@ -421,15 +422,17 @@
       "ley_benford", resultado$columna,
       .motivo_no_aplica_benford(resultado, umbrales),
       if (isTRUE(resultado$codigo_declarado)) paste(
-        "Si la columna es una magnitud y no un codigo, quitarla de",
+        "Si la columna es una magnitud y no un c\u00f3digo, quitarla de",
         "`columnas_codigo` para evaluar Benford."
       ) else paste0(
-        "No interpretar una distribucion de primeros digitos. Benford requiere ",
+        "No interpretar una distribuci\u00f3n de primeros d\u00edgitos. Benford requiere ",
         "montos positivos no asignados, al menos ",
         .formatear_numero_publicado(umbrales$minimo_observaciones_utilizables),
-        " observaciones y al menos ",
+        if (umbrales$minimo_observaciones_utilizables == 1L) " observaci\u00f3n y al menos " else
+          " observaciones y al menos ",
         .formatear_numero_publicado(umbrales$minimo_ordenes_magnitud),
-        " ordenes de magnitud."
+        if (umbrales$minimo_ordenes_magnitud == 1L) " orden de magnitud." else
+          " \u00f3rdenes de magnitud."
       )
     )
   })
@@ -451,23 +454,23 @@
     .nuevo_hallazgo(
       resultado$columna, "desviacion_benford", "sospechoso",
       paste0(
-        "En muchas magnitudes que crecen por acumulacion -importes, poblaciones, ",
-        "areas- el primer digito no aparece con la misma frecuencia: el 1 encabeza ",
+        "En muchas magnitudes que crecen por acumulaci\u00f3n -importes, poblaciones, ",
+        "\u00e1reas- el primer d\u00edgito no aparece con la misma frecuencia: el 1 encabeza ",
         "cerca del 30 % de los valores y el 9 menos del 5 %. En esta columna los ",
-        "primeros digitos no siguen ese reparto. Es una senal descriptiva para ",
-        "revisar, no evidencia de fraude ni de manipulacion: un tope ",
+        "primeros d\u00edgitos no siguen ese reparto. Es una se\u00f1al descriptiva para ",
+        "revisar, no evidencia de fraude ni de manipulaci\u00f3n: un tope ",
         "administrativo o un monto fijo la producen igual."
       ),
       paste0(
         resultado$metodo, ": X2=",
         .formatear_decimal_publicado(resultado$estadistico),
         ", p=", texto_p,
-        "; observado/esperado por digito: ",
+        "; observado/esperado por d\u00edgito: ",
         .texto_distribucion_benford(resultado$distribucion), "."
       ),
       paste0(
         "Revisar el proceso y explicaciones inocentes como topes administrativos, ",
-        "redondeos, precios psicologicos o subsidios de monto fijo."
+        "redondeos, precios psicol\u00f3gicos o subsidios de monto fijo."
       ),
       resultado$n_positivos, NA_real_, "valor_positivo"
     )

@@ -33,7 +33,7 @@ test_that("una columna toda en `N/A` no se informa como constante", {
   ]
   expect_equal(nrow(hallazgo), 1L)
   descripcion <- as.character(hallazgo$descripcion[[1L]])
-  expect_match(descripcion, "no tiene ningun valor")
+  expect_match(descripcion, "no tiene ning\u00fan valor")
   expect_false(grepl("no ausente", descripcion, fixed = TRUE))
 })
 

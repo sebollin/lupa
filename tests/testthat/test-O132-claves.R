@@ -406,7 +406,7 @@ test_that("H9: un par con la referencia truncada no se descarta en silencio", {
   )
   expect_identical(nrow(truncada$relaciones), 0L)
   expect_identical(nrow(truncada$cobertura_pares), 1L)
-  expect_match(truncada$cobertura_pares$motivo, "Sin conclusion", fixed = TRUE)
+  expect_match(truncada$cobertura_pares$motivo, "Sin conclusi\u00f3n", fixed = TRUE)
   expect_identical(truncada$meta$pares_sin_conclusion, 1L)
   expect_identical(truncada$meta$pares_comparados, 1L)
   # Control: leida entera, la referencia da la cobertura del motor.

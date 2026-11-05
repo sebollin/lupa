@@ -21,7 +21,7 @@
   agregable = c(TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
   motivo_agregacion = c(
     rep(NA_character_, 2L),
-    "No hay transiciones de agregacion hacia ni desde este nivel.",
+    "No hay transiciones de agregaci\u00f3n hacia ni desde este nivel.",
     rep(NA_character_, 7L)
   ),
   stringsAsFactors = FALSE
@@ -114,8 +114,8 @@
     coleccion = paste0(
       " la frontera se declara con `coleccion()` y se mide con ",
       "`perfilar_coleccion()`, que devuelve un tablero por tabla. Agregar a un ",
-      "solo numero en este nivel exige ademas declarar los pesos: promediar ",
-      "entre tablas de universos distintos sin declararlos seria inventar un ",
+      "s\u00f3lo n\u00famero en este nivel exige adem\u00e1s declarar los pesos: promediar ",
+      "entre tablas de universos distintos sin declararlos ser\u00eda inventar un ",
       "juicio."
     ),
     conjuntoColecciones = paste0(
@@ -124,8 +124,8 @@
     ),
     organizacion = paste0(
       " se declara con `organizacion(nombre, colecciones)` y se pasa en el ",
-      "argumento `organizacion` de `agregar()`. Es opcional: un analisis sin ",
-      "organismo detras no necesita este nivel."
+      "argumento `organizacion` de `agregar()`. Es opcional: un an\u00e1lisis sin ",
+      "organismo detr\u00e1s no necesita este nivel."
     ),
     conjuntoOrganizaciones = paste0(
       " se declara con el argumento `organizaciones` de `agregar()`, una lista ",
@@ -368,8 +368,8 @@ transiciones_granularidad <- function() {
     "' aporta m\u00e1s de una instancia de la m\u00e9trica: '",
     paste(.identificadores_unicos(instancia[filas]), collapse = "', '"),
     "'. Agregar a '", destino, "' las mezclar\u00eda en un solo n\u00famero ",
-    "y pesar\u00eda doble. Agregue cada instancia por separado ",
-    "(filtrando por `metrica_instanciada`) o elija una.",
+    "y pesar\u00eda doble. Agregar cada instancia por separado ",
+    "(filtrando por `metrica_instanciada`) o elegir una.",
     call. = FALSE
   )
 }
@@ -490,9 +490,9 @@ transiciones_granularidad <- function() {
   if (is.null(coleccion)) {
     .detener(
       "Agregar a la granularidad 'coleccion' exige declarar la frontera: ",
-      "pase `coleccion = ` con el objeto de coleccion() o el perfil de ",
-      "perfilar_coleccion(). Sin la frontera no se sabe sobre que tablas se ",
-      "esta agregando.", call. = FALSE
+      "pasar `coleccion = ` con el objeto de coleccion() o el perfil de ",
+      "perfilar_coleccion(). Sin la frontera no se sabe sobre qu\u00e9 tablas se ",
+      "est\u00e1 agregando.", call. = FALSE
     )
   }
   # La frontera se lee por el IDENTIFICADOR completo, con esquema, y con la
@@ -602,7 +602,7 @@ transiciones_granularidad <- function() {
   )
   motivos <- unname(frontera$motivo_faltantes[indices_sin_medir])
   motivos[is.na(motivos)] <-
-    "No hay una medida de esta tabla en la entrada; no se midio en este alcance."
+    "No hay una medida de esta tabla en la entrada; no se midi\u00f3 en este alcance."
   # Con una frontera de `coleccion()` -una lista de nombres, sin perfil- el motivo
   # era siempre el generico, y una tabla VACIA y una que no existe salian con la
   # misma frase. Pero la medicion SI sabe por que no aporto una tabla que estaba en
@@ -612,7 +612,7 @@ transiciones_granularidad <- function() {
   # generico, que es cierto: la entrada no trae nada de ella y no se sabe mas.
   generico <- c(
     "No hay una medida de esta tabla en la entrada.",
-    "No hay una medida de esta tabla en la entrada; no se midio en este alcance."
+    "No hay una medida de esta tabla en la entrada; no se midi\u00f3 en este alcance."
   )
   if (inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas) &&
       all(c("entidad", "motivo") %in% names(cobertura_metricas))) {
@@ -638,8 +638,8 @@ transiciones_granularidad <- function() {
       length(.identificadores_intersect(declaradas, medidas)) / length(declaradas)
     } else NA_real_,
     advertencia = paste(
-      "El numero cubre las tablas medidas, no la coleccion declarada.",
-      "Leerlo sin su cobertura seria informar como medido lo que no se midio."
+      "El n\u00famero cubre las tablas medidas, no la colecci\u00f3n declarada.",
+      "Leerlo sin su cobertura ser\u00eda informar como medido lo que no se midi\u00f3."
     )
   )
 }
@@ -647,7 +647,7 @@ transiciones_granularidad <- function() {
 .validar_conjunto_colecciones <- function(colecciones) {
   if (!is.list(colecciones) || !length(colecciones)) {
     .detener(
-      "`colecciones` debe ser una lista no vacia de objetos creados por ",
+      "`colecciones` debe ser una lista no vac\u00eda de objetos creados por ",
       "coleccion() o perfilar_coleccion().", call. = FALSE
     )
   }
@@ -671,8 +671,8 @@ transiciones_granularidad <- function() {
   if (anyNA(nombres) || any(!nzchar(nombres)) ||
       anyDuplicated(.nombres_para_operar(nombres))) {
     .detener(
-      "`colecciones` debe tener nombres unicos y no vacios; esos nombres son",
-      " la identidad de cada coleccion en el conjunto.", call. = FALSE
+      "`colecciones` debe tener nombres \u00fanicos y no vac\u00edos; esos nombres son",
+      " la identidad de cada colecci\u00f3n en el conjunto.", call. = FALSE
     )
   }
   names(colecciones) <- nombres
@@ -700,7 +700,7 @@ transiciones_granularidad <- function() {
     sin_medir = sin_medir,
     motivo_sin_medir = rep(
       paste0(
-        "No hay una medida de esta ", parte, " en la entrada; no se midio en ",
+        "No hay una medida de esta ", parte, " en la entrada; no se midi\u00f3 en ",
         "este alcance."
       ),
       length(sin_medir)
@@ -709,8 +709,8 @@ transiciones_granularidad <- function() {
       length(presentes) / length(declaradas)
     } else NA_real_,
     advertencia = paste0(
-      "El numero cubre las partes medidas, no todas las declaradas. Leerlo sin ",
-      "su cobertura seria informar como medido lo que no se midio."
+      "El n\u00famero cubre las partes medidas, no todas las declaradas. Leerlo sin ",
+      "su cobertura ser\u00eda informar como medido lo que no se midi\u00f3."
     )
   )
   # Los nombres historicos del conjunto de colecciones se conservan para no
@@ -997,8 +997,12 @@ transiciones_granularidad <- function() {
   cobertura$partes_con_peso_cero <- sin_peso
   cobertura$advertencia <- paste0(
     cobertura$advertencia, " ", length(sin_peso),
-    " parte(s) entraron con peso cero: estan contadas en la cobertura y no",
-    " aportan al numero."
+    if (length(sin_peso) == 1L) {
+      " parte entr\u00f3 con peso cero: est\u00e1 contada en la cobertura y no"
+    } else {
+      " partes entraron con peso cero: est\u00e1n contadas en la cobertura y no"
+    },
+    " aportan al n\u00famero."
   )
   attr(resultado, propio) <- cobertura
   resultado
@@ -1097,8 +1101,9 @@ transiciones_granularidad <- function() {
   cobertura$completo <- FALSE
   cobertura$advertencia <- paste0(
     cobertura$advertencia,
-    " Ademas, ", sum(parciales), " de las partes que entraron al numero venian",
-    " incompletas: su cobertura esta en `cobertura_de_partes`."
+    " Adem\u00e1s, ", sum(parciales), " de las partes que entraron al n\u00famero",
+    if (sum(parciales) == 1L) " ven\u00eda" else " ven\u00edan",
+    " incompletas: su cobertura est\u00e1 en `cobertura_de_partes`."
   )
   attr(resultado, propio) <- cobertura
   resultado
@@ -1283,11 +1288,11 @@ agregar <- function(medidas, destino,
     )
     if (length(ajenas)) {
       .detener(
-        "Hay medidas de entidades que no estan declaradas en la coleccion '",
+        "Hay medidas de entidades que no est\u00e1n declaradas en la colecci\u00f3n '",
         coleccion$nombre, "': ", paste(.sort_por_bytes(ajenas), collapse = ", "),
         ". Declaradas: ", paste(.sort_por_bytes(coleccion$declaradas), collapse = ", "),
-        ". Un numero que mezcle objetos de fuera de la frontera no describe la ",
-        "coleccion.", call. = FALSE
+        ". Un n\u00famero que mezcle objetos de fuera de la frontera no describe la ",
+        "colecci\u00f3n.", call. = FALSE
       )
     }
   }
@@ -1300,7 +1305,7 @@ agregar <- function(medidas, destino,
     )
     if (length(ajenas)) {
       .detener(
-        "Hay medidas de colecciones que no estan declaradas en el conjunto: ",
+        "Hay medidas de colecciones que no est\u00e1n declaradas en el conjunto: ",
         paste(.sort_por_bytes(ajenas), collapse = ", "), ". Declaradas: ",
         paste(.sort_por_bytes(conjunto$declaradas), collapse = ", "), ".", call. = FALSE
       )
@@ -1318,10 +1323,10 @@ agregar <- function(medidas, destino,
     )
     if (length(ajenas)) {
       .detener(
-        "Hay medidas de colecciones que no pertenecen a la organizacion '",
+        "Hay medidas de colecciones que no pertenecen a la organizaci\u00f3n '",
         organismo$nombre, "': ", paste(.sort_por_bytes(ajenas), collapse = ", "),
         ". Declaradas: ", paste(.sort_por_bytes(organismo$declaradas), collapse = ", "),
-        ". Un numero que mezcle objetos de fuera de la frontera no describe a ",
+        ". Un n\u00famero que mezcle objetos de fuera de la frontera no describe a ",
         "ese organismo.", call. = FALSE
       )
     }
@@ -1344,7 +1349,7 @@ agregar <- function(medidas, destino,
     )
     if (length(ajenas)) {
       .detener(
-        "Hay medidas de organizaciones que no estan declaradas en el conjunto: ",
+        "Hay medidas de organizaciones que no est\u00e1n declaradas en el conjunto: ",
         paste(.sort_por_bytes(ajenas), collapse = ", "), ". Declaradas: ",
         paste(.sort_por_bytes(conjunto_organismos$declaradas), collapse = ", "), ".",
         call. = FALSE
@@ -1368,7 +1373,7 @@ agregar <- function(medidas, destino,
     # sin declararlo es el mismo juicio inventado, un piso mas arriba.
     .detener(
       "En las granularidades '", paste(.niveles_con_frontera, collapse = "', '"),
-      "' solo se admite 'promedio_ponderado': combinar alcances distintos exige ",
+      "' s\u00f3lo se admite 'promedio_ponderado': combinar alcances distintos exige ",
       "declarar los pesos. Sin pesos, se devuelve el tablero por parte.",
       call. = FALSE
     )
@@ -1402,7 +1407,7 @@ agregar <- function(medidas, destino,
   # cero valores fuera de {0, 1}.
   if (funcion == "ratio" && !all(medidas$resultado %in% c(0, 1))) {
     .detener(
-      "Una medida booleana solo puede valer 0 o 1; `ratio` cuenta los unos y ",
+      "Una medida booleana s\u00f3lo puede valer 0 o 1; `ratio` cuenta los unos y ",
       "no puede contar un valor intermedio.", call. = FALSE
     )
   }
@@ -1499,7 +1504,7 @@ agregar <- function(medidas, destino,
             ") y con las partes declaradas (",
             paste0("`", .identificadores_unicos(entidades_medidas), "`", collapse = ", "),
             "), y reparten distinto: no se puede saber a cu\u00e1les se refieren. ",
-            "Decl\u00e1relos por posici\u00f3n, en el orden de las medidas.", call. = FALSE
+      "Decl\u00e1relos por posici\u00f3n, en el orden de las medidas.", call. = FALSE
           )
         }
       }

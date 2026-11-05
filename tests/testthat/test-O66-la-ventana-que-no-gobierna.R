@@ -31,7 +31,7 @@ test_that("una ventana que no puede gobernar se declara", {
   expect_equal(resultado$n_discordantes, 2)
   expect_equal(resultado$ventana, 1)
   # Y la evidencia lo decia desde antes; el aviso es para quien lee la tabla.
-  expect_true(grepl("comparacion textual exacta", resultado$evidencia,
+  expect_true(grepl("comparaci\u00f3n textual exacta", resultado$evidencia,
                     fixed = TRUE))
 })
 

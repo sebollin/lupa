@@ -173,7 +173,7 @@ test_that("los renderizadores cubren valores complejos y perfiles heredados", {
   expect_equal(lupa:::.resumir_valor_reporte(identity), "<función>")
   expect_match(
     lupa:::.resumir_valor_reporte(data.frame(a = 1)),
-    "tabla: 1 filas", fixed = TRUE
+    "tabla: 1 fila", fixed = TRUE
   )
   expect_equal(
     lupa:::.resumir_valor_reporte(as.Date("2026-01-02")), "2026-01-02"

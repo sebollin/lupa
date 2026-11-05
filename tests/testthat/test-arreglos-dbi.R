@@ -269,7 +269,7 @@ test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
     columnas = "id", fuente = "catalogo", motivo = NA_character_,
     garantia = "desconocida", estado = list(visible = FALSE)
   )
-  expect_match(lupa:::.texto_clave_dbi(oculta), "catalogo no deja ver la clave")
+  expect_match(lupa:::.texto_clave_dbi(oculta), "cat\u00e1logo no deja ver la clave")
 })
 
 test_that("el universo muestreado no usa la clave como atajo de distintos", {
@@ -765,7 +765,7 @@ test_that("catalogo alinea el plan y la corrida y publica su fuente de moda", {
   expect_true(all(distintos_exacta$estado == "calculado"))
   expect_identical(
     resultado_exacta$resumen_tabla$meta$costo_moda$fuentes_cardinalidad,
-    "medicion de la corrida"
+    "medici\u00f3n de la corrida"
   )
 })
 

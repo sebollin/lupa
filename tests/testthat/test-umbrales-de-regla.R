@@ -72,7 +72,7 @@ test_that("umbrales mal formados se rechazan", {
   expect_error(regla_evaluacion("x", condicion, umbrales = 0.9), "una lista")
   expect_error(
     regla_evaluacion("x", condicion, umbrales = list(0.9)),
-    "nombres unicos"
+    "nombres \u00fanicos"
   )
 })
 

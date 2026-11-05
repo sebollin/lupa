@@ -40,7 +40,7 @@ test_that("la sugerencia no publica el criterio de un determinante protegido", {
   expect_length(sugerencia, 1L)
   # Antes: `aplicabilidad = list(rut = ~ pila == "Ana")`.
   expect_false(grepl("\"Ana\"", sugerencia, fixed = TRUE))
-  expect_true(grepl("esta protegida", sugerencia, fixed = TRUE))
+  expect_true(grepl("est\u00e1 protegida", sugerencia, fixed = TRUE))
 
   # Con un umbral: antes `nro_jubilacion = ~ edad >= 66`.
   set.seed(4)

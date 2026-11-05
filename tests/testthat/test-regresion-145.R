@@ -53,9 +53,9 @@ test_that("solo_agregados no lee ni cobra el bloque de muestra", {
   fila <- cobertura[cobertura$bloque == "perfil_muestra", , drop = FALSE]
   expect_equal(nrow(fila), 1L)
   expect_identical(fila$estado, "no_solicitado")
-  expect_match(fila$motivo, "No se solicito")
+  expect_match(fila$motivo, "No se solicit\u00f3")
   expect_false(grepl("No se pudo", fila$motivo, fixed = TRUE))
-  expect_warning(hallazgos(resultado), "no solicito la muestra")
+  expect_warning(hallazgos(resultado), "no solicit\u00f3 la muestra")
   expect_equal(nrow(columnas(resultado)), 3L)
   expect_equal(as.numeric(n_filas(resultado)), 40)
 })
@@ -125,7 +125,7 @@ test_that("perfilar_coleccion propaga solo_agregados y no rompe con muestra NULL
     drop = FALSE
   ]
   expect_equal(nrow(fila), 1L)
-  expect_match(fila$motivo, "No se solicito")
+  expect_match(fila$motivo, "No se solicit\u00f3")
 })
 
 # Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R, asi que el

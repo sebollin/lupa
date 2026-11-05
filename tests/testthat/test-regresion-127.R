@@ -72,7 +72,7 @@ test_that("no repetir y no estar en todas las filas se informan distinto", {
   sug <- sugerir_clave(datos)
   motivo_doc <- sug$motivo[sug$columna == "documento"]
   motivo_casi <- sug$motivo[sug$columna == "casi"]
-  expect_match(motivo_doc, "no estan en todas las filas")
+  expect_match(motivo_doc, "no est\u00e1n en todas las filas")
   expect_match(motivo_casi, "el resto repite")
   expect_false(grepl("el resto repite", motivo_doc, fixed = TRUE))
 })

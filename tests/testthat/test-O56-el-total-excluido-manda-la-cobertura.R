@@ -74,10 +74,10 @@ test_that("la fila dice que no hubo resumen cuando no lo hubo", {
   motivo <- fila_resumen_o56(perfil)$motivo[[1L]]
 
   expect_true(grepl("no se pudo calcular", motivo, fixed = TRUE))
-  expect_false(grepl("se calculo sobre 0", motivo, fixed = TRUE))
+  expect_false(grepl("se calcul\u00f3 sobre 0", motivo, fixed = TRUE))
 
   # Y cuando si hubo resumen parcial, lo dice con su cuenta.
   parcial <- perfil_o56(c("13/04/2023", "25/06/2023", "17/08/2023", "01/2023"))
   motivo_parcial <- fila_resumen_o56(parcial)$motivo[[1L]]
-  expect_true(grepl("se calculo sobre 3", motivo_parcial, fixed = TRUE))
+  expect_true(grepl("se calcul\u00f3 sobre 3", motivo_parcial, fixed = TRUE))
 })
