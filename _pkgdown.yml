@@ -66,6 +66,21 @@ articles:
   - articles/evidencia-y-rendimiento
   - articles/codificacion-y-locales
 
+# Cada guía de esta sección traduce una guía en castellano y declara su pareja
+# en el YAML. data-raw/comparar-guias.R lee esta sección: las compara antes de
+# construir el sitio.
+- title: Guides in English
+  navbar: Guides in English
+  desc: >
+    English versions of a selection of the Spanish guides. They live only on
+    this site: the installed package carries its vignettes in Spanish, and
+    lupa prints its messages and tables in Spanish.
+  contents:
+  - articles/getting-started
+  - articles/profiling-a-database
+  - articles/engines-and-scale
+  - articles/from-findings-to-metrics
+
 redirects:
 - ["articles/empezar-con-lupa.html", "articles/explorar-columnas.html"]
 - ["articles/flujo-guiado.html", "articles/del-hallazgo-a-la-metrica.html"]

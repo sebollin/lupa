@@ -77,6 +77,11 @@ Primera versión publicada.
   sin `bit64` el perfil de una columna `integer64` se detiene con un error, no
   deja 5 medidas en `NA`; y un documento sin su dígito verificador necesita 7
   cifras, no 6. La tabla de motores del README nombra también PostgreSQL 9.3.
+- El sitio tiene una versión en inglés de 4 guías («Guides in English»):
+  *Getting started*, *Profiling a database*, *Engines and scale* y *From
+  findings to metrics*. Viven sólo en el sitio, y `data-raw/comparar-guias.R`
+  comprueba antes de construirlo que cada una tenga los mismos trozos, el mismo
+  código y las mismas cifras en línea que su pareja en castellano.
 - El logo y los íconos del sitio usan el hexágono regular: lados iguales y
   bordes a 30°. El anterior era más alto que ancho de la cuenta.
 

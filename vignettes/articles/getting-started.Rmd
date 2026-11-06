@@ -1,0 +1,331 @@
+---
+title: "Getting started in ten minutes"
+pareja: lupa.Rmd
+---
+
+```{r setup, include = FALSE}
+library(lupa)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# The width is restored at the end, as the CRAN Cookbook asks.
+.opciones_previas <- options(width = 90)
+
+# Printing a profile reports the memory the table takes. That figure changes
+# with the platform and the R version, and a guide does not publish memory
+# sizes: chunks marked with `sin_memoria = TRUE` drop that line.
+.quitar_memoria <- function(gancho) {
+  force(gancho)
+  function(x, options) {
+    if (isTRUE(options$sin_memoria)) {
+      lineas <- strsplit(x, "\n", fixed = TRUE)[[1L]]
+      lineas <- lineas[!grepl("Memoria: ", lineas, fixed = TRUE)]
+      # Each line of the general summary arrives as its own message: if the
+      # memory line was the only one, nothing is left to show.
+      if (!length(lineas)) return("")
+      x <- paste0(paste(lineas, collapse = "\n"), "\n")
+    }
+    gancho(x, options)
+  }
+}
+knitr::knit_hooks$set(
+  message = .quitar_memoria(knitr::knit_hooks$get("message")),
+  output = .quitar_memoria(knitr::knit_hooks$get("output"))
+)
+```
+
+> This guide is the English version of
+> [1. Empezar en diez minutos](lupa.html). `lupa` writes its messages and tables
+> in Spanish, so the output below is in Spanish.
+
+A table arrives and, before using it, we want to know whether we can trust it.
+What is wrong with it, in which rows is each problem, and what could not be
+checked?
+
+> **In this guide:**
+>
+> - we profile a table with `perfilar()` and read its summary;
+> - we start with the findings of severity `error`;
+> - we go from a finding to the rows of the source system with `clave`;
+> - we read in `cobertura()` what could not be evaluated;
+> - we save a report and clean a column in a copy.
+
+## The data
+
+`datos_operativos` (operational data) comes with the package:
+`r nrow(lupa::datos_operativos)` synthetic records from an event system, with
+defects planted on purpose. Before profiling, we look at them.
+
+```{r datos}
+library(lupa)
+datos_operativos
+```
+
+This is what each column carries (`?datos_operativos` describes it), with the
+finding that flags it:
+
+| column | what it carries on purpose | finding that flags it |
+| --- | --- | --- |
+| `id_registro` | `1` and `10` repeated; the 2 rows with `10` differ in the rest | `posible_identificador` (possible identifier); the repetition, once declared as a key (guide 2) |
+| `codigo_usuario` | `"S/D"` instead of a missing value; `USR0003` and `MAL-5` outside the format | `faltantes_disfrazados` (disguised missing values); the formats, none (see below why) |
+| `fecha_evento` | 5 date formats and a `"NULL"` | `formatos_fecha_mixtos` (mixed date formats), `faltantes_disfrazados` |
+| `canal` | `"web"`, `"Web"` and `"web "`; `"S/D"` and an empty cell | `mayusculas_inconsistentes` (inconsistent capitalization), `espacios_sobrantes` (extra spaces), `faltantes_disfrazados` |
+| `monto` | `-99`, `0`, `-50` and `999999` | `faltantes_disfrazados` for the `-99`; the `0` and the `-50`, only if we declare that they are not allowed (`columnas_sin_ceros`, `columnas_no_negativas`: columns without zeros, non-negative columns); the `999999`, none (see below why) |
+| `sistema` | the same value in every row | `constante` (constant) |
+| `contacto` | synthetic emails and one malformed | `dato_personal_posible` (possible personal data); the malformed one, none (for the same reason as the formats of `codigo_usuario`) |
+| `id_copia` | a copy of `id_registro` | `columnas_duplicadas` (duplicated columns) |
+| `id_evento` | the identifier of the event; `EVT001` twice | `clave_no_unica` (non-unique key), once declared as a key |
+| rows 1 and 12 | identical | `filas_duplicadas` (duplicated rows) |
+
+`zona` carries no defects.
+
+## Profiling
+
+`perfilar()` (*profile*) reads the table without modifying it. In `clave`
+(*key*) we pass the column that identifies each event in the source system. That
+way, each finding says in which events it is.
+
+```{r perfilar}
+perfil <- perfilar(datos_operativos, clave = "id_evento")
+```
+
+The warning is the first result: the key we declared repeats. `lupa` does not
+take it for granted; it checks it. Printing the profile shows the summary:
+
+```{r imprimir, sin_memoria = TRUE}
+perfil
+```
+
+The first 4 lines count the findings by severity and the diagnostics that could
+not be evaluated:
+
+- `error`: a check crossed its criterion;
+- `sospechoso` (*suspicious*): something deserves a look;
+- `ok`: an informative reading, not a defect.
+
+Below come the general summary and a few measures per column. The printout also
+shows the memory the table takes; we leave it out here because it changes with
+the R installation.
+
+## Starting with the errors
+
+The findings that `hallazgos()` (*findings*) returns are a table, and they are
+filtered like any `data.frame`.
+
+```{r errores}
+h <- hallazgos(perfil)
+h[h$severidad == "error", c("columna", "tipo_hallazgo", "n_afectados")]
+```
+
+```{r cifras-errores, include = FALSE}
+errores <- h[h$severidad == "error", ]
+n_errores <- nrow(errores)
+de_tabla <- errores$tipo_hallazgo[is.na(errores$columna)]
+```
+
+There are `r n_errores`. A `columna` (*column*) in `NA` marks a finding about
+the whole table. Rows 1 and 12 are identical
+(`filas_duplicadas`), and that is why `EVT001` appears twice in the key
+(`clave_no_unica`).
+
+```{r comprobar-errores, echo = FALSE}
+# The table of planted defects promises these findings.
+prometidos <- list(
+  c("id_registro", "posible_identificador"), c("codigo_usuario", "faltantes_disfrazados"),
+  c("fecha_evento", "formatos_fecha_mixtos"), c("fecha_evento", "faltantes_disfrazados"),
+  c("canal", "mayusculas_inconsistentes"), c("canal", "espacios_sobrantes"),
+  c("canal", "faltantes_disfrazados"), c("monto", "faltantes_disfrazados"),
+  c("sistema", "constante"), c("contacto", "dato_personal_posible")
+)
+for (par in prometidos) {
+  stopifnot(any(h$columna %in% par[1] & h$tipo_hallazgo == par[2]))
+}
+stopifnot(
+  "columnas_duplicadas" %in% h$tipo_hallazgo,
+  !any(h$columna %in% "zona"),
+  setequal(de_tabla, c("clave_no_unica", "filas_duplicadas")),
+  all(c("faltantes_disfrazados", "formatos_fecha_mixtos") %in% errores$tipo_hallazgo)
+)
+```
+
+## From the finding to the row
+
+We take one: the disguised missing values of `canal` (*channel*). The
+`evidencia` (evidence) says what was seen; the `sugerencia` (suggestion), what
+could be done.
+
+```{r un-hallazgo}
+canal <- h[h$columna %in% "canal" & h$tipo_hallazgo == "faltantes_disfrazados", ]
+writeLines(canal$evidencia)
+writeLines(strwrap(canal$sugerencia, 88))
+```
+
+The `trazabilidad` (traceability) says in which rows it is, with the values of
+the key we declared.
+
+```{r traza}
+eventos <- canal$trazabilidad[[1]]$claves$id_evento
+eventos
+```
+
+With those identifiers we look up the events in the source system, without
+opening the whole table. Here we can check them (with quotes, so that the empty
+cell shows):
+
+```{r cotejo}
+filas <- datos_operativos$id_evento %in% eventos
+print(datos_operativos[filas, c("id_evento", "canal")], quote = TRUE)
+```
+
+```{r comprobar-traza, echo = FALSE}
+stopifnot(identical(eventos, c("EVT005", "EVT011")))
+```
+
+Without `clave`, the traceability carries only the row numbers, which work
+inside R but not in the source system.
+
+## ⚠️ What could not be evaluated {#what-could-not-be-evaluated}
+
+A check that found nothing is not the same as a check that did not run. The
+second case stays in `cobertura()` (*coverage*), with the reason and how to
+solve it.
+
+```{r cobertura}
+no_evaluados <- cobertura(perfil)
+no_evaluados[, c("diagnostico", "columna")]
+```
+
+The `999999` of `monto` (*amount*) is not among the findings, and not because it
+is fine. The search for extreme values did not run on that column:
+
+```{r motivo}
+motivo <- no_evaluados$motivo[
+  no_evaluados$diagnostico == "outliers" & no_evaluados$columna == "monto"
+]
+writeLines(strwrap(motivo, 88))
+```
+
+What could not be measured stays on record; it never counts as zero.
+
+The odd formats of `codigo_usuario` (`USR0003` and `MAL-5`) have no finding
+either, for another reason: that check did run. Each format takes 1 row out of
+`r nrow(datos_operativos)`. By default, a format is rare when it stays below
+`r 100 * formals(perfilar)$umbral_patron_raro`% of the values
+(`umbral_patron_raro`, the rare-pattern threshold). In a longer table it would
+be flagged.
+
+```{r comprobar-cobertura, echo = FALSE}
+stopifnot(
+  length(motivo) == 1L,
+  !any(h$columna %in% "monto" & h$tipo_hallazgo == "outliers"),
+  !any(h$columna %in% c("codigo_usuario", "contacto") & h$tipo_hallazgo == "patron_raro"),
+  !any(h$tipo_hallazgo %in% c("ceros_no_permitidos", "negativos_no_permitidos")),
+  1 / nrow(datos_operativos) > formals(perfilar)$umbral_patron_raro
+)
+```
+
+## 📄 A report to share {#a-report-to-share}
+
+`reportar()` (*report*) writes a single HTML file. It opens in any browser and
+needs no network and no other programs.
+
+```{r informe}
+archivo <- file.path(tempdir(), "calidad-de-la-entrega.html")
+reportar(perfil, archivo = archivo, titulo = "Calidad de la entrega")
+```
+
+```{r secciones, include = FALSE}
+html <- paste(readLines(archivo, encoding = "UTF-8", warn = FALSE), collapse = "\n")
+secciones <- regmatches(html, gregexpr("<h3[^>]*>.*?</h3>", html, perl = TRUE))[[1]]
+secciones <- gsub("<[^>]+>", "", secciones)
+stopifnot(length(secciones) > 0L)
+```
+
+The report has these sections: `r paste(secciones, collapse = "; ")`.
+`reportar()` returns the path of the file; in an interactive session,
+`browseURL(archivo)` opens it in the browser. It also accepts the full result of
+`analizar()`, with the measurements and the cleaning plan: we see it in
+[3. Explorar columnas con `analizar()`](explorar-columnas.html)
+(*Exploring columns with `analizar()`*, in Spanish).
+
+## Cleaning a column
+
+`lupa` does not change the data it profiles. To clean, it proposes an editable
+plan; `aplicar()` (*apply*) runs on a copy only the actions we mark.
+
+```{r plan}
+plan <- planificar_limpieza(perfil, datos_operativos)
+plan[plan$columna %in% "canal", c("id_accion", "estrategia", "recomendada", "aplicar")]
+```
+
+For `canal`, the plan recommends and leaves marked
+`r sum(plan$columna %in% "canal" & plan$recomendada)` actions:
+
+- turning into `NA` the missing values written as text;
+- trimming the spaces at the edges.
+
+Between lower case, upper case or a dictionary it does not choose: that decision
+is ours. Each action carries its justification, which also says what is worth
+confirming:
+
+```{r justificacion}
+justificacion <- plan$justificacion[
+  plan$columna %in% "canal" & plan$estrategia == "convertir_ausencias_textuales"
+]
+writeLines(strwrap(justificacion, 88))
+```
+
+For this guide we apply only those
+`r sum(plan$columna %in% "canal" & plan$recomendada)` actions.
+
+```{r aplicar}
+plan$aplicar <- plan$columna %in% "canal" & plan$recomendada
+limpio <- aplicar(plan, datos_operativos)
+limpio$registro[, c("columna", "estrategia", "n_cambiadas", "estado")]
+```
+
+We compare the values before and after in the rows that changed:
+
+```{r antes-despues}
+antes <- datos_operativos$canal
+despues <- limpio$datos$canal
+cambiaron <- is.na(despues) | antes != despues
+print(data.frame(id_evento = datos_operativos$id_evento, antes, despues)[cambiaron, ],
+      quote = TRUE)
+```
+
+The `antes` (before) column was read from `datos_operativos` after applying the
+plan: the original stays as it was. `"Web"` and `"APP"` stayed the same, because
+we did not choose any capitalization convention. The full plan, with its groups
+of actions and its log, is in
+[6. Limpiar con un plan](limpiar-con-un-plan.html) (*Cleaning with a plan*, in
+Spanish).
+
+```{r comprobar-limpieza, echo = FALSE}
+stopifnot(
+  identical(sum(cambiaron), 3L),
+  identical(antes[cambiaron], c("S/D", "web ", "")),
+  identical(despues[!is.na(despues) & cambiaron], "web")
+)
+```
+
+## Summary
+
+- `perfilar()` reads the table without modifying it; its printout counts the
+  findings by severity and what could not be evaluated.
+- `hallazgos()` is a table: we start with `severidad == "error"`.
+- With `clave`, the traceability of each finding carries the identifiers to go
+  to the source system.
+- `cobertura()` lists the checks that did not run: a missing finding does not
+  prove that the data is fine.
+- `reportar()` saves an HTML report; `planificar_limpieza()` (*plan the
+  cleaning*) and `aplicar()` clean a copy with the actions we choose.
+
+## 🧭 Next step {#next-step}
+
+[2. Leer un perfil](leer-un-perfil.html) (*Reading a profile*, in Spanish;
+`vignette("leer-un-perfil")`) explains the severities, each field of a finding, the keys and the
+vocabulary of the package.
+
+```{r cierre, include = FALSE}
+unlink(archivo)
+options(.opciones_previas)
+```

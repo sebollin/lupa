@@ -1,0 +1,334 @@
+---
+title: "From findings to metrics"
+pareja: articles/del-hallazgo-a-la-metrica.Rmd
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# The width is restored at the end, as the CRAN Cookbook asks.
+.opciones_previas <- options(width = 90)
+```
+
+> This guide is the English version of
+> [7. Del hallazgo a la métrica](del-hallazgo-a-la-metrica.html). `lupa` writes
+> its messages and tables in Spanish, so the output below is in Spanish.
+
+The profile of `datos_operativos` says that the column `canal` (*channel*) has
+missing values. They are disguised: one is `"S/D"` and another, an empty text.
+How does that finding become a measurement that repeats with each delivery and
+is compared with a requirement?
+
+> **In this guide:**
+>
+> - going from the findings to a proposal of metrics with `proponer_modelo()`;
+> - deciding what is measured and measuring it with `medir()`;
+> - aggregating the measures of each cell up to the column with `agregar()`;
+> - evaluating the aggregated measure against a threshold with `evaluar()`;
+> - seeing which part of a quality framework was covered with
+>   `cobertura_analisis()`.
+
+## The starting finding
+
+The table is profiled and the findings of the profile in `canal` are inspected.
+The date is fixed so that the example always gives the same result.
+
+```{r}
+library(lupa)
+
+perfil <- perfilar(datos_operativos, fecha = "2026-01-15")
+encontrados <- hallazgos(perfil)
+encontrados[encontrados$columna %in% "canal", c("tipo_hallazgo", "severidad")]
+```
+
+The one with severity `error` is `faltantes_disfrazados` (*disguised missing
+values*). Its evidence says which ones they are:
+
+```{r}
+disfrazados <- encontrados$columna %in% "canal" &
+  encontrados$tipo_hallazgo == "faltantes_disfrazados"
+writeLines(encontrados$evidencia[disfrazados])
+```
+
+A finding describes this delivery. To know whether the next one is better or
+worse, and whether it reaches the required level, a metric is needed.
+
+## From the findings to a proposal of metrics
+
+A metric is a named way of measuring. It is bound to a table and to one or more
+columns, and it returns a result for each object it measures. `NoNulo` (*not
+null*), the completeness metric, returns a 1 for each cell with a value and a 0
+for each empty cell. What counts as empty is part of its configuration: besides
+`NA`, the values declared to it in `valores_nulos` (*null values*).
+
+`lupa` does not decide what to measure: it proposes. `proponer_modelo()`
+(*propose a model*) goes through the findings and returns an editable table,
+with one row per suggested metric and the finding it came from. It measures
+nothing.
+
+```{r}
+propuesta <- proponer_modelo(perfil, datos_operativos)
+propuesta[, c("metrica", "atributos", "origen", "incluir")]
+```
+
+The column `incluir` (*include*) says which rows stay active. `lupa` marks them
+like this:
+
+- it activates the ones that come from an observed defect: the missing values
+  of `r sum(propuesta$metrica == "NoNulo" & propuesta$incluir)` columns and the
+  duplicated rows;
+- it leaves off the ones that come from a habit of this delivery, such as a
+  format pattern or the domain of `zona` (*zone*).
+
+A single delivery does not show that those habits are requirements. And
+measuring them on the same delivery they came from would say little.
+
+The row of `canal` shows the step from the finding to the metric. The values
+that the profile recognized as disguised missing values move into the
+configuration of `NoNulo`:
+
+```{r}
+fila_canal <- which(propuesta$id_sugerencia == "NoNulo:canal")
+writeLines(strwrap(propuesta$justificacion[fila_canal], 88))
+propuesta$configuracion[[fila_canal]]
+```
+
+## Deciding what is measured
+
+The proposal is edited: the decision belongs to whoever uses it. Here the
+interest is completeness: only the
+`r sum(propuesta$metrica == "NoNulo")` rows of `NoNulo` stay active, and the
+one for duplicates is turned off. `modelo_desde_propuesta()` (*model from
+proposal*) turns the active rows into an operational model. It is the list of
+metrics, already bound to their columns, that `medir()` (*measure*) is going to
+run. It does not measure either.
+
+```{r}
+propuesta$incluir <- propuesta$metrica == "NoNulo"
+propuesta[propuesta$incluir, c("metrica", "atributos")]
+modelo_completitud <- modelo_desde_propuesta(propuesta)
+```
+
+## Measuring
+
+`medir()` takes the model first and the data after. The identifier and the date
+of the run stay in each measure; with them, deliveries are compared later.
+
+```{r}
+medicion <- medir(
+  modelo_completitud, datos_operativos,
+  id_medicion = "entrega-enero",
+  fecha = "2026-01-15"
+)
+nrow(medicion)
+medicion[medicion$atributo == "canal", c("objeto_medible", "resultado")]
+```
+
+```{r, echo=FALSE}
+stopifnot(identical(
+  medicion$fila[medicion$atributo == "canal" & medicion$resultado == 0],
+  c(5L, 13L)
+))
+```
+
+Each row is a measure: a result for an object, here a cell. The
+`r length(unique(medicion$atributo))` columns by `r nrow(datos_operativos)`
+rows give `r nrow(medicion)` measures. In `canal`, rows 5 and 13 are 0. They
+are the `"S/D"` and the empty text, which `NoNulo` counted as missing because
+the configuration asked it to.
+
+## Aggregating up to the column
+
+One measure per cell does not yet answer the underlying question: how complete
+each column is. For that, the measures are aggregated. The vocabulary of the
+levels is the one of the quality framework, and `granularidades()`
+(*granularities*) translates it into the one of tables:
+
+```{r}
+granularidades()[c(1, 2, 4, 5), c("granularidad", "relacional")]
+```
+
+In a table:
+
+- an attribute instance is a cell;
+- an attribute, a column;
+- an entity instance, a row (a tuple);
+- an entity, a table.
+
+These terms are also in [the glossary](leer-un-perfil.html#glosario) (in
+Spanish). From the cell to the column the step is `ratio`, which computes the
+proportion of ones:
+
+```{r}
+completitud <- agregar(medicion, "atributo", "ratio")
+completitud[, c("atributo", "resultado", "agregacion")]
+```
+
+`agregar()` (*aggregate*) combines measures of a single metric and a single run.
+It only follows the steps that `transiciones_granularidad()` (*granularity
+transitions*) declares:
+
+- from the cell to the column or to the row;
+- from the column or the row to the table;
+- from the table upwards.
+
+A cell can be aggregated towards its column or towards its row: they are 2
+different directions, not rungs of a single ladder. The available aggregations
+are:
+
+- `ratio`, for boolean results;
+- `ratio_umbral` (*threshold ratio*), for real results compared with a
+  threshold;
+- `promedio` (*mean*);
+- `promedio_ponderado` (*weighted mean*), with weights in `[0, 1]` that add up
+  to 1 per target.
+
+Unbounded results keep their unit and do not enter these aggregations. They are,
+for example, the deviation of `ErrorEstandar` (*standard error*) or a staleness
+measured in days.
+
+## Evaluating against a threshold
+
+A rule expresses a condition on results. An evaluation profile gathers rules.
+That profile is not the object `perfilar()` returns: it is the second argument
+of `evaluar()` (*evaluate*). Each column is required to be at least 90%
+complete:
+
+```{r}
+regla <- regla_evaluacion(
+  "Completitud de al menos 90 %",
+  function(x) x >= 0.9
+)
+publicable <- perfil_evaluacion("Publicable", regla)
+evaluacion <- evaluar(completitud, publicable)
+evaluacion$perfiles[, c("perfil", "n_reglas", "resultado")]
+```
+
+The rule was applied to each of the `r nrow(completitud)` aggregated measures.
+The result of a rule is the proportion of measures that meet it. The result of
+a profile is the simple mean of its rules. These are the ones that met it:
+
+```{r}
+cumple <- evaluacion$medidas$resultado[
+  match(completitud$id_medida, evaluacion$medidas$id_medida)
+]
+data.frame(
+  columna = completitud$atributo,
+  completitud = round(completitud$resultado, 3),
+  cumple = cumple
+)
+```
+
+Every column reaches 90% except `canal`, which has
+`r round(completitud$resultado[completitud$atributo == "canal"], 3)`: the
+result is `r sum(cumple)` out of `r length(cumple)`. The rule really compares
+the completeness of each column with its threshold. Another threshold gives
+another result:
+
+```{r}
+resultado_con_umbral <- function(umbral, medidas) {
+  regla <- regla_evaluacion("Completitud", function(x) x >= umbral)
+  evaluar(medidas, perfil_evaluacion("Publicable", regla))$perfiles$resultado
+}
+umbrales <- c(0.80, 0.90, 0.95)
+data.frame(
+  umbral = umbrales,
+  agregada = vapply(umbrales, resultado_con_umbral, numeric(1), completitud),
+  por_celda = vapply(umbrales, resultado_con_umbral, numeric(1), medicion)
+)
+```
+
+```{r, echo=FALSE}
+# What the text states about this table.
+stopifnot(
+  identical(
+    vapply(umbrales, resultado_con_umbral, numeric(1), completitud),
+    c(1, 0.75, 0)
+  ),
+  length(unique(vapply(umbrales, resultado_con_umbral, numeric(1), medicion))) == 1L
+)
+cumplen_por_umbral <- round(
+  vapply(umbrales, resultado_con_umbral, numeric(1), completitud) * nrow(completitud)
+)
+```
+
+With the aggregated measure, the result follows the threshold:
+
+- with 80%, all `r cumplen_por_umbral[[1]]` columns meet it;
+- with 90%, `r cumplen_por_umbral[[2]]` meet it;
+- with 95%, none.
+
+The column `por_celda` (*per cell*) shows what happens if the measurement is
+evaluated without aggregating. The rule asks each cell whether its 0 or its 1
+reaches the threshold. The result is the proportion of cells with a value,
+`r round(mean(medicion$resultado), 3)`, whatever the threshold. That is why the
+measures are aggregated before evaluating.
+
+The evaluation applies a condition to measures that already exist. It does not
+read `datos_operativos` again or replace the measurement.
+
+## 🔎 What was covered {#what-was-covered}
+
+The absence of findings does not prove that a table is fine: maybe nobody
+measured what matters. `cobertura_analisis()` (*analysis coverage*) crosses the
+profile and the measurement with a quality framework. It says, factor by
+factor, what was measured. The third argument is called `modelo` (*model*), but
+it takes a framework such as the one `marco_calidad()` (*quality framework*)
+creates. By default, the AGESIC one.
+
+```{r}
+cobertura <- cobertura_analisis(perfil, medicion, modelo = marco_agesic())
+cobertura[, c("dimension", "factor", "estado")]
+```
+
+`estado` (*status*) tells these cases apart:
+
+- `medida` (*measured*);
+- `no_declarada` (*not declared*), when nobody asked to measure it;
+- `no_aplica` (*does not apply*), when it does not fit the types of the table,
+  like positional accuracy when there are no geometries;
+- `fuera_de_alcance` (*out of scope*), when `lupa` cannot measure it and says
+  so.
+
+Each row explains why:
+
+```{r}
+medidos <- cobertura[cobertura$estado == "medida", ]
+writeLines(paste0(medidos$factor, ": ", medidos$motivo))
+```
+
+```{r, echo=FALSE}
+stopifnot(identical(as.character(medidos$factor), c("Densidad", "No-duplicaci\u00f3n")))
+```
+
+Density was backed by the measurement; non-duplication, by what the profile
+examines on its own. What is missing carries how to solve it:
+
+```{r}
+sintaxis <- cobertura$factor == "Correctitud sintáctica"
+writeLines(cobertura$como_resolverlo[sintaxis])
+```
+
+## Summary
+
+- `proponer_modelo()` turns the findings into an editable proposal: the
+  disguised missing values the profile found move into the configuration of
+  `NoNulo`.
+- The column `incluir` is decided by whoever uses the proposal; what was
+  learned from a single delivery arrives turned off.
+- `medir()` returns one measure per object, with the `id_medicion` and the date
+  of the run.
+- Aggregate before evaluating: `agregar(medicion, "atributo", "ratio")` gives
+  the completeness of each column, and the rule compares that number with its
+  threshold.
+- `cobertura_analisis()` says which factors of the framework were measured and
+  how to cover the missing ones.
+
+## 🧭 Next step {#next-step}
+
+[8. Marcos y modelos de calidad](marcos-y-modelos.html) (*Quality frameworks
+and models*, in Spanish) declares a framework of its own and builds custom
+metrics. Among them is the one that the row of syntactic correctness asks for.
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

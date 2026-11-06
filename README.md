@@ -73,7 +73,8 @@ enable specific capabilities:
 
 The API, the help pages, the guides and the printed output are in Spanish, and
 the public names are part of the contract: the outputs below appear exactly as
-`lupa` writes them.
+`lupa` writes them. The website also has an English version of 4 guides,
+under [Guides in English](https://sebollin.github.io/lupa/articles/index.html).
 
 ## ⏱ In 30 s
 
@@ -373,7 +374,9 @@ one); 7 to 12 are on the website only.
 
 ## For advanced users
 
-The detailed reference lives in four articles on the website, in Spanish.
+The detailed reference lives in four articles on the website, in Spanish;
+[Engines and scale](https://sebollin.github.io/lupa/articles/engines-and-scale.html)
+is the English version of the first one.
 Whatever changes the cost, the memory use or the meaning of a result is also in
 the help page of each function, which ships with the package (`?perfilar`, `?perfilar_dbi`,
 `?plan_perfilado_dbi`, `?detectar_duplicados_aproximados`).
