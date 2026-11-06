@@ -2240,10 +2240,11 @@ dependen de un valor que el doble no representa (<code>minimo</code>,
 <code>n_ceros</code> y <code>n_negativos</code>). La mediana se publica
 cuando su valor es exacto: con una cantidad impar, si la central queda
 por debajo de 2^53; con una par, si las dos centrales quedan entre -2^52
-y 2^52, lo que en la tabla completa cuesta una consulta más
-(<code>perfil_muestra</code> la sigue negando por la columna). La moda
-se le pide al motor como texto exacto; la muestra lee esas columnas como
-texto y, con <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
+y 2^52, lo que en la tabla completa cuesta una consulta más.
+<code>perfil_muestra</code>, la muestra leída en R y
+<code><a href="../reference/perfilar.html">perfilar()</a></code> la deciden por sus centrales, que tienen a la
+vista: se publica si caben en un doble. La moda se le pide al motor como
+texto exacto; la muestra lee esas columnas como texto y, con <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
 como <code>integer64</code>
 </td>
 </tr>
@@ -2251,12 +2252,41 @@ como <code>integer64</code>
 <td>cualquiera</td>
 <td>un decimal con más cifras de las que guarda un doble llega como
 doble</td>
-<td>por bloques y por la muestra del motor (salvo en PostgreSQL), el
-desvío queda <code>no_disponible</code> si el redondeo de cada valor
-puede moverlo más de una parte en mil millones; por la tabla completa se
-resta en el tipo de la columna</td>
+<td>por bloques y por la muestra del motor (salvo en PostgreSQL), y
+también con la muestra leída en R, el desvío queda
+<code>no_disponible</code> si el redondeo de cada valor puede moverlo
+más de una parte en mil millones, salvo que el catálogo declare escala 0
+y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB,
+DuckDB); por la tabla completa se resta en el tipo de la columna</td>
 </tr>
 <tr class="odd">
+<td>MySQL, MariaDB, SQL Server</td>
+<td>
+<code>AVG(x * 1.0)</code> de un decimal se recorta en la escala
+máxima del motor (30, 38), y promediar en R los dobles de dos centrales
+no es exacto</td>
+<td>la mediana de un decimal suma en el motor sus centrales y R divide
+por cuántas son</td>
+</tr>
+<tr class="even">
+<td>SQL Server</td>
+<td>
+<code>CAST(x AS VARCHAR)</code> es <code>VARCHAR(30)</code>, y
+escribe <code>money</code> con dos decimales</td>
+<td>la muestra pide el texto de un decimal como <code>VARCHAR(48)</code>
+y el de <code>money</code> con <code>CONVERT(..., 2)</code>
+</td>
+</tr>
+<tr class="odd">
+<td>DuckDB</td>
+<td>
+<code>AVG(x * 1.0)</code> desborda con un <code>HUGEINT</code> desde
+10^37 o un <code>UHUGEINT</code> desde 10^38</td>
+<td>los básicos se repiten sin el promedio; la media queda
+<code>no_disponible</code> y lo demás se juzga como en cualquier
+columna</td>
+</tr>
+<tr class="even">
 <td>DuckDB</td>
 <td>
 <code>PERCENTILE_CONT</code> interpola un <code>DECIMAL</code> en su
@@ -2264,7 +2294,7 @@ propia escala y trunca</td>
 <td>la mediana de un <code>DECIMAL</code> se pide sobre el doble de cada
 valor</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>PostgreSQL</td>
 <td>
 <code>PERCENTILE_CONT</code> interpola
@@ -2273,27 +2303,27 @@ valor</td>
 queda <code>no_disponible</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>SQL Server</td>
 <td>
 <code>decimal - literal</code> de más de 38 cifras se redondea, y
 desde la compatibilidad 110 el empate va lejos del cero</td>
 <td>el centro del desvío de un decimal nunca termina en 5</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>SQLite</td>
 <td>RSQLite da <code>integer</code> o <code>integer64</code> según los
 valores de cada bloque</td>
 <td>con <code>bloque_filas</code>, los bloques se unen como
 <code>integer64</code> antes de contar distintos, moda y mediana</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>SQLite</td>
 <td>la media de la ventana de la muestra es un doble redondeado</td>
 <td>la suma de cuadrados resta <code>n * (media - centro)^2</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>cualquiera</td>
 <td>cada motor suma a su modo, y con valores que se cancelan las medias
 difieren entre motores y con la de R</td>

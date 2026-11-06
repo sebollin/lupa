@@ -590,9 +590,11 @@ alguna pasó de 2^53: se publica sólo si las dos quedan entre -2^52 y
 2^52, lo que en la tabla completa cuenta una consulta más (cuántos
 valores llegan a 2^52 y cuántos bajan de -2^52) y en la muestra del
 motor no se puede saber. La misma regla corre cuando la consulta de
-básicos desborda (un `HUGEINT` cerca de su tope en DuckDB). En una
-columna que no pasa de 2^53, la mediana de una cantidad par tampoco se
-publica en PostgreSQL si sus extremos distan más de 2^53:
+básicos desborda (un `HUGEINT` cerca de su tope en DuckDB): la consulta
+se repite sin el promedio, la media queda `no_disponible` con su motivo,
+y el mínimo, el máximo y los conteos se juzgan como en cualquier otra
+columna. En una columna que no pasa de 2^53, la mediana de una cantidad
+par tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
 `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble y esa
 resta redondea. Lo que el motor cuenta con exactitud -`n_distintos`, la
 moda- se sigue publicando. La moda de un entero ancho que llego como
@@ -607,8 +609,15 @@ SQL trae esas columnas como texto y, si `bit64` esta instalado, las
 convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
 diagnosticos por identidad conservan los valores exactos. Los
 estadisticos de magnitud por encima de 2^53 siguen usando
-`estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria.
-Si falta `bit64`, la columna queda como texto y `cobertura_diagnosticos`
+`estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria, y
+la mediana se publica cuando sus una o dos centrales caben en un doble,
+como en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+Un decimal entero que la muestra convirtió a `integer64` se resume como
+tal. En SQL Server el texto de un decimal de 38 cifras se pide como
+`VARCHAR(48)` —`VARCHAR` a secas es `VARCHAR(30)`, y la lectura de la
+muestra entera abortaba— y el de `money` con sus cuatro decimales. Si
+falta `bit64`, la columna queda como texto y `cobertura_diagnosticos`
 explica la limitacion y recomienda instalarlo o pedir `integer64` al
 conectar. Las columnas declaradas como `double`, `real` o `float` no
 entran en esta guarda. Con `bloque_filas` rige la misma regla, sobre los
@@ -1014,7 +1023,17 @@ personales»—, y se conserva la mediana por columna. En DuckDB,
 `PERCENTILE_CONT` de un `DECIMAL` interpola en el `DECIMAL` de la
 columna y trunca a su escala —la mediana de 1,00 y 1,01 en
 `DECIMAL(10,2)` salía 1,00—: se pide sobre el doble de cada valor, que
-es la mediana de R sobre lo que lee el controlador.
+es la mediana de R sobre lo que lee el controlador. La mediana por
+columna de un decimal en MySQL, MariaDB y SQL Server suma en el tipo de
+la columna sus una o dos filas centrales, y R divide esa suma por
+cuántas son: es el doble más cercano de la mediana exacta.
+`AVG(x * 1.0)` necesita una cifra de escala más que la columna y en la
+escala máxima del motor —30 en MySQL, 38 en MariaDB— se recortaba (la
+mediana de 1e-30 y 2e-30 salía 2e-30); promediar en R los dobles de las
+dos centrales, como se hacía en SQL Server, no es exacto (la de 0,10 y
+0,20 daba 0,15000000000000002). La mediana consolidada
+(`PERCENTILE_CONT`) interpola en doble y puede quedar a una unidad de la
+última cifra del doble más cercano.
 
 ## Lo que el motor guarda distinto que R
 
@@ -1194,20 +1213,27 @@ eso no es lo mismo que la tabla en R:
   que entrega el controlador: el desvío de un decimal tan grande frente
   a su desvío que el redondeo de cada valor a doble puede moverlo más de
   una parte en mil millones (`max |x| / desvio * 2^-53`) queda
-  `no_disponible`. Bajo `muestra_motor`, la media y el desvío se piden
-  en la misma consulta, sobre las mismas filas de una sola evaluación de
-  la muestra: una relación derivada calcula la media de esas filas con
-  una ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en ella;
-  esa misma evaluación da las filas obtenidas y decide el reintento. En
-  SQLite, que suma los cuadrados en la consulta, se resta además
+  `no_disponible`, salvo que el tipo declare escala 0 —`numeric(18,0)`,
+  `decimal(38,0)`— y los valores queden por debajo de 2^53: ahí los
+  dobles son los valores. La escala la publican PostgreSQL, MySQL,
+  MariaDB y DuckDB; en SQL Server el tipo no la dice y la guarda sigue.
+  Bajo `muestra_motor`, la media y el desvío se piden en la misma
+  consulta, sobre las mismas filas de una sola evaluación de la muestra:
+  una relación derivada calcula la media de esas filas con una ventana
+  (`AVG(x) OVER ()`) y el desvío se pide centrado en ella; esa misma
+  evaluación da las filas obtenidas y decide el reintento. En SQLite,
+  que suma los cuadrados en la consulta, se resta además
   `n * (media - centro)^2` (las dos pasadas corregidas), porque la media
   de la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb
   esa media y la resta son dobles: el desvío de un decimal queda
-  `no_disponible` con la misma regla que con `bloque_filas`. No se fija
-  una semilla ni se toca el generador de números aleatorios de R. Como
-  red en todas las vías, un desvío `0` sobre una columna con dos valores
-  distintos —un mínimo menor que el máximo— es imposible y queda
-  `no_disponible` con su motivo.
+  `no_disponible` con la misma regla que con `bloque_filas`. Con
+  `bloque_muestra = "con_muestra"` el desvío lo calcula
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre lo leído, que para un decimal es el doble de su texto, y rige la
+  misma regla. No se fija una semilla ni se toca el generador de números
+  aleatorios de R. Como red en todas las vías, un desvío `0` sobre una
+  columna con dos valores distintos —un mínimo menor que el máximo— es
+  imposible y queda `no_disponible` con su motivo.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una

@@ -2271,10 +2271,12 @@ represent stay <code>no_disponible</code> (<code>minimo</code>,
 <code>n_ceros</code> and <code>n_negativos</code>). The median is
 published when its value is exact: with an odd count, if the middle
 value is below 2^53; with an even count, if both middle values lie
-between -2^52 and 2^52, which costs one more query on the full table
-(<code>perfil_muestra</code> still withholds it for the column). The
-mode is requested from the engine as exact text; the sample reads those
-columns as text and, with <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
+between -2^52 and 2^52, which costs one more query on the full table.
+<code>perfil_muestra</code>, the sample read into R and
+<code><a href="../reference/perfilar.html">perfilar()</a></code> decide it from its middle values, which they
+see: it is published when they fit in a double. The mode is requested
+from the engine as exact text; the sample reads those columns as text
+and, with <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
 as <code>integer64</code>
 </td>
 </tr>
@@ -2282,12 +2284,40 @@ as <code>integer64</code>
 <td>any</td>
 <td>a decimal with more digits than a double holds arrives as a
 double</td>
-<td>with blocks and on the engine sample (except in PostgreSQL), the
-standard deviation stays <code>no_disponible</code> when rounding each
-value can move it by more than one part in a billion; on the full table
-the subtraction is done in the column’s type</td>
+<td>with blocks and on the engine sample (except in PostgreSQL), and
+also with the sample read into R, the standard deviation stays
+<code>no_disponible</code> when rounding each value can move it by more
+than one part in a billion, unless the catalog declares scale 0 and the
+values stay below 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB); on the full
+table the subtraction is done in the column’s type</td>
 </tr>
 <tr class="odd">
+<td>MySQL, MariaDB, SQL Server</td>
+<td>
+<code>AVG(x * 1.0)</code> of a decimal is cut at the engine’s
+maximum scale (30, 38), and averaging in R the doubles of two middle
+values is not exact</td>
+<td>a decimal’s median sums its middle values in the engine and R
+divides by how many there are</td>
+</tr>
+<tr class="even">
+<td>SQL Server</td>
+<td>
+<code>CAST(x AS VARCHAR)</code> is <code>VARCHAR(30)</code>, and
+writes <code>money</code> with two decimals</td>
+<td>the sample reads a decimal’s text as <code>VARCHAR(48)</code> and
+<code>money</code> with <code>CONVERT(..., 2)</code>
+</td>
+</tr>
+<tr class="odd">
+<td>DuckDB</td>
+<td>
+<code>AVG(x * 1.0)</code> overflows with a <code>HUGEINT</code> from
+10^37 or a <code>UHUGEINT</code> from 10^38</td>
+<td>the basics are requested again without the average; the mean stays
+<code>no_disponible</code> and the rest is judged as in any column</td>
+</tr>
+<tr class="even">
 <td>DuckDB</td>
 <td>
 <code>PERCENTILE_CONT</code> interpolates a <code>DECIMAL</code> in
@@ -2295,7 +2325,7 @@ its own scale and truncates</td>
 <td>the median of a <code>DECIMAL</code> is requested on the double of
 each value</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>PostgreSQL</td>
 <td>
 <code>PERCENTILE_CONT</code> interpolates
@@ -2304,14 +2334,14 @@ each value</td>
 median stays <code>no_disponible</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>SQL Server</td>
 <td>
 <code>decimal - literal</code> beyond 38 digits is rounded, and from
 compatibility level 110 a tie rounds away from zero</td>
 <td>the center of a decimal’s standard deviation never ends in 5</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>SQLite</td>
 <td>RSQLite returns <code>integer</code> or <code>integer64</code>
 depending on the values of each block</td>
@@ -2319,13 +2349,13 @@ depending on the values of each block</td>
 <code>integer64</code> before counting distinct values, mode and
 median</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>SQLite</td>
 <td>the window mean of the sample is a rounded double</td>
 <td>the sum of squares subtracts <code>n * (mean - center)^2</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>any</td>
 <td>each engine adds up in its own way, and with values that cancel out
 the means differ between engines and from the one of R</td>

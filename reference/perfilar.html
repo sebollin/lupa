@@ -1379,7 +1379,11 @@ haya muestreo o no.</p>
 valores finitos; <code>n_nan</code>, <code>n_infinito_positivo</code> y <code>n_infinito_negativo</code>
 declaran lo excluido. En columnas <code>integer64</code> que exceden el entero máximo
 representable exactamente por <code>double</code>, <code>minimo</code> y <code>maximo</code> quedan en <code>NA</code> y
-los extremos exactos se conservan en <code>minimo_exacto</code> y <code>maximo_exacto</code>.
+los extremos exactos se conservan en <code>minimo_exacto</code> y <code>maximo_exacto</code>. La
+<code>mediana</code> depende sólo de sus una o dos centrales: se publica si cada una
+cabe exacta en un doble —valor absoluto menor que 2^53— y queda en <code>NA</code> si
+no. Lo mismo vale para una columna de texto con esos enteros, salvo con
+<code>sentinelas_numericos</code> declarados, que ese camino no excluye.
 Cuando la conversión de texto deja valores presentes afuera —haya muestreo o
 no, porque la conversión descarta lo que no puede leer en los dos casos—,
 <code>n_valores_excluidos_resumen</code> y

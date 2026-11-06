@@ -479,10 +479,15 @@ Primera versión publicada.
   más ya no pierde decimales: `AVG(valor * 1.0)` recortaba la escala a
   6, y en un `decimal(38,7)` la mediana de 0,0000001 y 0,0000003
   salía 0. Con compatibilidad menor que 110, sin `PERCENTILE_CONT`, ese
-  era el camino de todo `decimal`. Ahora las dos centrales se leen y se
-  promedian en R, como en PostgreSQL 9.3: convertirlas a doble en el
-  servidor deja, con esa compatibilidad, la de un `decimal` de más de 15
-  cifras a un ulp de la de R.
+  era el camino de todo `decimal`. Ahora el motor suma las una o dos
+  centrales en el tipo de la columna, y R divide esa suma por cuántas
+  son: la mediana es el doble más cercano de la exacta. Convertirlas a
+  doble en el servidor la dejaba a un ulp, y promediar en R el doble de
+  cada central tampoco es exacto (la de 0,10 y 0,20 daba
+  0,15000000000000002). Lo mismo en MySQL y MariaDB, donde
+  `AVG(valor * 1.0)` necesita una cifra de escala más que la columna y
+  en la escala máxima del motor (30 y 38) se recortaba: la mediana de
+  1e-30 y 2e-30 salía 2e-30.
 - En PostgreSQL 9.3 con `dialecto = "portable"`, y en la muestra con la
   subconsulta escalar, la mediana de una cantidad par de `float8`
   coincide con [`median()`](https://rdrr.io/r/stats/median.html):
@@ -541,7 +546,14 @@ Primera versión publicada.
   quedaba `no_disponible`); con una par, si las dos centrales quedan
   entre -2^52 y 2^52, lo que en la tabla completa cuesta una consulta
   más. En DuckDB, la de un `HUGEINT` cerca de su tope con una cantidad
-  par ya no sale del promedio de dos dobles redondeados (2,5 por 2).
+  par ya no sale del promedio de dos dobles redondeados (2,5 por 2). La
+  misma regla siguen
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre `integer64` o sobre enteros escritos como texto,
+  `perfil_muestra` y la muestra del motor, que tienen las centrales a la
+  vista: la corroboración ya no acusa una divergencia entre el resumen
+  SQL, que publicaba la mediana, y la muestra, que la negaba por la
+  columna.
 - En DuckDB, la mediana de un `DECIMAL` ya no se trunca a la escala de
   la columna: la de 1,00 y 1,01 en `DECIMAL(10,2)` salía 1,00.
 - En PostgreSQL, la mediana de una cantidad par cuyas centrales distan
@@ -558,7 +570,24 @@ Primera versión publicada.
 - Con `bloque_filas`, y por la muestra del motor en SQL Server, MySQL,
   MariaDB y DuckDB, el desvío de un decimal que el doble no representa
   queda `no_disponible` cuando ese redondeo puede moverlo: un
-  `numeric(18,2)` de 5e14 con desvío 3 daba 3,1115 por 3,1047.
+  `numeric(18,2)` de 5e14 con desvío 3 daba 3,1115 por 3,1047. También
+  con la muestra leída en R (`bloque_muestra = "con_muestra"`), que lo
+  publicaba movido en una parte en
+  300. Un decimal de escala 0 con valores por debajo de 2^53 sí se
+       publica: ahí los dobles son los valores, y la escala la dicen los
+       catálogos de PostgreSQL, MySQL, MariaDB y DuckDB (el de SQL
+       Server no).
+- En SQL Server, la muestra del motor lee el texto de un decimal de más
+  de 30 cifras (`CAST(... AS VARCHAR)` es `VARCHAR(30)`, y la lectura de
+  toda la muestra abortaba) y `money` con sus cuatro decimales: 0,0001
+  se leía 0, y el mínimo, la media y el desvío de una columna de 0,0001
+  a 0,0004 salían 0.
+- En DuckDB, cuando la media de un `HUGEINT` o `UHUGEINT` cerca de su
+  tope desborda, la consulta de mínimo, máximo y conteos se repite sin
+  el promedio: esas métricas se juzgan como en cualquier columna que
+  pasa de 2^53, y la media queda `no_disponible` con su propio motivo.
+  Antes caían todas con el error del motor por motivo, que citaba el
+  valor de la celda aun con `incluir_valores = FALSE`.
 - En SQLite, el desvío de la muestra del motor ya no pierde cifras con
   valores grandes (`{2^53 - 2, 2^53 - 1}` daba 1 por 0,7071).
 - [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
