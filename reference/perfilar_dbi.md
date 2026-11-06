@@ -855,6 +855,17 @@ muestra no vacía sin valores válidos usa
 `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla
 completa.
 
+Un estado que afirma un valor (`calculado`, `estimado`,
+`observado_muestra`) nunca se publica con el valor ausente. Si el valor
+falta, el registro dice por qué: `sin_valores` cuando la columna no
+tiene valores no nulos en la tabla completa (en la muestra,
+`no_disponible` con `muestra_inestable:sin_valores_validos`);
+`no_aplica` para una métrica numérica sobre una columna que no lo es,
+para el desvío con menos de dos valores y para la moda cuando ningún
+valor de la tabla se repite; `no_disponible` en cualquier otro caso,
+también la moda de una muestra sin repetidos, porque la tabla puede
+tenerla.
+
 En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo
 error podria calcularse bajo un plan probabilistico pero no se calculo,
 `no_estimable` para la moda, la mediana y la cardinalidad observada, que
@@ -902,10 +913,13 @@ publica evidencia positiva de snapshot transaccional cuando el adaptador
 la demuestra. La cobertura agrega una entrada concreta solo si
 `n_validos` y `n_distintos` son exactos, incoherentes y provienen de
 grupos distintos; su motivo conserva ambas sentencias. La mediana
-muestral que no tiene una forma consolidada o escalar usa una sola CTE
-con `COUNT(*) OVER ()`, `ROW_NUMBER() OVER` y el promedio de las
-posiciones centrales. La sonda barata repite esa construccion sobre
-`VALUES (1.0), (2.0), (3.0), (4.0)`, exige `2.5` y un control negativo
+muestral que no tiene una forma consolidada o escalar, y la de cada
+columna que no puede usar la consolidada (un `float8` de PostgreSQL o
+una columna con extremos), usa una sola CTE con `COUNT(*) OVER ()`,
+`ROW_NUMBER() OVER` y el promedio de las posiciones centrales, elegidas
+sin dividir; con extremos, el promedio no desborda y sigue en la misma
+sentencia. La sonda barata repite esa construccion sobre
+`SELECT 1.0 UNION ALL ... SELECT 4.0`, exige `2.5` y un control negativo
 que falle; no se sondea la tabla de produccion. Si esa capacidad falla,
 la mediana se publica como `no_disponible` con
 `capacidad_no_aceptada:sonda_mediana_cte_ventana`, nunca como
@@ -952,11 +966,18 @@ en SQLite y PostgreSQL se usan `%` y `/` con division entera. Bajo
 `muestra_motor`, los dialectos sin una forma escalar ni consolidada usan
 la CTE de ventanas descrita arriba y no degradan a `dos_consultas`. En
 `tabla_completa` se conserva el camino previo, incluido `dos_consultas`
-si es el que resuelve ese dialecto; `PERCENTILE_CONT` no cambia. La
-mediana consolidada tambien se sondea antes de usarla; en SQL Server
-requiere nivel de compatibilidad \>= 110. Se sondea; estos son los
-motivos conocidos de que no se active: la funcion no esta disponible o
-el motor rechaza la sonda. En ese caso el mensaje del motor queda en
+si es el que resuelve ese dialecto; `PERCENTILE_CONT` no cambia.
+`dos_consultas` necesita el conteo de valores no nulos para el salto: si
+`metricas` no incluye `"validos"`, la mediana lo cuenta en una consulta
+propia y sale igual que con todas las métricas. La mediana consolidada
+tambien se sondea antes de usarla; en SQL Server requiere nivel de
+compatibilidad \>= 110. Se sondea; estos son los motivos conocidos de
+que no se active: la funcion no esta disponible, el motor rechaza la
+sonda o devuelve el percentil sin todas sus cifras. La prueba lee una
+fila con un valor de más de 1e8 y otro de menos de 1e-10 y exige los dos
+idénticos: MariaDB tipa `PERCENTILE_CONT` como `double(18,10)`, que
+satura en 1e8 y redondea a diez decimales, y por eso usa la mediana por
+columna como MySQL. En ese caso el mensaje del motor queda en
 `meta$mediana_consolidada$motivo` —sin sus literales con la protección
 activa, entero sin ella, como todo mensaje del motor: ver «Datos
 personales»—, y se conserva la mediana por columna.

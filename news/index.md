@@ -119,12 +119,31 @@ Primera versión publicada.
   y no en cada columna; el enmascarado de datos personales pasa a
   pedirse (ver abajo); y en los caminos que más se repiten se evitan las
   llamadas a expresiones regulares PCRE, que en Windows cuestan unos 47
-  µs cada una aunque el vector sea corto. Sobre la tabla de ejemplo de
-  13 filas,
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  bajó de 0,63 s a 0,16 s (0,26 s con la protección pedida) y
+  µs cada una aunque el vector sea corto.
+- Las tablas chicas se arman sin el costo por columna de
+  [`data.frame()`](https://rdrr.io/r/base/data.frame.html), la detección
+  de fechas no prueba los formatos que no pueden casar con ningún valor,
+  y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  de 1,36 s a 0,33 s.
+  clasifica una sola vez los datos personales de la tabla que mide.
+  Sobre la tabla de ejemplo de 13 filas,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  tarda 0,11 s y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  0,22 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera
+  llamada de una sesión nueva (0,28 s y 0,43 s para
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  con la protección pedida). Las cifras son de
+  `benchmark/medir_costo_fijo.R` y quedan en
+  `benchmark/datos/medir-costo-fijo.csv`.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre tablas anchas con muchas columnas iguales o de códigos de texto
+  es varias veces más rápido, con la misma salida. Los hallazgos
+  `columnas_duplicadas` se arman, trazan y revisan de una vez y no par
+  por par, y la búsqueda de casi duplicados del vocabulario no calcula
+  la mitad de la matriz de distancias que no lee. Con 500 filas y 1.000
+  columnas iguales, de 379 a 387 s pasa a 37 a 38 s (los 2 CSV fechados
+  de `benchmark/medir_topes_valores_ancho.R` en `benchmark/datos/`).
 
 ### Requisitos
 
@@ -304,8 +323,9 @@ Primera versión publicada.
   debajo de todas las mediciones de `benchmark/medir_referencias.R`; los
   10.000 de antes eran más rápidos que lo medido (unas 5.200 con 50
   columnas), así que la espera anunciada se quedaba corta.
-  `meta$costo_tabla_ancha$fuente` nombra el guion y advierte que muchas
-  columnas de códigos de texto parecidos pueden tardar varias veces más.
+  `meta$costo_tabla_ancha$fuente` nombra los 2 guiones que la sostienen:
+  ese y `benchmark/medir_topes_valores_ancho.R`, con columnas iguales de
+  códigos de texto.
 - La ayuda de `estrategia` en
   [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
   dice exactamente cuándo `"auto"` pasa a LSH (más de 10.000 filas,
@@ -394,3 +414,34 @@ Primera versión publicada.
   avisa (`lupa_aviso_costo_dbi`) antes de recorrer con agregados una
   tabla que el catálogo estima en 100 millones de filas o más, y sugiere
   `universo = "muestra_motor"`.
+- La mediana de MariaDB ya no sale de `PERCENTILE_CONT`, que ese motor
+  devuelve con 10 decimales y un tope en 1e8: con
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  por omisión, una columna de montos del orden de 1e12 publicaba 1e8,
+  una de valores del orden de 1e-12 publicaba 0 y un doble común perdía
+  desde el décimo decimal, todo como `calculado`. La prueba de capacidad
+  del percentil exige ahora que vuelvan todas las cifras, y MariaDB
+  calcula la mediana por columna (tabla completa) o con la CTE de
+  ventanas (muestra), como MySQL. Vale también con
+  `estrategia_mediana = "aproximada_motor"` y con RMySQL contra un
+  servidor MariaDB.
+- Con `universo = "muestra_motor"` y
+  `bloque_muestra = "solo_agregados"`, la mediana sale en MySQL, en un
+  `float8` de PostgreSQL y en una columna con valores extremos de
+  cualquier motor: la calcula la CTE de ventanas sobre la misma muestra,
+  como con `con_muestra`. La consulta de prueba de esa CTE usaba una
+  construcción que MySQL rechaza.
+- Con `metricas` sin la cuenta de valores válidos, la mediana de la
+  tabla completa cuenta esos valores en una consulta propia y sale igual
+  que con todas las métricas. Con `dialecto = "portable"`, que no tiene
+  salto de filas, sale de la CTE de ventanas si el motor la acepta.
+- Ningún registro de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  afirma un valor ausente: un estado `calculado`, `estimado` u
+  `observado_muestra` con el valor en `NA` pasa a decir por qué falta.
+  Es `sin_valores` si la columna está vacía (en la muestra,
+  `no_disponible` con `muestra_inestable:sin_valores_validos`), y
+  `no_aplica` para una métrica numérica sobre una columna que no lo es,
+  para el desvío de menos de 2 valores y para la moda de una columna sin
+  repetidos (en la muestra, `no_disponible`, porque la tabla puede tener
+  moda).

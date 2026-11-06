@@ -204,9 +204,10 @@ metricas <- perfil$cobertura_metricas
 table(metricas$tabla, metricas$estado)
 #>               
 #>                no_aplica sin_valores
-#>   devoluciones         0          36
-#>   productos            7           0
-#>   sucursales           7           0
+#>   devoluciones         0          44
+#>   productos            8           0
+#>   sucursales           9           0
+#>   ventas               2           0
 ```
 
 - `no_aplica` son los agregados cuantitativos (mínimo, media, desvío, …)

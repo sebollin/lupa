@@ -548,7 +548,7 @@ moda, extremos, media, mediana y desvío quedan
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">solo_agregados</span><span class="op">)</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; calculado no_aplica </span></span>
-<span><span class="co">#&gt;        53         7</span></span></code></pre></div>
+<span><span class="co">#&gt;        51         9</span></span></code></pre></div>
 <p>Con muestra, la clasificación se hace sobre
 <code>perfil_muestra</code> y alcanza también al resumen. El detalle de
 qué se enmascara está en <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
@@ -1240,14 +1240,19 @@ usa la consulta sin ese conteo y
 <li>
 <strong>La mediana</strong> es una consulta por columna como
 respaldo. Si la sonda acepta
-<code>PERCENTILE_CONT(...) WITHIN GROUP</code>, varias viajan en un solo
-<code>SELECT</code> por lote. En SQL Server eso requiere nivel de
-compatibilidad 110 o mayor. El motivo de un rechazo queda en
-<code>meta$mediana_consolidada$motivo</code>. Los dialectos con
-<code>LIMIT</code> que no la tienen, como SQLite y PostgreSQL 9.3. En
-ellos, el conteo de la mediana va en una subconsulta escalar de la misma
-sentencia. Para eso, la sonda tiene que aceptar la división entera con
-<code>%</code> y <code>/</code>.</li>
+<code>PERCENTILE_CONT(...) WITHIN GROUP</code> y el percentil devuelve
+sus cifras completas, varias viajan en un solo <code>SELECT</code> por
+lote. La prueba pide una fila con un valor de más de 1e8 y otro de menos
+de 1e-10, que tienen que volver idénticos. En SQL Server eso requiere
+nivel de compatibilidad 110 o mayor. MariaDB acepta la forma, pero
+devuelve el percentil con 10 decimales y un tope en 1e8: usa la mediana
+por columna, como MySQL. El motivo de un rechazo queda en
+<code>meta$mediana_consolidada$motivo</code>.</li>
+<li>En los dialectos con <code>LIMIT</code> que no tienen
+<code>PERCENTILE_CONT</code>, como SQLite y PostgreSQL 9.3, el conteo de
+la mediana va en una subconsulta escalar de la misma sentencia. Para
+eso, la sonda tiene que aceptar la división entera con <code>%</code> y
+<code>/</code>.</li>
 </ul>
 <p><code>tamano_lote</code> fija los 2 tamaños a la vez. La cantidad de
 consultas que cada tamaño produce sobre la tabla del ejemplo, según el
@@ -1687,14 +1692,15 @@ proyección se guarda siempre:</p>
 <span><span class="co">#&gt;  $ umbral_celdas             : int 100000</span></span></code></pre></div>
 <p>La duración sale de dividir las celdas por una velocidad de
 referencia de 5.000 celdas por segundo. Queda por debajo de la medición
-más lenta de <code>benchmark/medir_referencias.R</code>: 7.492 celdas
+más lenta de <code>benchmark/medir_referencias.R</code>: 8.044 celdas
 por segundo, con 500 filas y columnas numéricas y categóricas.</p>
-<p>Es una referencia para el caso común, no una cota. Con muchas
-columnas de códigos de texto parecidos (<code>"valor_1"</code>,
-<code>"valor_2"</code>…), la búsqueda de casi duplicados del vocabulario
-baja la velocidad. <code>benchmark/medir_topes_valores_ancho.R</code>
-mide 1.293 celdas por segundo: la espera puede ser unas 4 veces mayor
-que la proyectada.</p>
+<p>Es una referencia para el caso común, no una cota.
+<code>benchmark/medir_topes_valores_ancho.R</code> mide columnas iguales
+de códigos de texto (<code>"valor_1"</code>, <code>"valor_2"</code>…),
+con la búsqueda de casi duplicados del vocabulario apagada y un hallazgo
+<code>columnas_duplicadas</code> por cada par de columnas. Su caso más
+lento son 9.416 celdas por segundo, también por encima de la
+referencia.</p>
 <p>Los 2 CSV, en <code>benchmark/datos/</code>, conservan la fecha, el
 entorno y la huella del código. El aviso se apaga con
 <code>avisar_costo_tabla_ancha = FALSE</code>, y
@@ -2069,8 +2075,7 @@ capacidad sin sondear:</p>
 <span>                         bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span><span class="op">)</span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">portable</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">motivo</span><span class="op">[</span><span class="va">s</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"monto"</span> <span class="op">&amp;</span> <span class="va">s</span><span class="op">$</span><span class="va">metrica</span> <span class="op">==</span> <span class="st">"mediana"</span><span class="op">]</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; El dialecto `portable` no expresa un salto de filas; la mediana exacta exigiria traer</span></span>
-<span><span class="co">#&gt; 1001 filas a memoria.</span></span></code></pre></div>
+<span><span class="co">#&gt; NA</span></span></code></pre></div>
 <p>Cada sonda prueba la misma forma que después se emite. Una forma más
 barata no alcanza: un motor puede aceptar una cláusula con un filtro
 trivialmente falso y rechazarla sin él. DuckDB lo hace con el muestreo
@@ -2091,13 +2096,19 @@ por bloques:</p>
 <li>El alias de subconsulta se escribe con <code>AS</code> o sin él,
 según el motor. Los alias de columna van entre comillas y se comparan
 sin distinguir mayúsculas, porque hay motores que los pliegan.</li>
-<li>La mediana bajo <code>muestra_motor</code>, en dialectos sin forma
-consolidada ni escalar, usa una sola CTE con
-<code>COUNT(*) OVER ()</code> y <code>ROW_NUMBER() OVER</code>. Su sonda
-repite esa construcción sobre
-<code>VALUES (1.0), (2.0), (3.0), (4.0)</code>, y exige <code>2.5</code>
-y un control negativo que falle. No se sondea la tabla de
-producción.</li>
+<li>La mediana bajo <code>muestra_motor</code> usa una sola CTE con
+<code>COUNT(*) OVER ()</code> y <code>ROW_NUMBER() OVER</code> en 2
+casos: en los dialectos sin forma consolidada ni escalar (MySQL,
+MariaDB, SQL Server con compatibilidad menor que 110) y en cada columna
+que no puede usar la consolidada (un <code>float8</code> de PostgreSQL,
+una columna con extremos). Elige las 2 posiciones centrales sin dividir
+y, con extremos, las promedia sin desbordar dentro de la misma
+sentencia. Su sonda repite esa construcción sobre
+<code>SELECT 1.0 UNION ALL ... SELECT 4.0</code>, y exige
+<code>2.5</code> y un control negativo que falle. No se sondea la tabla
+de producción. Con <code>dialecto = "portable"</code>, que no tiene
+salto de filas, la mediana de la tabla completa también sale de esa
+CTE.</li>
 <li>Con el controlador reconocido, no se ejecutan las sondas de sintaxis
 de otros motores. En SQL Server con <code>XACT_ABORT ON</code>, una
 sentencia que no corresponde abortaría la transacción.</li>

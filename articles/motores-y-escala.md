@@ -244,7 +244,7 @@ table(sql_perfil(con_proteccion)$estado)
 table(sql_perfil(solo_agregados)$estado)
 #> 
 #> calculado no_aplica 
-#>        53         7
+#>        51         9
 ```
 
 Con muestra, la clasificación se hace sobre `perfil_muestra` y alcanza
@@ -790,13 +790,18 @@ muestreo. Por eso las consultas se agrupan:
   forma se sondea. Si el motor la rechaza, se usa la consulta sin ese
   conteo y `resumen_tabla$meta$moda_guardian` lo declara.
 - **La mediana** es una consulta por columna como respaldo. Si la sonda
-  acepta `PERCENTILE_CONT(...) WITHIN GROUP`, varias viajan en un solo
-  `SELECT` por lote. En SQL Server eso requiere nivel de compatibilidad
-  110 o mayor. El motivo de un rechazo queda en
-  `meta$mediana_consolidada$motivo`. Los dialectos con `LIMIT` que no la
-  tienen, como SQLite y PostgreSQL 9.3. En ellos, el conteo de la
-  mediana va en una subconsulta escalar de la misma sentencia. Para eso,
-  la sonda tiene que aceptar la división entera con `%` y `/`.
+  acepta `PERCENTILE_CONT(...) WITHIN GROUP` y el percentil devuelve sus
+  cifras completas, varias viajan en un solo `SELECT` por lote. La
+  prueba pide una fila con un valor de más de 1e8 y otro de menos de
+  1e-10, que tienen que volver idénticos. En SQL Server eso requiere
+  nivel de compatibilidad 110 o mayor. MariaDB acepta la forma, pero
+  devuelve el percentil con 10 decimales y un tope en 1e8: usa la
+  mediana por columna, como MySQL. El motivo de un rechazo queda en
+  `meta$mediana_consolidada$motivo`.
+- En los dialectos con `LIMIT` que no tienen `PERCENTILE_CONT`, como
+  SQLite y PostgreSQL 9.3, el conteo de la mediana va en una subconsulta
+  escalar de la misma sentencia. Para eso, la sonda tiene que aceptar la
+  división entera con `%` y `/`.
 
 `tamano_lote` fija los 2 tamaños a la vez. La cantidad de consultas que
 cada tamaño produce sobre la tabla del ejemplo, según el plan:
@@ -1166,14 +1171,15 @@ str(ajustado$meta$costo_tabla_ancha[c(
 
 La duración sale de dividir las celdas por una velocidad de referencia
 de 5.000 celdas por segundo. Queda por debajo de la medición más lenta
-de `benchmark/medir_referencias.R`: 7.492 celdas por segundo, con 500
+de `benchmark/medir_referencias.R`: 8.044 celdas por segundo, con 500
 filas y columnas numéricas y categóricas.
 
-Es una referencia para el caso común, no una cota. Con muchas columnas
-de códigos de texto parecidos (`"valor_1"`, `"valor_2"`…), la búsqueda
-de casi duplicados del vocabulario baja la velocidad.
-`benchmark/medir_topes_valores_ancho.R` mide 1.293 celdas por segundo:
-la espera puede ser unas 4 veces mayor que la proyectada.
+Es una referencia para el caso común, no una cota.
+`benchmark/medir_topes_valores_ancho.R` mide columnas iguales de códigos
+de texto (`"valor_1"`, `"valor_2"`…), con la búsqueda de casi duplicados
+del vocabulario apagada y un hallazgo `columnas_duplicadas` por cada par
+de columnas. Su caso más lento son 9.416 celdas por segundo, también por
+encima de la referencia.
 
 Los 2 CSV, en `benchmark/datos/`, conservan la fecha, el entorno y la
 huella del código. El aviso se apaga con
@@ -1463,8 +1469,7 @@ portable <- perfilar_dbi(con, "tramites", dialecto = "portable",
                          bloque_muestra = "solo_agregados")
 s <- sql_perfil(portable)
 writeLines(strwrap(s$motivo[s$columna == "monto" & s$metrica == "mediana"], 88))
-#> El dialecto `portable` no expresa un salto de filas; la mediana exacta exigiria traer
-#> 1001 filas a memoria.
+#> NA
 ```
 
 Cada sonda prueba la misma forma que después se emite. Una forma más
@@ -1491,11 +1496,17 @@ Otras reglas del dialecto:
 - El alias de subconsulta se escribe con `AS` o sin él, según el motor.
   Los alias de columna van entre comillas y se comparan sin distinguir
   mayúsculas, porque hay motores que los pliegan.
-- La mediana bajo `muestra_motor`, en dialectos sin forma consolidada ni
-  escalar, usa una sola CTE con `COUNT(*) OVER ()` y
-  `ROW_NUMBER() OVER`. Su sonda repite esa construcción sobre
-  `VALUES (1.0), (2.0), (3.0), (4.0)`, y exige `2.5` y un control
-  negativo que falle. No se sondea la tabla de producción.
+- La mediana bajo `muestra_motor` usa una sola CTE con
+  `COUNT(*) OVER ()` y `ROW_NUMBER() OVER` en 2 casos: en los dialectos
+  sin forma consolidada ni escalar (MySQL, MariaDB, SQL Server con
+  compatibilidad menor que 110) y en cada columna que no puede usar la
+  consolidada (un `float8` de PostgreSQL, una columna con extremos).
+  Elige las 2 posiciones centrales sin dividir y, con extremos, las
+  promedia sin desbordar dentro de la misma sentencia. Su sonda repite
+  esa construcción sobre `SELECT 1.0 UNION ALL ... SELECT 4.0`, y exige
+  `2.5` y un control negativo que falle. No se sondea la tabla de
+  producción. Con `dialecto = "portable"`, que no tiene salto de filas,
+  la mediana de la tabla completa también sale de esa CTE.
 - Con el controlador reconocido, no se ejecutan las sondas de sintaxis
   de otros motores. En SQL Server con `XACT_ABORT ON`, una sentencia que
   no corresponde abortaría la transacción.

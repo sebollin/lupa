@@ -475,24 +475,27 @@ referencia de 5.000 celdas por segundo. Esa referencia se fija por
 debajo de la medición más lenta de `benchmark/medir_referencias.R`. Ese
 guion perfila tablas de 500 filas con 50, 300 y 1.000 columnas numéricas
 y categóricas. Deja la corrida en
-`benchmark/datos/medir-referencias.csv` (2026-11-05):
+`benchmark/datos/medir-referencias.csv` (2026-11-06):
 
 ``` r
 
 referencias_ancho
 #>   n_columnas segundos celdas_por_segundo
-#> 1         50    3.337               7492
-#> 2        300    9.820              15275
-#> 3       1000   36.678              13632
+#> 1         50    3.108               8044
+#> 2        300    8.684              17273
+#> 3       1000   31.595              15825
 ```
 
-El caso más lento de esa tabla son 7.492 celdas por segundo. Es una
-referencia para el caso común y no una cota. Con muchas columnas de
-códigos de texto parecidos (`"valor_1"`, `"valor_2"`…), la búsqueda de
-casi duplicados del vocabulario domina el perfil.
-`benchmark/medir_topes_valores_ancho.R` repite esa columna en las mismas
-3 anchuras, 3 veces cada una. Deja
-`medir-topes-valores-ancho-20261105T055002Z.csv`, con su fecha, entorno
+El caso más lento de esa tabla son 8.044 celdas por segundo. Es una
+referencia para el caso común y no una cota.
+
+`benchmark/medir_topes_valores_ancho.R` mide otro caso. Repite una misma
+columna de códigos de texto (`"valor_1"`, `"valor_2"`…) en las mismas 3
+anchuras, 3 veces cada una, con la búsqueda de casi duplicados del
+vocabulario apagada. Como todas las columnas son iguales, el perfil
+publica un hallazgo `columnas_duplicadas` por cada par: con 1.000
+columnas, 499.500. Deja
+`medir-topes-valores-ancho-20261106T060523Z.csv`, con su fecha, entorno
 y huella del código:
 
 ``` r
@@ -502,19 +505,19 @@ codigos_ancho[, c(
   "celdas_por_segundo"
 )]
 #>    n_filas n_columnas celdas repeticion segundos celdas_por_segundo
-#> 41     500         50  25000          1    3.472           7200.461
-#> 42     500         50  25000          2    3.218           7768.800
-#> 43     500         50  25000          3    2.150          11627.907
-#> 44     500        300 150000          1   34.429           4356.792
-#> 45     500        300 150000          2   32.676           4590.525
-#> 46     500        300 150000          3   32.294           4644.826
-#> 47     500       1000 500000          1  386.634           1293.213
-#> 48     500       1000 500000          2  379.442           1317.724
-#> 49     500       1000 500000          3  380.699           1313.374
+#> 41     500         50  25000          1    2.655           9416.196
+#> 42     500         50  25000          2    2.509           9964.129
+#> 43     500         50  25000          3    1.323          18896.447
+#> 44     500        300 150000          1    8.853          16943.409
+#> 45     500        300 150000          2    8.900          16853.933
+#> 46     500        300 150000          3    8.851          16947.238
+#> 47     500       1000 500000          1   38.287          13059.263
+#> 48     500       1000 500000          2   36.966          13525.943
+#> 49     500       1000 500000          3   36.714          13618.783
 ```
 
-Ahí el caso más lento son 1.293 celdas por segundo. Con tablas así, la
-espera puede ser unas 4 veces mayor que la proyectada.
+Ahí el caso más lento son 9.416 celdas por segundo, también por encima
+de la referencia del aviso.
 
 ## ⚠️ Corridas sobre millones de filas
 
