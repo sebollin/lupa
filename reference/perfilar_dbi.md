@@ -579,23 +579,34 @@ la palabra y no el vocabulario, así que conviene mirar cuál se está
 leyendo. Si una columna declarada como entero de 64 bits o mas ancho, o
 como decimal -`numeric`, `decimal`, con o sin precision-, llega como
 doble y contiene un valor con valor absoluto de al menos 2^53,
-`resumen_tabla` deja sus metricas de magnitud en `no_disponible`. **Las
-siete**: `minimo`, `maximo`, `media`, `n_ceros`, `n_negativos`,
-`mediana` y `desvio`. La condicion es de la columna y no de la metrica,
-aunque las dos ultimas se calculen en otras consultas; lo que el motor
-cuenta con exactitud -`n_distintos`, la moda- se sigue publicando. La
-moda de un entero ancho que llego como `numeric` se pide al motor como
-texto exacto cuando la magnitud cruza 2^53; un `BIGINT` con valores
-chicos conserva la moda numerica de siempre. Lo decide el valor: un
-decimal desde 2^53 ya no cabe en un doble -90071992547409001 y
-90071992547409002 son el mismo-, y el tipo solo dice que viene de un
-decimal: RPostgres lo publica como `numeric` sin precision y odbc con su
-codigo ODBC (2 y 3), asi que una regla que esperara `numeric(20,0)` no
-se ejerceria. Para la muestra, la seleccion SQL trae esas columnas como
-texto y, si `bit64` esta instalado, las convierte a `integer64` antes de
-perfilar: `n_distintos`, la moda y los diagnosticos por identidad
-conservan los valores exactos. Los estadisticos de magnitud por encima
-de 2^53 siguen usando
+`resumen_tabla` deja en `no_disponible` las métricas de magnitud que
+dependen de un valor que el doble no representa: `minimo`, `maximo`,
+`media`, `n_ceros`, `n_negativos` y `desvio`, por la columna. La
+`mediana` depende sólo de sus centrales y se decide por su valor: con
+una cantidad impar de valores es la central, y se publica si queda por
+debajo de 2^53 —una central de al menos 2^53 daría un doble de al menos
+2^53—; con una cantidad par promedia dos centrales y su valor no dice si
+alguna pasó de 2^53: se publica sólo si las dos quedan entre -2^52 y
+2^52, lo que en la tabla completa cuenta una consulta más (cuántos
+valores llegan a 2^52 y cuántos bajan de -2^52) y en la muestra del
+motor no se puede saber. La misma regla corre cuando la consulta de
+básicos desborda (un `HUGEINT` cerca de su tope en DuckDB). En una
+columna que no pasa de 2^53, la mediana de una cantidad par tampoco se
+publica en PostgreSQL si sus extremos distan más de 2^53:
+`PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble y esa
+resta redondea. Lo que el motor cuenta con exactitud -`n_distintos`, la
+moda- se sigue publicando. La moda de un entero ancho que llego como
+`numeric` se pide al motor como texto exacto cuando la magnitud cruza
+2^53; un `BIGINT` con valores chicos conserva la moda numerica de
+siempre. Lo decide el valor: un decimal desde 2^53 ya no cabe en un
+doble -90071992547409001 y 90071992547409002 son el mismo-, y el tipo
+solo dice que viene de un decimal: RPostgres lo publica como `numeric`
+sin precision y odbc con su codigo ODBC (2 y 3), asi que una regla que
+esperara `numeric(20,0)` no se ejerceria. Para la muestra, la seleccion
+SQL trae esas columnas como texto y, si `bit64` esta instalado, las
+convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
+diagnosticos por identidad conservan los valores exactos. Los
+estadisticos de magnitud por encima de 2^53 siguen usando
 `estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria.
 Si falta `bit64`, la columna queda como texto y `cobertura_diagnosticos`
 explica la limitacion y recomienda instalarlo o pedir `integer64` al
@@ -604,7 +615,11 @@ entran en esta guarda. Con `bloque_filas` rige la misma regla, sobre los
 valores que el controlador entrega como `integer64` —un `BIGINT` o
 `bigserial` de PostgreSQL, un `INTEGER` de SQLite que no entra en 32
 bits—: por debajo de 2^53 se opera con el valor exacto, y desde 2^53 las
-siete métricas quedan `no_disponible` con su motivo. Un decimal o un
+seis que dependen de toda la columna quedan `no_disponible` con su
+motivo y la mediana se decide por su valor, como en el resumen SQL. Un
+bloque que el controlador entrega como `integer` y otro como `integer64`
+—RSQLite elige la clase por los valores de cada bloque— se unen como
+`integer64` antes de contar distintos, moda y mediana. Un decimal o un
 entero ancho que llega como doble desde 2^53 deja ademas `n_distintos` y
 `tasa_distintos` en `no_disponible`: con bloques se contarian en R sobre
 esos dobles, que no distinguen los valores. La moda de un decimal, y la
@@ -995,7 +1010,11 @@ satura en 1e8 y redondea a diez decimales, y por eso usa la mediana por
 columna como MySQL. En ese caso el mensaje del motor queda en
 `meta$mediana_consolidada$motivo` —sin sus literales con la protección
 activa, entero sin ella, como todo mensaje del motor: ver «Datos
-personales»—, y se conserva la mediana por columna.
+personales»—, y se conserva la mediana por columna. En DuckDB,
+`PERCENTILE_CONT` de un `DECIMAL` interpola en el `DECIMAL` de la
+columna y trunca a su escala —la mediana de 1,00 y 1,01 en
+`DECIMAL(10,2)` salía 1,00—: se pide sobre el doble de cada valor, que
+es la mediana de R sobre lo que lee el controlador.
 
 ## Lo que el motor guarda distinto que R
 
@@ -1167,13 +1186,24 @@ eso no es lo mismo que la tabla en R:
   los valores guardados, así que se convierte a doble antes de restar;
   en SQL Server el centro de una columna de coma flotante va como
   literal `float`, que no tiene el tope de 38 cifras de un decimal. Una
-  columna decimal o entera resta en su tipo, que es exacto. Con
-  `bloque_filas` los momentos se acumulan centrados. Bajo
-  `muestra_motor`, la media y el desvío se piden en la misma consulta,
-  sobre las mismas filas de una sola evaluación de la muestra: una
-  relación derivada calcula la media de esas filas con una ventana
-  (`AVG(x) OVER ()`) y el desvío se pide centrado en ella; esa misma
-  evaluación da las filas obtenidas y decide el reintento. No se fija
+  columna decimal o entera resta en su tipo, que es exacto; en SQL
+  Server, si la resta pasa de 38 cifras el motor recorta la escala y
+  redondea, y un empate se redondearía hacia lados distintos según el
+  signo, así que el centro de un decimal nunca termina en 5. Con
+  `bloque_filas` los momentos se acumulan centrados, sobre los dobles
+  que entrega el controlador: el desvío de un decimal tan grande frente
+  a su desvío que el redondeo de cada valor a doble puede moverlo más de
+  una parte en mil millones (`max |x| / desvio * 2^-53`) queda
+  `no_disponible`. Bajo `muestra_motor`, la media y el desvío se piden
+  en la misma consulta, sobre las mismas filas de una sola evaluación de
+  la muestra: una relación derivada calcula la media de esas filas con
+  una ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en ella;
+  esa misma evaluación da las filas obtenidas y decide el reintento. En
+  SQLite, que suma los cuadrados en la consulta, se resta además
+  `n * (media - centro)^2` (las dos pasadas corregidas), porque la media
+  de la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb
+  esa media y la resta son dobles: el desvío de un decimal queda
+  `no_disponible` con la misma regla que con `bloque_filas`. No se fija
   una semilla ni se toca el generador de números aleatorios de R. Como
   red en todas las vías, un desvío `0` sobre una columna con dos valores
   distintos —un mínimo menor que el máximo— es imposible y queda

@@ -1574,7 +1574,13 @@ The known cases, with what the package publishes:
 | SQL Server | `STDEV` accumulates in one pass and loses digits with large means | the standard deviation is requested on the values centered on the mean |
 | SQL Server | it does not admit `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` or `MIN`/`MAX` on `text`, `ntext`, `image`, `xml` and `geography` | those metrics stay `no_disponible` without sending the statement |
 | any | the collation of the column groups values that R tells apart (`COLLATE NOCASE`, non-deterministic ICU, trailing spaces in SQL Server) | `meta$criterio_comparacion` and `meta$criterio_moda` declare it; the corroboration leaves it `no_corroborada`, not `divergencia` |
-| any | 64-bit integers (or `HUGEINT` and `UHUGEINT` in DuckDB) or decimals that arrive as double from 2^53 | the 7 magnitude metrics stay `no_disponible`; the mode is requested from the engine as exact text; the sample reads those columns as text and, with [`bit64`](https://CRAN.R-project.org/package=bit64), as `integer64` |
+| any | 64-bit integers (or `HUGEINT` and `UHUGEINT` in DuckDB) or decimals that arrive as double from 2^53 | the magnitude metrics that depend on a value a double cannot represent stay `no_disponible` (`minimo`, `maximo`, `media`, `desvio`, `n_ceros` and `n_negativos`). The median is published when its value is exact: with an odd count, if the middle value is below 2^53; with an even count, if both middle values lie between -2^52 and 2^52, which costs one more query on the full table (`perfil_muestra` still withholds it for the column). The mode is requested from the engine as exact text; the sample reads those columns as text and, with [`bit64`](https://CRAN.R-project.org/package=bit64), as `integer64` |
+| any | a decimal with more digits than a double holds arrives as a double | with blocks and on the engine sample (except in PostgreSQL), the standard deviation stays `no_disponible` when rounding each value can move it by more than one part in a billion; on the full table the subtraction is done in the column’s type |
+| DuckDB | `PERCENTILE_CONT` interpolates a `DECIMAL` in its own scale and truncates | the median of a `DECIMAL` is requested on the double of each value |
+| PostgreSQL | `PERCENTILE_CONT` interpolates `low + (high - low) * 0.5` in double | with an even count and middle values more than 2^53 apart, the median stays `no_disponible` |
+| SQL Server | `decimal - literal` beyond 38 digits is rounded, and from compatibility level 110 a tie rounds away from zero | the center of a decimal’s standard deviation never ends in 5 |
+| SQLite | RSQLite returns `integer` or `integer64` depending on the values of each block | with `bloque_filas`, blocks are joined as `integer64` before counting distinct values, mode and median |
+| SQLite | the window mean of the sample is a rounded double | the sum of squares subtracts `n * (mean - center)^2` |
 | any | each engine adds up in its own way, and with values that cancel out the means differ between engines and from the one of R | the mean is requested as double where decimal arithmetic would cut it; the corroboration declares the difference |
 
 The mean of `{1e16, 1, -1e16}` is 1/3. Each path computes it in its own
@@ -1889,7 +1895,7 @@ knitr::kable(r[, c("id_motor", "motor", "version", "paquete_r", "dialecto",
 |:---|:---|:---|:---|:---|:---|
 | dbi | DBI | — | DBI | — | no_aplica |
 | sqlite | SQLite | — | RSQLite | limit | probado |
-| postgresql | PostgreSQL | 16 | RPostgres | limit | probado |
+| postgresql | PostgreSQL | 9.3 y 16 | RPostgres | limit | probado |
 | mysql | MySQL | 8 | RMySQL | limit | probado |
 | sql_server | SQL Server | 2022 | odbc | top | probado |
 | duckdb | DuckDB | 1.5 | duckdb | limit | probado |

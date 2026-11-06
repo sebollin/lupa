@@ -138,13 +138,16 @@ Primera versión publicada.
   de fechas no prueba los formatos que no pueden casar con ningún valor,
   y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  clasifica una sola vez los datos personales de la tabla que mide.
-  Sobre la tabla de ejemplo de 13 filas,
+  clasifica una sola vez los datos personales de la tabla que mide. Con
+  la protección pedida, el barrido que decide qué campos guardan nombres
+  de columna no intenta partir un valor sin coma, y la fila de una
+  columna del perfil se arma sin pasar por `[.data.frame`. Sobre la
+  tabla de ejemplo de 13 filas,
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   tarda 0,11 s y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  0,22 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera
-  llamada de una sesión nueva (0,28 s y 0,43 s para
+  0,21 s en una sesión ya iniciada, y 0,20 s y 0,35 s en la primera
+  llamada de una sesión nueva (0,25 s y 0,41 s para
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   con la protección pedida). Las cifras son de
   `benchmark/medir_costo_fijo.R` y quedan en
@@ -169,7 +172,14 @@ Primera versión publicada.
   texto, con su propio [`match()`](https://rdrr.io/r/base/match.html) y
   su `%in%`, y da el mismo perfil que con bit64 nuevo. Sin bit64 se
   niega con la condición `lupa_error_integer64` en lugar de publicar
-  distintos, modas y medianas equivocados.
+  distintos, modas y medianas equivocados. Las pruebas de `integer64`
+  corren todas con bit64 4.0.5 en R 4.2.0, y una prueba falla si alguna
+  función de base que compara por debajo
+  ([`merge()`](https://rdrr.io/r/base/merge.html),
+  [`factor()`](https://rdrr.io/r/base/factor.html),
+  [`setdiff()`](https://rdrr.io/r/base/sets.html),
+  [`order()`](https://rdrr.io/r/base/order.html)…) recibe del paquete
+  una columna `integer64`.
 
 ### Datos personales
 
@@ -466,7 +476,10 @@ Primera versión publicada.
   más ya no pierde decimales: `AVG(valor * 1.0)` recortaba la escala a
   6, y en un `decimal(38,7)` la mediana de 0,0000001 y 0,0000003
   salía 0. Con compatibilidad menor que 110, sin `PERCENTILE_CONT`, ese
-  era el camino de todo `decimal`. Ahora promedia como doble.
+  era el camino de todo `decimal`. Ahora las dos centrales se leen y se
+  promedian en R, como en PostgreSQL 9.3: convertirlas a doble en el
+  servidor deja, con esa compatibilidad, la de un `decimal` de más de 15
+  cifras a un ulp de la de R.
 - En PostgreSQL 9.3 con `dialecto = "portable"`, y en la muestra con la
   subconsulta escalar, la mediana de una cantidad par de `float8`
   coincide con [`median()`](https://rdrr.io/r/stats/median.html):
@@ -478,7 +491,8 @@ Primera versión publicada.
   porque la misma columna tenga una familia de códigos numerados con
   frecuencias desparejas. La familia sigue declarando que el diagnóstico
   no aplica a las formas con números; los grupos sin números se juzgan
-  con el mismo límite, medido sobre ellos.
+  con el mismo límite y contra el mismo vocabulario entero de la
+  columna: salen igual que si la familia no se encadenara.
 - La búsqueda de casi duplicados del vocabulario ya no depende de que la
   columna tenga, antes de una pareja, dos formas que se normalizan igual
   (`ALFA` y `Alfa`). Con una de esas clases delante, el filtro de marcas
@@ -488,3 +502,61 @@ Primera versión publicada.
   formaron…» desaparecía, y el diagnóstico de variantes equifrecuentes
   nombraba formas que no son pareja. Sin esas clases, o con la clase
   después de la pareja, la salida es la misma.
+- En
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  una pareja cercana cuyas formas normalizadas empatan en frecuencia ya
+  no queda sin declarar porque uno de sus lados junte grafías que se
+  normalizan igual (`Montevideo` y `MONTEVIDEO`, 25 cada una, contra
+  `Montevido`, 50). Se publicaba sólo el grupo de esas grafías, y la
+  pareja no aparecía en la fila de cobertura «N grupos de formas
+  cercanas no se formaron…» ni, con
+  `variantes_equifrecuentes_vocabulario = TRUE`, como hallazgo. Ahora se
+  declara igual que sin esas grafías, y el grupo equifrecuente las lista
+  todas con su frecuencia; su asimetría es la de las formas normalizadas
+  (`MONTEVIDEO` 10 y `Montevideo` 40 contra `Montevido` 50 da 1, no 5).
+- En
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  una pareja que `casi_duplicados_vocabulario` ya publica no se cuenta
+  además en la fila de cobertura «N grupos de formas cercanas no se
+  formaron…», ni sale otra vez como
+  `variantes_equifrecuentes_vocabulario` con el detector encendido. Con
+  los valores por omisión pasaba en el borde: `Montevideo` (50) contra
+  `Montevido` (25) tiene asimetría 2, que llega al piso de
+  `min_asimetria_vocabulario` y no pasa el tope de
+  `max_asimetria_equifrecuente_vocabulario`, y la salida publicaba la
+  pareja y decía a la vez que no se había formado. Lo mismo con las
+  variantes de igual frecuencia de un grupo publicado (`Zona B` …
+  `Zona O` alrededor de `Zona A`). Lo que el piso de asimetría deja
+  afuera se sigue contando. Y la cantidad de pares que esa fila declara
+  («Se identificaron M pares cercanos…») es la de los grupos que cuenta:
+  sumaba también los de los grupos ya publicados y los de las cadenas
+  que el tope de asimetría o el límite del vocabulario dejan afuera.
+- La mediana de una columna entera o decimal con valores de 2^53 o más
+  se decide por su valor y no por la columna, con la misma regla en los
+  siete motores: con una cantidad impar se publica si la central queda
+  por debajo de 2^53 (la de `{1, 2, 2^63 - 1}` en `BIGINT` es 2, y
+  quedaba `no_disponible`); con una par, si las dos centrales quedan
+  entre -2^52 y 2^52, lo que en la tabla completa cuesta una consulta
+  más. En DuckDB, la de un `HUGEINT` cerca de su tope con una cantidad
+  par ya no sale del promedio de dos dobles redondeados (2,5 por 2).
+- En DuckDB, la mediana de un `DECIMAL` ya no se trunca a la escala de
+  la columna: la de 1,00 y 1,01 en `DECIMAL(10,2)` salía 1,00.
+- En PostgreSQL, la mediana de una cantidad par cuyas centrales distan
+  más de 2^53 ya no se publica con el redondeo de `PERCENTILE_CONT` (-1
+  por -0,5).
+- Con `bloque_filas` en SQLite, una columna `INTEGER` cuyos primeros
+  bloques entran en 32 bits y otros no ya no cuenta mal `n_distintos`,
+  la moda ni la mediana (`{1, 2, 3e9, 3e9}` daba 4 distintos, ninguna
+  moda y mediana 0,5).
+- En SQL Server con compatibilidad 110 o más, el desvío de un
+  `decimal(38, s)` ya no sale mal cuando la media termina en la mitad de
+  la última unidad: `{1, 2, 3, 4}` en `decimal(38,0)` daba 1,8257 por
+  1,2910.
+- Con `bloque_filas`, y por la muestra del motor en SQL Server, MySQL,
+  MariaDB y DuckDB, el desvío de un decimal que el doble no representa
+  queda `no_disponible` cuando ese redondeo puede moverlo: un
+  `numeric(18,2)` de 5e14 con desvío 3 daba 3,1115 por 3,1047.
+- En SQLite, el desvío de la muestra del motor ya no pierde cifras con
+  valores grandes (`{2^53 - 2, 2^53 - 1}` daba 1 por 0,7071).
+- [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
+  declara PostgreSQL «9.3 y 16», las dos versiones que se miden.

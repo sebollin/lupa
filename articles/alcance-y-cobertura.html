@@ -419,14 +419,17 @@ muestra del motor:</p>
 <span>  universo <span class="op">=</span> <span class="st">"muestra_motor"</span>, muestra_motor <span class="op">=</span> <span class="fl">5</span>, bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">sql</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">muestreada</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>estado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">estado</span>, error_esperado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">error_esperado</span><span class="op">)</span></span>
+<span><span class="co"># Qué combinaciones aparecen. Cuántas veces, no: la muestra cambia en cada</span></span>
+<span><span class="co"># corrida (SQLite no deja fijar la semilla de RANDOM()) y con cinco filas la</span></span>
+<span><span class="co"># moda de una columna sale estimada o no disponible según caigan repetidos.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>estado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">estado</span>, error_esperado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">error_esperado</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span></span>
 <span><span class="co">#&gt;                    error_esperado</span></span>
 <span><span class="co">#&gt; estado              no_aplica no_estimable no_estimado</span></span>
-<span><span class="co">#&gt;   calculado                10            0           0</span></span>
-<span><span class="co">#&gt;   estimado                  0            6          12</span></span>
-<span><span class="co">#&gt;   no_aplica                 0            7          42</span></span>
-<span><span class="co">#&gt;   no_disponible             0            7           0</span></span>
-<span><span class="co">#&gt;   observado_muestra         0           30          36</span></span>
+<span><span class="co">#&gt;   calculado              TRUE        FALSE       FALSE</span></span>
+<span><span class="co">#&gt;   estimado              FALSE         TRUE        TRUE</span></span>
+<span><span class="co">#&gt;   no_aplica             FALSE         TRUE        TRUE</span></span>
+<span><span class="co">#&gt;   no_disponible         FALSE         TRUE       FALSE</span></span>
+<span><span class="co">#&gt;   observado_muestra     FALSE         TRUE        TRUE</span></span>
 <span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 <p><code>observado_muestra</code> describe las filas que trajo la

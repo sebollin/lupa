@@ -1536,7 +1536,13 @@ Los casos conocidos, con lo que publica el paquete:
 | SQL Server | `STDEV` acumula en una pasada y pierde cifras con medias grandes | el desvío se pide sobre los valores centrados en la media |
 | SQL Server | no admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography` | esas métricas quedan `no_disponible` sin enviar la sentencia |
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
-| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | las 7 métricas de magnitud quedan `no_disponible`; la moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
+| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | quedan `no_disponible` las métricas de magnitud que dependen de un valor que el doble no representa (`minimo`, `maximo`, `media`, `desvio`, `n_ceros` y `n_negativos`). La mediana se publica cuando su valor es exacto: con una cantidad impar, si la central queda por debajo de 2^53; con una par, si las dos centrales quedan entre -2^52 y 2^52, lo que en la tabla completa cuesta una consulta más (`perfil_muestra` la sigue negando por la columna). La moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
+| cualquiera | un decimal con más cifras de las que guarda un doble llega como doble | por bloques y por la muestra del motor (salvo en PostgreSQL), el desvío queda `no_disponible` si el redondeo de cada valor puede moverlo más de una parte en mil millones; por la tabla completa se resta en el tipo de la columna |
+| DuckDB | `PERCENTILE_CONT` interpola un `DECIMAL` en su propia escala y trunca | la mediana de un `DECIMAL` se pide sobre el doble de cada valor |
+| PostgreSQL | `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble | con una cantidad par y centrales que distan más de 2^53, la mediana queda `no_disponible` |
+| SQL Server | `decimal - literal` de más de 38 cifras se redondea, y desde la compatibilidad 110 el empate va lejos del cero | el centro del desvío de un decimal nunca termina en 5 |
+| SQLite | RSQLite da `integer` o `integer64` según los valores de cada bloque | con `bloque_filas`, los bloques se unen como `integer64` antes de contar distintos, moda y mediana |
+| SQLite | la media de la ventana de la muestra es un doble redondeado | la suma de cuadrados resta `n * (media - centro)^2` |
 | cualquiera | cada motor suma a su modo, y con valores que se cancelan las medias difieren entre motores y con la de R | la media se pide como doble donde la aritmética decimal la recortaría; la corroboración declara la diferencia |
 
 La media de `{1e16, 1, -1e16}` es 1/3. Cada vía la calcula a su modo, y
@@ -1846,7 +1852,7 @@ knitr::kable(r[, c("id_motor", "motor", "version", "paquete_r", "dialecto",
 |:---|:---|:---|:---|:---|:---|
 | dbi | DBI | — | DBI | — | no_aplica |
 | sqlite | SQLite | — | RSQLite | limit | probado |
-| postgresql | PostgreSQL | 16 | RPostgres | limit | probado |
+| postgresql | PostgreSQL | 9.3 y 16 | RPostgres | limit | probado |
 | mysql | MySQL | 8 | RMySQL | limit | probado |
 | sql_server | SQL Server | 2022 | odbc | top | probado |
 | duckdb | DuckDB | 1.5 | duckdb | limit | probado |

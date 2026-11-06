@@ -1001,13 +1001,22 @@ parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
 que con quinientas, y en una tabla chica ese reparto sale por casualidad
 más seguido. Es aditivo: encenderlo no cambia ni pierde ninguna
 detección de <code>casi_duplicados_vocabulario</code>. El límite que deja de cubrir se
-declara igual, encendido o apagado, en <code>n_grupos_sin_variante_rara</code>.</p></dd>
+declara igual, encendido o apagado, en <code>n_grupos_sin_variante_rara</code>. Una
+pareja que <code>casi_duplicados_vocabulario</code> ya publicó entera no se cuenta
+ahí ni se publica otra vez como equifrecuente: pasa con una clase exacta
+de normalización unida por distancia a su vecina, y cuando la asimetría
+llega a <code>min_asimetria_vocabulario</code> sin pasar
+<code>max_asimetria_equifrecuente_vocabulario</code>. Lo que el piso de asimetría deja
+afuera sí se cuenta.</p></dd>
 
 
 <dt id="arg-max-asimetria-equifrecuente-vocabulario">max_asimetria_equifrecuente_vocabulario<a class="anchor" aria-label="anchor" href="#arg-max-asimetria-equifrecuente-vocabulario"></a></dt>
 <dd><p>Razón máxima entre la
 frecuencia mayor y la menor para considerar que dos formas se reparten la
-columna. Con <code>2</code>, <code>40</code> contra <code>5</code> no entra y <code>5</code> contra <code>5</code> sí.</p></dd>
+columna. Con <code>2</code>, <code>40</code> contra <code>5</code> no entra y <code>5</code> contra <code>5</code> sí. Las
+grafías que la normalización junta cuentan juntas: <code>MONTEVIDEO</code> (10) y
+<code>Montevideo</code> (40) contra <code>Montevido</code> (50) es un empate, el grupo publica
+las tres formas con sus frecuencias y su asimetría es 1.</p></dd>
 
 
 <dt id="arg-max-comparaciones-dependencias">max_comparaciones_dependencias<a class="anchor" aria-label="anchor" href="#arg-max-comparaciones-dependencias"></a></dt>
@@ -1761,7 +1770,12 @@ variante; el tamaño compatible se muestra aparte. Ese límite decide sobre
 los grupos que contienen formas con números. Un grupo sin números, que el
 filtro nunca une con una forma que los tenga, se conserva además si el
 mismo límite medido sobre los grupos sin números lo admite: una familia
-numerada no calla una errata de texto de la misma columna. Entonces la
+numerada no calla una errata de texto de la misma columna. El denominador
+sigue siendo el vocabulario entero de la columna, con las formas con
+números, así que el veredicto es el que la columna daría si la familia no
+se encadenara: una cadena sin números que ocupa una fracción chica del
+vocabulario se publica igual junto a la familia que junto a códigos que no
+se encadenan o a cualquier otro texto. Entonces la
 cobertura dice que el diagnóstico no aplica a las formas con números y la
 evidencia agrega <code>grupo_maximo sin numeros</code>. Para mantener acotado el
 perfil, por omisión se evalúan hasta

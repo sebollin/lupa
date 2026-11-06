@@ -2234,10 +2234,63 @@ SQL Server)</td>
 <td>cualquiera</td>
 <td>enteros de 64 bits (o <code>HUGEINT</code> y <code>UHUGEINT</code>
 en DuckDB) o decimales que llegan como doble desde 2^53</td>
-<td>las 7 métricas de magnitud quedan <code>no_disponible</code>; la
-moda se le pide al motor como texto exacto; la muestra lee esas columnas
-como texto y, con <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
+<td>quedan <code>no_disponible</code> las métricas de magnitud que
+dependen de un valor que el doble no representa (<code>minimo</code>,
+<code>maximo</code>, <code>media</code>, <code>desvio</code>,
+<code>n_ceros</code> y <code>n_negativos</code>). La mediana se publica
+cuando su valor es exacto: con una cantidad impar, si la central queda
+por debajo de 2^53; con una par, si las dos centrales quedan entre -2^52
+y 2^52, lo que en la tabla completa cuesta una consulta más
+(<code>perfil_muestra</code> la sigue negando por la columna). La moda
+se le pide al motor como texto exacto; la muestra lee esas columnas como
+texto y, con <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
 como <code>integer64</code>
+</td>
+</tr>
+<tr class="even">
+<td>cualquiera</td>
+<td>un decimal con más cifras de las que guarda un doble llega como
+doble</td>
+<td>por bloques y por la muestra del motor (salvo en PostgreSQL), el
+desvío queda <code>no_disponible</code> si el redondeo de cada valor
+puede moverlo más de una parte en mil millones; por la tabla completa se
+resta en el tipo de la columna</td>
+</tr>
+<tr class="odd">
+<td>DuckDB</td>
+<td>
+<code>PERCENTILE_CONT</code> interpola un <code>DECIMAL</code> en su
+propia escala y trunca</td>
+<td>la mediana de un <code>DECIMAL</code> se pide sobre el doble de cada
+valor</td>
+</tr>
+<tr class="even">
+<td>PostgreSQL</td>
+<td>
+<code>PERCENTILE_CONT</code> interpola
+<code>bajo + (alto - bajo) * 0.5</code> en doble</td>
+<td>con una cantidad par y centrales que distan más de 2^53, la mediana
+queda <code>no_disponible</code>
+</td>
+</tr>
+<tr class="odd">
+<td>SQL Server</td>
+<td>
+<code>decimal - literal</code> de más de 38 cifras se redondea, y
+desde la compatibilidad 110 el empate va lejos del cero</td>
+<td>el centro del desvío de un decimal nunca termina en 5</td>
+</tr>
+<tr class="even">
+<td>SQLite</td>
+<td>RSQLite da <code>integer</code> o <code>integer64</code> según los
+valores de cada bloque</td>
+<td>con <code>bloque_filas</code>, los bloques se unen como
+<code>integer64</code> antes de contar distintos, moda y mediana</td>
+</tr>
+<tr class="odd">
+<td>SQLite</td>
+<td>la media de la ventana de la muestra es un doble redondeado</td>
+<td>la suma de cuadrados resta <code>n * (media - centro)^2</code>
 </td>
 </tr>
 <tr class="even">
@@ -2793,7 +2846,7 @@ motores medidos.</p>
 <tr class="odd">
 <td align="left">postgresql</td>
 <td align="left">PostgreSQL</td>
-<td align="left">16</td>
+<td align="left">9.3 y 16</td>
 <td align="left">RPostgres</td>
 <td align="left">limit</td>
 <td align="left">probado</td>

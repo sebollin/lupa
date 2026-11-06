@@ -230,14 +230,17 @@ muestreada <- perfilar_dbi(
   universo = "muestra_motor", muestra_motor = 5, bloque_muestra = "solo_agregados"
 )
 sql <- sql_perfil(muestreada)
-table(estado = sql$estado, error_esperado = sql$error_esperado)
+# Qué combinaciones aparecen. Cuántas veces, no: la muestra cambia en cada
+# corrida (SQLite no deja fijar la semilla de RANDOM()) y con cinco filas la
+# moda de una columna sale estimada o no disponible según caigan repetidos.
+table(estado = sql$estado, error_esperado = sql$error_esperado) > 0
 #>                    error_esperado
 #> estado              no_aplica no_estimable no_estimado
-#>   calculado                10            0           0
-#>   estimado                  0            6          12
-#>   no_aplica                 0            7          42
-#>   no_disponible             0            7           0
-#>   observado_muestra         0           30          36
+#>   calculado              TRUE        FALSE       FALSE
+#>   estimado              FALSE         TRUE        TRUE
+#>   no_aplica             FALSE         TRUE        TRUE
+#>   no_disponible         FALSE         TRUE       FALSE
+#>   observado_muestra     FALSE         TRUE        TRUE
 
 DBI::dbDisconnect(conexion)
 ```

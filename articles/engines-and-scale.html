@@ -91,6 +91,7 @@
 
     
     
+<div lang="en">
 <blockquote>
 <p>This guide is the English version of <a href="motores-y-escala.html">Motores y escala</a>. <code>lupa</code>
 writes its messages and tables in Spanish, so the output below,
@@ -2264,10 +2265,64 @@ SQL Server)</td>
 <td>any</td>
 <td>64-bit integers (or <code>HUGEINT</code> and <code>UHUGEINT</code>
 in DuckDB) or decimals that arrive as double from 2^53</td>
-<td>the 7 magnitude metrics stay <code>no_disponible</code>; the mode is
-requested from the engine as exact text; the sample reads those columns
-as text and, with <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
+<td>the magnitude metrics that depend on a value a double cannot
+represent stay <code>no_disponible</code> (<code>minimo</code>,
+<code>maximo</code>, <code>media</code>, <code>desvio</code>,
+<code>n_ceros</code> and <code>n_negativos</code>). The median is
+published when its value is exact: with an odd count, if the middle
+value is below 2^53; with an even count, if both middle values lie
+between -2^52 and 2^52, which costs one more query on the full table
+(<code>perfil_muestra</code> still withholds it for the column). The
+mode is requested from the engine as exact text; the sample reads those
+columns as text and, with <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
 as <code>integer64</code>
+</td>
+</tr>
+<tr class="even">
+<td>any</td>
+<td>a decimal with more digits than a double holds arrives as a
+double</td>
+<td>with blocks and on the engine sample (except in PostgreSQL), the
+standard deviation stays <code>no_disponible</code> when rounding each
+value can move it by more than one part in a billion; on the full table
+the subtraction is done in the column’s type</td>
+</tr>
+<tr class="odd">
+<td>DuckDB</td>
+<td>
+<code>PERCENTILE_CONT</code> interpolates a <code>DECIMAL</code> in
+its own scale and truncates</td>
+<td>the median of a <code>DECIMAL</code> is requested on the double of
+each value</td>
+</tr>
+<tr class="even">
+<td>PostgreSQL</td>
+<td>
+<code>PERCENTILE_CONT</code> interpolates
+<code>low + (high - low) * 0.5</code> in double</td>
+<td>with an even count and middle values more than 2^53 apart, the
+median stays <code>no_disponible</code>
+</td>
+</tr>
+<tr class="odd">
+<td>SQL Server</td>
+<td>
+<code>decimal - literal</code> beyond 38 digits is rounded, and from
+compatibility level 110 a tie rounds away from zero</td>
+<td>the center of a decimal’s standard deviation never ends in 5</td>
+</tr>
+<tr class="even">
+<td>SQLite</td>
+<td>RSQLite returns <code>integer</code> or <code>integer64</code>
+depending on the values of each block</td>
+<td>with <code>bloque_filas</code>, blocks are joined as
+<code>integer64</code> before counting distinct values, mode and
+median</td>
+</tr>
+<tr class="odd">
+<td>SQLite</td>
+<td>the window mean of the sample is a rounded double</td>
+<td>the sum of squares subtracts <code>n * (mean - center)^2</code>
 </td>
 </tr>
 <tr class="even">
@@ -2829,7 +2884,7 @@ measured engines.</p>
 <tr class="odd">
 <td align="left">postgresql</td>
 <td align="left">PostgreSQL</td>
-<td align="left">16</td>
+<td align="left">9.3 y 16</td>
 <td align="left">RPostgres</td>
 <td align="left">limit</td>
 <td align="left">probado</td>
@@ -2958,6 +3013,7 @@ and approximate duplicates</em>, in Spanish) explains how to choose the
 number of threads. The times measured by number of threads, with their
 date and their environment, are in <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
 y rendimiento</a> (<em>Evidence and performance</em>, in Spanish).</p>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
