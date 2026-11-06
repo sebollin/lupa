@@ -2532,8 +2532,9 @@
 #'   por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 #'   las columnas `diagnostico`,
 #'   `columna`, `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
-#'   `stringdist`, `stringi`, `bit64` o `sf`, incluida la medición de secuencias
-#'   `integer64` cuando falta `bit64`, y las zonas horarias POSIXt sin declarar.
+#'   `stringdist`, `stringi` o `sf` y las zonas horarias POSIXt sin declarar.
+#'   Sin `bit64` una columna `integer64` no deja una fila acá: el perfil se
+#'   detiene con `lupa_error_integer64`.
 #'   Los patrones de frecuencia intermedia no se consideran desvios
 #'   del patron dominante: `patron_raro` es completo respecto de su criterio de
 #'   rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
