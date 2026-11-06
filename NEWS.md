@@ -94,7 +94,10 @@ Primera versión publicada.
 - Las tablas chicas se arman sin el costo por columna de `data.frame()`, la
   detección de fechas no prueba los formatos que no pueden casar con ningún
   valor, y `analizar()` clasifica una sola vez los datos personales de la tabla
-  que mide. Sobre la tabla de ejemplo de 13 filas, `perfilar()` tarda 0,11 s y
+  que mide. Con la protección pedida, el barrido que decide qué campos guardan
+  nombres de columna no intenta partir un valor sin coma, y la fila de una
+  columna del perfil se arma sin pasar por `[.data.frame`. Sobre la tabla de
+  ejemplo de 13 filas, `perfilar()` tarda 0,11 s y
   `analizar()` 0,22 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera
   llamada de una sesión nueva (0,28 s y 0,43 s para `perfilar()` con la
   protección pedida). Las cifras son de `benchmark/medir_costo_fijo.R` y quedan
@@ -116,7 +119,10 @@ Primera versión publicada.
   valores negativos: `lupa` empareja esos valores por su texto, con su propio
   `match()` y su `%in%`, y da el mismo perfil que con bit64 nuevo. Sin bit64 se
   niega con la condición `lupa_error_integer64` en lugar de publicar distintos,
-  modas y medianas equivocados.
+  modas y medianas equivocados. Las pruebas de `integer64` corren todas con
+  bit64 4.0.5 en R 4.2.0, y una prueba falla si alguna función de base que
+  compara por debajo (`merge()`, `factor()`, `setdiff()`, `order()`…) recibe
+  del paquete una columna `integer64`.
 
 ## Datos personales
 

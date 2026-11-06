@@ -99,7 +99,36 @@
 .fila_perfil <- function(perfil, columna) {
   indices <- which(.nombres_para_operar(perfil$columnas$columna) %in%
                     .nombres_para_operar(columna))
-  if (length(indices) == 1L) perfil$columnas[indices, , drop = FALSE] else NULL
+  if (length(indices) == 1L) .fila_de_tabla(perfil$columnas, indices) else NULL
+}
+
+# `tabla[i, , drop = FALSE]` para una sola fila. `[.data.frame` pasa por
+# `[[.data.frame` en cada columna, y la tabla de columnas del perfil tiene mas de
+# cien: medido, 0,49 ms por fila contra 0,04, y `planificar_limpieza()` la pide
+# unas treinta veces sobre la tabla de ejemplo de diez columnas. La via corta
+# solo toma lo que arma igual que `[`: un `data.frame` sin subclase ni otros
+# atributos (en cualquier orden: `[` los devuelve siempre como `names`,
+# `row.names`, `class`), con nombres de fila automaticos, nombres de columna sin
+# repetir y columnas atomicas sin atributos. Lo demas sigue por `[`.
+.fila_de_tabla <- function(tabla, i) {
+  if (!.fila_por_via_corta(tabla, i)) return(tabla[i, , drop = FALSE])
+  fila <- lapply(unclass(tabla), `[`, i)
+  attributes(fila) <- list(names = names(tabla), row.names = i,
+                           class = "data.frame")
+  fila
+}
+
+.fila_por_via_corta <- function(tabla, i) {
+  if (!is.integer(i) || length(i) != 1L || is.na(i) || i < 1L) return(FALSE)
+  if (!identical(class(tabla), "data.frame")) return(FALSE)
+  atributos <- names(attributes(tabla))
+  length(atributos) == 3L &&
+    all(c("names", "row.names", "class") %in% atributos) &&
+    i <= .row_names_info(tabla, 2L) && .row_names_info(tabla) < 0L &&
+    !anyDuplicated(names(tabla)) &&
+    all(vapply(tabla, function(columna) {
+      is.atomic(columna) && is.null(attributes(columna))
+    }, logical(1L)))
 }
 
 .formatos_perfil <- function(perfil, columna) {

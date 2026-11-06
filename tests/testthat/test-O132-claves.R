@@ -133,7 +133,7 @@ test_that("H6: un BIGINT que llega como doble por encima de 2^53 no se compara",
 })
 
 test_that("H1: un integer64 con patron de bits NaN es un entero, no un ausente", {
-  skip_if_not_installed("bit64", "4.6.0")
+  skip_if_not_installed("bit64")
   # Todo entero de -1 a -4503599627370495 tiene el patron de bits de un NaN.
   id <- bit64::as.integer64(c(-1, -2, -3))
   expect_false(anyNA(id))

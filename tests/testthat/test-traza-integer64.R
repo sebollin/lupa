@@ -28,7 +28,7 @@ testthat::skip_on_cran()
 }
 
 test_that("una columna integer64 se puede trazar igual que una doble", {
-  skip_if_not_installed("bit64", "4.6.0")
+  skip_if_not_installed("bit64")
   set.seed(3)
   valores <- c(stats::rnorm(300, 100, 5), 5000, -4000)
 
@@ -48,7 +48,7 @@ test_that("una columna integer64 se puede trazar igual que una doble", {
 })
 
 test_that("por encima de 2^53 no se entrega una traza que seria inexacta", {
-  skip_if_not_installed("bit64", "4.6.0")
+  skip_if_not_installed("bit64")
   # La conversion a doble deja de ser exacta ahi, y dos valores distintos pueden
   # volverse el mismo. Una fila mal senalada es peor que una fila sin senalar.
   cuantitativos <- list(
@@ -62,7 +62,7 @@ test_that("por encima de 2^53 no se entrega una traza que seria inexacta", {
 })
 
 test_that("el hallazgo de integer64 ya no dispara la guarda de incoherencia", {
-  skip_if_not_installed("bit64", "4.6.0")
+  skip_if_not_installed("bit64")
   set.seed(3)
   valores <- c(stats::rnorm(300, 100, 5), 5000, -4000)
   datos <- .columna_con_extremos(bit64::as.integer64(round(valores)))

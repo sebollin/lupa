@@ -147,6 +147,14 @@ test_that("con el match() de base que iguala los negativos, el perfil y lo que e
   # Primera mitad: hay dependencias que el `match()` decide. Sin ellas la
   # comparacion pasaria con el defecto vivo.
   expect_true(nrow(referencia$perfil$dependencias) > 0L)
+  # Y la que hay es la de los datos: `zona` depende de `cod`. Donde bit64 viejo
+  # esta instalado de verdad, la referencia se calcula con el mismo `match()`
+  # de base que la simulacion, y compararlas no ve nada; esto si. Medido en
+  # R 4.2.0 con bit64 4.0.5 sin el `match()` del paquete: salian `big -> cod`
+  # y `neg -> cod`.
+  dependencias <- referencia$perfil$dependencias
+  expect_identical(paste(dependencias$determinante, dependencias$dependiente),
+                   "cod zona")
   for (parte in names(referencia)) {
     expect_identical(simulado[[parte]], referencia[[parte]], info = parte)
   }
@@ -182,6 +190,17 @@ test_that("por la via DBI, con y sin bloques, el resultado no cambia y la muestr
   # no entran en 32 bits- y la muestra se perfila.
   expect_true("integer64" %in% referencia$resultado$sin_bloques$perfil_muestra$columnas$tipo_inferido)
   expect_false(is.null(simulado$resultado$sin_bloques$perfil_muestra))
+  # Lo que dicen los datos, que vale tambien con bit64 viejo instalado de
+  # verdad (ahi la referencia usa el mismo `match()` de base que la
+  # simulacion): en las dos muestras `zona` depende de `cod`, y no hay avisos.
+  # Sin el `match()` del paquete salian `big -> cod` y `neg -> cod`, y 35
+  # avisos (`min()` sin argumentos, una traza inconsistente).
+  for (via in c("sin_bloques", "con_bloques")) {
+    dependencias <- referencia$resultado[[via]]$perfil_muestra$dependencias
+    expect_identical(paste(dependencias$determinante, dependencias$dependiente),
+                     "cod zona", info = via)
+  }
+  expect_identical(referencia$avisos, character())
   expect_identical(simulado$avisos, referencia$avisos)
   expect_identical(simulado$resultado$sin_bloques, referencia$resultado$sin_bloques)
   expect_identical(simulado$resultado$con_bloques, referencia$resultado$con_bloques)

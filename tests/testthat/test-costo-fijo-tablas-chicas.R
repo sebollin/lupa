@@ -277,3 +277,79 @@ test_that("la memoria de la clasificacion personal solo vive durante la medicion
   expect_false(.memo_columnas_personales$activa)
   expect_identical(.memo_columnas_personales$entradas, list())
 })
+
+test_that(".fila_de_tabla() da la misma fila que `[`", {
+  latin1 <- iconv("Mart\u00edn", "UTF-8", "latin1")
+  base <- data.frame(
+    a = c(1.5, NA, 3), b = c("x", NA, "Mart\u00edn"), c = c(TRUE, FALSE, NA),
+    d = 1:3, stringsAsFactors = FALSE
+  )
+  con <- function(f) {
+    x <- base
+    f(x)
+  }
+  casos <- list(
+    base,
+    base[, "a", drop = FALSE],
+    base[, 0L, drop = FALSE],
+    con(function(x) { x$e <- c(latin1, "y", NA); x }),
+    con(function(x) { x$z <- complex(real = 1:3, imaginary = 0); x }),
+    # De aca en adelante se resuelve con `[`.
+    con(function(x) { x$f <- factor(x$b); x }),
+    con(function(x) { x$g <- as.Date("2024-01-31") + 0:2; x }),
+    con(function(x) { x$h <- as.POSIXct("2024-01-31", tz = "UTC") + 0:2; x }),
+    con(function(x) { x$l <- I(list(1, "a", NULL)); x }),
+    con(function(x) { x$m <- matrix(1:6, 3); x }),
+    con(function(x) { x$n <- c(u = 1, v = 2, w = 3); x }),
+    con(function(x) { rownames(x) <- c("r1", "r2", "r3"); x }),
+    con(function(x) { class(x) <- c("tabla_propia", "data.frame"); x }),
+    con(function(x) { attr(x, "marca") <- "m"; x }),
+    con(function(x) { names(x)[[2L]] <- "a"; x })
+  )
+  if (requireNamespace("bit64", quietly = TRUE)) {
+    casos[[length(casos) + 1L]] <- con(function(x) {
+      x$i <- bit64::as.integer64(c("-1", "9007199254740993", NA))
+      x
+    })
+  }
+  for (k in seq_along(casos)) {
+    for (i in list(1L, 2L, 3L, 2, 4L, NA_integer_, c(1L, 3L))) {
+      expect_true(.igual_a_base(
+        function() .fila_de_tabla(casos[[k]], i),
+        function() casos[[k]][i, , drop = FALSE]
+      ), info = paste("caso", k, "fila", paste(i, collapse = ",")))
+    }
+  }
+  expect_true(.fila_por_via_corta(base, 2L))
+  expect_false(.fila_por_via_corta(casos[[6L]], 2L))
+  # La tabla de columnas del perfil es la que paga esto, unas treinta veces
+  # por `planificar_limpieza()` sobre la tabla de ejemplo. Si una columna nueva
+  # de esa tabla trae atributos -un factor, una fecha, una lista-, la fila vuelve
+  # en silencio a `[`: la salida no cambia, el costo si.
+  perfil <- perfilar(datos_operativos, fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  expect_true(.fila_por_via_corta(perfil$columnas, 3L))
+})
+
+test_that("un valor sin coma no se parte en nombres unidos por coma", {
+  # `.es_columna_de_nombres()` contesta sin llamar a `.separar_nombres_columnas()`
+  # cuando el valor no tiene una coma: solo le pregunta si da DOS piezas o mas,
+  # y sin coma da a lo sumo una. Si un dia la separacion aprende otro separador,
+  # esta prueba avisa que la respuesta corta quedo mal.
+  latin1 <- iconv("Mart\u00edn", "UTF-8", "latin1")
+  roto <- rawToChar(as.raw(c(0x61, 0xe9, 0x62)))
+  nombres <- c("a", "b", "a b", "a+b", "c | d", "x->y", " a", "ab", "aa",
+               latin1, roto, "<lupa-byte:61E962>", "e, f", "(tabla)")
+  valores <- c(
+    nombres[!grepl(",", nombres, fixed = TRUE, useBytes = TRUE)], "a + b", "a  b", "abab", "aab", "aaa", "a b a", "a|b", "a->b",
+    " a ", "a\tb", "a;b", paste0(latin1, " b"), paste0(roto, "+a"),
+    paste0(roto, roto), "e", "f", "e f", "(tabla: t1)", "texto libre sin nada"
+  )
+  for (v in valores) {
+    expect_false(grepl(",", v, fixed = TRUE, useBytes = TRUE))
+    expect_lte(length(.separar_nombres_columnas(v, nombres, sep = ",")), 1L)
+  }
+  # Control: con una coma si se parte, que es la pregunta que se sigue haciendo.
+  expect_identical(.separar_nombres_columnas("a,b", nombres, sep = ","), c("a", "b"))
+  expect_true(.es_columna_de_nombres(c("a, b", "e, f", "a + b", "c | d"), nombres))
+  expect_false(.es_columna_de_nombres(c("a", "texto libre sin nada"), nombres))
+})
