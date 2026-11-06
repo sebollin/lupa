@@ -950,7 +950,11 @@
 #' valores finitos; `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`
 #' declaran lo excluido. En columnas `integer64` que exceden el entero máximo
 #' representable exactamente por `double`, `minimo` y `maximo` quedan en `NA` y
-#' los extremos exactos se conservan en `minimo_exacto` y `maximo_exacto`.
+#' los extremos exactos se conservan en `minimo_exacto` y `maximo_exacto`. La
+#' `mediana` depende sólo de sus una o dos centrales: se publica si cada una
+#' cabe exacta en un doble —valor absoluto menor que 2^53— y queda en `NA` si
+#' no. Lo mismo vale para una columna de texto con esos enteros, salvo con
+#' `sentinelas_numericos` declarados, que ese camino no excluye.
 #' Cuando la conversión de texto deja valores presentes afuera —haya muestreo o
 #' no, porque la conversión descarta lo que no puede leer en los dos casos—,
 #' `n_valores_excluidos_resumen` y

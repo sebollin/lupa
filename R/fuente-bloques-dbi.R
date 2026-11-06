@@ -920,17 +920,10 @@
 # La regla de la via SQL (`.causa_mediana_inexacta_dbi()`) sobre el mapa de un
 # `integer64` con algun valor desde 2^53, pero aca las centrales estan a la
 # vista: la mediana se publica si las dos llegan exactas al doble, y es la de
-# `median()` sobre ellas.
+# `median()` sobre ellas. La misma que `perfilar()` (`.mediana_centrales_exactas()`).
 .mediana_central_integer64_bloques_dbi <- function(mapa) {
-  if (!inherits(mapa$representante, "integer64") || !.bit64_disponible()) {
-    return(NA_real_)
-  }
-  centrales <- .centrales_mapa_bloques_dbi(mapa)
-  if (is.null(centrales) ||
-      !isTRUE(all(as.logical(.integer64_exacto_en_doble(centrales))))) {
-    return(NA_real_)
-  }
-  stats::median(as.numeric(centrales))
+  if (!inherits(mapa$representante, "integer64")) return(NA_real_)
+  .mediana_centrales_exactas(.centrales_mapa_bloques_dbi(mapa))
 }
 
 # La fila de una columna en la via por bloques, antes de llenarla: la misma forma
@@ -1374,7 +1367,7 @@
   # `.desvio_mal_condicionado_dbi()`).
   if (.tipo_decimal_o_moneda_dbi(tipo_campo) && is.double(extremos) &&
       "desvio" %in% names(fila) &&
-      .desvio_mal_condicionado_dbi(fila$desvio, extremos)) {
+      .desvio_mal_condicionado_dbi(fila$desvio, extremos, tipo = tipo_campo)) {
     fila$desvio <- NA_real_
     tapar <- as.character(sql$metrica) == "desvio" &
       as.character(sql$estado) == "calculado"

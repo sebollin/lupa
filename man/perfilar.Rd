@@ -1224,7 +1224,11 @@ Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 valores finitos; \code{n_nan}, \code{n_infinito_positivo} y \code{n_infinito_negativo}
 declaran lo excluido. En columnas \code{integer64} que exceden el entero máximo
 representable exactamente por \code{double}, \code{minimo} y \code{maximo} quedan en \code{NA} y
-los extremos exactos se conservan en \code{minimo_exacto} y \code{maximo_exacto}.
+los extremos exactos se conservan en \code{minimo_exacto} y \code{maximo_exacto}. La
+\code{mediana} depende sólo de sus una o dos centrales: se publica si cada una
+cabe exacta en un doble —valor absoluto menor que 2^53— y queda en \code{NA} si
+no. Lo mismo vale para una columna de texto con esos enteros, salvo con
+\code{sentinelas_numericos} declarados, que ese camino no excluye.
 Cuando la conversión de texto deja valores presentes afuera —haya muestreo o
 no, porque la conversión descarta lo que no puede leer en los dos casos—,
 \code{n_valores_excluidos_resumen} y

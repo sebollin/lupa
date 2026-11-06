@@ -244,10 +244,26 @@
   } else {
     menor_magnitud(positivos)
   }
+  # Las centrales por valor, con el mismo orden: los negativos de mayor a menor
+  # magnitud y despues los demas de menor a mayor. La mediana la decide
+  # `.mediana_centrales_exactas()`, como la de un `integer64`. Un "-0" es el
+  # cero y va con los demas.
+  bajo_cero <- negativos & digitos != "0"
+  debajo <- digitos[bajo_cero]
+  encima <- digitos[!bajo_cero]
+  # `paste0("-", character())` da "-": sin negativos no se pega nada.
+  ordenados <- c(
+    if (length(debajo)) paste0("-", debajo[.orden_por_bytes(
+      nchar(debajo), debajo, method = "radix", decreasing = TRUE
+    )]),
+    encima[.orden_por_bytes(nchar(encima), encima, method = "radix")]
+  )
+  n <- length(ordenados)
   list(
     minimo_exacto = minimo, maximo_exacto = maximo,
     n_ceros = as.integer(sum(digitos == "0")),
-    n_negativos = as.integer(sum(negativos))
+    n_negativos = as.integer(sum(negativos)),
+    centrales = ordenados[unique(c((n + 1L) %/% 2L, (n + 2L) %/% 2L))]
   )
 }
 
@@ -1068,6 +1084,14 @@
 # Solo actua sobre un resumen numerico calculado: una columna de texto o de
 # fechas declarada como codigo no tiene esas cifras y no cambia.
 .resumen_codigo_declarado <- function(cuantitativo) {
+  # Un entero que pasa de 2^53 no publica media ni desvio, pero si la mediana
+  # cuando sus centrales caben en un doble (`.mediana_centrales_exactas()`). La
+  # de un codigo no es un dato: se saca, y el estado sigue diciendo la
+  # precision, que es lo que retuvo el resto.
+  if (identical(cuantitativo$estado_resumen_cuantitativo, "omitidos_precision")) {
+    cuantitativo$mediana <- NA_real_
+    return(cuantitativo)
+  }
   numerico <- cuantitativo$estado_resumen_cuantitativo %in%
     c("calculados", "calculados_sobre_valores") &&
     is.na(cuantitativo$minimo_fecha) && is.na(cuantitativo$maximo_fecha)
@@ -1087,6 +1111,47 @@
   )
   cuantitativo$estado_resumen_cuantitativo <- "omitidos_codigo"
   cuantitativo
+}
+
+# La mediana de enteros que se tienen exactos -un `integer64`, o enteros
+# escritos como texto- en una columna con algun valor que el doble no
+# representa. Es la regla de `perfilar_dbi()` (`.causa_mediana_inexacta_dbi()`)
+# con las centrales a la vista: la mediana depende solo de ellas, y se publica si
+# cada una cabe exacta en un doble -valor absoluto menor que 2^53-. Entonces es
+# la de `median()` sobre esos dobles, la misma que da una columna que no pasa de
+# 2^53 con esas centrales. Si alguna no cabe, `NA`: su doble ya no es el valor.
+# La columna entera se negaba, y la mediana de `{1, 2, 2^63 - 1}` es 2.
+#
+# Una regla en un solo lugar: la usan `perfilar()` -y con el `perfil_muestra` y
+# el spool de `muestra_motor`, que perfilan lo leido-, para `integer64` y para el
+# texto, y la via por bloques sobre el mapa de distintos.
+.mediana_centrales_exactas <- function(centrales) {
+  if (!length(centrales) || length(centrales) > 2L) return(NA_real_)
+  if (inherits(centrales, "integer64")) {
+    if (!.bit64_disponible()) return(NA_real_)
+    exactas <- as.logical(.integer64_exacto_en_doble(centrales))
+    if (!isTRUE(all(exactas))) return(NA_real_)
+    return(stats::median(as.numeric(centrales)))
+  }
+  # Texto de un entero: el doble que lee R es el valor si este queda por debajo
+  # de 2^53 en valor absoluto, y desde ahi el redondeo es monotono -nunca cae
+  # por debajo de 2^53-, asi que el mismo umbral sobre lo leido decide.
+  dobles <- suppressWarnings(as.numeric(as.character(centrales)))
+  if (!all(is.finite(dobles) & abs(dobles) < .MAX_ENTERO_EXACTO_DBI)) {
+    return(NA_real_)
+  }
+  stats::median(dobles)
+}
+
+# Las una o dos centrales de un `integer64` sin `NA`, en su clase: las
+# posiciones `(n + 1) %/% 2` y `(n + 2) %/% 2` del orden por valor, que son las
+# que promedia `median()`. `.sort_por_bytes()` ordena un `integer64` por su
+# rango, no por sus bits.
+.centrales_enteros_exactos <- function(valores) {
+  n <- length(valores)
+  if (!n) return(valores)
+  ordenados <- .sort_por_bytes(valores)
+  ordenados[unique(c((n + 1L) %/% 2L, (n + 2L) %/% 2L))]
 }
 
 .resumen_integer64 <- function(x, sentinelas_numericos = NULL) {
@@ -1137,6 +1202,10 @@
     vacio$maximo_exacto <- maximo_exacto
     vacio$n_ceros <- as.integer(sum(valores == bit64::as.integer64(0)))
     vacio$n_negativos <- as.integer(sum(valores < bit64::as.integer64(0)))
+    # La mediana no depende de toda la columna sino de sus centrales.
+    vacio$mediana <- .mediana_centrales_exactas(
+      .centrales_enteros_exactos(valores)
+    )
     vacio$estado_resumen_cuantitativo <- "omitidos_precision"
     return(vacio)
   }
@@ -1208,6 +1277,13 @@
     salida$maximo_exacto <- fuera$maximo_exacto
     salida$n_ceros <- fuera$n_ceros
     salida$n_negativos <- fuera$n_negativos
+    # La mediana, por sus centrales, como en `integer64`. Este camino no saca
+    # los centinelas declarados -los extremos tampoco-: con alguno declarado,
+    # la mediana se calcularia sobre otros valores que los del resto del
+    # paquete, y no se publica.
+    if (!length(sentinelas_declarados)) {
+      salida$mediana <- .mediana_centrales_exactas(fuera$centrales)
+    }
     salida$n_valores_excluidos_resumen <- as.integer(
       if (is.null(cuantitativos$n_valores_excluidos_resumen)) {
         0L

@@ -493,7 +493,9 @@ entre -2^52 y 2^52, lo que en la tabla completa cuenta una consulta más
 (cuántos valores llegan a 2^52 y cuántos bajan de -2^52) y en la muestra del
 motor no se puede saber. La misma regla
 corre cuando la consulta de básicos desborda (un \code{HUGEINT} cerca de su tope en
-DuckDB). En una columna que no pasa de 2^53, la mediana de una cantidad par
+DuckDB): la consulta se repite sin el promedio, la media queda \code{no_disponible}
+con su motivo, y el mínimo, el máximo y los conteos se juzgan como en
+cualquier otra columna. En una columna que no pasa de 2^53, la mediana de una cantidad par
 tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
 \code{PERCENTILE_CONT} interpola \code{bajo + (alto - bajo) * 0.5} en doble y esa resta
 redondea. Lo que el motor cuenta con exactitud -\code{n_distintos}, la moda- se
@@ -509,7 +511,12 @@ seleccion SQL trae esas columnas como texto y, si \code{bit64} esta instalado,
 las convierte a \code{integer64} antes de perfilar: \code{n_distintos}, la moda y los
 diagnosticos por identidad conservan los valores exactos. Los estadisticos
 de magnitud por encima de 2^53 siguen usando
-\code{estado_resumen_cuantitativo = "omitidos_precision"}, como en memoria. Si
+\code{estado_resumen_cuantitativo = "omitidos_precision"}, como en memoria, y la
+mediana se publica cuando sus una o dos centrales caben en un doble, como en
+\code{\link[=perfilar]{perfilar()}}. Un decimal entero que la muestra convirtió a \code{integer64} se
+resume como tal. En SQL Server el texto de un decimal de 38 cifras se pide
+como \code{VARCHAR(48)} —\code{VARCHAR} a secas es \code{VARCHAR(30)}, y la lectura de la
+muestra entera abortaba— y el de \code{money} con sus cuatro decimales. Si
 falta \code{bit64}, la columna queda como texto y \code{cobertura_diagnosticos} explica
 la limitacion y recomienda instalarlo o pedir \code{integer64} al conectar. Las
 columnas declaradas como \code{double}, \code{real} o \code{float} no entran en esta guarda.
@@ -899,6 +906,15 @@ personales»—, y se conserva la mediana por columna. En DuckDB,
 trunca a su escala —la mediana de 1,00 y 1,01 en \code{DECIMAL(10,2)} salía
 1,00—: se pide sobre el doble de cada valor, que es la mediana de R sobre lo
 que lee el controlador.
+La mediana por columna de un decimal en MySQL, MariaDB y SQL Server suma en el
+tipo de la columna sus una o dos filas centrales, y R divide esa suma por
+cuántas son: es el doble más cercano de la mediana exacta. \code{AVG(x * 1.0)}
+necesita una cifra de escala más que la columna y en la escala máxima del
+motor —30 en MySQL, 38 en MariaDB— se recortaba (la mediana de 1e-30 y 2e-30
+salía 2e-30); promediar en R los dobles de las dos centrales, como se hacía en
+SQL Server, no es exacto (la de 0,10 y 0,20 daba 0,15000000000000002). La
+mediana consolidada (\code{PERCENTILE_CONT}) interpola en doble y puede quedar a
+una unidad de la última cifra del doble más cercano.
 }
 
 \section{Lo que el motor guarda distinto que R}{
@@ -1061,7 +1077,11 @@ el signo, así que el centro de un decimal nunca termina en 5. Con
 \code{bloque_filas} los momentos se acumulan centrados, sobre los dobles que
 entrega el controlador: el desvío de un decimal tan grande frente a su
 desvío que el redondeo de cada valor a doble puede moverlo más de una parte
-en mil millones (\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}. Bajo \code{muestra_motor}, la media y el desvío
+en mil millones (\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}, salvo
+que el tipo declare escala 0 —\code{numeric(18,0)}, \code{decimal(38,0)}— y los
+valores queden por debajo de 2^53: ahí los dobles son los valores. La
+escala la publican PostgreSQL, MySQL, MariaDB y DuckDB; en SQL Server el
+tipo no la dice y la guarda sigue. Bajo \code{muestra_motor}, la media y el desvío
 se piden en la misma consulta, sobre las mismas filas de una sola
 evaluación de la muestra: una relación derivada calcula la media de esas
 filas con una ventana (\verb{AVG(x) OVER ()}) y el desvío se pide centrado en
@@ -1070,7 +1090,9 @@ SQLite, que suma los cuadrados en la consulta, se resta además
 \code{n * (media - centro)^2} (las dos pasadas corregidas), porque la media de
 la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
 dobles: el desvío de un decimal queda \code{no_disponible} con la misma regla que
-con \code{bloque_filas}. No
+con \code{bloque_filas}. Con \code{bloque_muestra = "con_muestra"} el desvío lo
+calcula \code{\link[=perfilar]{perfilar()}} sobre lo leído, que para un decimal es el doble de su
+texto, y rige la misma regla. No
 se fija una semilla ni se toca el generador de números aleatorios de R.
 Como red en todas las
 vías, un desvío \code{0} sobre una columna con dos valores distintos —un mínimo

@@ -66,8 +66,15 @@ test_that("la mediana de un decimal ancho no pierde cifras en compatibilidad 100
     "SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()"
   ))[[1L]]
   expect_equal(as.integer(nivel), 100L)
-  leidos <- DBI::dbGetQuery(con, "SELECT d38_7, d38_30, d10_1, entero FROM t")
-  esperado <- vapply(leidos, function(v) stats::median(as.numeric(v)), numeric(1L))
+  # La mediana exacta -(a + b) / 2 en fracciones sobre el texto de cada valor-,
+  # redondeada al doble mas cercano y escrita en hexadecimal (calculada fuera de
+  # R). La de `d10_1` no es `median()` de los dobles que lee el controlador
+  # -0,15000000000000002-: el promedio en R de dos centrales no es exacto, y la
+  # consulta devuelve la suma de las centrales en el tipo de la columna.
+  esperado <- c(
+    d38_7 = 0x1.ad7f29abcaf48p-23, d38_30 = 0x1.7df3bf4e308e2p-68,
+    d10_1 = 0x1.3333333333333p-3, entero = 7.5
+  )
 
   comprobar <- function(perfil, metodo) {
     sql <- perfil$resumen_tabla$sql
@@ -77,10 +84,7 @@ test_that("la mediana de un decimal ancho no pierde cifras en compatibilidad 100
       # Control de que se ejerce el promedio y no la consolidada.
       expect_identical(fila$metodo, metodo, info = columna)
       valor <- as.numeric(columnas$mediana[columnas$columna == columna])
-      # En compatibilidad 100 la conversion de `decimal` a `FLOAT` es menos
-      # exacta: se admite un ulp. Antes el error era de todo el valor.
-      expect_lte(abs(valor - esperado[[columna]]),
-                 2 * .Machine$double.eps * abs(esperado[[columna]]))
+      expect_identical(valor, esperado[[columna]], info = columna)
     }
   }
   completa <- suppressWarnings(suppressMessages(perfilar_dbi(
@@ -101,11 +105,11 @@ test_that("la mediana de un decimal ancho no pierde cifras en compatibilidad 100
 
 # Con compatibilidad 100 el `CAST` de un decimal a `FLOAT` no redondea bien: el
 # promedio en el servidor salia a un ulp de `median()` en uno de cada tres
-# pares de `decimal(38,30)` y `decimal(38,20)`. Las centrales viajan como las
-# lee el controlador y se promedian en R. Estos pares son de los que lo
-# mostraban; cada columna tiene dos filas, y la mediana tiene que ser la de R
-# hasta el ultimo bit.
-test_that("la mediana de un decimal de 38 cifras es la de R en compatibilidad 100", {
+# pares de `decimal(38,30)` y `decimal(38,20)`. Estos pares son de los que lo
+# mostraban; cada columna tiene dos filas, y la mediana tiene que ser la exacta
+# -redondeada al doble mas cercano- hasta el ultimo bit. Promediar en R los
+# dobles de las dos centrales tampoco lo es: en `f` da 0x1.7ae1547b45842p+12.
+test_that("la mediana de un decimal de 38 cifras es la exacta en compatibilidad 100", {
   principal <- .mdec_con_mssql(Sys.getenv("LUPA_MSSQL_NAME", "lupa_pruebas"))
   base <- "lupa_mediana_decimal_pares_c100"
   creada <- tryCatch({
@@ -148,11 +152,12 @@ test_that("la mediana de un decimal de 38 cifras es la de R en compatibilidad 10
       paste(vapply(pares, `[[`, character(1L), i), collapse = ", "), ")"
     ), immediate = TRUE)
   }
-  leidos <- DBI::dbGetQuery(con, paste0(
-    "SELECT ", paste(names(tipos), collapse = ", "), " FROM t"
-  ))
-  esperado <- vapply(leidos, function(v) stats::median(as.numeric(v)),
-                     numeric(1L))
+  # Las exactas, como arriba.
+  esperado <- c(
+    a = 0x1.bb590d07b1c15p+16, b = 0x1.09711d1fb3c6fp+16,
+    c = 0x1.ae105cbcd76adp+5, d = 0x1.a4f5148be33c8p+14,
+    e = 0x1.cc525bc95a15ap+18, f = 0x1.7ae1547b45843p+12
+  )
   comprobar <- function(perfil) {
     columnas <- perfil$resumen_tabla$columnas
     sql <- perfil$resumen_tabla$sql

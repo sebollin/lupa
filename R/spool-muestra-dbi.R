@@ -2202,6 +2202,9 @@
     resumen_tabla = resumen,
     perfil_muestra = perfil
   )
+  estructura <- .tapar_desvio_decimal_doble_muestra_dbi(
+    estructura, datos_completos, campos, preparacion$tipos, conexion
+  )
   estructura <- .aplicar_guardas_salida_muestra_dbi(
     estructura, incluir_valores = incluir_valores,
     columnas_decimal = columnas_decimal,

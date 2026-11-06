@@ -5003,11 +5003,31 @@
 }
 
 # La muestra debe conservar los digitos antes de llegar a R. MySQL y MariaDB
-# requieren CHAR en CAST; los demas motores cubiertos aceptan VARCHAR.
-.cast_entero_ancho_texto_dbi <- function(expr, alias, conexion = NULL) {
+# requieren CHAR en CAST; los demas motores cubiertos aceptan VARCHAR. En T-SQL
+# `CAST(... AS VARCHAR)` sin largo es `VARCHAR(30)`, y un `decimal(38, s)` con
+# mas de 30 cifras no entra: el motor aborta la lectura y la muestra entera
+# -todas las columnas- quedaba `no_disponible` (medido en SQL Server 2022 con
+# 99999999999999999999999999999999999999). 40 caracteres alcanzan para 38
+# cifras, el signo y el punto; se piden 48.
+#
+# Y `money`/`smallmoney` en T-SQL: `CAST(... AS VARCHAR)` los escribe con dos
+# decimales (estilo 0), y guardan cuatro. La muestra leia 0,0001 como "0.00":
+# minimo, media y desvio 0 sobre una columna de 0,0001 a 0,0004, publicados como
+# observados (medido en SQL Server 2022). `CONVERT(..., 2)` escribe los cuatro.
+.cast_entero_ancho_texto_dbi <- function(expr, alias, conexion = NULL,
+                                         tipo = NA_character_) {
   senas <- if (is.null(conexion)) "" else .senas_conexion_dbi(conexion)
+  sqlserver <- grepl("sql server|microsoft sql|sqlserver|mssql", senas,
+                     perl = TRUE, useBytes = TRUE)
+  moneda <- length(tipo) == 1L && !is.na(tipo) &&
+    .minusculas_ascii(trimws(as.character(tipo))) %in% c("money", "smallmoney")
+  if (sqlserver && moneda) {
+    return(paste0("CONVERT(VARCHAR(48), ", expr, ", 2) AS ", alias))
+  }
   tipo_texto <- if (.es_mysql_dbi(senas)) {
     "CHAR"
+  } else if (sqlserver) {
+    "VARCHAR(48)"
   } else {
     "VARCHAR"
   }
@@ -10931,18 +10951,19 @@
 # resumen- con dos divergencias falsas en MariaDB 11.8 y MySQL 8.4. Ahi se
 # multiplica por `1e0`, un literal `DOUBLE` en cualquier version: `CAST(x AS
 # DOUBLE)` existe en MySQL solo desde la 8.0.17. Su `STDDEV_SAMP` ya devuelve
-# `DOUBLE`. Las medianas no pasan por aca: promedian uno o dos valores y la
-# aritmetica decimal las representa enteras, salvo un `decimal` de 36 cifras o
-# mas en T-SQL (ver `.promedio_mediana_sql_dbi()`).
+# `DOUBLE`. Las medianas no pasan por aca: promedian uno o dos valores (ver
+# `.promedio_mediana_sql_dbi()`).
 .es_transact_sql_dbi <- function(senas) {
   length(senas) == 1L && !is.na(senas) &&
     grepl(.dialectos_dbi()$top$patron, senas, perl = TRUE)
 }
 
 # La mediana promedia uno o dos valores, y con `* 1.0` la aritmetica decimal
-# de MySQL y MariaDB los promedia exactos (ver arriba). No se suma `0e0`
-# despues del `AVG`: sobre doubles extremos MySQL puede rechazar esa suma al
-# devolver la fila, aunque el promedio simple sea una respuesta valida.
+# de MySQL y MariaDB los promedia exactos (ver arriba) mientras la escala
+# alcance; un decimal va por la suma de sus centrales (ver
+# `.CAMPO_CENTRALES_N_DBI`). No se suma `0e0` despues del `AVG`: sobre doubles
+# extremos MySQL puede rechazar esa suma al devolver la fila, aunque el promedio
+# simple sea una respuesta valida.
 #
 # Salvo un `decimal` en T-SQL. Ahi `decimal(p, s) * 1.0` es `decimal(p + 3,
 # s + 1)`, y desde `p = 36` pasa de las 38 cifras: SQL Server recorta la escala
@@ -10956,10 +10977,10 @@
 # del doble correcto, que es el que lee el controlador, y 426 de 1.500 medianas
 # de pares a un ulp de `median()` (medido en SQL Server 2022; con
 # compatibilidad 160, ninguno). Es el caso de PostgreSQL 9.3: la mediana tiene
-# que ser el promedio de los dobles que lee R, y aca solo el controlador los
-# tiene. La consulta devuelve las dos centrales -`MIN` y `MAX` de las una o dos
-# filas centrales- y `.escalar_mediana_dbi()` las promedia con `median()`. Los
-# enteros siguen con `* 1.0`, que los promedia exactos tambien pasado 2^53.
+# que ser el doble que lee el controlador, y aca solo el controlador lo tiene.
+# La consulta devuelve la suma de las una o dos filas centrales y cuantas son
+# (ver `.CAMPO_CENTRALES_N_DBI`). Los enteros siguen con `* 1.0`, que los
+# promedia exactos tambien pasado 2^53.
 #
 # Y salvo el `float8` de PostgreSQL leido como NUMERIC exacto (`float8send()`,
 # antes de la 12 o con `extra_float_digits <= 0`). `AVG()` de ese NUMERIC es
@@ -10968,11 +10989,26 @@
 # 427 de 3.000 promedios a un ulp de `median()`, por la CTE de ventanas
 # (`dialecto = "portable"`) y por la subconsulta escalar de la muestra. Va el
 # mismo promedio que la via de dos consultas: la suma en doble, leida exacta.
-.CAMPO_CENTRAL_ALTA_DBI <- "lupa_mediana_alto"
+#
+# La mediana de un decimal en MySQL, MariaDB y SQL Server: la SUMA de las una o
+# dos filas centrales, en el tipo de la columna, y cuantas son. `AVG(valor *
+# 1.0)` necesita una cifra de escala mas que la columna, y en la escala maxima
+# del motor -30 en MySQL 8.4, 38 en MariaDB- se recorta: la mediana de 1e-30 y
+# 2e-30 en `DECIMAL(65,30)` daba 2e-30 (medido; MariaDB da 1,5e-30 ahi y el
+# mismo 2e-38 en `DECIMAL(65,38)`). La suma no agrega escala y en los dos motores
+# no desborda ni con 65 cifras (devuelve 66, medido). En T-SQL la suma de un
+# `decimal(p, s)` es `decimal(38, s)`, sin recortar la escala como la resta o el
+# producto. El controlador convierte esa suma exacta al doble mas cercano, y
+# dividirla por 1 o por 2 en R es exacto: la mediana es el doble mas cercano de
+# la exacta. Promediar en R los dobles de cada central -lo que se hacia en
+# T-SQL- no lo es: la de 0,10 y 0,20 daba 0,15000000000000002, y es 0,15. En
+# T-SQL una suma que no entra en `decimal(38, s)` -dos centrales cerca del tope
+# del tipo- desborda, y `ejecutar_mediana()` cae al promedio escalado.
+.CAMPO_CENTRALES_N_DBI <- "lupa_mediana_n"
 
-# La mediana que devuelve el motor, o el promedio en R de las dos centrales si
-# la consulta las devolvio por separado (ver `.promedio_mediana_sql_dbi()`).
-# Sin la central alta es `.escalar_dbi(conexion, sql, "mediana")`.
+# La mediana que devuelve el motor, o la suma de las centrales dividida por
+# cuantas son si la consulta las devolvio asi (ver `.promedio_mediana_sql_dbi()`).
+# Sin la cuenta es `.escalar_dbi(conexion, sql, "mediana")`.
 .escalar_mediana_dbi <- function(conexion, sql, presupuesto = NULL,
                                  etapa = "mediana") {
   resultado <- .consultar_dbi(conexion, sql, presupuesto, etapa = etapa)
@@ -10982,15 +11018,14 @@
     ))
   }
   mediana <- .valor_campo_dbi(resultado$datos, "mediana")
-  alta <- if (isTRUE(mediana$ok)) {
-    .campo_resultado_dbi(resultado$datos, .CAMPO_CENTRAL_ALTA_DBI)
+  cuantas <- if (isTRUE(mediana$ok)) {
+    .campo_resultado_dbi(resultado$datos, .CAMPO_CENTRALES_N_DBI)
   } else NA_integer_
-  if (!is.na(alta)) {
-    centrales <- suppressWarnings(as.numeric(c(
-      mediana$valor, resultado$datos[[alta]][[1L]]
-    )))
-    mediana$valor <- if (all(is.finite(centrales))) {
-      stats::median(centrales)
+  if (!is.na(cuantas)) {
+    n <- .numero_dbi(resultado$datos[[cuantas]])
+    suma <- .numero_dbi(mediana$valor)
+    mediana$valor <- if (is.finite(n) && n %in% c(1, 2) && is.finite(suma)) {
+      suma / n
     } else NA_real_
   }
   .adjuntar_medicion_dbi(mediana, resultado)
@@ -10998,14 +11033,15 @@
 
 .promedio_mediana_sql_dbi <- function(conexion, valor, tipo = NA_character_,
                                       doble_exacto = FALSE) {
-  if (.es_transact_sql_dbi(.senas_conexion_dbi(conexion)) &&
+  senas <- .senas_conexion_dbi(conexion)
+  if ((.es_transact_sql_dbi(senas) || .es_mysql_dbi(senas)) &&
       .tipo_declarado_decimal_dbi(tipo)) {
-    # Quien llama agrega ` AS <alias>`: la central baja sale con el alias de la
-    # mediana y la alta con el suyo.
+    # Quien llama agrega ` AS <alias>`: la suma sale con el alias de la mediana
+    # y la cuenta con el suyo (ver `.CAMPO_CENTRALES_N_DBI`).
     return(paste0(
-      "MAX(", valor, ") AS ",
-      .citar_identificador_dbi(conexion, .CAMPO_CENTRAL_ALTA_DBI),
-      ", MIN(", valor, ")"
+      "COUNT(", valor, ") AS ",
+      .citar_identificador_dbi(conexion, .CAMPO_CENTRALES_N_DBI),
+      ", SUM(", valor, ")"
     ))
   }
   if (isTRUE(doble_exacto) &&
@@ -11228,6 +11264,11 @@
                                  infinitos_como_numeric = FALSE,
                                  tipo = NA_character_) {
   senas <- .senas_conexion_dbi(conexion)
+  parte_media <- paste0(.media_sql_dbi(
+    columna_sql, senas, tabla_sql = tabla_sql,
+    float8_seguro = float8_seguro,
+    infinitos_como_numeric = infinitos_como_numeric, tipo = tipo
+  ), " AS ", alias("media"))
   partes <- c(
     if (incluir_valores) paste0("MIN(", columna_sql, ") AS ", alias("minimo")),
     if (incluir_valores) paste0("MAX(", columna_sql, ") AS ", alias("maximo")),
@@ -11241,11 +11282,7 @@
       "MIN(", .abs_sql_seguro_dbi(conexion, columna_sql),
       ") AS ", alias("minimo_abs")
     ),
-    paste0(.media_sql_dbi(
-      columna_sql, senas, tabla_sql = tabla_sql,
-      float8_seguro = float8_seguro,
-      infinitos_como_numeric = infinitos_como_numeric, tipo = tipo
-    ), " AS ", alias("media")),
+    parte_media,
     paste0(
       .conteo_sql_dbi(
         paste0("SUM(CASE WHEN ", columna_sql, " = 0 THEN 1 ELSE 0 END)"),
@@ -11324,8 +11361,46 @@
     )
     if (is.list(escalado) && isTRUE(escalado$ok)) return(escalado)
   }
+  # Los basicos son una sola consulta, y si el promedio desborda -en DuckDB,
+  # `HUGEINT * 1.0` es un `DECIMAL(38, 1)` que no guarda un valor desde 10^37;
+  # `UHUGEINT` ni entra en `DECIMAL(38, 0)` ("Could not cast value")- el motor
+  # la rechaza entera: el minimo, el maximo y los conteos, que calcula sin
+  # desbordar, caian con la media, con el error del motor por motivo, y ese
+  # error cita el valor de la celda aun con `incluir_valores = FALSE`. Se repite
+  # sin el promedio; la media queda `no_disponible` con su propio motivo
+  # (`media_desbordada`) y lo demas sigue la regla de siempre.
+  desborde_media <- .es_desborde_motor_dbi(resultado$motivo) || grepl(
+    "could not cast value", .minusculas_ascii(as.character(
+      resultado$motivo %||% ""
+    )), fixed = TRUE, useBytes = TRUE
+  )
+  if (!isTRUE(resultado$ok) && isTRUE(desborde_media)) {
+    sql_sin_media <- paste0(
+      "SELECT ", paste(setdiff(partes, parte_media), collapse = ", "),
+      " FROM ", tabla_sql
+    )
+    sin_media <- .consultar_dbi(
+      conexion, sql_sin_media, presupuesto, etapa = "basicos"
+    )
+    if (isTRUE(sin_media$ok) && is.data.frame(sin_media$datos) &&
+        nrow(sin_media$datos)) {
+      sin_media$sql <- sql_sin_media
+      sin_media$metadatos <- metadatos
+      sin_media$media_desbordada <- list(
+        ok = FALSE, sql = sql, metadatos = metadatos,
+        motivo = .MOTIVO_MEDIA_DESBORDADA_DBI
+      )
+      return(sin_media)
+    }
+  }
   resultado
 }
+
+.MOTIVO_MEDIA_DESBORDADA_DBI <- paste(
+  "El motor desbord\u00f3 al promediar la columna: la media no se publica como",
+  "calculada. M\u00ednimo, m\u00e1ximo y conteos se pidieron en una consulta sin",
+  "el promedio."
+)
 
 .sonda_magnitud_columna_dbi <- function(conexion, tabla_sql, columna_sql,
                                         alias, presupuesto = NULL) {
@@ -11918,17 +11993,47 @@
 # motor en SQL Server, MySQL y MariaDB, que centran en doble-. Por la tabla
 # completa el motor resta la media en el tipo de la columna y no pasa. Donde el
 # desvio sale de los dobles y ese margen pasa de `.TOLERANCIA_DESVIO_DOBLE_DBI`,
-# no se publica como calculado; un decimal que el doble si representa queda
-# negado de mas, porque los dobles no dicen cual es cual.
+# no se publica como calculado.
+#
+# Salvo que el tipo diga que esos dobles son los valores: un decimal de escala
+# 0 -`numeric(18,0)`, `decimal(38,0)`- guarda enteros, y un entero de valor
+# absoluto menor que 2^53 llega exacto al doble; por la monotonia del
+# redondeo, si los extremos que llegaron quedan por debajo de 2^53, todos los
+# valores tambien. Con `tipo` sin escala -`numeric` a secas, o el codigo `2`
+# y el `decimal` sin precision que dan odbc y el catalogo de SQL Server- no se
+# sabe, y la guarda sigue: los dobles no dicen si 500000000000006 venia de
+# 500000000000006,0 o de 500000000000006,0000001. La escala la publican los
+# catalogos de PostgreSQL (`format_type()`), MySQL y MariaDB (`COLUMN_TYPE`), y
+# DuckDB en el tipo de la via SQL (medido: `DECIMAL(38,0)`).
 .TOLERANCIA_DESVIO_DOBLE_DBI <- 1e-9
 
-.desvio_mal_condicionado_dbi <- function(desvio, extremos) {
+.desvio_mal_condicionado_dbi <- function(desvio, extremos, tipo = NA_character_) {
   desvio <- suppressWarnings(as.numeric(desvio))
   extremos <- suppressWarnings(as.numeric(extremos))
   extremos <- extremos[is.finite(extremos)]
+  if (identical(.escala_declarada_dbi(tipo), 0L) && length(extremos) &&
+      all(abs(extremos) < .MAX_ENTERO_EXACTO_DBI)) {
+    return(FALSE)
+  }
   length(desvio) == 1L && is.finite(desvio) && desvio > 0 &&
     length(extremos) > 0L &&
     max(abs(extremos)) / desvio * 2^-53 > .TOLERANCIA_DESVIO_DOBLE_DBI
+}
+
+# La escala que declara el tipo de un decimal, si la declara: `numeric(18,2)` es
+# 2, `decimal(10)` es 0 -sin escala, la de MySQL, MariaDB, SQL Server y
+# PostgreSQL es 0-, y `numeric` a secas, un codigo ODBC o cualquier otro tipo,
+# `NA`.
+.escala_declarada_dbi <- function(tipo) {
+  if (is.null(tipo) || length(tipo) != 1L || is.na(tipo)) return(NA_integer_)
+  limpio <- gsub("[[:space:]]+", "", .minusculas_ascii(as.character(tipo)))
+  partes <- regmatches(limpio, regexec(
+    "^(?:decimal|numeric|number)\\(([0-9]+)(?:,([0-9]+))?\\)(?:unsigned)?$",
+    limpio, perl = TRUE
+  ))[[1L]]
+  if (length(partes) != 3L) return(NA_integer_)
+  if (!nzchar(partes[[3L]])) return(0L)
+  as.integer(partes[[3L]])
 }
 
 # Un decimal, o `money`/`smallmoney` de SQL Server, que el controlador publica
@@ -13696,9 +13801,12 @@
       escalada <- escalar()
       if (is.list(escalada)) return(escalada)
     }
-    # Un decimal en T-SQL devuelve sus dos centrales (ver
-    # `.promedio_mediana_sql_dbi()`); lo demas, el valor del motor.
-    normal <- if (.es_transact_sql_dbi(.senas_conexion_dbi(conexion)) &&
+    # Un decimal en T-SQL, MySQL y MariaDB devuelve la suma de sus centrales y
+    # cuantas son (ver `.promedio_mediana_sql_dbi()`); lo demas, el valor del
+    # motor.
+    senas_mediana <- .senas_conexion_dbi(conexion)
+    normal <- if ((.es_transact_sql_dbi(senas_mediana) ||
+                   .es_mysql_dbi(senas_mediana)) &&
                   .tipo_declarado_decimal_dbi(tipo_declarado)) {
       .escalar_mediana_dbi(conexion, sql_normal, presupuesto, etapa = "mediana")
     } else {
@@ -14441,8 +14549,32 @@
       # existe en el vocabulario del paquete.
       leidos <- list()
       ancho_en_basicos <- FALSE
+      # El promedio desbordo y los basicos llegaron sin el: ver
+      # `.basicos_columna_dbi()`. La media se registra aparte.
+      media_ausente <- is.list(basicos$media_desbordada) && is.null(media_escalada)
       for (metrica in calculados) {
-        celda <- .valor_campo_dbi(basicos$datos, metrica)
+        nombre_motivo <- metrica
+        if (identical(metrica, "media") && media_ausente) {
+          # Sin el promedio, que la columna pase de 2^53 lo dicen sus extremos,
+          # que esa consulta trae tambien con `incluir_valores = FALSE`: se
+          # juzga el que lo muestra, con la misma regla. Si ninguno, la media
+          # sigue sola, con su motivo.
+          ancho_extremo <- NULL
+          for (extremo in c("maximo", "minimo")) {
+            celda_extremo <- .valor_campo_dbi(basicos$datos, extremo)
+            if (isTRUE(celda_extremo$ok) && .entero_perdido_en_conversion_dbi(
+              celda_extremo$valor, tipo_declarado
+            )) {
+              ancho_extremo <- extremo
+              break
+            }
+          }
+          if (is.null(ancho_extremo) || isTRUE(ancho_en_basicos)) next
+          celda <- celda_extremo
+          nombre_motivo <- ancho_extremo
+        } else {
+          celda <- .valor_campo_dbi(basicos$datos, metrica)
+        }
         if (!celda$ok) {
           basicos$ok <- FALSE
           basicos$motivo <- celda$motivo
@@ -14536,7 +14668,7 @@
             basicos$ok <- FALSE
             if (isTRUE(ancho_en_basicos)) next
             basicos$motivo <- .motivo_entero_doble_dbi(
-              metrica, valor = celda$valor, conexion = conexion,
+              nombre_motivo, valor = celda$valor, conexion = conexion,
               tipo = tipo_declarado, mediana_por_valor = TRUE
             )
             # La condicion es de la COLUMNA, no de la metrica: si un valor de al
@@ -14633,6 +14765,11 @@
       calculados
     } else {
       setdiff(calculados, "media")
+    }
+    media_desbordada <- if (is.null(media_escalada)) basicos$media_desbordada
+    if (is.list(media_desbordada)) {
+      calculados_basicos <- setdiff(calculados_basicos, "media")
+      registros <- registrar(registros, "media", media_desbordada)
     }
     if (es_muestreado && isTRUE(basicos$ok)) {
       for (metrica in calculados_basicos) {
@@ -15102,7 +15239,7 @@
       .centra_muestra_en_doble_dbi(conexion) &&
       .desvio_mal_condicionado_dbi(fila$desvio, c(
         fila$minimo, fila$maximo, minimo_basicos, maximo_basicos
-      ))) {
+      ), tipo = tipo_declarado)) {
     for (i in seq_along(registros)) {
       r <- registros[[i]]
       tapar <- r$metrica == "desvio" &
@@ -18957,7 +19094,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (any(castadas)) {
     expresiones[castadas] <- vapply(which(castadas), function(i) {
       dialecto$cast_entero_ancho_texto(
-        campos_sql[[i]], campos_sql[[i]], conexion
+        campos_sql[[i]], campos_sql[[i]], conexion,
+        tipo = if (!is.null(tipos_motor) && i <= length(tipos_motor)) {
+          tipos_motor[[i]]
+        } else NA_character_
       )
     }, character(1L))
   }
@@ -20617,9 +20757,71 @@ print.plan_perfilado_dbi <- function(x, ...) {
     tipo <- if (i <= length(tipos)) tipos[[i]] else NA_character_
     if (!.tipo_declarado_decimal_dbi(tipo)) return(FALSE)
     x <- datos[[campos[[i]]]]
-    is.double(x) && any(is.finite(x) & abs(x) >= .MAX_ENTERO_EXACTO_DBI)
+    # Un `integer64` guarda sus bits en un `double` -`is.double()` le da
+    # `TRUE`-, pero es el decimal entero convertido exacto desde su texto
+    # (`.convertir_enteros_ancho_muestra_dbi()`): `perfilar()` lo resume como
+    # cualquier `integer64`, y esta guarda le tapaba la mediana y los conteos
+    # exactos con el motivo de un doble que no llego.
+    is.double(x) && !inherits(x, "integer64") &&
+      any(is.finite(x) & abs(x) >= .MAX_ENTERO_EXACTO_DBI)
   }, logical(1L))
   campos[salida]
+}
+
+# El desvio del spool lo calcula `perfilar()` sobre lo leido, y un decimal llega
+# como el doble de su texto: es el caso de la via por bloques, y la guarda es la
+# misma (`.desvio_mal_condicionado_dbi()`). Sin ella, un `numeric(18,2)` de 5e14
+# con desvio 3 publicaba por la muestra del motor -el camino por omision de
+# `universo = "muestra_motor"`- un desvio a una parte en 300 del exacto, en
+# PostgreSQL, MySQL, MariaDB y DuckDB. Un decimal entero que la muestra convirtio
+# a `integer64` llego exacto y no se toca; los que pasan de 2^53 ya los tapa
+# `.columnas_decimal_doble_muestra_dbi()`. SQLite guarda los decimales como
+# `REAL`: esos dobles son los valores.
+.tapar_desvio_decimal_doble_muestra_dbi <- function(resultado, datos, campos,
+                                                    tipos, conexion = NULL) {
+  resumen <- resultado$resumen_tabla
+  if (!is.data.frame(datos) || !nrow(datos) || !is.list(resumen) ||
+      !is.data.frame(resumen$columnas) ||
+      !all(c("columna", "desvio") %in% names(resumen$columnas))) {
+    return(resultado)
+  }
+  if (!is.null(conexion) &&
+      grepl("sqlite", .senas_conexion_dbi(conexion), useBytes = TRUE)) {
+    return(resultado)
+  }
+  sql <- resumen$sql
+  perfil <- resultado$perfil_muestra
+  for (i in seq_along(campos)) {
+    campo <- as.character(campos[[i]])
+    tipo <- if (i <= length(tipos)) tipos[[i]] else NA_character_
+    if (!.tipo_decimal_o_moneda_dbi(tipo)) next
+    x <- datos[[campo]]
+    if (!is.double(x) || inherits(x, "integer64")) next
+    finitos <- x[is.finite(x)]
+    if (!length(finitos)) next
+    filas <- .nombres_presentes(resumen$columnas$columna, campo)
+    if (!any(filas)) next
+    desvio <- resumen$columnas$desvio[filas][[1L]]
+    if (!.desvio_mal_condicionado_dbi(desvio, range(finitos), tipo = tipo)) next
+    resumen$columnas$desvio[filas] <- NA_real_
+    if (is.data.frame(sql) && nrow(sql)) {
+      tapar <- .nombres_presentes(sql$columna, campo) &
+        as.character(sql$metrica) == "desvio" &
+        as.character(sql$estado) %in% .ESTADOS_QUE_AFIRMAN_VALOR_DBI
+      sql$estado[tapar] <- "no_disponible"
+      sql$motivo[tapar] <- .MOTIVO_DESVIO_DECIMAL_DOBLE_DBI
+    }
+    if (is.list(perfil) && is.data.frame(perfil$columnas) &&
+        "desvio" %in% names(perfil$columnas)) {
+      perfil$columnas$desvio[
+        .nombres_presentes(perfil$columnas$columna, campo)
+      ] <- NA_real_
+    }
+  }
+  resumen$sql <- sql
+  resultado$resumen_tabla <- resumen
+  if (is.list(perfil)) resultado$perfil_muestra <- perfil
+  resultado
 }
 
 .enmascarar_campos_muestra_dbi <- function(filas, columnas) {
@@ -21723,7 +21925,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' (cuántos valores llegan a 2^52 y cuántos bajan de -2^52) y en la muestra del
 #' motor no se puede saber. La misma regla
 #' corre cuando la consulta de básicos desborda (un `HUGEINT` cerca de su tope en
-#' DuckDB). En una columna que no pasa de 2^53, la mediana de una cantidad par
+#' DuckDB): la consulta se repite sin el promedio, la media queda `no_disponible`
+#' con su motivo, y el mínimo, el máximo y los conteos se juzgan como en
+#' cualquier otra columna. En una columna que no pasa de 2^53, la mediana de una cantidad par
 #' tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
 #' `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble y esa resta
 #' redondea. Lo que el motor cuenta con exactitud -`n_distintos`, la moda- se
@@ -21739,7 +21943,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' las convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
 #' diagnosticos por identidad conservan los valores exactos. Los estadisticos
 #' de magnitud por encima de 2^53 siguen usando
-#' `estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria. Si
+#' `estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria, y la
+#' mediana se publica cuando sus una o dos centrales caben en un doble, como en
+#' [perfilar()]. Un decimal entero que la muestra convirtió a `integer64` se
+#' resume como tal. En SQL Server el texto de un decimal de 38 cifras se pide
+#' como `VARCHAR(48)` —`VARCHAR` a secas es `VARCHAR(30)`, y la lectura de la
+#' muestra entera abortaba— y el de `money` con sus cuatro decimales. Si
 #' falta `bit64`, la columna queda como texto y `cobertura_diagnosticos` explica
 #' la limitacion y recomienda instalarlo o pedir `integer64` al conectar. Las
 #' columnas declaradas como `double`, `real` o `float` no entran en esta guarda.
@@ -22120,6 +22329,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' trunca a su escala —la mediana de 1,00 y 1,01 en `DECIMAL(10,2)` salía
 #' 1,00—: se pide sobre el doble de cada valor, que es la mediana de R sobre lo
 #' que lee el controlador.
+#' La mediana por columna de un decimal en MySQL, MariaDB y SQL Server suma en el
+#' tipo de la columna sus una o dos filas centrales, y R divide esa suma por
+#' cuántas son: es el doble más cercano de la mediana exacta. `AVG(x * 1.0)`
+#' necesita una cifra de escala más que la columna y en la escala máxima del
+#' motor —30 en MySQL, 38 en MariaDB— se recortaba (la mediana de 1e-30 y 2e-30
+#' salía 2e-30); promediar en R los dobles de las dos centrales, como se hacía en
+#' SQL Server, no es exacto (la de 0,10 y 0,20 daba 0,15000000000000002). La
+#' mediana consolidada (`PERCENTILE_CONT`) interpola en doble y puede quedar a
+#' una unidad de la última cifra del doble más cercano.
 #'
 #' @section Lo que el motor guarda distinto que R:
 #' El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
@@ -22280,7 +22498,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `bloque_filas` los momentos se acumulan centrados, sobre los dobles que
 #'   entrega el controlador: el desvío de un decimal tan grande frente a su
 #'   desvío que el redondeo de cada valor a doble puede moverlo más de una parte
-#'   en mil millones (`max |x| / desvio * 2^-53`) queda `no_disponible`. Bajo `muestra_motor`, la media y el desvío
+#'   en mil millones (`max |x| / desvio * 2^-53`) queda `no_disponible`, salvo
+#'   que el tipo declare escala 0 —`numeric(18,0)`, `decimal(38,0)`— y los
+#'   valores queden por debajo de 2^53: ahí los dobles son los valores. La
+#'   escala la publican PostgreSQL, MySQL, MariaDB y DuckDB; en SQL Server el
+#'   tipo no la dice y la guarda sigue. Bajo `muestra_motor`, la media y el desvío
 #'   se piden en la misma consulta, sobre las mismas filas de una sola
 #'   evaluación de la muestra: una relación derivada calcula la media de esas
 #'   filas con una ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en
@@ -22289,7 +22511,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `n * (media - centro)^2` (las dos pasadas corregidas), porque la media de
 #'   la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
 #'   dobles: el desvío de un decimal queda `no_disponible` con la misma regla que
-#'   con `bloque_filas`. No
+#'   con `bloque_filas`. Con `bloque_muestra = "con_muestra"` el desvío lo
+#'   calcula [perfilar()] sobre lo leído, que para un decimal es el doble de su
+#'   texto, y rige la misma regla. No
 #'   se fija una semilla ni se toca el generador de números aleatorios de R.
 #'   Como red en todas las
 #'   vías, un desvío `0` sobre una columna con dos valores distintos —un mínimo
