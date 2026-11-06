@@ -1114,10 +1114,24 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     argumentos_perfil, propios = .ARGUMENTOS_PROPIOS_DBI
   )
   proteger <- .protege_argumentos(argumentos_perfil)
+  # `incluir_valores` viaja en `...` hasta cada `perfilar_dbi()`, con el nombre
+  # que R le completa: se lee igual, porque tambien decide el mensaje del motor
+  # de la coleccion.
+  formales_dbi <- setdiff(
+    names(formals(perfilar_dbi)),
+    c("conexion", "tabla", "muestra", "bloque_muestra", "...")
+  )
+  completos <- if (is.null(names(extras))) {
+    rep(NA_character_, length(extras))
+  } else {
+    formales_dbi[pmatch(names(extras), formales_dbi, duplicates.ok = FALSE)]
+  }
+  incluir_valores <- extras[which(completos %in% "incluir_valores")]
+  incluir_valores <- if (length(incluir_valores)) incluir_valores[[1L]] else TRUE
   # Sin proteccion, el mensaje del motor se publica entero -el de cada tabla y
   # el de la coleccion-: antes de la primera lectura, y hasta la salida. Ver
   # `.protege_mensaje_motor()`.
-  .fijar_proteccion_motor(proteger)
+  .fijar_proteccion_motor(proteger, incluir_valores = incluir_valores)
   cobertura_metricas <- .elegir_opcion(cobertura_metricas)
   bloque_muestra <- .elegir_opcion(
     bloque_muestra, c("con_muestra", "solo_agregados")

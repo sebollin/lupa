@@ -319,11 +319,20 @@
     "PARSENAME(", objeto, ", 4) IS NULL AND (PARSENAME(", objeto,
     ", 3) IS NULL OR PARSENAME(", objeto, ", 3) = DB_NAME())"
   )
+  # Un decimal se publica con su precision y su escala, como lo hacen los
+  # catalogos de PostgreSQL (`format_type()`), MySQL y MariaDB (`COLUMN_TYPE`).
+  # `TYPE_NAME()` solo da `decimal`, y sin la escala la guarda del desvio no
+  # sabia que un `decimal(18,0)` guarda enteros: lo negaba por bloques y por la
+  # muestra del motor aunque sus dobles fueran los valores (ver
+  # `.desvio_mal_condicionado_dbi()`). Con `+` y no `CONCAT()`, que no existe
+  # antes de SQL Server 2012.
   sql <- paste0(
     "SELECT c.column_id AS posicion, c.name AS columna, ",
       "HAS_PERMS_BY_NAME(", objeto, ", 'OBJECT', 'SELECT', QUOTENAME(c.name), 'COLUMN') ",
-      "AS legible, COALESCE(TYPE_NAME(c.system_type_id), ",
-      "TYPE_NAME(c.user_type_id)) AS tipo_motor, ",
+      "AS legible, CASE WHEN TYPE_NAME(c.system_type_id) IN ('decimal', 'numeric') ",
+      "THEN TYPE_NAME(c.system_type_id) + '(' + CAST(c.precision AS VARCHAR(3)) + ",
+      "',' + CAST(c.scale AS VARCHAR(3)) + ')' ELSE COALESCE(TYPE_NAME(c.system_type_id), ",
+      "TYPE_NAME(c.user_type_id)) END AS tipo_motor, ",
       "TYPE_NAME(c.user_type_id) AS tipo_declarado_motor, ",
     "o.type AS tipo_objeto FROM sys.columns c ",
     "JOIN sys.objects o ON o.object_id = c.object_id WHERE c.object_id = OBJECT_ID(", objeto,
@@ -1557,11 +1566,23 @@
 # -`perfilar_dbi()` llama a `plan_perfilado_dbi()`- y, solas, no protegen: desde
 # el 2026-10-25 la proteccion es un complemento que se pide, y sin nadie que la
 # fije el mensaje del motor se publica como llega.
+#
+# Salvo con `incluir_valores = FALSE`, que promete una salida sin valores de
+# celda, motivos incluidos. El mensaje del motor es texto ajeno y cita la celda:
+# `invalid input syntax for type bigint: "..."` en PostgreSQL 16 y 9.3,
+# `Conversion failed when converting the varchar value '...'` en SQL Server,
+# `Could not convert string '...'` y el desborde de un `DECIMAL(38,30)` con el
+# valor entero en DuckDB. Sin proteccion se publicaban enteros en
+# `resumen_tabla$sql$motivo`, `meta$consultas$fallas`, la muestra, el spool y la
+# fuente por bloques (medido en las cinco vias). Pide lo mismo que la
+# proteccion -el mensaje pasa por el piso- y se decide aca, una vez: quien fija
+# la bandera pasa las dos cosas, y lo que lee el mensaje no cambia.
 .protege_mensaje_motor <- function() isTRUE(.CONTEXTO_MOTOR$proteger)
 
-.fijar_proteccion_motor <- function(proteger, marco = parent.frame()) {
+.fijar_proteccion_motor <- function(proteger, marco = parent.frame(),
+                                    incluir_valores = TRUE) {
   previa <- .CONTEXTO_MOTOR$proteger
-  .CONTEXTO_MOTOR$proteger <- isTRUE(proteger)
+  .CONTEXTO_MOTOR$proteger <- isTRUE(proteger) || isFALSE(incluir_valores)
   volver <- substitute(.reponer_proteccion_motor(previa),
                        list(previa = previa))
   do.call(on.exit, list(volver, add = TRUE), envir = marco)
@@ -5133,6 +5154,12 @@
 .candidatos_muestreo_dbi <- function(conexion, dialecto,
                                      tipo_objeto = NA_character_) {
   nombres <- if (!is.null(dialecto$muestreo)) dialecto$muestreo else character()
+  senas <- .senas_conexion_dbi(conexion)
+  # En DuckDB un numero sin unidad dentro de `TABLESAMPLE` es una cantidad de
+  # filas, y `BERNOULLI` no acepta cantidades: `BERNOULLI (20)` es error de
+  # sintaxis en 1.5 y en 2.0, y la forma que acepta es `BERNOULLI (20 PERCENT)`.
+  # PostgreSQL, al reves, rechaza `PERCENT`. Medido en las dos versiones.
+  bernoulli_con_unidad <- grepl("duckdb", senas, perl = TRUE, useBytes = TRUE)
   todas <- list(
     # Primero la forma de cantidad fija, y la razon salio de medir contra
     # DuckDB: `TABLESAMPLE (p PERCENT)` es a nivel de bloque y devuelve 0 filas
@@ -5163,11 +5190,14 @@
     # cuesta mas en el motor -recorre la tabla- pero evita el sesgo de paginas.
     tablesample_bernoulli = list(
       nombre = "tablesample_bernoulli",
-      descripcion = "TABLESAMPLE BERNOULLI (p)",
+      descripcion = if (bernoulli_con_unidad) {
+        "TABLESAMPLE BERNOULLI (p PERCENT)"
+      } else "TABLESAMPLE BERNOULLI (p)",
       patron = "postgres|redshift|duckdb",
       tipo = "tablesample",
       constructor = function(tabla, porcentaje) paste0(
-        tabla, " TABLESAMPLE BERNOULLI (", porcentaje, ")"
+        tabla, " TABLESAMPLE BERNOULLI (", porcentaje,
+        if (bernoulli_con_unidad) " PERCENT" else "", ")"
       )
     ),
     tablesample_system = list(
@@ -5211,7 +5241,6 @@
       )
     )
   )
-  senas <- .senas_conexion_dbi(conexion)
   controlador_simulado <- inherits(conexion, "SQLiteConnection") &&
     grepl("sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE)
   orden_funciones <- function(funciones) {
@@ -7922,6 +7951,10 @@
 #   `perfilar_dbi()` declara a proposito (`NaN` e infinitos).
 # * El entero ancho desde 2^53: el resumen no publica sus metricas de
 #   magnitud a proposito, y la muestra cuenta `n_ceros` y `n_negativos` exactos.
+# * El `desvio` de un decimal que la muestra leyo como doble y no publico
+#   (`decimal_doble`, ver `.tapar_desvio_decimal_doble_perfil_dbi()`): el del
+#   resumen es el del tipo de la columna, el de la muestra el de los dobles.
+#   Se lee de la declaracion de la muestra, no se deduce aca.
 # * Lo que un lado no calculo, por construccion y no por lista de causas: una
 #   metrica que `resumen_tabla$sql` declara `no_disponible` -el motor rechazo la
 #   consulta sobre el tipo (`json`, `xml`, `point` de PostgreSQL; `text`,
@@ -7962,6 +7995,11 @@
     .sentinelas_numericos_declarados(sentinelas_numericos),
     error = function(e) numeric()
   )
+  desvio_doble <- operar(as.character(
+    if (is.list(perfil$meta)) {
+      perfil$meta[["desvio_decimal_doble", exact = TRUE]]
+    }
+  ))
   magnitud <- c(
     "media", "mediana", "minimo", "maximo", "desvio", "n_ceros", "n_negativos"
   )
@@ -7991,6 +8029,9 @@
     }
     if (clave %in% opcionales) {
       agregar(columna, "n_faltantes", "columnas_opcionales")
+    }
+    if (clave %in% desvio_doble) {
+      agregar(columna, "desvio", "decimal_doble")
     }
     if (clave %in% con_aplicabilidad) {
       fuera <- campo(columna, "n_presentes_fuera_de_aplicabilidad") +
@@ -12000,11 +12041,12 @@
 # absoluto menor que 2^53 llega exacto al doble; por la monotonia del
 # redondeo, si los extremos que llegaron quedan por debajo de 2^53, todos los
 # valores tambien. Con `tipo` sin escala -`numeric` a secas, o el codigo `2`
-# y el `decimal` sin precision que dan odbc y el catalogo de SQL Server- no se
-# sabe, y la guarda sigue: los dobles no dicen si 500000000000006 venia de
-# 500000000000006,0 o de 500000000000006,0000001. La escala la publican los
-# catalogos de PostgreSQL (`format_type()`), MySQL y MariaDB (`COLUMN_TYPE`), y
-# DuckDB en el tipo de la via SQL (medido: `DECIMAL(38,0)`).
+# que da odbc cuando el catalogo no contesta- no se sabe, y la guarda sigue:
+# los dobles no dicen si 500000000000006 venia de 500000000000006,0 o de
+# 500000000000006,0000001. La escala la publican los catalogos de PostgreSQL
+# (`format_type()`), MySQL y MariaDB (`COLUMN_TYPE`) y SQL Server
+# (`sys.columns`, ver `.permisos_columnas_dbi()`), y DuckDB en el tipo de la
+# via SQL (medido: `DECIMAL(38,0)`).
 .TOLERANCIA_DESVIO_DOBLE_DBI <- 1e-9
 
 .desvio_mal_condicionado_dbi <- function(desvio, extremos, tipo = NA_character_) {
@@ -17452,6 +17494,13 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
                                max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
+  # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
+  # quien lo llama; `incluir_valores = FALSE` la suma, como en `perfilar_dbi()`
+  # (ver `.protege_mensaje_motor()`): las consultas de prueba del dialecto
+  # tambien publican mensajes del motor.
+  .fijar_proteccion_motor(
+    .protege_mensaje_motor(), incluir_valores = incluir_valores
+  )
   # El nombre normalizado es el que viaja a todo lo que sigue, no solo a la
   # comprobacion de existencia (ver `.nombre_para_conexion_dbi()`).
   tabla <- .nombre_para_conexion_dbi(tabla)
@@ -20373,6 +20422,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     perfil, datos_muestra, proyeccion_muestra$columnas_binarias,
     proyeccion_muestra$columnas_binarias_prefijo
   )
+  # El desvio de un decimal que llego como doble: ver
+  # `.tapar_desvio_decimal_doble_perfil_dbi()`.
+  perfil <- .tapar_desvio_decimal_doble_perfil_dbi(
+    perfil, .columnas_desvio_decimal_doble_dbi(
+      datos_muestra, campos, tipos_declarados, perfil$columnas, conexion
+    )
+  )
   if (nrow(conversion_muestra$cobertura)) {
     perfil$cobertura_diagnosticos <- rbind(
       perfil$cobertura_diagnosticos, conversion_muestra$cobertura
@@ -20768,29 +20824,26 @@ print.plan_perfilado_dbi <- function(x, ...) {
   campos[salida]
 }
 
-# El desvio del spool lo calcula `perfilar()` sobre lo leido, y un decimal llega
-# como el doble de su texto: es el caso de la via por bloques, y la guarda es la
-# misma (`.desvio_mal_condicionado_dbi()`). Sin ella, un `numeric(18,2)` de 5e14
-# con desvio 3 publicaba por la muestra del motor -el camino por omision de
-# `universo = "muestra_motor"`- un desvio a una parte en 300 del exacto, en
-# PostgreSQL, MySQL, MariaDB y DuckDB. Un decimal entero que la muestra convirtio
-# a `integer64` llego exacto y no se toca; los que pasan de 2^53 ya los tapa
-# `.columnas_decimal_doble_muestra_dbi()`. SQLite guarda los decimales como
+# Las columnas cuyo desvio, calculado en R sobre lo leido, sale de los dobles de
+# un decimal y no se puede publicar: la magnitud frente al desvio es tal que el
+# redondeo de cada valor lo mueve mas de lo tolerado (ver
+# `.desvio_mal_condicionado_dbi()`). `columnas` trae el desvio de esa lectura
+# -el resumen del spool, o `perfil_muestra`-. Una sola regla para todo desvio
+# que se calcula en R sobre la muestra. Un decimal entero que la muestra
+# convirtio a `integer64` llego exacto y no entra; los que pasan de 2^53 ya los
+# tapa `.columnas_decimal_doble_muestra_dbi()`. SQLite guarda los decimales como
 # `REAL`: esos dobles son los valores.
-.tapar_desvio_decimal_doble_muestra_dbi <- function(resultado, datos, campos,
-                                                    tipos, conexion = NULL) {
-  resumen <- resultado$resumen_tabla
-  if (!is.data.frame(datos) || !nrow(datos) || !is.list(resumen) ||
-      !is.data.frame(resumen$columnas) ||
-      !all(c("columna", "desvio") %in% names(resumen$columnas))) {
-    return(resultado)
+.columnas_desvio_decimal_doble_dbi <- function(datos, campos, tipos, columnas,
+                                               conexion = NULL) {
+  if (!is.data.frame(datos) || !nrow(datos) || !is.data.frame(columnas) ||
+      !all(c("columna", "desvio") %in% names(columnas))) {
+    return(character())
   }
   if (!is.null(conexion) &&
       grepl("sqlite", .senas_conexion_dbi(conexion), useBytes = TRUE)) {
-    return(resultado)
+    return(character())
   }
-  sql <- resumen$sql
-  perfil <- resultado$perfil_muestra
+  salida <- character()
   for (i in seq_along(campos)) {
     campo <- as.character(campos[[i]])
     tipo <- if (i <= length(tipos)) tipos[[i]] else NA_character_
@@ -20799,10 +20852,61 @@ print.plan_perfilado_dbi <- function(x, ...) {
     if (!is.double(x) || inherits(x, "integer64")) next
     finitos <- x[is.finite(x)]
     if (!length(finitos)) next
-    filas <- .nombres_presentes(resumen$columnas$columna, campo)
+    filas <- .nombres_presentes(columnas$columna, campo)
     if (!any(filas)) next
-    desvio <- resumen$columnas$desvio[filas][[1L]]
-    if (!.desvio_mal_condicionado_dbi(desvio, range(finitos), tipo = tipo)) next
+    desvio <- columnas$desvio[filas][[1L]]
+    if (.desvio_mal_condicionado_dbi(desvio, range(finitos), tipo = tipo)) {
+      salida <- c(salida, campo)
+    }
+  }
+  salida
+}
+
+# El desvio de `perfil_muestra` lo calcula `perfilar()` sobre lo leido, y un
+# decimal llega como el doble de su texto. Por la via por omision el resumen lo
+# calcula el motor restando en el tipo de la columna y es el exacto; la muestra
+# publicaba el de los dobles -3,30971 por 3,32050 en un `numeric(18,2)` de 5e14
+# con centavos, medido en PostgreSQL 16 y 9.3, MySQL, MariaDB, DuckDB y SQL
+# Server- y la corroboracion lo contaba como divergencia, que
+# `perfilar_coleccion()` sube a `alcance = "divergencias"`. No se publica, y la
+# columna queda declarada en `meta$desvio_decimal_doble`: la corroboracion lee
+# esa declaracion para no comparar lo que un lado no calculo (causa
+# `decimal_doble`), en lugar de contar un faltante de un lado.
+.tapar_desvio_decimal_doble_perfil_dbi <- function(perfil, columnas_tapar) {
+  if (!length(columnas_tapar) || !is.list(perfil) ||
+      !is.data.frame(perfil$columnas)) {
+    return(perfil)
+  }
+  if ("desvio" %in% names(perfil$columnas)) {
+    perfil$columnas$desvio[
+      .nombres_presentes(perfil$columnas$columna, columnas_tapar)
+    ] <- NA_real_
+  }
+  if (!is.list(perfil$meta)) perfil$meta <- list()
+  previas <- perfil$meta[["desvio_decimal_doble", exact = TRUE]]
+  perfil$meta[["desvio_decimal_doble"]] <- unique(c(
+    as.character(previas), as.character(columnas_tapar)
+  ))
+  perfil
+}
+
+# El desvio del spool lo calcula `perfilar()` sobre lo leido: es el caso de la
+# via por bloques, y la guarda es la misma. Sin ella, un `numeric(18,2)` de 5e14
+# con desvio 3 publicaba por la muestra del motor -el camino por omision de
+# `universo = "muestra_motor"`- un desvio a una parte en 300 del exacto, en
+# PostgreSQL, MySQL, MariaDB y DuckDB. Aca el resumen sale de los mismos dobles,
+# asi que se tapa en los dos.
+.tapar_desvio_decimal_doble_muestra_dbi <- function(resultado, datos, campos,
+                                                    tipos, conexion = NULL) {
+  resumen <- resultado$resumen_tabla
+  if (!is.list(resumen)) return(resultado)
+  tapar_columnas <- .columnas_desvio_decimal_doble_dbi(
+    datos, campos, tipos, resumen$columnas, conexion
+  )
+  if (!length(tapar_columnas)) return(resultado)
+  sql <- resumen$sql
+  for (campo in tapar_columnas) {
+    filas <- .nombres_presentes(resumen$columnas$columna, campo)
     resumen$columnas$desvio[filas] <- NA_real_
     if (is.data.frame(sql) && nrow(sql)) {
       tapar <- .nombres_presentes(sql$columna, campo) &
@@ -20811,16 +20915,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
       sql$estado[tapar] <- "no_disponible"
       sql$motivo[tapar] <- .MOTIVO_DESVIO_DECIMAL_DOBLE_DBI
     }
-    if (is.list(perfil) && is.data.frame(perfil$columnas) &&
-        "desvio" %in% names(perfil$columnas)) {
-      perfil$columnas$desvio[
-        .nombres_presentes(perfil$columnas$columna, campo)
-      ] <- NA_real_
-    }
   }
   resumen$sql <- sql
   resultado$resumen_tabla <- resumen
-  if (is.list(perfil)) resultado$perfil_muestra <- perfil
+  if (is.list(resultado$perfil_muestra)) {
+    resultado$perfil_muestra <- .tapar_desvio_decimal_doble_perfil_dbi(
+      resultado$perfil_muestra, tapar_columnas
+    )
+  }
   resultado
 }
 
@@ -22501,8 +22603,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   en mil millones (`max |x| / desvio * 2^-53`) queda `no_disponible`, salvo
 #'   que el tipo declare escala 0 —`numeric(18,0)`, `decimal(38,0)`— y los
 #'   valores queden por debajo de 2^53: ahí los dobles son los valores. La
-#'   escala la publican PostgreSQL, MySQL, MariaDB y DuckDB; en SQL Server el
-#'   tipo no la dice y la guarda sigue. Bajo `muestra_motor`, la media y el desvío
+#'   escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el catálogo de SQL
+#'   Server. Bajo `muestra_motor`, la media y el desvío
 #'   se piden en la misma consulta, sobre las mismas filas de una sola
 #'   evaluación de la muestra: una relación derivada calcula la media de esas
 #'   filas con una ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en
@@ -22513,7 +22615,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   dobles: el desvío de un decimal queda `no_disponible` con la misma regla que
 #'   con `bloque_filas`. Con `bloque_muestra = "con_muestra"` el desvío lo
 #'   calcula [perfilar()] sobre lo leído, que para un decimal es el doble de su
-#'   texto, y rige la misma regla. No
+#'   texto, y rige la misma regla. Lo mismo vale para el desvío de
+#'   `perfil_muestra` en todas las vías, también por la tabla completa, donde el
+#'   de `resumen_tabla` es el exacto: no se publica (queda `NA`) y la columna
+#'   queda en `perfil_muestra$meta$desvio_decimal_doble`. No
 #'   se fija una semilla ni se toca el generador de números aleatorios de R.
 #'   Como red en todas las
 #'   vías, un desvío `0` sobre una columna con dos valores distintos —un mínimo
@@ -22567,8 +22672,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   cuenta sobre su universo —y todas las métricas de la columna con
 #'   `aplicabilidad` si la muestra dejó afuera valores presentes—; las métricas
 #'   de magnitud de una columna de la que la muestra excluyó los
-#'   `sentinelas_numericos` declarados; y las de un entero ancho desde
-#'   2^53, que el resumen no publica. Tampoco lo que un bloque no calculó: una
+#'   `sentinelas_numericos` declarados; las de un entero ancho desde
+#'   2^53, que el resumen no publica; y el `desvio` de un decimal que la
+#'   muestra leyó como doble y no publicó (causa `decimal_doble`, ver
+#'   `perfil_muestra$meta$desvio_decimal_doble`). Tampoco lo que un bloque no calculó: una
 #'   métrica que `resumen_tabla$sql` declara `no_disponible` —el motor rechazó
 #'   la consulta sobre el tipo (`json`, `xml` o `point` de PostgreSQL; `text`,
 #'   `ntext`, `image` o `geography` de SQL Server), una guarda la retuvo—, la
@@ -23122,7 +23229,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   las consultas de moda, extremos y mediana, y se limpian esos campos en el
 #'   resumen, la muestra, los bloques, la cobertura y los motivos; también se
 #'   retiran ejemplos de patrones, familias de acumuladores y cualquier muestra
-#'   cruda. Los conteos, proporciones y agregados que no son valores de celda
+#'   cruda. El mensaje de un error del motor, que cita la celda que lo provocó,
+#'   se publica sin sus literales, como con `proteger_datos_personales = TRUE`.
+#'   Los conteos, proporciones y agregados que no son valores de celda
 #'   pueden seguir publicándose. La elección queda en
 #'   `resumen_tabla$meta$incluir_valores` y `perfil_muestra$meta`.
 #' @param politica_costo Política optativa para las métricas caras. El valor por
@@ -23329,7 +23438,9 @@ perfilar_dbi <- function(conexion, tabla,
   ))
   # Sin proteccion, el mensaje del motor se publica entero: antes de la primera
   # lectura, y hasta la salida. Ver `.protege_mensaje_motor()`.
-  .fijar_proteccion_motor(.protege_argumentos(argumentos_muestra))
+  .fijar_proteccion_motor(
+    .protege_argumentos(argumentos_muestra), incluir_valores = incluir_valores
+  )
   argumentos_muestra$columnas_opcionales <- columnas_opcionales
   argumentos_muestra$aplicabilidad <- aplicabilidad
   argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
@@ -23893,9 +24004,23 @@ perfilar_dbi <- function(conexion, tabla,
       ))
       if (length(valor) == 1L && is.finite(valor)) valor else NA_real_
     }
+    # Lo efectivo es lo pedido acotado por el total de la tabla. Las formas de
+    # cantidad fija -`RESERVOIR (n ROWS)` de DuckDB, el orden pseudoaleatorio
+    # con limite- no cuentan la tabla antes, porque no lo necesitan para
+    # escribirse, y con el total desconocido lo efectivo era lo pedido: mil
+    # filas de una tabla de cincuenta salian "cortas", se reintentaba y se
+    # avisaba una degradacion sobre una muestra que es la tabla entera. En
+    # DuckDB el reintento ademas fallaba y dejaba toda la tabla
+    # `no_disponible`. Pero esta misma consulta ya trajo el total de la tabla
+    # (`resumen$meta$filas`, el que gobierna todo desde abajo): se usa ese.
+    total_muestreo <- if (is.finite(.numero_dbi(preparacion$n_total))) {
+      .numero_dbi(preparacion$n_total)
+    } else {
+      .numero_dbi(resumen$meta$filas)
+    }
     pedido_muestreo <- min(
       as.numeric(preparacion$muestra_motor),
-      if (is.finite(preparacion$n_total)) preparacion$n_total else
+      if (is.finite(total_muestreo)) total_muestreo else
         as.numeric(preparacion$muestra_motor)
     )
     filas_obtenidas_muestreo_sql <- filas_del_resumen(resumen)

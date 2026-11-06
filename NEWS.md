@@ -446,7 +446,28 @@ Primera versión publicada.
   (`bloque_muestra = "con_muestra"`), que lo publicaba movido en una parte en
   300. Un decimal de escala 0 con valores por debajo de 2^53 sí se publica: ahí
   los dobles son los valores, y la escala la dicen los catálogos de PostgreSQL,
-  MySQL, MariaDB y DuckDB (el de SQL Server no).
+  MySQL, MariaDB, DuckDB y SQL Server, que ahora publica la precisión y la
+  escala de un decimal (`decimal(18,0)` y no `decimal`).
+- El desvío de un decimal que la muestra lee como doble (5e14 con centavos) ya
+  no se publica en `perfil_muestra`, en ninguna vía, y la corroboración no lo
+  cuenta como divergencia: queda en `perfil_muestra$meta$desvio_decimal_doble`
+  y en las no comparadas con la causa `decimal_doble`. Pasaba por la vía por
+  omisión en los seis motores con decimales, y `perfilar_coleccion()` subía la
+  tabla a `alcance = "divergencias"`. Un desvío que el motor calcula mal sigue
+  siendo divergencia.
+- Con `universo = "muestra_motor"`, una muestra pedida mayor que la tabla ya no
+  se juzga corta: lo efectivo es lo pedido acotado por el total que trae la
+  primera consulta. Con `bloque_muestra = "solo_agregados"` se reintentaba y
+  se avisaba una degradación falsa en SQLite, MySQL, MariaDB y PostgreSQL 9.3;
+  en DuckDB el reintento escribía `TABLESAMPLE BERNOULLI (100)`, que el motor
+  rechaza (ahí un número sin unidad es una cantidad de filas), y todas las
+  métricas de la tabla quedaban `no_disponible`. `BERNOULLI` se escribe en
+  DuckDB con `PERCENT`.
+- Con `incluir_valores = FALSE`, el mensaje de un error del motor (una
+  conversión fallida, un desborde) ya no cita la celda en `motivo`,
+  `meta$consultas$fallas`, la muestra ni los bloques: pasa por el mismo piso
+  que con la protección pedida. PostgreSQL, SQL Server y DuckDB lo publicaban
+  entero.
 - En SQL Server, la muestra del motor lee el texto de un decimal de más de 30
   cifras (`CAST(... AS VARCHAR)` es `VARCHAR(30)`, y la lectura de toda la
   muestra abortaba) y `money` con sus cuatro decimales: 0,0001 se leía 0, y el

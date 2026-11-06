@@ -381,7 +381,7 @@ código:
 | ---: | --- | --- | --- |
 | 1 | `TABLESAMPLE RESERVOIR (n ROWS)` | DuckDB | exactamente `n` filas |
 | 2 | `TABLESAMPLE SYSTEM (p)` | PostgreSQL, SQL Server | bloques enteros: varía alrededor de lo pedido y puede dar 0 filas en una tabla chica |
-| 3 | `TABLESAMPLE BERNOULLI (p)` | PostgreSQL, DuckDB | fila por fila: varía poco alrededor de lo pedido, a cambio de recorrer la tabla |
+| 3 | `TABLESAMPLE BERNOULLI (p)` (en DuckDB, `(p PERCENT)`: ahí un número sin unidad es una cantidad de filas) | PostgreSQL, DuckDB | fila por fila: varía poco alrededor de lo pedido, a cambio de recorrer la tabla |
 | 4 | `TABLESAMPLE (p PERCENT)` | SQL Server | por páginas |
 | 5 | `SAMPLE (p)` | Oracle | fila por fila |
 | 6 | orden pseudoaleatorio con el límite del dialecto | cualquier motor con límite | exactamente `n`, a cambio de ordenar la tabla entera |
@@ -785,7 +785,9 @@ queda `estimado`. `universo = "muestra_motor"` con
 
 **`incluir_valores = FALSE`** no emite las consultas de moda, extremos y mediana.
 Además limpia los valores de celda del resumen, la muestra, los bloques, la
-cobertura y los motivos. Los conteos y proporciones se siguen publicando.
+cobertura y los motivos. El mensaje de un error del motor, que cita la celda
+que lo provocó, se publica sin sus literales, como con la protección. Los
+conteos y proporciones se siguen publicando.
 
 ## Consultas por lote {#lotes}
 
@@ -1467,7 +1469,7 @@ paquete:
 | SQL Server | no admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography` | esas métricas quedan `no_disponible` sin enviar la sentencia |
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
 | cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | quedan `no_disponible` las métricas de magnitud que dependen de un valor que el doble no representa (`r enumerar(setdiff(lupa:::.METRICAS_DE_MAGNITUD_DBI, "mediana"))`). La mediana se publica cuando su valor es exacto: con una cantidad impar, si la central queda por debajo de 2^53; con una par, si las dos centrales quedan entre -2^52 y 2^52, lo que en la tabla completa cuesta una consulta más. `perfil_muestra`, la muestra leída en R y `perfilar()` la deciden por sus centrales, que tienen a la vista: se publica si caben en un doble. La moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
-| cualquiera | un decimal con más cifras de las que guarda un doble llega como doble | por bloques y por la muestra del motor (salvo en PostgreSQL), y también con la muestra leída en R, el desvío queda `no_disponible` si el redondeo de cada valor puede moverlo más de una parte en mil millones, salvo que el catálogo declare escala 0 y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB); por la tabla completa se resta en el tipo de la columna |
+| cualquiera | un decimal con más cifras de las que guarda un doble llega como doble | por bloques y por la muestra del motor (salvo en PostgreSQL), y también con la muestra leída en R, el desvío queda `no_disponible` si el redondeo de cada valor puede moverlo más de una parte en mil millones, salvo que el catálogo declare escala 0 y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB y SQL Server); por la tabla completa se resta en el tipo de la columna. El desvío de `perfil_muestra` sigue la misma regla en todas las vías, también por la tabla completa: no se publica, queda en `perfil_muestra$meta$desvio_decimal_doble`, y la corroboración no lo compara (causa `decimal_doble`) |
 | MySQL, MariaDB, SQL Server | `AVG(x * 1.0)` de un decimal se recorta en la escala máxima del motor (30, 38), y promediar en R los dobles de dos centrales no es exacto | la mediana de un decimal suma en el motor sus centrales y R divide por cuántas son |
 | SQL Server | `CAST(x AS VARCHAR)` es `VARCHAR(30)`, y escribe `money` con dos decimales | la muestra pide el texto de un decimal como `VARCHAR(48)` y el de `money` con `CONVERT(..., 2)` |
 | DuckDB | `AVG(x * 1.0)` desborda con un `HUGEINT` desde 10^37 o un `UHUGEINT` desde 10^38 | los básicos se repiten sin el promedio; la media queda `no_disponible` y lo demás se juzga como en cualquier columna |

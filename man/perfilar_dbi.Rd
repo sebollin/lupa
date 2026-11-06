@@ -172,7 +172,9 @@ declaran sin sondeo.}
 las consultas de moda, extremos y mediana, y se limpian esos campos en el
 resumen, la muestra, los bloques, la cobertura y los motivos; también se
 retiran ejemplos de patrones, familias de acumuladores y cualquier muestra
-cruda. Los conteos, proporciones y agregados que no son valores de celda
+cruda. El mensaje de un error del motor, que cita la celda que lo provocó,
+se publica sin sus literales, como con \code{proteger_datos_personales = TRUE}.
+Los conteos, proporciones y agregados que no son valores de celda
 pueden seguir publicándose. La elección queda en
 \code{resumen_tabla$meta$incluir_valores} y \code{perfil_muestra$meta}.}
 
@@ -1080,8 +1082,8 @@ desvío que el redondeo de cada valor a doble puede moverlo más de una parte
 en mil millones (\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}, salvo
 que el tipo declare escala 0 —\code{numeric(18,0)}, \code{decimal(38,0)}— y los
 valores queden por debajo de 2^53: ahí los dobles son los valores. La
-escala la publican PostgreSQL, MySQL, MariaDB y DuckDB; en SQL Server el
-tipo no la dice y la guarda sigue. Bajo \code{muestra_motor}, la media y el desvío
+escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el catálogo de SQL
+Server. Bajo \code{muestra_motor}, la media y el desvío
 se piden en la misma consulta, sobre las mismas filas de una sola
 evaluación de la muestra: una relación derivada calcula la media de esas
 filas con una ventana (\verb{AVG(x) OVER ()}) y el desvío se pide centrado en
@@ -1092,7 +1094,10 @@ la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y l
 dobles: el desvío de un decimal queda \code{no_disponible} con la misma regla que
 con \code{bloque_filas}. Con \code{bloque_muestra = "con_muestra"} el desvío lo
 calcula \code{\link[=perfilar]{perfilar()}} sobre lo leído, que para un decimal es el doble de su
-texto, y rige la misma regla. No
+texto, y rige la misma regla. Lo mismo vale para el desvío de
+\code{perfil_muestra} en todas las vías, también por la tabla completa, donde el
+de \code{resumen_tabla} es el exacto: no se publica (queda \code{NA}) y la columna
+queda en \code{perfil_muestra$meta$desvio_decimal_doble}. No
 se fija una semilla ni se toca el generador de números aleatorios de R.
 Como red en todas las
 vías, un desvío \code{0} sobre una columna con dos valores distintos —un mínimo
@@ -1146,8 +1151,10 @@ una columna de \code{columnas_opcionales} o de \code{aplicabilidad}, que la mues
 cuenta sobre su universo —y todas las métricas de la columna con
 \code{aplicabilidad} si la muestra dejó afuera valores presentes—; las métricas
 de magnitud de una columna de la que la muestra excluyó los
-\code{sentinelas_numericos} declarados; y las de un entero ancho desde
-2^53, que el resumen no publica. Tampoco lo que un bloque no calculó: una
+\code{sentinelas_numericos} declarados; las de un entero ancho desde
+2^53, que el resumen no publica; y el \code{desvio} de un decimal que la
+muestra leyó como doble y no publicó (causa \code{decimal_doble}, ver
+\code{perfil_muestra$meta$desvio_decimal_doble}). Tampoco lo que un bloque no calculó: una
 métrica que \code{resumen_tabla$sql} declara \code{no_disponible} —el motor rechazó
 la consulta sobre el tipo (\code{json}, \code{xml} o \code{point} de PostgreSQL; \code{text},
 \code{ntext}, \code{image} o \code{geography} de SQL Server), una guarda la retuvo—, la
