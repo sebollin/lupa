@@ -563,7 +563,8 @@ if (hay_plan) {
 `plan_perfilado_dbi()` predice cuántas consultas va a emitir `perfilar_dbi()`
 sin ejecutar ninguna. `benchmark/medir_plan_ancho.R`:
 
-- arma una tabla de 158 columnas con la mezcla de una tabla administrativa. Tiene
+- arma una tabla de `r valor_plan("ancha_tabla_completa", "columnas")` columnas
+  con la mezcla de una tabla administrativa. Tiene
   más texto que números, algunos enteros de código y fechas guardadas como texto;
 - la escribe en SQLite en memoria;
 - publica el plan, separando las consultas que escanean u ordenan la tabla entera

@@ -60,6 +60,25 @@ dependencias <- function(campo) {
   x <- sub("\\s*\\(.*\\)$", "", x)
   x[nzchar(x)]
 }
+# Los avisos de costo con umbral en segundos, leídos de la firma.
+umbrales_aviso <- grep(
+  "^umbral_segundos_aviso_", names(formals(perfilar_dbi)), value = TRUE
+)
+# La matriz de benchmark/verificar_motor.R: los nombres de `.especificaciones`,
+# leídos del guion sin correrlo.
+guion_motores <- file.path(
+  raiz_con("benchmark", "verificar_motor.R"), "benchmark", "verificar_motor.R"
+)
+matriz_guion <- NULL
+for (expresion in parse(guion_motores, keep.source = FALSE)) {
+  if (is.call(expresion) && identical(expresion[[1L]], as.name("<-")) &&
+      identical(expresion[[2L]], as.name(".especificaciones"))) {
+    matriz_guion <- names(as.list(expresion[[3L]]))[-1L]
+  }
+}
+if (!length(matriz_guion)) {
+  stop("benchmark/verificar_motor.R no define .especificaciones.")
+}
 ```
 
 Esta página es la referencia de `perfilar_dbi()` y `plan_perfilado_dbi()` para
@@ -94,14 +113,15 @@ la página. Lo que necesita otro motor se describe sin ejecutar y con su fuente.
 12. [Avisos de costo y derrame](#avisos)
 13. [Instrumentación y duraciones](#instrumentacion)
 14. [Memoria del procesamiento](#memoria)
-15. [Consistencia entre consultas](#consistencia)
-16. [Dialectos y sondas](#dialectos)
-17. [Lo que el motor guarda distinto que R](#diferencias-con-r)
-18. [La clave primaria según el motor](#clave-primaria)
-19. [Motores probados](#motores-probados)
-20. [Fallos parciales y errores](#fallos)
-21. [Dependencias e instalación](#dependencias)
-22. [Hilos](#hilos)
+15. [Una corrida sobre bases de producción](#corrida-produccion)
+16. [Consistencia entre consultas](#consistencia)
+17. [Dialectos y sondas](#dialectos)
+18. [Lo que el motor guarda distinto que R](#diferencias-con-r)
+19. [La clave primaria según el motor](#clave-primaria)
+20. [Motores probados](#motores-probados)
+21. [Fallos parciales y errores](#fallos)
+22. [Dependencias e instalación](#dependencias)
+23. [Hilos](#hilos)
 
 ## Valores por omisión {#valores-por-omision}
 
@@ -253,7 +273,9 @@ stopifnot(
   n_filas(por_omision$perfil_muestra) == n,
   n_filas(con_muestra$perfil_muestra) == 500,
   identical(del_motor$resumen_tabla$meta$universo, "muestra_motor"),
-  is.null(solo_agregados$perfil_muestra)
+  is.null(solo_agregados$perfil_muestra),
+  # Los 2 bloques que el texto nombra arriba son todo el objeto.
+  identical(names(por_omision), c("resumen_tabla", "perfil_muestra"))
 )
 ```
 
@@ -490,7 +512,9 @@ n_filas(por_bloques$perfil_muestra)
 
 Los topes de `detectar_duplicados_aproximados()` y del diagnóstico de vocabulario
 recortan trabajo en R. No recortan las consultas que ya ejecutó un motor. Este ejemplo
-recrea la tabla pequeña de la guía para que cada salida sea independiente.
+recrea la tabla de proveedores de
+[Escala y duplicados](escala-y-duplicados.html#un-registro-de-proveedores) para
+que cada salida sea independiente.
 
 ```{r duplicados-datos, include = FALSE}
 proveedores <- data.frame(
@@ -821,11 +845,8 @@ El valor de `tamano_lote_distintos` es un supuesto del código, anotado junto a
 la constante (`R/perfilar-dbi.R`). En PostgreSQL, la lectura de la tabla es la
 misma con cualquier lote. El motor amortiza una pasada entre los agregados del
 mismo `SELECT`. Lo que crece con el lote es el derrame a disco de PostgreSQL.
-Ahí, por columna, un lote de 2 columnas cuesta bastante menos que uno de 1 y
-casi lo mismo que uno de 4.
-Además, derrama menos que los lotes mayores. El óptimo depende de `work_mem`,
-que cambia por servidor. Para elegir otro valor, `instrumentar = TRUE` publica la
-duración de cada consulta.
+El óptimo depende de `work_mem`, que cambia por servidor. Para elegir otro valor,
+`instrumentar = TRUE` publica la duración de cada consulta.
 
 Si un lote falla, no se pierde el lote. Sus mitades se sondean por bisección:
 
@@ -1064,14 +1085,21 @@ umbral. Apagarlo no apaga la medición ni su metadato.
 | mediana | ms por fila de la primera mediana medida | antes de las medianas pendientes | `meta$costo_mediana` |
 | derrame estimado (PostgreSQL) | tamaño del hash con `pg_stats` y `pg_class.reltuples` contra `work_mem` | antes del primer `COUNT(DISTINCT)` | `meta$estimacion_derrame` |
 
-Los 3 umbrales temporales valen
+Los `r length(umbrales_aviso)` umbrales temporales valen
 `r lupa:::.UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI` segundos por omisión, y `Inf`
 apaga cada aviso de forma explícita. Con un solo lote de distintos no hay nada
 que proyectar. La proyección de distintos no usa `reltuples`. Si la moda no
 tiene cardinalidad, la proyección lo declara en vez de suponerla.
 
 ```{r comprobar-umbrales, echo = FALSE}
+# Lo que afirma el párrafo de arriba: todos los umbrales temporales de la firma
+# valen lo mismo por omisión.
+omision_aviso <- vapply(umbrales_aviso, function(argumento) {
+  eval(formals(perfilar_dbi)[[argumento]], asNamespace("lupa"))
+}, numeric(1))
 stopifnot(
+  length(umbrales_aviso) > 0L,
+  all(omision_aviso == lupa:::.UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI),
   lupa:::.UMBRAL_SEGUNDOS_AVISO_MODA_DBI == lupa:::.UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
   lupa:::.UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI == lupa:::.UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI
 )
@@ -1270,8 +1298,9 @@ rehacen desde acá y no se extrapolan a otra máquina.
 | Mediana | 0,6 s | 12 s | 26 s |
 | Percentil 99 | 47 s | 1.822 s | 323 s |
 
-Fueron 3.709 llamadas sobre 3.316 tablas, y terminaron bien 3.693. Otras 11 se
-cortaron por el tiempo máximo que fijó el equipo, y 2 por un error del proceso.
+Fueron 3.709 llamadas sobre 3.316 tablas, y terminaron bien 3.693. Otras 3
+terminaron con un aviso. De las 13 restantes, 11 se cortaron por el tiempo máximo
+que fijó el equipo y 2, por un error del proceso.
 La memoria mediana de una llamada estuvo entre 230 y 530 MB según la vía. Sobre
 esos perfiles, `reportar()` tardó 0,06 s de mediana y `planificar_limpieza()`,
 0,008 s.
@@ -1437,7 +1466,7 @@ paquete:
 | SQL Server | `STDEV` acumula en una pasada y pierde cifras con medias grandes | el desvío se pide sobre los valores centrados en la media |
 | SQL Server | no admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography` | esas métricas quedan `no_disponible` sin enviar la sentencia |
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
-| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | las 7 métricas de magnitud quedan `no_disponible`; la moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con `bit64`, como `integer64` |
+| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | las `r length(lupa:::.METRICAS_DE_MAGNITUD_DBI)` métricas de magnitud quedan `no_disponible`; la moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
 | cualquiera | cada motor suma a su modo, y con valores que se cancelan las medias difieren entre motores y con la de R | la media se pide como doble donde la aritmética decimal la recortaría; la corroboración declara la diferencia |
 
 La media de `{1e16, 1, -1e16}` es 1/3. Cada vía la calcula a su modo, y ninguna
@@ -1559,9 +1588,12 @@ comprobaciones <- c("cinco_columnas", "dialecto", "media", "clave_primaria", "co
 if (hay_corrida) {
   motores <- utils::read.csv(ruta_motores, stringsAsFactors = FALSE,
                              na.strings = "", check.names = FALSE)
-  stopifnot(all(c("motor", "version_servidor", "controlador",
-                  "version_controlador", "fixture", "revision_paquete", "fecha",
-                  "estado_motor", "motivo", comprobaciones) %in% names(motores)))
+  # Exactamente estas columnas: el texto cuenta las comprobaciones con
+  # `comprobaciones`, y una columna nueva del guion tiene que aparecer acá.
+  stopifnot(setequal(names(motores), c(
+    "motor", "version_servidor", "controlador", "version_controlador", "fixture",
+    "revision_paquete", "fecha", "estado_motor", "motivo", comprobaciones
+  )))
   version_corta <- function(x) {
     vapply(x, function(v) {
       if (is.na(v)) return("—")
@@ -1611,8 +1643,8 @@ Qué hace `benchmark/verificar_motor.R`:
 
 - Se corre desde la raíz del código fuente:
   `Rscript benchmark/verificar_motor.R [motores]`. Sin argumentos recorre los
-  7 motores de la matriz (`postgres16`, `postgres93`, `mysql84`, `mariadb118`,
-  `sqlserver2022`, `sqlite` y `duckdb`). Con argumentos, sólo los nombrados.
+  `r length(matriz_guion)` motores de la matriz (`r enumerar(matriz_guion)`).
+  Con argumentos, sólo los nombrados.
 - Carga el paquete desde la fuente con `pkgload`, si está disponible: mide el
   código del árbol y no el paquete instalado.
 - No recibe una conexión cualquiera: cada motor tiene su conexión escrita en el
@@ -1626,7 +1658,7 @@ Qué hace `benchmark/verificar_motor.R`:
   - `tramites`, de 500 filas y 5 columnas: identificador, documento, categoría,
     monto y edad con 20 ausentes;
   - `padron`, con clave primaria `id_persona` declarada `NOT NULL`.
-- Hace 5 comprobaciones:
+- Hace `r length(comprobaciones)` comprobaciones:
   - que el resumen tenga 5 columnas;
   - que el dialecto se haya resuelto;
   - que la media de `monto` del motor coincida con la de R sobre la misma
@@ -1710,7 +1742,8 @@ class(error)
 
 ## Dependencias e instalación {#dependencias}
 
-`lupa` tiene 2 dependencias obligatorias, `r enumerar(dependencias("Imports"))`.
+`lupa` tiene `r length(dependencias("Imports"))` dependencias obligatorias,
+`r enumerar(dependencias("Imports"))`.
 No importa ninguna a su espacio de nombres: las llama con `::`. Es deliberado:
 `data.table` decide el significado de `[` según si el paquete que llama lo
 importa. Con el import puesto, `tabla[, columnas, drop = FALSE]` dejaría de
@@ -1747,11 +1780,21 @@ Los controladores de otros motores (`RMariaDB`, `RMySQL`, `ROracle`,
 El caso difícil no es el paquete de R sino la biblioteca del sistema que va
 debajo. `RMariaDB` no compila sin las cabeceras del cliente de MySQL o MariaDB, y
 `ROracle` necesita el Instant Client de Oracle. `requisitos_motor()` lo dice
-antes de chocarse. Su catálogo tiene `r nrow(requisitos_motor())` entradas:
-`r sum(!requisitos_motor()$id_motor %in% c("dbi", "odbc", "otro_dbi"))` de motores
-con nombre y 3 genéricas. Las 2 versiones de Oracle
-cuentan por separado. Las genéricas (`dbi`, `odbc` y `otro_dbi`) no son motores
-medidos.
+antes de chocarse.
+
+```{r requisitos-cifras, include = FALSE}
+catalogo_motores <- requisitos_motor()
+# El catálogo no marca cuáles son genéricas: la lista es de esta página, y se
+# comprueba que cada una exista.
+genericas <- c("dbi", "odbc", "otro_dbi")
+stopifnot(all(genericas %in% catalogo_motores$id_motor))
+```
+
+Su catálogo tiene `r nrow(catalogo_motores)` entradas:
+`r sum(!catalogo_motores$id_motor %in% genericas)` de motores con nombre y
+`r length(genericas)` genéricas. Las
+`r sum(catalogo_motores$motor == "Oracle")` versiones de Oracle cuentan por
+separado. Las genéricas (`r enumerar(genericas)`) no son motores medidos.
 
 ```{r requisitos}
 r <- requisitos_motor()

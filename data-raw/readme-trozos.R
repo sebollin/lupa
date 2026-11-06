@@ -105,7 +105,38 @@ cob <- t(vapply(marcos, function(m) {
 probados <- requisitos[requisitos$estado_prueba == "probado",
                        c("motor", "version", "paquete_r")]
 probados <- probados[order(probados$motor), ]
-probados$version[is.na(probados$version)] <- "\u2014"
+# La versión del catálogo se completa con las que midió la corrida publicada de
+# benchmark/verificar_motor.R, la que citan el catálogo y el artículo «Motores y
+# escala»: PostgreSQL se mide en 2 versiones y el catálogo declara una. Una
+# versión medida se suma si el catálogo no la nombra («8.4» ya es «8»). Si un
+# motor probado no tiene fila medida en esa corrida, el README no se teje.
+corrida_motores <- utils::read.csv(
+  file.path("benchmark", "datos", "verificar-motor.csv"),
+  stringsAsFactors = FALSE, na.strings = ""
+)
+corrida_motores <- corrida_motores[corrida_motores$estado_motor == "medido", ]
+probados$version <- vapply(seq_len(nrow(probados)), function(i) {
+  motor <- probados$motor[[i]]
+  catalogo <- probados$version[[i]]
+  etiquetas <- corrida_motores$motor
+  etiquetas <- etiquetas[etiquetas == motor |
+                           startsWith(etiquetas, paste0(motor, " "))]
+  stopifnot(length(etiquetas) >= 1L)
+  medidas <- trimws(substring(etiquetas, nchar(motor) + 1L))
+  medidas <- medidas[nzchar(medidas)]
+  # El catálogo puede nombrar más de una versión («9.3 y 16»).
+  catalogo <- if (is.na(catalogo)) {
+    character()
+  } else {
+    trimws(strsplit(catalogo, " y ", fixed = TRUE)[[1L]])
+  }
+  nombrada <- vapply(medidas, function(v) {
+    any(v == catalogo | startsWith(v, paste0(catalogo, ".")))
+  }, logical(1L))
+  versiones <- unique(c(medidas[!nombrada], catalogo))
+  if (!length(versiones)) return("\u2014")
+  lista(versiones[order(numeric_version(versiones, strict = FALSE))])
+}, character(1L))
 probados$paquete_r <- paste0("`", probados$paquete_r, "`")
 names(probados) <- if (identical(params$idioma, "es")) {
   c("Motor", "Versión probada", "Controlador de R")

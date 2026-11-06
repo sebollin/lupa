@@ -64,8 +64,9 @@ propuesta[, c("metrica", "atributos", "origen", "incluir")]
 
 La columna `incluir` dice qué filas quedan activas. `lupa` las marca así:
 
-- activa las que nacen de un defecto observado: los faltantes de 4 columnas y las
-  filas duplicadas;
+- activa las que nacen de un defecto observado: los faltantes de
+  `r sum(propuesta$metrica == "NoNulo" & propuesta$incluir)` columnas y las filas
+  duplicadas;
 - deja apagadas las que nacen de una costumbre de esta entrega, como un patrón de
   formato o el dominio de `zona`.
 
@@ -84,8 +85,9 @@ propuesta$configuracion[[fila_canal]]
 ## Decidir qué se mide
 
 La propuesta se edita: la decisión es de quien la usa. Aquí interesa la
-completitud: se dejan activas sólo las 4 filas de `NoNulo` y se apaga la de
-duplicados. `modelo_desde_propuesta()` convierte las filas activas en un modelo
+completitud: se dejan activas sólo las `r sum(propuesta$metrica == "NoNulo")`
+filas de `NoNulo` y se apaga la de duplicados. `modelo_desde_propuesta()`
+convierte las filas activas en un modelo
 operativo. Es la lista de métricas, ya ligadas a sus columnas, que `medir()` va a
 ejecutar. Tampoco mide.
 
@@ -117,8 +119,9 @@ stopifnot(identical(
 ))
 ```
 
-Cada fila es una medida: un resultado para un objeto, aquí una celda. Las 4
-columnas por 13 filas dan `r nrow(medicion)` medidas. En `canal`, las filas 5 y 13
+Cada fila es una medida: un resultado para un objeto, aquí una celda. Las
+`r length(unique(medicion$atributo))` columnas por `r nrow(datos_operativos)`
+filas dan `r nrow(medicion)` medidas. En `canal`, las filas 5 y 13
 valen 0. Son el `"S/D"` y el texto vacío, que `NoNulo` contó como faltantes porque la
 configuración se lo pidió.
 
@@ -182,7 +185,8 @@ evaluacion <- evaluar(completitud, publicable)
 evaluacion$perfiles[, c("perfil", "n_reglas", "resultado")]
 ```
 
-La regla se aplicó a cada una de las 4 medidas agregadas. El resultado de una regla
+La regla se aplicó a cada una de las `r nrow(completitud)` medidas agregadas. El
+resultado de una regla
 es la proporción de medidas que la cumplen. El de un perfil es la media simple de sus
 reglas. Estas son las que cumplieron:
 
@@ -224,12 +228,15 @@ stopifnot(
   ),
   length(unique(vapply(umbrales, resultado_con_umbral, numeric(1), medicion))) == 1L
 )
+cumplen_por_umbral <- round(
+  vapply(umbrales, resultado_con_umbral, numeric(1), completitud) * nrow(completitud)
+)
 ```
 
 Con la medida agregada, el resultado sigue al umbral:
 
-- con 80 %, cumplen las 4 columnas;
-- con 90 %, cumplen 3;
+- con 80 %, cumplen las `r cumplen_por_umbral[[1]]` columnas;
+- con 90 %, cumplen `r cumplen_por_umbral[[2]]`;
 - con 95 %, ninguna.
 
 La columna `por_celda` muestra qué pasa si se evalúa la medición sin agregar. La

@@ -123,11 +123,11 @@ llegan sólo las filas que entran en los topes. La misma superficie se mide cont
 ```{r motores, echo = FALSE}
 ```
 
-PostgreSQL y MariaDB se miden en cada push
+PostgreSQL 16 y MariaDB se miden en cada push
 ([CI de motores](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)),
-y SQLite y DuckDB en la suite de pruebas de cada plataforma de la CI; MySQL y
-SQL Server, contra contenedores locales antes de cada versión. Oracle debería
-funcionar pero no está medido, y BigQuery no está documentado.
+y SQLite y DuckDB en la suite de pruebas de cada plataforma de la CI; MySQL, SQL
+Server y PostgreSQL 9.3, contra contenedores locales antes de cada versión.
+Oracle debería funcionar pero no está medido, y BigQuery no está documentado.
 `requisitos_motor()` dice qué necesita cada motor. Las versiones, los
 controladores y la fecha de cada corrida están en
 [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados).

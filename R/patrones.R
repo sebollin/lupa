@@ -12,6 +12,11 @@
 # El limite de trazabilidad conserva nombres, no la distribucion de frecuencias.
 .limite_patrones_raros_trazabilidad <- 5000L
 
+# La evidencia de `patron_raro` nombra a lo sumo estos patrones raros; la traza
+# usa todos, hasta el limite de arriba. Lo leen `descubrir_patrones()` y la via
+# por bloques, y la documentacion lo cita: es una cifra publicada.
+.limite_patrones_raros_evidencia <- 6L
+
 #' Descubrir patrones de formato
 #'
 #' Generaliza un vector de texto mediante la convención del *Pattern Finder*
@@ -179,7 +184,9 @@ descubrir_patrones <- function(x,
   nombres_raros_trazabilidad <- nombres_raros[
     seq_len(min(length(nombres_raros), .limite_patrones_raros_trazabilidad))
   ]
-  indices_raros_presentacion <- utils::head(indices_raros, 6L)
+  indices_raros_presentacion <- utils::head(
+    indices_raros, .limite_patrones_raros_evidencia
+  )
   indices_resumen <- unique(c(
     if (length(frecuencias)) 1L else integer(),
     indices_raros_presentacion

@@ -34,6 +34,15 @@ raiz_con <- function(...) {
 }
 porcentaje <- function(x) paste0(numero(round(100 * x)), " %")
 envolver <- function(x) writeLines(strwrap(x, 88))
+# La versión mínima de un paquete sugerido, como la declara DESCRIPTION.
+minimo_sugerido <- function(paquete) {
+  campos <- trimws(strsplit(utils::packageDescription("lupa")$Suggests, ",")[[1L]])
+  campo <- campos[sub("\\s*\\(.*$", "", campos) == paquete]
+  if (length(campo) != 1L || !grepl(">=", campo, fixed = TRUE)) {
+    stop("DESCRIPTION no declara una versión mínima de ", paquete, ".")
+  }
+  sub("^.*\\(>=\\s*([^)[:space:]]+)\\s*\\).*$", "\\1", campo)
+}
 ```
 
 Cada cifra de un perfil de `lupa` viaja con su alcance:
@@ -217,9 +226,27 @@ table(estado = sql$estado, error_esperado = sql$error_esperado)
 DBI::dbDisconnect(conexion)
 ```
 
+```{r estados-dbi-proteccion, echo = FALSE, warning = FALSE}
+# Lo que afirma el párrafo siguiente, con la misma tabla: sin filas traídas a R,
+# los valores se omiten sólo si se pidió la protección.
+conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(conexion, "eventos", datos_operativos)
+protegida <- perfilar_dbi(
+  conexion, "eventos", bloque_muestra = "solo_agregados",
+  proteger_datos_personales = TRUE
+)
+DBI::dbDisconnect(conexion)
+stopifnot(
+  !any(sql_perfil(completa)$estado == "omitido_por_privacidad"),
+  any(sql_perfil(protegida)$estado == "omitido_por_privacidad")
+)
+```
+
 `observado_muestra` describe las filas que trajo la muestra, no la tabla. Sin
-filas traídas a R, una columna no se puede clasificar como dato personal. Sus
-valores quedan entonces `omitido_por_privacidad` (ver el último apartado).
+filas traídas a R, una columna no se puede clasificar como dato personal. Si se
+pidió la protección (`proteger_datos_personales = TRUE`), sus valores quedan
+entonces `omitido_por_privacidad` (ver el último apartado). Por omisión la
+protección no se pide, y los valores se publican.
 
 ## Unidades declaradas y trazabilidad por fila
 
@@ -253,7 +280,8 @@ señales que cuentan valores:
   declara cuántas filas mostradas pertenecen a cada grupo. El detector es
   heurístico: la traza sirve para revisar o unificar el grupo en el sistema de
   origen. No afirma que todas esas filas sean errores.
-- En `patron_raro`, la evidencia muestra como máximo 6 patrones raros. La traza,
+- En `patron_raro`, la evidencia muestra como máximo
+  `r interno(".limite_patrones_raros_evidencia")` patrones raros. La traza,
   en cambio, los usa todos, hasta un límite separado de
   `r numero(interno(".limite_patrones_raros_trazabilidad"))`. Si se alcanza, el
   alcance de la traza es parcial y `cobertura_diagnosticos` publica el límite.
@@ -345,10 +373,12 @@ publican:
 La señal `moda_sobresale_secuencia_entera` es independiente y no desactiva las
 comprobaciones que usan la numeración.
 
-Para una columna `integer64`, `bit64` se carga de manera diferida cuando está
-instalado, para registrar sus métodos antes de medir. Si no está instalado, las
-5 medidas de la secuencia quedan en `NA`. `cobertura_diagnosticos` registra
-entonces que `secuencia_entera` no se pudo evaluar.
+Para una columna `integer64`,
+[`bit64`](https://CRAN.R-project.org/package=bit64) se carga de manera diferida,
+para registrar sus métodos antes de medir. Si no está instalado, o su versión es
+anterior a `r minimo_sugerido("bit64")`, el perfil no se calcula. `perfilar()` se
+detiene con un error de clase `lupa_error_integer64`, que nombra la columna y dice
+cómo seguir.
 
 La regla está fijada por `tests/testthat/test-regresion-118.R`:
 
@@ -402,8 +432,9 @@ rbind(
 )
 ```
 
-`sentinelas_naniar` trae los centinelas numéricos que publica el paquete naniar,
-para pasarlos de una vez: `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`.
+`sentinelas_naniar` trae los centinelas numéricos que publica el paquete
+[`naniar`](https://CRAN.R-project.org/package=naniar), para pasarlos de una vez:
+`perfilar(datos, sentinelas_numericos = sentinelas_naniar)`.
 La política de centinelas se compara como un conjunto numérico. Cambiar el orden,
 entregar enteros en vez de dobles o repetir un valor no cambia su significado.
 Vale en `perfilar()` y en `perfilar_dbi()`.
@@ -502,7 +533,8 @@ su contrato:
 
 - Perfila una entrega y muestra faltantes, tipos, patrones, fechas y evidencia de
   datos personales.
-- Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos, validez
+- Perfila geometrías [`sf`](https://CRAN.R-project.org/package=sf) y declara CRS,
+  familias geométricas, vacíos, validez
   planar, dominio de coordenadas y alcance de la caja envolvente. No hace
   análisis espacial. Sobre PostGIS lee el SRID de cada valor EWKB o EWKT. Una
   columna con SRID mixto queda declarada como tal. Su dominio se evalúa por
@@ -672,12 +704,21 @@ se reemplaza lo que describe a la columna protegida, no toda aparición de ese
 texto. Lo que no tiene columna a la que atribuirse, como un hallazgo de filas
 duplicadas, queda enmascarado en todas partes.
 
+```{r formas-cifras, include = FALSE}
+# Las cifras que piden las 2 reglas de dígitos, leídas del código.
+cifras_numero <- interno(".MIN_LARGO_VALOR_IDENTIFICANTE")
+cifras_sin_verificador <- eval(
+  formals(interno(".prefijo_documento"))$minimo, asNamespace("lupa")
+)
+```
+
 El reemplazo reconoce 3 formas del mismo valor:
 
 - la exacta;
-- la que sólo difiere en separadores o en la caja de sus letras ASCII;
-- la que comparte con un valor protegido una corrida de 6 dígitos o más, como un
-  documento sin su dígito verificador.
+- la que sólo difiere en separadores o en la caja de sus letras ASCII; un número,
+  si tiene `r cifras_numero` cifras o más;
+- la del número sin su última cifra, como un documento sin su dígito verificador,
+  si le quedan `r cifras_sin_verificador` cifras o más.
 
 Los valores se reemplazan de más largo a más corto. Así, un valor protegido que es
 prefijo de otro no deja publicada la cola del más largo. Los valores que una celda

@@ -31,7 +31,7 @@ grande? ¿Y qué se deja de mirar cuando el costo obliga a recortar?
 > - acotar el trabajo con bloqueo y con lotes, y ver qué pierde cada uno;
 > - leer qué topes recortan la comparación y dónde lo declaran.
 
-## Un registro de proveedores
+## Un registro de proveedores {#un-registro-de-proveedores}
 
 ```{r datos, eval = TRUE}
 library(lupa)
@@ -82,7 +82,7 @@ El detector hizo 3 cosas:
 
 - unió `proveedor` y `rubro` en una sola cadena por fila;
 - normalizó mayúsculas, espacios y acentos;
-- comparó los 28 pares posibles.
+- comparó los `r pares$alcance$n_pares_comparados` pares posibles.
 
 `tipo_par` separa 3 casos:
 
@@ -194,8 +194,19 @@ str(bloqueado$alcance[c(
 )])
 ```
 
-Las 2 filas sin año forman un bloque propio y también se cuentan. De los 28
-pares, 24 quedaron fuera de alcance, y `bloqueo_perdida` lo marca. En esta tabla
+```{r bloqueo-cifras, include=FALSE}
+# Los pares del párrafo siguiente: los mismos de la primera detección, repartidos
+# entre los que el bloqueo alcanza y los que deja fuera.
+stopifnot(
+  bloqueado$alcance$bloqueo_pares_alcanzables +
+    bloqueado$alcance$bloqueo_pares_fuera_alcance == pares$alcance$n_pares_comparados
+)
+```
+
+Las `r bloqueado$alcance$bloqueo_n_filas_na` filas sin año forman un bloque
+propio y también se cuentan. De los `r pares$alcance$n_pares_comparados` pares,
+`r bloqueado$alcance$bloqueo_pares_fuera_alcance` quedaron fuera de alcance, y
+`bloqueo_perdida` lo marca. En esta tabla
 ningún par parecido cruzaba bloques. Pero eso es una estimación sobre una muestra
 de pares, y el alcance dice que lo es.
 

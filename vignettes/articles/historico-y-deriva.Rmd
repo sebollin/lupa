@@ -158,7 +158,7 @@ comparador devuelve datos, no decisiones.
 
 Para seguir la calidad medida, y no sólo el perfil, se repite cada mes la evaluación
 de [7. Del hallazgo a la métrica](del-hallazgo-a-la-metrica.html). Mide la completitud
-de las 4 columnas con faltantes disfrazados, agregada por columna y comparada con un
+de las columnas con faltantes disfrazados, agregada por columna y comparada con un
 90 %. El modelo sale de la propuesta de enero y queda fijo. Si se recalculara con cada
 entrega, una diferencia podría venir del modelo y no de los datos.
 
@@ -186,9 +186,19 @@ cambio[, c("perfil", "resultado_anterior", "resultado_actual", "delta")]
 
 ```{r, echo=FALSE}
 stopifnot(identical(cambio$resultado_anterior, 0.75), identical(cambio$resultado_actual, 0.5))
+# Los recuentos del párrafo siguiente, de las mismas evaluaciones.
+columnas_medidas <- nrow(evaluacion_enero$medidas)
+cumplen_enero <- sum(evaluacion_enero$medidas$resultado)
+cumplen_febrero <- sum(evaluacion_febrero$medidas$resultado)
+stopifnot(
+  nrow(evaluacion_febrero$medidas) == columnas_medidas,
+  cumplen_enero / columnas_medidas == cambio$resultado_anterior,
+  cumplen_febrero / columnas_medidas == cambio$resultado_actual
+)
 ```
 
-En enero, 3 de las 4 columnas alcanzaban el 90 %. En febrero lo alcanzan 2, porque
+En enero, `r cumplen_enero` de las `r columnas_medidas` columnas alcanzaban el 90 %.
+En febrero lo alcanzan `r cumplen_febrero`, porque
 `canal` y `codigo_usuario` sumaron faltantes disfrazados. El monto corregido no
 alcanza a compensarlo: ya cumplía. Si 2 corridas no se pudieran comparar, por ejemplo
 porque cambió el modelo, la columna `comparacion` diría por qué falta el delta.

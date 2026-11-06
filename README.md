@@ -129,15 +129,15 @@ rows that fit within the caps come into R. The same surface is measured against
 | DuckDB     | 1.5            | `duckdb`    |
 | MariaDB    | 11             | `RMariaDB`  |
 | MySQL      | 8              | `RMySQL`    |
-| PostgreSQL | 16             | `RPostgres` |
+| PostgreSQL | 9.3 and 16     | `RPostgres` |
 | SQL Server | 2022           | `odbc`      |
 | SQLite     | —              | `RSQLite`   |
 
-PostgreSQL and MariaDB are measured on every push
+PostgreSQL 16 and MariaDB are measured on every push
 ([engines CI](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)),
-and SQLite and DuckDB by the test suite on every CI platform; MySQL and SQL
-Server, against local containers before each release. Oracle is expected to
-work but has not been measured, and BigQuery is not documented.
+and SQLite and DuckDB by the test suite on every CI platform; MySQL, SQL Server
+and PostgreSQL 9.3, against local containers before each release. Oracle is
+expected to work but has not been measured, and BigQuery is not documented.
 `requisitos_motor()` says what each engine needs. The versions, the drivers and
 the date of each run are in
 [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados)

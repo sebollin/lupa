@@ -401,8 +401,8 @@ implementa el paquete": lo que queda fuera no se presenta como resuelto.
 
 Un diccionario enumera los valores válidos. Un referencial, en cambio, vincula claves
 con valores de una fuente externa. Sólo permite medir cobertura cuando declara que
-está completo y con qué alcance. Lo consumen las 3 métricas de
-`metricas_referencial()`.
+está completo y con qué alcance. Lo consumen las
+`r length(metricas_referencial())` métricas de `metricas_referencial()`.
 
 ```{r}
 padron <- referencial(

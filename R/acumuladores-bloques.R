@@ -3665,7 +3665,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
                               proporciones > umbral_raro)
   indices_resumen <- unique(c(
     if (length(frecuencias)) 1L else integer(),
-    utils::head(indices_raros, 6L)
+    utils::head(indices_raros, .limite_patrones_raros_evidencia)
   ))
   resultado <- crear_tabla(indices_salida)
   resumen <- crear_tabla(indices_resumen)
