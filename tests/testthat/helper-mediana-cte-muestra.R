@@ -92,6 +92,19 @@
 .mcm_comprobar <- function(medianas, columnas, metodo_cte, datos = NULL) {
   solo <- medianas$solo_agregados
   con <- medianas$con_muestra
+  # `TABLESAMPLE SYSTEM` muestrea por paginas, y en `solo_agregados` cada
+  # consulta saca la suya: alguna vez una vuelve con menos de la mitad de lo
+  # pedido (1 de 30 corridas con 20.000 filas) y el paquete lo declara con este
+  # motivo en todas las metricas de esa columna. Esa columna no se compara; las
+  # demas si, y tiene que quedar al menos una.
+  declarada <- "muestra_inestable:tablesample_system_tamano_insuficiente"
+  corta <- vapply(columnas, function(columna) {
+    identical(solo[columna, "motivo"], declarada) ||
+      identical(con[columna, "motivo"], declarada)
+  }, logical(1L))
+  expect_true(any(!corta))
+  metodo_cte <- setdiff(metodo_cte, columnas[corta])
+  columnas <- columnas[!corta]
   for (columna in columnas) {
     expect_identical(solo[columna, "estado"], "estimado", info = columna)
     expect_identical(

@@ -748,8 +748,9 @@ por qué: \code{sin_valores} cuando la columna no tiene valores no nulos en la
 tabla completa (en la muestra, \code{no_disponible} con
 \code{muestra_inestable:sin_valores_validos}); \code{no_aplica} para una métrica
 numérica sobre una columna que no lo es, para el desvío con menos de dos
-valores y para la moda cuando ningún valor se repite; \code{no_disponible} en
-cualquier otro caso.
+valores y para la moda cuando ningún valor de la tabla se repite;
+\code{no_disponible} en cualquier otro caso, también la moda de una muestra sin
+repetidos, porque la tabla puede tenerla.
 
 En una muestra, \code{error_esperado} vale \code{no_estimado} para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,

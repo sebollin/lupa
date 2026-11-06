@@ -85,7 +85,7 @@ Primera versión publicada.
   valor, y `analizar()` clasifica una sola vez los datos personales de la tabla
   que mide. Sobre la tabla de ejemplo de 13 filas, `perfilar()` tarda 0,11 s y
   `analizar()` 0,22 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera
-  llamada de una sesión nueva (0,29 s y 0,44 s para `perfilar()` con la
+  llamada de una sesión nueva (0,28 s y 0,43 s para `perfilar()` con la
   protección pedida). Las cifras son de `benchmark/medir_costo_fijo.R` y quedan
   en `benchmark/datos/medir-costo-fijo.csv`.
 - `perfilar()` sobre tablas anchas con muchas columnas iguales o de códigos de
@@ -93,7 +93,7 @@ Primera versión publicada.
   `columnas_duplicadas` se arman, trazan y revisan de una vez y no par por par,
   y la búsqueda de casi duplicados del vocabulario no calcula la mitad de la
   matriz de distancias que no lee. Con 500 filas y 1.000 columnas iguales, de
-  379 a 387 s pasa a 36 a 38 s (los 2 CSV fechados de
+  379 a 387 s pasa a 37 a 38 s (los 2 CSV fechados de
   `benchmark/medir_topes_valores_ancho.R` en `benchmark/datos/`).
 
 ## Requisitos

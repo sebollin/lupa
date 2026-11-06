@@ -188,7 +188,11 @@
     x <- gsub("\\.", "\001", x, fixed = TRUE)
     if (grepl("[][(){}|?*+\\\\^$.]", x, perl = TRUE)) return("")
     x <- gsub("\001", ".", x, fixed = TRUE)
-    paste(sort(unique(strsplit(x, "", fixed = TRUE)[[1L]])), collapse = "")
+    # Un conjunto de caracteres en el orden de sus bytes, sin `sort()`: el de base
+    # ordena con el locale, y esto corre al instalar, antes que `.sort_por_bytes()`.
+    caracteres <- unique(strsplit(x, "", fixed = TRUE)[[1L]])
+    ascii <- strsplit(rawToChar(as.raw(1:127)), "", fixed = TRUE)[[1L]]
+    paste(c(intersect(ascii, caracteres), setdiff(caracteres, ascii)), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
 }
 

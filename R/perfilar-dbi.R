@@ -6029,7 +6029,7 @@
   }
   motivo_sin_candidato <- if (!length(candidatos)) {
     "No hay una forma consolidada declarada para este motor; se conserva la mediana por columna."
-  } else if (any(grepl("pierde cifras", motivos_motor, fixed = TRUE))) {
+  } else if (any(grepl("pierde cifras", motivos_motor, fixed = TRUE, useBytes = TRUE))) {
     "El motor devolvi\u00f3 `PERCENTILE_CONT` sin todas sus cifras; se conserva la mediana por columna."
   } else {
     "El motor no acept\u00f3 una consulta consolidada de `PERCENTILE_CONT`; se conserva la mediana por columna."

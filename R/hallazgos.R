@@ -1550,7 +1550,7 @@
         alto <- ifelse(primero_es_bajo, segundo[utiles], primero[utiles])
         frecuencia_alta <- frecuencia_unidad[alto]
         distancia_util <- distancia[utiles]
-        orden <- order(bajo, -frecuencia_alta, method = "radix")
+        orden <- .orden_por_bytes(bajo, -frecuencia_alta)
         bajo_ordenado <- bajo[orden]
         alta_ordenada <- frecuencia_alta[orden]
         abre <- !duplicated(bajo_ordenado)
