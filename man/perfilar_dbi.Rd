@@ -630,10 +630,10 @@ Los \code{stop()} de esta vía llevan clase de condición propia —todas hereda
 \code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi},
 \code{lupa_error_codificacion_dbi}, \code{lupa_error_argumento_dbi},
 \code{lupa_error_transaccion_dbi} y \code{lupa_error_integer64}. La última sale cuando
-la lectura por bloques recibe una columna \code{integer64} con un \code{bit64}
-anterior a 4.6.0: sin el método \code{mtfrm.integer64}, \code{match()} de R iguala
-entre sí todos los valores negativos. Sin bloques, los agregados que calcula
-el motor se devuelven y la muestra no, con un aviso que dice por qué.
+la lectura por bloques recibe una columna \code{integer64} y \code{bit64} no está
+instalado: sin él R iguala entre sí todos los valores negativos. Sin bloques,
+los agregados que calcula el motor se devuelven y la muestra no, con un aviso
+que dice por qué. Alcanza \code{bit64} 4.0.5 o posterior.
 }
 
 \section{Dentro de una transacción}{

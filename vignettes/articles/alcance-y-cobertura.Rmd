@@ -375,10 +375,11 @@ comprobaciones que usan la numeración.
 
 Para una columna `integer64`,
 [`bit64`](https://CRAN.R-project.org/package=bit64) se carga de manera diferida,
-para registrar sus métodos antes de medir. Si no está instalado, o su versión es
-anterior a `r minimo_sugerido("bit64")`, el perfil no se calcula. `perfilar()` se
-detiene con un error de clase `lupa_error_integer64`, que nombra la columna y dice
-cómo seguir.
+para registrar sus métodos antes de medir. Desde la versión
+`r minimo_sugerido("bit64")`, la más antigua medida, el perfil es el mismo que con
+la actual. Si no está instalado, el perfil no se calcula: `perfilar()` se detiene
+con un error de clase `lupa_error_integer64`, que nombra la columna y dice cómo
+seguir.
 
 La regla está fijada por `tests/testthat/test-regresion-118.R`:
 

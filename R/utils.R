@@ -943,28 +943,59 @@
   tryCatch(order(clave), error = function(e) seq_along(x))
 }
 
-# `match()` de base sobre un `integer64` necesita el metodo `mtfrm.integer64`,
-# que `bit64` registra desde la 4.6.0 y solo con R 4.2.0 o posterior: antes R no
-# tenia el generico. Sin el, `match()` compara los bits del `double` subyacente,
-# y todos los negativos de -2^52 a -1 son `NaN` leidos como `double`, asi que
-# base los iguala entre si. Medido el 2026-10-25 en R 4.1.0 con bit64 4.0.5:
-# `perfilar()` conto 4 distintos en una columna de 7, y por bloques la mediana
-# de -3000000001..-3000000005 salio -3000000001. Con R 4.1.0 y bit64 4.8.6
-# `match()` seguia igualandolos.
+# `match()` y `%in%` del paquete: los de base, salvo que un `integer64` se
+# empareja por su texto.
 #
-# El paquete usa `match()` -y `factor()`, `table()` y `%in%`, que lo usan por
-# dentro- en cientos de sitios, asi que no se arregla en cada uno: se exige el
-# entorno en la entrada y se dice por que, en lugar de contar mal en silencio.
+# Eso es lo que hace base con bit64 4.6.0 o posterior: su `mtfrm.integer64()`
+# es `as.character(x)`. Con una version anterior no hay ese metodo, y
+# `mtfrm.default()` aplica `as.vector()`, que quita la clase y deja los bits del
+# `double`, en el que todos los negativos de -2^52 a -1 son `NaN`: base los
+# iguala entre si. Medido en R 4.2.0 con bit64 4.0.5: `match(x, unique(x))`
+# sobre -1, -1, -2, -3, 5 daba 1 1 1 1 4; por bloques `n_distintos` salia 46
+# donde habia 50, y las dependencias funcionales y los hallazgos cambiaban.
 #
-# El metodo se registra al CARGAR `bit64`, y un `integer64` puede llegar sin
-# `bit64` cargado -lo trae `readRDS()`, por ejemplo-: se carga antes de mirar,
+# Llevan el nombre de base dentro del espacio de nombres para que valgan en las
+# mas de mil llamadas del paquete sin reescribir cada una: un recorrido de todas
+# las exportadas encontro 8 sitios que reciben una columna `integer64`, y nada
+# asegura que sean todos. No se exportan ni se registran como metodo, asi que la
+# sesion del usuario no cambia. Se empareja por el texto y no con
+# `bit64::match.integer64()` porque el texto da lo MISMO que base con bit64
+# nuevo tambien cuando el otro argumento no es `integer64` -un `double`, que
+# `match.integer64()` truncaria a entero-, y no pierde cifras por encima de 2^53.
+#
+# No cubren las funciones de base que llaman a `match()` por dentro con el objeto
+# intacto: `merge()` por una clave `integer64` y `factor()` con niveles
+# `integer64` dan distinto segun la version de bit64. El paquete no las llama
+# asi: su unico `merge()` es por una clave de texto y sus `factor()` con niveles
+# los tienen de texto.
+.match_de_base <- base::match
+
+match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
+  if (is.object(x) && inherits(x, "integer64")) x <- as.character(x)
+  if (is.object(table) && inherits(table, "integer64")) {
+    table <- as.character(table)
+  }
+  .match_de_base(x, table, nomatch, incomparables)
+}
+
+`%in%` <- function(x, table) {
+  if (is.object(x) && inherits(x, "integer64")) x <- as.character(x)
+  if (is.object(table) && inherits(table, "integer64")) {
+    table <- as.character(table)
+  }
+  .match_de_base(x, table, 0L) > 0L
+}
+
+# Con el `match()` de arriba, lo unico que una columna `integer64` necesita es
+# `bit64`: sin el no hay `as.character()` que lea sus valores -saldria el texto
+# de los bits-, ni orden, ni nada que los distinga. La version no importa.
+#
+# Un `integer64` puede llegar sin `bit64` cargado -lo trae `readRDS()`, por
+# ejemplo-, y sus metodos se registran al CARGARLO: se carga antes de mirar,
 # como hace el perfil con sus otros metodos (`.bit64_disponible()`). Sin la
-# carga, la guarda se negaba con bit64 4.6 instalado. Y sin `bit64` instalado
-# no hay metodo, asi que tambien se niega.
+# carga, la guarda se negaba con bit64 4.8 instalado.
 .integer64_con_match_confiable <- function() {
-  .bit64_disponible() &&
-    exists("mtfrm", envir = baseenv(), inherits = FALSE) &&
-    !is.null(utils::getS3method("mtfrm", "integer64", optional = TRUE))
+  .bit64_disponible()
 }
 
 # La guarda de entrada: `x` es una tabla o una columna. Con `via_dbi`, la
@@ -983,12 +1014,12 @@
     paste0(" (", paste0("`", columnas, "`", collapse = ", "), ")")
   } else ""
   mensaje <- paste0(
-    "Las columnas `integer64`", nombradas, " necesitan R 4.2.0 y bit64 4.6.0",
-    " o posteriores. Con versiones anteriores, `match()` de R iguala entre s\u00ed",
-    " todos los valores negativos, y los distintos, la moda y la mediana",
-    " saldr\u00edan mal sin aviso. Instalar o actualizar bit64 desde CRAN; o",
-    " convertir la columna con `as.numeric()` si sus valores no pasan de 2^53, o",
-    " desde una base conecte con `bigint = \"numeric\"`."
+    "Las columnas `integer64`", nombradas, " necesitan el paquete bit64. Sin",
+    " \u00e9l, R lee sus valores como los bits de un `double` e iguala entre s\u00ed",
+    " todos los negativos, y los distintos, la moda y la mediana saldr\u00edan mal",
+    " sin aviso. Instalar bit64 desde CRAN; o convertir la columna con",
+    " `as.numeric()` si sus valores no pasan de 2^53, o desde una base conecte",
+    " con `bigint = \"numeric\"`."
   )
   condicion <- list(message = mensaje, call = NULL)
   class(condicion) <- c("lupa_error_integer64",

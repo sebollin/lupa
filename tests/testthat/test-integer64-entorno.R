@@ -1,35 +1,47 @@
-# La guarda de `integer64`. Sin el metodo `mtfrm.integer64` -R anterior a 4.2.0, o
-# bit64 anterior a 4.6.0- `match()` de base compara los bits del `double`
-# subyacente, en el que todos los negativos de -2^52 a -1 son `NaN`, y los iguala
-# entre si. Medido el 2026-10-25 en R 4.1.0 con bit64 4.0.5: `perfilar()` conto 4
-# distintos en una columna de 7, y por bloques la mediana de
-# -3000000001..-3000000005 salio -3000000001, sin ningun aviso.
+# La guarda de `integer64`. Sin el metodo `mtfrm.integer64` -bit64 anterior a
+# 4.6.0- `match()` de base en R 4.2.0 compara los bits del `double` subyacente, en
+# el que todos los negativos de -2^52 a -1 son `NaN`, y los iguala entre si.
+# Medido el 2026-10-25 en R 4.1.0 con bit64 4.0.5: `perfilar()` conto 4 distintos
+# en una columna de 7, y por bloques la mediana de -3000000001..-3000000005 salio
+# -3000000001, sin ningun aviso. El paquete empareja ahora los `integer64` por su
+# texto en su propio `match()` (ver `test-integer64-bit64-anterior.R`), y la
+# guarda solo se niega cuando no hay bit64: sin el no hay con que leer los
+# valores.
 #
-# El entorno sin el metodo se simula reemplazando la unica pregunta que hace la
+# El entorno sin bit64 se simula reemplazando la unica pregunta que hace la
 # guarda, `.integer64_con_match_confiable()`.
 
 .datos_integer64_entorno <- function() {
   data.frame(a = 1:7, x = bit64::as.integer64(c(-1, -1, -2, -3, 5, 7, 100)))
 }
 
-test_that("con bit64 4.6.0 el match() de base distingue los negativos, que es lo que la guarda pregunta", {
-  skip_if_not_installed("bit64", "4.6.0")
+test_that("la guarda solo pregunta si bit64 esta disponible, no su version", {
+  skip_if_not_installed("bit64")
   expect_true(.integer64_con_match_confiable())
-  x <- bit64::as.integer64(c(-1, -1, -2, -3, 5))
-  expect_identical(base::match(x, unique(x)), c(1L, 1L, 2L, 3L, 4L))
+  # Sin el metodo que bit64 registra desde la 4.6.0, la respuesta no cambia.
+  tabla <- get(".__S3MethodsTable__.", envir = asNamespace("base"))
+  original <- get0("mtfrm.integer64", envir = tabla, inherits = FALSE)
+  if (!is.null(original)) {
+    rm("mtfrm.integer64", envir = tabla)
+    on.exit(assign("mtfrm.integer64", original, envir = tabla), add = TRUE)
+  }
+  expect_null(utils::getS3method("mtfrm", "integer64", optional = TRUE))
+  expect_true(.integer64_con_match_confiable())
 })
 
-test_that("sin el metodo, perfilar() y analizar() se niegan con una condicion propia", {
-  skip_if_not_installed("bit64", "4.6.0")
+test_that("sin bit64, perfilar() y analizar() se niegan con una condicion propia", {
+  skip_if_not_installed("bit64")
   local_mocked_bindings(.integer64_con_match_confiable = function() FALSE)
   d <- .datos_integer64_entorno()
   expect_error(suppressMessages(perfilar(d)), class = "lupa_error_integer64")
   expect_error(suppressMessages(analizar(d)), class = "lupa_error_integer64")
   e <- tryCatch(suppressMessages(perfilar(d)), error = identity)
   expect_false(inherits(e, "lupa_error_dbi"))
-  # El mensaje nombra la columna, las versiones y el remedio.
+  # El mensaje nombra la columna, lo que falta y el remedio, y ya no pide una
+  # version: con cualquier bit64 el perfil sale igual.
   expect_match(conditionMessage(e), "(`x`)", fixed = TRUE)
-  expect_match(conditionMessage(e), "R 4.2.0 y bit64 4.6.0", fixed = TRUE)
+  expect_match(conditionMessage(e), "necesitan el paquete bit64", fixed = TRUE)
+  expect_false(grepl("4.6.0", conditionMessage(e), fixed = TRUE, useBytes = TRUE))
   expect_match(conditionMessage(e), "as.numeric()", fixed = TRUE)
   # Control: la misma tabla en `double` corre; la guarda solo mira la clase.
   d$x <- c(-1, -1, -2, -3, 5, 7, 100)
@@ -37,8 +49,8 @@ test_that("sin el metodo, perfilar() y analizar() se niegan con una condicion pr
   expect_identical(p$columnas$n_distintos[p$columnas$columna == "x"], 6L)
 })
 
-test_that("sin el metodo, la lectura por bloques se niega con la clase de la via DBI", {
-  skip_if_not_installed("bit64", "4.6.0")
+test_that("sin bit64, la lectura por bloques se niega con la clase de la via DBI", {
+  skip_if_not_installed("bit64")
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   local_mocked_bindings(.integer64_con_match_confiable = function() FALSE)
@@ -84,7 +96,7 @@ test_that("sin el metodo, la lectura por bloques se niega con la clase de la via
 # el arbol, si no instalado; un `library()` a secas podria medir otra version.
 test_that("un integer64 que llega sin bit64 cargado no dispara la guarda: se carga antes de mirar", {
   skip_on_cran()
-  skip_if_not_installed("bit64", "4.6.0")
+  skip_if_not_installed("bit64")
   ruta <- find.package("lupa")
   desde_fuente <- file.exists(file.path(ruta, "R", "utils.R"))
   if (desde_fuente) skip_if_not_installed("pkgload")
@@ -123,7 +135,7 @@ test_that("un integer64 que llega sin bit64 cargado no dispara la guarda: se car
 # argumento, no recibe tablas- no cuenta: no llego a usar los valores.
 test_that("ninguna funcion exportada usa una columna integer64 sin pasar por la guarda", {
   skip_on_cran()
-  skip_if_not_installed("bit64", "4.6.0")
+  skip_if_not_installed("bit64")
   local_mocked_bindings(.integer64_con_match_confiable = function() FALSE)
   d <- .datos_integer64_entorno()
   exportadas <- sort(getNamespaceExports("lupa"))

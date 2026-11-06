@@ -21396,10 +21396,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `lupa_error_conteo_dbi`, `lupa_error_esquema_dbi`,
 #' `lupa_error_codificacion_dbi`, `lupa_error_argumento_dbi`,
 #' `lupa_error_transaccion_dbi` y `lupa_error_integer64`. La última sale cuando
-#' la lectura por bloques recibe una columna `integer64` con un `bit64`
-#' anterior a 4.6.0: sin el método `mtfrm.integer64`, `match()` de R iguala
-#' entre sí todos los valores negativos. Sin bloques, los agregados que calcula
-#' el motor se devuelven y la muestra no, con un aviso que dice por qué.
+#' la lectura por bloques recibe una columna `integer64` y `bit64` no está
+#' instalado: sin él R iguala entre sí todos los valores negativos. Sin bloques,
+#' los agregados que calcula el motor se devuelven y la muestra no, con un aviso
+#' que dice por qué. Alcanza `bit64` 4.0.5 o posterior.
 #'
 #' @section Dentro de una transacción:
 #' La vía se puede correr dentro de una transacción abierta por el usuario —es

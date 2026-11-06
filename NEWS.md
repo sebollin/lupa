@@ -104,10 +104,12 @@ Primera versión publicada.
 
 ## Requisitos
 
-- R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64 4.6.0 o
-  posterior: con versiones anteriores, `match()` de R iguala entre sí todos los
-  valores negativos, y `lupa` se niega con la condición `lupa_error_integer64`
-  en lugar de publicar distintos, modas y medianas equivocados.
+- R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64, desde
+  la 4.0.5. Con bit64 anterior a 4.6.0, `match()` de R iguala entre sí todos los
+  valores negativos: `lupa` empareja esos valores por su texto, con su propio
+  `match()` y su `%in%`, y da el mismo perfil que con bit64 nuevo. Sin bit64 se
+  niega con la condición `lupa_error_integer64` en lugar de publicar distintos,
+  modas y medianas equivocados.
 
 ## Datos personales
 

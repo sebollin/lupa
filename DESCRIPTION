@@ -51,7 +51,7 @@ Imports:
     cli (>= 3.0.0),
     data.table
 Suggests:
-    bit64 (>= 4.6.0),
+    bit64 (>= 4.0.5),
     covr,
     DBI,
     duckdb,
