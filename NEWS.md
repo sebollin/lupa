@@ -103,9 +103,11 @@ Primera versión publicada.
   texto es varias veces más rápido, con la misma salida. Los hallazgos
   `columnas_duplicadas` se arman, trazan y revisan de una vez y no par por par,
   y la búsqueda de casi duplicados del vocabulario no calcula la mitad de la
-  matriz de distancias que no lee. Con 500 filas y 1.000 columnas iguales, de
-  379 a 387 s pasa a 37 a 38 s (los 2 CSV fechados de
-  `benchmark/medir_topes_valores_ancho.R` en `benchmark/datos/`).
+  matriz de distancias que no lee. Las columnas iguales se buscan agrupándolas
+  por una huella y comparando cada una con un representante, no par por par.
+  Con 500 filas y 1.000 columnas iguales, de 379 a 387 s pasa a 28 a 30 s (los
+  2 CSV fechados de `benchmark/medir_topes_valores_ancho.R` en
+  `benchmark/datos/`).
 
 ## Requisitos
 
