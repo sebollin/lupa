@@ -1361,7 +1361,12 @@
 #' los grupos que contienen formas con números. Un grupo sin números, que el
 #' filtro nunca une con una forma que los tenga, se conserva además si el
 #' mismo límite medido sobre los grupos sin números lo admite: una familia
-#' numerada no calla una errata de texto de la misma columna. Entonces la
+#' numerada no calla una errata de texto de la misma columna. El denominador
+#' sigue siendo el vocabulario entero de la columna, con las formas con
+#' números, así que el veredicto es el que la columna daría si la familia no
+#' se encadenara: una cadena sin números que ocupa una fracción chica del
+#' vocabulario se publica igual junto a la familia que junto a códigos que no
+#' se encadenan o a cualquier otro texto. Entonces la
 #' cobertura dice que el diagnóstico no aplica a las formas con números y la
 #' evidencia agrega `grupo_maximo sin numeros`. Para mantener acotado el
 #' perfil, por omisión se evalúan hasta
@@ -1859,10 +1864,19 @@
 #'   que con quinientas, y en una tabla chica ese reparto sale por casualidad
 #'   más seguido. Es aditivo: encenderlo no cambia ni pierde ninguna
 #'   detección de `casi_duplicados_vocabulario`. El límite que deja de cubrir se
-#'   declara igual, encendido o apagado, en `n_grupos_sin_variante_rara`.
+#'   declara igual, encendido o apagado, en `n_grupos_sin_variante_rara`. Una
+#'   pareja que `casi_duplicados_vocabulario` ya publicó entera no se cuenta
+#'   ahí ni se publica otra vez como equifrecuente: pasa con una clase exacta
+#'   de normalización unida por distancia a su vecina, y cuando la asimetría
+#'   llega a `min_asimetria_vocabulario` sin pasar
+#'   `max_asimetria_equifrecuente_vocabulario`. Lo que el piso de asimetría deja
+#'   afuera sí se cuenta.
 #' @param max_asimetria_equifrecuente_vocabulario Razón máxima entre la
 #'   frecuencia mayor y la menor para considerar que dos formas se reparten la
-#'   columna. Con `2`, `40` contra `5` no entra y `5` contra `5` sí.
+#'   columna. Con `2`, `40` contra `5` no entra y `5` contra `5` sí. Las
+#'   grafías que la normalización junta cuentan juntas: `MONTEVIDEO` (10) y
+#'   `Montevideo` (40) contra `Montevido` (50) es un empate, el grupo publica
+#'   las tres formas con sus frecuencias y su asimetría es 1.
 #' @param max_comparaciones_dependencias Tope de pares determinante-dependiente
 #'   que se comparan. El costo de las dependencias es del orden de
 #'   `columnas^2 x filas` y empeora con determinantes casi únicos; cuando el

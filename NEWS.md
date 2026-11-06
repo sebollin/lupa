@@ -369,7 +369,8 @@ Primera versión publicada.
   callada porque la misma columna tenga una familia de códigos numerados con
   frecuencias desparejas. La familia sigue declarando que el diagnóstico no
   aplica a las formas con números; los grupos sin números se juzgan con el mismo
-  límite, medido sobre ellos.
+  límite y contra el mismo vocabulario entero de la columna: salen igual que si
+  la familia no se encadenara.
 - La búsqueda de casi duplicados del vocabulario ya no depende de que la
   columna tenga, antes de una pareja, dos formas que se normalizan igual (`ALFA`
   y `Alfa`). Con una de esas clases delante, el filtro de marcas de formato leía
@@ -378,3 +379,26 @@ Primera versión publicada.
   cobertura «N grupos de formas cercanas no se formaron…» desaparecía, y el
   diagnóstico de variantes equifrecuentes nombraba formas que no son pareja. Sin
   esas clases, o con la clase después de la pareja, la salida es la misma.
+- En `perfilar()`, una pareja cercana cuyas formas normalizadas empatan en
+  frecuencia ya no queda sin declarar porque uno de sus lados junte grafías que
+  se normalizan igual (`Montevideo` y `MONTEVIDEO`, 25 cada una, contra
+  `Montevido`, 50). Se publicaba sólo el grupo de esas grafías, y la pareja no
+  aparecía en la fila de cobertura «N grupos de formas cercanas no se
+  formaron…» ni, con `variantes_equifrecuentes_vocabulario = TRUE`, como
+  hallazgo. Ahora se declara igual que sin esas grafías, y el grupo
+  equifrecuente las lista todas con su frecuencia; su asimetría es la de las
+  formas normalizadas (`MONTEVIDEO` 10 y `Montevideo` 40 contra `Montevido` 50
+  da 1, no 5).
+- En `perfilar()`, una pareja que `casi_duplicados_vocabulario` ya publica no se
+  cuenta además en la fila de cobertura «N grupos de formas cercanas no se
+  formaron…», ni sale otra vez como `variantes_equifrecuentes_vocabulario` con
+  el detector encendido. Con los valores por omisión pasaba en el borde:
+  `Montevideo` (50) contra `Montevido` (25) tiene asimetría 2, que llega al piso
+  de `min_asimetria_vocabulario` y no pasa el tope de
+  `max_asimetria_equifrecuente_vocabulario`, y la salida publicaba la pareja y
+  decía a la vez que no se había formado. Lo mismo con las variantes de igual
+  frecuencia de un grupo publicado (`Zona B` … `Zona O` alrededor de `Zona A`).
+  Lo que el piso de asimetría deja afuera se sigue contando. Y la cantidad de
+  pares que esa fila declara («Se identificaron M pares cercanos…») es la de los
+  grupos que cuenta: sumaba también los de los grupos ya publicados y los de las
+  cadenas que el tope de asimetría o el límite del vocabulario dejan afuera.

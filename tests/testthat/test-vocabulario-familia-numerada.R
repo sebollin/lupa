@@ -154,6 +154,57 @@ test_that("una cadena sin numeros que abarca la columna no se rescata", {
   )
 })
 
+test_that("el limite sin numeros mide contra el vocabulario entero", {
+  skip_if_not_installed("stringdist")
+  # El denominador del limite sin numeros es el vocabulario entero de la
+  # columna, con las formas con numeros: el veredicto es el que la columna
+  # daria si la familia no se encadenara. Con las formas sin numeros de
+  # denominador, el veredicto dependeria de que la familia se encadene, y una
+  # errata con muchas grafias quedaria callada junto a la familia mientras se
+  # publica junto a codigos que no se encadenan.
+  sin_encadenar <- rep(paste0("valor_", seq_len(40L)), each = 10L)
+  # Una errata con once grafias: sola abarca la columna y no aplica.
+  errata <- c(
+    rep("Montevideo", 200L),
+    rep(c("Montevido", "Montevdeo", "Montvideo", "Mntevideo", "Montevideoo",
+          "Monteviedo", "Montevideu", "Montevidei", "Montevidao",
+          "Montevidwo"), each = 3L)
+  )
+  sola <- .grupos_vocabulario(errata)
+  expect_false(sola$alcance$aplicable)
+  expect_length(sola$grupos, 0L)
+  con_familia <- .grupos_vocabulario(c(.familia_desparejada(), errata))
+  con_codigos <- .grupos_vocabulario(c(sin_encadenar, errata))
+  # Control: una columna decide por la familia y la otra no.
+  expect_false(con_familia$alcance$aplicable)
+  expect_true(con_familia$alcance$evaluado_aparte_sin_numeros)
+  expect_true(con_codigos$alcance$aplicable)
+  expect_equal(con_familia$alcance$n_valores_evaluados, 51L)
+  expect_equal(con_familia$alcance$tamano_grupo_maximo_sin_numeros, 11L)
+  expect_equal(con_familia$alcance$proporcion_grupo_maximo_sin_numeros, 11 / 51)
+  expect_length(con_familia$grupos, 1L)
+  expect_length(con_familia$grupos[[1L]]$variantes, 11L)
+  # La participacion de la variante depende de las filas de la columna; lo
+  # demas del grupo es lo mismo.
+  campos <- function(grupos) lapply(unname(grupos), `[`, c(
+    "variantes", "frecuencias", "asimetria", "distancia_minima",
+    "distancia_maxima", "clase_diferencia", "origen"
+  ))
+  expect_identical(campos(con_familia$grupos), campos(con_codigos$grupos))
+
+  # La otra direccion, declarada: una cadena sin numeros que ocupa una
+  # fraccion chica del vocabulario se publica junto a la familia como junto a
+  # codigos que no se encadenan, que es la regla general del limite.
+  zonas <- rep(paste0("Zona ", LETTERS[1:15]), times = c(100L, rep(4L, 14L)))
+  zonas_familia <- .grupos_vocabulario(c(.familia_desparejada(), zonas))
+  zonas_codigos <- .grupos_vocabulario(c(sin_encadenar, zonas))
+  expect_false(zonas_familia$alcance$aplicable)
+  expect_equal(zonas_familia$alcance$proporcion_grupo_maximo_sin_numeros, 15 / 55)
+  expect_true(zonas_codigos$alcance$aplicable)
+  expect_length(zonas_familia$grupos, 1L)
+  expect_identical(campos(zonas_familia$grupos), campos(zonas_codigos$grupos))
+})
+
 test_that("las variantes equifrecuentes sin numeros siguen la misma regla", {
   skip_if_not_installed("stringdist")
   pareja <- c(rep("Montevideo", 50L), rep("Montevido", 48L))

@@ -1500,27 +1500,28 @@
     fila_1 <- fila_1[conservar]
     fila_2 <- fila_2[conservar]
     distancia <- distancia[conservar]
-    n_pares_equifrecuentes <<- n_pares_equifrecuentes + length(fila_1)
     for (i in seq_along(fila_1)) {
       activos_equifrecuentes[[fila_1[[i]]]] <<- TRUE
       activos_equifrecuentes[[fila_2[[i]]]] <<- TRUE
       unir_equifrecuentes(fila_1[[i]], fila_2[[i]])
     }
+    # Se guardan en formas: los grupos que los consumen estan en formas, y
+    # de aca solo se leen para publicar (`crudos`) y para aparear contra
+    # esos grupos. Los extremos se guardan tambien con el detector apagado,
+    # porque la fila de cobertura cuenta los pares de los grupos que declara
+    # y no todos los que se registraron; la distancia solo se publica con el
+    # detector encendido.
+    pares_equifrecuentes_1 <<- c(
+      pares_equifrecuentes_1, as.integer(representantes[fila_1])
+    )
+    pares_equifrecuentes_2 <<- c(
+      pares_equifrecuentes_2, as.integer(representantes[fila_2])
+    )
     if (isTRUE(detectar_variantes_equifrecuentes)) {
-      # Se guardan en formas: los grupos que los consumen estan en formas, y
-      # de aca solo se leen para publicar (`crudos`) y para aparear contra
-      # esos grupos.
-      pares_equifrecuentes_1 <<- c(
-        pares_equifrecuentes_1, as.integer(representantes[fila_1])
-      )
-      pares_equifrecuentes_2 <<- c(
-        pares_equifrecuentes_2, as.integer(representantes[fila_2])
-      )
       distancias_equifrecuentes <<- c(distancias_equifrecuentes, distancia)
     }
     invisible(NULL)
   }
-  n_pares_equifrecuentes <- 0L
   pares_equifrecuentes_1 <- integer()
   pares_equifrecuentes_2 <- integer()
   distancias_equifrecuentes <- numeric()
@@ -1826,6 +1827,7 @@
   # Se declara si hubo algo sin numeros que juzgar aparte: sin eso, el motivo
   # de "no aplica" no puede decir a que parte de la columna se refiere.
   evaluado_aparte_sin_numeros <- !aplicable && length(grupos) > 0L
+  grupos_publicados <- list()
   if (!length(grupos)) {
     grupos_salida <- list()
   } else {
@@ -1933,6 +1935,7 @@
     }, logical(1L))
     n_grupos_bajo_piso <- sum(!conserva)
     grupos_salida <- grupos_salida[conserva]
+    grupos_publicados <- grupos[conserva]
   }
   if (length(grupos_salida)) {
     orden <- .orden_por_bytes(-vapply(grupos_salida, `[[`, numeric(1L), "asimetria"),
@@ -1947,16 +1950,39 @@
     # Los componentes se arman sobre unidades, y el candidato sale en formas:
     # cada forma va al componente de su unidad, igual que los grupos del
     # camino principal salen de `split(seq_len(n_evaluados), componentes)`.
-    # Desde aca todo -frecuencias, la exclusion por clase exacta, las
-    # variantes que se publican- lee formas.
+    # Las variantes que se publican y sus frecuencias son de formas. La
+    # asimetria no: es de unidades, la misma con que `registrar_equifrecuentes()`
+    # admitio cada par. Por forma, una clase exacta reparte su unidad entre
+    # grafias, y `MONTEVIDEO` (10) + `Montevideo` (40) contra `Montevido` (50),
+    # que es un empate, daba 5 y el candidato se perdia.
+    #
+    # Un candidato se descarta solo si el camino principal ya publico todas
+    # sus formas en un mismo grupo: ahi la pareja se formo, y contarla otra
+    # vez hacia decir a la cobertura que no se formo y, con el detector
+    # encendido, la publicaba dos veces. Pasa con una clase exacta unida por
+    # distancia a su vecina (`normalizacion+distancia`), y sin clase cuando la
+    # asimetria llega al piso sin pasar el tope de esta via: `Montevideo` (50)
+    # contra `Montevido` (25) da 2, y con `max_asimetria_equifrecuente` por
+    # encima del piso, todo el tramo entre los dos. `grupos_publicados` es posterior al piso, asi que lo que el piso
+    # deja afuera no esta ahi y se sigue contando: esta via cubre justamente
+    # eso. Descartar por tocar una clase, en cambio, callaba la pareja
+    # empatada: sin centro de frecuencia no hay arista, el camino principal
+    # publica solo la clase, y la pareja no salia ni en la fila de cobertura ni,
+    # con el detector encendido, como hallazgo.
     componente_forma <- componentes_equifrecuentes[clases]
     activa_forma <- activos_equifrecuentes[clases]
     candidatos <- split(which(activa_forma), componente_forma[activa_forma])
+    grupo_publicado_forma <- integer(n_evaluados)
+    for (k in seq_along(grupos_publicados)) {
+      grupo_publicado_forma[grupos_publicados[[k]]] <- k
+    }
     Filter(function(indices) {
-      frecuencias_grupo <- frecuencias[indices]
+      frecuencias_unidades <- frecuencia_unidad[unique(clases[indices])]
+      publicado <- grupo_publicado_forma[indices]
+      ya_publicado <- publicado[[1L]] > 0L && all(publicado == publicado[[1L]])
       length(indices) > 1L &&
-        !any(indices %in% as.integer(pares)) &&
-        max(frecuencias_grupo) / min(frecuencias_grupo) <=
+        !ya_publicado &&
+        max(frecuencias_unidades) / min(frecuencias_unidades) <=
           max_asimetria_equifrecuente
     }, candidatos)
   } else list()
@@ -1973,6 +1999,19 @@
     evaluado_aparte_sin_numeros <- evaluado_aparte_sin_numeros ||
       length(grupos_equifrecuentes_candidatos) > 0L
   }
+  # La fila de cobertura dice "N grupos de formas cercanas no se formaron...
+  # Se identificaron M pares", y M se lee como los pares de esos N grupos. Se
+  # cuentan entonces solo los pares con los dos extremos en un candidato que
+  # quedo contado: no los de un candidato que el camino principal ya publico
+  # entero, ni los de una cadena que el filtro de asimetria o el limite
+  # dejaron afuera. Medido: con la estrella `Zona A`..`Zona O` publicada, sus
+  # hojas empatadas sumaban 91 de los 507 pares que se atribuian a otros dos
+  # grupos.
+  formas_contadas <- unlist(grupos_equifrecuentes_candidatos, use.names = FALSE)
+  n_pares_equifrecuentes <- sum(
+    pares_equifrecuentes_1 %in% formas_contadas &
+      pares_equifrecuentes_2 %in% formas_contadas
+  )
   grupos_equifrecuentes <- list()
   if (isTRUE(detectar_variantes_equifrecuentes) &&
       length(grupos_equifrecuentes_candidatos)) {
@@ -1984,6 +2023,9 @@
             pares_equifrecuentes_2 %in% indices
         )
         frecuencias_grupo <- frecuencias[indices]
+        # La asimetria que se publica es la que el criterio acoto: la
+        # evidencia la declara junto a `max_asimetria_equifrecuente`.
+        frecuencias_unidades <- frecuencia_unidad[unique(clases[indices])]
         distancias_grupo <- distancias_equifrecuentes[aristas]
         clases_aristas <- vapply(aristas, function(j) {
           .clase_diferencia_vocabulario(
@@ -2001,7 +2043,7 @@
           } else "mixta"
         list(
           variantes = crudos[indices], variantes_publicables = publicables[indices], frecuencias = frecuencias_grupo,
-          asimetria = max(frecuencias_grupo) / min(frecuencias_grupo),
+          asimetria = max(frecuencias_unidades) / min(frecuencias_unidades),
           distancia_minima = if (length(distancias_grupo)) {
             min(distancias_grupo)
           } else NA_real_,
