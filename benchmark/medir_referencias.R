@@ -23,7 +23,14 @@ if (file.exists(file.path(.raiz_paquete, "DESCRIPTION")) &&
 ))
 .revision <- paste0(
   as.character(utils::packageVersion("lupa")), "; R/ md5 ",
-  substr(paste(unname(tools::md5sum(.archivos_r)), collapse = ""), 1L, 12L)
+  local({
+    # La suma de la LISTA de sumas, como benchmark/_firma.R: los primeros 12
+    # caracteres de las sumas pegadas eran la suma del primer archivo y nada mas.
+    lista <- tempfile()
+    on.exit(unlink(lista))
+    writeLines(paste(unname(tools::md5sum(.archivos_r)), basename(.archivos_r)), lista)
+    substr(unname(tools::md5sum(lista)), 1L, 12L)
+  })
 )
 .fecha <- format(Sys.time(), tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ")
 .entorno <- list(

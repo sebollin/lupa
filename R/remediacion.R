@@ -25,7 +25,7 @@
                           destructiva = FALSE,
                           estado_reparacion = NA_character_,
                           unidad_conteo = NA_character_) {
-  estructura <- data.frame(
+  estructura <- .data_frame_simple(
     id_accion = "", columna = columna, hallazgo = hallazgo,
     grupo = grupo, decision_grupo = decision_grupo,
     recomendacion_grupo = recomendacion_grupo,
@@ -288,7 +288,7 @@
       )
     }
   }, character(1L))
-  data.frame(
+  .data_frame_simple(
     hallazgo = as.character(hallazgos$tipo_hallazgo[sin_accion]),
     columna = as.character(hallazgos$columna[sin_accion]),
     severidad = as.character(hallazgos$severidad[sin_accion]),

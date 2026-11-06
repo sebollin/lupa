@@ -1132,7 +1132,7 @@ modelo <- function(..., marco = NULL) {
   reciclar <- function(x) {
     if (length(x) == 1L) rep(x, n) else x
   }
-  data.frame(
+  .data_frame_simple(
     resultado = resultado,
     entidad = reciclar(entidad),
     atributo = reciclar(atributo),
@@ -1586,7 +1586,7 @@ metricas_nucleo <- function() {
       rep(obtener(instancias[[i]]), cantidades[[i]])
     }), use.names = FALSE)
   }
-  resultado <- data.frame(
+  resultado <- .data_frame_simple(
     id_medicion = rep(id_medicion, total),
     fecha = rep(fecha, total),
     metrica = repetir_instancia(function(x) x$declaracion$nombre),

@@ -2818,7 +2818,7 @@
       proteger_datos_personales = FALSE
     )
   } else {
-    estructura <- data.frame(
+    estructura <- .data_frame_simple(
       patron = character(), n = integer(), proporcion = numeric(),
       ejemplos = character(), stringsAsFactors = FALSE
     )
@@ -3004,7 +3004,7 @@
     0L
   }
 
-  fila <- data.frame(
+  fila <- .data_frame_simple(
     columna = nombre,
     tipo_declarado = .tipo_declarado(x),
     tipo_inferido = inferencia$tipo,

@@ -438,7 +438,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
       # para una columna en `km/h` y hacia abortar la funcion entera con `m^2`.
       .unidad_declarada(x)
     }
-    filas[[i]] <- data.frame(
+    filas[[i]] <- .data_frame_simple(
       columna = nombre, tipo_almacenamiento = .tipo_declarado(x),
       tipo_implicito = tipo_implicito, escala_propuesta = propuesta$escala,
       rol = propuesta$rol, confianza = propuesta$confianza,

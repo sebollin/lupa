@@ -1071,7 +1071,7 @@
 # acordarse de hacerlo en los dos lados. Los dos nombres se conservan porque
 # dicen cosas distintas en su contexto, pero ahora son envoltorios de esto.
 .pares_de_columnas_identicas <- function(datos, indices, nombres) {
-  vacio <- data.frame(
+  vacio <- .data_frame_simple(
     columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
   )
   if (length(indices) < 2L) return(vacio)
@@ -1081,7 +1081,7 @@
   })
   pares <- pares[, iguales, drop = FALSE]
   if (!ncol(pares)) return(vacio)
-  data.frame(
+  .data_frame_simple(
     columna_1 = nombres[pares[1L, ]],
     columna_2 = nombres[pares[2L, ]],
     stringsAsFactors = FALSE
@@ -2846,4 +2846,156 @@
     return("segundos")
   }
   .unidad_declarada(x)
+}
+
+# `data.frame()` cobra un precio fijo por columna aunque la columna ya traiga
+# nombre: cada argumento pasa por `as.data.frame.character()` o
+# `as.data.frame.vector()`, que hacen `deparse1(substitute(x))` para inventarle
+# un nombre que despues se descarta. La fila de cada columna del perfil tiene
+# unas 150 columnas y se arma una vez por columna perfilada: medido sobre la
+# tabla del README, ese deparse y lo que lo rodea eran un tercio de
+# `perfilar()`, y en Windows el costo fijo se multiplica.
+#
+# Esta version arma la tabla directamente cuando todas las columnas tienen
+# nombre y cada una es un vector atomico sin nombres ni dimensiones, sin
+# atributos o con la clase exacta de un `factor`, `Date` o `POSIXct` -las que
+# `data.frame()` guarda tal cual y sabe reciclar-, de largo comun o de largo 1.
+# Para ese caso hace lo mismo que `data.frame()`: corrige los nombres con
+# `make.names(unique = TRUE)`, recicla con `rep(length.out = )` y deja nombres
+# de fila automaticos; una prueba lo compara con `identical()`. Cualquier otra
+# cosa -una columna sin nombre, una lista, un vector con nombres o con otros
+# atributos, una clase propia, largos que no casan, `stringsAsFactors = TRUE`-
+# va a `data.frame()`, que la resuelve o la rechaza con su propio mensaje.
+.data_frame_simple <- function(..., stringsAsFactors = FALSE,
+                               check.names = TRUE) {
+  columnas <- list(...)
+  n_filas <- .filas_data_frame_simple(columnas)
+  if (is.na(n_filas) || !identical(stringsAsFactors, FALSE) ||
+      !(isTRUE(check.names) || isFALSE(check.names))) {
+    return(data.frame(..., stringsAsFactors = stringsAsFactors,
+                      check.names = check.names))
+  }
+  cortas <- lengths(columnas) != n_filas
+  if (any(cortas)) {
+    columnas[cortas] <- lapply(columnas[cortas], rep, length.out = n_filas)
+  }
+  if (check.names) {
+    # `make.names(unique = TRUE)` ordena para desambiguar aunque no haya nada
+    # repetido, y ese orden era casi la mitad de lo que costaba esta funcion.
+    # Sin repetidos el resultado es el de `make.names()` a secas.
+    nombres <- make.names(names(columnas))
+    if (anyDuplicated(nombres)) {
+      nombres <- make.names(names(columnas), unique = TRUE)
+    }
+    names(columnas) <- nombres
+  }
+  list2DF(columnas, nrow = n_filas)
+}
+
+.CLASES_DATA_FRAME_SIMPLE <- list(
+  "factor", c("ordered", "factor"), "Date", c("POSIXct", "POSIXt")
+)
+
+.columna_con_clase_simple <- function(v) {
+  atributos <- attributes(v)
+  clase <- atributos[["class"]]
+  !is.null(clase) && is.null(atributos[["names"]]) &&
+    is.null(atributos[["dim"]]) && is.null(atributos[["dimnames"]]) &&
+    any(vapply(.CLASES_DATA_FRAME_SIMPLE, identical, logical(1L), clase))
+}
+
+# El largo de la tabla si `.data_frame_simple()` puede armarla sin
+# `data.frame()`, o `NA` si no.
+.filas_data_frame_simple <- function(columnas) {
+  nombres <- names(columnas)
+  if (!length(columnas) || is.null(nombres) || anyNA(nombres) ||
+      !all(nzchar(nombres))) {
+    return(NA_integer_)
+  }
+  # Con primitivas primero: casi todas las columnas son vectores sin atributos,
+  # y una funcion por columna costaba mas que lo que se ahorraba.
+  if (!all(vapply(columnas, is.atomic, logical(1L), USE.NAMES = FALSE)) ||
+      any(vapply(columnas, is.null, logical(1L), USE.NAMES = FALSE))) {
+    return(NA_integer_)
+  }
+  con_atributos <- !vapply(lapply(columnas, attributes), is.null, logical(1L),
+                           USE.NAMES = FALSE)
+  if (any(con_atributos) &&
+      !all(vapply(columnas[con_atributos], .columna_con_clase_simple,
+                  logical(1L), USE.NAMES = FALSE))) {
+    return(NA_integer_)
+  }
+  largos <- lengths(columnas, use.names = FALSE)
+  n_filas <- max(largos)
+  if (all(largos == n_filas) || (n_filas > 0L && all(largos %in% c(1L, n_filas)))) {
+    n_filas
+  } else {
+    NA_integer_
+  }
+}
+
+# Lo mismo que `do.call(rbind, filas)` seguido de `rownames(x) <- NULL`.
+#
+# `rbind.data.frame()` paga por pieza y por columna la reconciliacion de
+# factores, matrices y nombres de fila. La tabla de columnas del perfil apila
+# una fila de unas 150 columnas por columna perfilada, y ese apilado era el
+# 3 % de `perfilar()` sobre la tabla del README, creciendo con el ancho.
+#
+# Cuando todas las piezas son `data.frame` sin otros atributos, con al menos una
+# fila, los mismos nombres de columna y columnas atomicas sin atributos, cada
+# columna del resultado es la concatenacion de sus piezas. `rbind()` llega al
+# mismo vector asignando pieza por pieza (`value[[j]][filas] <- pieza`), y eso
+# coerciona en cadena: por eso se exige que el tipo de cada columna sea el mismo
+# en todas las piezas, o que todas sean logicas, enteras o reales -donde
+# coercionar en cadena o de una vez da los mismos valores; con texto no:
+# `TRUE` pasa a `1L` y despues a `"1"`, y de una vez a `"TRUE"`-. Los nombres de
+# fila no se reproducen: se descartan, como lo hace quien la llama. Cualquier
+# otra forma va a `rbind()`.
+.apilar_filas <- function(filas) {
+  columnas <- .columnas_apiladas(filas)
+  if (is.null(columnas)) {
+    resultado <- do.call(rbind, filas)
+    rownames(resultado) <- NULL
+    return(resultado)
+  }
+  list2DF(columnas, nrow = sum(vapply(filas, .row_names_info, integer(1L), 2L)))
+}
+
+.columnas_apiladas <- function(filas) {
+  if (!length(filas) || !is.list(filas)) return(NULL)
+  primera <- filas[[1L]]
+  if (!is.data.frame(primera)) return(NULL)
+  nombres <- names(primera)
+  if (!length(nombres)) return(NULL)
+  tipos <- vector("list", length(filas))
+  for (i in seq_along(filas)) {
+    pieza <- filas[[i]]
+    if (!identical(oldClass(pieza), "data.frame") ||
+        !identical(names(pieza), nombres) ||
+        !setequal(names(attributes(pieza)), c("names", "class", "row.names")) ||
+        .row_names_info(pieza, 2L) < 1L) {
+      return(NULL)
+    }
+    # Sin la clase: `lengths()` sobre un data frame pasa por `[[.data.frame`
+    # columna por columna, y eso era casi todo el costo de esta funcion.
+    contenido <- unclass(pieza)
+    if (any(lengths(contenido, use.names = FALSE) != .row_names_info(pieza, 2L)) ||
+        !all(vapply(lapply(contenido, attributes), is.null, logical(1L),
+                    USE.NAMES = FALSE))) {
+      return(NULL)
+    }
+    tipos[[i]] <- vapply(contenido, typeof, character(1L), USE.NAMES = FALSE)
+  }
+  tipos <- matrix(unlist(tipos, use.names = FALSE), nrow = length(nombres))
+  if (!all(tipos %in% c("logical", "integer", "double", "character"))) {
+    return(NULL)
+  }
+  uniformes <- rowSums(tipos == tipos[, 1L]) == ncol(tipos)
+  numericas <- rowSums(tipos != "character") == ncol(tipos)
+  if (!all(uniformes | numericas)) return(NULL)
+  columnas <- lapply(seq_along(nombres), function(j) {
+    unlist(lapply(filas, .subset2, j), use.names = FALSE)
+  })
+  names(columnas) <- nombres
+  columnas
 }

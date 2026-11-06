@@ -169,6 +169,57 @@
 
 .especificaciones_fecha <- function() .especificaciones_fecha_tabla
 
+# Los caracteres que una expresion de la tabla exige en todo valor que case con
+# ella: lo que queda al sacar las clases (`[0-9]{4}`, `[+-]`), los grupos con
+# alternativas (`(?:Z|...)`) y las anclas, con el punto escapado leido como
+# punto. Sirve para descartar sin probarlo un formato que no puede casar: si
+# ningun valor de la columna tiene `/`, ningun `%d/%m/%Y` va a casar, y su
+# mascara es toda FALSE sin pasar por `.es_fecha_valida()`.
+#
+# Tiene que ser una condicion necesaria, nunca de mas: ante cualquier cosa que
+# no sepa leer -un punto sin escapar, un cuantificador sobre un literal, un
+# parentesis que quedo- no exige nada, y el formato se prueba como siempre.
+.literales_exigidos_fecha <- function(expresion) {
+  vapply(expresion, function(e) {
+    x <- gsub("\\(\\?:[^()]*\\)([?*+]|\\{[0-9,]+\\})?", "", e, perl = TRUE)
+    x <- gsub("\\[[^]]*\\]([?*+]|\\{[0-9,]+\\})?", "", x, perl = TRUE)
+    x <- sub("^\\^", "", x, perl = TRUE)
+    x <- sub("\\$$", "", x, perl = TRUE)
+    x <- gsub("\\.", "\001", x, fixed = TRUE)
+    if (grepl("[][(){}|?*+\\\\^$.]", x, perl = TRUE)) return("")
+    x <- gsub("\001", ".", x, fixed = TRUE)
+    paste(sort(unique(strsplit(x, "", fixed = TRUE)[[1L]])), collapse = "")
+  }, character(1L), USE.NAMES = FALSE)
+}
+
+# Se calcula al instalar, junto con la tabla, y se usa solo si la tabla que se
+# recibe es esta: si no, se calcula al vuelo.
+.literales_especificaciones_fecha_tabla <- list(
+  expresion = .especificaciones_fecha_tabla$expresion,
+  literales = .literales_exigidos_fecha(.especificaciones_fecha_tabla$expresion)
+)
+
+# Que formatos de la tabla pueden casar con algun valor, por los caracteres que
+# exigen. Una mascara descartada aca es la misma que `.es_fecha_valida()`
+# devolveria: ningun valor casa con la expresion, todo FALSE.
+.formatos_fecha_posibles <- function(valores, especificaciones) {
+  tabla <- .literales_especificaciones_fecha_tabla
+  literales <- if (identical(especificaciones$expresion, tabla$expresion)) {
+    tabla$literales
+  } else {
+    .literales_exigidos_fecha(especificaciones$expresion)
+  }
+  exigidos <- strsplit(literales, "", fixed = TRUE)
+  caracteres <- unique(unlist(exigidos, use.names = FALSE))
+  # `useBytes`: los caracteres exigidos son ASCII, y asi un texto que no sea
+  # UTF-8 valido no hace abortar la busqueda. Contarlo presente solo hace que
+  # se pruebe un formato de mas, nunca de menos.
+  presentes <- caracteres[vapply(caracteres, function(caracter) {
+    any(grepl(caracter, valores, fixed = TRUE, useBytes = TRUE), na.rm = TRUE)
+  }, logical(1L), USE.NAMES = FALSE)]
+  vapply(exigidos, function(l) all(l %in% presentes), logical(1L))
+}
+
 .meses_fecha_lupa <- c(
   enero = 1L, ene = 1L, january = 1L, jan = 1L,
   febrero = 2L, feb = 2L, february = 2L,
@@ -394,7 +445,7 @@
                           n_inequivocos = n, n_ambiguos = 0L,
                           grupo_ambiguo = "", anio_dos_digitos = FALSE,
                           granularidad = "dia") {
-  data.frame(
+  .data_frame_simple(
     formato = formato,
     n = as.integer(n),
     proporcion = if (total) n / total else NA_real_,
@@ -561,7 +612,20 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   valores <- valores_numericos[candidatos_fecha]
   pesos_numericos <- pesos[indices_numericos]
   especificaciones <- .especificaciones_fecha()
+  # Sin candidatos no hay nada que probar, y una columna que no es de fechas
+  # pagaba igual 147 llamadas a `.es_fecha_valida()` sobre un vector vacio:
+  # medido, 1323 de las 1480 llamadas al perfilar la tabla del README. Con
+  # candidatos, el formato que exige un caracter que ningun valor
+  # tiene tampoco se prueba. En los dos casos la mascara es la que
+  # `.es_fecha_valida()` devolveria, asi que la deteccion no cambia.
+  posibles <- if (length(valores)) {
+    .formatos_fecha_posibles(valores, especificaciones)
+  } else {
+    rep(FALSE, nrow(especificaciones))
+  }
+  ninguna <- rep(FALSE, length(valores))
   mascaras <- lapply(seq_len(nrow(especificaciones)), function(i) {
+    if (!posibles[[i]]) return(ninguna)
     .es_fecha_valida(
       valores,
       especificaciones$formato[[i]],
@@ -599,6 +663,10 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   # resultado es el de siempre.
   for (grupo in grupos) {
     indices <- which(especificaciones$grupo_ambiguo == grupo)
+    # Un grupo cuyas lecturas se descartaron todas arriba no lee ningun valor:
+    # es el `next` de `!any(con_valores)`, sin armar antes sus cuentas. Con 54
+    # grupos, armarlas era lo que mas costaba de la deteccion.
+    if (!any(posibles[indices])) next
     mascaras_grupo <- mascaras[indices]
     lecturas <- Reduce(`+`, lapply(mascaras_grupo, as.integer))
     ambiguos <- lecturas >= 2L
@@ -682,11 +750,12 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   }
 
   if (length(filas)) {
-    resultado <- do.call(rbind, filas)
+    # Los nombres de fila se descartan dos lineas abajo: ver `.apilar_filas()`.
+    resultado <- .apilar_filas(filas)
     resultado <- resultado[.orden_por_bytes(-resultado$n, resultado$formato), , drop = FALSE]
     rownames(resultado) <- NULL
   } else {
-    resultado <- data.frame(
+    resultado <- .data_frame_simple(
       formato = character(), n = integer(), proporcion = numeric(),
       estado = character(), n_inequivocos = integer(), n_ambiguos = integer(),
       grupo_ambiguo = character(), anio_dos_digitos = logical(),

@@ -83,7 +83,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
 
   if (!is.character(x) && !is.factor(x)) {
     n <- sum(!is.na(muestreo$valores))
-    candidatos <- data.frame(
+    candidatos <- .data_frame_simple(
       tipo = declarada, compatibles = n,
       proporcion = if (n) 1 else NA_real_, stringsAsFactors = FALSE
     )
@@ -204,7 +204,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     identificador = n_id,
     texto = n
   )
-  candidatos <- data.frame(
+  candidatos <- .data_frame_simple(
     tipo = names(conteos),
     compatibles = as.integer(conteos),
     proporcion = as.numeric(conteos) / n,

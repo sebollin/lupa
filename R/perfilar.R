@@ -13,11 +13,11 @@
     umbral_celdas = umbral_celdas,
     fuente = paste0(
       "benchmark/medir_referencias.R, 500 filas y 50, 300 y 1.000 columnas ",
-      "num\u00e9ricas y categ\u00f3ricas; referencia de ",
+      "num\u00e9ricas y categ\u00f3ricas, y benchmark/medir_topes_valores_ancho.R, ",
+      "las mismas anchuras con columnas iguales de c\u00f3digos de texto; ",
+      "referencia de ",
       .formatear_numero_publicado(.VELOCIDAD_REFERENCIA_TABLA_ANCHA),
-      " celdas por segundo, por debajo de todas sus mediciones. Con muchas ",
-      "columnas de c\u00f3digos de texto parecidos la espera puede ser varias ",
-      "veces mayor (benchmark/medir_topes_valores_ancho.R)"
+      " celdas por segundo, por debajo de todas sus mediciones"
     )
   )
 }
@@ -2995,8 +2995,9 @@ perfilar <- function(datos,
   datos_diagnostico <- datos
   datos_texto_caro <- .datos_sin_textos_largos(datos, resultados)
 
+  # Los nombres de fila se descartan abajo: ver `.apilar_filas()`.
   columnas <- if (length(resultados)) {
-    do.call(rbind, lapply(resultados, `[[`, "fila"))
+    .apilar_filas(lapply(resultados, `[[`, "fila"))
   } else {
       .perfilar_columna(
       character(), "", muestra_diagnosticos, max_patrones,

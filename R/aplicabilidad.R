@@ -224,7 +224,7 @@
     reglas = if (length(reglas)) {
       do.call(rbind, reglas)
     } else {
-      data.frame(
+      .data_frame_simple(
         columna = character(), origen = character(), regla = character(),
         n_aplicables = integer(), n_no_aplica = integer(),
         n_indeterminados = integer(), stringsAsFactors = FALSE

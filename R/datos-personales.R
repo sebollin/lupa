@@ -1386,7 +1386,7 @@
       muestra_validadores = muestra_validadores
     )
     if (is.na(clasificacion$tipo)) return(NULL)
-    data.frame(
+    .data_frame_simple(
       columna = nombres[[i]],
       tipo = clasificacion$tipo,
       proporcion_compatible = as.numeric(clasificacion$proporcion),
@@ -1594,7 +1594,7 @@
 }
 
 .copias_vacias <- function() {
-  data.frame(columna = character(), proporcion = numeric(),
+  .data_frame_simple(columna = character(), proporcion = numeric(),
              evaluados = integer(), de = character(), origen = character(),
              stringsAsFactors = FALSE)
 }

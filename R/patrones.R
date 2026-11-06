@@ -240,7 +240,7 @@ descubrir_patrones <- function(x,
   crear_tabla <- function(indices) {
     nombres <- names(frecuencias)[indices]
     nombres[nombres == marcador_na] <- NA_character_
-    data.frame(
+    .data_frame_simple(
       # Los patrones y sus ejemplos se PUBLICAN, asi que un valor declarado
       # `bytes` se rinde a la forma que muestra la consola en vez de
       # interpretarse: el perfil publicaba el caracter mientras `print()` del

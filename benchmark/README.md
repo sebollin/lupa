@@ -189,7 +189,11 @@ de textos que difieren en un caracter y en 1.000, usando el `p` predeterminado
 leido de la funcion. En la corrida publicada, la mediana con 1.000 cambios
 cruza el umbral 0,10 entre 15.000 y 20.000 caracteres; el tope de 10.000 deja
 el margen hasta el primer largo probado por debajo del umbral. También
-cronometra el perfilado de 500 filas con 50, 300 y 1.000 columnas. Ejecutarlo
+cronometra el perfilado de 500 filas con 50, 300 y 1.000 columnas, todas
+iguales (la misma columna de códigos `valor_1`..`valor_500` repetida) y con
+`casi_duplicados_vocabulario = FALSE`: lo que mide es sobre todo el hallazgo
+`columnas_duplicadas` de cada par de columnas (499.500 con 1.000), no la
+búsqueda de casi duplicados del vocabulario. Ejecutarlo
 despues de instalar la version construida desde estas fuentes:
 
 ```sh
@@ -199,6 +203,24 @@ Rscript benchmark/medir_topes_valores_ancho.R
 El script imprime la mediana de cinco semillas para la tabla de discriminacion,
 lee el `p` predeterminado desde el codigo de `lupa`, cronometra tres veces cada
 ancho y escribe un CSV en `benchmark/datos/` con fecha, entorno y huella.
+
+`medir_costo_fijo.R` mide el costo fijo sobre tablas chicas: `perfilar()`,
+`perfilar()` con `proteger_datos_personales = TRUE` y `analizar()` sobre la
+tabla de ejemplo del README (`datos_operativos`, 13 filas y 10 columnas) y sobre
+sus tres primeras columnas. En caliente toma la mediana de 30 llamadas tras 3 de
+calentamiento; en frío, la de la primera llamada en 5 procesos R nuevos, que es
+lo que paga cada ejemplo del check. Antes de medir instala estas fuentes en una
+biblioteca temporal, así el código medido es el de la huella y está compilado a
+bytes; no necesita instalar nada antes:
+
+```sh
+Rscript benchmark/medir_costo_fijo.R
+```
+
+Imprime un resumen con las medianas y escribe
+`benchmark/datos/medir-costo-fijo.csv`, con las mismas columnas que
+`medir-referencias.csv`: una fila por medición y una `<funcion>_mediana` por
+caso.
 
 Los scripts siguientes son independientes de `verdad_raha.R` y no agregan
 dependencias al paquete:

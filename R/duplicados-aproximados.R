@@ -602,11 +602,21 @@
 #' La matriz de distancias de cada tesela se descarta antes de pasar a la
 #' siguiente. Así la memoria temporal depende de `bloque`, no de la cantidad
 #' total de filas, sin cambiar qué pares se comparan.
+#'
+#' Con `solo_pares = TRUE` el llamador consume los pares únicamente por
+#' `on_pairs` y no lee el valor devuelto: no se arma el acumulador, y en la
+#' tesela diagonal se calcula sólo el triángulo superior, que es lo único que
+#' esa tesela entrega. Los pares, su orden y sus distancias son los mismos.
 #' @noRd
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
     acumulador = NULL, on_pairs = NULL, bloqueos = NULL, nucleos = 2L,
-    p = 0.1, igualdad_original = NULL) {
+    p = 0.1, igualdad_original = NULL, solo_pares = FALSE) {
+  if (isTRUE(solo_pares)) {
+    return(.comparar_bloques_solo_pares(
+      valores, filas, metodo, umbral, bloque, on_pairs, bloqueos, nucleos, p
+    ))
+  }
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
@@ -688,6 +698,78 @@
     n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques,
     acumulador = acumulador
   )
+}
+
+# El detector de vocabulario consume cada par por `on_pairs` y tira lo que
+# `.comparar_bloques_duplicados()` devuelve. Armar igual el acumulador -un
+# `data.frame` por tesela, ordenado y recortado a un solo par- y la matriz
+# entera de la tesela diagonal, de la que se usa la mitad, costaba casi un
+# tercio del detector sobre una columna de codigos: medido con 500 codigos por
+# columna y 300 columnas, 0,094 s por columna, de los que 0,013 eran el
+# acumulador y 0,017 la mitad de la matriz que nadie lee.
+#
+# Los pares que se entregan, su orden y sus distancias no cambian: en la tesela
+# diagonal se recorre el triangulo superior columna por columna, que es el orden
+# de `which(upper.tri(m), arr.ind = TRUE)`, y `stringdist()` sobre el par da el
+# mismo numero que la celda de `stringdistmatrix()`.
+.comparar_bloques_solo_pares <- function(valores, filas, metodo, umbral,
+                                         bloque, on_pairs, bloqueos,
+                                         nucleos, p) {
+  if (!is.function(on_pairs)) {
+    .detener("`solo_pares = TRUE` necesita `on_pairs`.", call. = FALSE)
+  }
+  n <- length(valores)
+  n_bloques <- 0L
+  if (n < 2L) return(invisible(list(n_bloques = n_bloques)))
+  entregar <- function(posiciones_1, posiciones_2, distancias) {
+    f1 <- filas[posiciones_1]
+    f2 <- filas[posiciones_2]
+    if (!is.null(bloqueos)) {
+      dentro <- bloqueos[posiciones_1] == bloqueos[posiciones_2]
+      f1 <- f1[dentro]
+      f2 <- f2[dentro]
+      distancias <- distancias[dentro]
+    }
+    if (length(f1)) on_pairs(f1, f2, distancias)
+    invisible(NULL)
+  }
+  inicios <- seq.int(1L, n, by = bloque)
+  for (i in seq_along(inicios)) {
+    fin_i <- min(n, inicios[[i]] + bloque - 1L)
+    filas_i <- inicios[[i]]:fin_i
+    for (j in i:length(inicios)) {
+      n_bloques <- n_bloques + 1L
+      if (i == j) {
+        k <- length(filas_i)
+        if (k < 2L) next
+        columna <- rep.int(2:k, 1:(k - 1L))
+        fila <- sequence(1:(k - 1L))
+        valores_i <- valores[filas_i]
+        distancias <- .distancias_pares_duplicados(
+          valores_i[fila], valores_i[columna], metodo, nucleos, p
+        )
+        candidatas <- which(distancias >= 0 & distancias <= umbral)
+        if (!length(candidatas)) next
+        entregar(
+          filas_i[fila[candidatas]], filas_i[columna[candidatas]],
+          as.numeric(distancias[candidatas])
+        )
+      } else {
+        fin_j <- min(n, inicios[[j]] + bloque - 1L)
+        filas_j <- inicios[[j]]:fin_j
+        matriz <- as.matrix(.matriz_distancias_duplicados(
+          valores[filas_i], valores[filas_j], metodo, nucleos, p
+        ))
+        candidatas <- which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+        if (!nrow(candidatas)) next
+        entregar(
+          filas_i[candidatas[, 1L]], filas_j[candidatas[, 2L]],
+          as.numeric(matriz[candidatas])
+        )
+      }
+    }
+  }
+  invisible(list(n_bloques = n_bloques))
 }
 
 .preparar_directorio_lotes <- function(directorio_lotes) {

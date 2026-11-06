@@ -475,7 +475,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   resultado <- if (length(filas)) {
     do.call(rbind, filas)
   } else {
-    data.frame(
+    .data_frame_simple(
       determinante = character(), dependiente = character(),
       cumplimiento = numeric(), n_evaluados = integer(),
       n_grupos = integer(), n_violaciones = integer(), exacta = logical(),
@@ -534,7 +534,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # fue: subir `max_columnas` resuelve el primero y no hace nada con el segundo.
   attr(resultado, "columnas_no_analizables") <-
     nombres[setdiff(seq_along(datos), analizables)]
-  attr(resultado, "columnas_descartadas") <- data.frame(
+  attr(resultado, "columnas_descartadas") <- .data_frame_simple(
     columna = nombres[seleccion[nzchar(motivos)]],
     motivo = unname(motivos[nzchar(motivos)]),
     stringsAsFactors = FALSE

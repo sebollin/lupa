@@ -4,7 +4,7 @@
                                    variables, propuesta, perfil = NULL) {
   filas <- list()
   agregar <- function(componente, tipo, descripcion, severidad = "sospechoso") {
-    filas[[length(filas) + 1L]] <<- data.frame(
+    filas[[length(filas) + 1L]] <<- .data_frame_simple(
       componente = componente, tipo = tipo, severidad = severidad,
       descripcion = descripcion, stringsAsFactors = FALSE
     )
@@ -105,7 +105,7 @@
       "Qued\u00f3 afuera de la selecci\u00f3n confirmada."
     )
   )
-  data.frame(
+  .data_frame_simple(
     metrica = propuesta$metrica,
     objeto = ifelse(
       nzchar(propuesta$atributos), propuesta$atributos, "(tabla)"
@@ -1610,6 +1610,11 @@ leer_analisis <- function(archivo) {
   # La configuracion del modelo no: la de cada medicion parcial es la de UNA
   # metrica, y se declara la del modelo entero, como la da `medir()` sobre el.
   declarado <- NULL
+  # Cada `medir()` clasifica las columnas personales de la misma tabla: ver
+  # `.encender_memo_columnas_personales()`.
+  if (.encender_memo_columnas_personales()) {
+    on.exit(.apagar_memo_columnas_personales(), add = TRUE)
+  }
   for (instancia in modelo_completo$metricas) {
     sola <- modelo(list(instancia), marco = modelo_completo$marco)
     medidas <- withCallingHandlers(

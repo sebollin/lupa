@@ -364,7 +364,7 @@
       call. = FALSE
     )
   }
-  data.frame(
+  .data_frame_simple(
     metrica_instanciada = metricas,
     agregacion = unname(elegidas[.indice_identificador(metricas, names(elegidas))]),
     umbral = unname(umbral[.indice_identificador(metricas, names(umbral))]),
@@ -526,7 +526,7 @@
       valor <- .calcular_agregacion(
         valores, contrato$agregacion, contrato$umbral, NULL
       )
-      partes[[length(partes) + 1L]] <- data.frame(
+      partes[[length(partes) + 1L]] <- .data_frame_simple(
         id_medida = "",
         id_medicion = actuales$id_medicion[[primero]],
         fecha = actuales$fecha[[primero]],
@@ -663,7 +663,7 @@
       agregada, i, agregada$granularidad[[i]], varias_entidades
     )
   }, character(1L))
-  tablero <- data.frame(
+  tablero <- .data_frame_simple(
     componente = paste0("componente-", sprintf("%04d", seq_len(nrow(agregada)))),
     dimension = agregada$dimension,
     factor = agregada$factor,

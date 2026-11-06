@@ -302,8 +302,8 @@ in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
   - **Wide tables.** From 100,000 cells up, an interactive session
     gets a notice of how long `perfilar()` may take; the estimate relies on a
     code reference (5,000 cells per second), set below the slowest
-    wide-table measurement with numeric and categorical columns (many columns of
-    similar text codes can take several times longer); the dated measurements are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+    wide-table measurement, with numeric and categorical columns and with identical
+    columns of text codes; the dated measurements are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
   - **Millions of rows in memory.** `perfilar()` and `analizar()` take minutes, not
     seconds: profile a sample or use `perfilar_dbi()` instead. The measured figures,
     with their dates, are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) (*Evidence and performance*).

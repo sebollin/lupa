@@ -298,8 +298,8 @@ en [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-bas
   - **Tablas anchas.** Desde 100.000 celdas, una sesión interactiva
     recibe un aviso de cuánto puede tardar `perfilar()`; la estimación usa una
     referencia del código (5.000 celdas por segundo), fijada por
-    debajo de la medición más lenta con columnas numéricas y categóricas (muchas
-    columnas de códigos de texto parecidos pueden tardar varias veces más); las mediciones
+    debajo de la medición más lenta, con columnas numéricas y categóricas y con
+    columnas iguales de códigos de texto; las mediciones
     fechadas están en [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
   - **Millones de filas en memoria.** `perfilar()` y `analizar()` tardan minutos, no
     segundos: conviene perfilar una muestra o usar `perfilar_dbi()`. Las cifras

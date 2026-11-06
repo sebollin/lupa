@@ -158,6 +158,10 @@
                             evidencia, sugerencia, n_evaluados = NA_real_,
                             n_afectados = NA_real_, unidad_conteo = NA_character_,
                             estado_reparacion = NA_character_) {
+  # Una fila por elemento de `columna` y `evidencia`: un detector que informa
+  # muchos casos del mismo tipo los arma de una vez (ver `columnas_duplicadas`
+  # en `.construir_hallazgos()`). Cada fila lleva su propia traza vacia.
+  n_filas <- max(length(columna), length(evidencia), 1L)
   data.frame(
     columna = columna,
     tipo_hallazgo = tipo,
@@ -169,7 +173,7 @@
     n_afectados = as.numeric(n_afectados),
     unidad_conteo = as.character(unidad_conteo),
     estado_reparacion = as.character(estado_reparacion),
-    trazabilidad = I(list(.trazabilidad_vacia())),
+    trazabilidad = I(rep(list(.trazabilidad_vacia()), n_filas)),
     stringsAsFactors = FALSE
   )
 }
@@ -917,26 +921,55 @@
   vapply(seq_len(n), raiz, integer(1L))
 }
 
+# Recibe un vector de tokens numericos y normaliza cada uno: saca los
+# separadores de miles y los ceros de relleno. Un token que no es un entero ni
+# un numero con miles queda como esta.
 .normalizar_token_numerico_vocabulario <- function(token) {
-  if (grepl("^[0-9]{1,3}(?:[.,][0-9]{3})+$", token, perl = TRUE)) {
-    token <- gsub("[.,]", "", token)
-  } else if (!grepl("^[0-9]+$", token, perl = TRUE)) {
-    return(token)
-  }
-  token <- sub("^0+", "", token)
-  if (!nzchar(token)) "0" else token
+  token <- as.character(token)
+  miles <- grepl("^[0-9]{1,3}(?:[.,][0-9]{3})+$", token, perl = TRUE)
+  token[miles] <- gsub("[.,]", "", token[miles])
+  entero <- miles | grepl("^[0-9]+$", token, perl = TRUE)
+  token[entero] <- sub("^0+", "", token[entero])
+  token[entero & !nzchar(token)] <- "0"
+  token
 }
 
+# La firma se armaba valor por valor: un `gregexpr()` por valor y dos `grepl()`
+# por token. Sobre una columna de 500 codigos eran 0,016 s por columna (medido
+# con 300), y en Windows cada `grepl(perl = TRUE)` paga ademas un costo fijo.
+# Ahora la columna entera pasa una vez por cada expresion; la firma de cada
+# valor es la misma.
 .firmas_numericas_vocabulario <- function(textos) {
-  vapply(textos, function(texto) {
-    if (is.na(texto) || !nzchar(texto)) return("")
-    posiciones <- gregexpr("[0-9]+(?:[.,][0-9]+)*", texto, perl = TRUE)[[1L]]
-    if (posiciones[[1L]] < 0L) return("")
-    tokens <- regmatches(texto, list(posiciones))[[1L]]
-    tokens <- vapply(tokens, .normalizar_token_numerico_vocabulario,
-                     character(1L))
-    paste(tokens, collapse = "\u001f")
-  }, character(1L), USE.NAMES = FALSE)
+  firmas <- character(length(textos))
+  con_texto <- which(!is.na(textos) & nzchar(textos))
+  if (!length(con_texto)) return(firmas)
+  posiciones <- gregexpr(
+    "[0-9]+(?:[.,][0-9]+)*", textos[con_texto], perl = TRUE
+  )
+  tokens <- regmatches(textos[con_texto], posiciones)
+  n_tokens <- lengths(tokens)
+  con_numero <- which(n_tokens > 0L)
+  if (!length(con_numero)) return(firmas)
+  normalizados <- .normalizar_token_numerico_vocabulario(
+    unlist(tokens[con_numero], use.names = FALSE)
+  )
+  n_tokens <- n_tokens[con_numero]
+  unico <- n_tokens == 1L
+  salida <- character(length(con_numero))
+  # La mayoria de los valores tiene un solo numero: su firma es ese token, y
+  # solo los demas necesitan juntar sus tokens con el separador.
+  inicio <- cumsum(c(1L, n_tokens[-length(n_tokens)]))
+  salida[unico] <- normalizados[inicio[unico]]
+  if (!all(unico)) {
+    tanda <- rep.int(seq_along(n_tokens), n_tokens)
+    en_varios <- !unico[tanda]
+    partes <- split(normalizados[en_varios], tanda[en_varios])
+    salida[!unico] <- vapply(
+      partes, paste, character(1L), collapse = "\u001f", USE.NAMES = FALSE
+    )
+  }
+  firmas[con_texto[con_numero]] <- salida
+  firmas
 }
 
 # Clasifica la forma de la diferencia como evidencia, nunca como filtro. Se
@@ -1491,29 +1524,55 @@
         empate_mejor_hub
       }
       origenes <- if (sin_filtro) mejor_origen_sin_filtro else mejor_origen
-      for (i in seq_along(fila_1)) {
-        primero <- as.integer(fila_1[[i]])
-        segundo <- as.integer(fila_2[[i]])
-        if (frecuencia_unidad[[primero]] == frecuencia_unidad[[segundo]]) {
-          next
+      # Cada par une la forma menos frecuente (`bajo`) con la mas frecuente
+      # (`alto`), y cada `bajo` se queda con el `alto` de frecuencia maxima; si
+      # dos lo alcanzan, queda empatado. Se hacia par por par en un bucle de R,
+      # y una columna de 500 codigos entrega unos 77.000 pares cercanos: medido
+      # sobre 300 columnas, 0,03 s por columna, un tercio del detector.
+      #
+      # El resultado del bucle no depende del orden salvo en un punto, y se
+      # conserva: si un `bajo` alcanza un maximo nuevo, el centro, la distancia
+      # y el origen son los del PRIMER par que lo alcanza en el orden de
+      # llegada, y queda empatado si otro par mas llega al mismo maximo. Si el
+      # maximo de la tanda solo iguala al que ya tenia, queda empatado y el
+      # centro anterior no cambia; si es menor, no cambia nada. El orden
+      # `radix` es estable y por eso respeta el de llegada dentro de cada
+      # `bajo`.
+      primero <- as.integer(fila_1)
+      segundo <- as.integer(fila_2)
+      frecuencia_primero <- frecuencia_unidad[primero]
+      frecuencia_segundo <- frecuencia_unidad[segundo]
+      utiles <- which(frecuencia_primero != frecuencia_segundo)
+      if (length(utiles)) {
+        primero_es_bajo <- frecuencia_primero[utiles] <
+          frecuencia_segundo[utiles]
+        bajo <- ifelse(primero_es_bajo, primero[utiles], segundo[utiles])
+        alto <- ifelse(primero_es_bajo, segundo[utiles], primero[utiles])
+        frecuencia_alta <- frecuencia_unidad[alto]
+        distancia_util <- distancia[utiles]
+        orden <- order(bajo, -frecuencia_alta, method = "radix")
+        bajo_ordenado <- bajo[orden]
+        alta_ordenada <- frecuencia_alta[orden]
+        abre <- !duplicated(bajo_ordenado)
+        tramo <- cumsum(abre)
+        nodos <- bajo_ordenado[abre]
+        maximos <- alta_ordenada[abre]
+        ganador <- orden[abre]
+        n_en_maximo <- tabulate(
+          tramo[alta_ordenada == maximos[tramo]], nbins = length(nodos)
+        )
+        previa <- frecuencia[nodos]
+        mejora <- maximos > previa
+        iguala <- maximos == previa
+        if (any(mejora)) {
+          destino <- nodos[mejora]
+          frecuencia[destino] <- maximos[mejora]
+          hub[destino] <- alto[ganador[mejora]]
+          distancias[destino] <- distancia_util[ganador[mejora]]
+          origenes[destino] <- origen
+          empates[destino] <- n_en_maximo[mejora] > 1L
         }
-        if (frecuencia_unidad[[primero]] < frecuencia_unidad[[segundo]]) {
-          bajo <- primero
-          alto <- segundo
-        } else {
-          bajo <- segundo
-          alto <- primero
-        }
-        frecuencia_alta <- frecuencia_unidad[[alto]]
-        if (frecuencia_alta > frecuencia[[bajo]]) {
-          frecuencia[[bajo]] <- frecuencia_alta
-          hub[[bajo]] <- alto
-          distancias[[bajo]] <- distancia[[i]]
-          origenes[[bajo]] <- origen
-          empates[[bajo]] <- FALSE
-        } else if (frecuencia_alta == frecuencia[[bajo]]) {
-          empates[[bajo]] <- TRUE
-        }
+        if (any(iguala)) empates[nodos[iguala]] <- TRUE
       }
       if (sin_filtro) {
         mejor_frecuencia_sin_filtro <<- frecuencia
@@ -1592,7 +1651,8 @@
     .comparar_bloques_duplicados(
       valores_norm[seq_len(max_unidades)], seq_len(max_unidades),
       metodo, umbral, bloque = min(1000L, max_unidades), max_resultados = 1L,
-      on_pairs = registrar_candidatos, nucleos = nucleos, p = p
+      on_pairs = registrar_candidatos, nucleos = nucleos, p = p,
+      solo_pares = TRUE
     )
     # Con el umbral Jaro--Winkler vigente, una sustitucion entra siempre desde
     # siete caracteres. La ruta de edicion cubre la zona ciega hasta seis.
@@ -1611,7 +1671,7 @@
           registrar_candidatos(
             fila_1, fila_2, distancia, edicion_corta = TRUE
           )
-        }, nucleos = nucleos, p = p
+        }, nucleos = nucleos, p = p, solo_pares = TRUE
       )
     }
     aristas_estrellas <- function(mejor_hub, mejor_distancia,
@@ -3520,7 +3580,18 @@
   posiciones <- lapply(hallazgos$trazabilidad, function(traza) {
     if (is.list(traza)) traza[["posicion_columna"]] else NULL
   })
-  trazabilidad <- lapply(seq_len(nrow(hallazgos)), function(i) {
+  # Un hallazgo contado en columnas o en formatos no tiene filas que trazar, y
+  # `.trazabilidad_hallazgo()` le devuelve la traza `no_aplica` antes de mirar
+  # nada mas. Se resuelve aca, sin extraer la fila con `hallazgos[i, ]`: con
+  # 300 columnas iguales son 44.850 hallazgos `columnas_duplicadas`, y extraer
+  # cada fila de esa tabla costaba 4,4 de los 10,1 s de esta funcion.
+  sin_filas <- as.character(hallazgos$unidad_conteo) %in% c("columna", "formato")
+  traza_no_aplica <- .trazabilidad_vacia(
+    "no_aplica", alcance = "no_aplica", limite = limite
+  )
+  trazabilidad <- vector("list", nrow(hallazgos))
+  trazabilidad[sin_filas] <- list(traza_no_aplica)
+  trazabilidad[!sin_filas] <- lapply(which(!sin_filas), function(i) {
     traza <- .trazabilidad_hallazgo(
       as.character(hallazgos$tipo_hallazgo[[i]]), hallazgos[i, , drop = FALSE],
       datos, nombres, resultados, expandir, aproximados, i,
@@ -3531,7 +3602,15 @@
     traza
   })
   hallazgos$trazabilidad <- I(trazabilidad)
-  for (i in seq_len(nrow(hallazgos))) {
+  # Solo tres tipos se ajustan con su traza. Recorrer los demas no cambiaba
+  # nada y buscaba igual la columna de cada uno entre todos los nombres, que
+  # crece con el producto de hallazgos por columnas: 5,2 s con 300 columnas
+  # iguales.
+  ajustables <- which(tipos_hallazgos %in% c(
+    "patron_raro", "casi_duplicados_vocabulario",
+    "variantes_equifrecuentes_vocabulario"
+  ))
+  for (i in ajustables) {
     traza <- hallazgos$trazabilidad[[i]]
     tipo <- as.character(hallazgos$tipo_hallazgo[[i]])
     indice_resultado <- .indice_columna_hallazgo(
@@ -3659,7 +3738,37 @@
   campos <- c("severidad", "n_afectados", "unidad_conteo", "trazabilidad")
   if (!all(campos %in% names(hallazgos))) return(invisible(hallazgos))
   problemas <- character()
-  for (i in seq_len(nrow(hallazgos))) {
+  # Las filas que el recorrido de abajo saltea sin acusar nada se separan antes,
+  # de una vez: las informativas (`ok`), las que no traen una traza, y las
+  # contadas en columnas o formatos con su traza `no_aplica`. Con 1.000
+  # columnas iguales son 499.500 hallazgos `columnas_duplicadas`, todos de la
+  # ultima clase, y recorrerlos de a uno costaba 10 s al perfilar y otros 8 en
+  # cada `hallazgos()`. Las demas filas siguen el recorrido completo, en el
+  # mismo orden. Un objeto editado a mano con columnas de otro tipo lo sigue
+  # entero.
+  revisar <- seq_len(nrow(hallazgos))
+  if (is.numeric(hallazgos$n_afectados) && is.list(hallazgos$trazabilidad) &&
+      (is.character(hallazgos$severidad) || is.factor(hallazgos$severidad)) &&
+      (is.character(hallazgos$unidad_conteo) ||
+       is.factor(hallazgos$unidad_conteo))) {
+    trazas <- hallazgos$trazabilidad
+    severidades <- as.character(hallazgos$severidad)
+    afectados_todos <- hallazgos$n_afectados
+    unidades <- as.character(hallazgos$unidad_conteo)
+    informativa <- !is.na(severidades) & severidades == "ok"
+    sin_traza <- !vapply(trazas, is.list, logical(1L))
+    no_aplica_declarada <- !informativa & !sin_traza &
+      is.finite(afectados_todos) & afectados_todos != 0 &
+      !is.na(unidades) & unidades %in% c("columna", "formato")
+    no_aplica_declarada[no_aplica_declarada] <- vapply(
+      trazas[no_aplica_declarada], function(traza) {
+        identical(traza$estado, "no_aplica") ||
+          identical(traza$alcance, "no_aplica")
+      }, logical(1L)
+    )
+    revisar <- which(!(informativa | sin_traza | no_aplica_declarada))
+  }
+  for (i in revisar) {
     severidad <- as.character(hallazgos$severidad[[i]])
     afectados <- hallazgos$n_afectados[[i]]
     unidad <- as.character(hallazgos$unidad_conteo[[i]])
@@ -5753,20 +5862,25 @@
       "Perfilar una tabla con al menos una fila para comparar contenidos."
     ))
   } else if (nrow(duplicadas)) {
-    for (i in seq_len(nrow(duplicadas))) {
-      hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-        duplicadas$columna_1[[i]], "columnas_duplicadas", "sospechoso",
-        "Dos columnas tienen el mismo contenido.",
-        paste0(
-          duplicadas_texto$columna_1[[i]], " = ",
-          duplicadas_texto$columna_2[[i]],
-          "; comparadas sobre ", nrow(datos),
-          if (nrow(datos) == 1L) " fila" else " filas"
-        ),
-        "Confirmar si ambas columnas son necesarias o si existe redundancia.",
-        ncol(datos), 2, "columna"
-      )
-    }
+    # Un hallazgo por PAR de columnas iguales: k columnas identicas son
+    # k (k - 1) / 2 filas. Armarlas de a una -un `data.frame()` por par, unido
+    # despues con el resto- costaba 0,3 ms por par: 13 s con 300 columnas
+    # iguales (44.850 pares). Con 1.000 son 499.500, y armar, trazar y revisar
+    # cada uno por separado era casi todo el tiempo de
+    # `benchmark/medir_topes_valores_ancho.R`. Se arman todas juntas; las filas
+    # son las mismas y en el mismo orden.
+    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+      duplicadas$columna_1, "columnas_duplicadas", "sospechoso",
+      "Dos columnas tienen el mismo contenido.",
+      paste0(
+        duplicadas_texto$columna_1, " = ",
+        duplicadas_texto$columna_2,
+        "; comparadas sobre ", nrow(datos),
+        if (nrow(datos) == 1L) " fila" else " filas"
+      ),
+      "Confirmar si ambas columnas son necesarias o si existe redundancia.",
+      ncol(datos), 2, "columna"
+    )
   }
   nombres_problematicos <- .nombres_columnas_problematicos(nombres_texto)
   if (nrow(nombres_problematicos)) {

@@ -17,7 +17,7 @@
                               entidades_ligadas = entidad,
                               atributos_ligados = atributos,
                               referencial = NULL, estado = "lista") {
-  x <- data.frame(
+  x <- .data_frame_simple(
     id_sugerencia = "", prioridad = prioridad, incluir = incluir,
     metrica = metrica, entidad = .pegar_nombres(entidad),
     atributos = .pegar_nombres(atributos), origen = origen,

@@ -2018,7 +2018,7 @@
           double = numeric(), raw = raw(), numeric()
         )
       }
-      data.frame(
+      .data_frame_simple(
         representante = representantes[orden],
         frecuencia = as.integer(estado$frecuencias[orden]),
         primer_ordinal = as.numeric(estado$primeros[orden]),

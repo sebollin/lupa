@@ -1086,7 +1086,7 @@ catalogo_agesic <- function() {
     "Resultado booleano por fila; exige intervalo en vigencia()."
   )
 
-  data.frame(
+  .data_frame_simple(
     numero = seq_along(metricas),
     dimension = dimension,
     factor = factor,
