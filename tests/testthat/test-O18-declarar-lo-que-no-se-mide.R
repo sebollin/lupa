@@ -75,29 +75,27 @@ test_that("perfilar_por mueve centinelas de integer64 a cobertura", {
   resultado <- perfilar_por(datos, por = "grupo", min_filas = 30L)
   cobertura <- attr(resultado, "cobertura_diagnosticos", exact = TRUE)
   # La promesa es que el grupo no publique como defecto lo que la columna
-  # entera declara denso, y que si lo conjeturo quede declarado. Que el grupo
-  # LLEGUE a conjeturarlo depende de la version de `bit64`: medido, en R 4.6 el
-  # grupo conjetura `faltantes_disfrazados` y la fila de cobertura aparece; en
-  # R 4.1 -el minimo declarado- no lo conjetura, y entonces no hay nada que
-  # declarar. La prueba afirmaba la consecuencia de una sola de las dos.
+  # entera declara denso, y que lo que conjeturo quede declarado en la
+  # cobertura. Perfilado solo, el grupo conjetura el centinela: medido en
+  # R 4.2.0 -el minimo declarado- con bit64 4.0.5 y 4.6.0.1, y en R 4.6. En
+  # R 4.1 no lo conjeturaba, y por eso esta prueba afirmaba una cosa u otra
+  # segun lo que hiciera el grupo; con ese minimo ya no hay dos casos. Si el
+  # grupo deja de conjeturarlo, la fila de cobertura no prueba nada: por eso se
+  # afirma tambien la conjetura.
   publicados <- resultado$columna == "id" &
     resultado$tipo_hallazgo %in%
       c("faltantes_disfrazados", "posible_centinela_numerico")
   expect_false(any(publicados))
-  declarados <- cobertura$diagnostico == "centinelas_numericos" &
-    cobertura$columna == "id"
   perfil_grupo <- perfilar(
     data.frame(id = datos$id[datos$grupo == "A"]), min_filas = 30L
   )
-  conjetura_el_grupo <- any(
+  expect_true(any(
     perfil_grupo$hallazgos$tipo_hallazgo %in%
       c("faltantes_disfrazados", "posible_centinela_numerico")
-  )
-  if (conjetura_el_grupo) {
-    expect_true(any(declarados))
-  } else {
-    expect_false(any(declarados))
-  }
+  ))
+  declarados <- cobertura$diagnostico == "centinelas_numericos" &
+    cobertura$columna == "id"
+  expect_true(any(declarados))
 
   denso <- data.frame(
     id = bit64::as.integer64(seq_len(n)),

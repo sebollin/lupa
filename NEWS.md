@@ -96,7 +96,10 @@ Primera versión publicada.
   valor, y `analizar()` clasifica una sola vez los datos personales de la tabla
   que mide. Con la protección pedida, el barrido que decide qué campos guardan
   nombres de columna no intenta partir un valor sin coma, y la fila de una
-  columna del perfil se arma sin pasar por `[.data.frame`. Sobre la tabla de
+  columna del perfil se arma sin pasar por `[.data.frame`. El pliegue con que
+  la protección compara los valores protegidos con el texto publicado ya no
+  arma su tabla de tres mil caracteres en cada llamada: un texto ASCII sólo
+  baja la caja, y uno corto usa la parte del mapa que trae. Sobre la tabla de
   ejemplo de 13 filas, `perfilar()` tarda 0,11 s y
   `analizar()` 0,21 s en una sesión ya iniciada, y 0,20 s y 0,35 s en la primera
   llamada de una sesión nueva (0,25 s y 0,41 s para `perfilar()` con la

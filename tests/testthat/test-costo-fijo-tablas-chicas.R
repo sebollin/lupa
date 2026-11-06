@@ -353,3 +353,94 @@ test_that("un valor sin coma no se parte en nombres unidos por coma", {
   expect_true(.es_columna_de_nombres(c("a, b", "e, f", "a + b", "c | d"), nombres))
   expect_false(.es_columna_de_nombres(c("a", "texto libre sin nada"), nombres))
 })
+
+test_that("los atajos del pliegue para comparar dan lo mismo que el camino largo", {
+  # Pesada para CRAN (mas de 2 s medido): corre con NOT_CRAN=true.
+  skip_on_cran()
+  # `.plegar_para_comparar()` contesta la entrada toda ASCII con la caja ASCII, y
+  # la chica con el mapa reducido a los caracteres que aparecen. Lo comparado es
+  # el valor, los bytes y la marca de cada texto: `identical()` sobre textos
+  # traduce a UTF-8 antes de comparar, y no ve una marca distinta.
+  u <- function(...) intToUtf8(c(...))
+  huella <- function(x) {
+    list(x, Encoding(x), lapply(x, function(z) if (is.na(z)) NA else charToRaw(z)))
+  }
+  latin1 <- iconv(u(0x4A, 0x6F, 0x73, 0xE9, 0x20, 0xC1, 0x52, 0x45, 0x41), "UTF-8", "latin1")
+  roto <- rawToChar(as.raw(c(0x4A, 0x6F, 0x73, 0xE9, 0x20, 0x50)))
+  roto_utf8 <- roto
+  Encoding(roto_utf8) <- "UTF-8"
+  roto_bytes <- roto
+  Encoding(roto_bytes) <- "bytes"
+  entradas <- list(
+    character(), NA_character_, c(NA, NA),
+    c("abc", "Juan PEREZ", "", NA, "771.771-01", "A-Z [x] \\ ^"),
+    # El prefijo reservado y los escapes publicados son ASCII; desescapados no.
+    c("<lupa-byte:E9>", "<LUPA-BYTE:c3a9>", "<U+00A0>x", "a\\nb", "\\xe9"),
+    c("Jos<U+00E9>", "a<lupa-byte:E9>b", "x\\u00e9y", "<lupa-byte:ZZ>", "<lupa-byte:E>"),
+    c(u(0x50, 0x61, 0x74, 0x72, 0xF3, 0x6E), u(0xC1, 0x52, 0x45, 0x41), "abc"),
+    c(latin1, "abc"), latin1,
+    c(roto, roto_utf8, roto_bytes, rawToChar(as.raw(c(0x8A, 0x9A, 0x8C, 0x9C, 0x41))),
+      rawToChar(as.raw(c(0xC3, 0xA9, 0x41, 0xE9))), rawToChar(as.raw(c(0xC9, 0xA0, 0x42))),
+      rawToChar(as.raw(c(0x50, 0xC3, 0xA9, 0x52)))),
+    c(roto, "ABC"),
+    # Mayusculas fuera de ASCII, pliegues de varios caracteres y letras sin pliegue.
+    c(u(0x0130, 0x0049), u(0x1E9E), u(0x0391, 0x03A3, 0x03C2), u(0x0414, 0x0416),
+      u(0xFF21, 0xFF22), u(0x0531), u(0x01C4, 0x01C5), u(0x00DF, 0x0132)),
+    c(u(0x4E2D, 0x6587), u(0x0E01), u(0x1F600), u(0x2603), u(0x00A0, 0x3000)),
+    c(u(0x4A, 0x6F, 0x73, 0x02CA, 0x65), u(0x31, 0x02B9, 0x32), u(0x02BC, 0x6E)),
+    c(u(0x53, 0x0301, 0x61, 0x6E, 0x63, 0x68, 0x65, 0x7A), u(0x65, 0x0300)),
+    c(u(0xFB01), u(0x0149, 0x41), u(0x01C6), u(0x2474)),
+    c(a = "ABC", b = u(0xC9)), 123.5, factor(c("B", u(0xC9))),
+    # Mas grande que el tope del mapa reducido: va por el mapa entero.
+    rep(c(u(0x50, 0x61, 0x74, 0x72, 0xF3, 0x6E, 0x20), "abc"), 6000)
+  )
+  # Cada caracter de los mapas, solo y todos juntos: el mapa reducido tiene que
+  # dar lo mismo que el entero para cualquiera de ellos.
+  mapas <- unique(c(
+    strtoi(names(.PLIEGUE_COMPARAR_UNO), base = 16L),
+    strtoi(names(.PLIEGUE_COMPARAR_VARIOS), base = 16L),
+    strtoi(names(.MAPA_TRANSLITERACION_ASCII), base = 16L),
+    strtoi(names(.MAPA_MINUSCULAS_ACENTUADAS), base = 16L),
+    strtoi(names(.MAPA_MINUSCULAS_OTROS_ALFABETOS), base = 16L)
+  ))
+  sueltos <- intToUtf8(mapas, multiple = TRUE)
+  entradas <- c(entradas, list(sueltos, paste0("x", sueltos, "Y"),
+                               paste0(sueltos, collapse = "")))
+  comparar <- function(lugar) {
+    for (k in seq_along(entradas)) {
+      for (desescapar in c(FALSE, TRUE)) for (invalidos in c("por_byte", "entero")) {
+        expect_identical(
+          huella(.plegar_para_comparar(entradas[[k]], desescapar, invalidos)),
+          huella(.plegar_para_comparar(entradas[[k]], desescapar, invalidos,
+                                       atajos = FALSE)),
+          info = paste(lugar, "entrada", k, desescapar, invalidos)
+        )
+      }
+    }
+  }
+  comparar("locale de la sesion")
+  # Bajo `C` `chartr()` no tiene locale multibyte: lee el texto marcado como UTF-8
+  # y lo demas como bytes. Se restaura al salir aunque falle una expectativa.
+  con_ctype <- function(locale, codigo) {
+    viejo <- Sys.getlocale("LC_CTYPE")
+    on.exit(Sys.setlocale("LC_CTYPE", viejo), add = TRUE)
+    if (!identical(suppressWarnings(Sys.setlocale("LC_CTYPE", locale)), locale)) {
+      return(invisible(FALSE))
+    }
+    force(codigo)
+    invisible(TRUE)
+  }
+  con_ctype("C", comparar("LC_CTYPE=C"))
+
+  # Las premisas de los atajos, sobre los mapas tal como estan: ningun origen
+  # ASCII, ningun guion -que `chartr()` lee como rango- ni origen repetido, y
+  # todo ASCII plegado por el camino largo es su caja ASCII.
+  codigos <- strtoi(names(.PLIEGUE_COMPARAR_UNO), base = 16L)
+  expect_false(any(codigos < 128L))
+  expect_false(anyDuplicated(codigos) > 0L)
+  expect_false(0x2DL %in% c(codigos, unname(.PLIEGUE_COMPARAR_UNO)))
+  expect_false(any(strtoi(names(.PLIEGUE_COMPARAR_VARIOS), base = 16L) < 128L))
+  ascii <- intToUtf8(1:127, multiple = TRUE)
+  expect_identical(.plegar_para_comparar(ascii, atajos = FALSE), .minusculas_ascii(ascii))
+  expect_identical(.plegar_para_comparar(ascii), .minusculas_ascii(ascii))
+})

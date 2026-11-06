@@ -1,5 +1,5 @@
-## Rehace las cifras del costo fijo sobre tablas chicas: perfilar(),
-## perfilar() con proteger_datos_personales = TRUE y analizar() sobre la tabla
+## Rehace las cifras del costo fijo sobre tablas chicas: perfilar() y analizar(),
+## cada una sin y con proteger_datos_personales = TRUE, sobre la tabla
 ## de ejemplo del README (`datos_operativos`, 13 filas y 10 columnas) y sobre
 ## sus tres primeras columnas.
 ##
@@ -34,7 +34,10 @@
   perfilar_protegido = function(d) {
     lupa::perfilar(d, proteger_datos_personales = TRUE)
   },
-  analizar = function(d) lupa::analizar(d)
+  analizar = function(d) lupa::analizar(d),
+  analizar_protegido = function(d) {
+    lupa::analizar(d, proteger_datos_personales = TRUE)
+  }
 )
 
 .cronometrar <- function(f) {

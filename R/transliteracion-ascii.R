@@ -72,19 +72,10 @@
   "0153", "1E9E"
 )
 
-.transliterar_ascii <- function(x) {
-  # Todo punto de codigo que no esta en el mapa se deja intacto; la limpieza
-  # posterior de cada consumidor decide que hacer con lo que no sea alfanumerico.
-  #
-  # Que ese "se deja intacto" NO es inocuo, y conviene saberlo: si el consumidor
-  # borra lo que no sea `[a-z0-9]`, una letra fuera del mapa desaparece del
-  # nombre. `iconv` transliteraba cualquier cosa, asi que el alcance se achico a
-  # cambio de que el resultado no dependa de la plataforma. El alcance es
-  # Latin-1, Latin Extended-A, las marcas combinantes y el punado de Extended-B
-  # de arriba: eso cubre el castellano, el portugues, el frances, el aleman, el
-  # polaco, el checo y el rumano. Fuera de ahi -griego, cirilico, el resto de
-  # Extended-B- la letra se conserva y el consumidor decide.
-  x <- as.character(x)
+# Los mapas se arman una vez: armarlos en cada llamada era casi todo su costo
+# -0,2 ms aunque la entrada fuera una palabra-, y con la proteccion pedida
+# `analizar()` la llamaba 161 veces sobre la tabla de ejemplo (22 sin ella).
+.transliterar_ascii <- local({
   especiales <- .CODIGOS_ESPECIALES_TRANSLITERACION_ASCII
   mapa_uno_a_uno <- .MAPA_TRANSLITERACION_ASCII[
     !names(.MAPA_TRANSLITERACION_ASCII) %in% especiales
@@ -98,21 +89,44 @@
     collapse = ""
   )
   destino <- paste0(unname(mapa_uno_a_uno), collapse = "")
-  salida <- chartr(origen, destino, x)
-  # Las marcas combinantes se quitan aparte. Sin esto, "Sanchez" escrito en
-  # forma descompuesta -una `S` seguida de un acento combinante- no colapsaba
-  # con su forma precompuesta: el mapa no lo tocaba y la limpieza posterior de
-  # cada consumidor convertia la marca en separador. `iconv` las borraba, y al
-  # reemplazarlo habia que reponerlo. Rango U+0300-U+036F, los diacriticos
-  # combinantes de la tabla latina.
-  salida <- gsub("[\u0300-\u036F]", "", salida, perl = TRUE)
-  for (codigo in especiales) {
-    salida <- gsub(
-      intToUtf8(strtoi(codigo, base = 16L)),
-      .MAPA_TRANSLITERACION_ASCII[[codigo]],
-      salida,
-      fixed = TRUE
-    )
+  letras_especiales <- vapply(
+    strtoi(especiales, base = 16L), intToUtf8, character(1L)
+  )
+  reemplazos_especiales <- vapply(
+    especiales, function(codigo) .MAPA_TRANSLITERACION_ASCII[[codigo]],
+    character(1L), USE.NAMES = FALSE
+  )
+  function(x) {
+    # Todo punto de codigo que no esta en el mapa se deja intacto; la limpieza
+    # posterior de cada consumidor decide que hacer con lo que no sea
+    # alfanumerico.
+    #
+    # Que ese "se deja intacto" NO es inocuo, y conviene saberlo: si el
+    # consumidor borra lo que no sea `[a-z0-9]`, una letra fuera del mapa
+    # desaparece del nombre. `iconv` transliteraba cualquier cosa, asi que el
+    # alcance se achico a cambio de que el resultado no dependa de la
+    # plataforma. El alcance es Latin-1, Latin Extended-A, las marcas
+    # combinantes y el punado de Extended-B de arriba: eso cubre el castellano,
+    # el portugues, el frances, el aleman, el polaco, el checo y el rumano.
+    # Fuera de ahi -griego, cirilico, el resto de Extended-B- la letra se
+    # conserva y el consumidor decide.
+    x <- as.character(x)
+    salida <- chartr(origen, destino, x)
+    # Las marcas combinantes se quitan aparte. Sin esto, "Sanchez" escrito en
+    # forma descompuesta -una `S` seguida de un acento combinante- no colapsaba
+    # con su forma precompuesta: el mapa no lo tocaba y la limpieza posterior de
+    # cada consumidor convertia la marca en separador. `iconv` las borraba, y al
+    # reemplazarlo habia que reponerlo. Rango U+0300-U+036F, los diacriticos
+    # combinantes de la tabla latina.
+    salida <- gsub("[\u0300-\u036F]", "", salida, perl = TRUE)
+    for (k in seq_along(letras_especiales)) {
+      salida <- gsub(
+        letras_especiales[[k]],
+        reemplazos_especiales[[k]],
+        salida,
+        fixed = TRUE
+      )
+    }
+    salida
   }
-  salida
-}
+})
