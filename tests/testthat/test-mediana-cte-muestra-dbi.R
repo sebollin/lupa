@@ -52,15 +52,21 @@ test_that("la CTE de ventanas elige las dos centrales sin division entera", {
       )
     }
   }
+  # El extremo se arma con aritmetica exacta y viaja escrito con 17 cifras: el
+  # lector de R de macOS ARM64 no tiene `long double` mas ancho que `double` y
+  # lee `1.7e308` cuatro ulps por debajo del double mas cercano, que es el que
+  # devuelve el motor.
+  grande <- 1.5 * 2^1023
+  literal <- sprintf("%.17g", grande)
   extremos <- paste0(
-    "(SELECT * FROM (VALUES (-1.7e308), (1.7e308), (1.7e308), (1.7e308))",
-    " AS mcm_v(v)) AS mcm_fuente"
+    "(SELECT * FROM (VALUES (-", literal, "), (", literal, "), (", literal,
+    "), (", literal, ")) AS mcm_v(v)) AS mcm_fuente"
   )
   expect_identical(
     as.numeric(DBI::dbGetQuery(
       conexion, cte$construir("v", extremos, "mediana", escalada = TRUE)
     )$mediana),
-    1.7e308
+    grande
   )
 })
 
