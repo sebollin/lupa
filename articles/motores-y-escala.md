@@ -40,14 +40,15 @@ y con su fuente.
 12. [Avisos de costo y derrame](#avisos)
 13. [Instrumentación y duraciones](#instrumentacion)
 14. [Memoria del procesamiento](#memoria)
-15. [Consistencia entre consultas](#consistencia)
-16. [Dialectos y sondas](#dialectos)
-17. [Lo que el motor guarda distinto que R](#diferencias-con-r)
-18. [La clave primaria según el motor](#clave-primaria)
-19. [Motores probados](#motores-probados)
-20. [Fallos parciales y errores](#fallos)
-21. [Dependencias e instalación](#dependencias)
-22. [Hilos](#hilos)
+15. [Una corrida sobre bases de producción](#corrida-produccion)
+16. [Consistencia entre consultas](#consistencia)
+17. [Dialectos y sondas](#dialectos)
+18. [Lo que el motor guarda distinto que R](#diferencias-con-r)
+19. [La clave primaria según el motor](#clave-primaria)
+20. [Motores probados](#motores-probados)
+21. [Fallos parciales y errores](#fallos)
+22. [Dependencias e instalación](#dependencias)
+23. [Hilos](#hilos)
 
 ## Valores por omisión
 
@@ -473,8 +474,10 @@ n_filas(por_bloques$perfil_muestra)
 Los topes de
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
 y del diagnóstico de vocabulario recortan trabajo en R. No recortan las
-consultas que ya ejecutó un motor. Este ejemplo recrea la tabla pequeña
-de la guía para que cada salida sea independiente.
+consultas que ya ejecutó un motor. Este ejemplo recrea la tabla de
+proveedores de [Escala y
+duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html#un-registro-de-proveedores)
+para que cada salida sea independiente.
 
 ### El largo de los valores
 
@@ -834,10 +837,8 @@ El valor de `tamano_lote_distintos` es un supuesto del código, anotado
 junto a la constante (`R/perfilar-dbi.R`). En PostgreSQL, la lectura de
 la tabla es la misma con cualquier lote. El motor amortiza una pasada
 entre los agregados del mismo `SELECT`. Lo que crece con el lote es el
-derrame a disco de PostgreSQL. Ahí, por columna, un lote de 2 columnas
-cuesta bastante menos que uno de 1 y casi lo mismo que uno de 4. Además,
-derrama menos que los lotes mayores. El óptimo depende de `work_mem`,
-que cambia por servidor. Para elegir otro valor, `instrumentar = TRUE`
+derrame a disco de PostgreSQL. El óptimo depende de `work_mem`, que
+cambia por servidor. Para elegir otro valor, `instrumentar = TRUE`
 publica la duración de cada consulta.
 
 Si un lote falla, no se pierde el lote. Sus mitades se sondean por
@@ -1330,9 +1331,10 @@ tiene. No se rehacen desde acá y no se extrapolan a otra máquina.
 | Percentil 99 | 47 s | 1.822 s | 323 s |
 
 Fueron 3.709 llamadas sobre 3.316 tablas, y terminaron bien 3.693. Otras
-11 se cortaron por el tiempo máximo que fijó el equipo, y 2 por un error
-del proceso. La memoria mediana de una llamada estuvo entre 230 y 530 MB
-según la vía. Sobre esos perfiles,
+3 terminaron con un aviso. De las 13 restantes, 11 se cortaron por el
+tiempo máximo que fijó el equipo y 2, por un error del proceso. La
+memoria mediana de una llamada estuvo entre 230 y 530 MB según la vía.
+Sobre esos perfiles,
 [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
 tardó 0,06 s de mediana y
 [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
@@ -1531,7 +1533,7 @@ Los casos conocidos, con lo que publica el paquete:
 | SQL Server | `STDEV` acumula en una pasada y pierde cifras con medias grandes | el desvío se pide sobre los valores centrados en la media |
 | SQL Server | no admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography` | esas métricas quedan `no_disponible` sin enviar la sentencia |
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
-| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | las 7 métricas de magnitud quedan `no_disponible`; la moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con `bit64`, como `integer64` |
+| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | las 7 métricas de magnitud quedan `no_disponible`; la moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
 | cualquiera | cada motor suma a su modo, y con valores que se cancelan las medias difieren entre motores y con la de R | la media se pide como doble donde la aritmética decimal la recortaría; la corroboración declara la diferencia |
 
 La media de `{1e16, 1, -1e16}` es 1/3. Cada vía la calcula a su modo, y
@@ -1824,10 +1826,11 @@ El caso difícil no es el paquete de R sino la biblioteca del sistema que
 va debajo. `RMariaDB` no compila sin las cabeceras del cliente de MySQL
 o MariaDB, y `ROracle` necesita el Instant Client de Oracle.
 [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
-lo dice antes de chocarse. Su catálogo tiene 12 entradas: 9 de motores
-con nombre y 3 genéricas. Las 2 versiones de Oracle cuentan por
-separado. Las genéricas (`dbi`, `odbc` y `otro_dbi`) no son motores
-medidos.
+lo dice antes de chocarse.
+
+Su catálogo tiene 12 entradas: 9 de motores con nombre y 3 genéricas.
+Las 2 versiones de Oracle cuentan por separado. Las genéricas (`dbi`,
+`odbc` y `otro_dbi`) no son motores medidos.
 
 ``` r
 

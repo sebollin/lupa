@@ -110,6 +110,13 @@ Primera versión publicada.
   enumeraciones, con la misma información y el mismo código. Los
   artículos van en impersonal. `CONTRIBUTING.md` reúne las reglas de
   redacción de la documentación.
+- Las cifras de los artículos que el paquete define (umbrales, motores
+  de la matriz, dependencias, métricas, topes) se calculan al construir
+  el sitio, no se escriben a mano. Al atarlas salieron 2 frases falsas
+  en «Alcance y cobertura»: sin `bit64` el perfil de una columna
+  `integer64` se detiene con un error, no deja 5 medidas en `NA`; y un
+  documento sin su dígito verificador necesita 7 cifras, no 6. La tabla
+  de motores del README nombra también PostgreSQL 9.3.
 - El logo y los íconos del sitio usan el hexágono regular: lados iguales
   y bordes a 30°. El anterior era más alto que ancho de la cuenta.
 

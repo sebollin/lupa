@@ -123,16 +123,16 @@ misma superficie se mide contra 6 motores reales:
 | DuckDB     | 1.5             | `duckdb`         |
 | MariaDB    | 11              | `RMariaDB`       |
 | MySQL      | 8               | `RMySQL`         |
-| PostgreSQL | 16              | `RPostgres`      |
+| PostgreSQL | 9.3 y 16        | `RPostgres`      |
 | SQL Server | 2022            | `odbc`           |
 | SQLite     | —               | `RSQLite`        |
 
-PostgreSQL y MariaDB se miden en cada push ([CI de
+PostgreSQL 16 y MariaDB se miden en cada push ([CI de
 motores](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)),
 y SQLite y DuckDB en la suite de pruebas de cada plataforma de la CI;
-MySQL y SQL Server, contra contenedores locales antes de cada versión.
-Oracle debería funcionar pero no está medido, y BigQuery no está
-documentado.
+MySQL, SQL Server y PostgreSQL 9.3, contra contenedores locales antes de
+cada versión. Oracle debería funcionar pero no está medido, y BigQuery
+no está documentado.
 [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
 dice qué necesita cada motor. Las versiones, los controladores y la
 fecha de cada corrida están en [Motores y

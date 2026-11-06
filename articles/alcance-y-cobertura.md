@@ -244,8 +244,10 @@ DBI::dbDisconnect(conexion)
 
 `observado_muestra` describe las filas que trajo la muestra, no la
 tabla. Sin filas traídas a R, una columna no se puede clasificar como
-dato personal. Sus valores quedan entonces `omitido_por_privacidad` (ver
-el último apartado).
+dato personal. Si se pidió la protección
+(`proteger_datos_personales = TRUE`), sus valores quedan entonces
+`omitido_por_privacidad` (ver el último apartado). Por omisión la
+protección no se pide, y los valores se publican.
 
 ## Unidades declaradas y trazabilidad por fila
 
@@ -400,11 +402,13 @@ publican:
 La señal `moda_sobresale_secuencia_entera` es independiente y no
 desactiva las comprobaciones que usan la numeración.
 
-Para una columna `integer64`, `bit64` se carga de manera diferida cuando
-está instalado, para registrar sus métodos antes de medir. Si no está
-instalado, las 5 medidas de la secuencia quedan en `NA`.
-`cobertura_diagnosticos` registra entonces que `secuencia_entera` no se
-pudo evaluar.
+Para una columna `integer64`,
+[`bit64`](https://CRAN.R-project.org/package=bit64) se carga de manera
+diferida, para registrar sus métodos antes de medir. Si no está
+instalado, o su versión es anterior a 4.6.0, el perfil no se calcula.
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) se
+detiene con un error de clase `lupa_error_integer64`, que nombra la
+columna y dice cómo seguir.
 
 La regla está fijada por `tests/testthat/test-regresion-118.R`:
 
@@ -473,10 +477,10 @@ rbind(
 ```
 
 `sentinelas_naniar` trae los centinelas numéricos que publica el paquete
-naniar, para pasarlos de una vez:
-`perfilar(datos, sentinelas_numericos = sentinelas_naniar)`. La política
-de centinelas se compara como un conjunto numérico. Cambiar el orden,
-entregar enteros en vez de dobles o repetir un valor no cambia su
+[`naniar`](https://CRAN.R-project.org/package=naniar), para pasarlos de
+una vez: `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`. La
+política de centinelas se compara como un conjunto numérico. Cambiar el
+orden, entregar enteros en vez de dobles o repetir un valor no cambia su
 significado. Vale en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
 en
@@ -595,11 +599,12 @@ parte de su contrato:
 
 - Perfila una entrega y muestra faltantes, tipos, patrones, fechas y
   evidencia de datos personales.
-- Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos,
-  validez planar, dominio de coordenadas y alcance de la caja
-  envolvente. No hace análisis espacial. Sobre PostGIS lee el SRID de
-  cada valor EWKB o EWKT. Una columna con SRID mixto queda declarada
-  como tal. Su dominio se evalúa por grupos, porque una columna
+- Perfila geometrías [`sf`](https://CRAN.R-project.org/package=sf) y
+  declara CRS, familias geométricas, vacíos, validez planar, dominio de
+  coordenadas y alcance de la caja envolvente. No hace análisis
+  espacial. Sobre PostGIS lee el SRID de cada valor EWKB o EWKT. Una
+  columna con SRID mixto queda declarada como tal. Su dominio se evalúa
+  por grupos, porque una columna
   [`sf::sfc`](https://r-spatial.github.io/sf/reference/sfc.html) sólo
   puede tener un CRS. Un valor que no se puede convertir no borra la
   columna: se mide el resto y la pérdida se declara con su cifra.
@@ -753,8 +758,9 @@ El reemplazo reconoce 3 formas del mismo valor:
 
 - la exacta;
 - la que sólo difiere en separadores o en la caja de sus letras ASCII;
-- la que comparte con un valor protegido una corrida de 6 dígitos o más,
-  como un documento sin su dígito verificador.
+  un número, si tiene 6 cifras o más;
+- la del número sin su última cifra, como un documento sin su dígito
+  verificador, si le quedan 7 cifras o más.
 
 Los valores se reemplazan de más largo a más corto. Así, un valor
 protegido que es prefijo de otro no deja publicada la cola del más

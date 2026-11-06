@@ -123,6 +123,8 @@ traducen</a></li>
 <li><a href="#avisos">Avisos de costo y derrame</a></li>
 <li><a href="#instrumentacion">Instrumentación y duraciones</a></li>
 <li><a href="#memoria">Memoria del procesamiento</a></li>
+<li><a href="#corrida-produccion">Una corrida sobre bases de
+producción</a></li>
 <li><a href="#consistencia">Consistencia entre consultas</a></li>
 <li><a href="#dialectos">Dialectos y sondas</a></li>
 <li><a href="#diferencias-con-r">Lo que el motor guarda distinto que
@@ -893,8 +895,9 @@ incremental demostrada —DuckDB entre ellos— quedan
 </h2>
 <p>Los topes de <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> y del
 diagnóstico de vocabulario recortan trabajo en R. No recortan las
-consultas que ya ejecutó un motor. Este ejemplo recrea la tabla pequeña
-de la guía para que cada salida sea independiente.</p>
+consultas que ya ejecutó un motor. Este ejemplo recrea la tabla de
+proveedores de <a href="escala-y-duplicados.html#un-registro-de-proveedores">Escala y
+duplicados</a> para que cada salida sea independiente.</p>
 <div class="section level3">
 <h3 id="el-largo-de-los-valores">El largo de los valores<a class="anchor" aria-label="anchor" href="#el-largo-de-los-valores"></a>
 </h3>
@@ -1283,12 +1286,9 @@ código, anotado junto a la constante (<code>R/perfilar-dbi.R</code>). En
 PostgreSQL, la lectura de la tabla es la misma con cualquier lote. El
 motor amortiza una pasada entre los agregados del mismo
 <code>SELECT</code>. Lo que crece con el lote es el derrame a disco de
-PostgreSQL. Ahí, por columna, un lote de 2 columnas cuesta bastante
-menos que uno de 1 y casi lo mismo que uno de 4. Además, derrama menos
-que los lotes mayores. El óptimo depende de <code>work_mem</code>, que
-cambia por servidor. Para elegir otro valor,
-<code>instrumentar = TRUE</code> publica la duración de cada
-consulta.</p>
+PostgreSQL. El óptimo depende de <code>work_mem</code>, que cambia por
+servidor. Para elegir otro valor, <code>instrumentar = TRUE</code>
+publica la duración de cada consulta.</p>
 <p>Si un lote falla, no se pierde el lote. Sus mitades se sondean por
 bisección:</p>
 <ul>
@@ -1887,10 +1887,11 @@ máquina.</p>
 </tbody>
 </table>
 <p>Fueron 3.709 llamadas sobre 3.316 tablas, y terminaron bien 3.693.
-Otras 11 se cortaron por el tiempo máximo que fijó el equipo, y 2 por un
-error del proceso. La memoria mediana de una llamada estuvo entre 230 y
-530 MB según la vía. Sobre esos perfiles, <code><a href="../reference/reportar.html">reportar()</a></code> tardó
-0,06 s de mediana y <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code>, 0,008 s.</p>
+Otras 3 terminaron con un aviso. De las 13 restantes, 11 se cortaron por
+el tiempo máximo que fijó el equipo y 2, por un error del proceso. La
+memoria mediana de una llamada estuvo entre 230 y 530 MB según la vía.
+Sobre esos perfiles, <code><a href="../reference/reportar.html">reportar()</a></code> tardó 0,06 s de mediana y
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code>, 0,008 s.</p>
 <p>La protección de datos personales se midió en 3 tablas de hasta
 100.000 filas, con la misma llamada con y sin
 <code>proteger_datos_personales = TRUE</code>. Costó entre 11 y 18 % más
@@ -2226,7 +2227,8 @@ SQL Server)</td>
 en DuckDB) o decimales que llegan como doble desde 2^53</td>
 <td>las 7 métricas de magnitud quedan <code>no_disponible</code>; la
 moda se le pide al motor como texto exacto; la muestra lee esas columnas
-como texto y, con <code>bit64</code>, como <code>integer64</code>
+como texto y, con <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>,
+como <code>integer64</code>
 </td>
 </tr>
 <tr class="even">
@@ -2736,8 +2738,9 @@ instalan aparte.</p>
 que va debajo. <code>RMariaDB</code> no compila sin las cabeceras del
 cliente de MySQL o MariaDB, y <code>ROracle</code> necesita el Instant
 Client de Oracle. <code><a href="../reference/requisitos_motor.html">requisitos_motor()</a></code> lo dice antes de
-chocarse. Su catálogo tiene 12 entradas: 9 de motores con nombre y 3
-genéricas. Las 2 versiones de Oracle cuentan por separado. Las genéricas
+chocarse.</p>
+<p>Su catálogo tiene 12 entradas: 9 de motores con nombre y 3 genéricas.
+Las 2 versiones de Oracle cuentan por separado. Las genéricas
 (<code>dbi</code>, <code>odbc</code> y <code>otro_dbi</code>) no son
 motores medidos.</p>
 <div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">

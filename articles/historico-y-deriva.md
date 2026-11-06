@@ -194,10 +194,10 @@ paquete: el comparador devuelve datos, no decisiones.
 Para seguir la calidad medida, y no sólo el perfil, se repite cada mes
 la evaluación de [7. Del hallazgo a la
 métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.md).
-Mide la completitud de las 4 columnas con faltantes disfrazados,
-agregada por columna y comparada con un 90 %. El modelo sale de la
-propuesta de enero y queda fijo. Si se recalculara con cada entrega, una
-diferencia podría venir del modelo y no de los datos.
+Mide la completitud de las columnas con faltantes disfrazados, agregada
+por columna y comparada con un 90 %. El modelo sale de la propuesta de
+enero y queda fijo. Si se recalculara con cada entrega, una diferencia
+podría venir del modelo y no de los datos.
 
 ``` r
 

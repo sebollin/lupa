@@ -425,8 +425,10 @@ muestra del motor:</p>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 <p><code>observado_muestra</code> describe las filas que trajo la
 muestra, no la tabla. Sin filas traídas a R, una columna no se puede
-clasificar como dato personal. Sus valores quedan entonces
-<code>omitido_por_privacidad</code> (ver el último apartado).</p>
+clasificar como dato personal. Si se pidió la protección
+(<code>proteger_datos_personales = TRUE</code>), sus valores quedan
+entonces <code>omitido_por_privacidad</code> (ver el último apartado).
+Por omisión la protección no se pide, y los valores se publican.</p>
 </div>
 <div class="section level2">
 <h2 id="unidades-declaradas-y-trazabilidad-por-fila">Unidades declaradas y trazabilidad por fila<a class="anchor" aria-label="anchor" href="#unidades-declaradas-y-trazabilidad-por-fila"></a>
@@ -584,11 +586,12 @@ publica <code>umbral_densidad_secuencia_entera</code> y tiene al menos
 <p>La señal <code>moda_sobresale_secuencia_entera</code> es
 independiente y no desactiva las comprobaciones que usan la
 numeración.</p>
-<p>Para una columna <code>integer64</code>, <code>bit64</code> se carga
-de manera diferida cuando está instalado, para registrar sus métodos
-antes de medir. Si no está instalado, las 5 medidas de la secuencia
-quedan en <code>NA</code>. <code>cobertura_diagnosticos</code> registra
-entonces que <code>secuencia_entera</code> no se pudo evaluar.</p>
+<p>Para una columna <code>integer64</code>, <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>
+se carga de manera diferida, para registrar sus métodos antes de medir.
+Si no está instalado, o su versión es anterior a 4.6.0, el perfil no se
+calcula. <code><a href="../reference/perfilar.html">perfilar()</a></code> se detiene con un error de clase
+<code>lupa_error_integer64</code>, que nombra la columna y dice cómo
+seguir.</p>
 <p>La regla está fijada por
 <code>tests/testthat/test-regresion-118.R</code>:</p>
 <ul>
@@ -663,7 +666,8 @@ columna;</li>
 <span><span class="co">#&gt; sospecha  783.3186                           0 9999</span></span>
 <span><span class="co">#&gt; declarado 230.3778                          30 9999</span></span></code></pre></div>
 <p><code>sentinelas_naniar</code> trae los centinelas numéricos que
-publica el paquete naniar, para pasarlos de una vez:
+publica el paquete <a href="https://CRAN.R-project.org/package=naniar" class="external-link"><code>naniar</code></a>,
+para pasarlos de una vez:
 <code>perfilar(datos, sentinelas_numericos = sentinelas_naniar)</code>.
 La política de centinelas se compara como un conjunto numérico. Cambiar
 el orden, entregar enteros en vez de dobles o repetir un valor no cambia
@@ -779,14 +783,14 @@ quedan fuera del alcance de la señal.</li>
 <ul>
 <li>Perfila una entrega y muestra faltantes, tipos, patrones, fechas y
 evidencia de datos personales.</li>
-<li>Perfila geometrías <code>sf</code> y declara CRS, familias
-geométricas, vacíos, validez planar, dominio de coordenadas y alcance de
-la caja envolvente. No hace análisis espacial. Sobre PostGIS lee el SRID
-de cada valor EWKB o EWKT. Una columna con SRID mixto queda declarada
-como tal. Su dominio se evalúa por grupos, porque una columna
-<code><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">sf::sfc</a></code> sólo puede tener un CRS. Un valor que no se puede
-convertir no borra la columna: se mide el resto y la pérdida se declara
-con su cifra.</li>
+<li>Perfila geometrías <a href="https://CRAN.R-project.org/package=sf" class="external-link"><code>sf</code></a> y
+declara CRS, familias geométricas, vacíos, validez planar, dominio de
+coordenadas y alcance de la caja envolvente. No hace análisis espacial.
+Sobre PostGIS lee el SRID de cada valor EWKB o EWKT. Una columna con
+SRID mixto queda declarada como tal. Su dominio se evalúa por grupos,
+porque una columna <code><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">sf::sfc</a></code> sólo puede tener un CRS. Un
+valor que no se puede convertir no borra la columna: se mide el resto y
+la pérdida se declara con su cifra.</li>
 <li>Evalúa la ley de Benford sólo cuando se cumplen sus precondiciones y
 registra los casos no aplicables en
 <code>cobertura_diagnosticos</code>.</li>
@@ -931,10 +935,10 @@ enmascarado en todas partes.</p>
 <p>El reemplazo reconoce 3 formas del mismo valor:</p>
 <ul>
 <li>la exacta;</li>
-<li>la que sólo difiere en separadores o en la caja de sus letras
-ASCII;</li>
-<li>la que comparte con un valor protegido una corrida de 6 dígitos o
-más, como un documento sin su dígito verificador.</li>
+<li>la que sólo difiere en separadores o en la caja de sus letras ASCII;
+un número, si tiene 6 cifras o más;</li>
+<li>la del número sin su última cifra, como un documento sin su dígito
+verificador, si le quedan 7 cifras o más.</li>
 </ul>
 <p>Los valores se reemplazan de más largo a más corto. Así, un valor
 protegido que es prefijo de otro no deja publicada la cola del más
