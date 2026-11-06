@@ -368,3 +368,11 @@ Primera versión publicada.
   frecuencias desparejas. La familia sigue declarando que el diagnóstico no
   aplica a las formas con números; los grupos sin números se juzgan con el mismo
   límite, medido sobre ellos.
+- La búsqueda de casi duplicados del vocabulario ya no depende de que la
+  columna tenga, antes de una pareja, dos formas que se normalizan igual (`ALFA`
+  y `Alfa`). Con una de esas clases delante, el filtro de marcas de formato leía
+  otro par: en una columna de horas publicaba como casi duplicados pares
+  `a.m.`/`p.m.` que tiene que descartar y perdía el hallazgo real; la fila de
+  cobertura «N grupos de formas cercanas no se formaron…» desaparecía, y el
+  diagnóstico de variantes equifrecuentes nombraba formas que no son pareja. Sin
+  esas clases, o con la clase después de la pareja, la salida es la misma.

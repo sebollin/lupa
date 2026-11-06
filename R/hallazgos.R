@@ -1391,6 +1391,22 @@
   # mas abajo.
   grupos_de_clase <- split(seq_along(clases), clases)
   representantes <- vapply(grupos_de_clase, `[[`, integer(1L), 1L)
+  # Aca conviven dos espacios de indices, y confundirlos no da error: da otra
+  # respuesta. Las FORMAS -`crudos`, `publicables`, `frecuencias`, `pares`-
+  # son los valores tal como se escribieron; las UNIDADES -`valores_norm`,
+  # `frecuencia_unidad`, `firmas_numericas` y todo lo que compara distancias-
+  # son las formas ya normalizadas, y una clase exacta (`ALFA`, `Alfa`) junta
+  # varias formas en una unidad. Sin clases exactas la unidad `k` es la forma
+  # `k` y cualquier mezcla pasa inadvertida; con una sola clase delante, cada
+  # unidad que viene despues apunta a la forma anterior. Medido: con `ALFA` y
+  # `Alfa` antes de `Montevideo`/`Montevido` el grupo equifrecuente y su fila
+  # de cobertura desaparecian, y en una columna de horas con una clase delante
+  # el filtro de formato leia otro par y publicaba 23 falsos `a.m.`/`p.m.`.
+  #
+  # La regla es una: lo que sale del espacio de unidades sale traducido a
+  # formas, como en `aristas_estrellas()`. Un par se lee por la forma
+  # representante de cada unidad, y un grupo se publica con todas las formas
+  # de sus unidades, como los grupos del camino principal.
   disponible <- .stringdist_disponible()
   firmas_numericas <- if (disponible) {
     .firmas_numericas_vocabulario(valores_norm)
@@ -1491,8 +1507,15 @@
       unir_equifrecuentes(fila_1[[i]], fila_2[[i]])
     }
     if (isTRUE(detectar_variantes_equifrecuentes)) {
-      pares_equifrecuentes_1 <<- c(pares_equifrecuentes_1, fila_1)
-      pares_equifrecuentes_2 <<- c(pares_equifrecuentes_2, fila_2)
+      # Se guardan en formas: los grupos que los consumen estan en formas, y
+      # de aca solo se leen para publicar (`crudos`) y para aparear contra
+      # esos grupos.
+      pares_equifrecuentes_1 <<- c(
+        pares_equifrecuentes_1, as.integer(representantes[fila_1])
+      )
+      pares_equifrecuentes_2 <<- c(
+        pares_equifrecuentes_2, as.integer(representantes[fila_2])
+      )
       distancias_equifrecuentes <<- c(distancias_equifrecuentes, distancia)
     }
     invisible(NULL)
@@ -1635,9 +1658,14 @@
       fila_1 <- fila_1[compatibles]
       fila_2 <- fila_2[compatibles]
       distancia <- distancia[compatibles]
+      # El filtro mira los tokens de las formas escritas -`frecuencias_token`
+      # cuenta por forma- y el par llega en unidades: se lee la forma
+      # representante de cada una, la misma que el grupo publica.
+      forma_1 <- representantes[fila_1]
+      forma_2 <- representantes[fila_2]
       del_formato <- vapply(seq_along(fila_1), function(k) {
         .diferencia_sistematica_vocabulario(
-          crudos[[fila_1[[k]]]], crudos[[fila_2[[k]]]],
+          crudos[[forma_1[[k]]]], crudos[[forma_2[[k]]]],
           frecuencias_token, n_formas_token
         )
       }, logical(1L))
@@ -1916,10 +1944,14 @@
     vapply(seq_len(n_unidades), raiz_equifrecuente, integer(1L))
   } else integer()
   grupos_equifrecuentes_candidatos <- if (length(activos_equifrecuentes)) {
-    candidatos <- split(
-      which(activos_equifrecuentes),
-      componentes_equifrecuentes[activos_equifrecuentes]
-    )
+    # Los componentes se arman sobre unidades, y el candidato sale en formas:
+    # cada forma va al componente de su unidad, igual que los grupos del
+    # camino principal salen de `split(seq_len(n_evaluados), componentes)`.
+    # Desde aca todo -frecuencias, la exclusion por clase exacta, las
+    # variantes que se publican- lee formas.
+    componente_forma <- componentes_equifrecuentes[clases]
+    activa_forma <- activos_equifrecuentes[clases]
+    candidatos <- split(which(activa_forma), componente_forma[activa_forma])
     Filter(function(indices) {
       frecuencias_grupo <- frecuencias[indices]
       length(indices) > 1L &&
@@ -1930,12 +1962,12 @@
   } else list()
   # La misma regla del limite, y no una segunda: las aristas equifrecuentes se
   # registran despues del filtro numerico, asi que un candidato tampoco mezcla
-  # formas con y sin numeros. Sus indices son de unidades normalizadas.
+  # formas con y sin numeros. Sus indices son de formas, como los de `grupos`.
   if (!aplicable && length(grupos_equifrecuentes_candidatos)) {
     grupos_equifrecuentes_candidatos <- grupos_equifrecuentes_candidatos[
       admitido_por_limite(vapply(
         grupos_equifrecuentes_candidatos,
-        function(indices) any(con_numeros_unidad[indices]), logical(1L)
+        function(indices) any(con_numeros_unidad[clases[indices]]), logical(1L)
       ))
     ]
     evaluado_aparte_sin_numeros <- evaluado_aparte_sin_numeros ||
