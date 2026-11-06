@@ -968,14 +968,16 @@
 # `integer64` dan distinto segun la version de bit64. El paquete no las llama
 # asi: su unico `merge()` es por una clave de texto y sus `factor()` con niveles
 # los tienen de texto.
-.match_de_base <- base::match
-
+#
+# Llaman a `base::match()` por su nombre: copiar la funcion de base dentro del
+# paquete (`base_match <- base::match`) lleva su `.Internal()` al espacio de
+# nombres, y R CMD check lo marca con un WARNING.
 match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   if (is.object(x) && inherits(x, "integer64")) x <- as.character(x)
   if (is.object(table) && inherits(table, "integer64")) {
     table <- as.character(table)
   }
-  .match_de_base(x, table, nomatch, incomparables)
+  base::match(x, table, nomatch, incomparables)
 }
 
 `%in%` <- function(x, table) {
@@ -983,7 +985,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   if (is.object(table) && inherits(table, "integer64")) {
     table <- as.character(table)
   }
-  .match_de_base(x, table, 0L) > 0L
+  base::match(x, table, 0L) > 0L
 }
 
 # Con el `match()` de arriba, lo unico que una columna `integer64` necesita es
