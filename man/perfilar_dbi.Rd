@@ -742,6 +742,15 @@ cero ni se dispara la cascada \code{sin_valores}. Una muestra no vacía sin valo
 válidos usa \code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada
 usa \code{capacidad_no_aceptada:...}. \code{n} conserva el conteo de la tabla completa.
 
+Un estado que afirma un valor (\code{calculado}, \code{estimado}, \code{observado_muestra})
+nunca se publica con el valor ausente. Si el valor falta, el registro dice
+por qué: \code{sin_valores} cuando la columna no tiene valores no nulos en la
+tabla completa (en la muestra, \code{no_disponible} con
+\code{muestra_inestable:sin_valores_validos}); \code{no_aplica} para una métrica
+numérica sobre una columna que no lo es, para el desvío con menos de dos
+valores y para la moda cuando ningún valor se repite; \code{no_disponible} en
+cualquier otro caso.
+
 En una muestra, \code{error_esperado} vale \code{no_estimado} para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,
 \code{no_estimable} para la moda, la mediana y la cardinalidad observada, que no
@@ -787,10 +796,13 @@ materializacion cliente, pero solo se publica evidencia positiva de snapshot
 transaccional cuando el adaptador la demuestra. La cobertura agrega una entrada concreta solo si
 \code{n_validos} y \code{n_distintos} son exactos, incoherentes y provienen de grupos
 distintos; su motivo conserva ambas sentencias.
-La mediana muestral que no tiene una forma consolidada o escalar usa una
-sola CTE con \verb{COUNT(*) OVER ()}, \verb{ROW_NUMBER() OVER} y el promedio de las
-posiciones centrales. La sonda barata repite esa construccion sobre
-\verb{VALUES (1.0), (2.0), (3.0), (4.0)}, exige \code{2.5} y un control negativo que
+La mediana muestral que no tiene una forma consolidada o escalar, y la de
+cada columna que no puede usar la consolidada (un \code{float8} de PostgreSQL o
+una columna con extremos), usa una sola CTE con \verb{COUNT(*) OVER ()},
+\verb{ROW_NUMBER() OVER} y el promedio de las posiciones centrales, elegidas sin
+dividir; con extremos, el promedio no desborda y sigue en la misma
+sentencia. La sonda barata repite esa construccion sobre
+\verb{SELECT 1.0 UNION ALL ... SELECT 4.0}, exige \code{2.5} y un control negativo que
 falle; no se sondea la tabla de produccion. Si esa capacidad falla, la
 mediana se publica como \code{no_disponible} con
 \code{capacidad_no_aceptada:sonda_mediana_cte_ventana}, nunca como
@@ -839,10 +851,17 @@ PostgreSQL se usan \verb{\%} y \code{/} con division entera. Bajo
 CTE de ventanas descrita arriba y no degradan a \code{dos_consultas}. En
 \code{tabla_completa} se conserva el camino previo, incluido \code{dos_consultas} si
 es el que resuelve ese dialecto; \code{PERCENTILE_CONT} no cambia.
+\code{dos_consultas} necesita el conteo de valores no nulos para el salto: si
+\code{metricas} no incluye \code{"validos"}, la mediana lo cuenta en una consulta
+propia y sale igual que con todas las métricas.
 La mediana consolidada tambien se sondea antes de usarla; en SQL Server
 requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
-conocidos de que no se active: la funcion no esta disponible o el motor
-rechaza la sonda. En ese caso el mensaje del motor queda en
+conocidos de que no se active: la funcion no esta disponible, el motor
+rechaza la sonda o devuelve el percentil sin todas sus cifras. La prueba lee
+una fila con un valor de más de 1e8 y otro de menos de 1e-10 y exige los dos
+idénticos: MariaDB tipa \code{PERCENTILE_CONT} como \code{double(18,10)}, que satura
+en 1e8 y redondea a diez decimales, y por eso usa la mediana por columna
+como MySQL. En ese caso el mensaje del motor queda en
 \code{meta$mediana_consolidada$motivo} —sin sus literales con la protección
 activa, entero sin ella, como todo mensaje del motor: ver «Datos
 personales»—, y se conserva la mediana por columna.

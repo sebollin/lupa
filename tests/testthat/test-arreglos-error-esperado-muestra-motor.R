@@ -25,8 +25,10 @@ test_that("error_esperado y estado se clasifican por metrica en las dos vias", {
       "tasa_distintos", "moda", "frecuencia_moda", "minimo", "maximo",
       "media", "n_ceros", "n_negativos", "mediana", "desvio"
     ),
+    # `x` no repite valores en la muestra: la moda queda `no_disponible`, no
+    # `estimado` con el valor ausente.
     estado = c(
-      "calculado", rep("observado_muestra", 5L), "estimado",
+      "calculado", rep("observado_muestra", 5L), "no_disponible",
       "observado_muestra", rep("estimado", 3L),
       rep("observado_muestra", 2L), "estimado", "estimado"
     ),

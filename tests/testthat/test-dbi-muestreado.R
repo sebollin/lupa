@@ -259,10 +259,20 @@ test_that("muestreado materializa una seleccion y marca su cobertura", {
     maximo = "no_estimado", media = "no_estimado", n_ceros = "no_estimado",
     n_negativos = "no_estimado", mediana = "no_estimable", desvio = "no_estimado"
   )
-  expect_identical(metricas$estado, unname(esperados[metricas$metrica]))
-  expect_identical(
-    metricas$error_esperado, unname(errores[metricas$metrica])
-  )
+  # Las metricas numericas de `texto` no aplican, y la moda de `id`, que no
+  # repite valores en la muestra, no se puede estimar: ninguna se publica como
+  # `estimado` con el valor ausente.
+  numericas <- c("minimo", "maximo", "media", "n_ceros", "n_negativos",
+                 "mediana", "desvio")
+  de_texto <- metricas$columna == "texto" & metricas$metrica %in% numericas
+  sin_moda <- metricas$columna == "id" & metricas$metrica == "moda"
+  estado_esperado <- unname(esperados[metricas$metrica])
+  estado_esperado[de_texto] <- "no_aplica"
+  estado_esperado[sin_moda] <- "no_disponible"
+  error_esperado <- unname(errores[metricas$metrica])
+  error_esperado[de_texto] <- "no_aplica"
+  expect_identical(metricas$estado, estado_esperado)
+  expect_identical(metricas$error_esperado, error_esperado)
   expect_true(all(metricas$id_consulta == metricas$consulta_id))
   materializacion <- resultado$resumen_tabla$meta$materializacion
   expect_true(isTRUE(materializacion$externo))
@@ -343,7 +353,7 @@ test_that("un motivo sin texto del motor no termina en NA literal", {
   expect_false(grepl("motor dijo: NA", motivo, fixed = TRUE))
 })
 
-test_that("una muestra no vacia con todos los valores nulos conserva sus estados", {
+test_that("una muestra no vacia con todos los valores nulos declara lo que no midio", {
   cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   DBI::dbWriteTable(
     cruda, "datos_corta",
@@ -372,15 +382,20 @@ test_that("una muestra no vacia con todos los valores nulos conserva sus estados
     alcance$estado[alcance$metrica %in% c("n_validos", "n_faltantes")] ==
       "observado_muestra"
   ))
-  esperados <- c(
-    n_validos = "observado_muestra", n_faltantes = "observado_muestra",
-    prop_faltantes = "observado_muestra", n_distintos = "observado_muestra",
-    tasa_distintos = "observado_muestra", moda = "estimado",
-    frecuencia_moda = "observado_muestra", minimo = "estimado",
-    maximo = "estimado", media = "estimado", n_ceros = "observado_muestra",
-    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado"
-  )
-  expect_identical(alcance$estado, unname(esperados[alcance$metrica]))
+  # Los conteos se observaron; lo que no tiene valor en la muestra queda
+  # `no_disponible` con `muestra_inestable:sin_valores_validos`, como en la via
+  # SQL, y no `estimado` con el valor ausente.
+  columnas <- resultado$resumen_tabla$columnas
+  con_valor <- vapply(alcance$metrica, function(metrica) {
+    !is.na(columnas[[metrica]][columnas$columna == "valor"])
+  }, logical(1L))
+  expect_true(all(alcance$estado[con_valor] == "observado_muestra"))
+  expect_true(all(alcance$estado[!con_valor] == "no_disponible"))
+  expect_true(all(
+    alcance$motivo[!con_valor] == "muestra_inestable:sin_valores_validos"
+  ))
+  expect_true(all(c("moda", "minimo", "media", "mediana", "desvio") %in%
+                    alcance$metrica[!con_valor]))
   expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
 })
 
@@ -637,7 +652,12 @@ test_that("la sonda de muestreo ejercita la forma que despues se emite", {
   # no se pudieron calcular.
   registros <- resultado$resumen_tabla$sql
   metricas <- registros[registros$metrica != "n", , drop = FALSE]
-  expect_false(any(metricas$estado == "no_disponible"))
+  # La unica `no_disponible` admitida es la moda de `id`, que no repite valores
+  # en la muestra: no la tapa la capacidad, la tapa el dato.
+  sin_moda <- metricas$metrica == "moda" & metricas$columna == "id"
+  expect_false(any(metricas$estado[!sin_moda] == "no_disponible"))
+  expect_true(all(grepl("se repite", metricas$motivo[sin_moda &
+    metricas$estado == "no_disponible"], fixed = TRUE)))
   expect_true(any(metricas$estado %in% c("estimado", "observado_muestra")))
   expect_false(any(grepl("TABLESAMPLE SYSTEM", metricas$sql, ignore.case = TRUE)))
 })
@@ -651,7 +671,8 @@ test_that("la sonda CTE de ventanas es barata y prueba la construccion impresa",
   expect_true(startsWith(sql, "WITH lupa_mediana_datos AS"))
   expect_match(sql, "COUNT(*) OVER ()", fixed = TRUE)
   expect_match(sql, "ROW_NUMBER() OVER", fixed = TRUE)
-  expect_match(sql, "VALUES (1.0), (2.0), (3.0), (4.0)", fixed = TRUE)
+  # Lee de un `SELECT ... UNION ALL`: MySQL rechaza `VALUES (...) AS t(v)`.
+  expect_match(sql, "SELECT 1.0 AS v UNION ALL SELECT 2.0 AS v", fixed = TRUE)
   expect_match(sql, "AVG\\([^)]* \\* 1\\.0\\)")
   expect_false(grepl("FROM datos", sql, fixed = TRUE))
 

@@ -453,7 +453,7 @@ test_that("el adaptador de dialecto escribe cada capacidad como corresponde", {
   expect_null(dialectos$rownum$limitar("SELECT a FROM t", 5L, 19))
 })
 
-test_that("sin dialecto de limite la mediana se declara en vez de traer la tabla", {
+test_that("sin dialecto de limite la mediana sale de la CTE y no trae la tabla", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
@@ -465,13 +465,16 @@ test_that("sin dialecto de limite la mediana se declara en vez de traer la tabla
     resultado$resumen_tabla$sql$metrica == "mediana", , drop = FALSE
   ]
   fila_monto <- medianas[medianas$columna == "monto", , drop = FALSE]
-  expect_identical(fila_monto$estado, "no_disponible")
-  expect_match(fila_monto$motivo, "salto de filas")
-  expect_true(is.na(
-    resultado$resumen_tabla$columnas$mediana[
+  # La via de dos consultas no se puede escribir sin salto de filas; la CTE de
+  # ventanas no lo necesita y calcula la mediana en el motor, en una sentencia.
+  expect_identical(fila_monto$estado, "calculado")
+  expect_identical(fila_monto$metodo, "cte_ventana")
+  expect_identical(
+    as.numeric(resultado$resumen_tabla$columnas$mediana[
       resultado$resumen_tabla$columnas$columna == "monto"
-    ]
-  ))
+    ]),
+    stats::median(.tabla_juguete()$monto, na.rm = TRUE)
+  )
   # Y el resto de las metricas sigue viniendo entero.
   expect_false(is.na(
     resultado$resumen_tabla$columnas$media[

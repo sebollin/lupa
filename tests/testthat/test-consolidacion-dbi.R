@@ -216,7 +216,9 @@ test_that("un lote rechazado degrada a columnas sin perder las sanas", {
   registros <- resultado$resumen_tabla$sql
   medidos <- registros[registros$columna %in% c("a", "b", "c", "d") &
     registros$metrica != "n", , drop = FALSE]
-  expect_true(all(medidos$estado == "calculado"))
+  # Ninguna de estas columnas repite un valor: no tienen moda.
+  expect_true(all(medidos$estado[medidos$metrica != "moda"] == "calculado"))
+  expect_true(all(medidos$estado[medidos$metrica == "moda"] == "no_aplica"))
   expect_true(any(.consolidacion_dbi$rechazos == "muchas expresiones"))
   expect_true(any(registros$columnas_compartidas == 1L, na.rm = TRUE))
   reintentos <- medidos[!is.na(medidos$consulta_id), , drop = FALSE]
@@ -242,7 +244,8 @@ test_that("un agregado rechazado para una columna conserva las demas del lote", 
     registros$metrica != "n", , drop = FALSE]
   mala <- registros[registros$columna == "mala" & registros$metrica != "n", ,
                     drop = FALSE]
-  expect_true(all(sanas$estado == "calculado"))
+  expect_true(all(sanas$estado[sanas$metrica != "moda"] == "calculado"))
+  expect_true(all(sanas$estado[sanas$metrica == "moda"] == "no_aplica"))
   expect_true(all(mala$estado == "no_disponible"))
   expect_true(any(.consolidacion_dbi$rechazos == "tipo malo lote"))
   expect_true(any(grepl("mala|agregado|tipo", mala$motivo, ignore.case = TRUE)))

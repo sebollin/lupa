@@ -5620,27 +5620,49 @@
 
 # La forma de ventanas mantiene la relacion muestreada en una sola referencia:
 # el conteo y las posiciones se calculan sobre la misma CTE que luego agrega las
-# dos posiciones centrales. Se reserva para los dialectos que no aceptan la
-# forma escalar ni una consolidada; en particular es la salida de
-# `muestra_motor` en SQL Server con compatibilidad antigua.
+# dos posiciones centrales. Es la salida de `muestra_motor` en los dialectos que
+# no aceptan la forma escalar ni una consolidada -MySQL, SQL Server con
+# compatibilidad antigua- y la de cada columna que no puede usar la consolidada
+# (ver `.resumen_columna_dbi()`).
+#
+# Las posiciones centrales se eligen sin dividir. `2 * posicion` entre `n` y
+# `n + 2` deja exactamente `(n + 1) %/% 2` y `(n + 2) %/% 2`, las dos que
+# promedia `median()`. La forma anterior, `posicion IN ((n + 1) / 2, ...)`,
+# suponia division entera: en DuckDB, MySQL y MariaDB `/` es decimal, la
+# primera central no coincidia con ninguna posicion y la mediana de 1, 2, 3 y 4
+# daba 3. Medido el 2026-11-05 en los cinco motores.
+#
+# La consulta de prueba lee de un `SELECT ... UNION ALL`, como la consulta real
+# lee de una subconsulta. Leia de `(VALUES (1.0), ...) AS t(v)`, que MySQL 8.4
+# rechaza por sintaxis -pide `VALUES ROW(...)`-: la prueba fallaba por una
+# construccion que el paquete nunca emite y la mediana de la muestra quedaba
+# `no_disponible` en un motor que acepta la CTE y las ventanas.
+#
+# Con `escalada = TRUE` las dos centrales se promedian con la expresion de
+# `.mediana_escalada_dbi()`, que no desborda con valores enormes, pero dentro de
+# la misma sentencia: una segunda consulta leeria otra muestra.
 .candidatos_mediana_cte_ventana_dbi <- function(conexion) {
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
-  construir <- function(expr, tabla, alias_salida) {
+  construir <- function(expr, tabla, alias_salida, escalada = FALSE) {
     valor <- alias("valor")
+    n_validos <- alias("n_validos")
+    promedio <- if (isTRUE(escalada)) {
+      .promedio_centrales_escalado_sql_dbi(valor)
+    } else {
+      .promedio_mediana_sql_dbi(conexion, valor)
+    }
     paste0(
       "WITH lupa_mediana_datos AS (",
       "SELECT ", expr, " AS ", valor, " FROM ", tabla,
       " WHERE ", expr, " IS NOT NULL), ",
       "ordenada AS (SELECT ", valor, ", COUNT(*) OVER () AS ",
-      alias("n_validos"), ", ROW_NUMBER() OVER (ORDER BY ", valor,
+      n_validos, ", ROW_NUMBER() OVER (ORDER BY ", valor,
       ") AS ", alias("posicion"), " FROM lupa_mediana_datos) ",
-      "SELECT ", .promedio_mediana_sql_dbi(conexion, valor),
-      " AS ", alias_salida,
-      " FROM ordenada WHERE ", alias("posicion"),
-      " IN ((", alias("n_validos"), " + 1) / 2, (", alias("n_validos"),
-      " + 2) / 2)"
+      "SELECT ", promedio, " AS ", alias_salida,
+      " FROM ordenada WHERE 2 * ", alias("posicion"),
+      " BETWEEN ", n_validos, " AND ", n_validos, " + 2"
     )
   }
   list(list(
@@ -5649,7 +5671,8 @@
     sonda = function(alias_salida) {
       construir(
         "v", paste0(
-          "(VALUES (1.0), (2.0), (3.0), (4.0)) AS lupa_sonda(v)"
+          "(SELECT 1.0 AS v UNION ALL SELECT 2.0 AS v",
+          " UNION ALL SELECT 3.0 AS v UNION ALL SELECT 4.0 AS v) AS lupa_sonda"
         ), alias_salida
       )
     },
@@ -5836,6 +5859,54 @@
   )
 }
 
+# Un percentil exacto del motor se acepta solo si devuelve el valor con todas
+# sus cifras. MariaDB 11.8 tipa el resultado de `PERCENTILE_CONT` como
+# `double(18,10)`: satura en 99999999.9999999999 y redondea a diez decimales.
+# La mediana de una columna de montos del orden de 1e12 se publicaba 1e8, la de
+# una del orden de 1e-12 se publicaba 0 y la de `rnorm()` perdia desde el
+# decimo decimal, todas como `calculado` y en el camino por omision. Medido el
+# 2026-11-05. La consulta de prueba corria sobre `1.0` y nada miraba su valor.
+#
+# La de ahora lee una sola fila -el percentil de una fila es esa fila, sin
+# interpolar- con un valor de mas de 1e8 y otro de menos de 1e-10, y exige los
+# dos identicos. El literal lleva exponente para que todos los motores lo lean
+# como doble.
+.CIFRAS_PRUEBA_PERCENTIL_DBI <- c(
+  lupa_sonda = 1.2345678901234567e11,
+  lupa_percentil_fino = 1.2345678901234567e-11
+)
+
+.prueba_percentil_dbi <- function(alias, ventana = FALSE) {
+  sobre <- if (isTRUE(ventana)) " OVER ()" else ""
+  literal <- function(x) sprintf("%.17e", x)
+  paste0(
+    "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor)", sobre,
+    " AS ", alias, ", PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_fino)",
+    sobre, " AS lupa_percentil_fino FROM (SELECT ",
+    literal(.CIFRAS_PRUEBA_PERCENTIL_DBI[["lupa_sonda"]]), " AS lupa_valor, ",
+    literal(.CIFRAS_PRUEBA_PERCENTIL_DBI[["lupa_percentil_fino"]]),
+    " AS lupa_fino) lupa_sonda"
+  )
+}
+
+# `NA` si la prueba volvio con todas las cifras; si no, lo que volvio.
+.cifras_perdidas_percentil_dbi <- function(datos) {
+  leidos <- vapply(names(.CIFRAS_PRUEBA_PERCENTIL_DBI), function(campo) {
+    celda <- .valor_campo_dbi(datos, campo)
+    if (!isTRUE(celda$ok)) return(NA_real_)
+    .escalar_finito_dbi(celda$valor)
+  }, numeric(1L))
+  if (identical(unname(leidos), unname(.CIFRAS_PRUEBA_PERCENTIL_DBI))) {
+    return(NA_character_)
+  }
+  paste0(
+    "el percentil devolvi\u00f3 ",
+    paste(sprintf("%.17g", leidos), collapse = " y "), " en lugar de ",
+    paste(sprintf("%.17g", .CIFRAS_PRUEBA_PERCENTIL_DBI), collapse = " y "),
+    ": pierde cifras"
+  )
+}
+
 # Las sondas ordenan por la COLUMNA de la subconsulta y no por una constante.
 # Ordenar por `1.0` parecia lo mas neutral y hacia que dos caminos declarados no
 # se ejercitaran NUNCA, cada uno por su motivo, y sin que se notara: la sonda
@@ -5852,6 +5923,10 @@
 #
 # Una sonda tiene que parecerse a la consulta que habilita. La que ordenaba por
 # una constante probaba una forma que el paquete no emite nunca.
+#
+# Y tiene que mirar el valor, no solo que la consulta corra: ver
+# `.prueba_percentil_dbi()`. MariaDB acepta la forma con ventana y pierde
+# cifras.
 #
 # Algunos motores pueden obtener varios percentiles en la misma agregacion.
 # Esta capacidad se sondea por separado porque una sonda que solo prueba una
@@ -5875,10 +5950,8 @@
         "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
         ") AS ", alias
       ),
-      sonda = function(alias) paste0(
-        "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) AS ",
-        alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
-      )
+      sonda = function(alias) .prueba_percentil_dbi(alias),
+      comprobar_cifras = TRUE
     ),
     list(
       nombre = "PERCENTILE_CONT_OVER",
@@ -5897,10 +5970,8 @@
         "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
         ") OVER () AS ", alias
       ),
-      sonda = function(alias) paste0(
-        "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) OVER () AS ",
-        alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
-      )
+      sonda = function(alias) .prueba_percentil_dbi(alias, ventana = TRUE),
+      comprobar_cifras = TRUE
     )
   )
   reconocidos <- vapply(candidatos, function(x) {
@@ -5931,6 +6002,15 @@
     )
     presupuesto_bloqueado <- presupuesto_bloqueado ||
       .consulta_bloqueada_por_presupuesto_dbi(prueba, presupuesto)
+    perdida <- if (isTRUE(prueba$ok) && isTRUE(candidato$comprobar_cifras)) {
+      .cifras_perdidas_percentil_dbi(prueba$datos)
+    } else NA_character_
+    if (!is.na(perdida)) {
+      motivos_motor <- c(
+        motivos_motor, paste0("`", candidato$nombre, "`: ", perdida)
+      )
+      next
+    }
     if (is.null(elegida) && isTRUE(prueba$ok)) elegida <- candidato
     if (!isTRUE(prueba$ok)) {
       motivo <- if (is.null(prueba$motivo) || !length(prueba$motivo) ||
@@ -5949,6 +6029,8 @@
   }
   motivo_sin_candidato <- if (!length(candidatos)) {
     "No hay una forma consolidada declarada para este motor; se conserva la mediana por columna."
+  } else if (any(grepl("pierde cifras", motivos_motor, fixed = TRUE))) {
+    "El motor devolvi\u00f3 `PERCENTILE_CONT` sin todas sus cifras; se conserva la mediana por columna."
   } else {
     "El motor no acept\u00f3 una consulta consolidada de `PERCENTILE_CONT`; se conserva la mediana por columna."
   }
@@ -6037,10 +6119,8 @@
           "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
           ") AS ", alias, " FROM ", tabla
         ),
-        sonda = function(alias) paste0(
-          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) AS ",
-          alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
-        )
+        sonda = function(alias) .prueba_percentil_dbi(alias),
+        comprobar_cifras = TRUE
       ),
       list(
         nombre = "PERCENTILE_CONT_OVER",
@@ -6051,10 +6131,8 @@
           "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
           ") OVER () AS ", alias, " FROM ", tabla
         ),
-        sonda = function(alias) paste0(
-          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) OVER () AS ",
-          alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
-        )
+        sonda = function(alias) .prueba_percentil_dbi(alias, ventana = TRUE),
+        comprobar_cifras = TRUE
       ),
       list(
         nombre = "approx_percentile",
@@ -6134,6 +6212,12 @@
     )
     presupuesto_bloqueado <- presupuesto_bloqueado ||
       .consulta_bloqueada_por_presupuesto_dbi(resultado, presupuesto)
+    # Una forma exacta que pierde cifras no es una aproximacion: es un numero
+    # falso. Ver `.prueba_percentil_dbi()`.
+    if (isTRUE(resultado$ok) && isTRUE(candidato$comprobar_cifras) &&
+        !is.na(.cifras_perdidas_percentil_dbi(resultado$datos))) {
+      next
+    }
     if (is.null(elegida) && isTRUE(resultado$ok)) elegida <- candidato
   }
   list(
@@ -9330,6 +9414,23 @@
       estrategia_resuelta = aproximada$candidato$nombre,
       estado = "estimado",
       motivo = "No hubo una forma exacta aceptada; se us\u00f3 la aproximaci\u00f3n nativa al final."
+    ))
+  }
+  # En la tabla completa la CTE solo se prueba cuando el dialecto no expresa un
+  # salto de filas (ver `.resumen_columna_dbi()`); la resolucion queda en el
+  # presupuesto. Sin consolidada, escalar ni aproximacion, es lo que corrio.
+  tardia <- if (is.null(preparacion$presupuesto)) NULL else
+    preparacion$presupuesto$mediana_cte_ventana
+  if (identical(preparacion$universo, "tabla_completa") && is.list(tardia) &&
+      isTRUE(tardia$disponible)) {
+    return(list(
+      estrategia_solicitada = solicitada,
+      estrategia_resuelta = "cte_ventana", estado = "calculado",
+      motivo = paste(
+        "Se us\u00f3 la CTE de ventanas: el dialecto no expresa un salto de",
+        "filas para la v\u00eda de dos consultas."
+      ),
+      sondas = tardia$sondas
     ))
   }
   list(
@@ -12876,6 +12977,22 @@
   resultado
 }
 
+# Promedio de una o dos centrales que no desborda. Dos centrales no necesitan
+# la escala de la columna: `a / 2 + b / 2` es exacto con valores enormes y
+# `(a + b) / 2` con los demas. Dividirlos por una escala elegida con el maximo
+# de TODA la columna hacia desbordar hacia abajo a un central subnormal
+# (`5e-324 / 2^1022`), y PostgreSQL lo rechaza con "value out of range:
+# underflow". Lo usan la via de dos consultas y la CTE de ventanas de la
+# muestra, que tienen que dar el mismo numero.
+.promedio_centrales_escalado_sql_dbi <- function(valor) {
+  paste0(
+    "CASE WHEN COUNT(*) = 2 THEN CASE WHEN MAX(ABS(", valor,
+    ")) > 1e150 THEN MAX(", valor, ") / 2e0 + MIN(", valor,
+    ") / 2e0 ELSE (MAX(", valor, ") + MIN(", valor,
+    ")) / 2e0 END ELSE MAX(", valor, ") END"
+  )
+}
+
 # La mediana de dos centrales se puede obtener sin sumar los valores enteros:
 # dividir cada uno antes de sumar evita el desborde de la suma y conserva el
 # promedio exacto para los dobles normales (los subnormales no entran en este
@@ -12900,18 +13017,9 @@
   fuente <- paste0(
     "(", acotada, ")", dialecto$alias_tabla("lupa_mediana_valores")
   )
-  valor <- alias("valor")
-  # Dos centrales no necesitan la escala de la columna: `a / 2 + b / 2` es
-  # exacto con valores enormes y `(a + b) / 2` con los demas. Dividirlos por una
-  # escala elegida con el maximo de TODA la columna hacia desbordar hacia abajo
-  # a un central subnormal (`5e-324 / 2^1022`), y PostgreSQL lo rechaza con
-  # "value out of range: underflow".
   sql <- paste0(
-    "SELECT CASE WHEN COUNT(*) = 2 THEN CASE WHEN MAX(ABS(", valor,
-    ")) > 1e150 THEN MAX(", valor, ") / 2e0 + MIN(", valor,
-    ") / 2e0 ELSE (MAX(", valor, ") + MIN(", valor,
-    ")) / 2e0 END ELSE MAX(", valor, ") END AS ", alias("mediana"),
-    " FROM ", fuente
+    "SELECT ", .promedio_centrales_escalado_sql_dbi(alias("valor")),
+    " AS ", alias("mediana"), " FROM ", fuente
   )
   resultado <- .escalar_dbi(
     conexion, sql, "mediana", presupuesto, etapa = "mediana"
@@ -13220,16 +13328,38 @@
     }
     invisible(NULL)
   }
-  ejecutar_mediana <- function(sql_normal) {
+  # `sql_escalada` es la forma que no desborda cuando la normal no alcanza. Sin
+  # ella, la de dos consultas de `.mediana_escalada_dbi()`; la CTE de la muestra
+  # pasa la suya, que lee la misma relacion en una sola sentencia.
+  ejecutar_mediana <- function(sql_normal, sql_escalada = NULL) {
     guardia <- guardia_mediana()
     n_validos_mediana <- guardia$n
     escala_mediana <- guardia$escala
     extremo <- guardia$requiere
-    if (isTRUE(extremo)) {
-      escalada <- .mediana_escalada_dbi(
-        conexion, tabla_sql, columna_sql, alias, dialecto,
-        n_validos_mediana, presupuesto, escala = escala_mediana
+    # La forma de una sentencia cuenta sus propias filas: basta con que los
+    # extremos pidan escala. `guardia$requiere` exige ademas el conteo, que la
+    # via de dos consultas necesita para el salto; sin `validos` entre las
+    # metricas no se conoce, la normal corria con +-1,7e308 y MySQL devolvia 0
+    # sin error (PostgreSQL, "value out of range").
+    if (!is.null(sql_escalada)) extremo <- !is.null(escala_mediana)
+    escalar <- function() {
+      if (is.null(sql_escalada)) {
+        return(.mediana_escalada_dbi(
+          conexion, tabla_sql, columna_sql, alias, dialecto,
+          n_validos_mediana, presupuesto, escala = escala_mediana
+        ))
+      }
+      # Sin valores no hay centrales que promediar: no se paga otra consulta.
+      n <- .numero_dbi(n_validos_mediana)
+      if (length(n) == 1L && isTRUE(n < 1)) return(NULL)
+      resultado <- .escalar_dbi(
+        conexion, sql_escalada, "mediana", presupuesto, etapa = "mediana"
       )
+      resultado$sql <- sql_escalada
+      resultado
+    }
+    if (isTRUE(extremo)) {
+      escalada <- escalar()
       if (is.list(escalada)) return(escalada)
     }
     normal <- .escalar_dbi(
@@ -13249,16 +13379,74 @@
       (length(valor_normal) != 1L || !is.finite(valor_normal))) ||
       (!isTRUE(normal$ok) && isTRUE(desborde))
     if (necesita_repliegue) {
-      escalada <- .mediana_escalada_dbi(
-        conexion, tabla_sql, columna_sql, alias, dialecto,
-        n_validos_mediana, presupuesto, escala = escala_mediana
-      )
+      escalada <- escalar()
       if (is.list(escalada) && isTRUE(escalada$ok) &&
           is.finite(suppressWarnings(as.numeric(escalada$valor)))) {
         return(escalada)
       }
     }
     normal
+  }
+
+  # La mediana de la muestra con la CTE de ventanas: la forma normal y, si los
+  # extremos la desbordarian, la escalada, las dos sobre la misma relacion.
+  mediana_por_cte_ventana <- function(cte) {
+    sql_mediana <- cte$construir(columna_sql, tabla_sql, alias("mediana"))
+    preparar_aviso_mediana()
+    mediana <- ejecutar_mediana(
+      sql_mediana,
+      sql_escalada = cte$construir(
+        columna_sql, tabla_sql, alias("mediana"), escalada = TRUE
+      )
+    )
+    finalizar_mediana(mediana)
+    if (is.null(mediana$sql)) mediana$sql <- sql_mediana
+    mediana$metadatos <- list(metodo = cte$nombre)
+    if (isTRUE(mediana$ok)) {
+      valor <- .escalar_finito_dbi(mediana$valor)
+      if (is.na(valor) && !es_muestreado) {
+        # En la tabla completa es un dato, como en la forma escalar.
+        mediana$estado <- "sin_valores"
+        mediana$motivo <- "La columna no contiene valores no nulos."
+      } else if (is.na(valor)) {
+        mediana$ok <- FALSE
+        mediana$motivo <- "muestra_inestable:sin_valores_validos"
+      } else {
+        mediana$valor <- valor
+      }
+    }
+    mediana
+  }
+
+  # La via de dos consultas de la tabla completa necesita el conteo de validos
+  # para el salto. Sin la metrica que lo da (`validos`, o la prueba de
+  # magnitud cuando no se piden `basicos`), la mediana quedaba `no_disponible`
+  # aunque el motor pudiera calcularla. Se cuenta aca, con la misma expresion
+  # que la consulta compartida, y la mediana sale por el mismo camino -y con el
+  # mismo numero- que cuando se pide `validos`. La CTE de ventanas tambien
+  # cuenta sus filas, pero en tabla completa es la opcion cara: con un millon
+  # de filas, contar y saltar costo 0,42 s contra 2,85 s en MySQL 8.4, 0,29
+  # contra 1,33 en MariaDB 11.8 y 0,17 contra 0,63 en PostgreSQL 16 (medido el
+  # 2026-11-06). En la muestra no hay eleccion: dos consultas leerian dos
+  # muestras. Devuelve TRUE si el conteo sigue faltando.
+  conteo_mediana_propio <- FALSE
+  conteo_mediana_pendiente <- function() {
+    if (!sin_conteo || is.finite(n_validos_sondeado)) return(FALSE)
+    if (es_muestreado) return(TRUE)
+    senas <- .senas_conexion_dbi(conexion)
+    sql <- paste0(
+      "SELECT ", .conteo_sql_dbi(.contar_no_nulos_sql_dbi(columna_sql, senas),
+                                 senas),
+      " AS ", alias("n_validos"), " FROM ", tabla_sql
+    )
+    conteo <- .escalar_dbi(
+      conexion, sql, "n_validos", presupuesto, etapa = "mediana"
+    )
+    n <- if (isTRUE(conteo$ok)) .numero_dbi(conteo$valor) else NA_real_
+    if (length(n) != 1L || !is.finite(n) || n < 0) return(TRUE)
+    n_validos_sondeado <<- n
+    conteo_mediana_propio <<- TRUE
+    FALSE
   }
 
   guardia_mediana <- function() {
@@ -14166,23 +14354,8 @@
       }
       registros <- registrar(registros, "mediana", mediana)
     } else if (!is.null(mediana_cte_ventana)) {
-      sql_mediana <- mediana_cte_ventana$construir(
-        columna_sql, tabla_sql, alias("mediana")
-      )
-      preparar_aviso_mediana()
-      mediana <- ejecutar_mediana(sql_mediana)
-      finalizar_mediana(mediana)
-      if (is.null(mediana$sql)) mediana$sql <- sql_mediana
-      mediana$metadatos <- list(metodo = mediana_cte_ventana$nombre)
-      if (isTRUE(mediana$ok)) {
-        valor <- .escalar_finito_dbi(mediana$valor)
-        if (is.na(valor)) {
-          mediana$ok <- FALSE
-          mediana$motivo <- "muestra_inestable:sin_valores_validos"
-        } else {
-          fila$mediana <- valor
-        }
-      }
+      mediana <- mediana_por_cte_ventana(mediana_cte_ventana)
+      if (isTRUE(mediana$ok)) fila$mediana <- mediana$valor
       registros <- registrar(registros, "mediana", mediana)
     } else if (!is.null(mediana_escalar)) {
       sql_mediana <- mediana_escalar$construir(
@@ -14205,17 +14378,38 @@
       }
       registros <- registrar(registros, "mediana", mediana)
     } else if (es_muestreado) {
-      motivo <- if (length(mediana_cte_ventana_motivo) == 1L &&
-                    !is.na(mediana_cte_ventana_motivo)) {
-        mediana_cte_ventana_motivo
+      # La preparacion solo prueba la CTE cuando no hay mediana consolidada ni
+      # escalar. Una columna que no puede usar la consolidada -un `float8` de
+      # PostgreSQL, que la deja por `numeric_exact`, o una con extremos, que la
+      # deja por `guardia_mediana()`- llegaba aca sin forma de una sola
+      # sentencia y publicaba `no_disponible` con el motivo de una prueba que
+      # no habia corrido. La muestra no puede caer a dos consultas, que leerian
+      # dos muestras distintas: la CTE se prueba ahora, una vez por corrida
+      # (la resolucion queda en el presupuesto).
+      cte <- if (length(mediana_cte_ventana_motivo) == 1L &&
+                 !is.na(mediana_cte_ventana_motivo)) {
+        list(disponible = FALSE, motivo = mediana_cte_ventana_motivo)
       } else {
-        "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+        .sondar_mediana_cte_ventana_dbi(conexion, presupuesto)
       }
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "no_disponible", motivo, NA_character_,
-        metadatos = metadatos
-      )))
-    } else if ((sin_conteo && !is.finite(n_validos_sondeado)) ||
+      if (isTRUE(cte$disponible)) {
+        candidato <- cte$candidato
+        candidato$nombre <- .nombre_mediana_cte_muestra_dbi(muestreo)
+        mediana <- mediana_por_cte_ventana(candidato)
+        if (isTRUE(mediana$ok)) fila$mediana <- mediana$valor
+        registros <- registrar(registros, "mediana", mediana)
+      } else {
+        motivo <- if (length(cte$motivo) == 1L && !is.na(cte$motivo)) {
+          cte$motivo
+        } else {
+          "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+        }
+        registros <- c(registros, list(.registro_sql_dbi(
+          columna, "mediana", "no_disponible", motivo, NA_character_,
+          metadatos = metadatos
+        )))
+      }
+    } else if (conteo_mediana_pendiente() ||
                (es_muestreado && !exists("validos_observados"))) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible",
@@ -14224,6 +14418,13 @@
           "que no se pudo conocer."
         ),
         NA_character_, metadatos = metadatos
+      )))
+    } else if (isTRUE(conteo_mediana_propio) &&
+               isTRUE(n_validos_sondeado == 0)) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "sin_valores",
+        "La columna no contiene valores no nulos.", NA_character_,
+        metadatos = metadatos
       )))
     } else {
       n_validos_numero <- if (es_muestreado) {
@@ -14240,13 +14441,34 @@
         " WHERE ", columna_sql, " IS NOT NULL ORDER BY ", columna_sql
       )
       acotada <- dialecto$limitar(interna, limite, desplazamiento)
-      if (is.null(acotada)) {
+      # Un dialecto sin salto -`portable`, que no supone ninguna clausula, o
+      # `rownum`- no puede escribir la via de dos consultas. La CTE de ventanas
+      # no necesita salto ni conteo: es SQL estandar (`WITH`, `ROW_NUMBER()`),
+      # no garantizado, y por eso se prueba antes de usarla, una vez por corrida.
+      cte_sin_salto <- if (is.null(acotada)) {
+        .sondar_mediana_cte_ventana_dbi(conexion, presupuesto)
+      }
+      if (is.null(acotada) && isTRUE(cte_sin_salto$disponible)) {
+        candidato <- cte_sin_salto$candidato
+        candidato$nombre <- .nombre_mediana_cte_muestra_dbi(NULL)
+        mediana <- mediana_por_cte_ventana(candidato)
+        sin_valores <- identical(mediana$estado, "sin_valores")
+        if (isTRUE(mediana$ok) && !sin_valores) fila$mediana <- mediana$valor
+        registros <- registrar(
+          registros, "mediana", mediana,
+          motivo_exito = if (sin_valores) mediana$motivo else NA_character_
+        )
+      } else if (is.null(acotada)) {
+        bloqueada <- !is.null(presupuesto) &&
+          length(cte_sin_salto$motivo) == 1L &&
+          identical(cte_sin_salto$motivo, .motivo_presupuesto_dbi(presupuesto))
         registros <- c(registros, list(.registro_sql_dbi(
           columna, "mediana", "no_disponible",
-          paste0(
-            "El dialecto `", dialecto$nombre, "` no expresa un salto de filas; ",
-            "la mediana exacta exigiria traer ",
-            .entero_sql_dbi(desplazamiento + limite),
+          if (bloqueada) cte_sin_salto$motivo else paste0(
+            "El dialecto `", dialecto$nombre, "` no expresa un salto de filas ",
+            "(`LIMIT ... OFFSET` ni `OFFSET ... FETCH`) y el motor no acept\u00f3 ",
+            "la CTE de ventanas, que no lo necesita; la mediana exacta exigir\u00eda ",
+            "traer ", .entero_sql_dbi(desplazamiento + limite),
             if (desplazamiento + limite == 1L) " fila a memoria." else " filas a memoria."
           ),
           NA_character_, metadatos = metadatos
@@ -19775,6 +19997,156 @@ print.plan_perfilado_dbi <- function(x, ...) {
   resultado
 }
 
+# Un estado que afirma un valor -`calculado`, `estimado`, `observado_muestra`-
+# con el valor ausente es una contradiccion: `NA` dice "no se midio" y el
+# estado dice "se midio". Recorrer seis motores (SQLite, DuckDB, PostgreSQL,
+# SQL Server, MySQL, MariaDB), cuatro caminos y ocho juegos de metricas sobre
+# columnas vacias, de un valor, sin repetidos y de texto encontro 1.458
+# registros asi (medido el 2026-11-06): `tasa_distintos` de una columna vacia
+# en el camino por omision, la moda de una columna sin repetidos, la mediana
+# consolidada de una columna vacia, los basicos de una columna vacia sin
+# `validos`, y en `con_muestra` todas las metricas numericas de las columnas de
+# texto. Cada camino tiene su motivo, y el que falte manana tendra otro: la
+# regla se aplica una vez, sobre el resumen ya armado, en las tres salidas de
+# `perfilar_dbi()` y antes de las protecciones, que tapan valores a proposito y
+# declaran su propio estado.
+.ESTADOS_QUE_AFIRMAN_VALOR_DBI <- c("calculado", "estimado", "observado_muestra")
+
+# El valor de una metrica puede venir en otro campo de la fila: la cifra exacta
+# de un entero o decimal ancho, o la fecha.
+.CAMPOS_DEL_VALOR_DBI <- list(
+  minimo = c("minimo", "minimo_exacto", "minimo_fecha"),
+  maximo = c("maximo", "maximo_exacto", "maximo_fecha"),
+  media = c("media", "media_fecha"),
+  mediana = c("mediana", "mediana_fecha")
+)
+
+.METRICAS_DE_MAGNITUD_DBI <- c(
+  "minimo", "maximo", "media", "mediana", "desvio", "n_ceros", "n_negativos"
+)
+
+.declarar_afirmados_sin_valor_dbi <- function(resultado, preparacion = NULL) {
+  resumen <- resultado$resumen_tabla
+  if (!is.list(resumen) || !is.data.frame(resumen$sql) ||
+      !is.data.frame(resumen$columnas) || !nrow(resumen$sql) ||
+      !all(c("columna", "metrica", "estado") %in% names(resumen$sql))) {
+    return(resultado)
+  }
+  sql <- resumen$sql
+  columnas <- resumen$columnas
+  universo <- if (!is.null(preparacion$universo)) preparacion$universo else
+    resumen$meta$universo
+  es_muestra <- identical(as.character(universo), "muestra_motor")
+  fila <- .indice_nombre(as.character(sql$columna), as.character(columnas$columna))
+  metrica <- as.character(sql$metrica)
+  candidatas <- which(
+    as.character(sql$estado) %in% .ESTADOS_QUE_AFIRMAN_VALOR_DBI &
+      !is.na(fila) & metrica %in% names(columnas)
+  )
+  if (!length(candidatas)) return(resultado)
+  # Las columnas que el esquema leyo como no numericas. Sin preparacion no se
+  # puede saber, y ninguna metrica se declara `no_aplica` por el tipo.
+  no_numericas <- character()
+  if (!is.null(preparacion$campos) && length(preparacion$campos)) {
+    numerica <- vapply(seq_along(preparacion$campos), function(i) {
+      .es_numerico_dbi(
+        preparacion$prototipo[[i]],
+        if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+          NA_character_
+      )
+    }, logical(1L))
+    no_numericas <- as.character(preparacion$campos)[!numerica]
+  }
+  valor_presente <- function(nombre, j) {
+    campos <- intersect(
+      if (is.null(.CAMPOS_DEL_VALOR_DBI[[nombre]])) nombre else
+        .CAMPOS_DEL_VALOR_DBI[[nombre]],
+      names(columnas)
+    )
+    any(vapply(campos, function(campo) {
+      valor <- columnas[[campo]][[j]]
+      length(valor) == 1L && !is.na(valor) &&
+        (!is.character(valor) || nzchar(valor))
+    }, logical(1L)))
+  }
+  numero <- function(campo, j) {
+    if (!campo %in% names(columnas)) return(NA_real_)
+    suppressWarnings(as.numeric(columnas[[campo]][[j]]))
+  }
+  # Se decide sobre los estados de entrada: reclasificar el minimo antes que la
+  # mediana no puede cambiar lo que la mediana concluye de la columna.
+  estado_entrada <- as.character(sql$estado)
+  sin_valor <- function(nombre, j) {
+    k <- which(fila == j & metrica == nombre)
+    length(k) > 0L && (
+      any(estado_entrada[k] == "sin_valores") ||
+        (any(estado_entrada[k] %in% .ESTADOS_QUE_AFIRMAN_VALOR_DBI) &&
+           !valor_presente(nombre, j))
+    )
+  }
+  for (i in candidatas) {
+    j <- fila[[i]]
+    nombre <- metrica[[i]]
+    if (valor_presente(nombre, j)) next
+    n_validos <- numero("n_validos", j)
+    # Sin el conteo, un MIN y un MAX que el motor devolvio nulos sobre la tabla
+    # entera dicen lo mismo: no hay valores no nulos.
+    vacia <- (is.finite(n_validos) && n_validos == 0) ||
+      (!es_muestra && !is.finite(n_validos) &&
+         sin_valor("minimo", j) && sin_valor("maximo", j))
+    columna <- as.character(columnas$columna[[j]])
+    if (nombre %in% .METRICAS_DE_MAGNITUD_DBI &&
+        length(.nombres_presentes(columna, no_numericas)) &&
+        any(.nombres_presentes(columna, no_numericas))) {
+      estado <- "no_aplica"
+      motivo <- "La m\u00e9trica es num\u00e9rica y la columna no lo es."
+    } else if (vacia && es_muestra) {
+      estado <- "no_disponible"
+      motivo <- "muestra_inestable:sin_valores_validos"
+    } else if (vacia) {
+      estado <- "sin_valores"
+      motivo <- "La columna no contiene valores no nulos."
+    } else if (identical(nombre, "desvio") && is.finite(n_validos) &&
+               n_validos < 2) {
+      estado <- "no_aplica"
+      motivo <- "El desv\u00edo muestral requiere al menos dos valores no nulos."
+    } else if (identical(nombre, "moda") &&
+               isTRUE(numero("frecuencia_moda", j) == 1) &&
+               !(is.finite(n_validos) && n_validos == 1)) {
+      # En la tabla completa es un hecho: no hay moda. En una muestra sin
+      # repetidos la tabla puede tenerla, y no se sabe cual.
+      if (es_muestra) {
+        estado <- "no_disponible"
+        motivo <- paste(
+          "Ning\u00fan valor se repite en la muestra: la moda de la tabla no",
+          "se puede estimar."
+        )
+      } else {
+        estado <- "no_aplica"
+        motivo <- "Ning\u00fan valor se repite: la columna no tiene moda."
+      }
+    } else {
+      estado <- "no_disponible"
+      motivo <- paste(
+        "La consulta termin\u00f3 sin un valor para la m\u00e9trica; no se",
+        "publica como calculada."
+      )
+    }
+    sql$estado[[i]] <- estado
+    sql$motivo[[i]] <- motivo
+    if (estado %in% c("no_aplica", "sin_valores") &&
+        "error_esperado" %in% names(sql)) {
+      sql$error_esperado[[i]] <- "no_aplica"
+    }
+    if ("memoria_trabajo" %in% names(sql)) {
+      sql$memoria_trabajo[[i]] <- NA_character_
+    }
+  }
+  resumen$sql <- sql
+  resultado$resumen_tabla <- resumen
+  resultado
+}
+
 .CAMPOS_VALOR_MUESTRA_DBI <- c(
   "moda", "minimo", "maximo", "mediana", "minimo_exacto",
   "maximo_exacto", "minimo_fecha", "maximo_fecha", "media_fecha",
@@ -21132,6 +21504,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' válidos usa `muestra_inestable:sin_valores_validos`; una capacidad no aceptada
 #' usa `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla completa.
 #'
+#' Un estado que afirma un valor (`calculado`, `estimado`, `observado_muestra`)
+#' nunca se publica con el valor ausente. Si el valor falta, el registro dice
+#' por qué: `sin_valores` cuando la columna no tiene valores no nulos en la
+#' tabla completa (en la muestra, `no_disponible` con
+#' `muestra_inestable:sin_valores_validos`); `no_aplica` para una métrica
+#' numérica sobre una columna que no lo es, para el desvío con menos de dos
+#' valores y para la moda cuando ningún valor de la tabla se repite;
+#' `no_disponible` en cualquier otro caso, también la moda de una muestra sin
+#' repetidos, porque la tabla puede tenerla.
+#'
 #' En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo error
 #' podria calcularse bajo un plan probabilistico pero no se calculo,
 #' `no_estimable` para la moda, la mediana y la cardinalidad observada, que no
@@ -21178,10 +21560,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' transaccional cuando el adaptador la demuestra. La cobertura agrega una entrada concreta solo si
 #' `n_validos` y `n_distintos` son exactos, incoherentes y provienen de grupos
 #' distintos; su motivo conserva ambas sentencias.
-#' La mediana muestral que no tiene una forma consolidada o escalar usa una
-#' sola CTE con `COUNT(*) OVER ()`, `ROW_NUMBER() OVER` y el promedio de las
-#' posiciones centrales. La sonda barata repite esa construccion sobre
-#' `VALUES (1.0), (2.0), (3.0), (4.0)`, exige `2.5` y un control negativo que
+#' La mediana muestral que no tiene una forma consolidada o escalar, y la de
+#' cada columna que no puede usar la consolidada (un `float8` de PostgreSQL o
+#' una columna con extremos), usa una sola CTE con `COUNT(*) OVER ()`,
+#' `ROW_NUMBER() OVER` y el promedio de las posiciones centrales, elegidas sin
+#' dividir; con extremos, el promedio no desborda y sigue en la misma
+#' sentencia. La sonda barata repite esa construccion sobre
+#' `SELECT 1.0 UNION ALL ... SELECT 4.0`, exige `2.5` y un control negativo que
 #' falle; no se sondea la tabla de produccion. Si esa capacidad falla, la
 #' mediana se publica como `no_disponible` con
 #' `capacidad_no_aceptada:sonda_mediana_cte_ventana`, nunca como
@@ -21226,10 +21611,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' CTE de ventanas descrita arriba y no degradan a `dos_consultas`. En
 #' `tabla_completa` se conserva el camino previo, incluido `dos_consultas` si
 #' es el que resuelve ese dialecto; `PERCENTILE_CONT` no cambia.
+#' `dos_consultas` necesita el conteo de valores no nulos para el salto: si
+#' `metricas` no incluye `"validos"`, la mediana lo cuenta en una consulta
+#' propia y sale igual que con todas las métricas.
 #' La mediana consolidada tambien se sondea antes de usarla; en SQL Server
 #' requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
-#' conocidos de que no se active: la funcion no esta disponible o el motor
-#' rechaza la sonda. En ese caso el mensaje del motor queda en
+#' conocidos de que no se active: la funcion no esta disponible, el motor
+#' rechaza la sonda o devuelve el percentil sin todas sus cifras. La prueba lee
+#' una fila con un valor de más de 1e8 y otro de menos de 1e-10 y exige los dos
+#' idénticos: MariaDB tipa `PERCENTILE_CONT` como `double(18,10)`, que satura
+#' en 1e8 y redondea a diez decimales, y por eso usa la mediana por columna
+#' como MySQL. En ese caso el mensaje del motor queda en
 #' `meta$mediana_consolidada$motivo` —sin sus literales con la protección
 #' activa, entero sin ella, como todo mensaje del motor: ver «Datos
 #' personales»—, y se conserva la mediana por columna.
@@ -22334,6 +22726,7 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_materializacion = max_bytes_materializacion
     )
     resultado$resumen_tabla$meta$plan <- plan_corrida
+    resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
     # El spool ya materializo los datos y aplica estas guardas antes de la
     # corroboracion; se repite aqui para cubrir un adaptador que devuelva un
     # resultado armado por una via de respaldo.
@@ -22393,6 +22786,7 @@ perfilar_dbi <- function(conexion, tabla,
     # esta en la matriz- deja todas las metricas `no_disponible`, a proposito:
     # no se cae en `dbGetQuery()`. Pero el motivo quedaba solo en la cobertura y
     # en `meta$fuente_bloques`, y el perfil vacio llegaba sin una condicion.
+    resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
     fuente_bloques <- resultado$resumen_tabla$meta$fuente_bloques
     if (is.list(fuente_bloques) && isFALSE(fuente_bloques$disponible)) {
       .avisar_muestra_motor_dbi(
@@ -23360,6 +23754,7 @@ perfilar_dbi <- function(conexion, tabla,
   }
 
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
+  estructura <- .declarar_afirmados_sin_valor_dbi(estructura, preparacion)
   estructura <- .declarar_enmascaradas_dbi(estructura, preparacion)
   estructura <- .agregar_cobertura_corroboracion_dbi(
     estructura, columnas_codigo = columnas_codigo,

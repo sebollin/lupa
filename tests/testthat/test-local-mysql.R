@@ -1041,3 +1041,246 @@ test_that("RMySQL pide como texto la moda de un BIGINT ancho", {
   expect_identical(as.character(fila$moda), "1234567890123456789")
   expect_equal(as.numeric(fila$frecuencia_moda), 5)
 })
+
+# La mediana de `muestra_motor` con `solo_agregados`. MySQL no tiene
+# consolidada ni acepta `LIMIT (subconsulta)`: su unica forma de una sentencia
+# es la CTE de ventanas, y su consulta de prueba fallaba por leer de
+# `VALUES (...) AS t(v)`, que MySQL 8.4 no acepta. Detras, `(n + 1) / 2` es
+# division decimal en MySQL y la prueba daba 3 en vez de 2,5. Toda columna
+# quedaba `no_disponible`; con `con_muestra` salia.
+test_that("MySQL tiene mediana de la muestra con solo_agregados", {
+  skip_on_cran()
+  con <- .arrm_con_mysql()
+  tablas <- c("mcm_my_cubre", "mcm_my_muestra")
+  on.exit({
+    for (tabla in tablas) try(DBI::dbRemoveTable(con, tabla), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+
+  datos <- .mcm_datos(1500L)
+  .mcm_escribir(con, tablas[[1L]], datos)
+  medianas <- .mcm_medianas(con, tablas[[1L]], 2000L)
+  .mcm_comprobar(medianas, c("x", "y", "z", "w"),
+                 metodo_cte = c("x", "y", "z", "w"), datos = datos)
+
+  .mcm_escribir(con, tablas[[2L]], .mcm_datos(20000L))
+  medianas <- .mcm_medianas(con, tablas[[2L]], 2000L)
+  .mcm_comprobar(medianas, c("x", "y", "z", "w"),
+                 metodo_cte = c("x", "y", "z", "w"))
+  expect_identical(
+    medianas$solo_agregados[c("x", "y", "z", "w"), "error_esperado"],
+    rep("no_estimable", 4L)
+  )
+})
+
+# Sin `validos` entre las metricas la guarda no conocia el conteo, la CTE
+# corria la forma normal y MySQL promediaba +-1,7e308 en 0, sin error.
+test_that("MySQL escala la CTE de la muestra aunque no se conozca el conteo", {
+  skip_on_cran()
+  con <- .arrm_con_mysql()
+  on.exit({
+    try(DBI::dbRemoveTable(con, "mcm_my_extremos"), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+
+  datos <- .mcm_datos_extremos(1500L)
+  .mcm_escribir(con, "mcm_my_extremos", datos)
+  medianas <- .mcm_medianas(
+    con, "mcm_my_extremos", 2000L, metricas = c("basicos", "mediana")
+  )
+  .mcm_comprobar(medianas, c("x", "w", "g"), metodo_cte = c("x", "w", "g"),
+                 datos = datos)
+})
+
+# MariaDB tiene `PERCENTILE_CONT` como ventana; la columna con extremos no la
+# usa y quedaba sin forma de una sentencia.
+test_that("MariaDB tiene mediana de la muestra para una columna con extremos", {
+  skip_on_cran()
+  con <- .arrm_con_mysql(maria = TRUE)
+  on.exit({
+    try(DBI::dbRemoveTable(con, "mcm_ma_cubre"), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+
+  datos <- .mcm_datos(1500L)
+  .mcm_escribir(con, "mcm_ma_cubre", datos)
+  medianas <- .mcm_medianas(con, "mcm_ma_cubre", 2000L)
+  .mcm_comprobar(medianas, c("x", "y", "z", "w"), metodo_cte = "w",
+                 datos = datos)
+})
+
+# MariaDB 11.8 tipa `PERCENTILE_CONT` como `double(18,10)`: satura en 1e8 y
+# redondea a diez decimales. La mediana por omision (tabla completa) de montos
+# del orden de 1e12 salia 1e8, la de valores del orden de 1e-12 salia 0, la de
+# un BIGINT grande salia -1e8 y la de `rnorm()` perdia cifras, todas como
+# `calculado`. La prueba de la consolidada ahora mira el valor y MariaDB cae a
+# la via exacta por columna (tabla completa) o a la CTE (muestra), como MySQL.
+.mcm_tabla_cifras <- function(con, tabla) {
+  set.seed(20261106)
+  k <- -50:49
+  decimal <- ifelse(
+    k >= 0, paste0(k, ".123456789012345"),
+    paste0("-", abs(k) - 1L, ".876543210987655")
+  )
+  datos <- data.frame(
+    dn = stats::rnorm(100), dg = stats::runif(100) * 1e12,
+    dc = stats::runif(100) * 1e-12,
+    bg = round(stats::runif(100, -5e14, 5e14)), d15 = decimal,
+    stringsAsFactors = FALSE
+  )
+  try(DBI::dbExecute(con, paste0("DROP TABLE ", tabla)), silent = TRUE)
+  DBI::dbExecute(con, paste0(
+    "CREATE TABLE ", tabla, " (dn DOUBLE, dg DOUBLE, dc DOUBLE, bg BIGINT,",
+    " d15 DECIMAL(30,15))"
+  ))
+  filas <- sprintf(
+    "(%.17g,%.17g,%.17g,%.0f,%s)", datos$dn, datos$dg, datos$dc, datos$bg,
+    datos$d15
+  )
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO ", tabla, " VALUES ", paste(filas, collapse = ",")
+  ))
+  # La mediana del DECIMAL es el promedio exacto de -0,876543210987655 y
+  # 0,123456789012345.
+  list(
+    dn = stats::median(datos$dn), dg = stats::median(datos$dg),
+    dc = stats::median(datos$dc), bg = stats::median(datos$bg),
+    d15 = as.numeric("-0.376543210987655")
+  )
+}
+
+.mcm_comprobar_cifras <- function(con, tabla, esperado, metodo, ...) {
+  perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+    con, tabla, proteger_datos_personales = FALSE, ...
+  )))
+  columnas <- perfil$resumen_tabla$columnas
+  sql <- perfil$resumen_tabla$sql
+  for (columna in names(esperado)) {
+    expect_identical(
+      as.numeric(columnas$mediana[columnas$columna == columna]),
+      esperado[[columna]], info = columna
+    )
+    expect_identical(
+      sql$metodo[sql$metrica == "mediana" & sql$columna == columna], metodo,
+      info = columna
+    )
+  }
+  expect_false(identical(
+    perfil$resumen_tabla$meta$estrategia_mediana$estrategia_resuelta,
+    "PERCENTILE_CONT_OVER"
+  ))
+  perfil
+}
+
+test_that("MariaDB no publica la mediana truncada de PERCENTILE_CONT", {
+  skip_on_cran()
+  con <- .arrm_con_mysql(maria = TRUE)
+  tabla <- "mcm_ma_cifras"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE ", tabla)), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  esperado <- .mcm_tabla_cifras(con, tabla)
+
+  perfil <- .mcm_comprobar_cifras(con, tabla, esperado, "dos_consultas")
+  consolidada <- perfil$resumen_tabla$meta$mediana_consolidada
+  expect_false(consolidada$disponible)
+  expect_match(consolidada$motivo, "pierde cifras", fixed = TRUE)
+  expect_identical(
+    perfil$resumen_tabla$meta$estrategia_mediana$estrategia_resuelta,
+    "exacta_por_columna"
+  )
+
+  # La aproximacion pedida no puede ser la misma funcion que pierde cifras.
+  .mcm_comprobar_cifras(
+    con, tabla, esperado, "dos_consultas",
+    estrategia_mediana = "aproximada_motor"
+  )
+  # La muestra que cubre la tabla, por la CTE de ventanas.
+  perfil <- .mcm_comprobar_cifras(
+    con, tabla, esperado, "cte_ventana", universo = "muestra_motor",
+    muestra_motor = 2000L, bloque_muestra = "solo_agregados"
+  )
+  expect_identical(
+    perfil$resumen_tabla$meta$estrategia_mediana$estrategia_resuelta,
+    "cte_ventana"
+  )
+})
+
+# RMySQL contra un servidor MariaDB no deja la sena `mariadb`: la consolidada
+# no se ofrece, pero la aproximacion prueba todos los candidatos y elegia
+# `PERCENTILE_CONT_OVER`, que el servidor acepta y trunca.
+test_that("RMySQL contra MariaDB no elige el percentil que pierde cifras", {
+  skip_on_cran()
+  skip_if_not_installed("RMySQL")
+  clave <- Sys.getenv("LUPA_MARIADB_PWD", unset = "")
+  skip_if(!nzchar(clave), "Sin LUPA_MARIADB_PWD.")
+  con <- tryCatch(DBI::dbConnect(
+    RMySQL::MySQL(), host = Sys.getenv("LUPA_MARIA_HOST", "127.0.0.1"),
+    port = as.integer(Sys.getenv("LUPA_MARIA_PORT", "33306")),
+    dbname = Sys.getenv("LUPA_MARIA_NAME", "lupa"),
+    username = Sys.getenv("LUPA_MARIA_USER", "root"), password = clave
+  ), error = function(e) NULL)
+  skip_if(is.null(con), "MariaDB no disponible para RMySQL.")
+  tabla <- "mcm_ma_cifras_rmysql"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE ", tabla)), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  esperado <- .mcm_tabla_cifras(con, tabla)
+  .mcm_comprobar_cifras(
+    con, tabla, esperado, "dos_consultas",
+    estrategia_mediana = "aproximada_motor"
+  )
+})
+
+# Sin `validos` entre las metricas, la via de dos consultas no conocia el
+# conteo que necesita para el salto y la mediana quedaba `no_disponible` en
+# toda columna de MySQL y MariaDB. Ahora se cuenta y sale por el mismo camino,
+# con el mismo SQL y el mismo numero, que con todas las metricas.
+test_that("MySQL y MariaDB calculan la mediana sin pedir validos", {
+  skip_on_cran()
+  .mcm_sin_conteo <- function(maria) {
+    con <- .arrm_con_mysql(maria)
+    tabla <- if (maria) "mcm_ma_sin_conteo" else "mcm_my_sin_conteo"
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE ", tabla)), silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    esperado <- .mcm_tabla_cifras(con, tabla)
+    DBI::dbExecute(
+      con, paste0("ALTER TABLE ", tabla, " ADD COLUMN nulo DOUBLE")
+    )
+    parcial <- .mcm_comprobar_sin_conteo(
+      con, tabla, esperado, sin_valores = "nulo"
+    )
+    sql <- parcial$resumen_tabla$sql
+    expect_true(all(
+      sql$metodo[sql$metrica == "mediana" & sql$estado == "calculado"] ==
+        "dos_consultas"
+    ))
+  }
+  .mcm_sin_conteo(FALSE)
+  .mcm_sin_conteo(TRUE)
+})
+
+# Un estado que afirma un valor no puede publicarlo ausente (ver
+# `test-afirmado-sin-valor-dbi.R`): el mismo recorrido en MySQL y MariaDB.
+test_that("MySQL y MariaDB no afirman un valor ausente", {
+  skip_on_cran()
+  .mcm_afirmados <- function(maria) {
+    con <- .arrm_con_mysql(maria)
+    tabla <- if (maria) "mcm_ma_vacias" else "mcm_my_vacias"
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE ", tabla)), silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    .mcm_tabla_vacias(con, tabla)
+    hallados <- .mcm_recorrer_afirmados(con, tabla)
+    expect_identical(
+      nrow(hallados), 0L, info = if (maria) "MariaDB" else "MySQL"
+    )
+  }
+  .mcm_afirmados(FALSE)
+  .mcm_afirmados(TRUE)
+})
