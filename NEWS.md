@@ -349,3 +349,17 @@ Primera versión publicada.
   para una métrica numérica sobre una columna que no lo es, para el desvío de
   menos de 2 valores y para la moda de una columna sin repetidos (en la muestra,
   `no_disponible`, porque la tabla puede tener moda).
+- En SQL Server, la mediana de un `decimal` con 36 cifras de precisión o más
+  ya no pierde decimales: `AVG(valor * 1.0)` recortaba la escala a 6, y en un
+  `decimal(38,7)` la mediana de 0,0000001 y 0,0000003 salía 0. Con
+  compatibilidad menor que 110, sin `PERCENTILE_CONT`, ese era el camino de todo
+  `decimal`. Ahora promedia como doble.
+- En PostgreSQL 9.3 con `dialecto = "portable"`, y en la muestra con la
+  subconsulta escalar, la mediana de una cantidad par de `float8` coincide con
+  `median()`: difería en 1 ulp en 427 de 3.000 pares. Usa el mismo promedio que
+  la vía de dos consultas.
+- En `perfilar()`, una errata de texto (`Montevideo`/`Montevido`) ya no queda
+  callada porque la misma columna tenga una familia de códigos numerados con
+  frecuencias desparejas. La familia sigue declarando que el diagnóstico no
+  aplica a las formas con números; los grupos sin números se juzgan con el mismo
+  límite, medido sobre ellos.

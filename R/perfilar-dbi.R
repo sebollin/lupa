@@ -5513,14 +5513,18 @@
   forma <- dialecto$mediana_escalar
   if (is.null(forma)) return(list())
   valor <- .citar_identificador_dbi(conexion, "valor")
-  construir <- function(expr, tabla, alias, materializar = FALSE) {
+  construir <- function(expr, tabla, alias, materializar = FALSE,
+                        doble_exacto = FALSE) {
+    promedio <- .promedio_mediana_sql_dbi(
+      conexion, valor, doble_exacto = doble_exacto
+    )
     if (isTRUE(materializar)) {
       fuente <- "lupa_mediana_datos"
       cuenta <- "COUNT(*)"
       cuerpo <- paste0(
         "WITH ", fuente, " AS (SELECT ", expr, " AS ", valor,
         " FROM ", tabla, " WHERE ", expr, " IS NOT NULL) ",
-        "SELECT ", .promedio_mediana_sql_dbi(conexion, valor),
+        "SELECT ", promedio,
         " AS ", alias,
         " FROM (SELECT ", valor, " FROM ", fuente,
         " ORDER BY ", valor,
@@ -5533,7 +5537,7 @@
     }
     cuenta <- .contar_no_nulos_sql_dbi(expr, .senas_conexion_dbi(conexion))
     paste0(
-      "SELECT ", .promedio_mediana_sql_dbi(conexion, valor),
+      "SELECT ", promedio,
       " AS ", alias,
       " FROM (SELECT ", expr, " AS ", valor, " FROM ", tabla,
       " WHERE ", expr, " IS NOT NULL ORDER BY ", expr,
@@ -5645,13 +5649,14 @@
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
-  construir <- function(expr, tabla, alias_salida, escalada = FALSE) {
+  construir <- function(expr, tabla, alias_salida, escalada = FALSE,
+                        tipo = NA_character_, doble_exacto = FALSE) {
     valor <- alias("valor")
     n_validos <- alias("n_validos")
     promedio <- if (isTRUE(escalada)) {
       .promedio_centrales_escalado_sql_dbi(valor)
     } else {
-      .promedio_mediana_sql_dbi(conexion, valor)
+      .promedio_mediana_sql_dbi(conexion, valor, tipo, doble_exacto)
     }
     paste0(
       "WITH lupa_mediana_datos AS (",
@@ -10780,7 +10785,8 @@
 # multiplica por `1e0`, un literal `DOUBLE` en cualquier version: `CAST(x AS
 # DOUBLE)` existe en MySQL solo desde la 8.0.17. Su `STDDEV_SAMP` ya devuelve
 # `DOUBLE`. Las medianas no pasan por aca: promedian uno o dos valores y la
-# aritmetica decimal las representa enteras.
+# aritmetica decimal las representa enteras, salvo un `decimal` de 36 cifras o
+# mas en T-SQL (ver `.promedio_mediana_sql_dbi()`).
 .es_transact_sql_dbi <- function(senas) {
   length(senas) == 1L && !is.na(senas) &&
     grepl(.dialectos_dbi()$top$patron, senas, perl = TRUE)
@@ -10790,12 +10796,60 @@
 # de MySQL y MariaDB los promedia exactos (ver arriba). No se suma `0e0`
 # despues del `AVG`: sobre doubles extremos MySQL puede rechazar esa suma al
 # devolver la fila, aunque el promedio simple sea una respuesta valida.
-.promedio_mediana_sql_dbi <- function(conexion, valor) {
+#
+# Salvo un `decimal` en T-SQL. Ahi `decimal(p, s) * 1.0` es `decimal(p + 3,
+# s + 1)`, y desde `p = 36` pasa de las 38 cifras: SQL Server recorta la escala
+# hasta dejar 6 decimales. Medido en SQL Server 2022, con compatibilidad 100 y
+# 160 por igual: la mediana de 0,0000001 y 0,0000003 en `decimal(38,7)` daba
+# `0`; la de dos valores de 1e-21 en `decimal(38,30)`, 5,0550945e-21 contra
+# 5,0550944535e-21. Con compatibilidad menor que 110 no hay `PERCENTILE_CONT`,
+# asi que todo `decimal` pasaba por aca. El doble de cada central es lo que lee
+# R, y su promedio en `FLOAT` es la mediana de R (en compatibilidad 100, a lo
+# sumo un ulp: esa conversion es menos exacta). Los enteros siguen con `* 1.0`,
+# que los promedia exactos tambien pasado 2^53.
+#
+# Y salvo el `float8` de PostgreSQL leido como NUMERIC exacto (`float8send()`,
+# antes de la 12 o con `extra_float_digits <= 0`). `AVG()` de ese NUMERIC es
+# exacto, pero PostgreSQL lo devuelve redondeado a su escala de division -unas
+# 16 cifras- y R lee otro doble. Medido en PostgreSQL 9.3 sobre pares de dobles:
+# 427 de 3.000 promedios a un ulp de `median()`, por la CTE de ventanas
+# (`dialecto = "portable"`) y por la subconsulta escalar de la muestra. Va el
+# mismo promedio que la via de dos consultas: la suma en doble, leida exacta.
+.promedio_mediana_sql_dbi <- function(conexion, valor, tipo = NA_character_,
+                                      doble_exacto = FALSE) {
+  if (.es_transact_sql_dbi(.senas_conexion_dbi(conexion)) &&
+      .tipo_declarado_decimal_dbi(tipo)) {
+    return(paste0("AVG(CAST(", valor, " AS FLOAT))"))
+  }
+  if (isTRUE(doble_exacto) &&
+      grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+            useBytes = TRUE)) {
+    return(.promedio_centrales_float8_exacto_sql_dbi(valor))
+  }
   if (.es_mysql_dbi(.senas_conexion_dbi(conexion))) {
     paste0("AVG(", valor, " * 1.0)")
   } else {
     paste0("AVG(", valor, " * 1.0)")
   }
+}
+
+# El promedio de una o dos centrales `float8` leidas como NUMERIC exacto. La
+# suma se hace en doble -la de `median()`- y vuelve leida por sus ocho bytes,
+# porque PostgreSQL 9.3 escribe el doble con 15 cifras; con extremos se suma la
+# mitad de cada NUMERIC, que no desborda aunque las dos centrales sean DBL_MAX.
+.promedio_centrales_float8_exacto_sql_dbi <- function(valor) {
+  media_binaria <- paste0(
+    "SUM(CAST(", valor, " AS DOUBLE PRECISION)) / COUNT(*)"
+  )
+  paste0(
+    "CASE WHEN MAX(ABS(CAST(", valor,
+    " AS DOUBLE PRECISION))) > 1e150 THEN ",
+    "CASE WHEN COUNT(*) = 2 THEN SUM(CAST(", valor,
+    " AS NUMERIC) / 2) ELSE MAX(CAST(", valor,
+    " AS NUMERIC)) END ELSE ",
+    .lectura_double_postgresql_dbi(media_binaria),
+    " END"
+  )
 }
 
 .es_mysql_dbi <- function(senas) {
@@ -13391,7 +13445,10 @@
   # La mediana de la muestra con la CTE de ventanas: la forma normal y, si los
   # extremos la desbordarian, la escalada, las dos sobre la misma relacion.
   mediana_por_cte_ventana <- function(cte) {
-    sql_mediana <- cte$construir(columna_sql, tabla_sql, alias("mediana"))
+    sql_mediana <- cte$construir(
+      columna_sql, tabla_sql, alias("mediana"), tipo = tipo_declarado,
+      doble_exacto = infinitos_columna_como_numeric
+    )
     preparar_aviso_mediana()
     mediana <- ejecutar_mediana(
       sql_mediana,
@@ -14360,7 +14417,8 @@
     } else if (!is.null(mediana_escalar)) {
       sql_mediana <- mediana_escalar$construir(
         columna_sql, tabla_sql, alias("mediana"),
-        materializar = es_muestreado
+        materializar = es_muestreado,
+        doble_exacto = infinitos_columna_como_numeric
       )
       preparar_aviso_mediana()
       mediana <- ejecutar_mediana(sql_mediana)
@@ -14500,24 +14558,17 @@
           # viajar desde PostgreSQL 9.3, y la suma numerica tampoco desborda
           # cuando los dos valores centrales son DBL_MAX.
           valor <- alias("valor")
-          media_binaria <- paste0(
-            "SUM(CAST(", valor, " AS DOUBLE PRECISION)) / COUNT(*)"
-          )
-          media_binaria_leida <- .lectura_double_postgresql_dbi(media_binaria)
           paste0(
-            "SELECT CASE WHEN MAX(ABS(CAST(", valor,
-            " AS DOUBLE PRECISION))) > 1e150 THEN ",
-            "CASE WHEN COUNT(*) = 2 THEN SUM(CAST(", valor,
-            " AS NUMERIC) / 2) ELSE MAX(CAST(", valor,
-            " AS NUMERIC)) END ELSE ",
-            media_binaria_leida,
-            " END AS ", alias("mediana"),
+            "SELECT ", .promedio_centrales_float8_exacto_sql_dbi(valor),
+            " AS ", alias("mediana"),
             " FROM (SELECT ", valor, " FROM ", fuente_mediana, ")",
             dialecto$alias_tabla("lupa_mediana")
           )
         } else {
           paste0(
-            "SELECT ", .promedio_mediana_sql_dbi(conexion, alias("valor")),
+            "SELECT ", .promedio_mediana_sql_dbi(
+              conexion, alias("valor"), tipo_declarado
+            ),
             " AS ", alias("mediana"),
             " FROM ", fuente_mediana
           )
@@ -22321,9 +22372,24 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   (por omisión) o `"aproximada_motor"`. La sonda prueba siempre primero una
 #'   forma nativa exacta consolidada, luego una forma exacta por columna y deja
 #'   las funciones nativas aproximadas para el final. Por eso esta opción
-#'   describe la estrategia habilitada, no garantiza el método ejecutado:
-#'   `meta$estrategia_mediana` y `resumen_tabla$sql$metodo` publican el método
-#'   que efectivamente corrió. Una mediana resuelta por una forma exacta queda
+#'   describe la estrategia habilitada, no garantiza el método ejecutado. El
+#'   método que efectivamente corrió está en `resumen_tabla$sql$metodo`, en la
+#'   fila de `metrica = "mediana"` de cada columna, y es la única fuente por
+#'   columna. `meta$estrategia_mediana` publica la resolución de la tabla:
+#'   lo pedido (`estrategia_solicitada`), la forma que el motor aceptó para la
+#'   tabla (`estrategia_resuelta`), su `estado` y su `motivo`. No es el método
+#'   de cada columna: una columna que no puede usar esa forma —un `float8` de
+#'   PostgreSQL, que la deja por la lectura exacta, o una columna con
+#'   extremos— corre por otra (`dos_consultas` en la tabla completa, la CTE de
+#'   ventanas en la muestra) y lo declara en su fila de `resumen_tabla$sql`,
+#'   aunque `meta$estrategia_mediana` siga nombrando la consolidada. El `estado`
+#'   de `meta$estrategia_mediana` describe la forma, no la fila: en
+#'   `universo = "muestra_motor"` la fila de cada columna queda `estimado`.
+#'   Las columnas `estrategia_solicitada`, `estrategia_resuelta` y
+#'   `estado_estrategia` de `resumen_tabla$sql` son las de `n_distintos`
+#'   (`meta$estrategia_distintos`), repetidas en todas las filas: en la fila de
+#'   la mediana no describen la mediana. Una mediana resuelta por una forma
+#'   exacta queda
 #'   `estado = "calculado"` y `error_esperado = "no_aplica"`, aunque se haya
 #'   pedido `"aproximada_motor"`; sólo una aproximación ejecutada queda
 #'   `estado = "estimado"`. `universo = "muestra_motor"` combinado con

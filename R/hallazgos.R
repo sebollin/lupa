@@ -1170,6 +1170,10 @@
       tamano_grupo_maximo = 0L, proporcion_grupo_maximo = 0,
       tamano_grupo_maximo_numerico = 0L,
       proporcion_grupo_maximo_numerico = 0,
+      tamano_grupo_maximo_sin_numeros = 0L,
+      proporcion_grupo_maximo_sin_numeros = 0,
+      aplicable_sin_numeros = TRUE,
+      evaluado_aparte_sin_numeros = FALSE,
       n_candidatos_distancia = 0L,
       n_candidatos_edicion_corta = 0L,
       n_descartados_frecuencia_edicion_corta = 0L,
@@ -1756,7 +1760,44 @@
   # el diagnostico de distancia esta disponible y puede haber encadenamiento.
   aplicable <- !limite_aplicado || !disponible ||
     proporcion_grupo_maximo <= max_proporcion_grupo
-  if (!aplicable) grupos <- list()
+  # Ese limite mide el componente previo al filtro numerico, y es lo que una
+  # familia numerada necesita: `Zona 01` ... `Zona 15` con frecuencias
+  # desparejas forman un componente antes del filtro, el filtro los separa, y
+  # medido despues la familia pasaria en pedazos. Pero el mismo componente
+  # decidia tambien sobre los grupos SIN numeros de la columna, y a esos el
+  # filtro nunca los une con una forma que tenga numeros: una arista de
+  # distancia solo sobrevive entre firmas numericas iguales, y la de un texto
+  # sin digitos es vacia. Medido: 40 codigos `valor_n` desparejos junto a
+  # `Montevideo` (90) y `Montevido` (4) abarcaban 0,930 del vocabulario, la
+  # columna quedaba "no aplica" y la errata, que sola se publica, no salia.
+  #
+  # Por eso el limite de la columna decide sobre los grupos con numeros, y un
+  # grupo sin numeros se juzga ademas con el mismo limite medido sobre los
+  # grupos sin numeros, con el mismo vocabulario de denominador: lo que la
+  # columna diria si la familia numerada no se encadenara. Solo rescata, nunca
+  # suprime: si el limite de la columna admite, todo sale como antes, y una
+  # cadena sin numeros que sola no aplica tampoco aplica aca.
+  con_numeros_unidad <- nzchar(firmas_numericas)
+  grupo_con_numeros <- vapply(grupos, function(indices) {
+    any(con_numeros_unidad[clases[indices]])
+  }, logical(1L))
+  tamano_grupo_maximo_sin_numeros <- if (any(!grupo_con_numeros)) {
+    max(lengths(grupos[!grupo_con_numeros]))
+  } else 0L
+  proporcion_grupo_maximo_sin_numeros <- if (n_evaluados) {
+    tamano_grupo_maximo_sin_numeros / n_evaluados
+  } else 0
+  aplicable_sin_numeros <- !disponible ||
+    !(n_evaluados >= min_valores_limite ||
+        tamano_grupo_maximo_sin_numeros >= min_tamano_grupo_limite) ||
+    proporcion_grupo_maximo_sin_numeros <= max_proporcion_grupo
+  admitido_por_limite <- function(con_numeros) {
+    aplicable | (!con_numeros & aplicable_sin_numeros)
+  }
+  if (!aplicable) grupos <- grupos[admitido_por_limite(grupo_con_numeros)]
+  # Se declara si hubo algo sin numeros que juzgar aparte: sin eso, el motivo
+  # de "no aplica" no puede decir a que parte de la columna se refiere.
+  evaluado_aparte_sin_numeros <- !aplicable && length(grupos) > 0L
   if (!length(grupos)) {
     grupos_salida <- list()
   } else {
@@ -1887,9 +1928,22 @@
           max_asimetria_equifrecuente
     }, candidatos)
   } else list()
+  # La misma regla del limite, y no una segunda: las aristas equifrecuentes se
+  # registran despues del filtro numerico, asi que un candidato tampoco mezcla
+  # formas con y sin numeros. Sus indices son de unidades normalizadas.
+  if (!aplicable && length(grupos_equifrecuentes_candidatos)) {
+    grupos_equifrecuentes_candidatos <- grupos_equifrecuentes_candidatos[
+      admitido_por_limite(vapply(
+        grupos_equifrecuentes_candidatos,
+        function(indices) any(con_numeros_unidad[indices]), logical(1L)
+      ))
+    ]
+    evaluado_aparte_sin_numeros <- evaluado_aparte_sin_numeros ||
+      length(grupos_equifrecuentes_candidatos) > 0L
+  }
   grupos_equifrecuentes <- list()
   if (isTRUE(detectar_variantes_equifrecuentes) &&
-      length(grupos_equifrecuentes_candidatos) && aplicable) {
+      length(grupos_equifrecuentes_candidatos)) {
     grupos_equifrecuentes <- lapply(
       grupos_equifrecuentes_candidatos,
       function(indices) {
@@ -1972,6 +2026,10 @@
       proporcion_grupo_maximo = proporcion_grupo_maximo,
       tamano_grupo_maximo_numerico = tamano_grupo_maximo_numerico,
       proporcion_grupo_maximo_numerico = proporcion_grupo_maximo_numerico,
+      tamano_grupo_maximo_sin_numeros = tamano_grupo_maximo_sin_numeros,
+      proporcion_grupo_maximo_sin_numeros = proporcion_grupo_maximo_sin_numeros,
+      aplicable_sin_numeros = aplicable_sin_numeros,
+      evaluado_aparte_sin_numeros = evaluado_aparte_sin_numeros,
       n_candidatos_distancia = n_candidatos_distancia,
       n_candidatos_edicion_corta = n_candidatos_edicion_corta,
       n_descartados_frecuencia_edicion_corta =
@@ -2130,8 +2188,11 @@
         )
       )
     }
+    # Con la columna fuera del limite, los candidatos que quedan son los sin
+    # numeros que se juzgaron aparte; los demas ya no se cuentan.
     if (isTRUE(alcance$n_grupos_sin_variante_rara > 0L) &&
-        isTRUE(alcance$aplicable)) {
+        (isTRUE(alcance$aplicable) ||
+           isTRUE(alcance$evaluado_aparte_sin_numeros))) {
       nueva_cobertura <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],
         paste0(
@@ -2179,7 +2240,20 @@
           "El grupo candidato mayor abarca ",
           formatC(alcance$proporcion_grupo_maximo,
                   format = "f", digits = 3),
-          " del vocabulario y el diagn\u00f3stico no aplica."
+          if (isTRUE(alcance$evaluado_aparte_sin_numeros)) {
+            # El motivo tiene que decir a que parte de la columna se
+            # refiere: la misma columna publica un hallazgo con los grupos
+            # sin numeros, y "no aplica" a secas lo contradiria.
+            paste0(
+              " del vocabulario y el diagn\u00f3stico no aplica a las formas",
+              " con n\u00fameros. Las formas sin n\u00fameros, que el filtro",
+              " num\u00e9rico nunca une con ellas, se evaluaron aparte: su",
+              " grupo mayor abarca ",
+              formatC(alcance$proporcion_grupo_maximo_sin_numeros,
+                      format = "f", digits = 3),
+              " del vocabulario."
+            )
+          } else " del vocabulario y el diagn\u00f3stico no aplica."
         ),
         paste0(
           "Usar una regla de dominio espec\u00edfica para la columna o ajustar ",
@@ -2335,6 +2409,16 @@
         .formatear_numero_publicado(alcance$tamano_grupo_maximo_numerico), " (",
         formatC(alcance$proporcion_grupo_maximo_numerico,
                 format = "f", digits = 3), "). ",
+        # Solo cuando el limite de la columna no admitio y los grupos sin
+        # numeros se juzgaron aparte: en cualquier otro caso la evidencia es
+        # la de siempre.
+        if (isTRUE(alcance$evaluado_aparte_sin_numeros)) paste0(
+          "grupo_maximo sin numeros=",
+          .formatear_numero_publicado(alcance$tamano_grupo_maximo_sin_numeros),
+          " (", formatC(alcance$proporcion_grupo_maximo_sin_numeros,
+                        format = "f", digits = 3),
+          "); las formas con n\u00fameros quedan fuera del l\u00edmite. "
+        ) else "",
         alcance$motivo_distancia,
         " criterio_edicion_corta: distancia_edicion<=",
         .formatear_numero_publicado(alcance$max_distancia_edicion_corta),
@@ -2353,7 +2437,8 @@
         .formatear_numero_publicado(alcance$n_descartados_frecuencia_edicion_corta),
         "."
       ),
-      if (isTRUE(alcance$aplicable)) {
+      if (isTRUE(alcance$aplicable) ||
+          isTRUE(alcance$evaluado_aparte_sin_numeros)) {
         if (identical(alcance$motivo_grupos, "sin_asimetria")) {
           "Usar detectar_duplicados_aproximados() para comparar filas cuando no hay una frecuencia central."
         } else {

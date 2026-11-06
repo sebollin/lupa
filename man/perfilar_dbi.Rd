@@ -120,9 +120,24 @@ ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, la métrica queda
 (por omisión) o \code{"aproximada_motor"}. La sonda prueba siempre primero una
 forma nativa exacta consolidada, luego una forma exacta por columna y deja
 las funciones nativas aproximadas para el final. Por eso esta opción
-describe la estrategia habilitada, no garantiza el método ejecutado:
-\code{meta$estrategia_mediana} y \code{resumen_tabla$sql$metodo} publican el método
-que efectivamente corrió. Una mediana resuelta por una forma exacta queda
+describe la estrategia habilitada, no garantiza el método ejecutado. El
+método que efectivamente corrió está en \code{resumen_tabla$sql$metodo}, en la
+fila de \code{metrica = "mediana"} de cada columna, y es la única fuente por
+columna. \code{meta$estrategia_mediana} publica la resolución de la tabla:
+lo pedido (\code{estrategia_solicitada}), la forma que el motor aceptó para la
+tabla (\code{estrategia_resuelta}), su \code{estado} y su \code{motivo}. No es el método
+de cada columna: una columna que no puede usar esa forma —un \code{float8} de
+PostgreSQL, que la deja por la lectura exacta, o una columna con
+extremos— corre por otra (\code{dos_consultas} en la tabla completa, la CTE de
+ventanas en la muestra) y lo declara en su fila de \code{resumen_tabla$sql},
+aunque \code{meta$estrategia_mediana} siga nombrando la consolidada. El \code{estado}
+de \code{meta$estrategia_mediana} describe la forma, no la fila: en
+\code{universo = "muestra_motor"} la fila de cada columna queda \code{estimado}.
+Las columnas \code{estrategia_solicitada}, \code{estrategia_resuelta} y
+\code{estado_estrategia} de \code{resumen_tabla$sql} son las de \code{n_distintos}
+(\code{meta$estrategia_distintos}), repetidas en todas las filas: en la fila de
+la mediana no describen la mediana. Una mediana resuelta por una forma
+exacta queda
 \code{estado = "calculado"} y \code{error_esperado = "no_aplica"}, aunque se haya
 pedido \code{"aproximada_motor"}; sólo una aproximación ejecutada queda
 \code{estado = "estimado"}. \code{universo = "muestra_motor"} combinado con

@@ -1621,7 +1621,13 @@ disponible; también informa cuántas aristas se descartaron por esa regla y
 el tamaño compatible después del filtro. El tamaño máximo usado para el
 límite conserva el componente potencial antes del filtro numérico, para que
 una familia de entidades numeradas no vuelva a presentarse como una sola
-variante; el tamaño compatible se muestra aparte. Para mantener acotado el
+variante; el tamaño compatible se muestra aparte. Ese límite decide sobre
+los grupos que contienen formas con números. Un grupo sin números, que el
+filtro nunca une con una forma que los tenga, se conserva además si el
+mismo límite medido sobre los grupos sin números lo admite: una familia
+numerada no calla una errata de texto de la misma columna. Entonces la
+cobertura dice que el diagnóstico no aplica a las formas con números y la
+evidencia agrega \verb{grupo_maximo sin numeros}. Para mantener acotado el
 perfil, por omisión se evalúan hasta
 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
 se alcanza un límite, la evidencia lo declara y no presenta el resultado

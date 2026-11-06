@@ -1103,22 +1103,95 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # comparan -todas, o un subconjunto de claves-. Corregir un detalle obligaba a
 # acordarse de hacerlo en los dos lados. Los dos nombres se conservan porque
 # dicen cosas distintas en su contexto, pero ahora son envoltorios de esto.
+#
+# Comparar todos los pares era cuadratico en llamadas: con 1.000 columnas,
+# 499.500 llamadas a `.columnas_identicas()`, cada una normalizando las dos
+# columnas otra vez -unos 10 s medidos, iguales o distintas-. Ahora cada columna se
+# normaliza una vez, se agrupa por una huella barata y solo se compara dentro de
+# su grupo, contra un representante de cada clase ya vista. Es exacto por dos
+# propiedades: la huella es la misma para dos columnas que la comparacion da
+# por iguales (nunca separa un par verdadero; si junta dos distintas, la
+# comparacion las separa), y la igualdad es una relacion de equivalencia
+# -`identical()`, o los bits para `integer64`-, asi que igual al representante
+# es igual a toda la clase. Los pares salen en el orden de `combn()`.
 .pares_de_columnas_identicas <- function(datos, indices, nombres) {
   vacio <- .data_frame_simple(
     columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
   )
   if (length(indices) < 2L) return(vacio)
-  pares <- utils::combn(indices, 2L)
-  iguales <- apply(pares, 2L, function(indice) {
-    .columnas_identicas(datos[[indice[[1L]]]], datos[[indice[[2L]]]])
-  })
-  pares <- pares[, iguales, drop = FALSE]
-  if (!ncol(pares)) return(vacio)
+  columnas <- lapply(indices, function(i) .normalizar_columna_entrada(datos[[i]]))
+  huellas <- vapply(columnas, .huella_columna_identica, character(1L))
+  grupo_de <- match(huellas, unique(huellas))
+  clase <- seq_along(columnas)
+  for (miembros in split(seq_along(columnas), grupo_de)) {
+    if (length(miembros) < 2L) next
+    representantes <- miembros[[1L]]
+    for (k in miembros[-1L]) {
+      igual_a <- 0L
+      for (r in representantes) {
+        if (.columnas_normalizadas_identicas(columnas[[r]], columnas[[k]])) {
+          igual_a <- r
+          break
+        }
+      }
+      if (igual_a) {
+        clase[[k]] <- igual_a
+      } else {
+        representantes <- c(representantes, k)
+      }
+    }
+  }
+  con_pares <- Filter(function(m) length(m) > 1L, split(seq_along(clase), clase))
+  if (!length(con_pares)) return(vacio)
+  pares <- do.call(cbind, lapply(con_pares, function(m) utils::combn(m, 2L)))
+  orden <- .orden_por_bytes(pares[1L, ], pares[2L, ])
+  primero <- indices[pares[1L, orden]]
+  segundo <- indices[pares[2L, orden]]
   .data_frame_simple(
-    columna_1 = nombres[pares[1L, ]],
-    columna_2 = nombres[pares[2L, ]],
+    columna_1 = nombres[primero],
+    columna_2 = nombres[segundo],
     stringsAsFactors = FALSE
   )
+}
+
+# Huella para agrupar columnas antes de compararlas. Solo tiene que cumplir una
+# cosa: dos columnas que `.columnas_normalizadas_identicas()` da por iguales
+# tienen la misma huella. Por eso usa nada mas que lo que esa comparacion exige
+# igual -clase, tipo, largo, faltantes- y unos pocos valores, cada uno en una
+# forma que no separa lo que `identical()` junta: `as.character()` da "0" para
+# `0` y para `-0`, y "NA" o "NaN" segun `identical()` los distingue. Un texto
+# solo aporta sus bytes si es ASCII; uno con bytes altos aporta una marca,
+# porque `identical()` puede igualar dos codificaciones del mismo texto (y
+# hacerlo distinto segun el locale), y una clave por bytes las separaria. Un
+# `integer64` aporta sus bits, que es lo que la comparacion mira.
+.huella_columna_identica <- function(x) {
+  n <- length(x)
+  cabeza <- paste(c(typeof(x), class(x), n), collapse = "\r")
+  crudo <- unclass(x)
+  if (!is.atomic(crudo) || !is.null(dim(crudo))) {
+    faltantes <- if (is.list(crudo) && is.null(dim(crudo))) {
+      sum(is.na(crudo))
+    } else NA
+    return(paste(cabeza, faltantes, sep = "\n"))
+  }
+  faltantes <- sum(is.na(crudo))
+  if (!n) return(paste(cabeza, faltantes, sep = "\n"))
+  posiciones <- unique(round(seq(1, n, length.out = min(n, 8L))))
+  muestra <- crudo[posiciones]
+  valores <- if (inherits(x, "integer64")) {
+    as.character(writeBin(as.double(muestra), raw()))
+  } else if (is.character(muestra)) {
+    vapply(muestra, function(s) {
+      if (is.na(s)) return("\001")
+      bytes <- charToRaw(s)
+      marca <- if (identical(Encoding(s), "bytes")) "\002" else ""
+      if (any(bytes > as.raw(0x7f))) paste0(marca, "\003") else paste0(marca, s)
+    }, character(1L), USE.NAMES = FALSE)
+  } else {
+    as.character(muestra)
+  }
+  if (is.factor(x)) valores <- c(valores, length(levels(x)))
+  paste(c(cabeza, faltantes, valores), collapse = "\n")
 }
 
 # `muestra = 1.5` se aceptaba y se perfilaba UNA fila, en silencio. Un usuario
@@ -2236,8 +2309,14 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   # `POSIXct`- salian "duplicadas" en el perfil y en el plan, y `aplicar()` las
   # registraba `fallida` con "dejaron de tener contenido duplicado" sobre la
   # tabla original. La comparacion es una sola, aca.
-  x <- .normalizar_columna_entrada(x)
-  y <- .normalizar_columna_entrada(y)
+  .columnas_normalizadas_identicas(
+    .normalizar_columna_entrada(x), .normalizar_columna_entrada(y)
+  )
+}
+
+# La comparacion sobre columnas ya normalizadas, para quien normaliza una vez y
+# compara muchas (`.pares_de_columnas_identicas()`).
+.columnas_normalizadas_identicas <- function(x, y) {
   # `identical()` iguala todos los NaN, y un `integer64` negativo ES un NaN en
   # sus bits: `-1` y `-2` salian identicos. Comparar los bits es exacto para
   # `integer64` -los bits son el valor-.

@@ -129,6 +129,18 @@
   stringdist::stringdistmatrix(a, b, method = metodo, p = p, nthread = nucleos)
 }
 
+# Si la tesela diagonal puede calcular solo su triangulo superior con
+# `stringdist()` par a par y dar lo mismo que la celda de `stringdistmatrix()`.
+# Medido con stringdist 0.9.17, bit a bit, sobre los diez metodos que acepta el
+# paquete, con 1, 2 y 4 hilos, textos vacios, `NA`, `latin1`, valores de 3.000
+# caracteres y caracteres fuera del plano basico: coinciden todos menos
+# `jaccard` entre dos textos vacios, donde la matriz da `0` y el par da `NaN`
+# -y no siempre: depende del par y de los hilos-. Un `NaN` no pasa el umbral y
+# el par desapareceria, asi que `jaccard` sigue con la matriz entera.
+.triangulo_identico_duplicados <- function(metodo) {
+  !identical(metodo, "jaccard")
+}
+
 .nucleos_disponibles_lupa <- function() {
   disponibles <- tryCatch(
     parallel::detectCores(logical = TRUE),
@@ -603,10 +615,11 @@
 #' siguiente. Así la memoria temporal depende de `bloque`, no de la cantidad
 #' total de filas, sin cambiar qué pares se comparan.
 #'
-#' Con `solo_pares = TRUE` el llamador consume los pares únicamente por
-#' `on_pairs` y no lee el valor devuelto: no se arma el acumulador, y en la
-#' tesela diagonal se calcula sólo el triángulo superior, que es lo único que
-#' esa tesela entrega. Los pares, su orden y sus distancias son los mismos.
+#' En la tesela diagonal se calcula sólo el triángulo superior, que es lo
+#' único que esa tesela entrega, salvo con `jaccard` (ver
+#' `.triangulo_identico_duplicados()`). Con `solo_pares = TRUE` el llamador
+#' consume los pares únicamente por `on_pairs` y no lee el valor devuelto: no se
+#' arma el acumulador. Los pares, su orden y sus distancias son los mismos.
 #' @noRd
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
@@ -648,20 +661,41 @@
     for (j in i:length(inicios)) {
       fin_j <- min(n, inicios[[j]] + bloque - 1L)
       filas_j <- inicios[[j]]:fin_j
-      matriz <- as.matrix(.matriz_distancias_duplicados(
-        valores[filas_i], valores[filas_j], metodo, nucleos, p
-      ))
       n_bloques <- n_bloques + 1L
-      candidatas <- if (i == j) {
-        which(upper.tri(matriz) & matriz >= 0 & matriz <= umbral,
-              arr.ind = TRUE)
+      if (i == j && .triangulo_identico_duplicados(metodo)) {
+        # La tesela diagonal entrega solo su triangulo superior, y la matriz
+        # entera calculaba el doble. Se recorre ese triangulo columna por
+        # columna, que es el orden de `which(upper.tri(m), arr.ind = TRUE)`, y
+        # `stringdist()` sobre cada par da la misma celda, bit a bit, que
+        # `stringdistmatrix()`: los pares, su orden y sus distancias no cambian.
+        k <- length(filas_i)
+        if (k < 2L) next
+        columna <- rep.int(2:k, 1:(k - 1L))
+        fila <- sequence(1:(k - 1L))
+        valores_i <- valores[filas_i]
+        triangulo <- .distancias_pares_duplicados(
+          valores_i[fila], valores_i[columna], metodo, nucleos, p
+        )
+        seleccion <- which(triangulo >= 0 & triangulo <= umbral)
+        if (!length(seleccion)) next
+        distancias <- as.numeric(triangulo[seleccion])
+        posiciones_1 <- filas_i[fila[seleccion]]
+        posiciones_2 <- filas_i[columna[seleccion]]
       } else {
-        which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+        matriz <- as.matrix(.matriz_distancias_duplicados(
+          valores[filas_i], valores[filas_j], metodo, nucleos, p
+        ))
+        candidatas <- if (i == j) {
+          which(upper.tri(matriz) & matriz >= 0 & matriz <= umbral,
+                arr.ind = TRUE)
+        } else {
+          which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+        }
+        if (!nrow(candidatas)) next
+        distancias <- as.numeric(matriz[candidatas])
+        posiciones_1 <- filas_i[candidatas[, 1L]]
+        posiciones_2 <- filas_j[candidatas[, 2L]]
       }
-      if (!nrow(candidatas)) next
-      distancias <- as.numeric(matriz[candidatas])
-      posiciones_1 <- filas_i[candidatas[, 1L]]
-      posiciones_2 <- filas_j[candidatas[, 2L]]
       f1 <- filas[posiciones_1]
       f2 <- filas[posiciones_2]
       iguales <- valores[posiciones_1] == valores[posiciones_2]
@@ -739,7 +773,7 @@
     filas_i <- inicios[[i]]:fin_i
     for (j in i:length(inicios)) {
       n_bloques <- n_bloques + 1L
-      if (i == j) {
+      if (i == j && .triangulo_identico_duplicados(metodo)) {
         k <- length(filas_i)
         if (k < 2L) next
         columna <- rep.int(2:k, 1:(k - 1L))
@@ -760,7 +794,14 @@
         matriz <- as.matrix(.matriz_distancias_duplicados(
           valores[filas_i], valores[filas_j], metodo, nucleos, p
         ))
-        candidatas <- which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+        # Una tesela diagonal llega aca solo con un metodo cuyo triangulo par
+        # a par no coincide con la matriz (`.triangulo_identico_duplicados()`).
+        candidatas <- if (i == j) {
+          which(upper.tri(matriz) & matriz >= 0 & matriz <= umbral,
+                arr.ind = TRUE)
+        } else {
+          which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+        }
         if (!nrow(candidatas)) next
         entregar(
           filas_i[candidatas[, 1L]], filas_j[candidatas[, 2L]],
