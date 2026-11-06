@@ -67,6 +67,8 @@ Primera versión publicada.
 - La guía «Escala y duplicados aproximados» termina en los lotes sin pérdida y
   resume cada tope en una línea. El detalle de los topes y del aviso de tabla
   ancha pasa a «Motores y escala», y el de los hilos a «Evidencia y rendimiento».
+- El logo y los íconos del sitio usan el hexágono regular: lados iguales y
+  bordes a 30°. El anterior era más alto que ancho de la cuenta.
 
 ## Rendimiento
 
