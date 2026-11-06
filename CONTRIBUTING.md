@@ -67,12 +67,13 @@ Más `NEWS.md` cuando el cambio se nota al usar el paquete.
 
 ## Dependencias
 
-**Sólo `cli` es obligatoria.** Todo lo demás va en `Suggests`, y cada uso tiene
-que tener su rama de ausencia declarada: si el paquete opcional no está, el
+**Las obligatorias son `cli` y `data.table`** (esta se llama siempre con
+`data.table::`, sin importarla al `NAMESPACE`). Todo lo demás va en `Suggests`, y
+cada uso tiene que tener su rama de ausencia declarada: si el paquete opcional no está, el
 diagnóstico va a `cobertura_diagnosticos` con su motivo y su
 `como_resolverlo`, no falla ni se saltea en silencio.
 
-El mínimo de R declarado es 3.6.0. Conviene tenerlo presente: funciones
+El mínimo de R declarado es 4.2.0. Conviene tenerlo presente: funciones
 posteriores a esa versión no se pueden usar sin más.
 
 ## Antes de abrir el pull request
@@ -105,6 +106,128 @@ agregala al archivo ordenado. Si agrega una que no es legítima, es una errata.
 así que **tiene que dar cero avisos**. Los que quedan afuera están anotados ahí
 con su motivo; si te parece que alguno debería entrar, es una conversación
 aparte del cambio que estés enviando.
+
+## Cómo se escribe la documentación
+
+Vale para todo lo que se publica: los 2 README, las viñetas, los artículos y
+la ayuda. Se escribe para que se lea rápido sin perder precisión.
+
+### Voz
+
+- **Viñetas:** primera persona del plural («perfilamos la tabla», «veamos qué
+  encontró»). `lupa` va en tercera persona: el paquete sugiere y quien decide
+  es «nosotros».
+- **README, artículos y ayuda:** impersonal («se instala», «devuelve»). Nunca
+  voseo, tuteo ni usted.
+- **Inglés** (`README.Rmd`): «we» en lo que sea recorrido e impersonal en lo
+  demás, con el mismo contenido y el mismo orden que el castellano.
+- Tildes completas en castellano.
+
+### Frases, párrafos y títulos
+
+- Frases de hasta unas 20 palabras. Un párrafo, una idea.
+- Lo que enumera 3 o más cosas paralelas va en una lista, no en un párrafo.
+  Para comparar opciones o campos, una tabla.
+- Los títulos dicen lo que hay debajo.
+
+### Cifras
+
+- Las cantidades van en dígitos: «3 severidades», «2 filas». Quedan en letras:
+  - «uno» y «una» cuando son artículo o parte de una locución («una columna»,
+    «de una vez», «en una sola llamada»);
+  - los ordinales («la primera llamada»);
+  - «cero» cuando nombra la idea y no un conteo («nunca cuenta como cero»).
+- Ninguna oración empieza con un dígito: se reordena («Hay 3…», «Las 3…»).
+- La unidad va separada por un espacio, también en inglés: `30 s`, no `30s`,
+  `30 sec` ni `30''`. En castellano, el porcentaje también: `70 %`.
+- Los nombres conservan su forma: los títulos de las guías, las versiones,
+  `ISO/IEC 25012`. Los valores literales de los datos no se tocan (`-99`,
+  `"S/D"`).
+- Un recuento que el paquete calcula (tipos de hallazgo, factores de un marco,
+  campos) sale de código en línea, nunca escrito a mano.
+- Una cifra de medición (tiempos, consultas, tasas) dice su unidad, su insumo,
+  su entorno, su fecha y el guion que la produce. Sólo se publica si ese guion
+  corrió sobre el código que se publica.
+- Un insumo descargado lleva su fuente, su fecha y su suma de control.
+- Una cifra ilustrativa se genera en el documento o se borra.
+- Una constante del código que la documentación cita es una cifra publicada: se
+  cita como supuesto del código.
+
+### Emojis
+
+Hay un juego chico y fijo, y no se agregan otros:
+
+- 🔎 exploración: qué hace algo, qué trae un hallazgo;
+- ⏱ tiempo y rapidez;
+- 🗄️ tablas y bases de datos;
+- ⚠️ un límite o una advertencia;
+- 📄 el informe;
+- 🧭 el recorrido y el paso siguiente.
+
+- Van siempre junto a una palabra, al principio de unos pocos títulos de
+  sección. Nunca solos, ni en medio de un párrafo, ni en código.
+- Nunca en el título del documento: ni en `title`, ni en `VignetteIndexEntry`,
+  ni en `DESCRIPTION`.
+- `ok` no lleva una marca de aprobación: la documentación dice que `ok` no es
+  una aprobación, y un tilde verde diría lo contrario.
+- Un título con emoji lleva su ancla explícita
+  (`## ⚠️ Lo que no se pudo evaluar {#lo-que-no-se-pudo-evaluar}`). Si un
+  título cambia, su ancla vieja se fija igual, para que los enlaces que apuntaban
+  ahí sigan llegando.
+
+### Lo que no aparece
+
+- Nada que cuente cómo se desarrolló el paquete. Ni «antes», «ya no», «se
+  corrigió» o «una versión anterior», ni el proceso que llevó a un cambio: se
+  describe lo que hace hoy.
+- Ningún organismo, institución o ciudad que identifique a quien publicó un
+  conjunto de datos real. Sí se nombran los marcos publicados que el paquete
+  implementa (ISO/IEC 25012, CEPAL, AGESIC).
+- La protección de datos personales es un complemento: se explica donde
+  corresponde, nunca en el centro.
+- La palabra «piso», que tiene 2 sentidos: se dice qué hace en cada caso.
+
+### Una viñeta
+
+1. Título numerado («3. Explorar columnas con `analizar()`»).
+2. La pregunta del lector, en 1 o 2 oraciones.
+3. Un recuadro «En esta guía:» con 3 a 5 puntos, en la voz «nosotros».
+4. Un solo caso que hila el relato, con datos del paquete
+   (`datos_operativos`, `datos_administrativos`) o construidos en el
+   fragmento.
+5. A lo sumo unas 25 líneas de prosa antes del primer bloque de código.
+6. Cierre con `## Resumen` (5 puntos como mucho) y `## 🧭 Paso siguiente` (un
+   enlace).
+
+### Código y salidas
+
+- Opciones de knitr: `collapse = TRUE, comment = "#>"`, y `options(width = 90)`
+  al principio, restaurado al final.
+- Ninguna salida pasa de 100 caracteres de ancho: las evidencias largas se
+  muestran con `writeLines(strwrap(x, 88))` o seleccionando columnas.
+- Se usan los accesores (`hallazgos()`, `columnas()`, `cobertura()`), no el
+  acceso con `$` cuando hay accesor.
+- Las comprobaciones (`stopifnot()`) van en fragmentos con `echo = FALSE`.
+- Ninguna salida muestra la fecha o la hora de la compilación, rutas temporales
+  ni tamaños de memoria.
+- Las viñetas no usan red ni motores externos (SQLite y DuckDB en memoria sí).
+  Los artículos pueden mostrar código con `eval = FALSE` y una salida guardada,
+  siempre con su fuente.
+- Las viñetas de `vignettes/` viajan en el paquete que se envía a CRAN, que las
+  construye en cada chequeo. Un cambio de redacción no puede alargar su
+  construcción.
+
+### Enlaces
+
+- Entre viñetas, relativos: `[2. Leer un perfil](leer-un-perfil.html)`.
+- A los artículos, absolutos:
+  `https://sebollin.github.io/lupa/articles/<nombre>.html`.
+- A funciones, con el nombre entre comillas invertidas (`` `perfilar()` ``):
+  pkgdown los enlaza solo.
+- El glosario de `leer-un-perfil.Rmd` (`leer-un-perfil.html#glosario`) define
+  las palabras del paquete, y las demás piezas enlazan ahí. Son, entre otras:
+  alcance, universo, cobertura, vacío por diseño, centinela, severidad, perfil,
+  marco, métrica, plan, granularidad, entidad, atributo e instancia.
 
 ## Una convención chica que importa
 
