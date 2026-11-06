@@ -1,27 +1,27 @@
 # 7. Del hallazgo a la métrica
 
 El perfil de `datos_operativos` dice que a la columna `canal` le faltan
-valores, y que los que faltan están disfrazados: uno es `"S/D"` y otro
-es un texto vacío. ¿Cómo convertimos ese hallazgo en una medición que
-podamos repetir con cada entrega y comparar con un requisito?
+valores. Los que faltan están disfrazados: uno es `"S/D"` y otro, un
+texto vacío. ¿Cómo se convierte ese hallazgo en una medición que se
+repita con cada entrega y se compare con un requisito?
 
 > **En esta guía:**
 >
-> - pasamos de los hallazgos a una propuesta de métricas con
+> - pasar de los hallazgos a una propuesta de métricas con
 >   [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md);
-> - decidimos qué se mide y lo medimos con
+> - decidir qué se mide y medirlo con
 >   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md);
-> - agregamos las medidas de cada celda hasta la columna con
+> - agregar las medidas de cada celda hasta la columna con
 >   [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md);
-> - evaluamos la medida agregada contra un umbral con
+> - evaluar la medida agregada contra un umbral con
 >   [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md);
-> - vemos qué parte de un marco de calidad quedó cubierta con
+> - ver qué parte de un marco de calidad quedó cubierta con
 >   [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md).
 
 ## El hallazgo de partida
 
-Perfilamos la tabla y miramos lo que encontró en `canal`. La fecha se
-fija para que el ejemplo dé siempre lo mismo.
+Se perfila la tabla y se mira lo que el perfil encontró en `canal`. La
+fecha se fija para que el ejemplo dé siempre lo mismo.
 
 ``` r
 
@@ -50,11 +50,11 @@ writeLines(encontrados$evidencia[disfrazados])
 ```
 
 Un hallazgo describe esta entrega. Para saber si la próxima está mejor o
-peor, y si alcanza el nivel que pedimos, necesitamos una métrica.
+peor, y si alcanza el nivel pedido, hace falta una métrica.
 
 ## De los hallazgos a una propuesta de métricas
 
-Una métrica es una forma de medir con nombre propio: se liga a una tabla
+Una métrica es una forma de medir con nombre propio. Se liga a una tabla
 y a una o más columnas, y devuelve un resultado por cada objeto que
 mide. `NoNulo`, la métrica de completitud, devuelve un 1 por cada celda
 con valor y un 0 por cada celda vacía. Qué cuenta como vacío es parte de
@@ -83,12 +83,16 @@ propuesta[, c("metrica", "atributos", "origen", "incluir")]
 #> 10 ValoresPosiblesPorExtension           zona           perfil:dominio_observado   FALSE
 ```
 
-La columna `incluir` dice qué filas quedan activas. `lupa` activa las
-que nacen de un defecto observado: los faltantes de cuatro columnas y
-las filas duplicadas. Deja apagadas las que nacen de una costumbre de
-esta entrega, como un patrón de formato o el dominio de `zona`: una sola
-entrega no demuestra que sean requisitos, y medirlas sobre la misma
-entrega de la que salieron diría poco.
+La columna `incluir` dice qué filas quedan activas. `lupa` las marca
+así:
+
+- activa las que nacen de un defecto observado: los faltantes de 4
+  columnas y las filas duplicadas;
+- deja apagadas las que nacen de una costumbre de esta entrega, como un
+  patrón de formato o el dominio de `zona`.
+
+Una sola entrega no demuestra que esas costumbres sean requisitos. Y
+medirlas sobre la misma entrega de la que salieron diría poco.
 
 La fila de `canal` muestra el paso del hallazgo a la métrica. Los
 valores que el perfil reconoció como faltantes disfrazados pasan a la
@@ -107,11 +111,11 @@ propuesta$configuracion[[fila_canal]]
 
 ## Decidir qué se mide
 
-La propuesta es nuestra para editar. En este recorrido nos interesa la
-completitud, así que dejamos activas sólo las cuatro filas de `NoNulo` y
-apagamos la de duplicados.
+La propuesta se edita: la decisión es de quien la usa. Aquí interesa la
+completitud: se dejan activas sólo las 4 filas de `NoNulo` y se apaga la
+de duplicados.
 [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
-convierte las filas activas en un modelo operativo: la lista de
+convierte las filas activas en un modelo operativo. Es la lista de
 métricas, ya ligadas a sus columnas, que
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) va a
 ejecutar. Tampoco mide.
@@ -162,15 +166,15 @@ medicion[medicion$atributo == "canal", c("objeto_medible", "resultado")]
 ```
 
 Cada fila es una medida: un resultado para un objeto, aquí una celda.
-Las cuatro columnas por trece filas dan 52 medidas. En `canal`, las
-filas 5 y 13 valen 0: son el `"S/D"` y el texto vacío, que `NoNulo`
-contó como faltantes porque la configuración se lo pidió.
+Las 4 columnas por 13 filas dan 52 medidas. En `canal`, las filas 5 y 13
+valen 0. Son el `"S/D"` y el texto vacío, que `NoNulo` contó como
+faltantes porque la configuración se lo pidió.
 
 ## Agregar hasta la columna
 
-Una medida por celda no responde todavía la pregunta que nos importa,
-que es cuán completa está cada columna. Para eso se agrega. El
-vocabulario de los niveles es el del marco de calidad, y
+Una medida por celda no responde todavía la pregunta de fondo: cuán
+completa está cada columna. Para eso se agrega. El vocabulario de los
+niveles es el del marco de calidad, y
 [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
 lo traduce al de las tablas:
 
@@ -184,11 +188,16 @@ granularidades()[c(1, 2, 4, 5), c("granularidad", "relacional")]
 #> 5           entidad      tabla
 ```
 
-Una instancia de atributo es una celda; un atributo, una columna; una
-instancia de entidad, una fila (una tupla); una entidad, una tabla.
+En una tabla:
+
+- una instancia de atributo es una celda;
+- un atributo, una columna;
+- una instancia de entidad, una fila (una tupla);
+- una entidad, una tabla.
+
 Estos términos están también en [el
-glosario](https://sebollin.github.io/lupa/articles/leer-un-perfil.md).
-Pasamos de la celda a la columna con `ratio`, que calcula la proporción
+glosario](https://sebollin.github.io/lupa/articles/leer-un-perfil.html#glosario).
+De la celda a la columna se pasa con `ratio`, que calcula la proporción
 de unos:
 
 ``` r
@@ -203,22 +212,26 @@ completitud[, c("atributo", "resultado", "agregacion")]
 ```
 
 [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
-combina medidas de una sola métrica y de una sola corrida, y sólo sigue
+combina medidas de una sola métrica y de una sola corrida. Sólo sigue
 los pasos que declara
 [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md):
-de la celda a la columna o a la fila, de la columna o de la fila a la
-tabla, y de la tabla hacia arriba. Una celda puede agregarse hacia su
-columna o hacia su fila: son dos direcciones distintas, no peldaños de
-una misma escala. Las cuatro agregaciones disponibles son:
+
+- de la celda a la columna o a la fila;
+- de la columna o de la fila a la tabla;
+- de la tabla hacia arriba.
+
+Una celda puede agregarse hacia su columna o hacia su fila: son 2
+direcciones distintas, no peldaños de una misma escala. Las agregaciones
+disponibles son:
 
 - `ratio`, para resultados booleanos;
 - `ratio_umbral`, para resultados reales comparados con un umbral;
 - `promedio`;
-- `promedio_ponderado`, con pesos en `[0, 1]` que suman uno por destino.
+- `promedio_ponderado`, con pesos en `[0, 1]` que suman 1 por destino.
 
-Los resultados no acotados, como la desviación de `ErrorEstandar` o una
-desactualización medida en días, conservan su unidad y no entran en
-estas agregaciones.
+Los resultados no acotados conservan su unidad y no entran en estas
+agregaciones. Son, por ejemplo, la desviación de `ErrorEstandar` o una
+desactualización medida en días.
 
 ## Evaluar contra un umbral
 
@@ -226,8 +239,8 @@ Una regla expresa una condición sobre resultados. Un perfil de
 evaluación reúne reglas. Ese perfil no es el objeto que devuelve
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
 es el segundo argumento de
-[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md).
-Pedimos que cada columna esté completa al menos en un 90 %:
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md). Se
+pide que cada columna esté completa al menos en un 90 %:
 
 ``` r
 
@@ -242,9 +255,9 @@ evaluacion$perfiles[, c("perfil", "n_reglas", "resultado")]
 #> 1 Publicable        1      0.75
 ```
 
-La regla se aplicó a cada una de las cuatro medidas agregadas. El
-resultado de una regla es la proporción de medidas que la cumplen, y el
-de un perfil es la media simple de sus reglas. Veamos cuáles cumplieron:
+La regla se aplicó a cada una de las 4 medidas agregadas. El resultado
+de una regla es la proporción de medidas que la cumplen. El de un perfil
+es la media simple de sus reglas. Estas son las que cumplieron:
 
 ``` r
 
@@ -263,9 +276,9 @@ data.frame(
 #> 4          monto       0.923   TRUE
 ```
 
-Tres columnas alcanzan el 90 % y `canal`, con 0.846, no: el resultado es
-3 de 4. La regla compara de verdad la completitud de cada columna con su
-umbral, así que otro umbral da otro resultado:
+Todas las columnas alcanzan el 90 % salvo `canal`, que tiene 0.846: el
+resultado es 3 de 4. La regla compara de verdad la completitud de cada
+columna con su umbral. Otro umbral da otro resultado:
 
 ``` r
 
@@ -285,26 +298,30 @@ data.frame(
 #> 3   0.95     0.00 0.9038462
 ```
 
-Con la medida agregada, el resultado sigue al umbral: con 80 % cumplen
-las cuatro columnas, con 90 % tres y con 95 % ninguna. La columna
-`por_celda` muestra qué pasa si evaluamos la medición sin agregar. La
-regla le pregunta a cada celda si su 0 o su 1 alcanza el umbral, y el
-resultado es la proporción de celdas con valor, 0.904, sea cual sea el
-umbral. Por eso se agrega antes de evaluar.
+Con la medida agregada, el resultado sigue al umbral:
+
+- con 80 %, cumplen las 4 columnas;
+- con 90 %, cumplen 3;
+- con 95 %, ninguna.
+
+La columna `por_celda` muestra qué pasa si se evalúa la medición sin
+agregar. La regla le pregunta a cada celda si su 0 o su 1 alcanza el
+umbral. El resultado es la proporción de celdas con valor, 0.904, sea
+cual sea el umbral. Por eso se agrega antes de evaluar.
 
 La evaluación aplica una condición a medidas que ya existen. No vuelve a
 leer `datos_operativos` ni reemplaza la medición.
 
-## Qué quedó cubierto
+## 🔎 Qué quedó cubierto
 
 Que no aparezcan hallazgos no prueba que una tabla esté bien: puede que
 nadie haya medido lo que importa.
 [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
-cruza el perfil y la medición con un marco de calidad y dice, factor por
+cruza el perfil y la medición con un marco de calidad. Dice, factor por
 factor, qué quedó medido. El tercer argumento se llama `modelo`, pero
-recibe un marco, el que crea
-[`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md);
-por omisión, el de AGESIC.
+recibe un marco como el que crea
+[`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
+Por omisión, el de AGESIC.
 
 ``` r
 
@@ -330,11 +347,15 @@ cobertura[, c("dimension", "factor", "estado")]
 #> 17     Frescura                   Oportunidad     no_declarada
 ```
 
-`estado` distingue cuatro casos: `medida`; `no_declarada`, cuando nadie
-pidió medirlo; `no_aplica`, cuando no corresponde a los tipos de la
-tabla, como la exactitud posicional si no hay geometrías; y
-`fuera_de_alcance`, cuando `lupa` no lo puede medir y lo dice. Cada fila
-explica por qué:
+`estado` distingue estos casos:
+
+- `medida`;
+- `no_declarada`, cuando nadie pidió medirlo;
+- `no_aplica`, cuando no corresponde a los tipos de la tabla, como la
+  exactitud posicional si no hay geometrías;
+- `fuera_de_alcance`, cuando `lupa` no lo puede medir y lo dice.
+
+Cada fila explica por qué:
 
 ``` r
 
@@ -344,9 +365,8 @@ writeLines(paste0(medidos$factor, ": ", medidos$motivo))
 #> No-duplicación: El perfil examinó duplicación de valores, columnas y filas exactas.
 ```
 
-La densidad quedó respaldada por nuestra medición; la no duplicación,
-por lo que el perfil examina por su cuenta. Lo que falta trae cómo
-resolverlo:
+La densidad quedó respaldada por la medición; la no duplicación, por lo
+que el perfil examina por su cuenta. Lo que falta trae cómo resolverlo:
 
 ``` r
 
@@ -361,8 +381,8 @@ writeLines(cobertura$como_resolverlo[sintaxis])
   convierte los hallazgos en una propuesta editable: los faltantes
   disfrazados que encontró el perfil pasan a la configuración de
   `NoNulo`.
-- La columna `incluir` es nuestra decisión; lo aprendido de una sola
-  entrega llega apagado.
+- La columna `incluir` la decide quien usa la propuesta; lo aprendido de
+  una sola entrega llega apagado.
 - [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
   devuelve una medida por objeto, con el `id_medicion` y la fecha de la
   corrida.
@@ -373,9 +393,9 @@ writeLines(cobertura$como_resolverlo[sintaxis])
   dice qué factores del marco quedaron medidos y cómo cubrir los que
   faltan.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 En [8. Marcos y modelos de
 calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.md)
-declaramos un marco propio y construimos las métricas a medida, entre
-ellas la que pide la fila de correctitud sintáctica.
+se declara un marco propio y se construyen las métricas a medida. Entre
+ellas está la que pide la fila de correctitud sintáctica.

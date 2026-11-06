@@ -1,12 +1,16 @@
 # Alcance y cobertura
 
-Cada cifra de un perfil de `lupa` viaja con su alcance: sobre qué filas
-se calculó, en qué unidad cuenta y qué quedó sin medir. Este artículo
-reúne esos contratos para consultarlos. La lectura de un perfil paso a
-paso está en [Leer un
-perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md), que
-también define los términos (alcance, cobertura, centinela, severidad).
-El alcance de
+Cada cifra de un perfil de `lupa` viaja con su alcance:
+
+- sobre qué filas se calculó;
+- en qué unidad cuenta;
+- qué quedó sin medir.
+
+Este artículo reúne esos contratos para consultarlos. La lectura de un
+perfil paso a paso está en [Leer un
+perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md). Esa
+guía también define los términos: alcance, cobertura, centinela,
+severidad. El alcance de
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 y de cada motor está en [Motores y
 escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
@@ -41,17 +45,19 @@ uno.
 `Inf` en `muestra` o en `muestra_validadores` vuelve completo ese paso.
 La muestra que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-toma por su cuenta es sistemática y sin azar, así que el mismo perfil se
-rehace sobre los mismos datos.
+toma por su cuenta es sistemática y sin azar. Por eso el perfil se
+rehace igual sobre los mismos datos.
 
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 tiene otro punto de partida: el universo por omisión es
 `"tabla_completa"` y `muestra` vale `Inf`. Los agregados SQL se calculan
-sobre toda la tabla y el perfil por fila intenta traer a R todas las
-filas, sujeto a `max_celdas_muestra` y `max_bytes_muestra`. Para acotar
-la lectura a R se pasa `muestra = n`; para muestrear en el motor,
-`universo = "muestra_motor"`; para no traer filas,
-`bloque_muestra = "solo_agregados"`.
+sobre toda la tabla. El perfil por fila intenta traer a R todas las
+filas, sujeto a `max_celdas_muestra` y `max_bytes_muestra`. Para cambiar
+ese punto de partida:
+
+- `muestra = n` acota la lectura a R;
+- `universo = "muestra_motor"` muestrea en el motor;
+- `bloque_muestra = "solo_agregados"` no trae filas.
 
 ### Dónde queda el alcance efectivo
 
@@ -85,25 +91,33 @@ columnas(perfil)[1:4, c("columna", "n_filas_analizadas_tipo", "muestreado_tipo_i
 
 ### Diagnósticos con alcance propio
 
-`casi_duplicados_vocabulario` se ejecuta por columna. Dos columnas con
-el mismo vocabulario conservan cada una su fila de cobertura y sus
-hallazgos, y el costo de compararlas puede repetirse: así no se mezclan
-frecuencias ni alcances de columnas distintas.
+`casi_duplicados_vocabulario` se ejecuta por columna. Si 2 columnas
+tienen el mismo vocabulario, cada una conserva su fila de cobertura y
+sus hallazgos. El costo de compararlas puede repetirse, pero así no se
+mezclan frecuencias ni alcances de columnas distintas.
 
 En
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
-`pares$tipo_par` vale `exacto` (los textos guardados son iguales),
-`exacto_normalizado` (coinciden después de la normalización declarada) o
-`aproximado` (siguen siendo similares). `pares$igualo_normalizar` marca
-el caso intermedio, y el alcance los cuenta en `n_pares_exactos`,
-`n_pares_exactos_normalizados` y `n_pares_aproximados`.
+`pares$tipo_par` vale:
+
+- `exacto`: los textos guardados son iguales;
+- `exacto_normalizado`: coinciden después de la normalización declarada;
+- `aproximado`: siguen siendo similares.
+
+`pares$igualo_normalizar` marca el caso intermedio. El alcance los
+cuenta en `n_pares_exactos`, `n_pares_exactos_normalizados` y
+`n_pares_aproximados`.
 
 ## Lo que un resumen deja afuera
 
 «Todas las filas» es el alcance, no el contenido. Un resumen
-cuantitativo deja afuera lo que no vale como número —`NaN`, `Inf`, los
-textos que la conversión no puede leer y los centinelas declarados en
-`sentinelas_numericos`— y lo dice:
+cuantitativo deja afuera lo que no vale como número:
+
+- `NaN` e `Inf`;
+- los textos que la conversión no puede leer;
+- los centinelas declarados en `sentinelas_numericos`.
+
+Y lo declara:
 
 - `n_valores_excluidos_resumen` cuenta cuántos valores quedaron afuera,
   con el desglose de los no finitos en `n_nan`, `n_infinito_positivo` y
@@ -111,12 +125,12 @@ textos que la conversión no puede leer y los centinelas declarados en
 - `estado_resumen_cuantitativo` deja de decir `"calculados"`;
 - `cobertura_diagnosticos` recibe una fila.
 
-Si no queda ningún valor utilizable, el estado distingue dos casos:
+Si no queda ningún valor utilizable, el estado distingue 2 casos:
 
 - `"sin_valores"`: la columna no tenía valores presentes en el universo
-  que el resumen mide (vacía, toda `NA`, o con una `aplicabilidad` que
-  deja ese universo sin valores; los de afuera se cuentan en
-  `n_presentes_fuera_de_aplicabilidad`);
+  que mide el resumen. Puede estar vacía, ser toda `NA` o tener una
+  `aplicabilidad` que deja ese universo sin valores. Los de afuera se
+  cuentan en `n_presentes_fuera_de_aplicabilidad`.
 - `"sin_valores_utilizables"`: los tenía y ninguno servía.
 
 ``` r
@@ -138,17 +152,21 @@ columnas(p_no_finitos)[, c(
 #> 2                  23           0           1
 ```
 
-La columna de veintitrés `Inf` publica `n_faltantes = 0` y
-`n_distintos = 1`: los valores están, pero ninguno sirve para un
-resumen. La exclusión de los no finitos vale en cualquier clase: una
-columna de fechas con un `Inf` no lo cuenta entre las fechas resumidas,
-y una columna `integer64` declara lo mismo que una de dobles. Las
-longitudes de texto declaran su propio universo en
+La columna de 23 `Inf` publica `n_faltantes = 0` y `n_distintos = 1`:
+los valores están, pero ninguno sirve para un resumen.
+
+La exclusión de los no finitos vale en cualquier clase:
+
+- una columna de fechas con un `Inf` no lo cuenta entre las fechas
+  resumidas;
+- una columna `integer64` declara lo mismo que una de dobles.
+
+Las longitudes de texto declaran su propio universo en
 `n_longitudes_resumidas`, porque
 [`nchar()`](https://rdrr.io/r/base/nchar.html) no puede medir un valor
 cuyos bytes no son UTF-8 válido.
 
-## Cuatro estados que no son cero
+## ⚠️ Los 4 estados que no son cero
 
 Lo que no se pudo medir se registra con un estado y un motivo, y nunca
 se cuenta como cero. Un `0` es una medición: el diagnóstico corrió y no
@@ -162,11 +180,11 @@ no hay cifra.
 | `no_estimado` | el `error_esperado` de una métrica sobre una muestra | el error muestral podría calcularse bajo un plan probabilístico, pero la corrida no lo calcula |
 | `no_estimable` | el `error_esperado` de una consulta sobre una muestra | la consulta incluye la moda, la mediana o la cardinalidad observada, que no tienen una cota simple sin supuestos ni un estimador declarado |
 
-`error_esperado` se asigna por consulta: cuando una consulta muestreada
+`error_esperado` se asigna por consulta. Si una consulta muestreada
 incluye la moda, la mediana o un conteo de distintos, todas sus métricas
-reciben `no_estimable`, también las que en otra consulta serían
-`no_estimado`. En ningún caso se publica una cota numérica sin una
-fórmula que la justifique.
+reciben `no_estimable`. Lo reciben también las que en otra consulta
+serían `no_estimado`. En ningún caso se publica una cota numérica sin
+una fórmula que la justifique.
 
 En el perfil en memoria,
 [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
@@ -224,14 +242,14 @@ DBI::dbDisconnect(conexion)
 ```
 
 `observado_muestra` describe las filas que trajo la muestra, no la
-tabla. Sin filas traídas a R no se puede clasificar una columna como
-dato personal, y sus valores quedan `omitido_por_privacidad` (ver el
-último apartado).
+tabla. Sin filas traídas a R, una columna no se puede clasificar como
+dato personal. Sus valores quedan entonces `omitido_por_privacidad` (ver
+el último apartado).
 
 ## Unidades declaradas y trazabilidad por fila
 
-Cada hallazgo declara en qué cuenta: `n_evaluados` y `n_afectados`
-vienen con `unidad_conteo`: por ejemplo `fila`, `columna`,
+Cada hallazgo declara en qué cuenta. `n_evaluados` y `n_afectados`
+vienen con `unidad_conteo`: por ejemplo, `fila`, `columna`,
 `valor_distinto` o `formato`.
 
 ``` r
@@ -266,46 +284,45 @@ que cuentan valores:
   valor afectado, no sólo las defectuosas.
 - `casi_duplicados_vocabulario` cuenta los valores variantes y traza
   todas las filas cuyo valor pertenece a un grupo seleccionado, incluida
-  la forma dominante. La traza entrega primero las formas no dominantes
-  y la evidencia declara cuántas filas mostradas pertenecen a cada
-  grupo. El detector es heurístico: la traza sirve para revisar o
-  unificar el grupo en el sistema de origen, no afirma que todas esas
-  filas sean errores.
-- En `patron_raro`, la evidencia muestra como máximo seis patrones
-  raros, pero la traza usa todos los nombres de patrones raros hasta un
-  límite separado de 5.000; si se alcanza, el alcance de la traza es
-  parcial y `cobertura_diagnosticos` publica el límite. Cada hallazgo
-  informa la proporción del patrón dominante y cuántas filas quedaron en
-  patrones excluidos por superar `umbral_patron_raro`. Si ningún patrón
-  alcanza `umbral_patron_dominante`, no se emite el hallazgo y la no
-  medición queda en `cobertura_diagnosticos`, con la proporción
-  observada.
+  la forma dominante. La traza entrega primero las formas no dominantes.
+  La evidencia declara cuántas filas mostradas pertenecen a cada grupo.
+  El detector es heurístico: la traza sirve para revisar o unificar el
+  grupo en el sistema de origen. No afirma que todas esas filas sean
+  errores.
+- En `patron_raro`, la evidencia muestra como máximo 6 patrones raros.
+  La traza, en cambio, los usa todos, hasta un límite separado de 5.000.
+  Si se alcanza, el alcance de la traza es parcial y
+  `cobertura_diagnosticos` publica el límite. Cada hallazgo informa la
+  proporción del patrón dominante y cuántas filas quedaron en patrones
+  excluidos por superar `umbral_patron_raro`. Si ningún patrón alcanza
+  `umbral_patron_dominante`, no se emite el hallazgo y la no medición
+  queda en `cobertura_diagnosticos`, con la proporción observada.
 - `filas_duplicadas` cuenta todas las filas que participan en grupos
   duplicados; la evidencia informa aparte los excedentes.
 
 Por eso una traza puede tener más filas que `n_afectados`. La traza usa
-la misma comparación que el conteo en las dos direcciones, también en
-una columna `integer64`, así que `n_afectados` y `trazabilidad$total`
+la misma comparación que el conteo, en las 2 direcciones y también en
+una columna `integer64`. Así, `n_afectados` y `trazabilidad$total`
 describen el mismo conjunto. Si un hallazgo y su traza no coinciden,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 conserva el hallazgo y emite una advertencia de clase
 `lupa_trazabilidad_incoherente`.
 
 Con `clave`, la traza trae los valores que identifican cada fila en
-lugar de su índice; `trazabilidad$localizador` dice cuál de los dos se
-usó. Está explicado en [Leer un
+lugar de su índice. `trazabilidad$localizador` dice cuál se usó. Está
+explicado en [Leer un
 perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md).
 
 ## Numeraciones: densidad, Benford y Tukey
 
 La ley de Benford supone un proceso multiplicativo y los límites de
-Tukey suponen una distribución. Una numeración —un identificador, un
-código correlativo— no es ninguna de las dos cosas: que un código quede
-lejos de la mediana no dice nada de su calidad. Por eso
+Tukey suponen una distribución. Una numeración, como un identificador o
+un código correlativo, no cumple ninguno de esos supuestos. Que un
+código quede lejos de la mediana no dice nada de su calidad. Por eso
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 reconoce las numeraciones y no les aplica esas pruebas.
 
-Una numeración se reconoce por tres rasgos juntos:
+Una numeración se reconoce por 3 rasgos juntos:
 
 - ocupa un tramo compacto de los enteros: al menos 50 % del tramo entre
   su mínimo y su máximo, con 5 valores distintos como mínimo;
@@ -313,11 +330,11 @@ Una numeración se reconoce por tres rasgos juntos:
 - no tiene un salto de escala: un valor que abre un hueco mucho mayor
   que el típico entre valores vecinos.
 
-La densidad sola no alcanza: una magnitud entera acotada, como una edad,
-también llena su tramo cuando hay filas suficientes, pero repitiendo
-valores. Y la unicidad sola tampoco, porque un monto también es casi
-único. El salto de escala devuelve las pruebas a una columna donde un
-dato malo abre un hueco.
+La densidad sola no alcanza. Una magnitud entera acotada, como una edad,
+también llena su tramo cuando hay filas suficientes, pero repite
+valores. La unicidad sola tampoco alcanza, porque un monto también es
+casi único. El salto de escala devuelve las pruebas a una columna donde
+un dato malo abre un hueco.
 
 ``` r
 
@@ -347,15 +364,19 @@ cobertura(p_num)[, c("columna", "diagnostico")]
 #> 3     codigo ley_benford
 ```
 
-`numeracion` no recibe límites de Tukey ni Benford. Las tres columnas
-tienen una fila `ley_benford` en la cobertura, cada una con su motivo, y
-el de `numeracion` dice que parece un identificador. `edad` repite
-valores, así que no es una numeración: los límites de Tukey corren y el
-`120` aparece como atípico. `codigo` también repite: es un código, pero
-su forma no lo distingue de una magnitud, y el paquete prefiere hablar
-de más sobre él. Quien conoce la columna lo declara en `columnas_codigo`
-(apartado siguiente). Lo que no se corre no se apaga en silencio: deja
-su fila en `cobertura_diagnosticos` con el motivo medido.
+En la salida:
+
+- `numeracion` no recibe límites de Tukey ni Benford.
+- `edad` repite valores, así que no es una numeración: los límites de
+  Tukey corren y el `120` aparece como atípico.
+- `codigo` también repite. Es un código, pero su forma no lo distingue
+  de una magnitud. El paquete prefiere hablar de más sobre él.
+
+Las 3 columnas tienen una fila `ley_benford` en la cobertura, cada una
+con su motivo. El de `numeracion` dice que parece un identificador.
+Quien sabe que una columna es un código lo declara en `columnas_codigo`,
+que se explica más abajo. Lo que no se corre no se apaga en silencio:
+deja su fila en `cobertura_diagnosticos` con el motivo medido.
 
 ``` r
 
@@ -364,56 +385,66 @@ envolver(cobertura(p_num)$motivo[cobertura(p_num)$columna == "numeracion"][[1]])
 #> perfil público `posible_identificador` y los valores forman una secuencia correlativa.
 ```
 
-El campo `secuencia_entera_densa` contesta otra pregunta, de cobertura:
-si la columna llena su tramo con el umbral que publica
-`umbral_densidad_secuencia_entera` y al menos
+El campo `secuencia_entera_densa` contesta otra pregunta, de cobertura.
+Dice si la columna llena su tramo con el umbral que publica
+`umbral_densidad_secuencia_entera` y tiene al menos
 `min_distintos_secuencia_entera` valores distintos. Junto a él se
-publican `densidad_secuencia_entera`, `n_huecos_secuencia_entera`,
-`hueco_maximo_secuencia_entera` y `salto_de_escala_secuencia_entera`. La
-señal `moda_sobresale_secuencia_entera` es independiente y no desactiva
-las comprobaciones que usan la numeración.
+publican:
+
+- `densidad_secuencia_entera`;
+- `n_huecos_secuencia_entera`;
+- `hueco_maximo_secuencia_entera`;
+- `salto_de_escala_secuencia_entera`.
+
+La señal `moda_sobresale_secuencia_entera` es independiente y no
+desactiva las comprobaciones que usan la numeración.
 
 Para una columna `integer64`, `bit64` se carga de manera diferida cuando
 está instalado, para registrar sus métodos antes de medir. Si no está
-instalado, las cinco medidas de la secuencia quedan en `NA` y
-`cobertura_diagnosticos` registra que `secuencia_entera` no se pudo
-evaluar.
+instalado, las 5 medidas de la secuencia quedan en `NA`.
+`cobertura_diagnosticos` registra entonces que `secuencia_entera` no se
+pudo evaluar.
 
 La regla está fijada por `tests/testthat/test-regresion-118.R`:
-numeraciones que no reciben pruebas de magnitud, magnitudes con un dato
-malo que se siguen viendo, y un código que se repite sobre el que el
-paquete habla de más, que es el error barato.
+
+- numeraciones que no reciben pruebas de magnitud;
+- magnitudes con un dato malo que se siguen viendo;
+- un código que se repite, sobre el que el paquete habla de más: es el
+  error barato.
 
 ## Centinelas
 
 Un centinela es un valor que se usa como «sin dato»: `-99`, `9999`,
-`"S/D"`. La prosa dice *centinela*; los argumentos se llaman
+`"S/D"`. La prosa dice *centinela*. Los argumentos se llaman
 `sentinelas_numericos` y `sentinelas_naniar`, y el hallazgo,
 `posible_centinela_numerico`.
 
 El paquete separa lo que se declara de lo que sospecha:
 
 - **La lista por omisión** de `sentinelas_numericos`
-  (`c(-9, -99, -999, -9999, 999)`) informa y no toca los números: sus
+  (`c(-9, -99, -999, -9999, 999)`) informa y no toca los números. Sus
   valores aparecen como `faltantes_disfrazados`, pero siguen dentro de
   la media. Es una conjetura, y una conjetura no mueve un promedio.
-- **Una lista declarada** excluye: sus valores salen de `media`,
-  `mediana`, `minimo`, `maximo` y `desvio`, y
+- **Una lista declarada** excluye. Sus valores salen de `media`,
+  `mediana`, `minimo`, `maximo` y `desvio`.
   `n_valores_excluidos_resumen` dice cuántos quedaron afuera, igual que
   los `NA` y las filas que `aplicabilidad` deja fuera del universo.
-  También salen de la ley de Benford y de las relaciones aritméticas: la
+  También salen de la ley de Benford y de las relaciones aritméticas. La
   misma celda no puede ser ausencia en el resumen y valor en un
   diagnóstico. `moda` y `n_distintos` siguen describiendo lo que está
   guardado.
-- **`posible_centinela_numerico`** informa un valor que reúne tres
-  rasgos: queda fuera de los límites, se repite y tiene forma de dígito
+- **`posible_centinela_numerico`** informa un valor que reúne 3 rasgos:
+  queda fuera de los límites, se repite y tiene forma de dígito
   repetido. No lo cuenta como ausencia: eso lo decide quien conoce la
-  columna, agregándolo a la lista.
+  columna, y lo agrega a la lista.
 
-Un `9999` puede ser una edad imposible o un código postal válido, y por
-eso no está en la lista por omisión. Un código postal `9999` repetido no
-es extremo en su columna; un monto real de `9999` no se repite; un año
-`1999` no tiene la forma.
+Un `9999` puede ser una edad imposible o un código postal válido. Por
+eso no está en la lista por omisión. A cada valor legítimo le falta un
+rasgo:
+
+- un código postal `9999` repetido no es extremo en su columna;
+- un monto real de `9999` no se repite;
+- un año `1999` no tiene la forma.
 
 ``` r
 
@@ -443,10 +474,10 @@ rbind(
 `sentinelas_naniar` trae los centinelas numéricos que publica el paquete
 naniar, para pasarlos de una vez:
 `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`. La política
-de centinelas se compara como un conjunto numérico: cambiar el orden,
+de centinelas se compara como un conjunto numérico. Cambiar el orden,
 entregar enteros en vez de dobles o repetir un valor no cambia su
-significado, ni en
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) ni
+significado. Vale en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
 en
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
 
@@ -454,8 +485,8 @@ en
 
 Un código numérico declarado en `columnas_codigo` no recibe límites de
 Tukey, ni Benford, ni `media`, `mediana` y `desvio`. Conserva su tramo
-(`minimo` y `maximo`), su moda y sus conteos, y la cobertura dice por
-qué no se evaluó lo demás.
+(`minimo` y `maximo`), su moda y sus conteos. La cobertura dice por qué
+no se evaluó lo demás.
 
 ``` r
 
@@ -478,17 +509,24 @@ cobertura(como_codigo)$diagnostico
 Pasar la columna como texto o como factor no alcanza: el paquete la lee
 como número de todos modos. Dentro de
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
-la declaración llega también a `variables` (escala nominal, rol de
-categoría) y a `asociaciones`, donde el código se asocia como categoría
-y no con una correlación.
+la declaración llega también a:
+
+- `variables`: escala nominal, rol de categoría;
+- `asociaciones`: el código se asocia como categoría y no con una
+  correlación.
 
 ## Cardinalidad alta: `alta_cardinalidad`
 
-Una columna de texto o factor con una proporción de valores distintos
-mayor que `umbral_alta_cardinalidad` (por omisión 0,5), menor que uno y
-con al menos 10 valores distintos recibe `alta_cardinalidad`, con
-severidad `sospechoso`. El hallazgo no afirma que haya un defecto:
-ofrece tres lecturas para que decida quien conoce la columna.
+Una columna de texto o factor recibe `alta_cardinalidad`, con severidad
+`sospechoso`, cuando:
+
+- su proporción de valores distintos es mayor que
+  `umbral_alta_cardinalidad` (por omisión 0,5);
+- esa proporción es menor que 1;
+- tiene al menos 10 valores distintos.
+
+El hallazgo no afirma que haya un defecto: ofrece 3 lecturas para que
+decida quien conoce la columna.
 
 ``` r
 
@@ -508,17 +546,21 @@ parece un dato personal (ver el último apartado).
 
 Se informa siempre, también cuando los valores son largos: el largo no
 distingue un catálogo de la prosa. Un catálogo de etiquetas largas con
-cardinalidad alta es justo la señal de una normalización rota, y un
+cardinalidad alta es justo la señal de una normalización rota. Y un
 comentario libre puede ser corto.
 
 ## Concentración de un valor: `valor_concentrado`
 
 `valor_concentrado` considera sólo columnas numéricas con al menos 20
 valores válidos y al menos 10 valores distintos. Emite un hallazgo
-`sospechoso` cuando la moda es al menos 5 veces más frecuente que el
-segundo valor y representa al menos 15 % de los válidos. La evidencia
-publica el valor modal, las dos frecuencias, el cociente y la fracción.
-Un valor legítimo puede dominar, y por eso nunca es un `error`.
+`sospechoso` cuando la moda:
+
+- es al menos 5 veces más frecuente que el segundo valor;
+- representa al menos 15 % de los válidos.
+
+La evidencia publica el valor modal, las 2 frecuencias, el cociente y la
+fracción. Un valor legítimo puede dominar, y por eso nunca es un
+`error`.
 
 ``` r
 
@@ -538,8 +580,8 @@ envolver(conc$evidencia)
 ```
 
 La columna donde el valor modal ocupa un octavo de los válidos no recibe
-el hallazgo: está por debajo de la fracción mínima. Ese es uno de los
-puntos ciegos de la regla, que forman parte de su contrato:
+el hallazgo. Es el primero de los puntos ciegos de la regla, que forman
+parte de su contrato:
 
 - no detecta concentraciones por debajo de la fracción mínima;
 - en columnas enteras pequeñas, los empates naturales pueden dejar el
@@ -548,15 +590,15 @@ puntos ciegos de la regla, que forman parte de su contrato:
   `cobertura_diagnosticos`: las distribuciones categóricas quedan fuera
   del alcance de la señal.
 
-## Qué hace en detalle
+## 🔎 Qué hace en detalle
 
 - Perfila una entrega y muestra faltantes, tipos, patrones, fechas y
   evidencia de datos personales.
 - Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos,
   validez planar, dominio de coordenadas y alcance de la caja
-  envolvente; no hace análisis espacial. Sobre PostGIS lee el SRID de
-  cada valor EWKB o EWKT: una columna con SRID mixto queda declarada
-  como tal y su dominio se evalúa por grupos, porque una columna
+  envolvente. No hace análisis espacial. Sobre PostGIS lee el SRID de
+  cada valor EWKB o EWKT. Una columna con SRID mixto queda declarada
+  como tal. Su dominio se evalúa por grupos, porque una columna
   [`sf::sfc`](https://r-spatial.github.io/sf/reference/sfc.html) sólo
   puede tener un CRS. Un valor que no se puede convertir no borra la
   columna: se mide el resto y la pérdida se declara con su cifra.
@@ -566,26 +608,26 @@ puntos ciegos de la regla, que forman parte de su contrato:
   convertir valores ni suponer tasas de cambio.
 - Informa `celdas_multivaluadas` sólo cuando las partes homogéneas
   coinciden con los patrones de la columna.
-- Encuentra `relacion_aritmetica_columnas` como identidades o
-  proporciones observadas entre columnas numéricas, no como reglas del
-  dominio, y `relacion_orden_columnas` entre columnas comparables, con
-  el alcance de la comparación.
+- Encuentra `relacion_aritmetica_columnas`: identidades o proporciones
+  observadas entre columnas numéricas, no reglas del dominio.
+- Encuentra `relacion_orden_columnas` entre columnas comparables, con el
+  alcance de la comparación.
 - Encuentra claves, relaciones, dependencias y granularidades de
   medición que nunca fueron declaradas.
 - Informa `casi_clave` cuando una columna no temporal tiene al menos 100
-  filas, es casi única y sus colisiones se concentran en pocos valores:
-  eso separa una clave con duplicados de un texto libre de cardinalidad
+  filas, es casi única y sus colisiones se concentran en pocos valores.
+  Eso separa una clave con duplicados de un texto libre de cardinalidad
   alta.
 - Permite que cada proyecto defina su marco de calidad, sin imponer un
   puntaje global.
 - Mide y evalúa métricas, escalas, reglas de validez y dominios
   referenciales explícitos. Un contrato al que le falta un campo se
-  abstiene y declara cuál en `cobertura_metricas`, sin abortar la
-  medición de las demás. Una métrica cuyo método falla sobre los datos
-  queda `no_medible`, con el mensaje del método y un aviso. Una métrica
-  que compara la columna con un valor temporal declarado avisa si las
-  dos puntas no son de la misma clase: un `Date` se ancla a la
-  medianoche UTC y un `POSIXct` vale por su instante.
+  abstiene y declara cuál en `cobertura_metricas`; las demás se siguen
+  midiendo. Una métrica cuyo método falla sobre los datos queda
+  `no_medible`, con el mensaje del método y un aviso. Una métrica puede
+  comparar la columna con un valor temporal declarado. Si las 2 puntas
+  no son de la misma clase, avisa. Un `Date` se ancla a la medianoche
+  UTC y un `POSIXct` vale por su instante.
 - Produce planes de limpieza editables, aplica sólo las acciones
   elegidas sobre una copia y conserva un registro de lo aplicado.
 - Encuentra duplicados aproximados con teselas exactas, MinHash/LSH
@@ -604,15 +646,19 @@ El paquete emite 59 nombres de `tipo_hallazgo`. Están en castellano
 porque forman parte de la API pública: cambiar uno es un cambio
 incompatible.
 
-La lista se calcula al construir esta página a partir del código del
-paquete. Se recorren las funciones de `lupa` y se juntan los nombres que
-llegan como tipo al constructor interno de hallazgos, más los que se
-asignan a un campo `tipo_hallazgo` o `hallazgo` (los tipos de pares de
-[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
-y las dos reglas de fechas personales). La prueba
-`tests/testthat/test-vocabulario-publicado.R` lleva una lista explícita
-de los tipos emitidos; si las dos no coinciden, la página no se
-construye.
+La lista se calcula a partir del código del paquete, al construir esta
+página. Se recorren las funciones de `lupa` y se juntan 2 grupos de
+nombres:
+
+- los que llegan como tipo al constructor interno de hallazgos;
+- los que se asignan a un campo `tipo_hallazgo` o `hallazgo`: los tipos
+  de pares de
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  y las 2 reglas de fechas personales.
+
+La prueba `tests/testthat/test-vocabulario-publicado.R` lleva una lista
+explícita de los tipos emitidos. Si las 2 listas no coinciden, la página
+no se construye.
 
 ``` r
 
@@ -655,29 +701,39 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 ## Qué se enmascara y con qué alcance
 
 La protección de datos personales complementa el perfil: sirve para
-medir la calidad sin publicar los valores de una persona. Es un
-complemento que se pide (`proteger_datos_personales` vale `FALSE` por
-omisión en
+medir la calidad sin publicar los valores de una persona. Hay que
+pedirla: `proteger_datos_personales` vale `FALSE` por omisión en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
 en
-[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)):
-publicar o no los valores de una base es decisión de quien la usa. Con
-la protección pedida, una columna se protege cuando el paquete la
-clasifica como posible dato personal o cuando se la declara en
-`columnas_personales`; lo declarado gana sobre lo inferido, porque
-ningún léxico de nombres de columna es completo.
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md).
+Publicar o no los valores de una base es decisión de quien la usa.
 
-En una columna protegida:
+Con la protección pedida, una columna se protege en cualquiera de estos
+2 casos:
 
-- se suprimen los estadísticos que podrían ser valores de una persona
-  (mínimo, máximo, mediana, moda, media y desvío), y la tabla lo marca;
-- la descripción, la evidencia y la sugerencia de cada hallazgo, el
-  motivo y el `como_resolverlo` de la cobertura, los parámetros de una
-  acción del plan y los ejemplos que
+- el paquete la clasifica como posible dato personal;
+- se la declara en `columnas_personales`.
+
+Lo declarado gana sobre lo inferido, porque ningún léxico de nombres de
+columna es completo.
+
+En una columna protegida se suprimen los estadísticos que podrían ser
+valores de una persona: mínimo, máximo, mediana, moda, media y desvío.
+La tabla lo marca.
+
+El valor protegido se reemplaza en:
+
+- la descripción, la evidencia y la sugerencia de cada hallazgo;
+- el motivo y el `como_resolverlo` de la cobertura;
+- los parámetros de una acción del plan;
+- los ejemplos que
   [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
-  imprime por consola reemplazan el valor;
-- de una geometría protegida no se publica la caja envolvente: los
-  cuatro `bbox_*` quedan en `NA` con
+  imprime por consola.
+
+Además:
+
+- de una geometría protegida no se publica la caja envolvente: los 4
+  `bbox_*` quedan en `NA` con
   `bbox_alcance = "no_publicado_por_geometria_protegida"`;
 - una columna de la `clave` clasificada como dato personal vuelve
   enmascarada en la trazabilidad, y `claves_protegidas` dice cuál;
@@ -685,21 +741,25 @@ En una columna protegida:
   `[valor protegido]` en lugar del candidato más cercano y conserva la
   distancia.
 
-En todos los casos se conserva la señal y se oculta el valor: el ejemplo
+En todos los casos se conserva la señal y se oculta el valor. El ejemplo
 sigue mostrando qué filas coinciden y en qué columnas. El alcance es
 **por columna**: se reemplaza lo que describe a la columna protegida, no
 toda aparición de ese texto. Lo que no tiene columna a la que
 atribuirse, como un hallazgo de filas duplicadas, queda enmascarado en
 todas partes.
 
-El reemplazo reconoce tres formas del mismo valor: la exacta, la que
-sólo difiere en separadores o en la caja de sus letras ASCII, y la que
-comparte con un valor protegido una corrida de seis dígitos o más (un
-documento sin su dígito verificador). Los valores se reemplazan de más
-largo a más corto, así que un valor protegido que es prefijo de otro no
-deja publicada la cola del más largo, y los valores que una celda de
-`ejemplos` publica unidos se separan antes de buscarlos.
+El reemplazo reconoce 3 formas del mismo valor:
+
+- la exacta;
+- la que sólo difiere en separadores o en la caja de sus letras ASCII;
+- la que comparte con un valor protegido una corrida de 6 dígitos o más,
+  como un documento sin su dígito verificador.
+
+Los valores se reemplazan de más largo a más corto. Así, un valor
+protegido que es prefijo de otro no deja publicada la cola del más
+largo. Los valores que una celda de `ejemplos` publica unidos se separan
+antes de buscarlos.
 
 En el histórico, lo que la protección tapa no se compara, pero queda
-declarado en el atributo `campos_protegidos`, y un cambio de protección
+declarado en el atributo `campos_protegidos`. Un cambio de protección
 entre entregas sale con su propia fila (`aspecto = "proteccion"`).

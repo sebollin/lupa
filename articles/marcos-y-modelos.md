@@ -1,25 +1,27 @@
 # 8. Marcos y modelos de calidad
 
-¿Con qué criterio decimos que una entrega es buena? En [7. Del hallazgo
+¿Con qué criterio se dice que una entrega es buena? En [7. Del hallazgo
 a la
 métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.md)
-medimos lo que `lupa` propuso a partir del perfil. Ahora el criterio lo
-declaramos nosotros: qué aspectos de la calidad nos importan, con qué
-métricas los medimos y cómo leemos los números.
+se midió lo que `lupa` propuso a partir del perfil. Aquí el criterio lo
+declara quien usa el paquete:
+
+- qué aspectos de la calidad importan;
+- con qué métricas se miden;
+- cómo se leen los números.
 
 > **En esta guía:**
 >
-> - declaramos un marco propio de dimensiones y factores con
+> - declarar un marco propio de dimensiones y factores con
 >   [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md);
-> - construimos métricas en tres niveles, y una métrica nueva con
+> - construir métricas en 3 niveles, y una métrica nueva con
 >   [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md);
-> - reunimos las métricas en un modelo ligado al marco y vemos qué
->   cubre;
-> - leemos el tablero con su `orientacion`, armamos un índice con pesos
->   declarados y evaluamos con perfiles de madurez;
-> - conocemos los marcos incluidos: ISO/IEC 25012, CEA/CEPAL y AGESIC.
+> - reunir las métricas en un modelo ligado al marco y ver qué cubre;
+> - leer el tablero con su `orientacion`, armar un índice con pesos
+>   declarados y evaluar con perfiles de madurez;
+> - conocer los marcos incluidos: ISO/IEC 25012, CEA/CEPAL y AGESIC.
 
-Primero declaramos un marco pequeño para la entrega y vemos qué
+Primero se declara un marco pequeño para la entrega, y se ve qué
 estructura devuelve.
 
 ``` r
@@ -62,38 +64,47 @@ as.data.frame(marco_entrega)[, c("dimension", "factor", "perfil_mide")]
 Scannapieco (2016). Una dimensión reúne factores: la completitud reúne
 la densidad, por ejemplo. Un factor reúne métricas: `NoNulo` mide la
 densidad. Esa jerarquía sirve para clasificar y para navegar el modelo,
-no para calcular: el marco no define un “puntaje de exactitud” ni un
-índice global, y
-[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) no
-sube de una métrica a su factor ni a su dimensión. Promediar factores
-sin una decisión explícita ocultaría prioridades y correlaciones entre
-ellos.
+no para calcular. El marco no define un “puntaje de exactitud” ni un
+índice global.
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+tampoco sube de una métrica a su factor ni a su dimensión. Promediar
+factores sin una decisión explícita ocultaría prioridades y
+correlaciones entre ellos.
 
-El marco de arriba es el de nuestra entrega, `datos_operativos`. Cada
-métrica trae su dimensión y su factor, y un modelo ligado a un marco
-exige que cada una caiga en uno de sus pares. Para las tres métricas del
-núcleo que vamos a usar tomamos los pares del catálogo de AGESIC, que
-los nombra; los otros dos factores son propios.
+El marco de arriba es el de la entrega, `datos_operativos`. Cada métrica
+trae su dimensión y su factor. Un modelo ligado a un marco exige que
+cada una caiga en uno de sus pares. Para las 3 métricas del núcleo que
+se usan aquí, los pares se toman del catálogo de AGESIC, que los nombra.
+Los otros 2 factores son propios.
 
-En un data frame, `perfil_mide` dice para qué factores el perfil por sí
-solo ya aporta evidencia suficiente; aquí, la no duplicación, porque
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-busca filas repetidas. `como_resolverlo` es la instrucción que se
-muestra mientras el factor no esté medido. La forma abreviada, una lista
-como `list(Completitud = "Densidad")`, deja `perfil_mide` en `FALSE`
-para todos los factores: nunca presume que examinar equivale a medir.
+En un data frame:
 
-Las métricas que trae `lupa` usan los nombres del marco de AGESIC
-(`NoNulo` declara Completitud y Densidad); por eso tres de nuestros
-factores los repiten. Para un factor con nombre propio, como “Origen
-documentado”, escribimos una métrica que lo declare.
+- `perfil_mide` dice para qué factores el perfil por sí solo ya aporta
+  evidencia suficiente. Aquí es la no duplicación, porque
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  busca filas repetidas.
+- `como_resolverlo` es la instrucción que se muestra mientras el factor
+  no esté medido.
 
-## Tres niveles de métrica
+La forma abreviada, una lista como `list(Completitud = "Densidad")`,
+deja `perfil_mide` en `FALSE` para todos los factores: nunca presume que
+examinar equivale a medir.
 
-Una métrica existe en tres niveles. La genérica dice qué se mide; la
-especializada, con qué criterio; la instanciada, dónde.
+Las métricas que trae `lupa` usan los nombres del marco de AGESIC:
+`NoNulo` declara Completitud y Densidad. Por eso 3 de los factores de la
+entrega los repiten. Para un factor con nombre propio, como “Origen
+documentado”, se escribe una métrica que lo declare.
+
+## Los 3 niveles de una métrica
+
+Una métrica existe en 3 niveles:
+
+- la genérica dice qué se mide;
+- la especializada, con qué criterio;
+- la instanciada, dónde.
+
 [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
-reúne las genéricas que trae el paquete, y
+reúne las genéricas que trae el paquete.
 [`propiedades_metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
 dice qué criterio se puede fijar en cada una:
 
@@ -130,16 +141,16 @@ repetir el criterio. El nombre de la instancia tiene la forma
 `metrica_instanciada` de cada medida. Las métricas que salen de una
 propuesta se llaman como su fila (`NoNulo:canal`).
 
-La entidad es el nombre de la tabla. Si a
-[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) le damos
-un solo data frame, lo asocia a la entidad del modelo; si el modelo mide
+La entidad es el nombre de la tabla. Si
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) recibe
+un solo data frame, lo asocia a la entidad del modelo. Si el modelo mide
 varias tablas, recibe una lista con nombres, uno por entidad.
 
 `Formato` acepta como criterio una expresión regular, un diccionario o
-un validador: una función vectorizada que devuelve `TRUE` o `FALSE` para
-cada valor. La usamos con el validador de correo para la columna
-`contacto`. La especializada es a su vez una función: llamarla con la
-tabla y la columna equivale a
+un validador. Un validador es una función vectorizada que devuelve
+`TRUE` o `FALSE` para cada valor. Aquí se usa el validador de correo
+para la columna `contacto`. La especializada es a su vez una función:
+llamarla con la tabla y la columna equivale a
 [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
 
 ``` r
@@ -177,18 +188,18 @@ validadores_uruguay()$cedula(c("1.234.567-2", "1.234.567-3"))
 ```
 
 Un proyecto de otro país arma su pack con
-[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
-y mantiene sus funciones en su propio paquete o guion, sin registrar
+[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md).
+Mantiene sus funciones en su propio paquete o guion, sin registrar
 nombres ni modificar `lupa`. La ayuda de
 [`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
 trae un ejemplo completo con un RUT chileno.
 
 ## Una métrica propia
 
-Para “Origen documentado” no hay métrica en el núcleo: la declaramos con
+Para “Origen documentado” no hay métrica en el núcleo: se declara con
 [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
 El método recibe una lista con nombre de tablas y la instancia que se
-está midiendo, y devuelve una fila por objeto medido con las columnas
+está midiendo. Devuelve una fila por objeto medido, con las columnas
 `resultado`, `entidad`, `atributo`, `fila` y `objeto`. La granularidad
 acepta el nombre del marco (`instanciaAtributo`) o su equivalente en
 tablas (`celda`).
@@ -222,16 +233,15 @@ origen <- instanciar(especializar(OrigenDeclarado), "datos_operativos", "sistema
 
 [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
 devuelve la genérica, que también es una función. Por eso la forma corta
-encadena dos llamadas:
-`OrigenDeclarado()("datos_operativos", "sistema")` especializa con la
-primera e instancia con la segunda.
+encadena 2 llamadas: `OrigenDeclarado()("datos_operativos", "sistema")`
+especializa con la primera e instancia con la segunda.
 
 ## Un modelo ligado al marco
 
 [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
 reúne las instancias. Con `marco =`, comprueba que cada una pertenezca a
-uno de los pares del marco, y rechaza el modelo nombrando el par que
-falta si alguna no pertenece. Medimos y cruzamos la medición con el
+uno de los pares del marco. Si alguna no pertenece, rechaza el modelo y
+nombra el par que falta. Después se mide y se cruza la medición con el
 marco:
 
 ``` r
@@ -255,9 +265,8 @@ cobertura[, c("dimension", "factor", "estado")]
 #> 5     Frescura             Actualidad no_declarada
 ```
 
-Cuatro de los cinco factores quedaron medidos. La actualidad sigue sin
-declarar, y la tabla lo dice con la instrucción que escribimos en el
-marco:
+Quedaron medidos 4 de los 5 factores. La actualidad sigue sin declarar,
+y la tabla lo dice con la instrucción escrita en el marco:
 
 ``` r
 
@@ -290,13 +299,16 @@ tablero[, c("dimension", "metrica", "objeto", "valor", "orientacion", "universo"
 #>  Trazabilidad  OrigenDeclarado  sistema 1.0000000 conformidad   celdas
 ```
 
-La columna `orientacion` dice cómo leer cada proporción: `conformidad`
-significa que un valor mayor es mejor, `defecto` que un valor menor es
-mejor y `no_aplica` que la métrica no es una proporción combinable. El
-0.154 de `EntidadDuplicada` es la proporción de filas que participan en
-un duplicado (cuanto más bajo, mejor), y el 0.846 de `NoNulo` es la
-proporción de celdas con valor (cuanto más alto, mejor). Los números
-están en la misma escala pero no se leen igual, y promediarlos sin mirar
+La columna `orientacion` dice cómo leer cada proporción:
+
+- `conformidad`: un valor mayor es mejor;
+- `defecto`: un valor menor es mejor;
+- `no_aplica`: la métrica no es una proporción combinable.
+
+El 0.154 de `EntidadDuplicada` es la proporción de filas que participan
+en un duplicado: cuanto más bajo, mejor. El 0.846 de `NoNulo` es la
+proporción de celdas con valor: cuanto más alto, mejor. Los 2 números
+están en la misma escala, pero no se leen igual. Promediarlos sin mirar
 `orientacion` da un número que no significa nada.
 
 La columna `universo` dice la unidad de cada valor: celdas o filas. El
@@ -312,11 +324,11 @@ attr(tablero, "alcance")
 #> 1                       0
 ```
 
-## Un índice sólo con pesos declarados
+## ⚠️ Un índice sólo con pesos declarados
 
 Sin `pesos` no hay número: `indice_calidad(tablero)` devuelve el mismo
-tablero. Los pesos no pertenecen a `lupa`; los declaramos nosotros según
-la decisión del proyecto.
+tablero. Los pesos no pertenecen a `lupa`: los declara quien lo usa,
+según la decisión del proyecto.
 
 ``` r
 
@@ -338,10 +350,10 @@ indice$dimensiones[, c("dimension", "valor", "peso", "aporte")]
 
 Para las métricas de `defecto`, el índice usa `1 - valor`: la unicidad
 entra como 0.846. Las de `no_aplica` quedan fuera y se declaran como
-exclusiones. El índice tampoco promedia por su cuenta dos componentes de
-una misma dimensión: si `NoNulo` midiera dos columnas, habría que
-declarar `pesos_internos` para combinarlas. Y cuando los componentes
-salen de unidades distintas, lo advierte:
+exclusiones. El índice tampoco promedia por su cuenta 2 componentes de
+una misma dimensión. Si `NoNulo` midiera 2 columnas, habría que declarar
+`pesos_internos` para combinarlas. Y cuando los componentes salen de
+unidades distintas, lo advierte:
 
 ``` r
 
@@ -352,16 +364,21 @@ writeLines(strwrap(indice$advertencia_universos, 88))
 #> componente-0003.
 ```
 
-La advertencia no resuelve la diferencia de unidades: el índice combina
-celdas y filas sólo porque nosotros declaramos los pesos.
+La advertencia no resuelve la diferencia de unidades. El índice combina
+celdas y filas sólo porque quien usa el paquete declaró los pesos.
 
 ## Perfiles de madurez
 
-Además de las reglas propias, `lupa` trae los tres perfiles de madurez
-de AGESIC, `Basico`, `Intermedio` y `Avanzado`, con condiciones
-estrictas `> 0.5`, `> 0.7` y `> 0.9`. Los cortes se aplican al resultado
-agregado de cada métrica, así que primero agregamos cada una hasta su
-objeto: las de celda hasta la columna, la de filas hasta la tabla.
+Además de las reglas propias, `lupa` trae los perfiles de madurez de
+AGESIC, con condiciones estrictas:
+
+- `Basico`, `> 0.5`;
+- `Intermedio`, `> 0.7`;
+- `Avanzado`, `> 0.9`.
+
+Los cortes se aplican al resultado agregado de cada métrica. Por eso
+primero se agrega cada una hasta su objeto: las de celda hasta la
+columna, la de filas hasta la tabla.
 
 ``` r
 
@@ -378,10 +395,10 @@ sapply(madurez, function(perfil) evaluar(agregadas, perfil)$perfiles$resultado)
 ```
 
 Los perfiles incluidos leen la orientación: la duplicación se compara
-como `1 - valor`. Cumplen las cuatro métricas con `> 0.5` y con `> 0.7`;
-con `> 0.9`, sólo el correo y el origen. Sobre las medidas por celda,
-que valen 0 o 1, los tres cortes serían la misma condición. Otra familia
-de perfiles se construye con umbrales con nombre:
+como `1 - valor`. Las 4 métricas cumplen con `> 0.5` y con `> 0.7`. Con
+`> 0.9` cumplen sólo el correo y el origen. Sobre las medidas por celda,
+que valen 0 o 1, los 3 cortes serían la misma condición. Otra familia de
+perfiles se construye con umbrales con nombre:
 
 ``` r
 
@@ -391,19 +408,24 @@ names(perfiles_madurez(umbrales = c(Inicial = 0.4, Consolidado = 0.85)))
 
 ## Los marcos incluidos
 
-Además del marco propio, `lupa` trae tres marcos publicados. Ninguno es
-una restricción del núcleo: el de AGESIC, que
+Además del marco propio, `lupa` trae los marcos publicados de ISO/IEC
+25012, CEA/CEPAL y AGESIC. Ninguno es una restricción del núcleo: el de
+AGESIC, que
 [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
 usa por omisión, es una instancia verificable más.
 
 [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
 ofrece las 15 características de ISO/IEC 25012:2008. La norma distingue
-características inherentes, dependientes del sistema y aplicables desde
-ambas perspectivas. `lupa` usa esos tres grupos como dimensiones y las
-características como factores; es una adaptación a la forma dimensión y
-factor, no la afirmación de que la norma defina esa jerarquía. Sus
-descripciones están redactadas para el paquete y no reproducen el texto
-normativo.
+3 grupos de características:
+
+- inherentes;
+- dependientes del sistema;
+- aplicables desde ambas perspectivas.
+
+`lupa` usa esos grupos como dimensiones y las características como
+factores. Es una adaptación a la forma dimensión y factor, no la
+afirmación de que la norma defina esa jerarquía. Sus descripciones están
+redactadas para el paquete y no reproducen el texto normativo.
 
 ``` r
 
@@ -418,8 +440,8 @@ table(as.data.frame(iso)$dimension)
 
 [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
 representa los niveles y principios del marco nacional de aseguramiento
-de la calidad de Naciones Unidas, adoptado y adaptado para América
-Latina y el Caribe por la CEA/CEPAL.
+de la calidad de Naciones Unidas. La CEA/CEPAL lo adoptó y lo adaptó
+para América Latina y el Caribe.
 
 ``` r
 
@@ -442,7 +464,7 @@ establece mirando una tabla.
 [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
 devuelve los 17 factores que
 [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
-usa por omisión. El catálogo que usamos al principio,
+usa por omisión. El catálogo usado al principio,
 [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md),
 mantiene aparte las 49 métricas del marco, con lo que el paquete hace
 con cada una:
@@ -468,17 +490,21 @@ writeLines(catalogo$observacion[ejemplos])
 ```
 
 `estado` dice si la métrica está implementada, se obtiene por
-agregación, está pendiente o queda fuera del alcance tabular, y `motivo`
-explica la causa. `RatioNoNulos` es lo que hicimos en la guía anterior:
-`NoNulo` agregado a la columna con `ratio`. `RatioCobertura` está
-implementada, pero necesita un referencial. La fidelidad de imágenes
-queda fuera. El catálogo es la respuesta verificable a “qué implementa
-el paquete”: lo que queda fuera no se presenta como resuelto.
+agregación, está pendiente o queda fuera del alcance tabular. `motivo`
+explica la causa. En los ejemplos:
+
+- `RatioNoNulos` es lo que se hizo en la guía anterior: `NoNulo`
+  agregado a la columna con `ratio`.
+- `RatioCobertura` está implementada, pero necesita un referencial.
+- La fidelidad de imágenes queda fuera.
+
+El catálogo es la respuesta verificable a “qué implementa el paquete”:
+lo que queda fuera no se presenta como resuelto.
 
 Un diccionario enumera los valores válidos. Un referencial, en cambio,
-vincula claves con valores de una fuente externa, y sólo permite medir
+vincula claves con valores de una fuente externa. Sólo permite medir
 cobertura cuando declara que está completo y con qué alcance. Lo
-consumen las tres métricas de
+consumen las 3 métricas de
 [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md).
 
 ``` r
@@ -497,10 +523,10 @@ padron
 #>   Alcance: departamentos incluidos en el ejemplo
 ```
 
-## Lo que no se midió también es un resultado
+## 🔎 Lo que no se midió también es un resultado
 
-La misma medición se lee distinto según el marco. Contamos los estados
-de la cobertura de nuestra entrega frente a cada uno:
+La misma medición se lee distinto según el marco. Aquí se cuentan los
+estados de la cobertura de la entrega frente a cada uno:
 
 ``` r
 
@@ -519,13 +545,18 @@ estados
 #> fuera_de_alcance      0      1   0    13
 ```
 
-Frente al marco propio, 4 factores medidos. Frente al de AGESIC, los 3
-que nuestras métricas y el perfil alcanzan. Frente a ISO/IEC 25012 y a
-CEA/CEPAL, ninguno: sus pares de dimensión y factor no coinciden con los
-que declaran nuestras métricas, y la tabla muestra ese cero en lugar de
-esconderlo. En el de CEA/CEPAL quedan 13 principios fuera de alcance y 6
-sin declarar. La primera columna de cada cobertura nombra el marco, así
-que una tabla exportada conserva el contexto.
+Los factores medidos son:
+
+- frente al marco propio, 4;
+- frente al de AGESIC, los 3 que alcanzan las métricas del modelo y el
+  perfil;
+- frente a ISO/IEC 25012 y a CEA/CEPAL, ninguno.
+
+Los pares de dimensión y factor de esos 2 marcos no coinciden con los
+que declaran las métricas del modelo. La tabla muestra ese cero en lugar
+de esconderlo. En el de CEA/CEPAL quedan 13 principios fuera de alcance
+y 6 sin declarar. La primera columna de cada cobertura nombra el marco:
+una tabla exportada conserva el contexto.
 
 ## Referencias
 
@@ -565,13 +596,13 @@ Santiago.
   [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
   dice qué factores quedaron medidos y cómo cubrir los que faltan.
 - El tablero publica la `orientacion` de cada valor; el índice existe
-  sólo si declaramos los pesos.
+  sólo si se declaran los pesos.
 - Los perfiles de madurez y las reglas se aplican a las medidas
   agregadas.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
-En [9. Comparar entregas y seguir la
+La guía [9. Comparar entregas y seguir la
 calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.md)
-comparamos dos entregas de la misma tabla y seguimos la calidad medida a
-lo largo del tiempo.
+compara 2 entregas de la misma tabla y sigue la calidad medida en el
+tiempo.

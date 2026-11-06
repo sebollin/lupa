@@ -1,31 +1,30 @@
 # 10. Perfilar una base
 
-Tenemos una tabla de ventas en una base de datos, quizá demasiado grande
-para la memoria de la sesión. ¿Cómo decidimos qué calcula el motor,
+Hay una tabla de ventas en una base de datos, quizá demasiado grande
+para la memoria de la sesión. ¿Cómo se decide qué calcula el motor,
 cuántas filas llegan a R y dónde queda escrito cómo se eligieron?
 
 > **En esta guía:**
 >
-> - perfilamos una tabla con
+> - perfilar una tabla con
 >   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
->   y separamos sus dos bloques, `resumen_tabla` y `perfil_muestra`;
-> - comparamos qué trae a R cada opción: la llamada por omisión,
+>   y separar sus 2 bloques, `resumen_tabla` y `perfil_muestra`;
+> - comparar qué trae a R cada opción: la llamada por omisión,
 >   `muestra = n`, `universo = "muestra_motor"` y
 >   `bloque_muestra = "solo_agregados"`;
-> - encontramos el metadato del muestreo, que vive en dos lugares según
->   la opción;
-> - leemos el resultado con los mismos accesores que un perfil en
->   memoria.
+> - encontrar el metadato del muestreo, que vive en 2 lugares según la
+>   opción;
+> - leer el resultado con los mismos accesores que un perfil en memoria.
 
 ## Una tabla en una base
 
-Usamos SQLite en memoria, con los paquetes `DBI` y `RSQLite`. La tabla
-tiene mil filas para que la guía corra en segundos; las decisiones son
-las mismas con millones.
+El ejemplo usa SQLite en memoria, con los paquetes `DBI` y `RSQLite`. La
+tabla tiene 1.000 filas para que la guía corra en segundos; las
+decisiones son las mismas con millones.
 [`DBI::dbWriteTable()`](https://dbi.r-dbi.org/reference/dbWriteTable.html)
-sólo prepara el ejemplo:
+sólo prepara el ejemplo.
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-emite consultas de lectura, no escribe en la base ni crea tablas
+emite consultas de lectura: no escribe en la base ni crea tablas
 temporales.
 
 ``` r
@@ -74,25 +73,35 @@ completo
 #> No se imprime ningún valor de celda: están en `resumen_tabla$columnas`.
 ```
 
-La impresión ya muestra los dos bloques. «Resumen de tabla completa» es
-`resumen_tabla`: agregados que el motor calcula en SQL sobre todas las
-filas. «Perfil de muestra» es `perfil_muestra`:
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-corrido en R sobre las filas que se leyeron. Las líneas de derrame sólo
-tienen contenido en PostgreSQL.
+La impresión muestra los 2 bloques:
+
+- «Resumen de tabla completa» es `resumen_tabla`: agregados que el motor
+  calcula en SQL sobre todas las filas.
+- «Perfil de muestra» es `perfil_muestra`:
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  corrido en R sobre las filas que se leyeron.
+
+Las líneas de derrame sólo tienen contenido en PostgreSQL.
 
 Por omisión, `universo = "tabla_completa"` y `muestra = Inf`. Eso quiere
-decir que los agregados recorren la tabla entera y que, además, `lupa`
-trae a R **todas las filas que entran en los topes de lectura**:
-`max_celdas_muestra` (1.000.000 celdas por omisión) y
-`max_bytes_muestra` (512 MiB). Con esta tabla entran las mil. La llamada
-por omisión no es una muestra barata: es la tabla completa, si cabe.
+decir:
+
+- los agregados recorren la tabla entera;
+- `lupa` trae además a R **todas las filas que entran en los topes de
+  lectura**. Los topes son `max_celdas_muestra` (1.000.000 celdas por
+  omisión) y `max_bytes_muestra` (512 MiB).
+
+Con esta tabla entran las 1.000 filas. La llamada por omisión no es una
+muestra barata: es la tabla completa, si cabe.
 
 ## Qué trae a R cada opción
 
-Probamos las otras tres decisiones sobre la misma tabla y armamos una
-fila por opción: cuántas filas describe el resumen SQL, cuántas se
-leyeron a R y en cuál de los dos lugares quedó el metadato del muestreo.
+Las otras 3 decisiones se prueban sobre la misma tabla. El resultado
+tiene una fila por opción, con:
+
+- cuántas filas describe el resumen SQL;
+- cuántas se leyeron a R;
+- en cuál de los 2 lugares quedó el metadato del muestreo.
 
 ``` r
 
@@ -134,15 +143,15 @@ rbind(
 Cada fila contesta una pregunta distinta:
 
 - **`muestra = n`** acota la lectura a R, no los agregados: el resumen
-  sigue describiendo las mil filas y el perfil por fila, doscientas.
+  sigue describiendo las 1.000 filas, y el perfil por fila, 200.
 - **`universo = "muestra_motor"`** con `muestra_motor = n` cambia el
-  universo de los agregados. El motor elige la muestra una sola vez,
-  `lupa` la guarda en una copia de la sesión de R y todo lo demás se
+  universo de los agregados. El motor elige la muestra una sola vez y
+  `lupa` la guarda en una copia de la sesión de R. Todo lo demás se
   calcula sobre esas mismas filas: resumen y perfil describen las mismas
-  ciento cincuenta.
+  150.
 - **`bloque_muestra = "solo_agregados"`** no trae ninguna fila:
   `perfil_muestra` queda en `NULL` y sólo hay conteos y resúmenes
-  calculados en el motor. Vale para los dos universos.
+  calculados en el motor. Vale para los 2 universos.
 
 [`n_filas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
 devuelve siempre el conteo de la tabla completa, también con
@@ -150,20 +159,25 @@ devuelve siempre el conteo de la tabla completa, también con
 
 ## Dónde queda escrito cómo se muestreó
 
-Las dos últimas columnas de la tabla de arriba dicen si existe cada uno
-de los dos lugares donde vive el metadato del muestreo: `meta_resumen`
-mira `resumen_tabla$meta$muestreo` y `meta_lectura`,
-`perfil_muestra$meta$origen_dbi$muestreo`. Cada uno existe bajo su
-propia condición:
+Las 2 últimas columnas de la tabla de arriba dicen si existe cada lugar
+donde vive el metadato del muestreo:
+
+- `meta_resumen` mira `resumen_tabla$meta$muestreo`;
+- `meta_lectura` mira `perfil_muestra$meta$origen_dbi$muestreo`.
+
+Cada uno existe bajo su propia condición:
 
 | ruta | describe | existe cuando |
 |----|----|----|
 | `perfil_muestra$meta$origen_dbi$muestreo` | las filas leídas a R | hay `perfil_muestra`, con cualquier universo |
 | `resumen_tabla$meta$muestreo` | la muestra elegida por el motor | `universo = "muestra_motor"`; si no, es `NULL` |
 
-Para la lectura a R, el metadato dice cuántas filas se pidieron, cuántas
-llegaron, cuántas tiene la tabla, cómo se eligieron y si la elección se
-puede repetir:
+Para la lectura a R, el metadato dice:
+
+- cuántas filas se pidieron y cuántas llegaron;
+- cuántas tiene la tabla;
+- cómo se eligieron;
+- si la elección se puede repetir.
 
 ``` r
 
@@ -180,10 +194,10 @@ str(lectura[c(
 #>  $ reproducible        : logi TRUE
 ```
 
-`reproducible` es `TRUE` porque declaramos `orden_muestra = "id_venta"`
+`reproducible` es `TRUE` porque se declaró `orden_muestra = "id_venta"`
 y `lupa` comprobó en la tabla completa que ese orden es único. Sin orden
-declarado, un `LIMIT` no tiene orden garantizado y `reproducible` vale
-`FALSE`, como en la llamada por omisión:
+declarado, un `LIMIT` no tiene orden garantizado. Entonces
+`reproducible` vale `FALSE`, como en la llamada por omisión:
 
 ``` r
 
@@ -195,9 +209,9 @@ writeLines(strwrap(sin_orden$motivo_reproducibilidad, 88))
 ```
 
 Para la muestra del motor, el metadato está en el resumen. El método
-depende de lo que el motor acepte: `lupa` prueba primero las variantes
-de `TABLESAMPLE` y, si ninguna sirve, ordena por una función
-pseudoaleatoria con el límite del dialecto, que es lo que hace SQLite.
+depende de lo que el motor acepte. `lupa` prueba primero las variantes
+de `TABLESAMPLE`. Si ninguna sirve, ordena por una función
+pseudoaleatoria con el límite del dialecto, como en SQLite.
 
 ``` r
 
@@ -231,10 +245,10 @@ sql[sql$columna == "monto", c("columna", "metrica", "estado", "alcance")][1:6, ]
 ```
 
 El estado `observado_muestra` avisa que el valor describe la muestra. En
-particular, `n_distintos` es la cardinalidad observada en esas ciento
-cincuenta filas, no una estimación de la cardinalidad de la tabla.
+particular, `n_distintos` es la cardinalidad observada en esas 150
+filas, no una estimación de la cardinalidad de la tabla.
 
-## Los dos bloques, uno al lado del otro
+## Los 2 bloques, uno al lado del otro
 
 ``` r
 
@@ -252,13 +266,13 @@ data.frame(
 #> 2 perfil_muestra            R   200               117
 ```
 
-El resumen tiene 15 campos analíticos por columna, los que SQL puede
+El resumen tiene 15 campos analíticos por columna. Son los que SQL puede
 calcular sin traer los datos: faltantes, distintos, moda, mínimo,
 máximo, media, mediana y desvío, entre otros. El perfil de la muestra
 tiene los 117 de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
-pero sobre las filas leídas. Por eso `lupa` no los mezcla: llamar
-*perfil* al resumen afirmaría una completitud que no tiene, y leer el
+pero sobre las filas leídas. Por eso `lupa` no los mezcla. Llamar
+*perfil* al resumen afirmaría una completitud que no tiene; leer el
 perfil como si fuera de la tabla entera, también.
 
 ## Leer el resultado con los accesores
@@ -291,19 +305,23 @@ nrow(sql_perfil(acotado))
 #> [1] 60
 ```
 
-El motor contó los 20 faltantes de `monto` en las mil filas. El perfil
-por fila encontró, en sus doscientas, que `fecha` está guardada como
-texto aunque contiene fechas (`tipo_declarado_distinto`) y que casi cada
-fila trae una fecha distinta (`alta_cardinalidad`).
+El motor contó los 20 faltantes de `monto` en las 1.000 filas. En sus
+200 filas, el perfil por fila encontró que:
+
+- `fecha` está guardada como texto aunque contiene fechas
+  (`tipo_declarado_distinto`);
+- casi cada fila trae una fecha distinta (`alta_cardinalidad`).
+
 [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
 devuelve una fila por columna y métrica, con la consulta que la produjo,
 su estado y su motivo.
 
 Cuando no se pidió la muestra, los accesores no inventan lo que no hay:
-[`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
-devuelve una tabla vacía con un aviso, y
-[`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
-declara el bloque como `no_solicitado`, que no es un fallo.
+
+- [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  devuelve una tabla vacía con un aviso;
+- [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  declara el bloque como `no_solicitado`, que no es un fallo.
 
 ``` r
 
@@ -325,7 +343,7 @@ cobertura(agregados)[, c("bloque", "elemento", "estado")]
 #> 1 perfil_muestra   ventas no_solicitado
 ```
 
-## Lo que el resumen no garantiza
+## ⚠️ Lo que el resumen no garantiza
 
 Los agregados son consultas separadas, y la tabla puede cambiar entre
 una y otra. El resumen lo declara:
@@ -343,15 +361,15 @@ writeLines(strwrap(completo$resumen_tabla$meta$nota_snapshot, 88))
 Si `n_validos` y `n_distintos` salen incoherentes y vienen de consultas
 distintas,
 [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
-agrega una fila `alcance_distinto` con las dos sentencias: es evidencia
-de que la tabla cambió durante la corrida, no una acusación contra el
+agrega una fila `alcance_distinto` con las 2 sentencias. Es evidencia de
+que la tabla cambió durante la corrida, no una acusación contra el
 motor.
 
 ## Antes de conectar a otro motor
 
 El paquete del motor y la biblioteca del sistema que va debajo los
-instala quien usa `lupa`, y el error que aparece cuando falta alguno
-rara vez dice cuál es.
+instala quien usa `lupa`. El error que aparece cuando falta alguno rara
+vez dice cuál es.
 [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
 lo dice antes de conectar:
 
@@ -361,23 +379,31 @@ requisitos_motor()            # el catálogo entero
 requisitos_motor("mariadb")   # qué necesita MariaDB y cómo conseguirlo
 ```
 
-Por cada motor devuelve el paquete de R, la biblioteca del sistema con
-su nombre en Debian y en Fedora, la forma de instalarla sin permisos de
-administrador cuando existe, el dialecto esperado y el estado de prueba
-del motor.
+Por cada motor devuelve:
 
-## Para una tabla grande
+- el paquete de R;
+- la biblioteca del sistema, con su nombre en Debian y en Fedora;
+- la forma de instalarla sin permisos de administrador, cuando existe;
+- el dialecto esperado;
+- el estado de prueba del motor.
 
-Antes de perfilar una tabla de millones de filas conviene mirar el plan:
+## ⏱ Para una tabla grande
+
+Antes de perfilar una tabla de millones de filas conviene mirar el plan.
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 cuenta las consultas y el trabajo que haría
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 con los mismos argumentos, sin leer datos. El artículo [Motores y
 escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html)
-reúne lo que hace falta para decidir: el costo de cada métrica y los
-lotes de consultas, la política de costo, los presupuestos de memoria,
-la copia de la muestra que guarda la sesión, los dialectos, la garantía
-de la clave primaria según el motor y la matriz de motores probados.
+reúne lo que hace falta para decidir:
+
+- el costo de cada métrica y los lotes de consultas;
+- la política de costo;
+- los presupuestos de memoria;
+- la copia de la muestra que guarda la sesión;
+- los dialectos;
+- la garantía de la clave primaria según el motor;
+- la matriz de motores probados.
 
 ``` r
 
@@ -387,10 +413,11 @@ DBI::dbDisconnect(conexion)
 ## Resumen
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-  devuelve dos bloques: `resumen_tabla`, calculado en el motor, y
+  devuelve 2 bloques: `resumen_tabla`, calculado en el motor, y
   `perfil_muestra`, calculado en R sobre las filas leídas.
-- Por omisión los agregados cubren toda la tabla y el perfil por fila
-  también trae todas las filas que entran en los topes de lectura.
+- Por omisión los agregados cubren toda la tabla. El perfil por fila,
+  también por omisión, trae todas las filas que entran en los topes de
+  lectura.
 - `muestra = n` acota la lectura a R; `universo = "muestra_motor"`
   muestrea en el motor; `bloque_muestra = "solo_agregados"` no trae
   filas.
@@ -399,7 +426,7 @@ DBI::dbDisconnect(conexion)
   `resumen_tabla$meta$muestreo`, sólo con `muestra_motor`.
 - `meta$snapshot = FALSE`: los agregados no son una lectura instantánea.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 Una base no es una tabla:
 [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.md)

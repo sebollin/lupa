@@ -85,31 +85,35 @@
 
     
     
-<p>Llega la entrega de febrero de una tabla que ya revisamos en enero.
-¿Qué cambió? Y si la medimos todos los meses, ¿la calidad mejora o
+<p>Llega la entrega de febrero de una tabla que ya se revisó en enero.
+¿Qué cambió? Y si se mide todos los meses, ¿la calidad mejora o
 empeora?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
-<li>comparamos los perfiles de dos entregas con
+<li>comparar los perfiles de 2 entregas con
 <code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code>;</li>
-<li>separamos un cambio real de una diferencia de redondeo con
+<li>separar un cambio real de una diferencia de redondeo con
 <code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code>;</li>
-<li>comparamos dos evaluaciones con
+<li>comparar 2 evaluaciones con
 <code><a href="../reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code>;</li>
-<li>reunimos varias corridas en un histórico y buscamos deriva con
+<li>reunir varias corridas en un histórico y buscar deriva con
 <code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>;</li>
-<li>guardamos el histórico y lo ampliamos con cada entrega.</li>
+<li>guardar el histórico y ampliarlo con cada entrega.</li>
 </ul>
 </blockquote>
 <div class="section level2">
-<h2 id="dos-entregas-de-la-misma-tabla">Dos entregas de la misma tabla<a class="anchor" aria-label="anchor" href="#dos-entregas-de-la-misma-tabla"></a>
+<h2 id="dos-entregas-de-la-misma-tabla">Las 2 entregas de la misma tabla<a class="anchor" aria-label="anchor" href="#dos-entregas-de-la-misma-tabla"></a>
 </h2>
 <p>La entrega de enero es <code>datos_operativos</code>. La de febrero
-la armamos a partir de ella con cuatro cambios: dos canales más llegan
-como <code>"S/D"</code>, un código de usuario también, el monto de la
-fila 4, que en enero era el centinela <code>-99</code>, llega corregido,
-y aparece una columna nueva, <code>sucursal</code>.</p>
+se arma a partir de ella, con 4 cambios:</p>
+<ul>
+<li>otros 2 canales llegan como <code>"S/D"</code>;</li>
+<li>un código de usuario también llega como <code>"S/D"</code>;</li>
+<li>el monto de la fila 4, que en enero era el centinela
+<code>-99</code>, llega corregido;</li>
+<li>aparece una columna nueva, <code>sucursal</code>.</li>
+</ul>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span></span>
@@ -121,12 +125,12 @@ y aparece una columna nueva, <code>sucursal</code>.</p>
 <span><span class="va">febrero</span><span class="op">$</span><span class="va">sucursal</span> <span class="op">&lt;-</span> <span class="st">"central"</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="qué-cambió-entre-las-dos-entregas">Qué cambió entre las dos entregas<a class="anchor" aria-label="anchor" href="#qu%C3%A9-cambi%C3%B3-entre-las-dos-entregas"></a>
+<h2 id="qué-cambió-entre-las-dos-entregas">🔎 Qué cambió entre las 2 entregas<a class="anchor" aria-label="anchor" href="#qu%C3%A9-cambi%C3%B3-entre-las-dos-entregas"></a>
 </h2>
-<p>Perfilamos cada entrega con su fecha y con un mismo nombre,
-<code>entrega</code>, que es el que va a llevar la tabla en las
-mediciones de más abajo. <code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> no exige que
-las dos tengan las mismas columnas.</p>
+<p>Cada entrega se perfila con su fecha y con el mismo nombre,
+<code>entrega</code>. Es el nombre de la tabla en las mediciones de más
+abajo. <code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> no exige que las 2 tengan las
+mismas columnas.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil_enero</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">enero</span>, nombre <span class="op">=</span> <span class="st">"entrega"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-31"</span><span class="op">)</span></span>
 <span><span class="va">perfil_febrero</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">febrero</span>, nombre <span class="op">=</span> <span class="st">"entrega"</span>, fecha <span class="op">=</span> <span class="st">"2026-02-28"</span><span class="op">)</span></span>
@@ -150,14 +154,18 @@ las dos tengan las mismas columnas.</p>
 <p>Cada fila es un cambio, y <code>aspecto</code> dice de qué tipo. La
 columna nueva es un cambio de esquema (<code>columna</code>,
 <code>aparecida</code>). Las demás filas son cambios sobre columnas que
-están en las dos entregas: la proporción de faltantes, la cardinalidad,
-el rango, los patrones de formato y los hallazgos que aparecieron o se
-resolvieron. La columna que sólo existe de un lado no impide comparar
-las otras.</p>
+están en las 2 entregas:</p>
+<ul>
+<li>la proporción de faltantes;</li>
+<li>la cardinalidad;</li>
+<li>el rango;</li>
+<li>los patrones de formato;</li>
+<li>los hallazgos que aparecieron o se resolvieron.</li>
+</ul>
 <p><code>severidad</code> es un factor ordenado,
 <code>ok &lt; sospechoso &lt; error</code>, así que la tabla se filtra
 como cualquier otra. Los cambios menores quedan como filas
-<code>ok</code> en lugar de desaparecer. Veamos los faltantes que
+<code>ok</code>: no desaparecen. Estos son los faltantes que
 empeoraron:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">peores</span> <span class="op">&lt;-</span> <span class="va">deriva</span><span class="op">[</span><span class="va">deriva</span><span class="op">$</span><span class="va">severidad</span> <span class="op">&gt;=</span> <span class="st">"sospechoso"</span> <span class="op">&amp;</span> <span class="va">deriva</span><span class="op">$</span><span class="va">aspecto</span> <span class="op">==</span> <span class="st">"faltantes"</span>, <span class="op">]</span></span>
@@ -171,7 +179,7 @@ cambio:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">perfil_enero</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
-<p>Lo que la protección de datos personales tapa no se compara, y queda
+<p>Lo que la protección de datos personales tapa no se compara. Queda
 declarado en el atributo <code>campos_protegidos</code> de la deriva; el
 detalle está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
 y cobertura</a>.</p>
@@ -179,12 +187,15 @@ y cobertura</a>.</p>
 <div class="section level2">
 <h2 id="un-cambio-real-o-una-diferencia-de-redondeo">Un cambio real o una diferencia de redondeo<a class="anchor" aria-label="anchor" href="#un-cambio-real-o-una-diferencia-de-redondeo"></a>
 </h2>
-<p>A veces la pregunta no es qué cambió en los datos, sino si dos
-procesos produjeron lo mismo: la tabla que exporta un sistema nuevo
-frente a la del sistema que reemplaza, o la misma consulta corrida en
-dos motores. Ahí importa separar lo que difiere de verdad de lo que
-difiere por redondeo. En este ejemplo, el sistema nuevo guarda un monto
-con menos decimales y trae una fila más, vacía.</p>
+<p>A veces la pregunta no es qué cambió en los datos, sino si 2 procesos
+produjeron lo mismo. Por ejemplo:</p>
+<ul>
+<li>la tabla que exporta un sistema nuevo frente a la del que
+reemplaza;</li>
+<li>la misma consulta corrida en 2 motores.</li>
+</ul>
+<p>En este ejemplo, el sistema nuevo guarda un monto con menos decimales
+y trae una fila más, vacía.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sistema_anterior</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>monto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1250</span>, <span class="fl">1600</span>, <span class="fl">1425.0004</span>, <span class="fl">1750</span>, <span class="fl">1810</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">sistema_nuevo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>monto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1250</span>, <span class="fl">1600</span>, <span class="fl">1425</span>, <span class="fl">1750</span>, <span class="fl">1810</span>, <span class="cn">NA</span><span class="op">)</span><span class="op">)</span></span>
@@ -204,10 +215,10 @@ con menos decimales y trae una fila más, vacía.</p>
 <span><span class="co">#&gt;          no_comparable </span></span>
 <span><span class="co">#&gt;                     23</span></span></code></pre></div>
 <p><code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> devuelve una fila por columna y
-campo compartidos. Los conteos se comparan con igualdad exacta; la
-tolerancia, que declaramos nosotros, se usa sólo para los campos de
-punto flotante, como la media y el desvío. Un campo sin valor medible en
-los dos lados queda como <code>no_comparable</code> y no cuenta como
+campo compartidos. Los conteos se comparan con igualdad exacta. La
+tolerancia la declara quien compara. Sólo vale para los campos de punto
+flotante, como la media y el desvío. Un campo sin valor medible en los 2
+lados queda como <code>no_comparable</code> y no cuenta como
 acuerdo.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">campos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"maximo"</span>, <span class="st">"media"</span>, <span class="st">"desvio"</span><span class="op">)</span></span>
@@ -221,13 +232,17 @@ acuerdo.</p>
 <span><span class="co">#&gt; 33      maximo           1810         1810               identico   exacto</span></span>
 <span><span class="co">#&gt; 34       media     1567.00008         1567            equivalente flotante</span></span>
 <span><span class="co">#&gt; 36      desvio   231.4518.... 231.4519....            equivalente flotante</span></span></code></pre></div>
-<p>La fila de más es un cambio real: <code>n</code> y
-<code>n_faltantes</code> salen <code>materialmente_distinto</code>. La
-media y el desvío se movieron por el redondeo y salen
-<code>equivalente</code>, dentro de la tolerancia. El máximo no cambió.
-En los ejes exactos, <code>equivalente</code> es inalcanzable: el conteo
-cambiado sigue siendo <code>materialmente_distinto</code> con cualquier
-tolerancia.</p>
+<p>En la salida:</p>
+<ul>
+<li>la fila de más es un cambio real: <code>n</code> y
+<code>n_faltantes</code> salen <code>materialmente_distinto</code>;</li>
+<li>la media y el desvío se movieron por el redondeo y salen
+<code>equivalente</code>, dentro de la tolerancia;</li>
+<li>el máximo no cambió.</li>
+</ul>
+<p>En los ejes exactos, <code>equivalente</code> es inalcanzable: el
+conteo cambiado sigue siendo <code>materialmente_distinto</code> con
+cualquier tolerancia.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tolerancias</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.01</span>, <span class="fl">0.5</span>, <span class="fl">10</span><span class="op">)</span></span>
 <span><span class="va">veredicto_n</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">tolerancias</span>, <span class="kw">function</span><span class="op">(</span><span class="va">tolerancia</span><span class="op">)</span> <span class="op">{</span></span>
@@ -244,14 +259,14 @@ tolerancia.</p>
 paquete: el comparador devuelve datos, no decisiones.</p>
 </div>
 <div class="section level2">
-<h2 id="dos-evaluaciones-una-diferencia">Dos evaluaciones, una diferencia<a class="anchor" aria-label="anchor" href="#dos-evaluaciones-una-diferencia"></a>
+<h2 id="dos-evaluaciones-una-diferencia">Una diferencia entre 2 evaluaciones<a class="anchor" aria-label="anchor" href="#dos-evaluaciones-una-diferencia"></a>
 </h2>
-<p>Para seguir la calidad medida, y no sólo el perfil, repetimos cada
+<p>Para seguir la calidad medida, y no sólo el perfil, se repite cada
 mes la evaluación de <a href="del-hallazgo-a-la-metrica.html">7. Del
-hallazgo a la métrica</a>: la completitud de las cuatro columnas con
+hallazgo a la métrica</a>. Mide la completitud de las 4 columnas con
 faltantes disfrazados, agregada por columna y comparada con un 90 %. El
-modelo sale de la propuesta de enero y queda fijo. Si lo recalculáramos
-con cada entrega, una diferencia podría venir del modelo y no de los
+modelo sale de la propuesta de enero y queda fijo. Si se recalculara con
+cada entrega, una diferencia podría venir del modelo y no de los
 datos.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/proponer_modelo.html">proponer_modelo</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">enero</span><span class="op">)</span></span>
@@ -275,18 +290,18 @@ datos.</p>
 <span><span class="va">cambio</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"perfil"</span>, <span class="st">"resultado_anterior"</span>, <span class="st">"resultado_actual"</span>, <span class="st">"delta"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;       perfil resultado_anterior resultado_actual delta</span></span>
 <span><span class="co">#&gt; 1 Publicable               0.75              0.5 -0.25</span></span></code></pre></div>
-<p>En enero tres de las cuatro columnas alcanzaban el 90 %; en febrero,
-dos, porque <code>canal</code> y <code>codigo_usuario</code> sumaron
-faltantes disfrazados. El monto corregido no alcanza a compensarlo: ya
-cumplía. Si dos corridas no se pudieran comparar, por ejemplo porque
-cambió el modelo, la columna <code>comparacion</code> diría por qué
-falta el delta.</p>
+<p>En enero, 3 de las 4 columnas alcanzaban el 90 %. En febrero lo
+alcanzan 2, porque <code>canal</code> y <code>codigo_usuario</code>
+sumaron faltantes disfrazados. El monto corregido no alcanza a
+compensarlo: ya cumplía. Si 2 corridas no se pudieran comparar, por
+ejemplo porque cambió el modelo, la columna <code>comparacion</code>
+diría por qué falta el delta.</p>
 </div>
 <div class="section level2">
 <h2 id="una-serie-de-corridas">Una serie de corridas<a class="anchor" aria-label="anchor" href="#una-serie-de-corridas"></a>
 </h2>
 <p>Llega marzo, con los canales y el código de usuario corregidos. Para
-más de dos corridas, <code><a href="../reference/historico_calidad.html">historico_calidad()</a></code> reúne las
+más de 2 corridas, <code><a href="../reference/historico_calidad.html">historico_calidad()</a></code> reúne las
 evaluaciones en un <code>data.frame</code> plano y versionado:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">marzo</span> <span class="op">&lt;-</span> <span class="va">febrero</span></span>
@@ -307,15 +322,16 @@ evaluaciones en un <code>data.frame</code> plano y versionado:</p>
 <span><span class="co">#&gt; 6       marzo 2026-03-31 evaluacion_perfil      1.00</span></span></code></pre></div>
 <p>Cada corrida deja una fila por regla y una por perfil. El histórico
 se puede escribir como CSV o llevarse a una tabla de base de datos sin
-desarmar listas anidadas. La configuración de cada corrida (la tabla, el
-marco, los tipos de resultado) viaja en las columnas
+desarmar listas anidadas.</p>
+<p>Cada corrida lleva su configuración: la tabla, el marco y los tipos
+de resultado. La configuración viaja en las columnas
 <code>identidad_tabla</code> y <code>configuracion_*</code> de las filas
 <code>evaluacion_perfil</code>. Por eso un histórico releído de un CSV
 separa las tablas y corta los cambios de marco igual que el objeto
 original.</p>
 <p><code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code> compara corridas consecutivas,
-ordenadas por fecha dentro de cada perfil, y marca los cambios que
-superan el umbral en la escala <code>[0, 1]</code>:</p>
+ordenadas por fecha dentro de cada perfil. Marca los cambios que superan
+el umbral en la escala <code>[0, 1]</code>:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">saltos</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad</a></span><span class="op">(</span><span class="va">historico</span>, umbral <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span></span>
 <span><span class="va">saltos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_medicion_anterior"</span>, <span class="st">"id_medicion_actual"</span>, <span class="st">"delta"</span>, <span class="st">"direccion"</span>,</span>
@@ -323,9 +339,9 @@ superan el umbral en la escala <code>[0, 1]</code>:</p>
 <span><span class="co">#&gt;   id_medicion_anterior id_medicion_actual delta direccion severidad</span></span>
 <span><span class="co">#&gt; 1                enero            febrero -0.25 deterioro     error</span></span>
 <span><span class="co">#&gt; 2              febrero              marzo  0.50    mejora        ok</span></span></code></pre></div>
-<p>La caída de febrero es un deterioro, con el mismo delta que dio
-<code><a href="../reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code> y severidad <code>error</code>; la
-recuperación de marzo, una mejora, con severidad <code>ok</code>.</p>
+<p>La caída de febrero es un deterioro, con severidad <code>error</code>
+y el mismo delta que dio <code><a href="../reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code>. La
+recuperación de marzo es una mejora, con severidad <code>ok</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="guardar-y-ampliar-el-histórico">Guardar y ampliar el histórico<a class="anchor" aria-label="anchor" href="#guardar-y-ampliar-el-hist%C3%B3rico"></a>
@@ -342,7 +358,7 @@ duplica una corrida idéntica:</p>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p>La persistencia usa RDS y no agrega dependencias.
 <code><a href="../reference/guardar_historico.html">guardar_historico()</a></code> no reemplaza un archivo existente salvo
-que se lo pidamos con <code>sobrescribir = TRUE</code>:</p>
+que se pida con <code>sobrescribir = TRUE</code>:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".rds"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/guardar_historico.html">guardar_historico</a></span><span class="op">(</span><span class="va">historico</span>, <span class="va">archivo</span><span class="op">)</span></span>
@@ -357,13 +373,13 @@ que se lo pidamos con <code>sobrescribir = TRUE</code>:</p>
 </h2>
 <ul>
 <li>
-<code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> compara dos entregas sin exigir las
+<code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> compara 2 entregas sin exigir las
 mismas columnas y separa los cambios de esquema de los cambios sobre
 columnas comparables.</li>
 <li>
-<code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> aplica la tolerancia que
-declaramos sólo a los campos de punto flotante: un conteo distinto es
-siempre <code>materialmente_distinto</code>.</li>
+<code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> aplica la tolerancia declarada
+sólo a los campos de punto flotante: un conteo distinto es siempre
+<code>materialmente_distinto</code>.</li>
 <li>Para comparar evaluaciones, el modelo y la regla quedan fijos y cada
 corrida lleva su <code>id_medicion</code> y su fecha.</li>
 <li>
@@ -376,7 +392,7 @@ mantienen la serie entre sesiones.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p><a href="perfilar-una-base.html">10. Perfilar una base</a>: el mismo
 examen dentro de un motor de base de datos, eligiendo cuánto de la tabla

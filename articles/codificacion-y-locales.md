@@ -2,13 +2,15 @@
 
 El texto de una tabla llega como bytes y, a veces, con una marca de
 codificación ([`Encoding()`](https://rdrr.io/r/base/Encoding.html)).
-`lupa` no modifica esos datos: decide cómo mostrarlos, cómo compararlos
-y, si se elige en un plan de limpieza, cómo repararlos en una copia.
-Este artículo reúne esas reglas.
+`lupa` no modifica esos datos. Decide:
+
+- cómo mostrarlos;
+- cómo compararlos;
+- si se elige en un plan de limpieza, cómo repararlos en una copia.
 
 Los ejemplos construyen su texto a partir de bytes, con
-[`rawToChar()`](https://rdrr.io/r/base/rawConversion.html), para no
-depender de la codificación con que se guarde ni se lea este archivo.
+[`rawToChar()`](https://rdrr.io/r/base/rawConversion.html). Así no
+dependen de la codificación con que se guarde ni se lea este archivo.
 
 ## Cómo se muestra el texto
 
@@ -21,7 +23,7 @@ Las salidas impresas de `lupa` funcionan en cualquier locale, incluido
 - el resto queda tal cual, mientras R pueda imprimirlo.
 
 Bajo un locale UTF-8, la salida es la misma que la de R. La única
-diferencia visible es para una clase propia cuyo
+diferencia visible afecta a una clase propia cuyo
 [`format()`](https://rdrr.io/r/base/format.html) consulte
 [`Encoding()`](https://rdrr.io/r/base/Encoding.html): ese método ve la
 marca de la copia.
@@ -29,12 +31,12 @@ marca de la copia.
 Bajo un locale que no puede representar un carácter, la salida difiere a
 propósito. Donde R escaparía los bytes, `lupa` publica el punto de
 código (`<U+00F1>`). Como toda representación escapada, también las de
-R, esa forma es ambigua con un texto que la contenga literalmente; lo
+R, esa forma es ambigua con un texto que la contenga literalmente. Lo
 que cambia es cómo se muestra, no el dato. Sólo cuando R no puede
-imprimir un valor, se reintenta escapando con su propio octal (`\377`),
-y la tabla queda alineada también ahí.
+imprimir un valor, se reintenta escapando con su propio octal (`\377`).
+La tabla queda alineada también ahí.
 
-Imprimir no es infalible por eso: si una clase propia tiene un
+Imprimir no es infalible por eso. Si una clase propia tiene un
 [`format()`](https://rdrr.io/r/base/format.html) que da error, ese error
 llega sin alterar. Vale también para las columnas de listas de la
 `propuesta_modelo` que devuelve
@@ -45,7 +47,7 @@ llega sin alterar. Vale también para las columnas de listas de la
 Al entrar a
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
 a [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), cada
-valor de texto recibe una de tres lecturas:
+valor de texto recibe una de 3 lecturas:
 
 ``` r
 
@@ -78,48 +80,49 @@ Encoding(apellidos$utf8_sin_marca[[1]])
   las métricas.
 - Lo que declara su codificación se convierte.
 - Lo que no es UTF-8 válido ni declara su codificación no se
-  reinterpreta: se informa como `codificacion_invalida`, con la
+  reinterpreta. Se informa como `codificacion_invalida`, con la
   sugerencia de volver a leer la fuente declarando su codificación
   original.
 
-La entrada no cambia:
+La entrada no cambia.
 [`Encoding()`](https://rdrr.io/r/base/Encoding.html) de la columna
-original sigue diciendo lo que decía, y los nombres publicados en
+original sigue diciendo lo que decía. Los nombres publicados en
 `columnas$columna` conservan los bytes y la marca con que llegó la
 tabla.
 
 ### Lo que se compara por bytes
 
 - Las comparaciones textuales de `NoNulo`, `Formato`, los diccionarios y
-  los dominios posibles usan una clave por bytes, así que una medición
-  no cambia entre un locale UTF-8 y `C`. Vale también para las
+  los dominios posibles usan una clave por bytes. Así, una medición no
+  cambia entre un locale UTF-8 y `C`. Vale también para las
   configuraciones aprendidas que se guardan con
   [`saveRDS()`](https://rdrr.io/r/base/readRDS.html).
 - Las claves de deriva y de histórico comparan nombres y configuraciones
-  por bytes, no por la marca de codificación ni por la intercalación del
-  locale: la comparación sigue siendo estable si el perfil se guarda con
+  por bytes. No dependen de la marca de codificación ni de la
+  intercalación del locale. La comparación sigue siendo estable si el
+  perfil se guarda con
   [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) y se relee bajo
   otro locale. La clave interna que agrupa hallazgos sigue la misma
-  regla, y dos perfiles idénticos no emiten avisos bajo `LC_CTYPE = C`.
+  regla, y 2 perfiles idénticos no emiten avisos bajo `LC_CTYPE = C`.
 - [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
   aplica los pasos de ligaduras y de ancho completo por punto de código,
-  después de declarar los bytes UTF-8 válidos: cumplen igual bajo un
+  después de declarar los bytes UTF-8 válidos. Cumplen igual bajo un
   locale UTF-8 y bajo `C`.
 
 ### El texto que el paquete redacta
 
-Las sugerencias que el perfil compone (por ejemplo, la línea de
-`aplicabilidad` que propone `posible_ausencia_estructural`) marcan como
-UTF-8 sólo la copia que entra al texto. El nombre de la tabla se
-conserva tal como llegó, y el código publicado se puede copiar y pegar
+Las sugerencias que compone el perfil marcan como UTF-8 sólo la copia
+que entra al texto. Un ejemplo es la línea de `aplicabilidad` que
+propone `posible_ausencia_estructural`. El nombre de la tabla se
+conserva tal como llegó. El código publicado se puede copiar y pegar
 igual bajo `LC_CTYPE = "C"`, también cuando el nombre lleva tildes.
 
 ## Números publicados como texto
 
 Los números que pasan a un texto publicado (una evidencia, una
-sugerencia, un motivo) usan notación fija con la precisión completa,
-independiente de `scipen` y de `digits`, y conservan `OutDec`, la marca
-decimal que elige la sesión:
+sugerencia, un motivo) usan notación fija con la precisión completa. Esa
+notación no depende de `scipen` ni de `digits`, y conserva `OutDec`, la
+marca decimal que elige la sesión:
 
 ``` r
 
@@ -141,15 +144,15 @@ options(previas)
 ```
 
 La clasificación de posibles datos personales usa la misma
-representación fija: `scipen` y `digits` no pueden cambiar la decisión
+representación fija. `scipen` y `digits` no pueden cambiar la decisión
 ni borrar de `meta` los centinelas numéricos declarados.
 
-## Codificación dañada: qué se detecta
+## 🔎 Codificación dañada: qué se detecta
 
-El texto que se guardó en UTF-8, se leyó con otra codificación y se
-volvió a guardar (mojibake) se informa como `codificacion_rota`, con
-severidad `error`. La evidencia muestra cada valor con su reparación
-propuesta y su estado, y
+El mojibake es texto que se guardó en UTF-8, se leyó con otra
+codificación y se volvió a guardar. Se informa como `codificacion_rota`,
+con severidad `error`. La evidencia muestra cada valor con su reparación
+propuesta y su estado.
 [`columnas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
 publica el estado de la columna en `estado_codificacion_reparacion`:
 `no_parece_roto`, `reparado`, `reparado_parcialmente` o `no_se_pudo`.
@@ -214,34 +217,33 @@ identical(nombres$nombre[[1]], jose_roto)
 #> [1] TRUE
 ```
 
-Lo que conviene saber antes de activarla:
+### ⚠️ Lo que conviene saber antes de activarla
 
-- **Prueba varias codificaciones.** No se limita a latin-1: prueba las
-  tablas congeladas de varias codificaciones y deja en
-  `estado_reparacion` uno de `reparado`, `reparado_parcialmente` o
-  `no_se_pudo`.
+- **Prueba varias codificaciones.** No se limita a latin-1: usa tablas
+  congeladas. Deja en `estado_reparacion` uno de `reparado`,
+  `reparado_parcialmente` o `no_se_pudo`.
 - **Una reparación parcial no se activa sola.** Si una celda sólo se
-  repara en parte, la acción queda `lista` con `aplicar = FALSE`; se
+  repara en parte, la acción queda `lista` con `aplicar = FALSE`. Se
   elige marcando `aplicar = TRUE`, y entonces se aplican también las
   parciales.
 - **Una celda sin reparación no frena a las demás.** Una celda con el
   carácter de reemplazo U+FFFD, o que el motor no pudo reparar, queda
-  como está, y la justificación de la acción la cuenta.
-- **El plan y el hallazgo cuentan cosas distintas.** Una columna con
-  tres valores de codificación rota, de los cuales uno es reparable,
-  produce un hallazgo con `n_afectados = 3` y una acción con
-  `n_afectadas = 1`. Las dos cifras son ciertas.
-- **Un texto legítimo puede tener los bytes de un mojibake.** Un texto
-  que cita literalmente la `Ã` seguida de `©` no se distingue de uno
-  roto: se informa, la evidencia del plan lo muestra antes de aplicar y,
-  si la acción se aplica, se reescribe como la letra que esos bytes
-  codifican. Si la columna contiene texto así, la acción no se activa.
-- **Unos mismos bytes pueden recibir dos diagnósticos.** `c2 80` es a la
-  vez un carácter de control C1 y la huella de un `€` de Windows-1252
-  leído como latin-1. Cuando el plan propone reparar la codificación y
-  eliminar ese control, manda la reparación: corre primero y restituye
-  el `€`, y la eliminación queda sin nada que hacer. En el caso raro de
-  un control C1 genuino, la reparación lo convierte en `€`.
+  como está. La justificación de la acción la cuenta.
+- **El plan y el hallazgo cuentan cosas distintas.** Sea una columna con
+  3 valores de codificación rota, de los cuales sólo 1 es reparable. El
+  hallazgo dice `n_afectados = 3`, y la acción, `n_afectadas = 1`. Las 2
+  cifras son ciertas.
+- **Un texto legítimo puede tener los bytes de un mojibake.** Si cita
+  literalmente la `Ã` seguida de `©`, no se distingue de uno roto. Se
+  informa, y la evidencia del plan lo muestra antes de aplicar. Si la
+  acción se aplica, se reescribe como la letra que esos bytes codifican.
+  Si la columna contiene texto así, la acción no se activa.
+- **Unos mismos bytes pueden recibir 2 diagnósticos.** `c2 80` es un
+  carácter de control C1. También es la huella de un `€` de Windows-1252
+  leído como latin-1. El plan puede proponer reparar la codificación y
+  eliminar ese control. Entonces manda la reparación: corre primero y
+  restituye el `€`, y la eliminación queda sin nada que hacer. En el
+  caso raro de un control C1 genuino, la reparación lo convierte en `€`.
 
 El recorrido completo de un plan, con la edición de las acciones, está
 en [Limpiar con un
@@ -254,9 +256,9 @@ La reparación sigue en R el enfoque y los datos congelados de
 Speer](https://github.com/rspeer). Usa 11 tablas de bytes (`latin-1`,
 `sloppy-windows-1252`, `sloppy-windows-1251`, `sloppy-windows-1250`,
 `sloppy-windows-1253`, `sloppy-windows-1254`, `sloppy-windows-1257`,
-`iso-8859-2`, `macroman`, `cp437`, `koi8-r`), decodifica CESU-8 y el
-caso Java `C0 80`, y no depende de `iconv` al cargar el paquete: las
-tablas son literales congelados. La tabla KOI8-R y algunas reglas de
+`iso-8859-2`, `macroman`, `cp437`, `koi8-r`). Decodifica CESU-8 y el
+caso Java `C0 80`. No depende de `iconv` al cargar el paquete, porque
+las tablas son literales congelados. La tabla KOI8-R y algunas reglas de
 detección son extensiones propias de `lupa`, documentadas en el código
 fuente.
 
@@ -276,21 +278,29 @@ table(suite, reproducido)
 #>   synthetic          0   30
 ```
 
-Se reproducen 159 de los 161 casos. Los 2 que no se reproducen son
-exactamente los que el propio corpus marca como fallas esperadas
-(`xfail`): una mezcla de Windows-1250 en un texto en inglés y una falla
-conocida de la heurística con texto vietnamita. De los 31 casos
-negativos, 30 esperan el texto sin cambios y quedan intactos; el
-restante está marcado como mayormente negativo, y el corpus espera que
-se reparen sólo sus controles C1.
+Se reproducen 159 de los 161 casos. Los 2 restantes son exactamente los
+que el propio corpus marca como fallas esperadas (`xfail`). Son una
+mezcla de Windows-1250 en un texto en inglés y una falla conocida de la
+heurística con texto vietnamita.
 
-La reparación no ofrece los pasos de estilo de `fix_text` de ftfy, como
-deshacer HTML, curvar comillas, normalizar el ancho o normalizar
-Unicode: cambiar datos legítimos en silencio no es reparar. Las
-entidades HTML y las formas Unicode tienen sus propios hallazgos
-(`entidades_html`, `normalizacion_unicode`), y las entidades, su propia
-estrategia en el plan (`decodificar_entidades_html`).
+De los 31 casos negativos, 30 esperan el texto sin cambios y quedan
+intactos. El restante está marcado como mayormente negativo, y el corpus
+espera que se reparen sólo sus controles C1.
+
+La reparación no ofrece los pasos de estilo de `fix_text` de ftfy, entre
+ellos:
+
+- deshacer HTML;
+- curvar comillas;
+- normalizar el ancho;
+- normalizar Unicode.
+
+No los ofrece porque cambiar datos legítimos en silencio no es reparar.
+Las entidades HTML y las formas Unicode tienen sus propios hallazgos
+(`entidades_html`, `normalizacion_unicode`). Las entidades tienen además
+su propia estrategia en el plan (`decodificar_entidades_html`).
 
 Las partes traducidas de ftfy se distribuyen bajo Apache-2.0, y los
-centinelas tomados de naniar, bajo MIT; los avisos completos están en
+centinelas tomados de [naniar](https://github.com/njtierney/naniar),
+bajo MIT. Los avisos completos están en
 [`inst/COPYRIGHTS`](https://github.com/sebollin/lupa/blob/main/inst/COPYRIGHTS).

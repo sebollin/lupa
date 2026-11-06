@@ -85,33 +85,31 @@
 
     
     
-<p>Tenemos una tabla de ventas en una base de datos, quizá demasiado
-grande para la memoria de la sesión. ¿Cómo decidimos qué calcula el
-motor, cuántas filas llegan a R y dónde queda escrito cómo se
-eligieron?</p>
+<p>Hay una tabla de ventas en una base de datos, quizá demasiado grande
+para la memoria de la sesión. ¿Cómo se decide qué calcula el motor,
+cuántas filas llegan a R y dónde queda escrito cómo se eligieron?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
-<li>perfilamos una tabla con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y separamos sus
-dos bloques, <code>resumen_tabla</code> y
-<code>perfil_muestra</code>;</li>
-<li>comparamos qué trae a R cada opción: la llamada por omisión,
+<li>perfilar una tabla con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y separar sus 2
+bloques, <code>resumen_tabla</code> y <code>perfil_muestra</code>;</li>
+<li>comparar qué trae a R cada opción: la llamada por omisión,
 <code>muestra = n</code>, <code>universo = "muestra_motor"</code> y
 <code>bloque_muestra = "solo_agregados"</code>;</li>
-<li>encontramos el metadato del muestreo, que vive en dos lugares según
-la opción;</li>
-<li>leemos el resultado con los mismos accesores que un perfil en
+<li>encontrar el metadato del muestreo, que vive en 2 lugares según la
+opción;</li>
+<li>leer el resultado con los mismos accesores que un perfil en
 memoria.</li>
 </ul>
 </blockquote>
 <div class="section level2">
 <h2 id="una-tabla-en-una-base">Una tabla en una base<a class="anchor" aria-label="anchor" href="#una-tabla-en-una-base"></a>
 </h2>
-<p>Usamos SQLite en memoria, con los paquetes <code>DBI</code> y
-<code>RSQLite</code>. La tabla tiene mil filas para que la guía corra en
-segundos; las decisiones son las mismas con millones.
-<code><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">DBI::dbWriteTable()</a></code> sólo prepara el ejemplo:
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> emite consultas de lectura, no escribe en la
+<p>El ejemplo usa SQLite en memoria, con los paquetes <code>DBI</code> y
+<code>RSQLite</code>. La tabla tiene 1.000 filas para que la guía corra
+en segundos; las decisiones son las mismas con millones.
+<code><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">DBI::dbWriteTable()</a></code> sólo prepara el ejemplo.
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> emite consultas de lectura: no escribe en la
 base ni crea tablas temporales.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
@@ -152,28 +150,38 @@ base ni crea tablas temporales.</p>
 <span><span class="co">#&gt; Perfil de muestra: 1000 filas, reproducible: FALSE</span></span>
 <span><span class="co">#&gt; Diagnósticos no evaluados sobre la muestra: 3, en `perfil_muestra$cobertura_diagnosticos`</span></span>
 <span><span class="co">#&gt; No se imprime ningún valor de celda: están en `resumen_tabla$columnas`.</span></span></code></pre></div>
-<p>La impresión ya muestra los dos bloques. «Resumen de tabla completa»
-es <code>resumen_tabla</code>: agregados que el motor calcula en SQL
-sobre todas las filas. «Perfil de muestra» es
-<code>perfil_muestra</code>: <code><a href="../reference/perfilar.html">perfilar()</a></code> corrido en R sobre
-las filas que se leyeron. Las líneas de derrame sólo tienen contenido en
-PostgreSQL.</p>
+<p>La impresión muestra los 2 bloques:</p>
+<ul>
+<li>«Resumen de tabla completa» es <code>resumen_tabla</code>: agregados
+que el motor calcula en SQL sobre todas las filas.</li>
+<li>«Perfil de muestra» es <code>perfil_muestra</code>:
+<code><a href="../reference/perfilar.html">perfilar()</a></code> corrido en R sobre las filas que se
+leyeron.</li>
+</ul>
+<p>Las líneas de derrame sólo tienen contenido en PostgreSQL.</p>
 <p>Por omisión, <code>universo = "tabla_completa"</code> y
-<code>muestra = Inf</code>. Eso quiere decir que los agregados recorren
-la tabla entera y que, además, <code>lupa</code> trae a R <strong>todas
-las filas que entran en los topes de lectura</strong>:
+<code>muestra = Inf</code>. Eso quiere decir:</p>
+<ul>
+<li>los agregados recorren la tabla entera;</li>
+<li>
+<code>lupa</code> trae además a R <strong>todas las filas que entran
+en los topes de lectura</strong>. Los topes son
 <code>max_celdas_muestra</code> (1.000.000 celdas por omisión) y
-<code>max_bytes_muestra</code> (512 MiB). Con esta tabla entran las mil.
-La llamada por omisión no es una muestra barata: es la tabla completa,
-si cabe.</p>
+<code>max_bytes_muestra</code> (512 MiB).</li>
+</ul>
+<p>Con esta tabla entran las 1.000 filas. La llamada por omisión no es
+una muestra barata: es la tabla completa, si cabe.</p>
 </div>
 <div class="section level2">
 <h2 id="qué-trae-a-r-cada-opción">Qué trae a R cada opción<a class="anchor" aria-label="anchor" href="#qu%C3%A9-trae-a-r-cada-opci%C3%B3n"></a>
 </h2>
-<p>Probamos las otras tres decisiones sobre la misma tabla y armamos una
-fila por opción: cuántas filas describe el resumen SQL, cuántas se
-leyeron a R y en cuál de los dos lugares quedó el metadato del
-muestreo.</p>
+<p>Las otras 3 decisiones se prueban sobre la misma tabla. El resultado
+tiene una fila por opción, con:</p>
+<ul>
+<li>cuántas filas describe el resumen SQL;</li>
+<li>cuántas se leyeron a R;</li>
+<li>en cuál de los 2 lugares quedó el metadato del muestreo.</li>
+</ul>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">acotado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"ventas"</span>, muestra <span class="op">=</span> <span class="fl">200</span>, orden_muestra <span class="op">=</span> <span class="st">"id_venta"</span><span class="op">)</span></span>
 <span><span class="va">en_motor</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
@@ -212,19 +220,19 @@ muestreo.</p>
 <ul>
 <li>
 <strong><code>muestra = n</code></strong> acota la lectura a R, no
-los agregados: el resumen sigue describiendo las mil filas y el perfil
-por fila, doscientas.</li>
+los agregados: el resumen sigue describiendo las 1.000 filas, y el
+perfil por fila, 200.</li>
 <li>
 <strong><code>universo = "muestra_motor"</code></strong> con
 <code>muestra_motor = n</code> cambia el universo de los agregados. El
-motor elige la muestra una sola vez, <code>lupa</code> la guarda en una
-copia de la sesión de R y todo lo demás se calcula sobre esas mismas
-filas: resumen y perfil describen las mismas ciento cincuenta.</li>
+motor elige la muestra una sola vez y <code>lupa</code> la guarda en una
+copia de la sesión de R. Todo lo demás se calcula sobre esas mismas
+filas: resumen y perfil describen las mismas 150.</li>
 <li>
 <strong><code>bloque_muestra = "solo_agregados"</code></strong> no
 trae ninguna fila: <code>perfil_muestra</code> queda en
 <code>NULL</code> y sólo hay conteos y resúmenes calculados en el motor.
-Vale para los dos universos.</li>
+Vale para los 2 universos.</li>
 </ul>
 <p><code><a href="../reference/accesores_perfil.html">n_filas()</a></code> devuelve siempre el conteo de la tabla
 completa, también con <code>muestra_motor</code>.</p>
@@ -232,12 +240,17 @@ completa, también con <code>muestra_motor</code>.</p>
 <div class="section level2">
 <h2 id="dónde-queda-escrito-cómo-se-muestreó">Dónde queda escrito cómo se muestreó<a class="anchor" aria-label="anchor" href="#d%C3%B3nde-queda-escrito-c%C3%B3mo-se-muestre%C3%B3"></a>
 </h2>
-<p>Las dos últimas columnas de la tabla de arriba dicen si existe cada
-uno de los dos lugares donde vive el metadato del muestreo:
-<code>meta_resumen</code> mira <code>resumen_tabla$meta$muestreo</code>
-y <code>meta_lectura</code>,
-<code>perfil_muestra$meta$origen_dbi$muestreo</code>. Cada uno existe
-bajo su propia condición:</p>
+<p>Las 2 últimas columnas de la tabla de arriba dicen si existe cada
+lugar donde vive el metadato del muestreo:</p>
+<ul>
+<li>
+<code>meta_resumen</code> mira
+<code>resumen_tabla$meta$muestreo</code>;</li>
+<li>
+<code>meta_lectura</code> mira
+<code>perfil_muestra$meta$origen_dbi$muestreo</code>.</li>
+</ul>
+<p>Cada uno existe bajo su propia condición:</p>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -265,9 +278,13 @@ bajo su propia condición:</p>
 </tr>
 </tbody>
 </table>
-<p>Para la lectura a R, el metadato dice cuántas filas se pidieron,
-cuántas llegaron, cuántas tiene la tabla, cómo se eligieron y si la
-elección se puede repetir:</p>
+<p>Para la lectura a R, el metadato dice:</p>
+<ul>
+<li>cuántas filas se pidieron y cuántas llegaron;</li>
+<li>cuántas tiene la tabla;</li>
+<li>cómo se eligieron;</li>
+<li>si la elección se puede repetir.</li>
+</ul>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">lectura</span> <span class="op">&lt;-</span> <span class="va">acotado</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">muestreo</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">lectura</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -280,10 +297,10 @@ elección se puede repetir:</p>
 <span><span class="co">#&gt;  $ filas_totales_fuente: num 1000</span></span>
 <span><span class="co">#&gt;  $ metodo              : chr "primeras_filas_segun_orden"</span></span>
 <span><span class="co">#&gt;  $ reproducible        : logi TRUE</span></span></code></pre></div>
-<p><code>reproducible</code> es <code>TRUE</code> porque declaramos
+<p><code>reproducible</code> es <code>TRUE</code> porque se declaró
 <code>orden_muestra = "id_venta"</code> y <code>lupa</code> comprobó en
 la tabla completa que ese orden es único. Sin orden declarado, un
-<code>LIMIT</code> no tiene orden garantizado y
+<code>LIMIT</code> no tiene orden garantizado. Entonces
 <code>reproducible</code> vale <code>FALSE</code>, como en la llamada
 por omisión:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -293,10 +310,9 @@ por omisión:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">sin_orden</span><span class="op">$</span><span class="va">motivo_reproducibilidad</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; No se declaró `orden_muestra`; SQL no garantiza el orden de las filas.</span></span></code></pre></div>
 <p>Para la muestra del motor, el metadato está en el resumen. El método
-depende de lo que el motor acepte: <code>lupa</code> prueba primero las
-variantes de <code>TABLESAMPLE</code> y, si ninguna sirve, ordena por
-una función pseudoaleatoria con el límite del dialecto, que es lo que
-hace SQLite.</p>
+depende de lo que el motor acepte. <code>lupa</code> prueba primero las
+variantes de <code>TABLESAMPLE</code>. Si ninguna sirve, ordena por una
+función pseudoaleatoria con el límite del dialecto, como en SQLite.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">del_motor</span> <span class="op">&lt;-</span> <span class="va">en_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">muestreo</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">del_motor</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metodo"</span>, <span class="st">"tamano_muestra"</span>, <span class="st">"fraccion"</span>, <span class="st">"universo"</span>, <span class="st">"reproducible"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
@@ -324,11 +340,11 @@ muestra.</p>
 <span><span class="co">#&gt; 37   monto tasa_distintos observado_muestra        muestra</span></span></code></pre></div>
 <p>El estado <code>observado_muestra</code> avisa que el valor describe
 la muestra. En particular, <code>n_distintos</code> es la cardinalidad
-observada en esas ciento cincuenta filas, no una estimación de la
-cardinalidad de la tabla.</p>
+observada en esas 150 filas, no una estimación de la cardinalidad de la
+tabla.</p>
 </div>
 <div class="section level2">
-<h2 id="los-dos-bloques-uno-al-lado-del-otro">Los dos bloques, uno al lado del otro<a class="anchor" aria-label="anchor" href="#los-dos-bloques-uno-al-lado-del-otro"></a>
+<h2 id="los-dos-bloques-uno-al-lado-del-otro">Los 2 bloques, uno al lado del otro<a class="anchor" aria-label="anchor" href="#los-dos-bloques-uno-al-lado-del-otro"></a>
 </h2>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -343,12 +359,12 @@ cardinalidad de la tabla.</p>
 <span><span class="co">#&gt;           bloque calculado_en filas campos_analiticos</span></span>
 <span><span class="co">#&gt; 1  resumen_tabla     el motor  1000                15</span></span>
 <span><span class="co">#&gt; 2 perfil_muestra            R   200               117</span></span></code></pre></div>
-<p>El resumen tiene 15 campos analíticos por columna, los que SQL puede
-calcular sin traer los datos: faltantes, distintos, moda, mínimo,
+<p>El resumen tiene 15 campos analíticos por columna. Son los que SQL
+puede calcular sin traer los datos: faltantes, distintos, moda, mínimo,
 máximo, media, mediana y desvío, entre otros. El perfil de la muestra
 tiene los 117 de <code><a href="../reference/perfilar.html">perfilar()</a></code>, pero sobre las filas leídas.
-Por eso <code>lupa</code> no los mezcla: llamar <em>perfil</em> al
-resumen afirmaría una completitud que no tiene, y leer el perfil como si
+Por eso <code>lupa</code> no los mezcla. Llamar <em>perfil</em> al
+resumen afirmaría una completitud que no tiene; leer el perfil como si
 fuera de la tabla entera, también.</p>
 </div>
 <div class="section level2">
@@ -374,17 +390,26 @@ funcionan igual sobre el resultado de <code><a href="../reference/perfilar_dbi.h
 <span><span class="co">#&gt; 5    fecha casi_duplicados_vocabulario         ok           0</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 60</span></span></code></pre></div>
-<p>El motor contó los 20 faltantes de <code>monto</code> en las mil
-filas. El perfil por fila encontró, en sus doscientas, que
+<p>El motor contó los 20 faltantes de <code>monto</code> en las 1.000
+filas. En sus 200 filas, el perfil por fila encontró que:</p>
+<ul>
+<li>
 <code>fecha</code> está guardada como texto aunque contiene fechas
-(<code>tipo_declarado_distinto</code>) y que casi cada fila trae una
-fecha distinta (<code>alta_cardinalidad</code>).
-<code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> devuelve una fila por columna y métrica, con
-la consulta que la produjo, su estado y su motivo.</p>
+(<code>tipo_declarado_distinto</code>);</li>
+<li>casi cada fila trae una fecha distinta
+(<code>alta_cardinalidad</code>).</li>
+</ul>
+<p><code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> devuelve una fila por columna y métrica,
+con la consulta que la produjo, su estado y su motivo.</p>
 <p>Cuando no se pidió la muestra, los accesores no inventan lo que no
-hay: <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> devuelve una tabla vacía con un aviso, y
+hay:</p>
+<ul>
+<li>
+<code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> devuelve una tabla vacía con un aviso;</li>
+<li>
 <code><a href="../reference/accesores_perfil.html">cobertura()</a></code> declara el bloque como
-<code>no_solicitado</code>, que no es un fallo.</p>
+<code>no_solicitado</code>, que no es un fallo.</li>
+</ul>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">aviso</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
 <span><span class="va">sin_filas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">withCallingHandlers</a></span><span class="op">(</span></span>
@@ -404,7 +429,7 @@ hay: <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> d
 <span><span class="co">#&gt; 1 perfil_muestra   ventas no_solicitado</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="lo-que-el-resumen-no-garantiza">Lo que el resumen no garantiza<a class="anchor" aria-label="anchor" href="#lo-que-el-resumen-no-garantiza"></a>
+<h2 id="lo-que-el-resumen-no-garantiza">⚠️ Lo que el resumen no garantiza<a class="anchor" aria-label="anchor" href="#lo-que-el-resumen-no-garantiza"></a>
 </h2>
 <p>Los agregados son consultas separadas, y la tabla puede cambiar entre
 una y otra. El resumen lo declara:</p>
@@ -417,7 +442,7 @@ una y otra. El resumen lo declara:</p>
 <span><span class="co">#&gt; grupos de consistencia distintos.</span></span></code></pre></div>
 <p>Si <code>n_validos</code> y <code>n_distintos</code> salen
 incoherentes y vienen de consultas distintas, <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>
-agrega una fila <code>alcance_distinto</code> con las dos sentencias: es
+agrega una fila <code>alcance_distinto</code> con las 2 sentencias. Es
 evidencia de que la tabla cambió durante la corrida, no una acusación
 contra el motor.</p>
 </div>
@@ -425,29 +450,39 @@ contra el motor.</p>
 <h2 id="antes-de-conectar-a-otro-motor">Antes de conectar a otro motor<a class="anchor" aria-label="anchor" href="#antes-de-conectar-a-otro-motor"></a>
 </h2>
 <p>El paquete del motor y la biblioteca del sistema que va debajo los
-instala quien usa <code>lupa</code>, y el error que aparece cuando falta
+instala quien usa <code>lupa</code>. El error que aparece cuando falta
 alguno rara vez dice cuál es. <code><a href="../reference/requisitos_motor.html">requisitos_motor()</a></code> lo dice
 antes de conectar:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># el catálogo entero</span></span>
 <span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"mariadb"</span><span class="op">)</span>   <span class="co"># qué necesita MariaDB y cómo conseguirlo</span></span></code></pre></div>
-<p>Por cada motor devuelve el paquete de R, la biblioteca del sistema
-con su nombre en Debian y en Fedora, la forma de instalarla sin permisos
-de administrador cuando existe, el dialecto esperado y el estado de
-prueba del motor.</p>
+<p>Por cada motor devuelve:</p>
+<ul>
+<li>el paquete de R;</li>
+<li>la biblioteca del sistema, con su nombre en Debian y en Fedora;</li>
+<li>la forma de instalarla sin permisos de administrador, cuando
+existe;</li>
+<li>el dialecto esperado;</li>
+<li>el estado de prueba del motor.</li>
+</ul>
 </div>
 <div class="section level2">
-<h2 id="para-una-tabla-grande">Para una tabla grande<a class="anchor" aria-label="anchor" href="#para-una-tabla-grande"></a>
+<h2 id="para-una-tabla-grande">⏱ Para una tabla grande<a class="anchor" aria-label="anchor" href="#para-una-tabla-grande"></a>
 </h2>
 <p>Antes de perfilar una tabla de millones de filas conviene mirar el
-plan: <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> cuenta las consultas y el
+plan. <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> cuenta las consultas y el
 trabajo que haría <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> con los mismos argumentos,
 sin leer datos. El artículo <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html">Motores
-y escala</a> reúne lo que hace falta para decidir: el costo de cada
-métrica y los lotes de consultas, la política de costo, los presupuestos
-de memoria, la copia de la muestra que guarda la sesión, los dialectos,
-la garantía de la clave primaria según el motor y la matriz de motores
-probados.</p>
+y escala</a> reúne lo que hace falta para decidir:</p>
+<ul>
+<li>el costo de cada métrica y los lotes de consultas;</li>
+<li>la política de costo;</li>
+<li>los presupuestos de memoria;</li>
+<li>la copia de la muestra que guarda la sesión;</li>
+<li>los dialectos;</li>
+<li>la garantía de la clave primaria según el motor;</li>
+<li>la matriz de motores probados.</li>
+</ul>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -456,11 +491,12 @@ probados.</p>
 </h2>
 <ul>
 <li>
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve dos bloques:
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve 2 bloques:
 <code>resumen_tabla</code>, calculado en el motor, y
 <code>perfil_muestra</code>, calculado en R sobre las filas leídas.</li>
-<li>Por omisión los agregados cubren toda la tabla y el perfil por fila
-también trae todas las filas que entran en los topes de lectura.</li>
+<li>Por omisión los agregados cubren toda la tabla. El perfil por fila,
+también por omisión, trae todas las filas que entran en los topes de
+lectura.</li>
 <li>
 <code>muestra = n</code> acota la lectura a R;
 <code>universo = "muestra_motor"</code> muestrea en el motor;
@@ -475,7 +511,7 @@ instantánea.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p>Una base no es una tabla: <a href="colecciones.html">Colecciones</a>
 perfila varias tablas a la vez y busca las relaciones entre ellas.</p>

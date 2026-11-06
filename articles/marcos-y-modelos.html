@@ -85,26 +85,30 @@
 
     
     
-<p>¿Con qué criterio decimos que una entrega es buena? En <a href="del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a>
-medimos lo que <code>lupa</code> propuso a partir del perfil. Ahora el
-criterio lo declaramos nosotros: qué aspectos de la calidad nos
-importan, con qué métricas los medimos y cómo leemos los números.</p>
+<p>¿Con qué criterio se dice que una entrega es buena? En <a href="del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a>
+se midió lo que <code>lupa</code> propuso a partir del perfil. Aquí el
+criterio lo declara quien usa el paquete:</p>
+<ul>
+<li>qué aspectos de la calidad importan;</li>
+<li>con qué métricas se miden;</li>
+<li>cómo se leen los números.</li>
+</ul>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
-<li>declaramos un marco propio de dimensiones y factores con
+<li>declarar un marco propio de dimensiones y factores con
 <code><a href="../reference/marco_calidad.html">marco_calidad()</a></code>;</li>
-<li>construimos métricas en tres niveles, y una métrica nueva con
+<li>construir métricas en 3 niveles, y una métrica nueva con
 <code><a href="../reference/modelo_calidad.html">metrica()</a></code>;</li>
-<li>reunimos las métricas en un modelo ligado al marco y vemos qué
+<li>reunir las métricas en un modelo ligado al marco y ver qué
 cubre;</li>
-<li>leemos el tablero con su <code>orientacion</code>, armamos un índice
-con pesos declarados y evaluamos con perfiles de madurez;</li>
-<li>conocemos los marcos incluidos: ISO/IEC 25012, CEA/CEPAL y
+<li>leer el tablero con su <code>orientacion</code>, armar un índice con
+pesos declarados y evaluar con perfiles de madurez;</li>
+<li>conocer los marcos incluidos: ISO/IEC 25012, CEA/CEPAL y
 AGESIC.</li>
 </ul>
 </blockquote>
-<p>Primero declaramos un marco pequeño para la entrega y vemos qué
+<p>Primero se declara un marco pequeño para la entrega, y se ve qué
 estructura devuelve.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
@@ -144,38 +148,49 @@ estructura devuelve.</p>
 de Batini y Scannapieco (2016). Una dimensión reúne factores: la
 completitud reúne la densidad, por ejemplo. Un factor reúne métricas:
 <code>NoNulo</code> mide la densidad. Esa jerarquía sirve para
-clasificar y para navegar el modelo, no para calcular: el marco no
-define un “puntaje de exactitud” ni un índice global, y
-<code><a href="../reference/agregar.html">agregar()</a></code> no sube de una métrica a su factor ni a su
+clasificar y para navegar el modelo, no para calcular. El marco no
+define un “puntaje de exactitud” ni un índice global.
+<code><a href="../reference/agregar.html">agregar()</a></code> tampoco sube de una métrica a su factor ni a su
 dimensión. Promediar factores sin una decisión explícita ocultaría
 prioridades y correlaciones entre ellos.</p>
-<p>El marco de arriba es el de nuestra entrega,
+<p>El marco de arriba es el de la entrega,
 <code>datos_operativos</code>. Cada métrica trae su dimensión y su
-factor, y un modelo ligado a un marco exige que cada una caiga en uno de
-sus pares. Para las tres métricas del núcleo que vamos a usar tomamos
-los pares del catálogo de AGESIC, que los nombra; los otros dos factores
-son propios.</p>
-<p>En un data frame, <code>perfil_mide</code> dice para qué factores el
-perfil por sí solo ya aporta evidencia suficiente; aquí, la no
-duplicación, porque <code><a href="../reference/perfilar.html">perfilar()</a></code> busca filas repetidas.
-<code>como_resolverlo</code> es la instrucción que se muestra mientras
-el factor no esté medido. La forma abreviada, una lista como
+factor. Un modelo ligado a un marco exige que cada una caiga en uno de
+sus pares. Para las 3 métricas del núcleo que se usan aquí, los pares se
+toman del catálogo de AGESIC, que los nombra. Los otros 2 factores son
+propios.</p>
+<p>En un data frame:</p>
+<ul>
+<li>
+<code>perfil_mide</code> dice para qué factores el perfil por sí
+solo ya aporta evidencia suficiente. Aquí es la no duplicación, porque
+<code><a href="../reference/perfilar.html">perfilar()</a></code> busca filas repetidas.</li>
+<li>
+<code>como_resolverlo</code> es la instrucción que se muestra
+mientras el factor no esté medido.</li>
+</ul>
+<p>La forma abreviada, una lista como
 <code>list(Completitud = "Densidad")</code>, deja
 <code>perfil_mide</code> en <code>FALSE</code> para todos los factores:
 nunca presume que examinar equivale a medir.</p>
 <p>Las métricas que trae <code>lupa</code> usan los nombres del marco de
-AGESIC (<code>NoNulo</code> declara Completitud y Densidad); por eso
-tres de nuestros factores los repiten. Para un factor con nombre propio,
-como “Origen documentado”, escribimos una métrica que lo declare.</p>
+AGESIC: <code>NoNulo</code> declara Completitud y Densidad. Por eso 3 de
+los factores de la entrega los repiten. Para un factor con nombre
+propio, como “Origen documentado”, se escribe una métrica que lo
+declare.</p>
 </div>
 <div class="section level2">
-<h2 id="tres-niveles-de-métrica">Tres niveles de métrica<a class="anchor" aria-label="anchor" href="#tres-niveles-de-m%C3%A9trica"></a>
+<h2 id="tres-niveles-de-métrica">Los 3 niveles de una métrica<a class="anchor" aria-label="anchor" href="#tres-niveles-de-m%C3%A9trica"></a>
 </h2>
-<p>Una métrica existe en tres niveles. La genérica dice qué se mide; la
-especializada, con qué criterio; la instanciada, dónde.
-<code><a href="../reference/modelo_calidad.html">metricas_nucleo()</a></code> reúne las genéricas que trae el paquete,
-y <code><a href="../reference/modelo_calidad.html">propiedades_metrica()</a></code> dice qué criterio se puede fijar en
-cada una:</p>
+<p>Una métrica existe en 3 niveles:</p>
+<ul>
+<li>la genérica dice qué se mide;</li>
+<li>la especializada, con qué criterio;</li>
+<li>la instanciada, dónde.</li>
+</ul>
+<p><code><a href="../reference/modelo_calidad.html">metricas_nucleo()</a></code> reúne las genéricas que trae el
+paquete. <code><a href="../reference/modelo_calidad.html">propiedades_metrica()</a></code> dice qué criterio se puede
+fijar en cada una:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">nucleo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">metricas_nucleo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/modelo_calidad.html">propiedades_metrica</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span><span class="op">)</span></span>
@@ -200,14 +215,13 @@ sin repetir el criterio. El nombre de la instancia tiene la forma
 <code>Especializada@tabla.columna</code> y viaja en la columna
 <code>metrica_instanciada</code> de cada medida. Las métricas que salen
 de una propuesta se llaman como su fila (<code>NoNulo:canal</code>).</p>
-<p>La entidad es el nombre de la tabla. Si a <code><a href="../reference/medir.html">medir()</a></code> le
-damos un solo data frame, lo asocia a la entidad del modelo; si el
-modelo mide varias tablas, recibe una lista con nombres, uno por
-entidad.</p>
+<p>La entidad es el nombre de la tabla. Si <code><a href="../reference/medir.html">medir()</a></code> recibe
+un solo data frame, lo asocia a la entidad del modelo. Si el modelo mide
+varias tablas, recibe una lista con nombres, uno por entidad.</p>
 <p><code>Formato</code> acepta como criterio una expresión regular, un
-diccionario o un validador: una función vectorizada que devuelve
-<code>TRUE</code> o <code>FALSE</code> para cada valor. La usamos con el
-validador de correo para la columna <code>contacto</code>. La
+diccionario o un validador. Un validador es una función vectorizada que
+devuelve <code>TRUE</code> o <code>FALSE</code> para cada valor. Aquí se
+usa el validador de correo para la columna <code>contacto</code>. La
 especializada es a su vez una función: llamarla con la tabla y la
 columna equivale a <code><a href="../reference/modelo_calidad.html">instanciar()</a></code>.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
@@ -239,7 +253,7 @@ del motor:</p>
 <span><span class="fu"><a href="../reference/pack_validadores.html">validadores_uruguay</a></span><span class="op">(</span><span class="op">)</span><span class="op">$</span><span class="fu">cedula</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"1.234.567-2"</span>, <span class="st">"1.234.567-3"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1]  TRUE FALSE</span></span></code></pre></div>
 <p>Un proyecto de otro país arma su pack con
-<code><a href="../reference/pack_validadores.html">pack_validadores()</a></code> y mantiene sus funciones en su propio
+<code><a href="../reference/pack_validadores.html">pack_validadores()</a></code>. Mantiene sus funciones en su propio
 paquete o guion, sin registrar nombres ni modificar <code>lupa</code>.
 La ayuda de <code><a href="../reference/pack_validadores.html">pack_validadores()</a></code> trae un ejemplo completo con
 un RUT chileno.</p>
@@ -247,14 +261,13 @@ un RUT chileno.</p>
 <div class="section level2">
 <h2 id="una-métrica-propia">Una métrica propia<a class="anchor" aria-label="anchor" href="#una-m%C3%A9trica-propia"></a>
 </h2>
-<p>Para “Origen documentado” no hay métrica en el núcleo: la declaramos
-con <code><a href="../reference/modelo_calidad.html">metrica()</a></code>. El método recibe una lista con nombre de
-tablas y la instancia que se está midiendo, y devuelve una fila por
-objeto medido con las columnas <code>resultado</code>,
-<code>entidad</code>, <code>atributo</code>, <code>fila</code> y
-<code>objeto</code>. La granularidad acepta el nombre del marco
-(<code>instanciaAtributo</code>) o su equivalente en tablas
-(<code>celda</code>).</p>
+<p>Para “Origen documentado” no hay métrica en el núcleo: se declara con
+<code><a href="../reference/modelo_calidad.html">metrica()</a></code>. El método recibe una lista con nombre de tablas
+y la instancia que se está midiendo. Devuelve una fila por objeto
+medido, con las columnas <code>resultado</code>, <code>entidad</code>,
+<code>atributo</code>, <code>fila</code> y <code>objeto</code>. La
+granularidad acepta el nombre del marco (<code>instanciaAtributo</code>)
+o su equivalente en tablas (<code>celda</code>).</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">metodo_origen</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tablas</span>, <span class="va">instancia</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">x</span> <span class="op">&lt;-</span> <span class="va">tablas</span><span class="op">[[</span><span class="va">instancia</span><span class="op">$</span><span class="va">entidad</span><span class="op">]</span><span class="op">]</span><span class="op">[[</span><span class="va">instancia</span><span class="op">$</span><span class="va">atributos</span><span class="op">]</span><span class="op">]</span></span>
@@ -280,7 +293,7 @@ objeto medido con las columnas <code>resultado</code>,
 <span><span class="op">)</span></span>
 <span><span class="va">origen</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">OrigenDeclarado</span><span class="op">)</span>, <span class="st">"datos_operativos"</span>, <span class="st">"sistema"</span><span class="op">)</span></span></code></pre></div>
 <p><code><a href="../reference/modelo_calidad.html">metrica()</a></code> devuelve la genérica, que también es una
-función. Por eso la forma corta encadena dos llamadas:
+función. Por eso la forma corta encadena 2 llamadas:
 <code>OrigenDeclarado()("datos_operativos", "sistema")</code>
 especializa con la primera e instancia con la segunda.</p>
 </div>
@@ -288,9 +301,9 @@ especializa con la primera e instancia con la segunda.</p>
 <h2 id="un-modelo-ligado-al-marco">Un modelo ligado al marco<a class="anchor" aria-label="anchor" href="#un-modelo-ligado-al-marco"></a>
 </h2>
 <p><code><a href="../reference/modelo_calidad.html">modelo()</a></code> reúne las instancias. Con <code>marco =</code>,
-comprueba que cada una pertenezca a uno de los pares del marco, y
-rechaza el modelo nombrando el par que falta si alguna no pertenece.
-Medimos y cruzamos la medición con el marco:</p>
+comprueba que cada una pertenezca a uno de los pares del marco. Si
+alguna no pertenece, rechaza el modelo y nombra el par que falta.
+Después se mide y se cruza la medición con el marco:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">modelo_entrega</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">completitud_canal</span>, <span class="va">formato_contacto</span>, <span class="va">duplicadas</span>, <span class="va">origen</span><span class="op">)</span>,</span>
@@ -309,9 +322,8 @@ Medimos y cruzamos la medición con el marco:</p>
 <span><span class="co">#&gt; 3     Unicidad         No-duplicación       medida</span></span>
 <span><span class="co">#&gt; 4 Trazabilidad     Origen documentado       medida</span></span>
 <span><span class="co">#&gt; 5     Frescura             Actualidad no_declarada</span></span></code></pre></div>
-<p>Cuatro de los cinco factores quedaron medidos. La actualidad sigue
-sin declarar, y la tabla lo dice con la instrucción que escribimos en el
-marco:</p>
+<p>Quedaron medidos 4 de los 5 factores. La actualidad sigue sin
+declarar, y la tabla lo dice con la instrucción escrita en el marco:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">cobertura</span><span class="op">$</span><span class="va">como_resolverlo</span><span class="op">[</span><span class="va">cobertura</span><span class="op">$</span><span class="va">factor</span> <span class="op">==</span> <span class="st">"Actualidad"</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Declarar la vigencia con vigencia() y medir la desactualización.</span></span></code></pre></div>
@@ -335,16 +347,23 @@ booleanas se resumen con <code>ratio</code>.</p>
 <span><span class="co">#&gt;     Exactitud          Formato contacto 0.9230769 conformidad   celdas</span></span>
 <span><span class="co">#&gt;      Unicidad EntidadDuplicada  (tabla) 0.1538462     defecto    filas</span></span>
 <span><span class="co">#&gt;  Trazabilidad  OrigenDeclarado  sistema 1.0000000 conformidad   celdas</span></span></code></pre></div>
-<p>La columna <code>orientacion</code> dice cómo leer cada proporción:
-<code>conformidad</code> significa que un valor mayor es mejor,
-<code>defecto</code> que un valor menor es mejor y
-<code>no_aplica</code> que la métrica no es una proporción combinable.
-El 0.154 de <code>EntidadDuplicada</code> es la proporción de filas que
-participan en un duplicado (cuanto más bajo, mejor), y el 0.846 de
-<code>NoNulo</code> es la proporción de celdas con valor (cuanto más
-alto, mejor). Los números están en la misma escala pero no se leen
-igual, y promediarlos sin mirar <code>orientacion</code> da un número
-que no significa nada.</p>
+<p>La columna <code>orientacion</code> dice cómo leer cada
+proporción:</p>
+<ul>
+<li>
+<code>conformidad</code>: un valor mayor es mejor;</li>
+<li>
+<code>defecto</code>: un valor menor es mejor;</li>
+<li>
+<code>no_aplica</code>: la métrica no es una proporción
+combinable.</li>
+</ul>
+<p>El 0.154 de <code>EntidadDuplicada</code> es la proporción de filas
+que participan en un duplicado: cuanto más bajo, mejor. El 0.846 de
+<code>NoNulo</code> es la proporción de celdas con valor: cuanto más
+alto, mejor. Los 2 números están en la misma escala, pero no se leen
+igual. Promediarlos sin mirar <code>orientacion</code> da un número que
+no significa nada.</p>
 <p>La columna <code>universo</code> dice la unidad de cada valor: celdas
 o filas. El atributo <code>alcance</code> cuenta los factores del marco,
 los medidos y los que no tienen métrica:</p>
@@ -356,11 +375,11 @@ los medidos y los que no tienen métrica:</p>
 <span><span class="co">#&gt; 1                       0</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="un-índice-sólo-con-pesos-declarados">Un índice sólo con pesos declarados<a class="anchor" aria-label="anchor" href="#un-%C3%ADndice-s%C3%B3lo-con-pesos-declarados"></a>
+<h2 id="un-índice-sólo-con-pesos-declarados">⚠️ Un índice sólo con pesos declarados<a class="anchor" aria-label="anchor" href="#un-%C3%ADndice-s%C3%B3lo-con-pesos-declarados"></a>
 </h2>
 <p>Sin <code>pesos</code> no hay número:
 <code>indice_calidad(tablero)</code> devuelve el mismo tablero. Los
-pesos no pertenecen a <code>lupa</code>; los declaramos nosotros según
+pesos no pertenecen a <code>lupa</code>: los declara quien lo usa, según
 la decisión del proyecto.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="fu"><a href="../reference/indice_calidad.html">indice_calidad</a></span><span class="op">(</span><span class="va">tablero</span><span class="op">)</span><span class="op">)</span></span>
@@ -380,8 +399,8 @@ la decisión del proyecto.</p>
 <p>Para las métricas de <code>defecto</code>, el índice usa
 <code>1 - valor</code>: la unicidad entra como 0.846. Las de
 <code>no_aplica</code> quedan fuera y se declaran como exclusiones. El
-índice tampoco promedia por su cuenta dos componentes de una misma
-dimensión: si <code>NoNulo</code> midiera dos columnas, habría que
+índice tampoco promedia por su cuenta 2 componentes de una misma
+dimensión. Si <code>NoNulo</code> midiera 2 columnas, habría que
 declarar <code>pesos_internos</code> para combinarlas. Y cuando los
 componentes salen de unidades distintas, lo advierte:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
@@ -390,19 +409,26 @@ componentes salen de unidades distintas, lo advierte:</p>
 <span><span class="co">#&gt; no son comparables y sólo lo hace porque quien lo solicitó declaró los pesos. Por</span></span>
 <span><span class="co">#&gt; universo: celdas: componente-0001, componente-0002, componente-0004; filas:</span></span>
 <span><span class="co">#&gt; componente-0003.</span></span></code></pre></div>
-<p>La advertencia no resuelve la diferencia de unidades: el índice
-combina celdas y filas sólo porque nosotros declaramos los pesos.</p>
+<p>La advertencia no resuelve la diferencia de unidades. El índice
+combina celdas y filas sólo porque quien usa el paquete declaró los
+pesos.</p>
 </div>
 <div class="section level2">
 <h2 id="perfiles-de-madurez">Perfiles de madurez<a class="anchor" aria-label="anchor" href="#perfiles-de-madurez"></a>
 </h2>
-<p>Además de las reglas propias, <code>lupa</code> trae los tres
-perfiles de madurez de AGESIC, <code>Basico</code>,
-<code>Intermedio</code> y <code>Avanzado</code>, con condiciones
-estrictas <code>&gt; 0.5</code>, <code>&gt; 0.7</code> y
-<code>&gt; 0.9</code>. Los cortes se aplican al resultado agregado de
-cada métrica, así que primero agregamos cada una hasta su objeto: las de
-celda hasta la columna, la de filas hasta la tabla.</p>
+<p>Además de las reglas propias, <code>lupa</code> trae los perfiles de
+madurez de AGESIC, con condiciones estrictas:</p>
+<ul>
+<li>
+<code>Basico</code>, <code>&gt; 0.5</code>;</li>
+<li>
+<code>Intermedio</code>, <code>&gt; 0.7</code>;</li>
+<li>
+<code>Avanzado</code>, <code>&gt; 0.9</code>.</li>
+</ul>
+<p>Los cortes se aplican al resultado agregado de cada métrica. Por eso
+primero se agrega cada una hasta su objeto: las de celda hasta la
+columna, la de filas hasta la tabla.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">agregadas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/agregar.html">agregar</a></span><span class="op">(</span><span class="va">medicion</span><span class="op">[</span><span class="va">medicion</span><span class="op">$</span><span class="va">metrica</span> <span class="op">==</span> <span class="st">"NoNulo"</span>, <span class="op">]</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span>,</span>
@@ -415,11 +441,12 @@ celda hasta la columna, la de filas hasta la tabla.</p>
 <span><span class="co">#&gt;     Basico Intermedio   Avanzado </span></span>
 <span><span class="co">#&gt;        1.0        1.0        0.5</span></span></code></pre></div>
 <p>Los perfiles incluidos leen la orientación: la duplicación se compara
-como <code>1 - valor</code>. Cumplen las cuatro métricas con
-<code>&gt; 0.5</code> y con <code>&gt; 0.7</code>; con
-<code>&gt; 0.9</code>, sólo el correo y el origen. Sobre las medidas por
-celda, que valen 0 o 1, los tres cortes serían la misma condición. Otra
-familia de perfiles se construye con umbrales con nombre:</p>
+como <code>1 - valor</code>. Las 4 métricas cumplen con
+<code>&gt; 0.5</code> y con <code>&gt; 0.7</code>. Con
+<code>&gt; 0.9</code> cumplen sólo el correo y el origen. Sobre las
+medidas por celda, que valen 0 o 1, los 3 cortes serían la misma
+condición. Otra familia de perfiles se construye con umbrales con
+nombre:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="fu"><a href="../reference/reglas_evaluacion.html">perfiles_madurez</a></span><span class="op">(</span>umbrales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>Inicial <span class="op">=</span> <span class="fl">0.4</span>, Consolidado <span class="op">=</span> <span class="fl">0.85</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "Inicial"     "Consolidado"</span></span></code></pre></div>
@@ -427,15 +454,19 @@ familia de perfiles se construye con umbrales con nombre:</p>
 <div class="section level2">
 <h2 id="los-marcos-incluidos">Los marcos incluidos<a class="anchor" aria-label="anchor" href="#los-marcos-incluidos"></a>
 </h2>
-<p>Además del marco propio, <code>lupa</code> trae tres marcos
-publicados. Ninguno es una restricción del núcleo: el de AGESIC, que
-<code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> usa por omisión, es una instancia
-verificable más.</p>
+<p>Además del marco propio, <code>lupa</code> trae los marcos publicados
+de ISO/IEC 25012, CEA/CEPAL y AGESIC. Ninguno es una restricción del
+núcleo: el de AGESIC, que <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> usa por
+omisión, es una instancia verificable más.</p>
 <p><code><a href="../reference/marco_calidad.html">marco_iso25012()</a></code> ofrece las 15 características de
-ISO/IEC 25012:2008. La norma distingue características inherentes,
-dependientes del sistema y aplicables desde ambas perspectivas.
-<code>lupa</code> usa esos tres grupos como dimensiones y las
-características como factores; es una adaptación a la forma dimensión y
+ISO/IEC 25012:2008. La norma distingue 3 grupos de características:</p>
+<ul>
+<li>inherentes;</li>
+<li>dependientes del sistema;</li>
+<li>aplicables desde ambas perspectivas.</li>
+</ul>
+<p><code>lupa</code> usa esos grupos como dimensiones y las
+características como factores. Es una adaptación a la forma dimensión y
 factor, no la afirmación de que la norma defina esa jerarquía. Sus
 descripciones están redactadas para el paquete y no reproducen el texto
 normativo.</p>
@@ -448,9 +479,8 @@ normativo.</p>
 <span><span class="co">#&gt; Inherente y dependiente del sistema </span></span>
 <span><span class="co">#&gt;                                   7</span></span></code></pre></div>
 <p><code><a href="../reference/marco_calidad.html">marco_cepal()</a></code> representa los niveles y principios del
-marco nacional de aseguramiento de la calidad de Naciones Unidas,
-adoptado y adaptado para América Latina y el Caribe por la
-CEA/CEPAL.</p>
+marco nacional de aseguramiento de la calidad de Naciones Unidas. La
+CEA/CEPAL lo adoptó y lo adaptó para América Latina y el Caribe.</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cepal</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/marco_calidad.html">marco_cepal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">tabla_cepal</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">cepal</span><span class="op">)</span></span>
@@ -466,9 +496,9 @@ miden el sistema estadístico, el entorno institucional o el proceso, no
 el dato. “Asegurar la independencia profesional”, por ejemplo, no se
 establece mirando una tabla.</p>
 <p><code><a href="../reference/marco_calidad.html">marco_agesic()</a></code> devuelve los 17 factores que
-<code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> usa por omisión. El catálogo que
-usamos al principio, <code><a href="../reference/catalogo_agesic.html">catalogo_agesic()</a></code>, mantiene aparte las
-49 métricas del marco, con lo que el paquete hace con cada una:</p>
+<code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> usa por omisión. El catálogo usado al
+principio, <code><a href="../reference/catalogo_agesic.html">catalogo_agesic()</a></code>, mantiene aparte las 49
+métricas del marco, con lo que el paquete hace con cada una:</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">catalogo</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -487,17 +517,23 @@ usamos al principio, <code><a href="../reference/catalogo_agesic.html">catalogo_
 <span><span class="co">#&gt; Exige referencial() con completo = TRUE y alcance explícito.</span></span>
 <span><span class="co">#&gt; Se obtiene con Ratio sobre NoNulo.</span></span></code></pre></div>
 <p><code>estado</code> dice si la métrica está implementada, se obtiene
-por agregación, está pendiente o queda fuera del alcance tabular, y
-<code>motivo</code> explica la causa. <code>RatioNoNulos</code> es lo
-que hicimos en la guía anterior: <code>NoNulo</code> agregado a la
-columna con <code>ratio</code>. <code>RatioCobertura</code> está
-implementada, pero necesita un referencial. La fidelidad de imágenes
-queda fuera. El catálogo es la respuesta verificable a “qué implementa
-el paquete”: lo que queda fuera no se presenta como resuelto.</p>
+por agregación, está pendiente o queda fuera del alcance tabular.
+<code>motivo</code> explica la causa. En los ejemplos:</p>
+<ul>
+<li>
+<code>RatioNoNulos</code> es lo que se hizo en la guía anterior:
+<code>NoNulo</code> agregado a la columna con <code>ratio</code>.</li>
+<li>
+<code>RatioCobertura</code> está implementada, pero necesita un
+referencial.</li>
+<li>La fidelidad de imágenes queda fuera.</li>
+</ul>
+<p>El catálogo es la respuesta verificable a “qué implementa el
+paquete”: lo que queda fuera no se presenta como resuelto.</p>
 <p>Un diccionario enumera los valores válidos. Un referencial, en
-cambio, vincula claves con valores de una fuente externa, y sólo permite
+cambio, vincula claves con valores de una fuente externa. Sólo permite
 medir cobertura cuando declara que está completo y con qué alcance. Lo
-consumen las tres métricas de <code><a href="../reference/metricas_referencial.html">metricas_referencial()</a></code>.</p>
+consumen las 3 métricas de <code><a href="../reference/metricas_referencial.html">metricas_referencial()</a></code>.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">padron</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/referencial.html">referencial</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"01"</span>, <span class="st">"02"</span><span class="op">)</span>, nombre <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Artigas"</span>, <span class="st">"Canelones"</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -513,10 +549,10 @@ consumen las tres métricas de <code><a href="../reference/metricas_referencial.
 <span><span class="co">#&gt;   Alcance: departamentos incluidos en el ejemplo</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="lo-que-no-se-midió-también-es-un-resultado">Lo que no se midió también es un resultado<a class="anchor" aria-label="anchor" href="#lo-que-no-se-midi%C3%B3-tambi%C3%A9n-es-un-resultado"></a>
+<h2 id="lo-que-no-se-midió-también-es-un-resultado">🔎 Lo que no se midió también es un resultado<a class="anchor" aria-label="anchor" href="#lo-que-no-se-midi%C3%B3-tambi%C3%A9n-es-un-resultado"></a>
 </h2>
-<p>La misma medición se lee distinto según el marco. Contamos los
-estados de la cobertura de nuestra entrega frente a cada uno:</p>
+<p>La misma medición se lee distinto según el marco. Aquí se cuentan los
+estados de la cobertura de la entrega frente a cada uno:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">marcos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  propio <span class="op">=</span> <span class="va">marco_entrega</span>, AGESIC <span class="op">=</span> <span class="fu"><a href="../reference/marco_calidad.html">marco_agesic</a></span><span class="op">(</span><span class="op">)</span>,</span>
@@ -531,13 +567,18 @@ estados de la cobertura de nuestra entrega frente a cada uno:</p>
 <span><span class="co">#&gt; no_declarada          1      9  15     6</span></span>
 <span><span class="co">#&gt; no_aplica             0      4   0     0</span></span>
 <span><span class="co">#&gt; fuera_de_alcance      0      1   0    13</span></span></code></pre></div>
-<p>Frente al marco propio, 4 factores medidos. Frente al de AGESIC, los
-3 que nuestras métricas y el perfil alcanzan. Frente a ISO/IEC 25012 y a
-CEA/CEPAL, ninguno: sus pares de dimensión y factor no coinciden con los
-que declaran nuestras métricas, y la tabla muestra ese cero en lugar de
-esconderlo. En el de CEA/CEPAL quedan 13 principios fuera de alcance y 6
-sin declarar. La primera columna de cada cobertura nombra el marco, así
-que una tabla exportada conserva el contexto.</p>
+<p>Los factores medidos son:</p>
+<ul>
+<li>frente al marco propio, 4;</li>
+<li>frente al de AGESIC, los 3 que alcanzan las métricas del modelo y el
+perfil;</li>
+<li>frente a ISO/IEC 25012 y a CEA/CEPAL, ninguno.</li>
+</ul>
+<p>Los pares de dimensión y factor de esos 2 marcos no coinciden con los
+que declaran las métricas del modelo. La tabla muestra ese cero en lugar
+de esconderlo. En el de CEA/CEPAL quedan 13 principios fuera de alcance
+y 6 sin declarar. La primera columna de cada cobertura nombra el marco:
+una tabla exportada conserva el contexto.</p>
 </div>
 <div class="section level2">
 <h2 id="referencias">Referencias<a class="anchor" aria-label="anchor" href="#referencias"></a>
@@ -575,17 +616,17 @@ propio método.</li>
 <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> dice qué factores quedaron medidos y
 cómo cubrir los que faltan.</li>
 <li>El tablero publica la <code>orientacion</code> de cada valor; el
-índice existe sólo si declaramos los pesos.</li>
+índice existe sólo si se declaran los pesos.</li>
 <li>Los perfiles de madurez y las reglas se aplican a las medidas
 agregadas.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
-<p>En <a href="historico-y-deriva.html">9. Comparar entregas y seguir la
-calidad</a> comparamos dos entregas de la misma tabla y seguimos la
-calidad medida a lo largo del tiempo.</p>
+<p>La guía <a href="historico-y-deriva.html">9. Comparar entregas y
+seguir la calidad</a> compara 2 entregas de la misma tabla y sigue la
+calidad medida en el tiempo.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

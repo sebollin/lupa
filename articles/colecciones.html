@@ -86,31 +86,36 @@
     
     
 <p>Una base de datos no es una tabla: son muchas, a veces repartidas en
-varios esquemas, y la credencial con la que trabajamos no siempre puede
-leerlas todas. ¿Cómo perfilamos varias tablas de una vez, cómo vemos lo
-que no se pudo medir y cómo encontramos qué columna de una tabla apunta
-a otra?</p>
+varios esquemas. Y la credencial de trabajo no siempre puede leerlas
+todas. ¿Cómo se perfilan varias tablas de una vez? ¿Cómo se ve lo que no
+se pudo medir? ¿Y cómo se encuentra qué columna de una tabla apunta a
+otra?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
-<li>declaramos la frontera de la base con <code><a href="../reference/coleccion.html">coleccion()</a></code>;</li>
-<li>perfilamos todas sus tablas con <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>,
-una fila por tabla;</li>
-<li>leemos en la cobertura lo que no se pudo medir, que nunca cuenta
-como cero;</li>
-<li>estimamos con <code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code> cuánto cuesta
+<li>declarar la frontera de la base con <code><a href="../reference/coleccion.html">coleccion()</a></code>;</li>
+<li>perfilar todas sus tablas con <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>, una
+fila por tabla;</li>
+<li>leer en la cobertura lo que no se pudo medir, que nunca cuenta como
+cero;</li>
+<li>estimar con <code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code> cuánto cuesta
 buscar relaciones;</li>
-<li>buscamos claves foráneas candidatas con
+<li>buscar claves foráneas candidatas con
 <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code>.</li>
 </ul>
 </blockquote>
 <div class="section level2">
 <h2 id="una-base-pequeña">Una base pequeña<a class="anchor" aria-label="anchor" href="#una-base-peque%C3%B1a"></a>
 </h2>
-<p>Usamos una base de ventas como la de <a href="perfilar-una-base.html">Perfilar una base</a>, esta vez con las
-tablas que la rodean: las sucursales, los productos y una tabla de
-devoluciones que todavía no tiene filas. Dos ventas citan una sucursal,
-la 9, que no está en <code>sucursales</code>.</p>
+<p>El ejemplo es una base de ventas como la de <a href="perfilar-una-base.html">Perfilar una base</a>, esta vez con las
+tablas que la rodean:</p>
+<ul>
+<li>las sucursales;</li>
+<li>los productos;</li>
+<li>una tabla de devoluciones que todavía no tiene filas.</li>
+</ul>
+<p>Hay 2 ventas que citan una sucursal, la 9, que no está en
+<code>sucursales</code>.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span></span>
@@ -131,8 +136,8 @@ la 9, que no está en <code>sucursales</code>.</p>
 <span>  monto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">100</span>, <span class="fl">490</span>, by <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">ventas</span><span class="op">$</span><span class="va">monto</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">17</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span></code></pre></div>
-<p>Las escribimos en una base SQLite en memoria. Es sólo la preparación
-del ejemplo: <code>lupa</code> no escribe en la base.</p>
+<p>Las tablas se escriben en una base SQLite en memoria. Es sólo la
+preparación del ejemplo: <code>lupa</code> no escribe en la base.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conexion</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"sucursales"</span>, <span class="va">sucursales</span><span class="op">)</span></span>
@@ -141,10 +146,10 @@ del ejemplo: <code>lupa</code> no escribe en la base.</p>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"devoluciones"</span>, <span class="va">ventas</span><span class="op">[</span><span class="fl">0</span>, <span class="op">]</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="declarar-la-frontera">Declarar la frontera<a class="anchor" aria-label="anchor" href="#declarar-la-frontera"></a>
+<h2 id="declarar-la-frontera">🗄️ Declarar la frontera<a class="anchor" aria-label="anchor" href="#declarar-la-frontera"></a>
 </h2>
 <p><code><a href="../reference/coleccion.html">coleccion()</a></code> dice qué tablas forman la base. No consulta
-nada: sólo declara. Incluimos a propósito <code>pagos</code>, que no
+nada: sólo declara. Se incluye a propósito <code>pagos</code>, que no
 existe en esta base, para ver qué pasa con una tabla que no se puede
 leer.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
@@ -159,24 +164,24 @@ leer.</p>
 <span><span class="co">#&gt; Tablas declaradas: 5</span></span>
 <span><span class="co">#&gt; La frontera es declarada: `lupa` no recorre el catálogo.</span></span></code></pre></div>
 <p>La frontera se declara y nunca se descubre. Recorrer el catálogo del
-motor convertiría un error de permisos en un resultado: una tabla que la
+motor convertiría un error de permisos en un resultado. Una tabla que la
 credencial no ve desaparecería sin dejar rastro. Declarada, la tabla que
 no se puede leer queda nombrada en la cobertura.</p>
 <p>El esquema es parte de la identidad de una tabla. En un motor con
 esquemas, la forma recomendada es un <code>data.frame</code> con las
-columnas <code>esquema</code> y <code>tabla</code>, que lleva los
-nombres tal cual, con puntos o espacios. El texto
-<code>"esquema.tabla"</code> es un atajo que se parte en el punto. La
-ayuda de <code><a href="../reference/coleccion.html">coleccion()</a></code> explica las tres formas y la columna
-<code>catalogo</code>, para los nombres de tres partes.</p>
+columnas <code>esquema</code> y <code>tabla</code>. Lleva los nombres
+tal cual, con puntos o espacios. El texto <code>"esquema.tabla"</code>
+es un atajo que se parte en el punto. La ayuda de
+<code><a href="../reference/coleccion.html">coleccion()</a></code> explica las 3 formas y la columna
+<code>catalogo</code>, para los nombres de 3 partes.</p>
 </div>
 <div class="section level2">
 <h2 id="perfilar-todas-las-tablas">Perfilar todas las tablas<a class="anchor" aria-label="anchor" href="#perfilar-todas-las-tablas"></a>
 </h2>
 <p><code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> conserva el resumen de cada tabla,
-que es acotado, y por omisión descarta el perfil de la muestra, que es
-el objeto pesado: con cientos de tablas no entraría en memoria. Nuestra
-colección es chica, así que lo retenemos con
+que es acotado. Por omisión descarta el perfil de la muestra, que es el
+objeto pesado: con cientos de tablas no entraría en memoria. Esta
+colección es chica, así que el perfil de la muestra se retiene con
 <code>conservar_perfiles = TRUE</code> para mirarlo más adelante.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_coleccion.html">perfilar_coleccion</a></span><span class="op">(</span><span class="va">base</span>, conservar_perfiles <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
@@ -198,25 +203,32 @@ que el motor calculó en SQL sobre la tabla completa:</p>
 <span><span class="co">#&gt; 2    productos          2       6                  0.00                  2 tabla_completa</span></span>
 <span><span class="co">#&gt; 3       ventas          4      40                  0.05                  4 tabla_completa</span></span>
 <span><span class="co">#&gt; 4 devoluciones          4       0                    NA                  0 tabla_completa</span></span></code></pre></div>
-<p>Cada tabla se perfila con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>, con las mismas
-opciones: <code>muestra</code>, <code>bloque_muestra</code> y el resto
-de los argumentos se pasan a cada una, y significan lo mismo que en una
-tabla sola. Por omisión <code>muestra = Inf</code>, así que cada tabla
-se trae entera si entra en los topes de lectura; en una base grande
-conviene <code>muestra = n</code> o
-<code>bloque_muestra = "solo_agregados"</code>. Las declaraciones por
-columna, como <code>columnas_codigo</code>, también valen para todas las
-tablas; la ayuda de <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> explica qué pasa
-con una tabla que no tiene esa columna.</p>
-<p>La tabla vacía no aparece como una tabla perfecta:
-<code>devoluciones</code> tiene cero filas, su
-<code>prop_faltantes_maxima</code> es <code>NA</code> y
-<code>n_columnas_medidas</code> dice que no se conoce la proporción de
-ausentes de ninguna columna. Donde no hubo medición va <code>NA</code>,
-no <code>0</code>.</p>
+<p>Cada tabla se perfila con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>.
+<code>muestra</code>, <code>bloque_muestra</code> y el resto de los
+argumentos se pasan a cada una, y significan lo mismo que en una tabla
+sola:</p>
+<ul>
+<li>Por omisión <code>muestra = Inf</code>: cada tabla se trae entera si
+entra en los topes de lectura. En una base grande conviene
+<code>muestra = n</code> o
+<code>bloque_muestra = "solo_agregados"</code>.</li>
+<li>Las declaraciones por columna, como <code>columnas_codigo</code>,
+también valen para todas las tablas. La ayuda de
+<code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> explica qué pasa con una tabla que no
+tiene esa columna.</li>
+</ul>
+<p>La tabla vacía no aparece como una tabla perfecta.
+<code>devoluciones</code> tiene 0 filas:</p>
+<ul>
+<li>su <code>prop_faltantes_maxima</code> es <code>NA</code>;</li>
+<li>
+<code>n_columnas_medidas</code> dice que no se conoce la proporción
+de ausentes de ninguna columna.</li>
+</ul>
+<p>Donde no hubo medición va <code>NA</code>, no <code>0</code>.</p>
 </div>
 <div class="section level2">
-<h2 id="lo-que-no-se-pudo-medir">Lo que no se pudo medir<a class="anchor" aria-label="anchor" href="#lo-que-no-se-pudo-medir"></a>
+<h2 id="lo-que-no-se-pudo-medir">⚠️ Lo que no se pudo medir<a class="anchor" aria-label="anchor" href="#lo-que-no-se-pudo-medir"></a>
 </h2>
 <p><code><a href="../reference/accesores_perfil.html">cobertura()</a></code> nombra cada tabla que no se perfiló o que no
 tenía nada que medir, con su motivo y la forma de resolverlo:</p>
@@ -234,10 +246,10 @@ tenía nada que medir, con su motivo y la forma de resolverlo:</p>
 <span><span class="co">#&gt; pagos: No se pudo perfilar la tabla: La tabla solicitada no existe en la conexión DBI,</span></span>
 <span><span class="co">#&gt; o la credencial no tiene permiso para verla. El motor no distinguio entre las dos, y</span></span>
 <span><span class="co">#&gt; `dbExistsTable()` tampoco. no such table: pagos</span></span></code></pre></div>
-<p><code>pagos</code> no se suma como una tabla de cero filas: queda
+<p><code>pagos</code> no se suma como una tabla de 0 filas: queda
 declarada como no leída, y el motivo conserva la respuesta del motor. El
 motor no distingue entre una tabla que no existe y una que la credencial
-no puede ver, y <code>lupa</code> tampoco lo inventa. En bases
+no puede ver. <code>lupa</code> tampoco inventa la diferencia. En bases
 institucionales los permisos parciales son el caso normal, no el
 borde.</p>
 <p>Lo que falta dentro de las tablas que sí se perfilaron va a
@@ -254,11 +266,15 @@ tabla y estado:</p>
 <span><span class="co">#&gt;   devoluciones         0          36</span></span>
 <span><span class="co">#&gt;   productos            7           0</span></span>
 <span><span class="co">#&gt;   sucursales           7           0</span></span></code></pre></div>
-<p><code>no_aplica</code> son los agregados cuantitativos (mínimo,
+<ul>
+<li>
+<code>no_aplica</code> son los agregados cuantitativos (mínimo,
 media, desvío, …) que no corresponden a una columna de texto como
-<code>zona</code> o <code>rubro</code>. <code>sin_valores</code> son las
-métricas de <code>devoluciones</code>, que no tiene ningún valor que
-agregar.</p>
+<code>zona</code> o <code>rubro</code>.</li>
+<li>
+<code>sin_valores</code> son las métricas de
+<code>devoluciones</code>, que no tiene ningún valor que agregar.</li>
+</ul>
 <p>Perfilar una colección son muchas consultas, y la base puede cambiar
 entre ellas. No hay lectura instantánea: cada fila de
 <code><a href="../reference/accesores_perfil.html">columnas()</a></code> trae el <code>momento</code> en que se midió la
@@ -278,8 +294,8 @@ perfiles retenidos, cada uno se lee con los accesores de siempre:</p>
 <span><span class="co">#&gt;       columna         tipo_hallazgo  severidad n_afectados</span></span>
 <span><span class="co">#&gt; 1    id_venta posible_identificador         ok           1</span></span>
 <span><span class="co">#&gt; 2 id_sucursal              outliers sospechoso           2</span></span></code></pre></div>
-<p>En <code>ventas</code>, las dos filas que citan la sucursal 9
-aparecen como valores atípicos de <code>id_sucursal</code>. Sin
+<p>En <code>ventas</code>, las 2 filas que citan la sucursal 9 aparecen
+como valores atípicos de <code>id_sucursal</code>. Sin
 <code>conservar_perfiles = TRUE</code>, lo mismo se obtiene con
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> sobre la tabla que interesa.</p>
 </div>
@@ -287,7 +303,7 @@ aparecen como valores atípicos de <code>id_sucursal</code>. Sin
 <h2 id="cuánto-cuesta-buscar-relaciones">Cuánto cuesta buscar relaciones<a class="anchor" aria-label="anchor" href="#cu%C3%A1nto-cuesta-buscar-relaciones"></a>
 </h2>
 <p>Buscar claves foráneas compara columnas de una tabla con columnas de
-otra, y una clave foránea tiene dirección: cada par de tablas cuenta dos
+otra. Una clave foránea tiene dirección: cada par de tablas cuenta 2
 veces. Antes de comparar nada, <code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code>
 cuenta las comparaciones leyendo sólo los nombres de las columnas:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
@@ -302,15 +318,15 @@ cuenta las comparaciones leyendo sólo los nombres de las columnas:</p>
 <span><span class="co">#&gt;  $ n_pares_sin_estimar     : num 8</span></span>
 <span><span class="co">#&gt;  $ n_comparaciones_columnas: num 104</span></span>
 <span><span class="co">#&gt;  $ tablas_sin_esquema      : chr "pagos"</span></span></code></pre></div>
-<p>Con cinco tablas son 20 pares dirigidos. Los que involucran a
+<p>Con 5 tablas son 20 pares dirigidos. Los que involucran a
 <code>pagos</code> no se cuentan como cero: quedan en
 <code>n_pares_sin_estimar</code>, porque su esquema no se pudo leer. En
-una base de mil tablas los pares dirigidos son casi un millón, y
-explorarlos todos no es una opción cara sino imposible. Por eso los
-pares también se declaran.</p>
-<p>Declaramos los dos pares que nos interesan —cada tabla de referencia
-contra <code>ventas</code>— y, además, las columnas que pueden
-participar de una relación:</p>
+una base de 1.000 tablas los pares dirigidos son 999.000. Explorarlos
+todos no es una opción cara, sino imposible. Por eso los pares también
+se declaran.</p>
+<p>Se declaran los 2 pares de interés —cada tabla de referencia contra
+<code>ventas</code>— y, además, las columnas que pueden participar de
+una relación:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pares</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  tabla_1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sucursales"</span>, <span class="st">"productos"</span><span class="op">)</span>,</span>
@@ -334,8 +350,8 @@ comparaciones.</p>
 <h2 id="buscar-claves-foráneas-candidatas">Buscar claves foráneas candidatas<a class="anchor" aria-label="anchor" href="#buscar-claves-for%C3%A1neas-candidatas"></a>
 </h2>
 <p><code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> compara los pares declarados.
-<code>orden</code> hace que la lectura de cada tabla sea repetible: sin
-él, una lectura acotada devuelve un subconjunto arbitrario y el
+<code>orden</code> hace que la lectura de cada tabla sea repetible. Sin
+él, una lectura acotada devuelve un subconjunto arbitrario, y el
 resultado lo declara.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">relaciones</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relaciones_coleccion.html">relaciones_coleccion</a></span><span class="op">(</span></span>
@@ -356,18 +372,18 @@ resultado lo declara.</p>
 <span><span class="co">#&gt; 3  productos.id_producto ventas.id_producto             1.00             1.00</span></span>
 <span><span class="va">relaciones</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">estable</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
-<p>Cada fila trae dos coberturas, una por dirección.
+<p>Cada fila trae 2 coberturas, una por dirección.
 <code>cobertura_2_en_1</code> es la proporción de las filas de la
 segunda tabla cuyo valor aparece en la primera:</p>
 <ul>
 <li>
 <code>sucursales.id_sucursal</code> cubre el 95 % de
-<code>ventas.id_sucursal</code>. El 5 % que falta son las dos ventas de
-la sucursal 9: filas huérfanas que hay que revisar en el sistema de
+<code>ventas.id_sucursal</code>. El 5 % que falta son las 2 ventas de la
+sucursal 9: filas huérfanas que hay que revisar en el sistema de
 origen.</li>
 <li>
 <code>productos.id_producto</code> contra
-<code>ventas.id_producto</code> cubre todo en las dos direcciones.</li>
+<code>ventas.id_producto</code> cubre todo en las 2 direcciones.</li>
 <li>
 <code>productos.id_producto</code> contra
 <code>ventas.id_sucursal</code> es una coincidencia: los códigos de
@@ -377,9 +393,9 @@ aparecen como sucursal.</li>
 </ul>
 <p>Por eso una relación candidata <strong>no es una clave foránea
 comprobada</strong>: es un indicio que se confirma contra el diccionario
-de datos. Además, cada par se compara sobre una muestra de hasta diez
-mil filas por tabla (<code>muestra</code>), y cada relación dice cuántas
-filas leyó de cada lado y si la lectura quedó truncada
+de datos. Además, cada par se compara sobre una muestra de hasta 10.000
+filas por tabla (<code>muestra</code>). Cada relación dice cuántas filas
+leyó de cada lado y si la lectura quedó truncada
 (<code>muestreado_1</code>, <code>muestreado_2</code>). Con la tabla de
 referencia truncada, la cobertura sólo puede subir al leer más: es una
 cota inferior.</p>
@@ -404,15 +420,15 @@ leer, nunca como cero.</li>
 antes de hacerlas; declarar pares y columnas candidatas las reduce.</li>
 <li>
 <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> propone claves foráneas
-candidatas con su cobertura en las dos direcciones: un indicio, no una
+candidatas con su cobertura en las 2 direcciones: un indicio, no una
 prueba.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
-<p>En una tabla grande, dos filas pueden describir lo mismo escrito de
-dos maneras: <a href="escala-y-duplicados.html">Escala y duplicados
+<p>En una tabla grande, 2 filas pueden describir lo mismo escrito de 2
+maneras. <a href="escala-y-duplicados.html">Escala y duplicados
 aproximados</a> muestra cómo buscarlas y cuánto cuesta.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
