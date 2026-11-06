@@ -69,7 +69,10 @@ test_that("H1: con bloque_filas un integer64 da las cifras del agregado y no cam
   }
 })
 
-test_that("H1: con bloque_filas un integer64 desde 2^53 retiene las siete magnitudes, como el agregado", {
+# La mediana no depende de toda la columna sino de sus centrales: con una
+# cantidad impar es la central, y se publica si el doble la representa (ver
+# `.causa_mediana_inexacta_dbi()`). Las dos vias deciden igual.
+test_that("H1: con bloque_filas un integer64 desde 2^53 retiene lo mismo que el agregado: seis magnitudes, y la mediana por su valor", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   skip_if_not_installed("bit64")
@@ -81,18 +84,35 @@ test_that("H1: con bloque_filas un integer64 desde 2^53 retiene las siete magnit
     "INSERT INTO g VALUES (9007199254740993, 1.5), (9007199254740993, 2.5),",
     "(5, 4), (-7, 5), (0, 6)"
   ))
-  siete <- c("minimo", "maximo", "media", "n_ceros", "n_negativos",
-             "mediana", "desvio")
+  seis <- c("minimo", "maximo", "media", "n_ceros", "n_negativos", "desvio")
   for (bf in list(NULL, 2L)) {
     rt <- resumen_r29e(con, "g", bf)
-    expect_true(all(estados_r29e(rt, "g", siete) == "no_disponible"))
+    expect_true(all(estados_r29e(rt, "g", seis) == "no_disponible"))
     f <- fila_r29e(rt, "g")
-    expect_true(all(is.na(unlist(f[siete]))))
+    expect_true(all(is.na(unlist(f[seis]))))
+    # La central de -7, 0, 5, 2^53 + 1, 2^53 + 1 es 5.
+    expect_identical(unname(estados_r29e(rt, "g", "mediana")), "calculado")
+    expect_identical(f$mediana, 5)
     # Lo que se cuenta con exactitud se sigue publicando.
     expect_identical(as.numeric(f$n_distintos), 4)
     expect_identical(f$moda, "9007199254740993")
     # Y la columna doble de al lado no se entera.
     expect_equal(fila_r29e(rt, "d")$media, mean(c(1.5, 2.5, 4, 5, 6)))
+  }
+  # Con una cantidad par se promedian dos centrales: se publica si las dos son
+  # chicas -3 y 5-, que la via SQL averigua contando y la de bloques ve.
+  DBI::dbExecute(con, "INSERT INTO g VALUES (3, 7)")
+  for (bf in list(NULL, 2L)) {
+    rt <- resumen_r29e(con, "g", bf)
+    expect_identical(unname(estados_r29e(rt, "g", "mediana")), "calculado")
+    expect_identical(fila_r29e(rt, "g")$mediana, 4)
+  }
+  # Y no se publica si una central pasa de 2^53.
+  DBI::dbExecute(con, "INSERT INTO g VALUES (9007199254740993, 8), (9007199254740993, 9)")
+  for (bf in list(NULL, 2L)) {
+    rt <- resumen_r29e(con, "g", bf)
+    expect_identical(unname(estados_r29e(rt, "g", "mediana")), "no_disponible")
+    expect_true(is.na(fila_r29e(rt, "g")$mediana))
   }
 })
 

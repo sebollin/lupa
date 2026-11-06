@@ -7095,8 +7095,9 @@
   # Lleva `.FRAGMENTO_ENTERO_64_DBI`, que la corroboracion reconoce.
   "La columna es un entero de 64 bits con alg\u00fan valor de valor absoluto de al",
   "menos 2^53, que un doble no representa con exactitud: m\u00ednimo, m\u00e1ximo,",
-  "media, n_ceros, n_negativos, mediana y desv\u00edo no se publican como",
-  "calculados. n_distintos y la moda se cuentan sobre el valor exacto."
+  "media, n_ceros, n_negativos y desv\u00edo no se publican como calculados, y la",
+  "mediana s\u00f3lo cuando su valor no depende de uno de esos valores.",
+  "n_distintos y la moda se cuentan sobre el valor exacto."
 )
 
 # Un `integer64` no se opera con `min()`, `max()`, `mean()` ni la resta de base:
@@ -10114,7 +10115,8 @@
 # SQL Server y MariaDB, que entregan `integer64`.
 .motivo_entero_doble_dbi <- function(metrica = NULL, prefijo = NULL,
                                      valor = NULL, conexion = NULL,
-                                     tipo = NA_character_) {
+                                     tipo = NA_character_,
+                                     mediana_por_valor = FALSE) {
   inicio <- if (!is.null(prefijo) && length(prefijo) && !is.na(prefijo)) {
     as.character(prefijo)
   } else if (!is.null(metrica) && length(metrica) && !is.na(metrica)) {
@@ -10125,7 +10127,7 @@
   exacto <- !is.null(valor) && length(valor) &&
     inherits(valor[[1L]], "integer64")
   if (!exacto && .tipo_declarado_decimal_dbi(tipo)) {
-    return(.motivo_decimal_doble_dbi())
+    return(.motivo_decimal_doble_dbi(mediana_por_valor = mediana_por_valor))
   }
   if (exacto) {
     return(paste(
@@ -10158,15 +10160,26 @@
   "decimal entregado como doble con un valor de valor absoluto de al menos 2^53"
 )
 
-.motivo_decimal_doble_dbi <- function(bloques = FALSE) {
+.motivo_decimal_doble_dbi <- function(bloques = FALSE,
+                                      mediana_por_valor = FALSE) {
   paste(
     paste0(
       "La columna es un ", .FRAGMENTO_DECIMAL_DOBLE_DBI, ":"
     ),
     "desde ah\u00ed un doble no distingue dos valores consecutivos",
     "-90071992547409001 y 90071992547409002 son el mismo doble-, as\u00ed que",
-    "m\u00ednimo, m\u00e1ximo, media, n_ceros, n_negativos, mediana y desv\u00edo no se",
-    "publican como calculados.",
+    if (isTRUE(mediana_por_valor)) {
+      paste(
+        "m\u00ednimo, m\u00e1ximo, media, n_ceros, n_negativos y desv\u00edo no se",
+        "publican como calculados, y la mediana s\u00f3lo cuando su valor no",
+        "depende de uno de esos dobles."
+      )
+    } else {
+      paste(
+        "m\u00ednimo, m\u00e1ximo, media, n_ceros, n_negativos, mediana y desv\u00edo no se",
+        "publican como calculados."
+      )
+    },
     if (isTRUE(bloques)) {
       paste(
         "Con `bloque_filas` tampoco `n_distintos` ni la moda: se contarian en",
@@ -10211,6 +10224,140 @@
     return(FALSE)
   }
   isTRUE(is.finite(original) && abs(original) >= .MAX_ENTERO_EXACTO_DBI)
+}
+
+# La mediana de una columna entera o decimal se publica `calculado` cuando su
+# valor es exacto, y eso se decide por el valor y no por la columna. Habia dos
+# reglas: la de los basicos negaba la mediana de toda columna con algun valor de
+# al menos 2^53 -la de `{1, 2, 2^63 - 1}` en BIGINT, que es 2-, y la de la
+# mediana misma la publicaba cuando su valor quedaba por debajo de 2^53, que es
+# lo que pasaba con HUGEINT porque ahi los basicos desbordan. La segunda
+# entrega mas, pero sola miente con una cantidad par: el promedio de
+# -9007199254740991 y 9007199254740995 es 2, el de sus dobles es 2,5, y 2,5
+# esta muy por debajo de 2^53 (medido en DuckDB, HUGEINT). La de ahora:
+#
+#   - Un valor de al menos 2^53 no se publica: puede ser una central que el
+#     doble ya redondeo.
+#   - Con una cantidad impar la mediana ES la central, y el redondeo es
+#     monotono: una central de al menos 2^53 da un doble de al menos 2^53. Por
+#     debajo, la central llego exacta, aunque la columna tenga otros valores
+#     enormes.
+#   - Con una cantidad par se promedian dos centrales y el resultado no dice si
+#     alguna paso de 2^53. Si la columna tiene valores asi -`columna_ancha`-, no
+#     se publica. Si no los tiene, las dos llegaron exactas y el motor redondea
+#     una sola vez su promedio, salvo PostgreSQL: su `PERCENTILE_CONT` interpola
+#     `bajo + (alto - bajo) * 0.5` en doble, y la resta redondea cuando las
+#     centrales distan mas de 2^53 -la mediana de -9007199254740991 y
+#     9007199254740990 salia -1, y es -0,5-. Eso solo puede pasar si los
+#     extremos distan mas de 2^53 (`interpola_restando`).
+#
+# Devuelve la causa por la que no se publica, o `NA` si se publica.
+.causa_mediana_inexacta_dbi <- function(valor, n = NA_real_,
+                                        columna_ancha = FALSE,
+                                        extremos = NULL,
+                                        interpola_restando = FALSE) {
+  valor <- suppressWarnings(as.numeric(valor))
+  if (length(valor) != 1L || !is.finite(valor)) return(NA_character_)
+  if (abs(valor) >= .MAX_ENTERO_EXACTO_DBI) return("valor")
+  n <- suppressWarnings(as.numeric(n))
+  impar <- length(n) == 1L && is.finite(n) && n %% 2 == 1
+  if (impar) return(NA_character_)
+  if (isTRUE(columna_ancha)) return("par")
+  if (isTRUE(interpola_restando)) {
+    extremos <- suppressWarnings(as.numeric(extremos))
+    extremos <- extremos[is.finite(extremos)]
+    if (length(extremos) >= 2L &&
+        max(extremos) - min(extremos) > .MAX_ENTERO_EXACTO_DBI) {
+      return("resta")
+    }
+  }
+  NA_character_
+}
+
+.motivo_mediana_inexacta_dbi <- function(causa, tipo = NA_character_,
+                                         n = NA_real_) {
+  if (identical(causa, "resta")) {
+    return(paste(
+      "PostgreSQL interpola `PERCENTILE_CONT` en doble como",
+      "`bajo + (alto - bajo) * 0.5`, y los extremos de la columna distan m\u00e1s",
+      "de 2^53: con una cantidad par de valores, la resta de las dos centrales",
+      "puede redondear y la mediana no ser la exacta. No se publica como",
+      "calculada."
+    ))
+  }
+  # Sin `.FRAGMENTO_DECIMAL_DOBLE_DBI`: ese texto marca la columna para
+  # `.aplicar_guardas_salida_muestra_dbi()`, que le pasaria este motivo -de la
+  # mediana- al minimo y al resto.
+  fragmento <- if (.tipo_declarado_decimal_dbi(tipo)) {
+    "decimal con alg\u00fan valor de valor absoluto de al menos 2^53"
+  } else {
+    paste(
+      .fragmento_entero_doble_dbi(tipo),
+      "con alg\u00fan valor de valor absoluto de al menos 2^53"
+    )
+  }
+  n <- suppressWarnings(as.numeric(n))
+  conocida <- length(n) == 1L && is.finite(n)
+  paste(
+    paste0(
+      "La columna es un ", fragmento,
+      if (conocida) {
+        " y la cantidad de valores es par: la mediana promedia"
+      } else {
+        " y no se conoce la cantidad de valores: si es par, la mediana promedia"
+      },
+      " dos centrales, y su valor no dice si alguna es uno de"
+    ),
+    "esos valores, que un doble no representa. No se publica como calculada.",
+    "Con una cantidad impar la mediana es la central, y se publica cuando",
+    "queda por debajo de 2^53."
+  )
+}
+
+# Con una cantidad par, las dos centrales estan en (-2^52, 2^52) si menos de la
+# mitad de los valores llega a 2^52 y menos de la mitad baja de -2^52: la alta
+# es la `n / 2 + 1`, y deja `n / 2 - 1` por encima; la baja, simetrica. Ahi
+# cualquier forma de promediarlas -la interpolacion de PostgreSQL incluida- es
+# exacta, y la mediana de una columna que pasa de 2^53 se puede publicar. Una
+# consulta mas, solo para esas columnas y solo en la tabla completa: en la
+# muestra del motor leeria otra muestra.
+.LIMITE_CENTRALES_DBI <- "4503599627370496"
+
+.centrales_por_debajo_dbi <- function(conexion, tabla_sql, columna_sql, alias,
+                                      n, presupuesto = NULL) {
+  n <- .numero_dbi(n)
+  if (!is.finite(n) || n < 2 || n %% 2 != 0) return(FALSE)
+  senas <- .senas_conexion_dbi(conexion)
+  contar <- function(condicion, nombre) {
+    paste0(
+      .conteo_sql_dbi(paste0(
+        "SUM(CASE WHEN ", columna_sql, " ", condicion, " THEN 1 ELSE 0 END)"
+      ), senas),
+      " AS ", alias(nombre)
+    )
+  }
+  sql <- paste0(
+    "SELECT ", contar(paste0(">= ", .LIMITE_CENTRALES_DBI), "centrales_altas"),
+    ", ", contar(paste0("<= -", .LIMITE_CENTRALES_DBI), "centrales_bajas"),
+    " FROM ", tabla_sql
+  )
+  resultado <- .consultar_dbi(conexion, sql, presupuesto, etapa = "mediana")
+  if (!isTRUE(resultado$ok)) return(FALSE)
+  altas <- .numero_dbi(.valor_campo_dbi(resultado$datos, "centrales_altas")$valor)
+  bajas <- .numero_dbi(.valor_campo_dbi(resultado$datos, "centrales_bajas")$valor)
+  isTRUE(is.finite(altas) && is.finite(bajas) && altas < n / 2 &&
+           bajas < n / 2)
+}
+
+# Que la consulta de basicos desbordara -`HUGEINT * 1.0` en DuckDB, cerca del
+# tope del tipo- dice que la columna tiene valores enormes, aunque no se sepa
+# cuales: la mediana se juzga como la de una columna que pasa de 2^53. La misma
+# lectura del motivo que decide el repliegue de la mediana.
+.es_desborde_motor_dbi <- function(motivo) {
+  grepl(
+    "overflow|underflow|out of range|fuera de rango|error while fetching rows",
+    .minusculas_ascii(as.character(motivo %||% "")), useBytes = TRUE
+  )
 }
 
 .metricas_omitidas_dbi <- function(registros, columna, metricas, estado,
@@ -10803,10 +10950,16 @@
 # 160 por igual: la mediana de 0,0000001 y 0,0000003 en `decimal(38,7)` daba
 # `0`; la de dos valores de 1e-21 en `decimal(38,30)`, 5,0550945e-21 contra
 # 5,0550944535e-21. Con compatibilidad menor que 110 no hay `PERCENTILE_CONT`,
-# asi que todo `decimal` pasaba por aca. El doble de cada central es lo que lee
-# R, y su promedio en `FLOAT` es la mediana de R (en compatibilidad 100, a lo
-# sumo un ulp: esa conversion es menos exacta). Los enteros siguen con `* 1.0`,
-# que los promedia exactos tambien pasado 2^53.
+# asi que todo `decimal` pasaba por aca. El promedio iba en `FLOAT`, pero con
+# compatibilidad 100 el `CAST` de un decimal a `FLOAT` no redondea bien: en
+# `decimal(38,30)` y `decimal(38,20)` 868 y 879 de 3.000 valores salian a un ulp
+# del doble correcto, que es el que lee el controlador, y 426 de 1.500 medianas
+# de pares a un ulp de `median()` (medido en SQL Server 2022; con
+# compatibilidad 160, ninguno). Es el caso de PostgreSQL 9.3: la mediana tiene
+# que ser el promedio de los dobles que lee R, y aca solo el controlador los
+# tiene. La consulta devuelve las dos centrales -`MIN` y `MAX` de las una o dos
+# filas centrales- y `.escalar_mediana_dbi()` las promedia con `median()`. Los
+# enteros siguen con `* 1.0`, que los promedia exactos tambien pasado 2^53.
 #
 # Y salvo el `float8` de PostgreSQL leido como NUMERIC exacto (`float8send()`,
 # antes de la 12 o con `extra_float_digits <= 0`). `AVG()` de ese NUMERIC es
@@ -10815,11 +10968,45 @@
 # 427 de 3.000 promedios a un ulp de `median()`, por la CTE de ventanas
 # (`dialecto = "portable"`) y por la subconsulta escalar de la muestra. Va el
 # mismo promedio que la via de dos consultas: la suma en doble, leida exacta.
+.CAMPO_CENTRAL_ALTA_DBI <- "lupa_mediana_alto"
+
+# La mediana que devuelve el motor, o el promedio en R de las dos centrales si
+# la consulta las devolvio por separado (ver `.promedio_mediana_sql_dbi()`).
+# Sin la central alta es `.escalar_dbi(conexion, sql, "mediana")`.
+.escalar_mediana_dbi <- function(conexion, sql, presupuesto = NULL,
+                                 etapa = "mediana") {
+  resultado <- .consultar_dbi(conexion, sql, presupuesto, etapa = etapa)
+  if (!resultado$ok) {
+    return(.adjuntar_medicion_dbi(
+      list(ok = FALSE, valor = NULL, motivo = resultado$motivo), resultado
+    ))
+  }
+  mediana <- .valor_campo_dbi(resultado$datos, "mediana")
+  alta <- if (isTRUE(mediana$ok)) {
+    .campo_resultado_dbi(resultado$datos, .CAMPO_CENTRAL_ALTA_DBI)
+  } else NA_integer_
+  if (!is.na(alta)) {
+    centrales <- suppressWarnings(as.numeric(c(
+      mediana$valor, resultado$datos[[alta]][[1L]]
+    )))
+    mediana$valor <- if (all(is.finite(centrales))) {
+      stats::median(centrales)
+    } else NA_real_
+  }
+  .adjuntar_medicion_dbi(mediana, resultado)
+}
+
 .promedio_mediana_sql_dbi <- function(conexion, valor, tipo = NA_character_,
                                       doble_exacto = FALSE) {
   if (.es_transact_sql_dbi(.senas_conexion_dbi(conexion)) &&
       .tipo_declarado_decimal_dbi(tipo)) {
-    return(paste0("AVG(CAST(", valor, " AS FLOAT))"))
+    # Quien llama agrega ` AS <alias>`: la central baja sale con el alias de la
+    # mediana y la alta con el suyo.
+    return(paste0(
+      "MAX(", valor, ") AS ",
+      .citar_identificador_dbi(conexion, .CAMPO_CENTRAL_ALTA_DBI),
+      ", MIN(", valor, ")"
+    ))
   }
   if (isTRUE(doble_exacto) &&
       grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
@@ -11265,7 +11452,8 @@
   if (is.numeric(centro)) {
     centro <- .literal_centro_desvio_dbi(
       centro, flotante = resta$literal_flotante || escala_habilitada,
-      digitos = if (pg_double || numeric_exact || mysql) 17L else 15L
+      digitos = if (pg_double || numeric_exact || mysql) 17L else 15L,
+      sin_empate = sqlserver && .tipo_declarado_decimal_dbi(tipo)
     )
   }
   centro_sql <- if (length(centro_sql) == 1L && !is.na(centro_sql) &&
@@ -11370,10 +11558,19 @@
       " AS ", alias("desvio")
     ),
     if (isTRUE(centro_en_ventana)) {
+      # La media de la ventana es un doble y no la media exacta: sus cuadrados
+      # suman ademas `n * (media - centro)^2`, que se resta (las dos pasadas
+      # corregidas). Sin la resta, en SQLite por la muestra del motor el desvio
+      # de 2^53 - 2 y 2^53 - 1 salia 1, y es 0,7071: la media redondeada cae en
+      # uno de los dos.
+      conteo <- .contar_no_nulos_sql_dbi(columna_desvio, senas)
+      suma_cuadrados <- paste0(
+        "(SUM((", columna_desvio, ") * (", columna_desvio, ")) - SUM(",
+        columna_desvio, ") * SUM(", columna_desvio, ") / ", conteo, ")"
+      )
       paste0(
-        "SQRT(SUM((", columna_desvio, ") * (", columna_desvio,
-        ")) / (", .contar_no_nulos_sql_dbi(columna_desvio, senas),
-        " - 1.0))",
+        "SQRT(CASE WHEN ", suma_cuadrados, " < 0 THEN 0 ELSE ",
+        suma_cuadrados, " END / (", conteo, " - 1.0))",
         if (escala_habilitada) paste0(" * ", escala_salida) else "",
         " AS ", alias("desvio")
       )
@@ -11576,7 +11773,21 @@
 # sin decirlo, el desvio de una pasada-. Solo para
 # columnas de coma flotante: contra un `decimal`, un literal `float` convertiria
 # la columna a doble antes de restar. Ver `.resta_centrada_dbi()`.
-.literal_centro_desvio_dbi <- function(media, flotante = FALSE, digitos = 15L) {
+# En T-SQL, `decimal - literal` no siempre cabe: si la precision pasa de 38, el
+# motor recorta la escala del resultado a la que dejan los digitos enteros de
+# la columna y redondea. Redondear `v - c` es restar a todos los valores la
+# misma constante -el desvio no cambia-, salvo en un empate: desde la
+# compatibilidad 110 el empate se redondea lejos del cero, hacia un lado para
+# los valores de abajo de la media y hacia el otro para los de arriba. En
+# `decimal(38,0)` con 1, 2, 3 y 4 la media 2.5 dejaba -2, -1, 1 y 2, y el desvio
+# salia 1,8257 por 1,2910; en `decimal(38,2)`, el par 0.01 y 0.02 daba el doble
+# del desvio exacto (medido en SQL Server 2022; con compatibilidad 100 el
+# empate va siempre hacia abajo y no pasa). Un empate solo ocurre si lo que se
+# recorta del literal es exactamente un 5: con `sin_empate`, un literal con
+# decimales que termina en 5 lleva una cifra mas, que no puede empatar. Sigue
+# cerca de la media, que es lo unico que el centro necesita.
+.literal_centro_desvio_dbi <- function(media, flotante = FALSE, digitos = 15L,
+                                       sin_empate = FALSE) {
   media <- suppressWarnings(as.numeric(media))
   if (length(media) != 1L || !is.finite(media)) return(NULL)
   if (isTRUE(flotante)) {
@@ -11586,9 +11797,14 @@
   }
   # `trimws()`: con `"fg"`, `formatC()` rellena con espacios hasta el ancho de
   # las cifras pedidas.
-  .marca_decimal_c(trimws(
+  literal <- trimws(
     formatC(media, format = "fg", digits = digitos, decimal.mark = ".")
-  ))
+  )
+  if (isTRUE(sin_empate) &&
+      grepl("^-?[0-9]*\\.[0-9]*5$", literal, perl = TRUE)) {
+    literal <- paste0(literal, "1")
+  }
+  .marca_decimal_c(literal)
 }
 
 # La misma potencia de dos que usa la via local. El umbral se decide con los
@@ -11694,6 +11910,56 @@
   sin_cambio
 }
 
+# Un decimal que llega como doble ya no es el valor guardado: 500000000000006.60
+# es, como doble, 500000000000006.625. El desvio de esos dobles se aparta del de
+# los decimales en hasta `max|x| / desvio * 2^-53`, relativo: con valores de
+# 5e14 y un desvio de 3, una parte en 500 -medido: 3,1115 por 3,1047 en
+# `numeric(18,2)` de PostgreSQL con `bloque_filas`, y lo mismo por la muestra del
+# motor en SQL Server, MySQL y MariaDB, que centran en doble-. Por la tabla
+# completa el motor resta la media en el tipo de la columna y no pasa. Donde el
+# desvio sale de los dobles y ese margen pasa de `.TOLERANCIA_DESVIO_DOBLE_DBI`,
+# no se publica como calculado; un decimal que el doble si representa queda
+# negado de mas, porque los dobles no dicen cual es cual.
+.TOLERANCIA_DESVIO_DOBLE_DBI <- 1e-9
+
+.desvio_mal_condicionado_dbi <- function(desvio, extremos) {
+  desvio <- suppressWarnings(as.numeric(desvio))
+  extremos <- suppressWarnings(as.numeric(extremos))
+  extremos <- extremos[is.finite(extremos)]
+  length(desvio) == 1L && is.finite(desvio) && desvio > 0 &&
+    length(extremos) > 0L &&
+    max(abs(extremos)) / desvio * 2^-53 > .TOLERANCIA_DESVIO_DOBLE_DBI
+}
+
+# Un decimal, o `money`/`smallmoney` de SQL Server, que el controlador publica
+# con su nombre y no con el codigo ODBC (`.tipo_declarado_decimal_dbi()` ya
+# reconoce el codigo `3`).
+.tipo_decimal_o_moneda_dbi <- function(tipo) {
+  .tipo_declarado_decimal_dbi(tipo) || (
+    length(tipo) >= 1L && !is.na(tipo[[1L]]) &&
+      .minusculas_ascii(trimws(as.character(tipo[[1L]]))) %in%
+        c("money", "smallmoney")
+  )
+}
+
+.MOTIVO_DESVIO_DECIMAL_DOBLE_DBI <- paste(
+  "La columna es decimal y el desv\u00edo sali\u00f3 del doble de cada valor, que no",
+  "guarda todas sus cifras: la magnitud de la columna frente a su desv\u00edo es tal",
+  "que ese redondeo puede moverlo m\u00e1s de una parte en mil millones. No se",
+  "publica como calculado. Por la tabla completa, sin `bloque_filas`, el motor",
+  "resta la media en el tipo de la columna."
+)
+
+# La muestra del motor centra el desvio en la media de una ventana, y en estos
+# motores esa media -y la resta- es un doble (ver `.media_ventana_sql_dbi()`).
+# PostgreSQL promedia el `numeric` exacto; SQLite guarda los decimales como
+# `REAL`, que ya son los dobles.
+.centra_muestra_en_doble_dbi <- function(conexion) {
+  senas <- .senas_conexion_dbi(conexion)
+  .es_transact_sql_dbi(senas) || .es_mysql_dbi(senas) ||
+    grepl("duckdb", senas, useBytes = TRUE)
+}
+
 # Cuando el desvio que dio la consulta consolidada -que no puede centrarse: ahi
 # la media sale de la misma sentencia- corre riesgo de cancelacion. El error de
 # una pasada crece con (media / desvio)^2: medido en SQL Server, 2,6e-14 con la
@@ -11778,6 +12044,20 @@
     "sentencia y pueden provenir de consultas distintas. No se atribuye una",
     "inconsistencia al motor."
   )
+}
+
+# DuckDB interpola `PERCENTILE_CONT` de un DECIMAL en el DECIMAL de la columna
+# y trunca a su escala: la mediana de 1,00 y 1,01 en `DECIMAL(10,2)` salia
+# 1,00, y la de 1, 2, 3 y 4 en `DECIMAL(38,0)` salia 2, publicadas `calculado`
+# en el camino por omision (medido con duckdb 2.0.0). Sobre el doble de cada
+# valor interpola en doble, que es la mediana de R sobre lo que lee el
+# controlador, como el promedio en `FLOAT` de T-SQL.
+.expresion_mediana_motor_dbi <- function(conexion, expr, tipo = NA_character_) {
+  if (grepl("duckdb", .senas_conexion_dbi(conexion), useBytes = TRUE) &&
+      .tipo_declarado_decimal_dbi(tipo)) {
+    return(paste0("CAST(", expr, " AS DOUBLE)"))
+  }
+  expr
 }
 
 .medianas_lote_consolidadas_dbi <- function(
@@ -13416,19 +13696,23 @@
       escalada <- escalar()
       if (is.list(escalada)) return(escalada)
     }
-    normal <- .escalar_dbi(
-      conexion, sql_normal, "mediana", presupuesto, etapa = "mediana"
-    )
+    # Un decimal en T-SQL devuelve sus dos centrales (ver
+    # `.promedio_mediana_sql_dbi()`); lo demas, el valor del motor.
+    normal <- if (.es_transact_sql_dbi(.senas_conexion_dbi(conexion)) &&
+                  .tipo_declarado_decimal_dbi(tipo_declarado)) {
+      .escalar_mediana_dbi(conexion, sql_normal, presupuesto, etapa = "mediana")
+    } else {
+      .escalar_dbi(
+        conexion, sql_normal, "mediana", presupuesto, etapa = "mediana"
+      )
+    }
     normal$sql <- sql_normal
     valor_normal <- suppressWarnings(as.numeric(normal$valor %||% NA_real_))
     # El repliegue de dos centrales es para un desborde, no para cualquier
     # falla: una aproximacion que el motor rechaza -la pidio el usuario para no
     # ordenar la columna entera- queda declarada como falla, no reemplazada por
     # la forma exacta, que es la cara, con la etiqueta de la aproximacion.
-    desborde <- grepl(
-      "overflow|underflow|out of range|fuera de rango|error while fetching rows",
-      .minusculas_ascii(as.character(normal$motivo %||% "")), useBytes = TRUE
-    )
+    desborde <- .es_desborde_motor_dbi(normal$motivo)
     necesita_repliegue <- (isTRUE(normal$ok) &&
       (length(valor_normal) != 1L || !is.finite(valor_normal))) ||
       (!isTRUE(normal$ok) && isTRUE(desborde))
@@ -13970,6 +14254,26 @@
   magnitud_desmentida <- FALSE
   motivo_magnitud <- NA_character_
   magnitud_sondeada <- TRUE
+  # La columna tiene un valor de al menos 2^53 que el doble no representa, y es
+  # la unica causa por la que sus magnitudes no se publican. La mediana no
+  # depende de todos los valores sino de sus centrales: se calcula igual y se
+  # juzga por su valor (`.causa_mediana_inexacta_dbi()`). Vale si el motivo de
+  # la magnitud sigue siendo el del ancho: otra causa leida despues lo pisa.
+  motivo_ancho <- NA_character_
+  magnitud_ancha <- function() {
+    !is.na(motivo_ancho) && identical(motivo_magnitud, motivo_ancho)
+  }
+  # Ver `.centrales_por_debajo_dbi()`: se pregunta una vez, y solo si hace falta.
+  centrales_verificadas <- NA
+  centrales_por_debajo <- function() {
+    if (is.na(centrales_verificadas)) {
+      centrales_verificadas <<- !es_muestreado && .centrales_por_debajo_dbi(
+        conexion, tabla_sql, columna_sql, alias, guardia_mediana()$n,
+        presupuesto
+      )
+    }
+    centrales_verificadas
+  }
   # El motor respondio un infinito en una metrica de magnitud: ver
   # `.es_infinito_motor_dbi()`. Las magnitudes se vuelven a pedir sobre los
   # valores finitos despues de los basicos.
@@ -14047,8 +14351,10 @@
       )) {
         sondeo$ok <- FALSE
         sondeo$motivo <- .motivo_entero_doble_dbi(
-          valor = sondeo$valor, conexion = conexion, tipo = tipo_declarado
+          valor = sondeo$valor, conexion = conexion, tipo = tipo_declarado,
+          mediana_por_valor = TRUE
         )
+        motivo_ancho <- sondeo$motivo
       }
     }
     n_validos_sondeado <- .numero_dbi(sondeo$n_validos)
@@ -14134,6 +14440,7 @@
       # auditoria diciendo `no_disponible`, seria un tercer estado que no
       # existe en el vocabulario del paquete.
       leidos <- list()
+      ancho_en_basicos <- FALSE
       for (metrica in calculados) {
         celda <- .valor_campo_dbi(basicos$datos, metrica)
         if (!celda$ok) {
@@ -14222,10 +14529,15 @@
           if (.entero_perdido_en_conversion_dbi(
             celda$valor, tipo_declarado
           )) {
+            # La condicion de la columna se anota con la primera metrica que la
+            # muestra, y se siguen leyendo las demas: si otra trae un valor que
+            # no es numero -SQLite guarda texto en una columna INTEGER-, manda
+            # esa causa, y la mediana ya no se puede juzgar por su valor.
             basicos$ok <- FALSE
+            if (isTRUE(ancho_en_basicos)) next
             basicos$motivo <- .motivo_entero_doble_dbi(
               metrica, valor = celda$valor, conexion = conexion,
-              tipo = tipo_declarado
+              tipo = tipo_declarado, mediana_por_valor = TRUE
             )
             # La condicion es de la COLUMNA, no de la metrica: si un valor de al
             # menos 2^53 llego como doble, TODAS las metricas de magnitud de esa
@@ -14242,16 +14554,24 @@
             # dicho lo que significa: `magnitud_desmentida` no es "la magnitud es
             # otra" sino "las metricas de magnitud de esta columna no se publican
             # como calculadas", y ahora tiene dos causas.
+            #
+            # Salvo la mediana, que no depende de toda la columna sino de sus
+            # centrales: se calcula igual y la juzga su valor
+            # (`.causa_mediana_inexacta_dbi()`). La de 2^64 del `UBIGINT` sigue
+            # sin publicarse.
             magnitud_desmentida <- TRUE
             motivo_magnitud <- .motivo_entero_doble_dbi(
-              valor = celda$valor, conexion = conexion, tipo = tipo_declarado
+              valor = celda$valor, conexion = conexion, tipo = tipo_declarado,
+              mediana_por_valor = TRUE
             )
-            leidos <- list()
-            break
+            motivo_ancho <- motivo_magnitud
+            ancho_en_basicos <- TRUE
+            next
           }
           convertido
         }
       }
+      if (isTRUE(ancho_en_basicos)) leidos <- list()
       # Un maximo menor que el minimo es imposible, y aparece de verdad: un
       # `BIGINT UNSIGNED` cerca del tope vuelve del driver como `integer64`
       # negativo, asi que el motor informa `min = 1` y `max = -1` sin mentir
@@ -14367,10 +14687,24 @@
         columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
         NA_character_, metadatos = metadatos
       )))
-    } else if (!magnitud_sondeada || magnitud_desmentida) {
+    } else if ((!magnitud_sondeada || magnitud_desmentida) &&
+               !(magnitud_ancha() && is.null(aproximacion_mediana))) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible", motivo_magnitud, NA_character_,
         metadatos = metadatos
+      )))
+    } else if ((!magnitud_sondeada || magnitud_desmentida) &&
+               identical(.causa_mediana_inexacta_dbi(
+                 0, n = guardia_mediana()$n, columna_ancha = TRUE
+               ), "par") && !centrales_por_debajo()) {
+      # Con una cantidad par -o sin saber cual- la mediana de una columna que
+      # pasa de 2^53 no se publica valga lo que valga: no se paga su consulta.
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "no_disponible",
+        .motivo_mediana_inexacta_dbi(
+          "par", tipo = tipo_declarado, n = guardia_mediana()$n
+        ),
+        NA_character_, metadatos = metadatos
       )))
     } else if (!is.null(decisiones_costo) &&
                identical(decisiones_costo$mediana, FALSE)) {
@@ -14395,7 +14729,8 @@
       registros <- registrar(registros, "mediana", mediana)
     } else if (!is.null(aproximacion_mediana)) {
       sql_mediana <- aproximacion_mediana$construir(
-        columna_sql, tabla_sql, alias("mediana")
+        .expresion_mediana_motor_dbi(conexion, columna_sql, tipo_declarado),
+        tabla_sql, alias("mediana")
       )
       preparar_aviso_mediana()
       mediana <- ejecutar_mediana(sql_mediana)
@@ -14763,6 +15098,24 @@
     }
   }
 
+  if (es_muestreado && .tipo_decimal_o_moneda_dbi(tipo_declarado) &&
+      .centra_muestra_en_doble_dbi(conexion) &&
+      .desvio_mal_condicionado_dbi(fila$desvio, c(
+        fila$minimo, fila$maximo, minimo_basicos, maximo_basicos
+      ))) {
+    for (i in seq_along(registros)) {
+      r <- registros[[i]]
+      tapar <- r$metrica == "desvio" &
+        r$estado %in% c("calculado", "estimado")
+      if (any(tapar)) {
+        r$estado[tapar] <- "no_disponible"
+        r$motivo[tapar] <- .MOTIVO_DESVIO_DECIMAL_DOBLE_DBI
+        registros[[i]] <- r
+      }
+    }
+    fila$desvio <- NA_real_
+  }
+
   # La guarda del entero ancho lee el minimo y el maximo de la consulta de
   # basicos. Si esa consulta no llego -en DuckDB, `HUGEINT * 1.0` desborda
   # cerca del tope del tipo-, la mediana sale de otra consulta y se publicaba
@@ -14770,25 +15123,69 @@
   # la evidencia de la magnitud. No se cambio la media a `CAST(x AS DOUBLE)`
   # para esquivar el desborde: sumar en doble erraba en 1.723 unidades la media
   # de un BIGINT de 200.000 valores cerca de 2^52, que `* 1.0` da exacta.
+  #
+  # La misma regla decide la mediana de toda columna entera o decimal: ver
+  # `.causa_mediana_inexacta_dbi()`.
   mediana_publicada <- suppressWarnings(as.numeric(fila$mediana))
-  if (is.double(prototipo) && length(mediana_publicada) == 1L &&
-      is.finite(mediana_publicada) &&
-      abs(mediana_publicada) >= .MAX_ENTERO_EXACTO_DBI &&
-      .tipo_declarado_entero_ancho_dbi(tipo_declarado)) {
-    motivo_mediana_ancha <- .motivo_entero_doble_dbi(
-      "mediana", valor = fila$mediana, conexion = conexion,
-      tipo = tipo_declarado
-    )
-    for (i in seq_along(registros)) {
-      r <- registros[[i]]
-      tapar <- r$metrica == "mediana" & r$estado %in% c("calculado", "estimado")
-      if (any(tapar)) {
-        r$estado[tapar] <- "no_disponible"
-        r$motivo[tapar] <- motivo_mediana_ancha
-        registros[[i]] <- r
-      }
+  entera_o_decimal <- .tipo_declarado_entero_ancho_dbi(tipo_declarado) ||
+    .tipo_declarado_decimal_dbi(tipo_declarado) ||
+    inherits(prototipo, "integer64")
+  if (entera_o_decimal && length(mediana_publicada) == 1L &&
+      is.finite(mediana_publicada)) {
+    desborde_basicos <- exists("basicos", inherits = FALSE) &&
+      is.list(basicos) && !isTRUE(basicos$ok) &&
+      .es_desborde_motor_dbi(basicos$motivo)
+    metodos_mediana <- unlist(lapply(registros, function(r) {
+      if (!"metodo" %in% names(r)) return(character())
+      as.character(r$metodo[r$metrica == "mediana"])
+    }), use.names = FALSE)
+    interpola_restando <- grepl(
+      "postgres|pqconnection", .senas_conexion_dbi(conexion), useBytes = TRUE
+    ) && any(grepl("^PERCENTILE_CONT", metodos_mediana, useBytes = TRUE))
+    causa_con <- function(columna_ancha, interpola) {
+      .causa_mediana_inexacta_dbi(
+        mediana_publicada, n = guardia_mediana()$n,
+        columna_ancha = columna_ancha,
+        extremos = c(
+          minimo_basicos, maximo_basicos, minimo_sondeado, maximo_sondeado
+        ),
+        interpola_restando = interpola
+      )
     }
-    fila$mediana <- NA_real_
+    causa <- causa_con(magnitud_ancha() || desborde_basicos, interpola_restando)
+    # Con las dos centrales en (-2^52, 2^52) el promedio es exacto, se forme
+    # como se forme: ni la columna ni la interpolacion importan.
+    if (identical(causa, "par") && centrales_por_debajo()) {
+      causa <- causa_con(FALSE, FALSE)
+    }
+    if (!is.na(causa)) {
+      # Lo que la columna ya declaraba se conserva palabra por palabra cuando
+      # alcanza: una mediana de al menos 2^53 en una columna que pasa de 2^53.
+      motivo_mediana_ancha <- if (identical(causa, "valor") &&
+                                  magnitud_ancha()) {
+        motivo_magnitud
+      } else if (identical(causa, "valor")) {
+        .motivo_entero_doble_dbi(
+          "mediana", valor = fila$mediana, conexion = conexion,
+          tipo = tipo_declarado, mediana_por_valor = TRUE
+        )
+      } else {
+        .motivo_mediana_inexacta_dbi(
+          causa, tipo = tipo_declarado, n = guardia_mediana()$n
+        )
+      }
+      for (i in seq_along(registros)) {
+        r <- registros[[i]]
+        tapar <- r$metrica == "mediana" &
+          r$estado %in% c("calculado", "estimado")
+        if (any(tapar)) {
+          r$estado[tapar] <- "no_disponible"
+          r$motivo[tapar] <- motivo_mediana_ancha
+          registros[[i]] <- r
+        }
+      }
+      fila$mediana <- NA_real_
+    }
   }
 
   sobrantes <- setdiff(
@@ -15239,9 +15636,15 @@
   }
   if (length(columnas_medianas_consolidadas) &&
       !is.null(mediana_consolidada)) {
+    expresiones_medianas <- vapply(seq_along(campos_consolidados), function(i) {
+      .expresion_mediana_motor_dbi(
+        conexion, campos_sql_consolidados[[i]],
+        tipo_motor_de(campos_consolidados[[i]])
+      )
+    }, character(1L))
     medianas <- .medianas_consolidadas_dbi(
       conexion, tabla_metricas_sql, columnas_medianas_consolidadas,
-      stats::setNames(campos_sql_consolidados, campos_consolidados),
+      stats::setNames(expresiones_medianas, campos_consolidados),
       function(nombre) .citar_identificador_dbi(conexion, nombre),
       mediana_consolidada, presupuesto, tamano_lote_planos
     )
@@ -20364,6 +20767,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
   resumen <- resultado$resumen_tabla
   perfil <- resultado$perfil_muestra
   sql <- resumen$sql
+  # La mediana que la via SQL publico por su valor -ver
+  # `.causa_mediana_inexacta_dbi()`- no depende de los dobles que la condicion
+  # de la columna describe: no se tapa. Solo cuando las columnas salen de los
+  # motivos del resumen; el spool las pasa porque sus cifras salen de la
+  # muestra leida en R.
+  mediana_por_valor <- character()
   if (!length(columnas_decimal) && is.data.frame(sql) && nrow(sql) &&
       all(c("columna", "estado", "motivo") %in% names(sql))) {
     filas_decimal <- as.character(sql$estado) == "no_disponible" &
@@ -20371,12 +20780,27 @@ print.plan_perfilado_dbi <- function(x, ...) {
             fixed = TRUE, useBytes = TRUE)
     columnas_decimal <- unique(as.character(sql$columna[filas_decimal]))
     columnas_decimal <- columnas_decimal[!is.na(columnas_decimal)]
+    if ("metrica" %in% names(sql)) {
+      publicadas <- as.character(sql$metrica) == "mediana" &
+        as.character(sql$estado) %in% c("calculado", "estimado") &
+        .nombres_presentes(sql$columna, columnas_decimal)
+      mediana_por_valor <- unique(as.character(sql$columna[publicadas]))
+    }
   }
   if (length(columnas_decimal)) {
     if (is.data.frame(resumen$columnas)) {
+      medianas <- if ("mediana" %in% names(resumen$columnas)) {
+        resumen$columnas$mediana
+      }
       resumen$columnas <- .enmascarar_campos_muestra_dbi(
         resumen$columnas, columnas_decimal
       )
+      if (length(mediana_por_valor) && !is.null(medianas)) {
+        conservar <- .nombres_presentes(
+          resumen$columnas$columna, mediana_por_valor
+        )
+        resumen$columnas$mediana[conservar] <- medianas[conservar]
+      }
     }
     if (is.data.frame(sql) && nrow(sql)) {
       # Una metrica que no se pidio sigue siendo no pedida: la guarda del
@@ -20386,7 +20810,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       # `maximo` y `media`, que si se habian pedido.
       tocar <- .nombres_presentes(sql$columna, columnas_decimal) &
         as.character(sql$metrica) %in% .CAMPOS_MAGNITUD_MUESTRA_DBI &
-        !(as.character(sql$estado) %in% "no_solicitado")
+        !(as.character(sql$estado) %in% "no_solicitado") &
+        !(as.character(sql$metrica) == "mediana" &
+            .nombres_presentes(sql$columna, mediana_por_valor))
       sql$estado[tocar] <- "no_disponible"
       sql$motivo[tocar] <- vapply(sql$columna[tocar], function(columna) {
         if (!is.null(motivos_decimal) && !is.null(motivos_decimal[[columna]])) {
@@ -21286,11 +21712,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Si una columna declarada como entero de 64 bits o mas ancho, o como decimal
 #' -`numeric`, `decimal`, con o sin precision-, llega como doble
 #' y contiene un valor con valor absoluto de al menos 2^53, `resumen_tabla`
-#' deja sus metricas de magnitud en `no_disponible`. **Las siete**: `minimo`,
-#' `maximo`, `media`, `n_ceros`, `n_negativos`, `mediana` y `desvio`. La condicion
-#' es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
-#' consultas; lo que el motor cuenta con exactitud -`n_distintos`, la moda- se sigue
-#' publicando. La moda de un entero ancho que llego como `numeric` se pide al
+#' deja en `no_disponible` las métricas de magnitud que dependen de un valor que
+#' el doble no representa: `minimo`, `maximo`, `media`, `n_ceros`, `n_negativos`
+#' y `desvio`, por la columna. La `mediana` depende sólo de sus centrales y se
+#' decide por su valor: con una cantidad impar de valores es la central, y se
+#' publica si queda por debajo de 2^53 —una central de al menos 2^53 daría un
+#' doble de al menos 2^53—; con una cantidad par promedia dos centrales y su
+#' valor no dice si alguna pasó de 2^53: se publica sólo si las dos quedan
+#' entre -2^52 y 2^52, lo que en la tabla completa cuenta una consulta más
+#' (cuántos valores llegan a 2^52 y cuántos bajan de -2^52) y en la muestra del
+#' motor no se puede saber. La misma regla
+#' corre cuando la consulta de básicos desborda (un `HUGEINT` cerca de su tope en
+#' DuckDB). En una columna que no pasa de 2^53, la mediana de una cantidad par
+#' tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
+#' `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble y esa resta
+#' redondea. Lo que el motor cuenta con exactitud -`n_distintos`, la moda- se
+#' sigue publicando. La moda de un entero ancho que llego como `numeric` se pide al
 #' motor como texto exacto cuando la magnitud cruza 2^53; un `BIGINT` con
 #' valores chicos conserva la moda numerica de siempre. Lo decide el valor: un
 #' decimal desde 2^53 ya no cabe en un doble
@@ -21309,8 +21746,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Con `bloque_filas` rige la misma regla, sobre los valores que el
 #' controlador entrega como `integer64` —un `BIGINT` o `bigserial` de
 #' PostgreSQL, un `INTEGER` de SQLite que no entra en 32 bits—: por debajo de
-#' 2^53 se opera con el valor exacto, y desde 2^53 las siete métricas quedan
-#' `no_disponible` con su motivo. Un decimal o un entero ancho que llega como
+#' 2^53 se opera con el valor exacto, y desde 2^53 las seis que dependen de toda
+#' la columna quedan `no_disponible` con su motivo y la mediana se decide por su
+#' valor, como en el resumen SQL. Un bloque que el controlador entrega como `integer`
+#' y otro como `integer64` —RSQLite elige la clase por los valores de cada
+#' bloque— se unen como `integer64` antes de contar distintos, moda y mediana. Un decimal o un entero ancho que llega como
 #' doble desde 2^53 deja ademas `n_distintos` y `tasa_distintos` en
 #' `no_disponible`: con bloques se contarian en R sobre esos dobles, que no
 #' distinguen los valores. La moda de un decimal, y la de un entero ancho
@@ -21675,7 +22115,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' como MySQL. En ese caso el mensaje del motor queda en
 #' `meta$mediana_consolidada$motivo` —sin sus literales con la protección
 #' activa, entero sin ella, como todo mensaje del motor: ver «Datos
-#' personales»—, y se conserva la mediana por columna.
+#' personales»—, y se conserva la mediana por columna. En DuckDB,
+#' `PERCENTILE_CONT` de un `DECIMAL` interpola en el `DECIMAL` de la columna y
+#' trunca a su escala —la mediana de 1,00 y 1,01 en `DECIMAL(10,2)` salía
+#' 1,00—: se pide sobre el doble de cada valor, que es la mediana de R sobre lo
+#' que lee el controlador.
 #'
 #' @section Lo que el motor guarda distinto que R:
 #' El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
@@ -21830,12 +22274,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   convierte a doble antes de restar; en SQL Server el centro de una
 #'   columna de coma flotante va como literal `float`, que no tiene el tope de 38
 #'   cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
-#'   exacto. Con `bloque_filas` los
-#'   momentos se acumulan centrados. Bajo `muestra_motor`, la media y el desvío
+#'   exacto; en SQL Server, si la resta pasa de 38 cifras el motor recorta la
+#'   escala y redondea, y un empate se redondearía hacia lados distintos según
+#'   el signo, así que el centro de un decimal nunca termina en 5. Con
+#'   `bloque_filas` los momentos se acumulan centrados, sobre los dobles que
+#'   entrega el controlador: el desvío de un decimal tan grande frente a su
+#'   desvío que el redondeo de cada valor a doble puede moverlo más de una parte
+#'   en mil millones (`max |x| / desvio * 2^-53`) queda `no_disponible`. Bajo `muestra_motor`, la media y el desvío
 #'   se piden en la misma consulta, sobre las mismas filas de una sola
 #'   evaluación de la muestra: una relación derivada calcula la media de esas
 #'   filas con una ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en
-#'   ella; esa misma evaluación da las filas obtenidas y decide el reintento. No
+#'   ella; esa misma evaluación da las filas obtenidas y decide el reintento. En
+#'   SQLite, que suma los cuadrados en la consulta, se resta además
+#'   `n * (media - centro)^2` (las dos pasadas corregidas), porque la media de
+#'   la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
+#'   dobles: el desvío de un decimal queda `no_disponible` con la misma regla que
+#'   con `bloque_filas`. No
 #'   se fija una semilla ni se toca el generador de números aleatorios de R.
 #'   Como red en todas las
 #'   vías, un desvío `0` sobre una columna con dos valores distintos —un mínimo

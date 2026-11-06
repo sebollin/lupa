@@ -503,7 +503,46 @@
 
 .append_typed_R <- function(x, valor) {
   if (!length(x)) return(valor)
-  tryCatch(c(x, valor), error = function(e) NULL)
+  unidos <- .unificar_enteros_64_R(x, valor)
+  if (is.null(unidos)) return(NULL)
+  tryCatch(c(unidos$a, unidos$b), error = function(e) NULL)
+}
+
+# Un controlador puede entregar la misma columna con otra clase en cada bloque:
+# RSQLite da `integer` a un bloque de valores chicos e `integer64` al que trae
+# uno que no entra en 32 bits. `c()` despacha por su primer argumento, y
+# `c(1:2, bit64::as.integer64(3e9))` pega los bits del `integer64` como si
+# fueran un doble: el mapa de distintos de `{1, 2, 3e9, 3e9}` con
+# `bloque_filas = 2` contaba 4 distintos, ninguna moda y una mediana de 0,5
+# -es 1500000001-, todo `calculado`. Los dos lados se llevan a `integer64`, que
+# representa exacto todo entero de 32 bits y todo doble entero por debajo de
+# 2^53; un doble que no es entero o pasa de ahi no tiene `integer64` exacto, y
+# la union no se hace (`NULL`).
+.unificar_enteros_64_R <- function(a, b) {
+  en_a <- inherits(a, "integer64")
+  en_b <- inherits(b, "integer64")
+  if (en_a == en_b) return(list(a = a, b = b))
+  convertir <- function(x) {
+    # Un bloque de nulos llega `logical`: su `NA` es el de cualquier clase.
+    if ((is.integer(x) || (is.logical(x) && all(is.na(x)))) &&
+        is.null(oldClass(x))) {
+      return(bit64::as.integer64(x))
+    }
+    if (is.double(x) && is.null(oldClass(x)) &&
+        all(is.na(x) | (is.finite(x) & x == trunc(x) &
+                          abs(x) < .MAX_ENTERO_EXACTO_DBI))) {
+      return(bit64::as.integer64(x))
+    }
+    NULL
+  }
+  if (en_a) {
+    b <- convertir(b)
+    if (is.null(b)) return(NULL)
+  } else {
+    a <- convertir(a)
+    if (is.null(a)) return(NULL)
+  }
+  list(a = a, b = b)
 }
 
 .bytes_estado_acumulador <- function(acumulador) {
@@ -1143,6 +1182,18 @@
   if (isTRUE(estado$truncado)) {
     acumulador$estado_familia <- estado
     return(acumulador)
+  }
+  # El bloque y los representantes en la misma clase antes de compararlos: ver
+  # `.unificar_enteros_64_R()`.
+  if (length(estado$representantes)) {
+    unidos <- .unificar_enteros_64_R(estado$representantes, x)
+    if (is.null(unidos)) {
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    estado$representantes <- unidos$a
+    x <- unidos$b
   }
   # `match()` sobre el bloque entero conserva la igualdad de R y evita una
   # llamada de dispatch por celda. El camino lento de abajo queda para clases

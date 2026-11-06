@@ -7,14 +7,8 @@ test_that("el catalogo conserva los motores y estados de los README", {
     "PostgreSQL", "MySQL", "SQL Server", "SQLite", "DuckDB", "MariaDB",
     "Oracle"
   ) %in% catalogo$motor))
-  expect_equal(
-    catalogo$dialecto[catalogo$motor == "PostgreSQL" & catalogo$version == "16"],
-    "limit"
-  )
-  expect_equal(
-    catalogo$estado_prueba[catalogo$motor == "PostgreSQL" & catalogo$version == "16"],
-    "probado"
-  )
+  expect_equal(catalogo$dialecto[catalogo$motor == "PostgreSQL"], "limit")
+  expect_equal(catalogo$estado_prueba[catalogo$motor == "PostgreSQL"], "probado")
   # MariaDB 11 se verifico contra motor real. Oracle no: sus dos variantes estan
   # en `esperado` porque no se conserva ningun log de una corrida contra un
   # servidor Oracle, y el unico informe que existe declara que no pudo medir.
@@ -100,4 +94,28 @@ test_that("un fallo de biblioteca del controlador queda traducido sin afirmar qu
   expect_match(conditionMessage(error), "No se comprob\u00f3", fixed = TRUE)
   expect_match(conditionMessage(error), "libmariadb.so", fixed = TRUE)
   expect_match(conditionMessage(error), "libmariadb-dev", fixed = TRUE)
+})
+
+# PostgreSQL se mide en 9.3 y en 16 -la CI de motores y el contenedor-, y el
+# catalogo declaraba solo "16": lo declarado tiene que nombrar lo que se mide, y
+# cada version medida tiene que reconocerse como sinonimo.
+test_that("el catalogo declara las dos versiones de PostgreSQL que se miden", {
+  postgres <- lupa:::requisitos_motor("postgresql")
+  expect_equal(nrow(postgres), 1L)
+  versiones <- trimws(strsplit(postgres$version, " y ", fixed = TRUE)[[1L]])
+  expect_setequal(versiones, c("9.3", "16"))
+  for (version in versiones) {
+    fila <- lupa:::requisitos_motor(paste("PostgreSQL", version))
+    expect_identical(fila$id_motor, "postgresql", info = version)
+  }
+  # La corrida publicada vive en el repositorio, no en el paquete instalado.
+  corrida <- testthat::test_path(
+    "..", "..", "benchmark", "datos", "verificar-motor.csv"
+  )
+  skip_if_not(file.exists(corrida), "Sin la corrida publicada de motores.")
+  medidos <- utils::read.csv(corrida, stringsAsFactors = FALSE)$motor
+  medidos <- medidos[startsWith(medidos, "PostgreSQL ")]
+  expect_true(length(medidos) >= 1L)
+  expect_true(all(sub("^PostgreSQL ", "", medidos) %in% versiones),
+              info = paste(medidos, collapse = ", "))
 })

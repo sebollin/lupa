@@ -482,11 +482,22 @@ la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
 Si una columna declarada como entero de 64 bits o mas ancho, o como decimal
 -\code{numeric}, \code{decimal}, con o sin precision-, llega como doble
 y contiene un valor con valor absoluto de al menos 2^53, \code{resumen_tabla}
-deja sus metricas de magnitud en \code{no_disponible}. \strong{Las siete}: \code{minimo},
-\code{maximo}, \code{media}, \code{n_ceros}, \code{n_negativos}, \code{mediana} y \code{desvio}. La condicion
-es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
-consultas; lo que el motor cuenta con exactitud -\code{n_distintos}, la moda- se sigue
-publicando. La moda de un entero ancho que llego como \code{numeric} se pide al
+deja en \code{no_disponible} las métricas de magnitud que dependen de un valor que
+el doble no representa: \code{minimo}, \code{maximo}, \code{media}, \code{n_ceros}, \code{n_negativos}
+y \code{desvio}, por la columna. La \code{mediana} depende sólo de sus centrales y se
+decide por su valor: con una cantidad impar de valores es la central, y se
+publica si queda por debajo de 2^53 —una central de al menos 2^53 daría un
+doble de al menos 2^53—; con una cantidad par promedia dos centrales y su
+valor no dice si alguna pasó de 2^53: se publica sólo si las dos quedan
+entre -2^52 y 2^52, lo que en la tabla completa cuenta una consulta más
+(cuántos valores llegan a 2^52 y cuántos bajan de -2^52) y en la muestra del
+motor no se puede saber. La misma regla
+corre cuando la consulta de básicos desborda (un \code{HUGEINT} cerca de su tope en
+DuckDB). En una columna que no pasa de 2^53, la mediana de una cantidad par
+tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
+\code{PERCENTILE_CONT} interpola \code{bajo + (alto - bajo) * 0.5} en doble y esa resta
+redondea. Lo que el motor cuenta con exactitud -\code{n_distintos}, la moda- se
+sigue publicando. La moda de un entero ancho que llego como \code{numeric} se pide al
 motor como texto exacto cuando la magnitud cruza 2^53; un \code{BIGINT} con
 valores chicos conserva la moda numerica de siempre. Lo decide el valor: un
 decimal desde 2^53 ya no cabe en un doble
@@ -505,8 +516,11 @@ columnas declaradas como \code{double}, \code{real} o \code{float} no entran en 
 Con \code{bloque_filas} rige la misma regla, sobre los valores que el
 controlador entrega como \code{integer64} —un \code{BIGINT} o \code{bigserial} de
 PostgreSQL, un \code{INTEGER} de SQLite que no entra en 32 bits—: por debajo de
-2^53 se opera con el valor exacto, y desde 2^53 las siete métricas quedan
-\code{no_disponible} con su motivo. Un decimal o un entero ancho que llega como
+2^53 se opera con el valor exacto, y desde 2^53 las seis que dependen de toda
+la columna quedan \code{no_disponible} con su motivo y la mediana se decide por su
+valor, como en el resumen SQL. Un bloque que el controlador entrega como \code{integer}
+y otro como \code{integer64} —RSQLite elige la clase por los valores de cada
+bloque— se unen como \code{integer64} antes de contar distintos, moda y mediana. Un decimal o un entero ancho que llega como
 doble desde 2^53 deja ademas \code{n_distintos} y \code{tasa_distintos} en
 \code{no_disponible}: con bloques se contarian en R sobre esos dobles, que no
 distinguen los valores. La moda de un decimal, y la de un entero ancho
@@ -880,7 +894,11 @@ en 1e8 y redondea a diez decimales, y por eso usa la mediana por columna
 como MySQL. En ese caso el mensaje del motor queda en
 \code{meta$mediana_consolidada$motivo} —sin sus literales con la protección
 activa, entero sin ella, como todo mensaje del motor: ver «Datos
-personales»—, y se conserva la mediana por columna.
+personales»—, y se conserva la mediana por columna. En DuckDB,
+\code{PERCENTILE_CONT} de un \code{DECIMAL} interpola en el \code{DECIMAL} de la columna y
+trunca a su escala —la mediana de 1,00 y 1,01 en \code{DECIMAL(10,2)} salía
+1,00—: se pide sobre el doble de cada valor, que es la mediana de R sobre lo
+que lee el controlador.
 }
 
 \section{Lo que el motor guarda distinto que R}{
@@ -1037,12 +1055,22 @@ desvío centrado se apartaría del de los valores guardados, así que se
 convierte a doble antes de restar; en SQL Server el centro de una
 columna de coma flotante va como literal \code{float}, que no tiene el tope de 38
 cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
-exacto. Con \code{bloque_filas} los
-momentos se acumulan centrados. Bajo \code{muestra_motor}, la media y el desvío
+exacto; en SQL Server, si la resta pasa de 38 cifras el motor recorta la
+escala y redondea, y un empate se redondearía hacia lados distintos según
+el signo, así que el centro de un decimal nunca termina en 5. Con
+\code{bloque_filas} los momentos se acumulan centrados, sobre los dobles que
+entrega el controlador: el desvío de un decimal tan grande frente a su
+desvío que el redondeo de cada valor a doble puede moverlo más de una parte
+en mil millones (\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}. Bajo \code{muestra_motor}, la media y el desvío
 se piden en la misma consulta, sobre las mismas filas de una sola
 evaluación de la muestra: una relación derivada calcula la media de esas
 filas con una ventana (\verb{AVG(x) OVER ()}) y el desvío se pide centrado en
-ella; esa misma evaluación da las filas obtenidas y decide el reintento. No
+ella; esa misma evaluación da las filas obtenidas y decide el reintento. En
+SQLite, que suma los cuadrados en la consulta, se resta además
+\code{n * (media - centro)^2} (las dos pasadas corregidas), porque la media de
+la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
+dobles: el desvío de un decimal queda \code{no_disponible} con la misma regla que
+con \code{bloque_filas}. No
 se fija una semilla ni se toca el generador de números aleatorios de R.
 Como red en todas las
 vías, un desvío \code{0} sobre una columna con dos valores distintos —un mínimo

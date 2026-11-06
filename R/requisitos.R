@@ -17,8 +17,11 @@
       "DBI", "SQLite", "PostgreSQL", "MySQL", "SQL Server", "DuckDB",
       "MariaDB", "Oracle", "Oracle", "BigQuery", "ODBC", "Otro compatible con DBI"
     ),
+    # PostgreSQL se mide en dos versiones -16 en la CI de motores y 9.3 en el
+    # contenedor antes de cada version-, y lo declarado tiene que decir lo que
+    # se mide: la tabla del README separa la forma "9.3 y 16" por " y ".
     version = c(
-      NA_character_, NA_character_, "16", "8", "2022", "1.5", "11", "Free 23 (12c+)",
+      NA_character_, NA_character_, "9.3 y 16", "8", "2022", "1.5", "11", "Free 23 (12c+)",
       "11 y anteriores", NA_character_, NA_character_, NA_character_
     ),
     paquete_r = c(
@@ -105,7 +108,7 @@
       "Reserva para cualquier controlador compatible con DBI: benchmark/verificar_motor.R no lo cubre sin una configuraci\u00f3n espec\u00edfica."
     ),
     sinonimos = c(
-      "dbi,interfaz dbi", "sqlite", "postgres,postgresql,postgresql 16",
+      "dbi,interfaz dbi", "sqlite", "postgres,postgresql,postgresql 16,postgresql 9.3",
       "mysql,mysql 8", "sql server,sqlserver,sql server 2022,odbc sql server",
       "duckdb,duckdb 1.5", "mariadb,mariadb 11", "oracle,oracle 12c,oracle 12c+",
       "oracle,oracle 11,oracle 11 y anteriores", "bigquery,big query",

@@ -832,7 +832,10 @@
   if (!nrow(mapa)) {
     return("familia_sin_acumulador:mapa_distintos_vacio")
   }
-  # La misma condicion de columna que retiene `minimo`, `media` y `desvio`.
+  # La misma condicion de columna que retiene `minimo`, `media` y `desvio`; la
+  # mediana se decide por su valor (`.mediana_central_integer64_bloques_dbi()`),
+  # y si no se publico es porque su central pasa de 2^53 o porque la cantidad
+  # es par.
   como_doble <- .integer64_como_doble_dbi(mapa$representante)
   if (!isTRUE(como_doble$ok)) return(como_doble$motivo)
   frecuencias <- suppressWarnings(as.numeric(mapa$frecuencia))
@@ -864,7 +867,9 @@
   # reconstruye sobre dobles, o no se reconstruye: ver
   # `.integer64_como_doble_dbi()`.
   como_doble <- .integer64_como_doble_dbi(mapa$representante)
-  if (!isTRUE(como_doble$ok)) return(NA_real_)
+  if (!isTRUE(como_doble$ok)) {
+    return(.mediana_central_integer64_bloques_dbi(mapa))
+  }
   valores <- como_doble$valores
   frecuencias <- as.numeric(mapa$frecuencia)
   if (!is.numeric(valores) || anyNA(frecuencias)) return(NA_real_)
@@ -885,6 +890,47 @@
       total > .TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI) return(NA_real_)
   expandido <- rep(valores, frecuencias)
   stats::median(expandido, na.rm = TRUE)
+}
+
+# Las una o dos centrales del mapa de distintos, en la clase del mapa: la
+# posicion `(n + 1) %/% 2` y la `(n + 2) %/% 2`, que son las que promedia
+# `median()`. `.orden_por_bytes()` ordena un `integer64` por su rango, no por
+# sus bits. `NULL` si el mapa no alcanza.
+.centrales_mapa_bloques_dbi <- function(mapa) {
+  if (!is.data.frame(mapa) || !nrow(mapa)) return(NULL)
+  valores <- mapa$representante
+  frecuencias <- suppressWarnings(as.numeric(mapa$frecuencia))
+  presentes <- !is.na(valores) & !is.na(frecuencias) & frecuencias > 0
+  if (is.double(valores)) presentes <- presentes & is.finite(valores)
+  valores <- valores[presentes]
+  frecuencias <- frecuencias[presentes]
+  total <- sum(frecuencias)
+  if (!length(valores) || !is.finite(total) || total < 1 ||
+      total > .TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI) {
+    return(NULL)
+  }
+  orden <- .orden_por_bytes(valores)
+  valores <- valores[orden]
+  acumuladas <- cumsum(frecuencias[orden])
+  posiciones <- unique(c((total + 1) %/% 2, (total + 2) %/% 2))
+  valores[vapply(posiciones, function(k) which(acumuladas >= k)[[1L]],
+                 integer(1L))]
+}
+
+# La regla de la via SQL (`.causa_mediana_inexacta_dbi()`) sobre el mapa de un
+# `integer64` con algun valor desde 2^53, pero aca las centrales estan a la
+# vista: la mediana se publica si las dos llegan exactas al doble, y es la de
+# `median()` sobre ellas.
+.mediana_central_integer64_bloques_dbi <- function(mapa) {
+  if (!inherits(mapa$representante, "integer64") || !.bit64_disponible()) {
+    return(NA_real_)
+  }
+  centrales <- .centrales_mapa_bloques_dbi(mapa)
+  if (is.null(centrales) ||
+      !isTRUE(all(as.logical(.integer64_exacto_en_doble(centrales))))) {
+    return(NA_real_)
+  }
+  stats::median(as.numeric(centrales))
 }
 
 # La fila de una columna en la via por bloques, antes de llenarla: la misma forma
@@ -1285,6 +1331,19 @@
     if (is.null(moda_precalculada) || !isTRUE(moda_precalculada$ok)) {
       retenidas <- c(retenidas, "moda", "frecuencia_moda")
     }
+    # La mediana, por sus centrales, que el mapa tiene a la vista: el redondeo
+    # es monotono, y una central que llego como doble por debajo de 2^53 llego
+    # exacta. Un `UNSIGNED` que aparece negativo no: ahi el doble es otro
+    # numero.
+    centrales <- if (unsigned_inconsistente) NULL else {
+      .centrales_mapa_bloques_dbi(mapa)
+    }
+    mediana_por_valor <- "mediana" %in% names(fila) &&
+      length(fila$mediana) == 1L && is.finite(fila$mediana) &&
+      length(centrales) > 0L && is.double(centrales) &&
+      !inherits(centrales, "integer64") &&
+      all(abs(centrales) < .MAX_ENTERO_EXACTO_DBI)
+    if (mediana_por_valor) retenidas <- setdiff(retenidas, "mediana")
     for (nombre in intersect(retenidas, names(fila))) {
       fila[[nombre]] <- if (is.character(fila[[nombre]])) {
         NA_character_
@@ -1293,7 +1352,7 @@
     afectadas <- as.character(sql$metrica) %in% retenidas &
       as.character(sql$estado) == "calculado"
     sql$estado[afectadas] <- "no_disponible"
-    sql$motivo[afectadas] <- if (unsigned_inconsistente) {
+    motivo_columna <- if (unsigned_inconsistente) {
       paste(
         "El controlador entreg\u00f3 un `UNSIGNED` fuera del rango del doble con",
         "signo: los valores aparecen negativos. Las m\u00e9tricas de magnitud no",
@@ -1301,11 +1360,26 @@
       )
     } else if (entero_ancho) {
       paste(
-        .motivo_entero_doble_dbi(prefijo = "La columna ", tipo = tipo_campo),
+        .motivo_entero_doble_dbi(
+          prefijo = "La columna ", tipo = tipo_campo, mediana_por_valor = TRUE
+        ),
         "Con `bloque_filas` tampoco `n_distintos` ni la moda: se contarian en",
         "R sobre esos dobles."
       )
-    } else .motivo_decimal_doble_dbi(bloques = TRUE)
+    } else .motivo_decimal_doble_dbi(bloques = TRUE, mediana_por_valor = TRUE)
+    sql$motivo[afectadas] <- motivo_columna
+  }
+  # Con bloques el desvio sale de los dobles que entrego el controlador: un
+  # decimal muy grande frente a su desvio no se publica (ver
+  # `.desvio_mal_condicionado_dbi()`).
+  if (.tipo_decimal_o_moneda_dbi(tipo_campo) && is.double(extremos) &&
+      "desvio" %in% names(fila) &&
+      .desvio_mal_condicionado_dbi(fila$desvio, extremos)) {
+    fila$desvio <- NA_real_
+    tapar <- as.character(sql$metrica) == "desvio" &
+      as.character(sql$estado) == "calculado"
+    sql$estado[tapar] <- "no_disponible"
+    sql$motivo[tapar] <- .MOTIVO_DESVIO_DECIMAL_DOBLE_DBI
   }
   list(fila = fila, sql = sql)
 }

@@ -104,7 +104,9 @@ test_that("M2: el desvio centrado de una columna real resta en doble, y una deci
   expect_false("v::desvio" %in% .divergencias_O164(p))
   # SQL Server: un `real` (codigo ODBC 7) se convierte antes de restar y su
   # centro va como literal `float`; un `decimal` (2) resta en su tipo con el
-  # literal decimal, que es exacto.
+  # literal decimal. Si la resta pasa de 38 cifras el motor la redondea, y un
+  # literal que termina en 5 empataria hacia lados distintos segun el signo:
+  # lleva una cifra mas.
   alias <- function(nombre) "a"
   formas_real <- lupa:::.formas_desvio_dbi(
     "t", "[v]", alias, "microsoft sql server", centro = 995.082487864971,
@@ -117,7 +119,11 @@ test_that("M2: el desvio centrado de una columna real resta en doble, y una deci
   formas_decimal <- lupa:::.formas_desvio_dbi(
     "t", "[d]", alias, "microsoft sql server", centro = 995.5, tipo = "2"
   )
-  expect_true(all(grepl("([d] - 995.5)", unlist(formas_decimal), fixed = TRUE)))
+  expect_true(all(grepl("([d] - 995.51)", unlist(formas_decimal), fixed = TRUE)))
+  formas_decimal <- lupa:::.formas_desvio_dbi(
+    "t", "[d]", alias, "microsoft sql server", centro = 995.3, tipo = "2"
+  )
+  expect_true(all(grepl("([d] - 995.3)", unlist(formas_decimal), fixed = TRUE)))
   # PostgreSQL ya resta un `real` en doble: no cambia.
   formas_pg <- lupa:::.formas_desvio_dbi(
     "t", "\"v\"", alias, "pqconnection postgresql", centro = 995.5,
