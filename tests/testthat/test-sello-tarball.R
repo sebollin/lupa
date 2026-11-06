@@ -91,21 +91,71 @@ test_that("el sello ata el log al tarball medido y rechaza otro", {
     if (is.na(anterior_dir)) Sys.unsetenv("LUPA_VERIFICACION_DIR") else
       Sys.setenv(LUPA_VERIFICACION_DIR = anterior_dir)
   }, add = TRUE)
-  matriz_legitima <- system2(
+  # La salida trae dos tablas, la matriz y la de TIEMPOS, y la fila de
+  # `check-depends-only.log` aparece en las dos. Mirar la salida entera dejaba
+  # pasar una matriz que no comparaba la huella de fuentes: la que la comparaba
+  # era la de TIEMPOS. Se corta antes de esa tabla, y el corte tiene que existir.
+  solo_matriz <- function(salida) {
+    corte <- which(salida == "--- tabla de TIEMPOS ---")
+    expect_length(corte, 1L)
+    salida[seq_len(corte[1L] - 1L)]
+  }
+  matriz_legitima <- solo_matriz(system2(
     "bash", c(matriz, "HEAD", fecha_sonda), stdout = TRUE, stderr = TRUE
-  )
+  ))
   fila_legitima <- grep("check-depends-only.log", matriz_legitima, value = TRUE)
+  expect_length(fila_legitima, 1L)
   expect_true(any(grepl("Status: OK", fila_legitima, fixed = TRUE)))
   expect_false(any(grepl("DOES NOT MATCH COMMIT", fila_legitima, fixed = TRUE)))
 
   sellado <- readLines(log_matriz)
+  sellado_original <- sellado
   sellado[grep("tarball-source-sha256", sellado)] <- paste0(
     "# lupa tarball-source-sha256 ", paste(rep("0", 64L), collapse = "")
   )
   writeLines(sellado, log_matriz)
-  matriz_invalida <- system2(
+  matriz_invalida <- solo_matriz(system2(
     "bash", c(matriz, "HEAD", fecha_sonda), stdout = TRUE, stderr = TRUE
-  )
+  ))
   fila_invalida <- grep("check-depends-only.log", matriz_invalida, value = TRUE)
+  expect_length(fila_invalida, 1L)
   expect_true(any(grepl("DOES NOT MATCH COMMIT", fila_invalida, fixed = TRUE)))
+
+  # Las filas de una misma corrida tienen que haber medido el mismo tarball.
+  # Un tarball rearmado con los mismos archivos tiene las mismas fuentes (el
+  # sello lo acepta) y otro checksum: la segunda fila de la corrida cae.
+  writeLines(sellado_original, log_matriz)
+  rearmar <- file.path(temporal, "rearmar")
+  dir.create(rearmar)
+  expect_equal(attr(system2(
+    "tar", c("-xzf", tarball_legitimo, "-C", rearmar),
+    stdout = TRUE, stderr = TRUE
+  ), "status") %||% 0L, 0L)
+  tarball_rearmado <- file.path(temporal, "rearmado.tar.gz")
+  expect_equal(attr(system2(
+    "tar", c("-czf", tarball_rearmado, "-C", rearmar, "lupa"),
+    stdout = TRUE, stderr = TRUE
+  ), "status") %||% 0L, 0L)
+  expect_false(identical(
+    unname(tools::md5sum(tarball_rearmado)),
+    unname(tools::md5sum(tarball_legitimo))
+  ))
+  log_motores <- file.path(temporal, "motores.log")
+  writeLines("motores medidos: 7 de 7", log_motores)
+  sello_motores <- system2(
+    "bash", c(script, log_motores, tarball_rearmado, "HEAD"),
+    stdout = TRUE, stderr = TRUE
+  )
+  expect_equal(attr(sello_motores, "status") %||% 0L, 0L)
+  expect_true(file.copy(
+    log_motores, file.path(directorio_logs, "matriz-motores.log")
+  ))
+  matriz_dos_tarballs <- solo_matriz(system2(
+    "bash", c(matriz, "HEAD", fecha_sonda), stdout = TRUE, stderr = TRUE
+  ))
+  fila_primera <- grep("check-depends-only.log", matriz_dos_tarballs, value = TRUE)
+  fila_segunda <- grep("matriz-motores.log", matriz_dos_tarballs, value = TRUE)
+  expect_length(fila_segunda, 1L)
+  expect_false(any(grepl("DIFFERENT TARBALL", fila_primera, fixed = TRUE)))
+  expect_true(any(grepl("MEASURED A DIFFERENT TARBALL", fila_segunda, fixed = TRUE)))
 })
