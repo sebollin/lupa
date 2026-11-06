@@ -78,11 +78,19 @@ jobs:
       # PostgreSQL chocaba con lo que el runner ya trae —«pkgProblemResolver
       # generated breaks»— y tumbaba el trabajo. Instalar a mano lo que el
       # instalador ya sabe resolver agrega una forma de fallar sin agregar nada.
+      #
+      # Solo las dependencias duras: el guion usa DBI, el driver del motor y
+      # pkgload para cargar la fuente. Con todas las sugeridas el trabajo
+      # instalaba por apt las bibliotecas de sf y rJava (gdal, proj, openjdk,
+      # boost), que este guion no toca, y cuando el espejo de Ubuntu respondia
+      # lento el paso tardaba dos horas en lugar de tres minutos.
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          dependencies: '"hard"'
           extra-packages: |
             any::DBI
+            any::pkgload
             any::${{ matrix.paquete }}
             local::.
 
