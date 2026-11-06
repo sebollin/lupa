@@ -3,6 +3,8 @@ title: "Getting started in ten minutes"
 pareja: lupa.Rmd
 ---
 
+::: {lang="en"}
+
 ```{r setup, include = FALSE}
 library(lupa)
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
@@ -329,3 +331,5 @@ vocabulary of the package.
 unlink(archivo)
 options(.opciones_previas)
 ```
+
+:::

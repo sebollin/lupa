@@ -3,6 +3,8 @@ title: "Profiling a database"
 pareja: articles/perfilar-una-base.Rmd
 ---
 
+::: {lang="en"}
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 # knitr weaves each guide in its own session; the width is restored at the end
@@ -387,3 +389,5 @@ them.
 ```{r cierre, include=FALSE, eval=TRUE}
 options(.opciones_previas)
 ```
+
+:::

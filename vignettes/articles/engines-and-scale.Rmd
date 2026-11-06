@@ -3,6 +3,8 @@ title: "Engines and scale"
 pareja: articles/motores-y-escala.Rmd
 ---
 
+::: {lang="en"}
+
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 .opciones_previas <- options(width = 90, knitr.kable.NA = "—")
@@ -1906,3 +1908,5 @@ DBI::dbDisconnect(con)
 DBI::dbDisconnect(duck, shutdown = TRUE)
 options(.opciones_previas)
 ```
+
+:::
