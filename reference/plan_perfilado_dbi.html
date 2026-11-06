@@ -103,6 +103,12 @@ lectura de catálogo ya disponible.'><meta property="og:image" content="https://
     <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -279,9 +285,24 @@ ejemplo, antes de <code>ANALYZE</code>— o hay ambigüedad, la métrica queda
 (por omisión) o <code>"aproximada_motor"</code>. La sonda prueba siempre primero una
 forma nativa exacta consolidada, luego una forma exacta por columna y deja
 las funciones nativas aproximadas para el final. Por eso esta opción
-describe la estrategia habilitada, no garantiza el método ejecutado:
-<code>meta$estrategia_mediana</code> y <code>resumen_tabla$sql$metodo</code> publican el método
-que efectivamente corrió. Una mediana resuelta por una forma exacta queda
+describe la estrategia habilitada, no garantiza el método ejecutado. El
+método que efectivamente corrió está en <code>resumen_tabla$sql$metodo</code>, en la
+fila de <code>metrica = "mediana"</code> de cada columna, y es la única fuente por
+columna. <code>meta$estrategia_mediana</code> publica la resolución de la tabla:
+lo pedido (<code>estrategia_solicitada</code>), la forma que el motor aceptó para la
+tabla (<code>estrategia_resuelta</code>), su <code>estado</code> y su <code>motivo</code>. No es el método
+de cada columna: una columna que no puede usar esa forma —un <code>float8</code> de
+PostgreSQL, que la deja por la lectura exacta, o una columna con
+extremos— corre por otra (<code>dos_consultas</code> en la tabla completa, la CTE de
+ventanas en la muestra) y lo declara en su fila de <code>resumen_tabla$sql</code>,
+aunque <code>meta$estrategia_mediana</code> siga nombrando la consolidada. El <code>estado</code>
+de <code>meta$estrategia_mediana</code> describe la forma, no la fila: en
+<code>universo = "muestra_motor"</code> la fila de cada columna queda <code>estimado</code>.
+Las columnas <code>estrategia_solicitada</code>, <code>estrategia_resuelta</code> y
+<code>estado_estrategia</code> de <code>resumen_tabla$sql</code> son las de <code>n_distintos</code>
+(<code>meta$estrategia_distintos</code>), repetidas en todas las filas: en la fila de
+la mediana no describen la mediana. Una mediana resuelta por una forma
+exacta queda
 <code>estado = "calculado"</code> y <code>error_esperado = "no_aplica"</code>, aunque se haya
 pedido <code>"aproximada_motor"</code>; sólo una aproximación ejecutada queda
 <code>estado = "estimado"</code>. <code>universo = "muestra_motor"</code> combinado con

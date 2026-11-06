@@ -63,6 +63,12 @@
     <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -417,9 +423,9 @@ muestra del motor:</p>
 <span><span class="co">#&gt;                    error_esperado</span></span>
 <span><span class="co">#&gt; estado              no_aplica no_estimable no_estimado</span></span>
 <span><span class="co">#&gt;   calculado                10            0           0</span></span>
-<span><span class="co">#&gt;   estimado                  0            7          12</span></span>
+<span><span class="co">#&gt;   estimado                  0            6          12</span></span>
 <span><span class="co">#&gt;   no_aplica                 0            7          42</span></span>
-<span><span class="co">#&gt;   no_disponible             0            6           0</span></span>
+<span><span class="co">#&gt;   no_disponible             0            7           0</span></span>
 <span><span class="co">#&gt;   observado_muestra         0           30          36</span></span>
 <span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
@@ -588,8 +594,9 @@ independiente y no desactiva las comprobaciones que usan la
 numeración.</p>
 <p>Para una columna <code>integer64</code>, <a href="https://CRAN.R-project.org/package=bit64" class="external-link"><code>bit64</code></a>
 se carga de manera diferida, para registrar sus métodos antes de medir.
-Si no está instalado, o su versión es anterior a 4.6.0, el perfil no se
-calcula. <code><a href="../reference/perfilar.html">perfilar()</a></code> se detiene con un error de clase
+Desde la versión 4.0.5, la más antigua medida, el perfil es el mismo que
+con la actual. Si no está instalado, el perfil no se calcula:
+<code><a href="../reference/perfilar.html">perfilar()</a></code> se detiene con un error de clase
 <code>lupa_error_integer64</code>, que nombra la columna y dice cómo
 seguir.</p>
 <p>La regla está fijada por

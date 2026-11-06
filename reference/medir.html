@@ -41,6 +41,12 @@ una medida reutilizable y conserva el identificador y la fecha de la corrida."><
     <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -205,13 +211,13 @@ se lee como un cambio del modelo del usuario.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                               id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261106T113118.480258-12726-NoNuloEdad@personas.edad-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261106T113118.480258-12726-NoNuloEdad@personas.edad-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261106T113118.480258-12726-NoNuloEdad@personas.edad-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261106T141743.457623-12775-NoNuloEdad@personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261106T141743.457623-12775-NoNuloEdad@personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261106T141743.457623-12775-NoNuloEdad@personas.edad-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                             id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261106T113118.480258-12726 2026-11-06 11:31:18  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261106T113118.480258-12726 2026-11-06 11:31:18  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261106T113118.480258-12726 2026-11-06 11:31:18  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261106T141743.457623-12775 2026-11-06 14:17:43  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261106T141743.457623-12775 2026-11-06 14:17:43  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261106T141743.457623-12775 2026-11-06 14:17:43  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

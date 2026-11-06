@@ -169,6 +169,17 @@ precisión.
 - Una constante del código que la documentación cita es una cifra
   publicada: se cita como supuesto del código.
 
+### Guías en inglés
+
+- Una guía en inglés traduce una guía en castellano y vive sólo en el
+  sitio (`vignettes/articles/`, que no viaja en el paquete).
+- Declara su pareja en el YAML (`pareja:`) y está en la sección «Guides
+  in English» de `_pkgdown.yml`.
+- `data-raw/comparar-guias.R` comprueba, antes de construir el sitio,
+  que los 2 lados tengan los mismos trozos, el mismo código y las mismas
+  cifras en línea. Un cambio de código en una guía con pareja se hace en
+  las 2.
+
 ### Emojis
 
 Hay un juego chico y fijo, y no se agregan otros:

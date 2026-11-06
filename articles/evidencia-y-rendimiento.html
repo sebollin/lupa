@@ -63,6 +63,12 @@
     <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -709,7 +715,7 @@ la búsqueda de casi duplicados del vocabulario apagada. Como todas las
 columnas son iguales, el perfil publica un hallazgo
 <code>columnas_duplicadas</code> por cada par: con 1.000 columnas,
 499.500. Deja
-<code>medir-topes-valores-ancho-20261106T060523Z.csv</code>, con su
+<code>medir-topes-valores-ancho-20261106T132806Z.csv</code>, con su
 fecha, entorno y huella del código:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">codigos_ancho</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -717,16 +723,16 @@ fecha, entorno y huella del código:</p>
 <span>  <span class="st">"celdas_por_segundo"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;    n_filas n_columnas celdas repeticion segundos celdas_por_segundo</span></span>
-<span><span class="co">#&gt; 41     500         50  25000          1    2.655           9416.196</span></span>
-<span><span class="co">#&gt; 42     500         50  25000          2    2.509           9964.129</span></span>
-<span><span class="co">#&gt; 43     500         50  25000          3    1.323          18896.447</span></span>
-<span><span class="co">#&gt; 44     500        300 150000          1    8.853          16943.409</span></span>
-<span><span class="co">#&gt; 45     500        300 150000          2    8.900          16853.933</span></span>
-<span><span class="co">#&gt; 46     500        300 150000          3    8.851          16947.238</span></span>
-<span><span class="co">#&gt; 47     500       1000 500000          1   38.287          13059.263</span></span>
-<span><span class="co">#&gt; 48     500       1000 500000          2   36.966          13525.943</span></span>
-<span><span class="co">#&gt; 49     500       1000 500000          3   36.714          13618.783</span></span></code></pre></div>
-<p>Ahí el caso más lento son 9.416 celdas por segundo, también por
+<span><span class="co">#&gt; 41     500         50  25000          1    2.599           9619.084</span></span>
+<span><span class="co">#&gt; 42     500         50  25000          2    2.489          10044.194</span></span>
+<span><span class="co">#&gt; 43     500         50  25000          3    1.350          18518.519</span></span>
+<span><span class="co">#&gt; 44     500        300 150000          1    8.185          18326.206</span></span>
+<span><span class="co">#&gt; 45     500        300 150000          2    8.188          18319.492</span></span>
+<span><span class="co">#&gt; 46     500        300 150000          3    8.102          18513.947</span></span>
+<span><span class="co">#&gt; 47     500       1000 500000          1   29.746          16808.983</span></span>
+<span><span class="co">#&gt; 48     500       1000 500000          2   28.477          17558.029</span></span>
+<span><span class="co">#&gt; 49     500       1000 500000          3   28.566          17503.326</span></span></code></pre></div>
+<p>Ahí el caso más lento son 9.619 celdas por segundo, también por
 encima de la referencia del aviso.</p>
 </div>
 </div>

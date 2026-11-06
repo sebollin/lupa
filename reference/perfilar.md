@@ -1154,22 +1154,23 @@ veredictos de identidad. `cobertura_diagnosticos` es una tabla hermana
 de `hallazgos`, con una fila por diagnóstico que no pudo evaluarse o
 cuya enumeración quedó parcial y las columnas `diagnostico`, `columna`,
 `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
-`stringdist`, `stringi`, `bit64` o `sf`, incluida la medición de
-secuencias `integer64` cuando falta `bit64`, y las zonas horarias POSIXt
-sin declarar. Los patrones de frecuencia intermedia no se consideran
-desvios del patron dominante: `patron_raro` es completo respecto de su
-criterio de rareza cuando no hay recorte de trazabilidad. Si el conjunto
-de nombres raros supera 5.000, `cobertura_diagnosticos` declara el
-recorte y su limite. Si `muestra` deja filas fuera del descubrimiento de
-patrones y la muestra no trae ningún patrón raro,
-`cobertura_diagnosticos` también lo declara: la ausencia del hallazgo
-vale sólo para la muestra. Quien decida automáticamente sobre un perfil
-debe revisar `nrow(perfil$cobertura_diagnosticos)` además de las
-severidades: un perfil sin hallazgos y con diagnósticos no evaluados no
-es un perfil limpio. Cuando una clave declarada no queda plenamente
-verificada, `meta$clave` conserva los estados de unicidad y ausencia de
-nulos, sus conteos y la semántica usada por la trazabilidad. Los tres
-responden preguntas distintas y no comparten universo:
+`stringdist`, `stringi` o `sf` y las zonas horarias POSIXt sin declarar.
+Sin `bit64` una columna `integer64` no deja una fila acá: el perfil se
+detiene con `lupa_error_integer64`. Los patrones de frecuencia
+intermedia no se consideran desvios del patron dominante: `patron_raro`
+es completo respecto de su criterio de rareza cuando no hay recorte de
+trazabilidad. Si el conjunto de nombres raros supera 5.000,
+`cobertura_diagnosticos` declara el recorte y su limite. Si `muestra`
+deja filas fuera del descubrimiento de patrones y la muestra no trae
+ningún patrón raro, `cobertura_diagnosticos` también lo declara: la
+ausencia del hallazgo vale sólo para la muestra. Quien decida
+automáticamente sobre un perfil debe revisar
+`nrow(perfil$cobertura_diagnosticos)` además de las severidades: un
+perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
+limpio. Cuando una clave declarada no queda plenamente verificada,
+`meta$clave` conserva los estados de unicidad y ausencia de nulos, sus
+conteos y la semántica usada por la trazabilidad. Los tres responden
+preguntas distintas y no comparten universo:
 
 - `unicidad` se evalúa **sólo entre las filas con la clave completa**
   (`semantica = "claves_completas"`), porque una repetición entre filas
@@ -1842,13 +1843,19 @@ cuántas aristas se descartaron por esa regla y el tamaño compatible
 después del filtro. El tamaño máximo usado para el límite conserva el
 componente potencial antes del filtro numérico, para que una familia de
 entidades numeradas no vuelva a presentarse como una sola variante; el
-tamaño compatible se muestra aparte. Para mantener acotado el perfil,
-por omisión se evalúan hasta 5.000 valores distintos y 2.000.000 de
-pares de unidades normalizadas; si se alcanza un límite, la evidencia lo
-declara y no presenta el resultado como universo completo. Las fusiones
-exactas se informan aun sin ese paquete opcional. Antes de formar esos
-grupos se retiran los valores que el mismo perfil ya informó como
-`faltantes_disfrazados`. El diagnóstico fuerte de ausencia tiene
+tamaño compatible se muestra aparte. Ese límite decide sobre los grupos
+que contienen formas con números. Un grupo sin números, que el filtro
+nunca une con una forma que los tenga, se conserva además si el mismo
+límite medido sobre los grupos sin números lo admite: una familia
+numerada no calla una errata de texto de la misma columna. Entonces la
+cobertura dice que el diagnóstico no aplica a las formas con números y
+la evidencia agrega `grupo_maximo sin numeros`. Para mantener acotado el
+perfil, por omisión se evalúan hasta 5.000 valores distintos y 2.000.000
+de pares de unidades normalizadas; si se alcanza un límite, la evidencia
+lo declara y no presenta el resultado como universo completo. Las
+fusiones exactas se informan aun sin ese paquete opcional. Antes de
+formar esos grupos se retiran los valores que el mismo perfil ya informó
+como `faltantes_disfrazados`. El diagnóstico fuerte de ausencia tiene
 precedencia: un centinela no se presenta también como posible variante
 de un valor válido. El alcance declara cuántas observaciones retiró este
 filtro.
@@ -1871,24 +1878,27 @@ factor: el paquete infiere número. Para eso está `columnas_codigo`.
 `moda_sobresale_secuencia_entera` es una señal independiente y no cambia
 los tres escudos de forma que dependen de la numeración. En una columna
 `integer64`, `bit64` se carga de manera diferida para registrar sus
-métodos antes de medir. Si no está instalado, o es anterior a 4.6.0,
+métodos antes de medir. Desde `bit64` 4.0.5, la versión más antigua
+medida, el perfil es el mismo que con la actual: el paquete empareja los
+valores por su texto, sin depender del método `mtfrm.integer64` que
+`bit64` registra desde la 4.6.0. Si `bit64` no está instalado,
 `perfilar()` no perfila la columna: se niega con la condición
-`lupa_error_integer64`, porque sin el método `mtfrm.integer64`
-[`match()`](https://rdrr.io/r/base/match.html) de R iguala entre sí
-todos los valores negativos, y los distintos, la moda y la mediana
-saldrían mal sin aviso. Si la columna tiene valores por encima de 2^53,
-en un doble se redondean y la densidad no se mide sobre números
-redondeados: las cinco medidas públicas de la secuencia quedan en `NA` y
-`cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó, en
-lugar de darla como «no densa». La guarda vuelve a abrirse si un
-candidato presente queda fuera del rango de los valores restantes de la
-numeración, o si la frecuencia del candidato es la moda sobresaliente.
-Esta segunda señal se mide por el **salto entre frecuencias
-consecutivas**, ordenadas de mayor a menor y mirando sólo las primeras
-posiciones. Es el mismo idioma que `salto_de_escala_secuencia_entera`
-usa con los huecos: lo que delata a un centinela no es que su frecuencia
-sea grande, sino que haya un **acantilado** entre el grupo que sobresale
-y el resto de la distribución.
+`lupa_error_integer64`, porque sin él R lee los valores como los bits de
+un doble e iguala entre sí todos los negativos, y los distintos, la moda
+y la mediana saldrían mal sin aviso. Si la columna tiene valores por
+encima de 2^53, en un doble se redondean y la densidad no se mide sobre
+números redondeados: las cinco medidas públicas de la secuencia quedan
+en `NA` y `cobertura_diagnosticos` declara que `secuencia_entera` no se
+evaluó, en lugar de darla como «no densa». La guarda vuelve a abrirse si
+un candidato presente queda fuera del rango de los valores restantes de
+la numeración, o si la frecuencia del candidato es la moda
+sobresaliente. Esta segunda señal se mide por el **salto entre
+frecuencias consecutivas**, ordenadas de mayor a menor y mirando sólo
+las primeras posiciones. Es el mismo idioma que
+`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
+un centinela no es que su frecuencia sea grande, sino que haya un
+**acantilado** entre el grupo que sobresale y el resto de la
+distribución.
 
 Comparar contra un valor concreto no alcanza, y cada intento lo rompió
 un caso distinto: contra el **segundo** valor, un señuelo legítimo y

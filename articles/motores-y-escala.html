@@ -60,6 +60,12 @@
     <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -982,7 +988,10 @@ Con un presupuesto mínimo se ve:</p>
 <span><span class="co">#&gt; proveedor: El vocabulario excede el alcance de comparación: se evaluaron 7 de 7 valores</span></span>
 <span><span class="co">#&gt; distintos, que son 5 formas normalizadas, y se comparó entre sí a las 4 primeras en</span></span>
 <span><span class="co">#&gt; orden alfabético. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de</span></span>
-<span><span class="co">#&gt; caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo.</span></span></code></pre></div>
+<span><span class="co">#&gt; caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo. 1 grupo de formas</span></span>
+<span><span class="co">#&gt; cercanas no se formó porque sus frecuencias fueron parecidas: el criterio de variante</span></span>
+<span><span class="co">#&gt; rara no pudo distinguir una forma correcta de otra. Se identificaron 1 par cercano con</span></span>
+<span><span class="co">#&gt; asimetría &lt;= 2.0.</span></span></code></pre></div>
 <p>El orden alfabético hace que el resultado no dependa del orden de las
 filas del archivo. La búsqueda de dependencias tiene su propio
 presupuesto: <code>max_trabajo_dependencias</code>, de <code>1e8</code>
@@ -1699,7 +1708,7 @@ por segundo, con 500 filas y columnas numéricas y categóricas.</p>
 de códigos de texto (<code>"valor_1"</code>, <code>"valor_2"</code>…),
 con la búsqueda de casi duplicados del vocabulario apagada y un hallazgo
 <code>columnas_duplicadas</code> por cada par de columnas. Su caso más
-lento son 9.416 celdas por segundo, también por encima de la
+lento son 9.619 celdas por segundo, también por encima de la
 referencia.</p>
 <p>Los 2 CSV, en <code>benchmark/datos/</code>, conservan la fecha, el
 entorno y la huella del código. El aviso se apaga con

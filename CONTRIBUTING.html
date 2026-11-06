@@ -39,6 +39,12 @@
     <li><a class="dropdown-item" href="articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -141,6 +147,13 @@
 <li>Un insumo descargado lleva su fuente, su fecha y su suma de control.</li>
 <li>Una cifra ilustrativa se genera en el documento o se borra.</li>
 <li>Una constante del código que la documentación cita es una cifra publicada: se cita como supuesto del código.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="guías-en-inglés">Guías en inglés<a class="anchor" aria-label="anchor" href="#gu%C3%ADas-en-ingl%C3%A9s"></a></h3>
+<ul><li>Una guía en inglés traduce una guía en castellano y vive sólo en el sitio (<code>vignettes/articles/</code>, que no viaja en el paquete).</li>
+<li>Declara su pareja en el YAML (<code>pareja:</code>) y está en la sección «Guides in English» de <code>_pkgdown.yml</code>.</li>
+<li>
+<code>data-raw/comparar-guias.R</code> comprueba, antes de construir el sitio, que los 2 lados tengan los mismos trozos, el mismo código y las mismas cifras en línea. Un cambio de código en una guía con pareja se hace en las 2.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="emojis">Emojis<a class="anchor" aria-label="anchor" href="#emojis"></a></h3>

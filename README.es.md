@@ -78,7 +78,9 @@ sugeridos habilitan capacidades acotadas:
 - [`sf`](https://CRAN.R-project.org/package=sf) para geometrías.
 
 La API, la ayuda y las guías están en castellano; los nombres públicos
-son parte del contrato.
+son parte del contrato. El sitio tiene además una versión en inglés de 4
+guías, en [Guides in
+English](https://sebollin.github.io/lupa/articles/index.html).
 
 ## ⏱ En 30 s
 

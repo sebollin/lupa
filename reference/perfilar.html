@@ -43,6 +43,12 @@ accionables. Todas las proporciones se expresan en [0, 1]."><meta property="og:i
     <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
     <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
     <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
+    <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
+    <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
+    <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -1154,8 +1160,9 @@ clasificables). Son categorías de evidencia, no veredictos de identidad.
 por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 las columnas <code>diagnostico</code>,
 <code>columna</code>, <code>motivo</code>, <code>como_resolverlo</code> y <code>dependencia</code>. Incluye la falta de
-<code>stringdist</code>, <code>stringi</code>, <code>bit64</code> o <code>sf</code>, incluida la medición de secuencias
-<code>integer64</code> cuando falta <code>bit64</code>, y las zonas horarias POSIXt sin declarar.
+<code>stringdist</code>, <code>stringi</code> o <code>sf</code> y las zonas horarias POSIXt sin declarar.
+Sin <code>bit64</code> una columna <code>integer64</code> no deja una fila acá: el perfil se
+detiene con <code>lupa_error_integer64</code>.
 Los patrones de frecuencia intermedia no se consideran desvios
 del patron dominante: <code>patron_raro</code> es completo respecto de su criterio de
 rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
@@ -1750,7 +1757,13 @@ disponible; también informa cuántas aristas se descartaron por esa regla y
 el tamaño compatible después del filtro. El tamaño máximo usado para el
 límite conserva el componente potencial antes del filtro numérico, para que
 una familia de entidades numeradas no vuelva a presentarse como una sola
-variante; el tamaño compatible se muestra aparte. Para mantener acotado el
+variante; el tamaño compatible se muestra aparte. Ese límite decide sobre
+los grupos que contienen formas con números. Un grupo sin números, que el
+filtro nunca une con una forma que los tenga, se conserva además si el
+mismo límite medido sobre los grupos sin números lo admite: una familia
+numerada no calla una errata de texto de la misma columna. Entonces la
+cobertura dice que el diagnóstico no aplica a las formas con números y la
+evidencia agrega <code>grupo_maximo sin numeros</code>. Para mantener acotado el
 perfil, por omisión se evalúan hasta
 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
 se alcanza un límite, la evidencia lo declara y no presenta el resultado
@@ -1778,11 +1791,14 @@ factor: el paquete infiere número. Para eso está <code>columnas_codigo</code>.
 <code>moda_sobresale_secuencia_entera</code> es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
 En una columna <code>integer64</code>, <code>bit64</code> se carga de manera diferida para
-registrar sus métodos antes de medir. Si no está instalado, o es anterior a
-4.6.0, <code>perfilar()</code> no perfila la columna: se niega con la condición
-<code>lupa_error_integer64</code>, porque sin el método <code>mtfrm.integer64</code> <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> de
-R iguala entre sí todos los valores negativos, y los distintos, la moda y la
-mediana saldrían mal sin aviso.
+registrar sus métodos antes de medir. Desde <code>bit64</code> 4.0.5, la versión más
+antigua medida, el perfil es el mismo que con la actual: el paquete empareja
+los valores por su texto, sin depender del método <code>mtfrm.integer64</code> que
+<code>bit64</code> registra desde la 4.6.0. Si <code>bit64</code> no
+está instalado, <code>perfilar()</code> no perfila la columna: se niega con la
+condición <code>lupa_error_integer64</code>, porque sin él R lee los valores como los
+bits de un doble e iguala entre sí todos los negativos, y los distintos, la
+moda y la mediana saldrían mal sin aviso.
 Si la columna tiene valores por encima de 2^53, en un doble se redondean y
 la densidad no se mide sobre números redondeados: las cinco medidas públicas
 de la secuencia quedan en <code>NA</code> y <code>cobertura_diagnosticos</code> declara que

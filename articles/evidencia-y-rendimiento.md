@@ -495,7 +495,7 @@ anchuras, 3 veces cada una, con la búsqueda de casi duplicados del
 vocabulario apagada. Como todas las columnas son iguales, el perfil
 publica un hallazgo `columnas_duplicadas` por cada par: con 1.000
 columnas, 499.500. Deja
-`medir-topes-valores-ancho-20261106T060523Z.csv`, con su fecha, entorno
+`medir-topes-valores-ancho-20261106T132806Z.csv`, con su fecha, entorno
 y huella del código:
 
 ``` r
@@ -505,18 +505,18 @@ codigos_ancho[, c(
   "celdas_por_segundo"
 )]
 #>    n_filas n_columnas celdas repeticion segundos celdas_por_segundo
-#> 41     500         50  25000          1    2.655           9416.196
-#> 42     500         50  25000          2    2.509           9964.129
-#> 43     500         50  25000          3    1.323          18896.447
-#> 44     500        300 150000          1    8.853          16943.409
-#> 45     500        300 150000          2    8.900          16853.933
-#> 46     500        300 150000          3    8.851          16947.238
-#> 47     500       1000 500000          1   38.287          13059.263
-#> 48     500       1000 500000          2   36.966          13525.943
-#> 49     500       1000 500000          3   36.714          13618.783
+#> 41     500         50  25000          1    2.599           9619.084
+#> 42     500         50  25000          2    2.489          10044.194
+#> 43     500         50  25000          3    1.350          18518.519
+#> 44     500        300 150000          1    8.185          18326.206
+#> 45     500        300 150000          2    8.188          18319.492
+#> 46     500        300 150000          3    8.102          18513.947
+#> 47     500       1000 500000          1   29.746          16808.983
+#> 48     500       1000 500000          2   28.477          17558.029
+#> 49     500       1000 500000          3   28.566          17503.326
 ```
 
-Ahí el caso más lento son 9.416 celdas por segundo, también por encima
+Ahí el caso más lento son 9.619 celdas por segundo, también por encima
 de la referencia del aviso.
 
 ## ⚠️ Corridas sobre millones de filas

@@ -152,13 +152,29 @@ perfilar_dbi(
   `"aproximada_motor"`. La sonda prueba siempre primero una forma nativa
   exacta consolidada, luego una forma exacta por columna y deja las
   funciones nativas aproximadas para el final. Por eso esta opción
-  describe la estrategia habilitada, no garantiza el método ejecutado:
-  `meta$estrategia_mediana` y `resumen_tabla$sql$metodo` publican el
-  método que efectivamente corrió. Una mediana resuelta por una forma
-  exacta queda `estado = "calculado"` y `error_esperado = "no_aplica"`,
-  aunque se haya pedido `"aproximada_motor"`; sólo una aproximación
-  ejecutada queda `estado = "estimado"`. `universo = "muestra_motor"`
-  combinado con `"aproximada_motor"` se rechaza temprano.
+  describe la estrategia habilitada, no garantiza el método ejecutado.
+  El método que efectivamente corrió está en `resumen_tabla$sql$metodo`,
+  en la fila de `metrica = "mediana"` de cada columna, y es la única
+  fuente por columna. `meta$estrategia_mediana` publica la resolución de
+  la tabla: lo pedido (`estrategia_solicitada`), la forma que el motor
+  aceptó para la tabla (`estrategia_resuelta`), su `estado` y su
+  `motivo`. No es el método de cada columna: una columna que no puede
+  usar esa forma —un `float8` de PostgreSQL, que la deja por la lectura
+  exacta, o una columna con extremos— corre por otra (`dos_consultas` en
+  la tabla completa, la CTE de ventanas en la muestra) y lo declara en
+  su fila de `resumen_tabla$sql`, aunque `meta$estrategia_mediana` siga
+  nombrando la consolidada. El `estado` de `meta$estrategia_mediana`
+  describe la forma, no la fila: en `universo = "muestra_motor"` la fila
+  de cada columna queda `estimado`. Las columnas
+  `estrategia_solicitada`, `estrategia_resuelta` y `estado_estrategia`
+  de `resumen_tabla$sql` son las de `n_distintos`
+  (`meta$estrategia_distintos`), repetidas en todas las filas: en la
+  fila de la mediana no describen la mediana. Una mediana resuelta por
+  una forma exacta queda `estado = "calculado"` y
+  `error_esperado = "no_aplica"`, aunque se haya pedido
+  `"aproximada_motor"`; sólo una aproximación ejecutada queda
+  `estado = "estimado"`. `universo = "muestra_motor"` combinado con
+  `"aproximada_motor"` se rechaza temprano.
 
 - politica_costo:
 
@@ -736,11 +752,10 @@ rescatar con [`tryCatch()`](https://rdrr.io/r/base/conditions.html):
 `lupa_error_esquema_dbi`, `lupa_error_codificacion_dbi`,
 `lupa_error_argumento_dbi`, `lupa_error_transaccion_dbi` y
 `lupa_error_integer64`. La última sale cuando la lectura por bloques
-recibe una columna `integer64` con un `bit64` anterior a 4.6.0: sin el
-método `mtfrm.integer64`, [`match()`](https://rdrr.io/r/base/match.html)
-de R iguala entre sí todos los valores negativos. Sin bloques, los
-agregados que calcula el motor se devuelven y la muestra no, con un
-aviso que dice por qué.
+recibe una columna `integer64` y `bit64` no está instalado: sin él R
+iguala entre sí todos los valores negativos. Sin bloques, los agregados
+que calcula el motor se devuelven y la muestra no, con un aviso que dice
+por qué. Alcanza `bit64` 4.0.5 o posterior.
 
 ## Dentro de una transacción
 

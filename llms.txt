@@ -63,7 +63,9 @@ sugeridos habilitan capacidades acotadas:
 - [`sf`](https://CRAN.R-project.org/package=sf) para geometrías.
 
 La API, la ayuda y las guías están en castellano; los nombres públicos
-son parte del contrato.
+son parte del contrato. El sitio tiene además una versión en inglés de 4
+guías, en [Guides in
+English](https://sebollin.github.io/lupa/articles/index.html).
 
 ## ⏱ En 30 s
 
@@ -824,3 +826,18 @@ de cada función no alcanza a reunir.
   Cómo se muestra el texto en cualquier locale, qué se compara por
   bytes, cómo se publican los números y cómo se repara una codificación
   dañada con la estrategia `reparar_codificacion`.
+
+### Guides in English
+
+English versions of a selection of the Spanish guides. They live only on
+this site: the installed package carries its vignettes in Spanish, and
+lupa prints its messages and tables in Spanish.
+
+- [Getting started in ten
+  minutes](https://sebollin.github.io/lupa/articles/getting-started.md):
+- [Profiling a
+  database](https://sebollin.github.io/lupa/articles/profiling-a-database.md):
+- [Engines and
+  scale](https://sebollin.github.io/lupa/articles/engines-and-scale.md):
+- [From findings to
+  metrics](https://sebollin.github.io/lupa/articles/from-findings-to-metrics.md):

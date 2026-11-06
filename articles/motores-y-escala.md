@@ -572,7 +572,10 @@ writeLines(strwrap(paste0(recorte$columna, ": ", recorte$motivo), 88))
 #> proveedor: El vocabulario excede el alcance de comparación: se evaluaron 7 de 7 valores
 #> distintos, que son 5 formas normalizadas, y se comparó entre sí a las 4 primeras en
 #> orden alfabético. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de
-#> caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo.
+#> caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo. 1 grupo de formas
+#> cercanas no se formó porque sus frecuencias fueron parecidas: el criterio de variante
+#> rara no pudo distinguir una forma correcta de otra. Se identificaron 1 par cercano con
+#> asimetría <= 2.0.
 ```
 
 El orden alfabético hace que el resultado no dependa del orden de las
@@ -1179,7 +1182,7 @@ Es una referencia para el caso común, no una cota.
 `benchmark/medir_topes_valores_ancho.R` mide columnas iguales de códigos
 de texto (`"valor_1"`, `"valor_2"`…), con la búsqueda de casi duplicados
 del vocabulario apagada y un hallazgo `columnas_duplicadas` por cada par
-de columnas. Su caso más lento son 9.416 celdas por segundo, también por
+de columnas. Su caso más lento son 9.619 celdas por segundo, también por
 encima de la referencia.
 
 Los 2 CSV, en `benchmark/datos/`, conservan la fecha, el entorno y la

@@ -234,9 +234,9 @@ table(estado = sql$estado, error_esperado = sql$error_esperado)
 #>                    error_esperado
 #> estado              no_aplica no_estimable no_estimado
 #>   calculado                10            0           0
-#>   estimado                  0            7          12
+#>   estimado                  0            6          12
 #>   no_aplica                 0            7          42
-#>   no_disponible             0            6           0
+#>   no_disponible             0            7           0
 #>   observado_muestra         0           30          36
 
 DBI::dbDisconnect(conexion)
@@ -404,8 +404,9 @@ desactiva las comprobaciones que usan la numeración.
 
 Para una columna `integer64`,
 [`bit64`](https://CRAN.R-project.org/package=bit64) se carga de manera
-diferida, para registrar sus métodos antes de medir. Si no está
-instalado, o su versión es anterior a 4.6.0, el perfil no se calcula.
+diferida, para registrar sus métodos antes de medir. Desde la versión
+4.0.5, la más antigua medida, el perfil es el mismo que con la actual.
+Si no está instalado, el perfil no se calcula:
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) se
 detiene con un error de clase `lupa_error_integer64`, que nombra la
 columna y dice cómo seguir.

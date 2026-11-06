@@ -117,6 +117,12 @@ Primera versión publicada.
   `integer64` se detiene con un error, no deja 5 medidas en `NA`; y un
   documento sin su dígito verificador necesita 7 cifras, no 6. La tabla
   de motores del README nombra también PostgreSQL 9.3.
+- El sitio tiene una versión en inglés de 4 guías («Guides in English»):
+  *Getting started*, *Profiling a database*, *Engines and scale* y *From
+  findings to metrics*. Viven sólo en el sitio, y
+  `data-raw/comparar-guias.R` comprueba antes de construirlo que cada
+  una tenga los mismos trozos, el mismo código y las mismas cifras en
+  línea que su pareja en castellano.
 - El logo y los íconos del sitio usan el hexágono regular: lados iguales
   y bordes a 30°. El anterior era más alto que ancho de la cuenta.
 
@@ -148,18 +154,22 @@ Primera versión publicada.
   es varias veces más rápido, con la misma salida. Los hallazgos
   `columnas_duplicadas` se arman, trazan y revisan de una vez y no par
   por par, y la búsqueda de casi duplicados del vocabulario no calcula
-  la mitad de la matriz de distancias que no lee. Con 500 filas y 1.000
-  columnas iguales, de 379 a 387 s pasa a 37 a 38 s (los 2 CSV fechados
-  de `benchmark/medir_topes_valores_ancho.R` en `benchmark/datos/`).
+  la mitad de la matriz de distancias que no lee. Las columnas iguales
+  se buscan agrupándolas por una huella y comparando cada una con un
+  representante, no par por par. Con 500 filas y 1.000 columnas iguales,
+  de 379 a 387 s pasa a 28 a 30 s (los 2 CSV fechados de
+  `benchmark/medir_topes_valores_ancho.R` en `benchmark/datos/`).
 
 ### Requisitos
 
-- R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64
-  4.6.0 o posterior: con versiones anteriores,
+- R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64,
+  desde la 4.0.5. Con bit64 anterior a 4.6.0,
   [`match()`](https://rdrr.io/r/base/match.html) de R iguala entre sí
-  todos los valores negativos, y `lupa` se niega con la condición
-  `lupa_error_integer64` en lugar de publicar distintos, modas y
-  medianas equivocados.
+  todos los valores negativos: `lupa` empareja esos valores por su
+  texto, con su propio [`match()`](https://rdrr.io/r/base/match.html) y
+  su `%in%`, y da el mismo perfil que con bit64 nuevo. Sin bit64 se
+  niega con la condición `lupa_error_integer64` en lugar de publicar
+  distintos, modas y medianas equivocados.
 
 ### Datos personales
 
@@ -452,3 +462,29 @@ Primera versión publicada.
   para el desvío de menos de 2 valores y para la moda de una columna sin
   repetidos (en la muestra, `no_disponible`, porque la tabla puede tener
   moda).
+- En SQL Server, la mediana de un `decimal` con 36 cifras de precisión o
+  más ya no pierde decimales: `AVG(valor * 1.0)` recortaba la escala a
+  6, y en un `decimal(38,7)` la mediana de 0,0000001 y 0,0000003
+  salía 0. Con compatibilidad menor que 110, sin `PERCENTILE_CONT`, ese
+  era el camino de todo `decimal`. Ahora promedia como doble.
+- En PostgreSQL 9.3 con `dialecto = "portable"`, y en la muestra con la
+  subconsulta escalar, la mediana de una cantidad par de `float8`
+  coincide con [`median()`](https://rdrr.io/r/stats/median.html):
+  difería en 1 ulp en 427 de 3.000 pares. Usa el mismo promedio que la
+  vía de dos consultas.
+- En
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  una errata de texto (`Montevideo`/`Montevido`) ya no queda callada
+  porque la misma columna tenga una familia de códigos numerados con
+  frecuencias desparejas. La familia sigue declarando que el diagnóstico
+  no aplica a las formas con números; los grupos sin números se juzgan
+  con el mismo límite, medido sobre ellos.
+- La búsqueda de casi duplicados del vocabulario ya no depende de que la
+  columna tenga, antes de una pareja, dos formas que se normalizan igual
+  (`ALFA` y `Alfa`). Con una de esas clases delante, el filtro de marcas
+  de formato leía otro par: en una columna de horas publicaba como casi
+  duplicados pares `a.m.`/`p.m.` que tiene que descartar y perdía el
+  hallazgo real; la fila de cobertura «N grupos de formas cercanas no se
+  formaron…» desaparecía, y el diagnóstico de variantes equifrecuentes
+  nombraba formas que no son pareja. Sin esas clases, o con la clase
+  después de la pareja, la salida es la misma.
