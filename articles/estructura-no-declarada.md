@@ -1,15 +1,14 @@
 # 4. Estructura no declarada
 
 Una entrega puede llegar sin diccionario, sin claves y sin relaciones
-declaradas. ¿Qué estructura cumplen de hecho los datos recibidos, y qué
-parte de esa estructura todavía hay que confirmar con quien conoce el
-sistema?
+declaradas. ¿Qué estructura cumplen de hecho los datos recibidos? ¿Y qué
+parte todavía hay que confirmar con quien conoce el sistema?
 
 > **En esta guía:**
 >
 > - buscamos una clave candidata con
 >   [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md);
-> - comparamos dos tablas con
+> - comparamos 2 tablas con
 >   [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
 >   y leemos su cardinalidad;
 > - encontramos una dependencia entre columnas con
@@ -17,19 +16,19 @@ sistema?
 > - separamos lo que se cumple en estos datos de lo que es una regla del
 >   sistema.
 
-## Dos tablas que se pueden seguir fila por fila
+## 2 tablas que se pueden seguir fila por fila
 
 Los conjuntos incluidos en `lupa` sirven para examinar columnas, pero no
-contienen una clave exacta: en `datos_operativos`, `id_evento` tiene 12
+contienen una clave exacta. En `datos_operativos`, `id_evento` tiene 12
 valores distintos en 13 filas. Sobre ellos,
 [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
 y
 [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
 devolverían tablas sin filas.
 
-Para ver una clave, una relación y una dependencia construimos dos
-tablas chicas: una de personas y otra de trámites. Cada conclusión se
-puede contrastar con las filas impresas.
+Para ver una clave, una relación y una dependencia construimos 2 tablas
+chicas: una de personas y otra de trámites. Cada conclusión se puede
+contrastar con las filas impresas.
 
 ``` r
 
@@ -95,17 +94,16 @@ claves[, c(
 `nombre`, `ciudad` y `departamento` se repiten, así que no aparecen. Que
 una columna identifique cada fila en esta entrega la vuelve candidata,
 no clave: una magnitud que no repite valores también pasaría. Declarar
-la clave al perfilar, con `perfilar(clave = ...)`, es lo que permite ir
-de un hallazgo a la fila en el sistema de origen; eso se explica en [2.
-Leer un
-perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md).
+la clave al perfilar, con `perfilar(clave = ...)`, permite ir de un
+hallazgo a la fila en el sistema de origen. Eso se explica en [2. Leer
+un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md).
 
-## Una relación entre dos tablas
+## Una relación entre 2 tablas
 
 `id_persona` también está en `tramites`, y ahí se repite: una persona
 puede tener más de un trámite.
 [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
-recibe las dos columnas de identificación y compara sus valores:
+recibe las 2 columnas de identificación y compara sus valores:
 
 ``` r
 
@@ -118,8 +116,8 @@ detectar_relaciones(
 #> 1                          1        <NA>
 ```
 
-La cardinalidad es 1:m, uno a muchos. Las dos coberturas valen 1 porque
-todos los identificadores de cada lado aparecen en el otro: no hay
+La cardinalidad es 1:m, uno a muchos. Las 2 coberturas valen 1 porque
+todos los identificadores de cada lado aparecen en el otro. No hay
 trámites de personas que no estén en `personas`, ni personas sin
 trámites. `muestra = Inf` deja explícito que se comparan todos los
 valores.
@@ -129,7 +127,7 @@ valores.
 En `personas`, cada ciudad observada pertenece a un solo departamento:
 conocer la ciudad determina el departamento. Al revés no vale, porque
 Salto y Belén comparten departamento. Bajamos el mínimo de observaciones
-a cuatro porque la tabla tiene ocho filas:
+a 4 porque la tabla tiene 8 filas:
 
 ``` r
 
@@ -148,17 +146,20 @@ dependencias
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 busca las mismas dependencias por su cuenta
 (`analizar_dependencias = TRUE`, el valor por omisión) y las deja en
-`perfil$dependencias`. Una dependencia exacta es además lo que permite
-imputar un valor faltante desde los propios datos, como se ve en [6.
-Limpiar con un
+`perfil$dependencias`. Una dependencia exacta permite además imputar un
+valor faltante desde los propios datos, como se ve en [6. Limpiar con un
 plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md).
 
-## Lo que se cumple no es una regla
+## ⚠️ Lo que se cumple no es una regla
 
-Nada de esto modifica los datos ni declara el modelo. La clave es
-*candidata*, la cardinalidad describe estas dos tablas y la dependencia
-se cumple en estas ocho filas. Una entrega futura puede contradecirlas;
-la documentación del sistema es la que puede confirmarlas como reglas.
+Nada de esto modifica los datos ni declara el modelo:
+
+- la clave es *candidata*;
+- la cardinalidad describe estas 2 tablas;
+- la dependencia se cumple en estas 8 filas.
+
+Una entrega futura puede contradecirlas. La documentación del sistema es
+la que puede confirmarlas como reglas.
 
 ## Resumen
 
@@ -166,7 +167,7 @@ la documentación del sistema es la que puede confirmarlas como reglas.
   encuentra las columnas que identifican cada fila en esta entrega: son
   candidatas, no claves.
 - [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
-  compara dos columnas de identificación y publica la cardinalidad y la
+  compara 2 columnas de identificación y publica la cardinalidad y la
   cobertura de cada lado.
 - [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
   encuentra columnas que determinan a otras;
@@ -175,7 +176,7 @@ la documentación del sistema es la que puede confirmarlas como reglas.
 - Lo que los datos cumplen hoy lo confirma la documentación del sistema,
   no el paquete.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 [5. El vacío por
 diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.md)

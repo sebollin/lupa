@@ -1,10 +1,9 @@
 # 3. Explorar columnas con \`analizar()\`
 
 El perfil dice qué está mal en una tabla. Antes de decidir qué le
-exigimos, también queremos saber qué hay en cada columna: qué forma
-tienen los valores, qué tipo esconden, cómo se reparten, qué columnas se
-mueven juntas y qué período cubren las fechas. ¿Cómo lo vemos todo de
-una vez, y cómo lo compartimos?
+exigimos, queremos ver qué hay en cada columna: forma, tipo, reparto,
+asociaciones y período de las fechas. ¿Cómo lo vemos todo de una vez, y
+cómo lo compartimos?
 
 > **En esta guía:**
 >
@@ -64,8 +63,8 @@ pueden obtener sueltos con su propia función:
 | `meta` | nombre, fecha y qué decisiones tomó la corrida | — |
 
 Los accesores del perfil también leen el análisis: `hallazgos(analisis)`
-es lo mismo que `hallazgos(analisis$perfil)`. Miramos los de una columna
-que vamos a seguir en toda la guía, `fecha_evento`:
+es lo mismo que `hallazgos(analisis$perfil)`. Miramos los de
+`fecha_evento`, la columna que seguimos en toda la guía:
 
 ``` r
 
@@ -85,8 +84,13 @@ miramos lo que hay debajo: los valores que los producen.
 
 ## Patrones: la forma de los valores
 
-Un patrón resume la forma de un valor: `A` es una letra mayúscula, `a`
-una minúscula, `9` un dígito, y `+` indica que se repite.
+Un patrón resume la forma de un valor:
+
+- `A` es una letra mayúscula;
+- `a`, una minúscula;
+- `9`, un dígito;
+- `+` indica que se repite.
+
 [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
 recibe un vector, no una tabla, y cuenta cuántos valores tienen cada
 forma:
@@ -102,9 +106,9 @@ descubrir_patrones(datos_operativos$codigo_usuario)
 ```
 
 La mayoría de los códigos tiene la forma `USR-001`. Se apartan `MAL-5`,
-`USR0003` y `S/D`: el último ya figura en el perfil como faltante
-disfrazado, y los otros dos son los que habría que revisar en el sistema
-de origen. El análisis guarda la misma tabla para cada columna en
+`USR0003` y `S/D`. El último ya figura en el perfil como faltante
+disfrazado; los otros 2 habría que revisarlos en el sistema de origen.
+El análisis guarda la misma tabla para cada columna en
 `analisis$perfil$patrones`.
 
 ## Tipos y fechas
@@ -126,15 +130,15 @@ formatos[, c("formato", "n", "proporcion", "estado", "n_ambiguos")]
 #> 5 %d-%m-%Y 1 0.07692308 confirmado          0
 ```
 
-De los 13 valores, 11 se leen como fecha, en 5 formatos distintos; los
+De los 13 valores, 11 se leen como fecha, en 5 formatos distintos. Los
 que no se leen son `2024.04.17` y `NULL`. Estas salidas describen
 compatibilidad y frecuencia: no convierten la columna ni afirman qué
 formato debe aceptar el sistema.
 
 Que todos los valores sean compatibles tampoco alcanza. Una columna
-hecha sólo de fechas como `01/02/2020` puede leerse al cien por ciento y
-seguir siendo ambigua: sin una convención externa no se sabe si el
-primer número es el día o el mes. El perfil conserva esa diferencia en
+hecha sólo de fechas como `01/02/2020` puede leerse al 100 % y seguir
+siendo ambigua. Sin una convención externa, no se sabe si el primer
+número es el día o el mes. El perfil conserva esa diferencia en
 `estado_tipo_inferido`:
 
 ``` r
@@ -157,9 +161,9 @@ rbind(
 ```
 
 En `fecha_evento` el estado es `confirmado` aunque haya valores que no
-se leen, porque valores como `31/01/2024` sólo admiten una lectura. En
-la columna construida, la proporción es 1 y el estado es `candidato`: la
-lectura todavía no está establecida.
+se leen: valores como `31/01/2024` sólo admiten una lectura. En la
+columna construida, la proporción es 1 y el estado es `candidato`,
+porque la lectura todavía no está establecida.
 
 ## Escalas y roles propuestos
 
@@ -185,12 +189,14 @@ analisis$variables[, c(
 #> 10      id_evento  identificador          nominal identificador      0.90      FALSE
 ```
 
-`confianza` expone la fuerza de cada propuesta y `confirmada` distingue
+`confianza` expone la fuerza de cada propuesta; `confirmada` distingue
 una declaración de una inferencia. Sin metadatos, ninguna está
-confirmada. `id_registro` sale como una medida discreta: por sus
-valores, un identificador numérico no se distingue de una cantidad.
-Quien conoce la columna lo declara, con `metadatos_variables` o con
-`columnas_codigo` (ver la tabla final de [5. El vacío por
+confirmada.
+
+`id_registro` sale como una medida discreta: por sus valores, un
+identificador numérico no se distingue de una cantidad. Quien conoce la
+columna lo declara con `metadatos_variables` o con `columnas_codigo`
+(ver la tabla final de [5. El vacío por
 diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.md)).
 
 ## Distribuciones
@@ -222,23 +228,27 @@ cuantiles[cuantiles$columna == "monto", c("probabilidad", "valor", "n_analizados
 #> 10         1.00 999999           13
 ```
 
-Las frecuencias cuentan lo que hay guardado, sin unir variantes: entre
-los valores de `canal` aparecen la celda vacía, `S/D`, `Web` y `"web "`,
-con un espacio al final.
+Las frecuencias cuentan lo que hay guardado, sin unir variantes. Entre
+los valores de `canal` aparecen la celda vacía, `S/D`, `Web` y `"web "`
+(con un espacio al final).
 
 Los cuantiles de `monto` van de `-99` a `999999`. El perfil señaló `-99`
 como posible faltante disfrazado, pero un valor sospechado sólo se
-informa: no sale de los números mientras no se lo declare con
+informa. No sale de los números mientras no se lo declare con
 `sentinelas_numericos`. `analisis$distribuciones$alcance` dice, columna
 por columna, cuántas filas se analizaron y si la lista de valores se
 recortó.
 
 ## Asociaciones
 
-Cada fila de `asociaciones` es una medida entre dos columnas, con el
-método que se usó: Pearson entre numéricas, eta cuadrado entre una
-categoría y un número, V de Cramér entre dos categorías. La columna
-`supuesto` dice cómo se trató cada escala.
+Cada fila de `asociaciones` es una medida entre 2 columnas, con el
+método que se usó:
+
+- Pearson entre numéricas;
+- eta cuadrado entre una categoría y un número;
+- V de Cramér entre 2 categorías.
+
+La columna `supuesto` dice cómo se trató cada escala.
 
 ``` r
 
@@ -255,14 +265,17 @@ analisis$asociaciones[, c("columna_1", "columna_2", "metodo", "asociacion")]
 #> 9        zona  id_copia             eta2  0.3440367
 ```
 
-Son medidas, no dependencias ni instrucciones de modelado, y conviene
-leerlas con los datos a la vista. `id_registro` e `id_copia` se asocian
-al máximo porque una es copia de la otra, algo que el perfil ya informó
-como `columnas_duplicadas`. La asociación de `canal` con `monto` la
-produce casi entera la fila 13, donde `canal` está vacío y `monto` vale
-`999999`: sin esa fila, la medida baja a 0,65. Para una relación
-monótona que no es lineal, `metodo_asociacion_numerica = "spearman"`
-cambia Pearson por Spearman.
+Son medidas, no dependencias ni instrucciones de modelado. Conviene
+leerlas con los datos a la vista:
+
+- `id_registro` e `id_copia` se asocian al máximo porque una es copia de
+  la otra; el perfil ya lo informó como `columnas_duplicadas`.
+- La asociación de `canal` con `monto` la produce casi entera la fila
+  13, donde `canal` está vacío y `monto` vale `999999`. Sin esa fila, la
+  medida baja a 0,65.
+
+Para una relación monótona que no es lineal,
+`metodo_asociacion_numerica = "spearman"` cambia Pearson por Spearman.
 
 ## Tiempo
 
@@ -284,19 +297,23 @@ analisis$temporal$propuestas[, c("columna", "frecuencia_dias", "confirmada")]
 
 Las fechas que no se pudieron leer quedan contadas aparte, en
 `n_fechas_excluidas_parseo`. La frecuencia propuesta es la moda de los
-intervalos observados y sale con `confirmada = FALSE`: es evidencia para
+intervalos observados. Sale con `confirmada = FALSE`: es evidencia para
 revisar, no un requisito. `advertencias` lo repite junto con las escalas
 sin confirmar, para que no pase inadvertido.
 
 ## Lo que `analizar()` mide por su cuenta
 
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) no
-se queda en describir. Toma la propuesta de métricas que arma
-[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
-a partir del perfil, mide lo que esa propuesta deja activo y agrega el
-resultado en un tablero: la tabla que resume la medición con una fila
-por métrica y objeto, y cuya columna `orientacion` dice cómo leer cada
-valor.
+se queda en describir:
+
+1.  toma la propuesta de métricas que arma
+    [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+    a partir del perfil;
+2.  mide lo que esa propuesta deja activo;
+3.  agrega el resultado en un tablero.
+
+El tablero resume la medición con una fila por métrica y objeto. Su
+columna `orientacion` dice cómo leer cada valor.
 
 ``` r
 
@@ -316,12 +333,18 @@ analisis$propuesta_modelo[, c("metrica", "atributos", "origen", "incluir")]
 
 Las filas activas (`incluir = TRUE`) salen de hallazgos: los duplicados
 exactos y los faltantes, contando como faltante lo que el perfil vio
-disfrazado. Los formatos y el dominio de `zona` se aprendieron de esta
-misma entrega, y medirlos contra ella sería circular: el dominio
-observado da 1 por construcción, y cada formato da la proporción del
-patrón dominante que el perfil ya mostró. Por eso quedan inactivos hasta
-que confirmemos que son requisitos. `decision_medicion` dice, fila por
-fila, qué se midió, y el tablero muestra el resultado:
+disfrazado.
+
+Los formatos y el dominio de `zona` se aprendieron de esta misma
+entrega. Medirlos contra ella sería circular:
+
+- el dominio observado da 1 por construcción;
+- cada formato da la proporción del patrón dominante que el perfil ya
+  mostró.
+
+Por eso quedan inactivos hasta que confirmemos que son requisitos.
+`decision_medicion` dice, fila por fila, qué se midió, y el tablero
+muestra el resultado:
 
 ``` r
 
@@ -349,32 +372,36 @@ analisis$tablero[, c("metrica_instanciada", "valor", "orientacion")]
 ```
 
 `valor` es una proporción. Con `orientacion = "conformidad"` se lee “más
-es mejor”, y con `"defecto"`, al revés: `EntidadDuplicada` es la
-proporción de filas que participan en duplicados.
+es mejor”; con `"defecto"`, al revés. Por ejemplo, `EntidadDuplicada` es
+la proporción de filas que participan en duplicados.
 `meta$propuesta_medida_automaticamente` deja constancia de que la
 selección la hizo `lupa` y nadie la confirmó.
 
-Para quedarnos sólo con la descripción, `medir_propuesta = FALSE`. Para
-medir lo que decidimos nosotros, editamos la propuesta y la pasamos como
-`propuesta_confirmada`; ese camino sigue en [7. Del hallazgo a la
-métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html).
+- Para quedarnos sólo con la descripción, `medir_propuesta = FALSE`.
+- Para medir lo que decidimos nosotros, editamos la propuesta y la
+  pasamos como `propuesta_confirmada`. Ese camino sigue en [7. Del
+  hallazgo a la
+  métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html).
+
 `cobertura`, por su parte, dice qué factores del marco de calidad
-quedaron medidos (por omisión, el de AGESIC); los marcos se explican en
+quedaron medidos (por omisión, el de AGESIC). Los marcos se explican en
 [8. Marcos y modelos de
 calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html).
 
-## ¿`perfilar()` o `analizar()`?
+## ⏱ ¿`perfilar()` o `analizar()`?
 
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) es
-la pasada que conviene llevar a todos lados: resúmenes por columna,
-patrones, tipos, hallazgos, cobertura de diagnósticos y relaciones entre
-columnas.
-[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-arma alrededor de ese perfil lo que cuesta más y devuelve tablas
-propias: distribuciones, asociaciones, tiempo, escalas, la propuesta
-medida, el plan y el tablero. Cada pieza está exportada, así que se
-puede llamar suelta sin pagar el recorrido entero. Por ejemplo, las
-frecuencias de una sola columna, con un tope de tres valores:
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  es la pasada que conviene llevar a todos lados: resúmenes por columna,
+  patrones, tipos, hallazgos, cobertura de diagnósticos y relaciones
+  entre columnas.
+- [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  arma alrededor de ese perfil lo que cuesta más, en tablas propias:
+  distribuciones, asociaciones, tiempo, escalas, la propuesta medida, el
+  plan y el tablero.
+
+Cada pieza está exportada, así que se puede llamar suelta sin pagar el
+recorrido entero. Por ejemplo, las frecuencias de una sola columna, con
+un tope de 3 valores:
 
 ``` r
 
@@ -392,14 +419,16 @@ zona$alcance[, c("columna", "n_distintos_muestra", "n_mostrados", "truncado")]
 `zona` tiene 5 valores distintos y se muestran 3: el recorte queda
 declarado en `truncado`.
 
-Las dos funciones trabajan en memoria, y sobre tablas de millones de
-filas no son una pasada rápida. A esa escala conviene perfilar una
-muestra y llamar sueltas las piezas que hagan falta, o perfilar dentro
-de la base con
-[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
-que calcula los agregados en el motor y deja elegir cuántas filas trae a
-R (ver [10. Perfilar una
-base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html)).
+Las 2 funciones trabajan en memoria, y sobre tablas de millones de filas
+no son una pasada rápida. A esa escala conviene una de estas vías:
+
+- perfilar una muestra y llamar sueltas las piezas que hagan falta;
+- perfilar dentro de la base con
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  que calcula los agregados en el motor y deja elegir cuántas filas trae
+  a R (ver [10. Perfilar una
+  base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html)).
+
 Los tiempos medidos sobre tablas de ese tamaño, con su fecha y su
 entorno, están en el artículo [Evidencia y
 rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
@@ -408,15 +437,19 @@ La muestra que
 toma por su cuenta es sistemática y sin azar: sobre los mismos datos, el
 mismo perfil se rehace igual.
 
-## Compartir el análisis
+## 📄 Compartir el análisis
 
 [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
 escribe el análisis en un archivo RDS con número de esquema, y
 [`leer_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
-lo recupera en otra sesión. Por omisión no guarda la tabla de entrada y
-reemplaza las reglas escritas como funciones por declaraciones pequeñas,
-para no serializar sus entornos. `meta$persistencia` declara qué se
-guardó y qué no:
+lo recupera en otra sesión. Por omisión,
+[`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md):
+
+- no guarda la tabla de entrada;
+- reemplaza las reglas escritas como funciones por declaraciones
+  pequeñas, para no serializar sus entornos.
+
+`meta$persistencia` declara qué se guardó y qué no:
 
 ``` r
 
@@ -459,9 +492,9 @@ gsub("</?h2>", "", secciones)
 ```
 
 En una sesión propia, `browseURL(archivo_html)` lo abre en el navegador;
-acá borramos los dos archivos al terminar. Con
+acá borramos los 2 archivos al terminar. Con
 `proteger_datos_personales = TRUE`, el informe enmascara los valores de
-las columnas que parecen datos personales; el alcance de esa protección
+las columnas que parecen datos personales. El alcance de esa protección
 está en el artículo [Alcance y
 cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 
@@ -488,7 +521,7 @@ unlink(c(archivo_html, archivo_rds))
   [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   lo vuelve un HTML autocontenido.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 [4. Estructura no
 declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.md)

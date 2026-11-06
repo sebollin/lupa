@@ -86,8 +86,8 @@
     
     
 <p>Llega una tabla y, antes de usarla, queremos saber si podemos confiar
-en ella: qué tiene mal, en qué filas está cada problema y qué no se pudo
-revisar.</p>
+en ella. ¿Qué tiene mal, en qué filas está cada problema y qué no se
+pudo revisar?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
@@ -137,8 +137,8 @@ Antes de perfilar, los miramos.</p>
 <span><span class="co">#&gt; 11 usuario10b@example.invalid       10    EVT012</span></span>
 <span><span class="co">#&gt; 12  usuario01@example.invalid        1    EVT001</span></span>
 <span><span class="co">#&gt; 13               contacto-mal       11    EVT011</span></span></code></pre></div>
-<p>Esto es lo que trae cada columna (lo describe
-<code><a href="../reference/datos_operativos.html">?datos_operativos</a></code>) y el hallazgo que lo va a señalar:</p>
+<p>Esto trae cada columna (lo describe <code><a href="../reference/datos_operativos.html">?datos_operativos</a></code>),
+con el hallazgo que lo señala:</p>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -154,7 +154,7 @@ Antes de perfilar, los miramos.</p>
 <tr class="odd">
 <td><code>id_registro</code></td>
 <td>
-<code>1</code> y <code>10</code> repetidos; las dos filas con
+<code>1</code> y <code>10</code> repetidos; las 2 filas con
 <code>10</code> no coinciden en lo demás</td>
 <td>
 <code>posible_identificador</code>; la repetición, al declararla
@@ -171,7 +171,7 @@ abajo por qué)</td>
 </tr>
 <tr class="odd">
 <td><code>fecha_evento</code></td>
-<td>cinco formatos de fecha y un <code>"NULL"</code>
+<td>5 formatos de fecha y un <code>"NULL"</code>
 </td>
 <td>
 <code>formatos_fecha_mixtos</code>,
@@ -221,7 +221,7 @@ misma razón que los formatos de <code>codigo_usuario</code>)</td>
 </tr>
 <tr class="odd">
 <td><code>id_evento</code></td>
-<td>el identificador del evento; <code>EVT001</code> dos veces</td>
+<td>el identificador del evento; <code>EVT001</code> 2 veces</td>
 <td>
 <code>clave_no_unica</code>, al declararla clave</td>
 </tr>
@@ -237,15 +237,15 @@ misma razón que los formatos de <code>codigo_usuario</code>)</td>
 <div class="section level2">
 <h2 id="perfilar">Perfilar<a class="anchor" aria-label="anchor" href="#perfilar"></a>
 </h2>
-<p><code><a href="../reference/perfilar.html">perfilar()</a></code> lee la tabla y no la modifica. Le pasamos en
-<code>clave</code> la columna que identifica cada evento en el sistema
-de origen: así cada hallazgo podrá decir en qué eventos está.</p>
+<p><code><a href="../reference/perfilar.html">perfilar()</a></code> lee la tabla sin modificarla. En
+<code>clave</code> le pasamos la columna que identifica cada evento en
+el sistema de origen. Así, cada hallazgo dice en qué eventos está.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="st">"id_evento"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor</span></span>
 <span><span class="co">#&gt; (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene</span></span>
 <span><span class="co">#&gt; valores ausentes.</span></span></code></pre></div>
-<p>El aviso ya es un resultado: la clave que declaramos se repite.
+<p>El aviso es el primer resultado: la clave que declaramos se repite.
 <code>lupa</code> no la da por buena; la comprueba. Al imprimir el
 perfil vemos el resumen:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
@@ -279,14 +279,19 @@ perfil vemos el resumen:</p>
 <span><span class="co">#&gt;        id_copia         doble             0.00000000          11         NA</span></span>
 <span><span class="co">#&gt;       id_evento identificador             0.00000000          12         NA</span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Se muestran 5 de 118 campos; los demás están en `columnas()`.</span></span></code></pre></div>
-<p>Las cuatro primeras líneas cuentan los hallazgos por severidad y los
-diagnósticos que no se pudieron evaluar. <code>error</code> quiere decir
-que un control cruzó su criterio; <code>sospechoso</code>, que algo
-merece que lo revisemos; <code>ok</code>, que es una lectura
-informativa, no un defecto. Debajo vienen el resumen general y unas
-pocas medidas por columna. (La impresión trae también la memoria que
-ocupa la tabla; acá no la mostramos porque cambia según la instalación
-de R).</p>
+<p>Las 4 primeras líneas cuentan los hallazgos por severidad y los
+diagnósticos que no se pudieron evaluar:</p>
+<ul>
+<li>
+<code>error</code>: un control cruzó su criterio;</li>
+<li>
+<code>sospechoso</code>: algo merece que lo revisemos;</li>
+<li>
+<code>ok</code>: una lectura informativa, no un defecto.</li>
+</ul>
+<p>Debajo vienen el resumen general y unas pocas medidas por columna. La
+impresión trae también la memoria que ocupa la tabla; acá no la
+mostramos porque cambia según la instalación de R.</p>
 </div>
 <div class="section level2">
 <h2 id="empezar-por-los-errores">Empezar por los errores<a class="anchor" aria-label="anchor" href="#empezar-por-los-errores"></a>
@@ -303,16 +308,16 @@ de R).</p>
 <span><span class="co">#&gt; 9           canal faltantes_disfrazados           2</span></span>
 <span><span class="co">#&gt; 20           &lt;NA&gt;        clave_no_unica           2</span></span>
 <span><span class="co">#&gt; 21           &lt;NA&gt;      filas_duplicadas           2</span></span></code></pre></div>
-<p>Son 6. Una <code>columna</code> en <code>NA</code> quiere decir que
-el hallazgo es de la tabla entera: las filas 1 y 12 son idénticas
-(<code>filas_duplicadas</code>), y por eso <code>EVT001</code> aparece
-dos veces en la clave (<code>clave_no_unica</code>).</p>
+<p>Son 6. Una <code>columna</code> en <code>NA</code> indica un hallazgo
+de la tabla entera. Las filas 1 y 12 son idénticas
+(<code>filas_duplicadas</code>), y por eso <code>EVT001</code> aparece 2
+veces en la clave (<code>clave_no_unica</code>).</p>
 </div>
 <div class="section level2">
 <h2 id="del-hallazgo-a-la-fila">Del hallazgo a la fila<a class="anchor" aria-label="anchor" href="#del-hallazgo-a-la-fila"></a>
 </h2>
 <p>Tomamos uno: los ausentes disfrazados de <code>canal</code>. La
-evidencia dice qué se vio, y la sugerencia, qué se podría hacer.</p>
+evidencia dice qué se vio; la sugerencia, qué se podría hacer.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">canal</span> <span class="op">&lt;-</span> <span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="st">"canal"</span> <span class="op">&amp;</span> <span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes_disfrazados"</span>, <span class="op">]</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">canal</span><span class="op">$</span><span class="va">evidencia</span><span class="op">)</span></span>
@@ -338,7 +343,7 @@ para que se vea la celda vacía):</p>
 fila, que sirven dentro de R pero no en el sistema de origen.</p>
 </div>
 <div class="section level2">
-<h2 id="lo-que-no-se-pudo-evaluar">Lo que no se pudo evaluar<a class="anchor" aria-label="anchor" href="#lo-que-no-se-pudo-evaluar"></a>
+<h2 id="lo-que-no-se-pudo-evaluar">⚠️ Lo que no se pudo evaluar<a class="anchor" aria-label="anchor" href="#lo-que-no-se-pudo-evaluar"></a>
 </h2>
 <p>Un control que no encontró nada no es lo mismo que un control que no
 corrió. Lo segundo queda en <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>, con el motivo y
@@ -357,8 +362,8 @@ cómo resolverlo.</p>
 <span><span class="co">#&gt; 8 proximidad_vocabulario     contacto</span></span>
 <span><span class="co">#&gt; 9 proximidad_vocabulario    id_evento</span></span></code></pre></div>
 <p>El <code>999999</code> de <code>monto</code> no aparece entre los
-hallazgos, y no porque esté bien: la búsqueda de valores extremos no
-corrió en esa columna.</p>
+hallazgos, y no porque esté bien. La búsqueda de valores extremos no
+corrió en esa columna:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">motivo</span> <span class="op">&lt;-</span> <span class="va">no_evaluados</span><span class="op">$</span><span class="va">motivo</span><span class="op">[</span></span>
 <span>  <span class="va">no_evaluados</span><span class="op">$</span><span class="va">diagnostico</span> <span class="op">==</span> <span class="st">"outliers"</span> <span class="op">&amp;</span> <span class="va">no_evaluados</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"monto"</span></span>
@@ -369,15 +374,15 @@ corrió en esa columna.</p>
 <p>Lo que no se pudo medir queda registrado; nunca cuenta como cero.</p>
 <p>Los formatos raros de <code>codigo_usuario</code>
 (<code>USR0003</code> y <code>MAL-5</code>) tampoco tienen hallazgo, por
-otra razón: ese control sí corrió, pero cada formato ocupa una fila de
-13, y por omisión un formato es raro cuando no llega al 5 % de los
-valores (<code>umbral_patron_raro</code>). En una tabla más larga lo
+otra razón: ese control sí corrió. Cada formato ocupa 1 fila de 13. Por
+omisión, un formato es raro cuando no llega al 5 % de los valores
+(<code>umbral_patron_raro</code>). En una tabla más larga lo
 señalaría.</p>
 </div>
 <div class="section level2">
-<h2 id="un-informe-para-compartir">Un informe para compartir<a class="anchor" aria-label="anchor" href="#un-informe-para-compartir"></a>
+<h2 id="un-informe-para-compartir">📄 Un informe para compartir<a class="anchor" aria-label="anchor" href="#un-informe-para-compartir"></a>
 </h2>
-<p><code><a href="../reference/reportar.html">reportar()</a></code> escribe un único archivo HTML, que se abre en
+<p><code><a href="../reference/reportar.html">reportar()</a></code> escribe un solo archivo HTML. Se abre en
 cualquier navegador y no necesita red ni programas aparte.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"calidad-de-la-entrega.html"</span><span class="op">)</span></span>
@@ -386,18 +391,18 @@ cualquier navegador y no necesita red ni programas aparte.</p>
 severidad; Resumen por columna; Clasificación de posibles datos
 personales; Cobertura del análisis; Cobertura de diagnósticos; Patrones
 de formato; Formatos de fecha; Dependencias funcionales.
-<code><a href="../reference/reportar.html">reportar()</a></code> devuelve la ruta del archivo: en una sesión
+<code><a href="../reference/reportar.html">reportar()</a></code> devuelve la ruta del archivo; en una sesión
 interactiva, <code>browseURL(archivo)</code> lo abre en el navegador.
 También recibe el resultado completo de <code><a href="../reference/analizar.html">analizar()</a></code>, con las
-mediciones y el plan de limpieza; eso lo vemos en <a href="explorar-columnas.html">3. Explorar columnas con
+mediciones y el plan de limpieza: lo vemos en <a href="explorar-columnas.html">3. Explorar columnas con
 <code>analizar()</code></a>.</p>
 </div>
 <div class="section level2">
 <h2 id="limpiar-una-columna">Limpiar una columna<a class="anchor" aria-label="anchor" href="#limpiar-una-columna"></a>
 </h2>
 <p><code>lupa</code> no cambia los datos que perfila. Para limpiar,
-propone un plan editable, y <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> ejecuta sobre una
-copia sólo las acciones que marcamos.</p>
+propone un plan editable; <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> ejecuta sobre una copia
+sólo las acciones que marcamos.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">planificar_limpieza</a></span><span class="op">(</span><span class="va">perfil</span>, <span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="va">plan</span><span class="op">[</span><span class="va">plan</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="st">"canal"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span><span class="op">)</span><span class="op">]</span></span>
@@ -408,11 +413,15 @@ copia sólo las acciones que marcamos.</p>
 <span><span class="co">#&gt; 9  accion-0009              convertir_titulo       FALSE   FALSE</span></span>
 <span><span class="co">#&gt; 10 accion-0010          convertir_mayusculas       FALSE   FALSE</span></span>
 <span><span class="co">#&gt; 11 accion-0011   convertir_segun_diccionario       FALSE   FALSE</span></span></code></pre></div>
-<p>Para <code>canal</code>, el plan recomienda y deja marcadas dos
-acciones: convertir en <code>NA</code> los ausentes escritos como texto
-y recortar los espacios del borde. Entre minúsculas, mayúsculas o un
-diccionario no elige: esa decisión es nuestra. Cada acción trae su
-justificación, que dice también qué conviene confirmar:</p>
+<p>Para <code>canal</code>, el plan recomienda y deja marcadas 2
+acciones:</p>
+<ul>
+<li>convertir en <code>NA</code> los ausentes escritos como texto;</li>
+<li>recortar los espacios del borde.</li>
+</ul>
+<p>Entre minúsculas, mayúsculas o un diccionario no elige: esa decisión
+es nuestra. Cada acción trae su justificación, que dice también qué
+conviene confirmar:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">justificacion</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">$</span><span class="va">justificacion</span><span class="op">[</span></span>
 <span>  <span class="va">plan</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="st">"canal"</span> <span class="op">&amp;</span> <span class="va">plan</span><span class="op">$</span><span class="va">estrategia</span> <span class="op">==</span> <span class="st">"convertir_ausencias_textuales"</span></span>
@@ -421,7 +430,7 @@ justificación, que dice también qué conviene confirmar:</p>
 <span><span class="co">#&gt; Las representaciones textuales del catálogo son marcadores habituales de ausencia. El</span></span>
 <span><span class="co">#&gt; cambio no es reversible: confirmar que ninguno de esos textos sea un valor legítimo de</span></span>
 <span><span class="co">#&gt; la columna -`NA` es el código de Namibia, `NULL` puede ser un apellido-.</span></span></code></pre></div>
-<p>Para esta guía aplicamos sólo esas dos.</p>
+<p>Para esta guía aplicamos sólo esas 2 acciones.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span><span class="op">$</span><span class="va">aplicar</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="st">"canal"</span> <span class="op">&amp;</span> <span class="va">plan</span><span class="op">$</span><span class="va">recomendada</span></span>
 <span><span class="va">limpio</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_operativos</span><span class="op">)</span></span>
@@ -445,23 +454,23 @@ cambiaron:</p>
 <code>datos_operativos</code> después de aplicar el plan: el original
 sigue como estaba. <code>"Web"</code> y <code>"APP"</code> quedaron
 igual, porque no elegimos ninguna convención de mayúsculas. El plan
-completo, con los grupos de acciones y su registro, está en <a href="limpiar-con-un-plan.html">6. Limpiar con un plan</a>.</p>
+completo, con sus grupos de acciones y su registro, está en <a href="limpiar-con-un-plan.html">6. Limpiar con un plan</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
 </h2>
 <ul>
 <li>
-<code><a href="../reference/perfilar.html">perfilar()</a></code> lee la tabla sin modificarla; imprimir el
-perfil da el recuento por severidad y lo que no se pudo evaluar.</li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> lee la tabla sin modificarla; su impresión
+cuenta los hallazgos por severidad y lo que no se pudo evaluar.</li>
 <li>
 <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> es una tabla: empezamos por
 <code>severidad == "error"</code>.</li>
 <li>Con <code>clave</code>, la trazabilidad de cada hallazgo trae los
 identificadores para ir al sistema de origen.</li>
 <li>
-<code><a href="../reference/accesores_perfil.html">cobertura()</a></code> lista los controles que no corrieron: un
-hallazgo que falta no prueba que el dato esté bien.</li>
+<code><a href="../reference/accesores_perfil.html">cobertura()</a></code> lista los controles que no corrieron: que
+falte un hallazgo no prueba que el dato esté bien.</li>
 <li>
 <code><a href="../reference/reportar.html">reportar()</a></code> guarda un informe HTML;
 <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> y <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> limpian una
@@ -469,7 +478,7 @@ copia con las acciones que elegimos.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p><a href="leer-un-perfil.html">2. Leer un perfil</a>
 (<code><a href="../articles/leer-un-perfil.html">vignette("leer-un-perfil")</a></code>) explica las severidades, cada

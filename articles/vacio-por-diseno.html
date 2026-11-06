@@ -86,8 +86,8 @@
     
     
 <p>¿Por qué un perfil puede decir que falta la mayor parte de una
-columna que está completa en todas las filas donde corresponde? Porque
-nadie le dijo al paquete dónde corresponde.</p>
+columna completa donde corresponde? Porque nadie le dijo al paquete
+dónde corresponde.</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
@@ -103,11 +103,10 @@ vuelve visible;</li>
 <div class="section level2">
 <h2 id="qué-pasa-si-no-se-declara-nada">Qué pasa si no se declara nada<a class="anchor" aria-label="anchor" href="#qu%C3%A9-pasa-si-no-se-declara-nada"></a>
 </h2>
-<p>Empezamos por el caso mínimo. Para que el vacío por diseño se vea
-entero usamos una encuesta construida acá, con una columna que sólo
-corresponde a parte de las filas; <code>datos_operativos</code> no tiene
-ninguna. Pregunta si la persona tiene auto y, sólo si tiene, de qué
-marca:</p>
+<p>Empezamos por el caso mínimo: una encuesta construida acá, con una
+columna que sólo corresponde a parte de las filas
+(<code>datos_operativos</code> no tiene ninguna). Pregunta si la persona
+tiene auto y, sólo si tiene, de qué marca:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tiene_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Si"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">600</span>, <span class="fl">1400</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">encuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -122,11 +121,11 @@ marca:</p>
 <span><span class="co">#&gt;      columna severidad n_afectados n_evaluados</span></span>
 <span><span class="co">#&gt; 3 marca_auto     error        1400        2000</span></span></code></pre></div>
 <p>Falta el 70 % de <code>marca_auto</code>, con severidad
-<code>error</code>, en una columna que está completa en todas las filas
+<code>error</code>. Pero la columna está completa en todas las filas
 donde corresponde que tenga valor.</p>
 </div>
 <div class="section level2">
-<h2 id="seis-formas-de-tabla-donde-el-vacío-es-la-estructura">Seis formas de tabla donde el vacío es la estructura<a class="anchor" aria-label="anchor" href="#seis-formas-de-tabla-donde-el-vac%C3%ADo-es-la-estructura"></a>
+<h2 id="seis-formas-de-tabla-donde-el-vacío-es-la-estructura">6 formas de tabla donde el vacío es la estructura<a class="anchor" aria-label="anchor" href="#seis-formas-de-tabla-donde-el-vac%C3%ADo-es-la-estructura"></a>
 </h2>
 <p>La encuesta no es un caso raro. En estas formas de tabla, los vacíos
 son parte del diseño:</p>
@@ -172,25 +171,25 @@ son parte del diseño:</p>
 <h2 id="el-supuesto-que-lupa-hace">El supuesto que <code>lupa</code> hace<a class="anchor" aria-label="anchor" href="#el-supuesto-que-lupa-hace"></a>
 </h2>
 <p>Todo perfilador de datos asume una forma de tabla. <code>lupa</code>
-asume tres cosas a la vez:</p>
+asume 3 cosas a la vez:</p>
 <ol style="list-style-type: decimal">
 <li>una fila es un hecho sobre una entidad;</li>
 <li>una columna es un dominio semántico;</li>
 <li>una celda vacía debería tener un valor y no lo tiene.</li>
 </ol>
-<p>Las tres son razonables y ninguna es universal. La tercera es la que
-hace daño, porque una base administrativa está llena de vacíos
-legítimos: la celda que no corresponde que tenga valor. Sin declarar
-nada, <code>lupa</code> cuenta esos vacíos como ausencia y los informa
-como defecto. El conteo es correcto y la lectura es falsa.</p>
+<p>Las 3 son razonables y ninguna es universal. La tercera es la que
+hace daño: una base administrativa está llena de vacíos legítimos,
+celdas donde no corresponde que haya valor. Sin declarar nada,
+<code>lupa</code> cuenta esos vacíos como ausencia y los informa como
+defecto. El conteo es correcto y la lectura es falsa.</p>
 </div>
 <div class="section level2">
-<h2 id="la-señal-que-dice-que-hay-algo-para-declarar">La señal que dice que hay algo para declarar<a class="anchor" aria-label="anchor" href="#la-se%C3%B1al-que-dice-que-hay-algo-para-declarar"></a>
+<h2 id="la-señal-que-dice-que-hay-algo-para-declarar">🔎 La señal que dice que hay algo para declarar<a class="anchor" aria-label="anchor" href="#la-se%C3%B1al-que-dice-que-hay-algo-para-declarar"></a>
 </h2>
-<p>El arreglo, que se ve más abajo, exige saber que existe
-<code>aplicabilidad</code>, el argumento que declara en qué filas
-corresponde una columna. Quien no lo sabe recibe el informe engañoso y
-nada más. Por eso el mismo perfil trae otra fila:</p>
+<p>El arreglo, que se ve más abajo, exige conocer
+<code>aplicabilidad</code>: el argumento que declara en qué filas
+corresponde una columna. Quien no lo conoce recibiría sólo el informe
+engañoso. Por eso el mismo perfil trae otra fila:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">estructural</span> <span class="op">&lt;-</span> <span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span>, <span class="op">]</span></span>
 <span><span class="va">estructural</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
@@ -206,29 +205,36 @@ nada más. Por eso el mismo perfil trae otra fila:</p>
 <span><span class="co">#&gt; ese universo deja de contarse como defecto y el alcance queda escrito en</span></span>
 <span><span class="co">#&gt; `cobertura_diagnosticos`.</span></span></code></pre></div>
 <p>Severidad <code>ok</code>: no es un defecto, es una lectura de la
-estructura. La evidencia es un hecho medido sobre los datos: qué
-proporción de las filas queda explicada por el valor de la otra columna,
-y cuántas de las ausencias caen donde la regla dice que la columna no
-corresponde, que es lo que cuenta <code>n_afectados</code>. La
-sugerencia trae la línea exacta que habría que escribir. La decisión
-sigue siendo nuestra: el paquete no cambia por su cuenta el
-<em>universo</em> de la columna (las filas donde corresponde que tenga
-valor; ver el <a href="leer-un-perfil.html#glosario">glosario</a> de
-<em>Leer un perfil</em>), y las columnas ya declaradas quedan fuera del
-examen.</p>
-<p>La señal sale por dos caminos. Uno es el de la encuesta: <strong>una
-columna determina la presencia de otra</strong>, con un cumplimiento de
-al menos 0,99, y entonces se puede escribir la fórmula. El otro es el
-reparto: <strong>dos o más columnas se turnan las filas sin
-pisarse</strong> y entre todas cubren la tabla, que es la forma de los
-atributos excluyentes por subtipo. Ahí no hay fórmula que ofrecer,
-porque falta la columna que diga cuál corresponde, y la sugerencia es la
-honesta: si existe esa columna, <code>aplicabilidad</code>; si no existe
-y la ausencia es por diseño, <code>columnas_opcionales</code>.</p>
+estructura.</p>
+<ul>
+<li>La evidencia es un hecho medido sobre los datos. Dice qué proporción
+de las filas queda explicada por el valor de la otra columna. Dice
+también cuántas ausencias caen donde la regla dice que la columna no
+corresponde: eso cuenta <code>n_afectados</code>.</li>
+<li>La sugerencia trae la línea exacta que habría que escribir.</li>
+</ul>
+<p>La decisión sigue siendo nuestra. El <em>universo</em> de una columna
+son las filas donde corresponde que tenga valor (ver el <a href="leer-un-perfil.html#glosario">glosario</a> de <em>Leer un
+perfil</em>). El paquete no lo cambia por su cuenta, y las columnas ya
+declaradas quedan fuera del examen.</p>
+<p>La señal sale por 2 caminos:</p>
+<ul>
+<li>
+<strong>Una columna determina la presencia de otra</strong>, con un
+cumplimiento de al menos 0,99. Es el caso de la encuesta, y se puede
+escribir la fórmula.</li>
+<li>
+<strong>Las filas se reparten entre 2 o más columnas sin
+pisarse</strong>, y entre todas cubren la tabla. Es la forma de los
+atributos excluyentes por subtipo. No hay fórmula que ofrecer, porque
+falta la columna que diga cuál corresponde. La sugerencia es la honesta:
+si existe esa columna, <code>aplicabilidad</code>; si no existe y la
+ausencia es por diseño, <code>columnas_opcionales</code>.</li>
+</ul>
 <p>Y no dispara por cualquier cosa. Si una parte de las filas rompe el
-patrón, se calla, porque entonces la relación existe y no es una regla,
-y ofrecer una fórmula sería afirmar de más. El sorteo de abajo pone
-marca de auto a algunas personas que dicen no tener:</p>
+patrón, se calla. La relación existe pero no es una regla, y ofrecer una
+fórmula sería afirmar de más. El sorteo de abajo pone marca de auto a
+algunas personas que dicen no tener:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span>
 <span><span class="va">ruidosa</span> <span class="op">&lt;-</span> <span class="va">encuesta</span></span>
@@ -268,9 +274,9 @@ que no se midió:</p>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; La completitud se midió sobre 600 filas aplicables de 2000 filas; la regla declarada es</span></span>
 <span><span class="co">#&gt; `~tiene_auto == "Si"`.</span></span></code></pre></div>
-<p>Cuando la ausencia nunca es defecto y no hay una regla que escribir
-(el historial con vigencia abierta es el caso típico), alcanza con
-<code>columnas_opcionales</code>:</p>
+<p>Cuando la ausencia nunca es defecto y no hay regla que escribir,
+alcanza con <code>columnas_opcionales</code>. El caso típico es el
+historial con vigencia abierta:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">historial</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">100</span>,</span>
@@ -283,15 +289,15 @@ que no se midió:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">opcional</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
 <p>Con el 40 % de la columna vacío, el perfil suma además un aviso de
-severidad <code>ok</code>, <code>regla_silencia_ausencia</code>, que se
-explica al final de la guía.</p>
+severidad <code>ok</code>: <code>regla_silencia_ausencia</code>. Lo
+explicamos al final de la guía.</p>
 </div>
 <div class="section level2">
 <h2 id="el-error-simétrico">El error simétrico<a class="anchor" aria-label="anchor" href="#el-error-sim%C3%A9trico"></a>
 </h2>
-<p>Declarar el universo hace visible un diagnóstico que sin la
-declaración no puede existir: el valor que aparece donde la regla dice
-que no corresponde.</p>
+<p>Declarar el universo hace visible un diagnóstico imposible sin la
+declaración: el valor que aparece donde la regla dice que no
+corresponde.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">inconsistente</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  tiene_auto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Si"</span>, <span class="st">"No"</span>, <span class="st">"No"</span>, <span class="st">"Si"</span><span class="op">)</span>,</span>
@@ -345,8 +351,8 @@ corresponder.</p>
 </h2>
 <p>Una tabla en formato largo no es una tabla: son muchas apiladas.
 Perfilarla entera mezcla dominios que no tienen nada que ver, y el
-resultado no describe a ninguno. La tabla de abajo apila tres atributos
-de cada entidad; sus valores se sortean:</p>
+resultado no describe a ninguno. La tabla de abajo apila 3 atributos de
+cada entidad; sus valores se sortean:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">9</span><span class="op">)</span></span>
 <span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">900</span></span>
@@ -388,9 +394,9 @@ perfilar, y ése es el paso que desactiva el faltante falso.</p>
 <span><span class="co">#&gt;                           3</span></span></code></pre></div>
 <p>El argumento <code>clave</code> no es cosmético. Sin la columna de
 identidad, cada repetición del valor de un atributo se lee como fila
-duplicada y el diagnóstico de unicidad informa la tabla entera. Si se
-declara, <code><a href="../reference/perfilar.html">perfilar()</a></code> separa la unicidad de la ausencia de
-nulos: <code>meta$clave</code> conserva ambos estados cuando alguno no
+duplicada. Así, el diagnóstico de unicidad informa la tabla entera. Si
+se declara, <code><a href="../reference/perfilar.html">perfilar()</a></code> separa la unicidad de la ausencia de
+nulos. <code>meta$clave</code> conserva ambos estados cuando alguno no
 queda verificado, y la trazabilidad deja explícita su semántica de R
 cuando agrupa ausentes.</p>
 <p>Lo que se descartó queda declarado:</p>
@@ -412,11 +418,10 @@ cuando agrupa ausentes.</p>
 <div class="section level2">
 <h2 id="lo-que-lupa-no-hace">Lo que <code>lupa</code> no hace<a class="anchor" aria-label="anchor" href="#lo-que-lupa-no-hace"></a>
 </h2>
-<p>No infiere el modelo. No mira una tabla y decide por su cuenta que es
-un entidad-atributo-valor, ni que dos columnas son mutuamente
-excluyentes. Una heurística de ese tipo fallaría sobre tablas anchas
-legítimas, y por la misma razón el paquete tampoco adivina claves ni
-jerarquías.</p>
+<p>No infiere el modelo. No decide por su cuenta que una tabla es
+entidad-atributo-valor, ni que 2 columnas son mutuamente excluyentes.
+Una heurística así fallaría sobre tablas anchas legítimas. Por la misma
+razón, el paquete tampoco adivina claves ni jerarquías.</p>
 <p>El universo lo declara quien conoce el dato. Sin declaración, toda la
 columna aplica y el resultado es el del principio de esta guía: es la
 única omisión que no supone nada.</p>
@@ -425,10 +430,10 @@ importa: sugerir con la evidencia a la vista deja la decisión donde
 estaba, y adivinar la mueve.</p>
 </div>
 <div class="section level2">
-<h2 id="y-el-reverso-cuando-la-declaración-tapa-un-problema">Y el reverso: cuando la declaración tapa un problema<a class="anchor" aria-label="anchor" href="#y-el-reverso-cuando-la-declaraci%C3%B3n-tapa-un-problema"></a>
+<h2 id="y-el-reverso-cuando-la-declaración-tapa-un-problema">⚠️ Y el reverso: cuando la declaración tapa un problema<a class="anchor" aria-label="anchor" href="#y-el-reverso-cuando-la-declaraci%C3%B3n-tapa-un-problema"></a>
 </h2>
 <p>Una regla declarada puede silenciar algo real. Declarar opcional una
-columna casi vacía deja el perfil limpio, y quien no lea la cobertura de
+columna casi vacía deja el perfil limpio. Quien no lea la cobertura de
 diagnósticos no se entera de nada:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">casi_vacia</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -450,19 +455,19 @@ historial. También es <code>ok</code>, y por la misma razón: la
 declaración hizo su trabajo. El aviso existe para que eso sea una
 decisión y no un efecto lateral. Vale igual cuando el universo se
 declaró con <code>aplicabilidad</code> y la columna sigue casi vacía
-<em>dentro</em> de ese universo, que es el caso donde la regla resultó
-más ancha que el universo real.</p>
+<em>dentro</em> de ese universo. Es el caso donde la regla resultó más
+ancha que el universo real.</p>
 </div>
 <div class="section level2">
 <h2 id="todo-lo-que-se-le-declara-al-paquete">Todo lo que se le declara al paquete<a class="anchor" aria-label="anchor" href="#todo-lo-que-se-le-declara-al-paquete"></a>
 </h2>
 <p>El universo de una columna es una de varias cosas que
 <code>lupa</code> no puede saber mirando los datos. Todas siguen la
-misma idea: quien conoce el dato lo declara, el paquete lo respeta y
-deja constancia. Son argumentos de <code><a href="../reference/perfilar.html">perfilar()</a></code> (y, por
-<code>argumentos_perfil</code> o <code>...</code>, de
-<code><a href="../reference/analizar.html">analizar()</a></code> y de las demás vías de perfilado), salvo la
-unidad, que viaja con la columna:</p>
+misma idea: quien conoce el dato lo declara, y el paquete lo respeta y
+deja constancia. Son argumentos de <code><a href="../reference/perfilar.html">perfilar()</a></code>, salvo la
+unidad, que viaja con la columna. <code><a href="../reference/analizar.html">analizar()</a></code> y las demás
+vías de perfilado los reciben por <code>argumentos_perfil</code> o
+<code>...</code>:</p>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -544,9 +549,9 @@ valores salen enmascarados</td>
 </tr>
 </tbody>
 </table>
-<p>Dos de ellas cambian lo que el perfil calcula, y conviene verlas. Un
-código de rubro con un valor fuera de catálogo, sin declarar y
-declarado:</p>
+<p>Conviene ver 2 de ellas, porque cambian lo que el perfil calcula.
+Primero, un código de rubro con un valor fuera de catálogo, sin declarar
+y declarado:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">rubros</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>rubro <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">19</span>, length.out <span class="op">=</span> <span class="fl">60</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">rubros</span><span class="op">$</span><span class="va">rubro</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">9</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">99</span></span>
@@ -563,10 +568,10 @@ declarado:</p>
 <span><span class="co">#&gt; 2   rubro      1     99       NA         NA             omitidos_codigo</span></span></code></pre></div>
 <p>Sin declarar, el código se mide como magnitud: tiene media y el
 <code>99</code> sale como valor atípico. Declarado, la media no se
-calcula (<code>omitidos_codigo</code>) y el <code>99</code> sigue a la
+calcula (<code>omitidos_codigo</code>). El <code>99</code> sigue a la
 vista en el máximo, que es donde aparece un código fuera de
 catálogo.</p>
-<p>Una edad donde <code>999</code> significa “no informada”.
+<p>Después, una edad donde <code>999</code> significa “no informada”.
 <code>999</code> está en la lista que el paquete sospecha por omisión,
 pero una sospecha sólo se informa: no mueve los números. Declarado, sale
 del resumen:</p>
@@ -586,7 +591,7 @@ del resumen:</p>
 <p><code>sentinelas_numericos</code> reemplaza la lista entera:
 declaramos exactamente los valores que valen como “sin dato” en nuestros
 datos. El paquete trae además <code>sentinelas_naniar</code>, una lista
-más amplia que se pide de manera explícita, porque valores como
+más amplia. Se pide de manera explícita, porque valores como
 <code>66</code>, <code>77</code> y <code>88</code> pueden ser datos
 legítimos:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
@@ -600,10 +605,13 @@ legítimos:</p>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; por_omision      naniar </span></span>
 <span><span class="co">#&gt;           0           2</span></span></code></pre></div>
-<p>Los detalles de cada declaración (qué se excluye de cada diagnóstico,
-cómo se reconoce una numeración sin declararla, qué se enmascara) están
-en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
-y cobertura</a>.</p>
+<p>El artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
+y cobertura</a> trae los detalles de cada declaración:</p>
+<ul>
+<li>qué se excluye de cada diagnóstico;</li>
+<li>cómo se reconoce una numeración sin declararla;</li>
+<li>qué se enmascara.</li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
@@ -626,7 +634,7 @@ igual: el paquete no los adivina.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p><a href="limpiar-con-un-plan.html">6. Limpiar con un plan</a>
 (<code><a href="../articles/limpiar-con-un-plan.html">vignette("limpiar-con-un-plan")</a></code>): cómo corregir una copia

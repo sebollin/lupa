@@ -1,8 +1,8 @@
 # 6. Limpiar con un plan
 
 El perfil encontró problemas. ¿Cómo corregimos los que se pueden
-corregir sin romper nada, decidiendo nosotros lo que depende del dominio
-y dejando registro de cada cambio?
+corregir sin romper nada? ¿Y cómo decidimos nosotros lo que depende del
+dominio, con registro de cada cambio?
 
 > **En esta guía:**
 >
@@ -16,9 +16,13 @@ y dejando registro de cada cambio?
 > - cómo imputar un valor desde una dependencia que confirmamos.
 
 Usamos `datos_administrativos`, el otro conjunto de ejemplo del paquete:
-13 registros de personas con defectos sembrados, como una cédula `S/D`,
-un sexo en blanco, fechas de nacimiento en formatos mezclados, un
-ingreso `-99`, una columna constante y dos filas idénticas.
+13 registros de personas con defectos sembrados. Entre ellos:
+
+- una cédula `S/D` y un sexo en blanco;
+- fechas de nacimiento en formatos mezclados;
+- un ingreso `-99`;
+- una columna constante;
+- una fila duplicada (2 filas idénticas).
 
 ``` r
 
@@ -45,8 +49,8 @@ datos_administrativos[, c("id_persona", "cedula", "fecha_nacimiento", "sexo", "i
 
 Diagnosticar no autoriza a modificar datos.
 [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
-no toca nada: devuelve una tabla de acciones posibles, una por fila, que
-se puede filtrar y editar como cualquier `data.frame`.
+no toca nada. Devuelve una tabla de acciones posibles, una por fila, que
+se filtra y edita como cualquier `data.frame`.
 
 ``` r
 
@@ -72,9 +76,11 @@ plan[, c("id_accion", "columna", "estrategia", "recomendada", "aplicar")]
 ```
 
 `aplicar` dice qué se ejecutaría si aplicáramos el plan tal como está:
-por omisión, sólo lo recomendado. `estado` separa lo que está listo de
-lo que sólo pide revisar (`informativa`) y de lo que no se puede
-ejecutar sin una decisión previa (`bloqueada`):
+por omisión, sólo lo recomendado. `estado` separa:
+
+- lo que está listo (`lista`);
+- lo que sólo pide revisar (`informativa`);
+- lo que no se puede ejecutar sin una decisión previa (`bloqueada`).
 
 ``` r
 
@@ -91,10 +97,10 @@ plan[plan$estado != "lista", c("id_accion", "estrategia", "estado")]
 ## Recomendaciones y decisiones de dominio
 
 Una acción se recomienda sólo si es correcta con independencia del
-dominio: por ejemplo, convertir un centinela textual inequívoco a `NA` o
-quitar espacios de borde. Normalizar mayúsculas, convertir un centinela
-numérico o eliminar una columna constante exige contexto y queda
-desactivado. La justificación acompaña cada alternativa:
+dominio. Es el caso de convertir un centinela textual inequívoco a `NA`
+o de quitar espacios de borde. Normalizar mayúsculas, convertir un
+centinela numérico o eliminar una columna constante exige contexto, y
+queda desactivado. La justificación acompaña cada alternativa:
 
 ``` r
 
@@ -115,7 +121,7 @@ for (i in seq_len(nrow(justificaciones))) {
 
 Convertir `S/D` en ausencia es seguro en casi cualquier columna, y aun
 así la justificación pide confirmarlo. Que `-99` signifique “sin dato”
-en `ingreso` sólo lo sabe quien conoce el sistema, así que la acción
+en `ingreso` sólo lo sabe quien conoce el sistema. Por eso esa acción
 queda propuesta y sin activar.
 
 Si lo que molesta es sólo la comparación (mayúsculas, acentos,
@@ -161,11 +167,14 @@ plan[!is.na(plan$grupo), c(
 ```
 
 En el grupo de las filas duplicadas, por ejemplo, las alternativas son
-marcarlas, conservar la primera o conservar la más completa; marcar es
-lo recomendado porque no elimina nada. `decision_grupo` vale `pendiente`
-donde falta nuestra decisión (el `-99` de `ingreso`) y `recomendada`
-donde el plan sigue su propia recomendación, aunque esa recomendación
-sea no actuar: la columna constante se deja como está.
+marcarlas, conservar la primera o conservar la más completa. Marcar es
+lo recomendado porque no elimina nada.
+
+`decision_grupo` vale:
+
+- `pendiente` donde falta nuestra decisión (el `-99` de `ingreso`);
+- `recomendada` donde el plan sigue su propia recomendación, aunque sea
+  no actuar: la columna constante se deja como está.
 
 El modo guiado,
 [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md),
@@ -178,10 +187,10 @@ plan con nuestras respuestas:
 plan <- guiar_limpieza(plan, datos_administrativos)
 ```
 
-Al tejer esta guía no hay nadie que conteste, y fuera de una sesión
-interactiva
+Al tejer esta guía no hay nadie que conteste. Fuera de una sesión
+interactiva,
 [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
-devuelve el plan sin cambios y sin bloquear; por eso seguimos con las
+devuelve el plan sin cambios y sin bloquear. Por eso seguimos con las
 acciones que marcamos a mano.
 
 ## Aplicar sobre una copia
@@ -204,7 +213,7 @@ resultado$registro[, c("id_accion", "estrategia", "estado", "n_cambiadas")]
 #> 4 accion-0014    marcar_columnas_duplicadas ejecutada           1
 ```
 
-Veamos los valores antes y después en las dos columnas que cambiaron:
+Veamos los valores antes y después en las 2 columnas que cambiaron:
 
 ``` r
 
@@ -234,10 +243,12 @@ data.frame(
 igual: corregir una cédula exige saber cuál era, y eso no sale de los
 datos.
 
-Las marcas no cambian valores: agregan información. Las filas duplicadas
-quedan señaladas en dos columnas nuevas, `.fila_duplicada` (la
-repetición) y `.grupo_duplicado` (todas las filas del grupo), y las
-columnas duplicadas, en un atributo:
+Las marcas no cambian valores: agregan información.
+
+- Las filas duplicadas quedan señaladas en 2 columnas nuevas:
+  `.fila_duplicada` (la repetición) y `.grupo_duplicado` (todas las
+  filas del grupo).
+- Las columnas duplicadas quedan señaladas en un atributo.
 
 ``` r
 
@@ -251,37 +262,41 @@ attr(resultado$datos, "columnas_duplicadas_marcadas")
 #> 1 id_persona  id_copia
 ```
 
-El plan se puede editar antes de aplicar: quitar una acción, corregir un
+El plan se puede editar antes de aplicar. Quitar una acción, corregir un
 parámetro o cambiar `n_afectadas` no altera la obligación de observar
 qué pasó. Si una acción seleccionada no cambia ningún valor, el registro
-dice `fallida` con su motivo, incluso cuando el estimado está ausente
-(`NA`).
+dice `fallida` con su motivo. Lo dice incluso cuando el estimado está
+ausente (`NA`).
 
 Las acciones destructivas nunca son recomendadas. Aunque las activemos
 en el plan,
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
-exige además `permitir_eliminacion = TRUE`; lo retirado se conserva en
-`resultado$eliminados` salvo decisión contraria. Sin ese consentimiento,
-la llamada se niega **antes de tocar nada**: no corre ninguna acción del
-plan, tampoco las que no eliminan, y el error dice cuáles son los dos
-caminos.
+exige además `permitir_eliminacion = TRUE`. Lo retirado se conserva en
+`resultado$eliminados`, salvo decisión contraria. Sin ese
+consentimiento, la llamada se niega **antes de tocar nada**. No corre
+ninguna acción del plan, tampoco las que no eliminan, y el error dice
+cuáles son los 2 caminos.
 
-`n_no_reversibles`, en el registro, no se lee por el nombre de la acción
-sino por lo que quedó en el resultado: una normalización que funde dos
-valores que eran distintos (pasar `ana` y `ANA` a `ANA`) cuenta esas
-celdas, porque lo que las separaba no quedó en ningún lado.
+`n_no_reversibles`, en el registro, no se calcula por el nombre de la
+acción sino por lo que quedó en el resultado. Una normalización que
+funde 2 valores distintos (pasar `ana` y `ANA` a `ANA`) cuenta esas
+celdas: lo que las separaba no quedó en ningún lado.
 
-## Lo que el plan no cubre lo dice
+## ⚠️ Lo que el plan no cubre lo dice
 
-Que el plan tenga pocas acciones no significa que lo demás esté bien,
-así que declara sus huecos en tres atributos: `cobertura_diagnosticos`
-(los diagnósticos que el perfil no pudo evaluar),
-`hallazgos_sin_accion_por_columna_ambigua` (los hallazgos cuya columna
-comparte nombre con otra, así que no hay forma de saber sobre cuál
-actuaría la limpieza) y `hallazgos_sin_accion` (los hallazgos que el
-perfil midió y que ninguna acción atiende, con el motivo medido de cada
-uno). La impresión del plan los anuncia y el informe HTML les da su
-propia sección.
+Que el plan tenga pocas acciones no significa que lo demás esté bien.
+Por eso declara sus huecos en 3 atributos:
+
+- `cobertura_diagnosticos`: los diagnósticos que el perfil no pudo
+  evaluar;
+- `hallazgos_sin_accion_por_columna_ambigua`: los hallazgos cuya columna
+  comparte nombre con otra, sin forma de saber sobre cuál actuaría la
+  limpieza;
+- `hallazgos_sin_accion`: los hallazgos que el perfil midió y que
+  ninguna acción atiende, con el motivo medido de cada uno.
+
+La impresión del plan los anuncia y el informe HTML les da su propia
+sección.
 
 ``` r
 
@@ -312,14 +327,16 @@ cambios[cambios$aspecto == "hallazgo", c("columna", "cambio", "valor_anterior", 
 #> 14             sexo      resuelto faltantes_disfrazados         <NA>
 ```
 
-Los faltantes disfrazados de `cedula` y `sexo` quedaron `resuelto`. Los
-hallazgos `aparecido` en `.grupo_duplicado` son la huella de la marca:
-esa columna sólo tiene valor en las filas duplicadas, así que el perfil
-la encuentra casi vacía y con un único valor. Y `filas_duplicadas` queda
-`no_comparable`: la tabla ganó las columnas de marca, y con otro
-conjunto de columnas no se puede decidir si las filas repetidas se
-resolvieron. La comparación entre entregas se explica en [9. Comparar
-entregas y seguir la
+- Los faltantes disfrazados de `cedula` y `sexo` quedaron `resuelto`.
+- Los hallazgos `aparecido` en `.grupo_duplicado` son la huella de la
+  marca. Esa columna sólo tiene valor en las filas duplicadas, así que
+  el perfil la encuentra casi vacía y con un único valor.
+- `filas_duplicadas` queda `no_comparable`, porque la tabla ganó las
+  columnas de marca. Con otro conjunto de columnas no se puede decidir
+  si las filas repetidas se resolvieron.
+
+La comparación entre entregas se explica en [9. Comparar entregas y
+seguir la
 calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html).
 
 ## Imputar por una dependencia
@@ -412,13 +429,13 @@ Las descripciones que faltaban se completaron desde el mapa
 - Imputar desde una dependencia exige confirmarla antes como regla.
 
 Si la limpieza es parte de entregas periódicas y la pregunta es qué
-cambió entre una y otra, se puede saltar directamente a [9. Comparar
-entregas y seguir la
+cambió entre una y otra, se puede saltar a [9. Comparar entregas y
+seguir la
 calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html).
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 [7. Del hallazgo a la
 métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html),
-en el sitio del paquete: cómo pasar de lo que el perfil encontró a
-métricas que se miden y se evalúan contra un umbral.
+en el sitio del paquete. Muestra cómo pasar de lo que el perfil encontró
+a métricas que se miden y se evalúan contra un umbral.

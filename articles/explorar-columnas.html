@@ -86,10 +86,9 @@
     
     
 <p>El perfil dice qué está mal en una tabla. Antes de decidir qué le
-exigimos, también queremos saber qué hay en cada columna: qué forma
-tienen los valores, qué tipo esconden, cómo se reparten, qué columnas se
-mueven juntas y qué período cubren las fechas. ¿Cómo lo vemos todo de
-una vez, y cómo lo compartimos?</p>
+exigimos, queremos ver qué hay en cada columna: forma, tipo, reparto,
+asociaciones y período de las fechas. ¿Cómo lo vemos todo de una vez, y
+cómo lo compartimos?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
@@ -205,8 +204,8 @@ cobertura de diagnósticos</td>
 </table>
 <p>Los accesores del perfil también leen el análisis:
 <code>hallazgos(analisis)</code> es lo mismo que
-<code>hallazgos(analisis$perfil)</code>. Miramos los de una columna que
-vamos a seguir en toda la guía, <code>fecha_evento</code>:</p>
+<code>hallazgos(analisis$perfil)</code>. Miramos los de
+<code>fecha_evento</code>, la columna que seguimos en toda la guía:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">analisis</span><span class="op">)</span></span>
 <span><span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="st">"fecha_evento"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
@@ -223,11 +222,19 @@ producen.</p>
 <div class="section level2">
 <h2 id="patrones-la-forma-de-los-valores">Patrones: la forma de los valores<a class="anchor" aria-label="anchor" href="#patrones-la-forma-de-los-valores"></a>
 </h2>
-<p>Un patrón resume la forma de un valor: <code>A</code> es una letra
-mayúscula, <code>a</code> una minúscula, <code>9</code> un dígito, y
-<code>+</code> indica que se repite. <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code>
-recibe un vector, no una tabla, y cuenta cuántos valores tienen cada
-forma:</p>
+<p>Un patrón resume la forma de un valor:</p>
+<ul>
+<li>
+<code>A</code> es una letra mayúscula;</li>
+<li>
+<code>a</code>, una minúscula;</li>
+<li>
+<code>9</code>, un dígito;</li>
+<li>
+<code>+</code> indica que se repite.</li>
+</ul>
+<p><code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code> recibe un vector, no una tabla, y
+cuenta cuántos valores tienen cada forma:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/descubrir_patrones.html">descubrir_patrones</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">$</span><span class="va">codigo_usuario</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   patron  n proporcion                    ejemplos</span></span>
@@ -236,10 +243,10 @@ forma:</p>
 <span><span class="co">#&gt; 3   A+9+  1 0.07692308                     USR0003</span></span>
 <span><span class="co">#&gt; 4    A/A  1 0.07692308                         S/D</span></span></code></pre></div>
 <p>La mayoría de los códigos tiene la forma <code>USR-001</code>. Se
-apartan <code>MAL-5</code>, <code>USR0003</code> y <code>S/D</code>: el
-último ya figura en el perfil como faltante disfrazado, y los otros dos
-son los que habría que revisar en el sistema de origen. El análisis
-guarda la misma tabla para cada columna en
+apartan <code>MAL-5</code>, <code>USR0003</code> y <code>S/D</code>. El
+último ya figura en el perfil como faltante disfrazado; los otros 2
+habría que revisarlos en el sistema de origen. El análisis guarda la
+misma tabla para cada columna en
 <code>analisis$perfil$patrones</code>.</p>
 </div>
 <div class="section level2">
@@ -259,15 +266,15 @@ separado:</p>
 <span><span class="co">#&gt; 3   %Y%m%d 1 0.07692308 confirmado          0</span></span>
 <span><span class="co">#&gt; 4 %Y/%m/%d 1 0.07692308 confirmado          0</span></span>
 <span><span class="co">#&gt; 5 %d-%m-%Y 1 0.07692308 confirmado          0</span></span></code></pre></div>
-<p>De los 13 valores, 11 se leen como fecha, en 5 formatos distintos;
-los que no se leen son <code>2024.04.17</code> y <code>NULL</code>.
+<p>De los 13 valores, 11 se leen como fecha, en 5 formatos distintos.
+Los que no se leen son <code>2024.04.17</code> y <code>NULL</code>.
 Estas salidas describen compatibilidad y frecuencia: no convierten la
 columna ni afirman qué formato debe aceptar el sistema.</p>
 <p>Que todos los valores sean compatibles tampoco alcanza. Una columna
-hecha sólo de fechas como <code>01/02/2020</code> puede leerse al cien
-por ciento y seguir siendo ambigua: sin una convención externa no se
-sabe si el primer número es el día o el mes. El perfil conserva esa
-diferencia en <code>estado_tipo_inferido</code>:</p>
+hecha sólo de fechas como <code>01/02/2020</code> puede leerse al 100 %
+y seguir siendo ambigua. Sin una convención externa, no se sabe si el
+primer número es el día o el mes. El perfil conserva esa diferencia en
+<code>estado_tipo_inferido</code>:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ambigua</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"01/02/2020"</span>, <span class="st">"02/03/2020"</span>, <span class="st">"03/04/2020"</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -285,10 +292,10 @@ diferencia en <code>estado_tipo_inferido</code>:</p>
 <span><span class="co">#&gt; 3 fecha_evento         fecha                0.8461538           confirmado</span></span>
 <span><span class="co">#&gt; 1        fecha         fecha                1.0000000            candidato</span></span></code></pre></div>
 <p>En <code>fecha_evento</code> el estado es <code>confirmado</code>
-aunque haya valores que no se leen, porque valores como
-<code>31/01/2024</code> sólo admiten una lectura. En la columna
-construida, la proporción es 1 y el estado es <code>candidato</code>: la
-lectura todavía no está establecida.</p>
+aunque haya valores que no se leen: valores como <code>31/01/2024</code>
+sólo admiten una lectura. En la columna construida, la proporción es 1 y
+el estado es <code>candidato</code>, porque la lectura todavía no está
+establecida.</p>
 </div>
 <div class="section level2">
 <h2 id="escalas-y-roles-propuestos">Escalas y roles propuestos<a class="anchor" aria-label="anchor" href="#escalas-y-roles-propuestos"></a>
@@ -311,14 +318,13 @@ Es la salida de <code><a href="../reference/clasificar_variables.html">clasifica
 <span><span class="co">#&gt; 8        contacto          texto          nominal     categoria      0.55      FALSE</span></span>
 <span><span class="co">#&gt; 9        id_copia          doble         discreta        medida      0.65      FALSE</span></span>
 <span><span class="co">#&gt; 10      id_evento  identificador          nominal identificador      0.90      FALSE</span></span></code></pre></div>
-<p><code>confianza</code> expone la fuerza de cada propuesta y
+<p><code>confianza</code> expone la fuerza de cada propuesta;
 <code>confirmada</code> distingue una declaración de una inferencia. Sin
-metadatos, ninguna está confirmada. <code>id_registro</code> sale como
-una medida discreta: por sus valores, un identificador numérico no se
-distingue de una cantidad. Quien conoce la columna lo declara, con
-<code>metadatos_variables</code> o con <code>columnas_codigo</code> (ver
-la tabla final de <a href="vacio-por-diseno.html">5. El vacío por
-diseño</a>).</p>
+metadatos, ninguna está confirmada.</p>
+<p><code>id_registro</code> sale como una medida discreta: por sus
+valores, un identificador numérico no se distingue de una cantidad.
+Quien conoce la columna lo declara con <code>metadatos_variables</code>
+o con <code>columnas_codigo</code> (ver la tabla final de <a href="vacio-por-diseno.html">5. El vacío por diseño</a>).</p>
 </div>
 <div class="section level2">
 <h2 id="distribuciones">Distribuciones<a class="anchor" aria-label="anchor" href="#distribuciones"></a>
@@ -346,13 +352,13 @@ los cuantiles de las numéricas:</p>
 <span><span class="co">#&gt; 8          0.50   1490           13</span></span>
 <span><span class="co">#&gt; 9          0.75   1700           13</span></span>
 <span><span class="co">#&gt; 10         1.00 999999           13</span></span></code></pre></div>
-<p>Las frecuencias cuentan lo que hay guardado, sin unir variantes:
-entre los valores de <code>canal</code> aparecen la celda vacía,
-<code>S/D</code>, <code>Web</code> y <code>"web "</code>, con un espacio
-al final.</p>
+<p>Las frecuencias cuentan lo que hay guardado, sin unir variantes.
+Entre los valores de <code>canal</code> aparecen la celda vacía,
+<code>S/D</code>, <code>Web</code> y <code>"web "</code> (con un espacio
+al final).</p>
 <p>Los cuantiles de <code>monto</code> van de <code>-99</code> a
 <code>999999</code>. El perfil señaló <code>-99</code> como posible
-faltante disfrazado, pero un valor sospechado sólo se informa: no sale
+faltante disfrazado, pero un valor sospechado sólo se informa. No sale
 de los números mientras no se lo declare con
 <code>sentinelas_numericos</code>.
 <code>analisis$distribuciones$alcance</code> dice, columna por columna,
@@ -361,11 +367,14 @@ cuántas filas se analizaron y si la lista de valores se recortó.</p>
 <div class="section level2">
 <h2 id="asociaciones">Asociaciones<a class="anchor" aria-label="anchor" href="#asociaciones"></a>
 </h2>
-<p>Cada fila de <code>asociaciones</code> es una medida entre dos
-columnas, con el método que se usó: Pearson entre numéricas, eta
-cuadrado entre una categoría y un número, V de Cramér entre dos
-categorías. La columna <code>supuesto</code> dice cómo se trató cada
-escala.</p>
+<p>Cada fila de <code>asociaciones</code> es una medida entre 2
+columnas, con el método que se usó:</p>
+<ul>
+<li>Pearson entre numéricas;</li>
+<li>eta cuadrado entre una categoría y un número;</li>
+<li>V de Cramér entre 2 categorías.</li>
+</ul>
+<p>La columna <code>supuesto</code> dice cómo se trató cada escala.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">analisis</span><span class="op">$</span><span class="va">asociaciones</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna_1"</span>, <span class="st">"columna_2"</span>, <span class="st">"metodo"</span>, <span class="st">"asociacion"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;     columna_1 columna_2           metodo asociacion</span></span>
@@ -378,15 +387,19 @@ escala.</p>
 <span><span class="co">#&gt; 7 id_registro     canal             eta2  0.3791539</span></span>
 <span><span class="co">#&gt; 8 id_registro      zona             eta2  0.3440367</span></span>
 <span><span class="co">#&gt; 9        zona  id_copia             eta2  0.3440367</span></span></code></pre></div>
-<p>Son medidas, no dependencias ni instrucciones de modelado, y conviene
-leerlas con los datos a la vista. <code>id_registro</code> e
-<code>id_copia</code> se asocian al máximo porque una es copia de la
-otra, algo que el perfil ya informó como
-<code>columnas_duplicadas</code>. La asociación de <code>canal</code>
-con <code>monto</code> la produce casi entera la fila 13, donde
-<code>canal</code> está vacío y <code>monto</code> vale
-<code>999999</code>: sin esa fila, la medida baja a 0,65. Para una
-relación monótona que no es lineal,
+<p>Son medidas, no dependencias ni instrucciones de modelado. Conviene
+leerlas con los datos a la vista:</p>
+<ul>
+<li>
+<code>id_registro</code> e <code>id_copia</code> se asocian al
+máximo porque una es copia de la otra; el perfil ya lo informó como
+<code>columnas_duplicadas</code>.</li>
+<li>La asociación de <code>canal</code> con <code>monto</code> la
+produce casi entera la fila 13, donde <code>canal</code> está vacío y
+<code>monto</code> vale <code>999999</code>. Sin esa fila, la medida
+baja a 0,65.</li>
+</ul>
+<p>Para una relación monótona que no es lineal,
 <code>metodo_asociacion_numerica = "spearman"</code> cambia Pearson por
 Spearman.</p>
 </div>
@@ -407,7 +420,7 @@ observado:</p>
 <span><span class="co">#&gt; 1 fecha_evento              32      FALSE</span></span></code></pre></div>
 <p>Las fechas que no se pudieron leer quedan contadas aparte, en
 <code>n_fechas_excluidas_parseo</code>. La frecuencia propuesta es la
-moda de los intervalos observados y sale con
+moda de los intervalos observados. Sale con
 <code>confirmada = FALSE</code>: es evidencia para revisar, no un
 requisito. <code>advertencias</code> lo repite junto con las escalas sin
 confirmar, para que no pase inadvertido.</p>
@@ -415,12 +428,15 @@ confirmar, para que no pase inadvertido.</p>
 <div class="section level2">
 <h2 id="lo-que-analizar-mide-por-su-cuenta">Lo que <code>analizar()</code> mide por su cuenta<a class="anchor" aria-label="anchor" href="#lo-que-analizar-mide-por-su-cuenta"></a>
 </h2>
-<p><code><a href="../reference/analizar.html">analizar()</a></code> no se queda en describir. Toma la propuesta
-de métricas que arma <code><a href="../reference/proponer_modelo.html">proponer_modelo()</a></code> a partir del perfil,
-mide lo que esa propuesta deja activo y agrega el resultado en un
-tablero: la tabla que resume la medición con una fila por métrica y
-objeto, y cuya columna <code>orientacion</code> dice cómo leer cada
-valor.</p>
+<p><code><a href="../reference/analizar.html">analizar()</a></code> no se queda en describir:</p>
+<ol style="list-style-type: decimal">
+<li>toma la propuesta de métricas que arma
+<code><a href="../reference/proponer_modelo.html">proponer_modelo()</a></code> a partir del perfil;</li>
+<li>mide lo que esa propuesta deja activo;</li>
+<li>agrega el resultado en un tablero.</li>
+</ol>
+<p>El tablero resume la medición con una fila por métrica y objeto. Su
+columna <code>orientacion</code> dice cómo leer cada valor.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">analisis</span><span class="op">$</span><span class="va">propuesta_modelo</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metrica"</span>, <span class="st">"atributos"</span>, <span class="st">"origen"</span>, <span class="st">"incluir"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;                        metrica      atributos                             origen incluir</span></span>
@@ -436,11 +452,15 @@ valor.</p>
 <span><span class="co">#&gt; 10 ValoresPosiblesPorExtension           zona           perfil:dominio_observado   FALSE</span></span></code></pre></div>
 <p>Las filas activas (<code>incluir = TRUE</code>) salen de hallazgos:
 los duplicados exactos y los faltantes, contando como faltante lo que el
-perfil vio disfrazado. Los formatos y el dominio de <code>zona</code> se
-aprendieron de esta misma entrega, y medirlos contra ella sería
-circular: el dominio observado da 1 por construcción, y cada formato da
-la proporción del patrón dominante que el perfil ya mostró. Por eso
-quedan inactivos hasta que confirmemos que son requisitos.
+perfil vio disfrazado.</p>
+<p>Los formatos y el dominio de <code>zona</code> se aprendieron de esta
+misma entrega. Medirlos contra ella sería circular:</p>
+<ul>
+<li>el dominio observado da 1 por construcción;</li>
+<li>cada formato da la proporción del patrón dominante que el perfil ya
+mostró.</li>
+</ul>
+<p>Por eso quedan inactivos hasta que confirmemos que son requisitos.
 <code>decision_medicion</code> dice, fila por fila, qué se midió, y el
 tablero muestra el resultado:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
@@ -466,31 +486,40 @@ tablero muestra el resultado:</p>
 <span><span class="co">#&gt;    NoNulo:fecha_evento 0.9230769 conformidad</span></span>
 <span><span class="co">#&gt;           NoNulo:monto 0.9230769 conformidad</span></span></code></pre></div>
 <p><code>valor</code> es una proporción. Con
-<code>orientacion = "conformidad"</code> se lee “más es mejor”, y con
-<code>"defecto"</code>, al revés: <code>EntidadDuplicada</code> es la
-proporción de filas que participan en duplicados.
-<code>meta$propuesta_medida_automaticamente</code> deja constancia de
-que la selección la hizo <code>lupa</code> y nadie la confirmó.</p>
-<p>Para quedarnos sólo con la descripción,
-<code>medir_propuesta = FALSE</code>. Para medir lo que decidimos
-nosotros, editamos la propuesta y la pasamos como
-<code>propuesta_confirmada</code>; ese camino sigue en <a href="https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html">7.
-Del hallazgo a la métrica</a>. <code>cobertura</code>, por su parte,
-dice qué factores del marco de calidad quedaron medidos (por omisión, el
-de AGESIC); los marcos se explican en <a href="https://sebollin.github.io/lupa/articles/marcos-y-modelos.html">8.
+<code>orientacion = "conformidad"</code> se lee “más es mejor”; con
+<code>"defecto"</code>, al revés. Por ejemplo,
+<code>EntidadDuplicada</code> es la proporción de filas que participan
+en duplicados. <code>meta$propuesta_medida_automaticamente</code> deja
+constancia de que la selección la hizo <code>lupa</code> y nadie la
+confirmó.</p>
+<ul>
+<li>Para quedarnos sólo con la descripción,
+<code>medir_propuesta = FALSE</code>.</li>
+<li>Para medir lo que decidimos nosotros, editamos la propuesta y la
+pasamos como <code>propuesta_confirmada</code>. Ese camino sigue en <a href="https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html">7.
+Del hallazgo a la métrica</a>.</li>
+</ul>
+<p><code>cobertura</code>, por su parte, dice qué factores del marco de
+calidad quedaron medidos (por omisión, el de AGESIC). Los marcos se
+explican en <a href="https://sebollin.github.io/lupa/articles/marcos-y-modelos.html">8.
 Marcos y modelos de calidad</a>.</p>
 </div>
 <div class="section level2">
-<h2 id="perfilar-o-analizar">¿<code>perfilar()</code> o <code>analizar()</code>?<a class="anchor" aria-label="anchor" href="#perfilar-o-analizar"></a>
+<h2 id="perfilar-o-analizar">⏱ ¿<code>perfilar()</code> o <code>analizar()</code>?<a class="anchor" aria-label="anchor" href="#perfilar-o-analizar"></a>
 </h2>
-<p><code><a href="../reference/perfilar.html">perfilar()</a></code> es la pasada que conviene llevar a todos
+<ul>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> es la pasada que conviene llevar a todos
 lados: resúmenes por columna, patrones, tipos, hallazgos, cobertura de
-diagnósticos y relaciones entre columnas. <code><a href="../reference/analizar.html">analizar()</a></code> arma
-alrededor de ese perfil lo que cuesta más y devuelve tablas propias:
-distribuciones, asociaciones, tiempo, escalas, la propuesta medida, el
-plan y el tablero. Cada pieza está exportada, así que se puede llamar
-suelta sin pagar el recorrido entero. Por ejemplo, las frecuencias de
-una sola columna, con un tope de tres valores:</p>
+diagnósticos y relaciones entre columnas.</li>
+<li>
+<code><a href="../reference/analizar.html">analizar()</a></code> arma alrededor de ese perfil lo que cuesta
+más, en tablas propias: distribuciones, asociaciones, tiempo, escalas,
+la propuesta medida, el plan y el tablero.</li>
+</ul>
+<p>Cada pieza está exportada, así que se puede llamar suelta sin pagar
+el recorrido entero. Por ejemplo, las frecuencias de una sola columna,
+con un tope de 3 valores:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">zona</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/distribucion_valores.html">distribucion_valores</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">[</span><span class="st">"zona"</span><span class="op">]</span>, max_valores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="va">zona</span><span class="op">$</span><span class="va">frecuencias</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"valor"</span>, <span class="st">"frecuencia"</span><span class="op">)</span><span class="op">]</span></span>
@@ -503,26 +532,35 @@ una sola columna, con un tope de tres valores:</p>
 <span><span class="co">#&gt; 1    zona                   5           3     TRUE</span></span></code></pre></div>
 <p><code>zona</code> tiene 5 valores distintos y se muestran 3: el
 recorte queda declarado en <code>truncado</code>.</p>
-<p>Las dos funciones trabajan en memoria, y sobre tablas de millones de
-filas no son una pasada rápida. A esa escala conviene perfilar una
-muestra y llamar sueltas las piezas que hagan falta, o perfilar dentro
-de la base con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>, que calcula los agregados en
-el motor y deja elegir cuántas filas trae a R (ver <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">10.
-Perfilar una base</a>). Los tiempos medidos sobre tablas de ese tamaño,
-con su fecha y su entorno, están en el artículo <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
+<p>Las 2 funciones trabajan en memoria, y sobre tablas de millones de
+filas no son una pasada rápida. A esa escala conviene una de estas
+vías:</p>
+<ul>
+<li>perfilar una muestra y llamar sueltas las piezas que hagan
+falta;</li>
+<li>perfilar dentro de la base con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>, que
+calcula los agregados en el motor y deja elegir cuántas filas trae a R
+(ver <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">10.
+Perfilar una base</a>).</li>
+</ul>
+<p>Los tiempos medidos sobre tablas de ese tamaño, con su fecha y su
+entorno, están en el artículo <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
 y rendimiento</a>. La muestra que <code><a href="../reference/perfilar.html">perfilar()</a></code> toma por su
 cuenta es sistemática y sin azar: sobre los mismos datos, el mismo
 perfil se rehace igual.</p>
 </div>
 <div class="section level2">
-<h2 id="compartir-el-análisis">Compartir el análisis<a class="anchor" aria-label="anchor" href="#compartir-el-an%C3%A1lisis"></a>
+<h2 id="compartir-el-análisis">📄 Compartir el análisis<a class="anchor" aria-label="anchor" href="#compartir-el-an%C3%A1lisis"></a>
 </h2>
 <p><code><a href="../reference/persistir_analisis.html">guardar_analisis()</a></code> escribe el análisis en un archivo RDS
 con número de esquema, y <code><a href="../reference/persistir_analisis.html">leer_analisis()</a></code> lo recupera en
-otra sesión. Por omisión no guarda la tabla de entrada y reemplaza las
-reglas escritas como funciones por declaraciones pequeñas, para no
-serializar sus entornos. <code>meta$persistencia</code> declara qué se
-guardó y qué no:</p>
+otra sesión. Por omisión, <code><a href="../reference/persistir_analisis.html">guardar_analisis()</a></code>:</p>
+<ul>
+<li>no guarda la tabla de entrada;</li>
+<li>reemplaza las reglas escritas como funciones por declaraciones
+pequeñas, para no serializar sus entornos.</li>
+</ul>
+<p><code>meta$persistencia</code> declara qué se guardó y qué no:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">archivo_rds</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".rds"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/persistir_analisis.html">guardar_analisis</a></span><span class="op">(</span><span class="va">analisis</span>, <span class="va">archivo_rds</span><span class="op">)</span></span>
@@ -556,9 +594,9 @@ análisis ya los trae. Estas son las secciones del informe:</p>
 <span><span class="co">#&gt;  [9] "Tablero de calidad"                  "Medidas de calidad"                 </span></span>
 <span><span class="co">#&gt; [11] "Plan de limpieza"</span></span></code></pre></div>
 <p>En una sesión propia, <code>browseURL(archivo_html)</code> lo abre en
-el navegador; acá borramos los dos archivos al terminar. Con
+el navegador; acá borramos los 2 archivos al terminar. Con
 <code>proteger_datos_personales = TRUE</code>, el informe enmascara los
-valores de las columnas que parecen datos personales; el alcance de esa
+valores de las columnas que parecen datos personales. El alcance de esa
 protección está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
 y cobertura</a>.</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
@@ -585,7 +623,7 @@ activo; <code>decision_medicion</code> dice qué se midió y
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p><a href="estructura-no-declarada.html">4. Estructura no declarada</a>
 (<code><a href="../articles/estructura-no-declarada.html">vignette("estructura-no-declarada")</a></code>): claves, relaciones y

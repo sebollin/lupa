@@ -92,8 +92,8 @@
 </div>
 <div class="section level2">
 <h2 id="dependencias">Dependencias<a class="anchor" aria-label="anchor" href="#dependencias"></a></h2>
-<p><strong>Sólo <code>cli</code> es obligatoria.</strong> Todo lo demás va en <code>Suggests</code>, y cada uso tiene que tener su rama de ausencia declarada: si el paquete opcional no está, el diagnóstico va a <code>cobertura_diagnosticos</code> con su motivo y su <code>como_resolverlo</code>, no falla ni se saltea en silencio.</p>
-<p>El mínimo de R declarado es 3.6.0. Conviene tenerlo presente: funciones posteriores a esa versión no se pueden usar sin más.</p>
+<p><strong>Las obligatorias son <code>cli</code> y <code>data.table</code></strong> (esta se llama siempre con <code>data.table::</code>, sin importarla al <code>NAMESPACE</code>). Todo lo demás va en <code>Suggests</code>, y cada uso tiene que tener su rama de ausencia declarada: si el paquete opcional no está, el diagnóstico va a <code>cobertura_diagnosticos</code> con su motivo y su <code>como_resolverlo</code>, no falla ni se saltea en silencio.</p>
+<p>El mínimo de R declarado es 4.2.0. Conviene tenerlo presente: funciones posteriores a esa versión no se pueden usar sin más.</p>
 </div>
 <div class="section level2">
 <h2 id="antes-de-abrir-el-pull-request">Antes de abrir el pull request<a class="anchor" aria-label="anchor" href="#antes-de-abrir-el-pull-request"></a></h2>
@@ -106,6 +106,89 @@
 <p><strong>El orden importa y la forma de correr los tests también.</strong> <code>test_dir()</code> y <code>test_file()</code> cargan el paquete con <code><a href="https://github.com/sebollin/lupa" class="external-link">library(lupa)</a></code>, que <strong>no expone las funciones internas</strong>: la mitad de la suite prueba funciones con punto inicial y da veinte errores falsos de «could not find function». <code>test_check("lupa")</code> es lo que corre <code>R CMD check</code>, y necesita el paquete instalado, por eso el <code>R CMD INSTALL</code> va antes. Si vas a comparar contra cifras publicadas, comprobá además el sello <code>Built</code> de la instalación que estás midiendo: apuntar <code>R_LIBS</code> a un directorio vacío cae en silencio a la biblioteca del usuario y termina midiendo otra versión.</p>
 <p><code>spelling</code> usa <code>inst/WORDLIST</code>, que <strong>tiene que dejar la corrida en cero</strong>. Las palabras que hay ahí son nombres propios, siglas, términos técnicos y fragmentos de identificadores del paquete; si tu cambio agrega una palabra legítima nueva, agregala al archivo ordenado. Si agrega una que no es legítima, es una errata.</p>
 <p><code>lintr</code> está configurado en <code>.lintr</code> con los linters que el código ya cumple, así que <strong>tiene que dar cero avisos</strong>. Los que quedan afuera están anotados ahí con su motivo; si te parece que alguno debería entrar, es una conversación aparte del cambio que estés enviando.</p>
+</div>
+<div class="section level2">
+<h2 id="cómo-se-escribe-la-documentación">Cómo se escribe la documentación<a class="anchor" aria-label="anchor" href="#c%C3%B3mo-se-escribe-la-documentaci%C3%B3n"></a></h2>
+<p>Vale para todo lo que se publica: los 2 README, las viñetas, los artículos y la ayuda. Se escribe para que se lea rápido sin perder precisión.</p>
+<div class="section level3">
+<h3 id="voz">Voz<a class="anchor" aria-label="anchor" href="#voz"></a></h3>
+<ul><li>
+<strong>Viñetas:</strong> primera persona del plural («perfilamos la tabla», «veamos qué encontró»). <code>lupa</code> va en tercera persona: el paquete sugiere y quien decide es «nosotros».</li>
+<li>
+<strong>README, artículos y ayuda:</strong> impersonal («se instala», «devuelve»). Nunca voseo, tuteo ni usted.</li>
+<li>
+<strong>Inglés</strong> (<code>README.Rmd</code>): «we» en lo que sea recorrido e impersonal en lo demás, con el mismo contenido y el mismo orden que el castellano.</li>
+<li>Tildes completas en castellano.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="frases-párrafos-y-títulos">Frases, párrafos y títulos<a class="anchor" aria-label="anchor" href="#frases-p%C3%A1rrafos-y-t%C3%ADtulos"></a></h3>
+<ul><li>Frases de hasta unas 20 palabras. Un párrafo, una idea.</li>
+<li>Lo que enumera 3 o más cosas paralelas va en una lista, no en un párrafo. Para comparar opciones o campos, una tabla.</li>
+<li>Los títulos dicen lo que hay debajo.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="cifras">Cifras<a class="anchor" aria-label="anchor" href="#cifras"></a></h3>
+<ul><li>Las cantidades van en dígitos: «3 severidades», «2 filas». Quedan en letras:
+<ul><li>«uno» y «una» cuando son artículo o parte de una locución («una columna», «de una vez», «en una sola llamada»);</li>
+<li>los ordinales («la primera llamada»);</li>
+<li>«cero» cuando nombra la idea y no un conteo («nunca cuenta como cero»).</li>
+</ul></li>
+<li>Ninguna oración empieza con un dígito: se reordena («Hay 3…», «Las 3…»).</li>
+<li>La unidad va separada por un espacio, también en inglés: <code>30 s</code>, no <code>30s</code>, <code>30 sec</code> ni <code>30''</code>. En castellano, el porcentaje también: <code>70 %</code>.</li>
+<li>Los nombres conservan su forma: los títulos de las guías, las versiones, <code>ISO/IEC 25012</code>. Los valores literales de los datos no se tocan (<code>-99</code>, <code>"S/D"</code>).</li>
+<li>Un recuento que el paquete calcula (tipos de hallazgo, factores de un marco, campos) sale de código en línea, nunca escrito a mano.</li>
+<li>Una cifra de medición (tiempos, consultas, tasas) dice su unidad, su insumo, su entorno, su fecha y el guion que la produce. Sólo se publica si ese guion corrió sobre el código que se publica.</li>
+<li>Un insumo descargado lleva su fuente, su fecha y su suma de control.</li>
+<li>Una cifra ilustrativa se genera en el documento o se borra.</li>
+<li>Una constante del código que la documentación cita es una cifra publicada: se cita como supuesto del código.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="emojis">Emojis<a class="anchor" aria-label="anchor" href="#emojis"></a></h3>
+<p>Hay un juego chico y fijo, y no se agregan otros:</p>
+<ul><li><p>🔎 exploración: qué hace algo, qué trae un hallazgo;</p></li>
+<li><p>⏱ tiempo y rapidez;</p></li>
+<li><p>🗄️ tablas y bases de datos;</p></li>
+<li><p>⚠️ un límite o una advertencia;</p></li>
+<li><p>📄 el informe;</p></li>
+<li><p>🧭 el recorrido y el paso siguiente.</p></li>
+<li><p>Van siempre junto a una palabra, al principio de unos pocos títulos de sección. Nunca solos, ni en medio de un párrafo, ni en código.</p></li>
+<li><p>Nunca en el título del documento: ni en <code>title</code>, ni en <code>VignetteIndexEntry</code>, ni en <code>DESCRIPTION</code>.</p></li>
+<li><p><code>ok</code> no lleva una marca de aprobación: la documentación dice que <code>ok</code> no es una aprobación, y un tilde verde diría lo contrario.</p></li>
+<li><p>Un título con emoji lleva su ancla explícita (<code>## ⚠️ Lo que no se pudo evaluar {#lo-que-no-se-pudo-evaluar}</code>). Si un título cambia, su ancla vieja se fija igual, para que los enlaces que apuntaban ahí sigan llegando.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="lo-que-no-aparece">Lo que no aparece<a class="anchor" aria-label="anchor" href="#lo-que-no-aparece"></a></h3>
+<ul><li>Nada que cuente cómo se desarrolló el paquete. Ni «antes», «ya no», «se corrigió» o «una versión anterior», ni el proceso que llevó a un cambio: se describe lo que hace hoy.</li>
+<li>Ningún organismo, institución o ciudad que identifique a quien publicó un conjunto de datos real. Sí se nombran los marcos publicados que el paquete implementa (ISO/IEC 25012, CEPAL, AGESIC).</li>
+<li>La protección de datos personales es un complemento: se explica donde corresponde, nunca en el centro.</li>
+<li>La palabra «piso», que tiene 2 sentidos: se dice qué hace en cada caso.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="una-viñeta">Una viñeta<a class="anchor" aria-label="anchor" href="#una-vi%C3%B1eta"></a></h3>
+<ol style="list-style-type: decimal"><li>Título numerado («3. Explorar columnas con <code><a href="reference/analizar.html">analizar()</a></code>»).</li>
+<li>La pregunta del lector, en 1 o 2 oraciones.</li>
+<li>Un recuadro «En esta guía:» con 3 a 5 puntos, en la voz «nosotros».</li>
+<li>Un solo caso que hila el relato, con datos del paquete (<code>datos_operativos</code>, <code>datos_administrativos</code>) o construidos en el fragmento.</li>
+<li>A lo sumo unas 25 líneas de prosa antes del primer bloque de código.</li>
+<li>Cierre con <code>## Resumen</code> (5 puntos como mucho) y <code>## 🧭 Paso siguiente</code> (un enlace).</li>
+</ol></div>
+<div class="section level3">
+<h3 id="código-y-salidas">Código y salidas<a class="anchor" aria-label="anchor" href="#c%C3%B3digo-y-salidas"></a></h3>
+<ul><li>Opciones de knitr: <code>collapse = TRUE, comment = "#&gt;"</code>, y <code>options(width = 90)</code> al principio, restaurado al final.</li>
+<li>Ninguna salida pasa de 100 caracteres de ancho: las evidencias largas se muestran con <code>writeLines(strwrap(x, 88))</code> o seleccionando columnas.</li>
+<li>Se usan los accesores (<code><a href="reference/accesores_perfil.html">hallazgos()</a></code>, <code><a href="reference/accesores_perfil.html">columnas()</a></code>, <code><a href="reference/accesores_perfil.html">cobertura()</a></code>), no el acceso con <code>$</code> cuando hay accesor.</li>
+<li>Las comprobaciones (<code><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot()</a></code>) van en fragmentos con <code>echo = FALSE</code>.</li>
+<li>Ninguna salida muestra la fecha o la hora de la compilación, rutas temporales ni tamaños de memoria.</li>
+<li>Las viñetas no usan red ni motores externos (SQLite y DuckDB en memoria sí). Los artículos pueden mostrar código con <code>eval = FALSE</code> y una salida guardada, siempre con su fuente.</li>
+<li>Las viñetas de <code>vignettes/</code> viajan en el paquete que se envía a CRAN, que las construye en cada chequeo. Un cambio de redacción no puede alargar su construcción.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="enlaces">Enlaces<a class="anchor" aria-label="anchor" href="#enlaces"></a></h3>
+<ul><li>Entre viñetas, relativos: <code>[2. Leer un perfil](leer-un-perfil.html)</code>.</li>
+<li>A los artículos, absolutos: <code>https://sebollin.github.io/lupa/articles/&lt;nombre&gt;.html</code>.</li>
+<li>A funciones, con el nombre entre comillas invertidas (<code>`perfilar()`</code>): pkgdown los enlaza solo.</li>
+<li>El glosario de <code>leer-un-perfil.Rmd</code> (<code>leer-un-perfil.html#glosario</code>) define las palabras del paquete, y las demás piezas enlazan ahí. Son, entre otras: alcance, universo, cobertura, vacío por diseño, centinela, severidad, perfil, marco, métrica, plan, granularidad, entidad, atributo e instancia.</li>
+</ul></div>
 </div>
 <div class="section level2">
 <h2 id="una-convención-chica-que-importa">Una convención chica que importa<a class="anchor" aria-label="anchor" href="#una-convenci%C3%B3n-chica-que-importa"></a></h2>

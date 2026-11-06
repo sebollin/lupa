@@ -85,20 +85,20 @@
 
     
     
-<p>Ya tenemos un perfil. ¿Qué quiere decir cada fila de
-<code>hallazgos(perfil)</code>, cuándo un <code>ok</code> es una buena
-noticia, y qué hacemos con una clave que no se cumple?</p>
+<p>Ya tenemos un perfil. ¿Qué significa cada fila de
+<code>hallazgos(perfil)</code>? ¿Cuándo un <code>ok</code> es una buena
+noticia? ¿Qué hacemos con una clave que no se cumple?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
-<li>qué significan las tres severidades y por qué sólo
-<code>error</code> puede frenar un proceso;</li>
+<li>qué significan las 3 severidades y por qué sólo <code>error</code>
+puede frenar un proceso;</li>
 <li>qué trae cada hallazgo: evidencia, sugerencia, conteos y
 trazabilidad;</li>
 <li>cómo leer cualquier perfil con los mismos accesores;</li>
 <li>cómo se declara y se comprueba una clave;</li>
-<li>cómo encontrar filas donde dos columnas que dicen lo mismo se
-contradicen.</li>
+<li>cómo encontrar filas donde se contradicen columnas que dicen lo
+mismo.</li>
 </ul>
 <p>Al final hay un glosario con las palabras del paquete.</p>
 </blockquote>
@@ -118,12 +118,12 @@ contradicen.</li>
 retomamos al hablar de claves.</p>
 </div>
 <div class="section level2">
-<h2 id="tres-severidades">Tres severidades<a class="anchor" aria-label="anchor" href="#tres-severidades"></a>
+<h2 id="tres-severidades">Las 3 severidades<a class="anchor" aria-label="anchor" href="#tres-severidades"></a>
 </h2>
 <p><code>severidad</code> es un factor ordenado,
-<code>ok &lt; sospechoso &lt; error</code>, así que se puede contar y
-comparar: <code>h$severidad &gt;= "sospechoso"</code> deja los hallazgos
-que piden atención.</p>
+<code>ok &lt; sospechoso &lt; error</code>: se puede contar y comparar.
+<code>h$severidad &gt;= "sospechoso"</code> deja los hallazgos que piden
+atención.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">h</span><span class="op">$</span><span class="va">severidad</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "ok"         "sospechoso" "error"</span></span>
@@ -133,7 +133,6 @@ que piden atención.</p>
 <span><span class="co">#&gt;          6         11          6</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">severidad</span> <span class="op">&gt;=</span> <span class="st">"sospechoso"</span>, <span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 17</span></span></code></pre></div>
-<p>Cada nivel dice una cosa distinta:</p>
 <ul>
 <li>
 <strong><code>ok</code></strong> registra una lectura informativa o
@@ -141,8 +140,8 @@ una condición aceptable. No es un defecto, y tampoco es una
 aprobación.</li>
 <li>
 <strong><code>sospechoso</code></strong> es evidencia que merece
-revisión. Es heurística o necesita conocer el dominio, y no alcanza por
-sí sola para rechazar, reparar ni suprimir datos.</li>
+revisión. Es heurística o necesita conocer el dominio. Por sí sola no
+alcanza para rechazar, reparar ni suprimir datos.</li>
 <li>
 <strong><code>error</code></strong> afirma que un control cruzó su
 criterio declarado.</li>
@@ -158,12 +157,18 @@ buenas noticias:</p>
 <span><span class="co">#&gt; 17 codigo_usuario casi_duplicados_vocabulario           0</span></span>
 <span><span class="co">#&gt; 18   fecha_evento casi_duplicados_vocabulario           0</span></span>
 <span><span class="co">#&gt; 23       contacto       dato_personal_posible           1</span></span></code></pre></div>
-<p><code>posible_identificador</code> dice que una columna tiene forma
-de identificador o de código; <code>dato_personal_posible</code>, que
-parece contener datos personales;
-<code>casi_duplicados_vocabulario</code> con cero afectados, que se
-buscaron variantes de escritura y no se formó ningún grupo.</p>
-<p>El mismo tipo de hallazgo puede tener dos severidades. Los ausentes
+<ul>
+<li>
+<code>posible_identificador</code>: la columna tiene forma de
+identificador o de código.</li>
+<li>
+<code>dato_personal_posible</code>: parece contener datos
+personales.</li>
+<li>
+<code>casi_duplicados_vocabulario</code> con 0 afectados: se
+buscaron variantes de escritura y no se formó ningún grupo.</li>
+</ul>
+<p>El mismo tipo de hallazgo puede salir con 2 severidades. Los ausentes
 disfrazados de texto son <code>error</code>; el de <code>monto</code>,
 <code>sospechoso</code>:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
@@ -175,18 +180,18 @@ disfrazados de texto son <code>error</code>; el de <code>monto</code>,
 <span><span class="co">#&gt; 12          monto sospechoso               -99 (1)</span></span></code></pre></div>
 <p><code>"S/D"</code>, <code>"NULL"</code> y la celda vacía son marcas
 de ausencia sin ambigüedad. El <code>-99</code> está en la lista de
-centinelas numéricos que <code>lupa</code> usa por omisión, pero en otra
-columna podría ser un dato real: es una conjetura del paquete. Si
-nosotros lo declaramos en <code>sentinelas_numericos</code>, la
-conjetura pasa a criterio y la severidad sube.</p>
+centinelas numéricos que <code>lupa</code> usa por omisión. Pero en otra
+columna podría ser un dato real: es una conjetura del paquete. Si lo
+declaramos en <code>sentinelas_numericos</code>, la conjetura pasa a
+criterio y la severidad sube.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">declarado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">[</span><span class="st">"monto"</span><span class="op">]</span>, sentinelas_numericos <span class="op">=</span> <span class="op">-</span><span class="fl">99</span><span class="op">)</span></span>
 <span><span class="va">hd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span></span>
 <span><span class="va">hd</span><span class="op">[</span><span class="va">hd</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes_disfrazados"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"evidencia"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;   columna severidad evidencia</span></span>
 <span><span class="co">#&gt; 1   monto     error   -99 (1)</span></span></code></pre></div>
-<p>Declararlo tiene además consecuencias en los números: el
-<code>-99</code> sale del resumen.</p>
+<p>Declararlo cambia además los números: el <code>-99</code> sale del
+resumen.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">resumen</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"minimo"</span>, <span class="st">"mediana"</span>, <span class="st">"n_valores_excluidos_resumen"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
@@ -197,16 +202,16 @@ conjetura pasa a criterio y la severidad sube.</p>
 <span><span class="co">#&gt; por_omision    -99    1490                           0</span></span>
 <span><span class="co">#&gt; declarado      -50    1545                           1</span></span></code></pre></div>
 <div class="section level3">
-<h3 id="por-qué-sólo-error-frena">Por qué sólo <code>error</code> frena<a class="anchor" aria-label="anchor" href="#por-qu%C3%A9-s%C3%B3lo-error-frena"></a>
+<h3 id="por-qué-sólo-error-frena">⚠️ Por qué sólo <code>error</code> frena<a class="anchor" aria-label="anchor" href="#por-qu%C3%A9-s%C3%B3lo-error-frena"></a>
 </h3>
-<p>De los tres niveles, <code>error</code> es el único candidato para
-alimentar una barrera automática —un proceso que rechaza una entrega—, y
-sólo después de que aceptemos su criterio y verifiquemos su alcance. Un
-<code>sospechoso</code> pide una persona que mire.</p>
+<p>De los 3 niveles, <code>error</code> es el único candidato para
+alimentar una barrera automática, un proceso que rechaza una entrega. Lo
+es sólo después de que aceptemos su criterio y verifiquemos su alcance.
+Un <code>sospechoso</code> pide una persona que mire.</p>
 <p>Pero buscar errores no alcanza. Lo que no se pudo evaluar queda fuera
-de la escala, en <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>, y un guion que decide solo
-tiene que mirar las dos cosas: cero errores con diagnósticos sin
-ejecutar no es un perfil limpio.</p>
+de la escala, en <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>. Un guion que decide solo
+tiene que mirar las 2 cosas: cero errores con diagnósticos sin ejecutar
+no es un perfil limpio.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>errores <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">h</span><span class="op">$</span><span class="va">severidad</span> <span class="op">==</span> <span class="st">"error"</span><span class="op">)</span>, no_evaluados <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;      errores no_evaluados </span></span>
@@ -214,7 +219,7 @@ ejecutar no es un perfil limpio.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="qué-trae-cada-hallazgo">Qué trae cada hallazgo<a class="anchor" aria-label="anchor" href="#qu%C3%A9-trae-cada-hallazgo"></a>
+<h2 id="qué-trae-cada-hallazgo">🔎 Qué trae cada hallazgo<a class="anchor" aria-label="anchor" href="#qu%C3%A9-trae-cada-hallazgo"></a>
 </h2>
 <p>Cada fila de <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> tiene los mismos campos.</p>
 <table class="table">
@@ -262,7 +267,7 @@ entera</td>
 </tr>
 <tr class="even">
 <td><code>unidad_conteo</code></td>
-<td>en qué se cuentan las dos anteriores: filas, columnas, formatos,
+<td>en qué se cuentan las 2 anteriores: filas, columnas, formatos,
 valores distintos</td>
 </tr>
 <tr class="odd">
@@ -281,8 +286,8 @@ sus valores</td>
 <p>El vocabulario completo de <code>tipo_hallazgo</code>, con lo que
 mide cada uno, está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
 y cobertura</a>.</p>
-<p>Veamos uno entero: las mayúsculas de <code>canal</code>. Los textos
-largos se leen mejor fuera de la tabla.</p>
+<p>Veamos uno entero: las mayúsculas de <code>canal</code>, con los
+textos largos fuera de la tabla.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mayus</span> <span class="op">&lt;-</span> <span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"mayusculas_inconsistentes"</span>, <span class="op">]</span></span>
 <span><span class="kw">for</span> <span class="op">(</span><span class="va">campo</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"descripcion"</span>, <span class="st">"evidencia"</span>, <span class="st">"sugerencia"</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
@@ -297,52 +302,67 @@ largos se leen mejor fuera de la tabla.</p>
 <span><span class="va">mayus</span><span class="op">$</span><span class="va">trazabilidad</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">claves</span><span class="op">$</span><span class="va">id_evento</span></span>
 <span><span class="co">#&gt; [1] "EVT003" "EVT001" "EVT006" "EVT010" "EVT012" "EVT001"</span></span></code></pre></div>
 <p>La unidad importa. <code>n_afectados</code> cuenta valores distintos:
-<code>"web"</code> y <code>"Web"</code>, dos de los 8 que tiene la
-columna. La trazabilidad, en cambio, enumera filas, y todas las que
-contienen esos valores: <code>lupa</code> no sabe cuál de las dos formas
-es la correcta. Por eso la traza tiene 6 filas, primero la variante y
-después la forma más frecuente.</p>
+<code>"web"</code> y <code>"Web"</code>, 2 de los 8 que tiene la
+columna. La trazabilidad, en cambio, enumera todas las filas que
+contienen esos valores, porque <code>lupa</code> no sabe cuál de las 2
+formas es la correcta. Por eso la traza tiene 6 filas: primero la
+variante y después la forma más frecuente.</p>
 <div class="section level3">
 <h3 id="alta-cardinalidad">Alta cardinalidad<a class="anchor" aria-label="anchor" href="#alta-cardinalidad"></a>
 </h3>
-<p><code>alta_cardinalidad</code> aparece tres veces en este perfil:</p>
+<p><code>alta_cardinalidad</code> aparece en estas columnas del
+perfil:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"alta_cardinalidad"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"evidencia"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;           columna  severidad                        evidencia</span></span>
 <span><span class="co">#&gt; 2  codigo_usuario sospechoso Tasa de valores distintos: 0.846</span></span>
 <span><span class="co">#&gt; 4    fecha_evento sospechoso Tasa de valores distintos: 0.923</span></span>
 <span><span class="co">#&gt; 14       contacto sospechoso Tasa de valores distintos: 0.923</span></span></code></pre></div>
-<p>Una columna de texto con muchos valores distintos (por omisión, más
-de la mitad: <code>umbral_alta_cardinalidad</code>) admite tres
-lecturas: es texto libre, es un identificador o es una categoría mal
-normalizada. El hallazgo no afirma que sea un defecto; las ofrece para
-que decida quien conoce la columna. En este perfil, ninguna de las tres
-columnas tiene un problema de cardinalidad: <code>codigo_usuario</code>
-es un identificador, <code>fecha_evento</code> son fechas guardadas como
-texto y <code>contacto</code> son correos. Lo sabemos porque conocemos
-las columnas; los datos solos no lo dicen. Por eso se informa siempre:
-el largo de los valores no distingue un catálogo de un texto libre.</p>
-<p>La columna <code>contacto</code> parece contener correos, y el perfil
-lo dice (<code>dato_personal_posible</code>). Su evidencia sale entera:
-enmascarar los posibles datos personales es un complemento que se pide
-con <code>proteger_datos_personales = TRUE</code>, y con él esa
-evidencia saldría como <code>[evidencia protegida]</code>. Publicar o no
-los valores de una base es decisión de quien la usa. Qué se enmascara y
-con qué alcance está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
+<p>Una columna de texto con muchos valores distintos admite 3 lecturas:
+texto libre, identificador o categoría mal normalizada. «Muchos» es, por
+omisión, más de la mitad (<code>umbral_alta_cardinalidad</code>). El
+hallazgo no afirma que sea un defecto: ofrece las lecturas para que
+decida quien conoce la columna.</p>
+<p>En este perfil, ninguna de esas columnas tiene un problema de
+cardinalidad:</p>
+<ul>
+<li>
+<code>codigo_usuario</code> es un identificador;</li>
+<li>
+<code>fecha_evento</code> son fechas guardadas como texto;</li>
+<li>
+<code>contacto</code> son correos.</li>
+</ul>
+<p>Lo sabemos porque conocemos las columnas. Los datos solos no lo
+dicen: el largo de los valores no distingue un catálogo de un texto
+libre. Por eso el hallazgo se informa siempre.</p>
+<p>El perfil también señala que <code>contacto</code> parece contener
+correos (<code>dato_personal_posible</code>). Su evidencia sale entera.
+Enmascarar los posibles datos personales es un complemento que se pide
+con <code>proteger_datos_personales = TRUE</code>; con él, esa evidencia
+saldría como <code>[evidencia protegida]</code>. Publicar o no los
+valores de una base es decisión de quien la usa. Qué se enmascara y con
+qué alcance está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
 y cobertura</a>.</p>
 </div>
 </div>
 <div class="section level2">
 <h2 id="leer-cualquier-perfil">Leer cualquier perfil<a class="anchor" aria-label="anchor" href="#leer-cualquier-perfil"></a>
 </h2>
-<p><code><a href="../reference/perfilar.html">perfilar()</a></code> devuelve un perfil plano.
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve un contenedor con dos bloques, y
-<code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>, una fila por tabla. Las formas son
-distintas: <code>perfil$general$filas</code> existe en el primero y es
+<p>Cada vía de perfilado devuelve una forma distinta:</p>
+<ul>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code>, un perfil plano;</li>
+<li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>, un contenedor con 2 bloques;</li>
+<li>
+<code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>, una fila por tabla.</li>
+</ul>
+<p><code>perfil$general$filas</code> existe en el primero y es
 <code>NULL</code> en el segundo, donde el conteo vive en otro lugar. Un
 <code>NULL</code> que no avisa es la peor forma de fallar en un guion:
 lo que sigue calcula sobre nada.</p>
-<p>Los accesores le ponen un solo nombre a lo mismo, y andan igual sobre
+<p>Los accesores le ponen un solo nombre a lo mismo. Andan igual sobre
 los resultados de <code><a href="../reference/perfilar.html">perfilar()</a></code>, <code><a href="../reference/analizar.html">analizar()</a></code>,
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
@@ -361,15 +381,16 @@ los resultados de <code><a href="../reference/perfilar.html">perfilar()</a></cod
 <span><span class="co">#&gt; 4          canal         texto                   2           8</span></span></code></pre></div>
 <p><code><a href="../reference/accesores_perfil.html">columnas()</a></code> trae, además del nombre de cada columna, 117
 campos analíticos; su significado, por familias, está en
-<code><a href="../reference/perfilar.html">?perfilar</a></code>. Los accesores no inventan lo que no hay:
-<code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> lista las consultas que se enviaron al motor,
-y sobre un perfil en memoria devuelve <code>NULL</code>, porque una
-tabla vacía sugeriría que se consultó y no se encontró nada.</p>
+<code><a href="../reference/perfilar.html">?perfilar</a></code>.</p>
+<p>Los accesores no inventan lo que no hay. <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code>
+lista las consultas que se enviaron al motor. Sobre un perfil en memoria
+devuelve <code>NULL</code>, porque una tabla vacía sugeriría que se
+consultó y no se encontró nada.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p>Del mismo modo, un perfil de una base sin filas leídas devuelve una
-tabla de hallazgos vacía con su aviso. Cómo se leen los dos bloques de
+tabla de hallazgos vacía con su aviso. Cómo se leen los 2 bloques de
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> está en <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">10.
 Perfilar una base</a>.</p>
 </div>
@@ -380,13 +401,16 @@ Perfilar una base</a>.</p>
 <h3 id="declarar-y-comprobar">Declarar y comprobar<a class="anchor" aria-label="anchor" href="#declarar-y-comprobar"></a>
 </h3>
 <p><code>clave</code> dice qué columnas identifican una fila en el
-sistema de origen. Con ella, <code>lupa</code> hace dos cosas. La
-trazabilidad trae los valores de la clave, y
+sistema de origen. Con ella, <code>lupa</code> hace 2 cosas:</p>
+<ul>
+<li>la trazabilidad trae los valores de la clave, y
 <code>trazabilidad$localizador</code> dice con qué se localizó
 (<code>clave_declarada</code>, o <code>indice_fila</code> si no hay
-clave). Además comprueba dos garantías por separado y las deja en
+clave);</li>
+<li>comprueba por separado 2 garantías, que deja en
 <code>perfil$meta$clave</code>: que la clave no se repita y que no tenga
-ausentes.</p>
+ausentes.</li>
+</ul>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">clave</span><span class="op">$</span><span class="va">unicidad</span><span class="op">$</span><span class="va">estado</span></span>
 <span><span class="co">#&gt; [1] "refutada"</span></span>
@@ -404,8 +428,8 @@ ausentes.</p>
 <span><span class="co">#&gt; es otra. La trazabilidad sigue localizando por ella, pero un valor puede señalar más de</span></span>
 <span><span class="co">#&gt; una fila.</span></span></code></pre></div>
 <p><code>clave_no_unica</code> es un <code>error</code> con las filas
-que repiten. Acá las dos filas con <code>EVT001</code> son la misma fila
-cargada dos veces; la sugerencia enumera las otras causas posibles.</p>
+que repiten. Acá las 2 filas con <code>EVT001</code> son la misma fila
+cargada 2 veces; la sugerencia enumera las otras causas posibles.</p>
 <p><code>id_registro</code> también parece una clave, y su repetición es
 de otra clase. Declarada como clave, <code>clave_no_unica</code> señala
 más filas que <code>filas_duplicadas</code>:</p>
@@ -425,18 +449,18 @@ más filas que <code>filas_duplicadas</code>:</p>
 <span><span class="co">#&gt;    id_registro monto id_evento</span></span>
 <span><span class="co">#&gt; 10          10  1700    EVT010</span></span>
 <span><span class="co">#&gt; 11          10   -50    EVT012</span></span></code></pre></div>
-<p>Las filas 1 y 12 son copias exactas, y las dos señales las cuentan.
-Las dos filas con <code>id_registro</code> 10, en cambio, no son copias:
-dicen montos distintos para el mismo registro. Sólo la clave declarada
-las muestra.</p>
+<p>Las filas 1 y 12 son copias exactas, y las 2 señales las cuentan. Las
+2 filas con <code>id_registro</code> 10, en cambio, no son copias: dicen
+montos distintos para el mismo registro. Sólo la clave declarada las
+muestra.</p>
 </div>
 <div class="section level3">
 <h3 id="ausentes-en-la-clave">Ausentes en la clave<a class="anchor" aria-label="anchor" href="#ausentes-en-la-clave"></a>
 </h3>
 <p>Que una clave no se repita y que no tenga ausentes son preguntas
-distintas. La unicidad se mira sólo entre las filas con la clave
-completa, porque en una base de datos dos ausentes (<code>NULL</code>)
-no son iguales entre sí; los ausentes van a otro hallazgo,
+distintas. En una base de datos, 2 ausentes (<code>NULL</code>) no son
+iguales entre sí. Por eso la unicidad se mira sólo entre las filas con
+la clave completa, y los ausentes van a otro hallazgo,
 <code>clave_con_ausentes</code>.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tramites</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -453,9 +477,9 @@ no son iguales entre sí; los ausentes van a otro hallazgo,
 <span><span class="co">#&gt; [1] "verificada"</span></span>
 <span><span class="va">p_tramites</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">clave</span><span class="op">$</span><span class="va">ausencia_nulos</span><span class="op">$</span><span class="va">estado</span></span>
 <span><span class="co">#&gt; [1] "refutada"</span></span></code></pre></div>
-<p>Entre las tres filas completas la clave no se repite
-(<code>verificada</code>), y aun así no cumple <code>NOT NULL</code>
-(<code>refutada</code>): dos filas no tienen clave.
+<p>Entre las 3 filas completas la clave no se repite
+(<code>verificada</code>). Aun así, no cumple <code>NOT NULL</code>
+(<code>refutada</code>), porque 2 filas no tienen clave.
 <code><a href="../reference/perfilar.html">perfilar()</a></code> lo avisa además con una advertencia, que acá no
 mostramos.</p>
 <p>Si ninguna fila tiene la clave completa, no hay nada que comparar.
@@ -470,9 +494,12 @@ engañoso: por eso ese caso tiene su propio estado.</p>
 <h3 id="sugerir-y-elegir-una-clave">Sugerir y elegir una clave<a class="anchor" aria-label="anchor" href="#sugerir-y-elegir-una-clave"></a>
 </h3>
 <p>Si no sabemos cuál es la clave, <code><a href="../reference/sugerir_clave.html">sugerir_clave()</a></code> ordena
-las columnas candidatas por tres señales que publica por separado: si la
-columna identifica cada fila, si no tiene ausentes y cuánto se parece su
-nombre al de una clave.</p>
+las columnas candidatas por 3 señales, que publica por separado:</p>
+<ul>
+<li>si la columna identifica cada fila;</li>
+<li>si no tiene ausentes;</li>
+<li>cuánto se parece su nombre al de una clave.</li>
+</ul>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/sugerir_clave.html">sugerir_clave</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span>
@@ -486,26 +513,27 @@ nombre al de una clave.</p>
 <span><span class="co">#&gt; 4     contacto      FALSE          TRUE      0.9230769               0</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">candidatas</span><span class="op">$</span><span class="va">motivo</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; no identifica: 92.3% de valores distintos, el resto repite; su nombre es el de una clave</span></span></code></pre></div>
-<p>Con la fila duplicada, ninguna columna identifica las 13 filas, y
-ninguna llega al 95 % de valores distintos que pide
-<code>umbral_casi</code> por omisión: la primera llamada no devuelve
-nada. Con un umbral menor aparecen las que casi identifican, que suelen
-ser claves con duplicados de carga. <code>id_evento</code> va primera
-por su nombre. <code>monto</code> también aparece: un importe que casi
-no se repite. Ordenar no es decidir; esa diferencia no está en los
-datos.</p>
+<p>Con la fila duplicada, ninguna columna identifica las 13 filas.
+Ninguna llega tampoco al 95 % de valores distintos que pide
+<code>umbral_casi</code> por omisión, así que la primera llamada no
+devuelve nada. Con un umbral menor aparecen las que casi identifican,
+que suelen ser claves con duplicados de carga. <code>id_evento</code> va
+primera por su nombre. <code>monto</code> también aparece: un importe
+que casi no se repite. Ordenar no es decidir; esa diferencia no está en
+los datos.</p>
 <p><code><a href="../reference/elegir_clave.html">elegir_clave()</a></code> muestra esas candidatas numeradas, con su
-motivo, y una opción para escribir otra (o varias separadas por coma,
-para una clave compuesta). Si un nombre real contiene una coma, esa
-escritura es ambigua: pasar un vector de nombres directamente a
-<code>clave</code>, por ejemplo <code>clave = c("a,b")</code>. Devuelve
-la elegida, lista para <code><a href="../reference/perfilar.html">perfilar()</a></code>:</p>
+motivo. Ofrece además escribir otra, o varias separadas por coma para
+una clave compuesta. Si un nombre real contiene una coma, esa escritura
+es ambigua: conviene pasar el vector de nombres directamente a
+<code>clave</code>, por ejemplo <code>clave = c("a,b")</code>.
+<code><a href="../reference/elegir_clave.html">elegir_clave()</a></code> devuelve la elegida, lista para
+<code><a href="../reference/perfilar.html">perfilar()</a></code>:</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">clave</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/elegir_clave.html">elegir_clave</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="va">clave</span><span class="op">)</span></span></code></pre></div>
 <p>En un guion que corre solo no pregunta: devuelve <code>NULL</code> y
 avisa qué habría ofrecido. En una base de datos, la clave primaria
-declarada en el catálogo del motor se lee en vez de sugerirse; qué
+declarada en el catálogo del motor se lee en vez de sugerirse. Qué
 garantiza cada motor está en el artículo <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html">Motores
 y escala</a>.</p>
 </div>
@@ -515,13 +543,13 @@ y escala</a>.</p>
 </h2>
 <p>A veces cada columna está bien y la fila se contradice. El año de la
 fecha de ingreso, el año fiscal y el año del archivo pueden ser
-plausibles cada uno por su cuenta y no coincidir entre sí. Ninguna
-columna sola lo muestra, así que el perfil no lo ve.</p>
-<p>El grupo lo declaramos nosotros con <code><a href="../reference/senal_redundante.html">senal_redundante()</a></code>;
-<code>lupa</code> no lo adivina, porque dos columnas de año pueden ser
-el de nacimiento y el de ingreso, y no tienen por qué coincidir.
+plausibles por separado y no coincidir. Ninguna columna sola lo muestra,
+así que el perfil no lo ve.</p>
+<p>El grupo lo declaramos nosotros con <code><a href="../reference/senal_redundante.html">senal_redundante()</a></code>.
+<code>lupa</code> no lo adivina: 2 columnas de año pueden ser el de
+nacimiento y el de ingreso, y no tienen por qué coincidir.
 <code>transformacion</code> lleva la fecha a su año para compararla con
-las otras dos.</p>
+las otras 2.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">expedientes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  expediente <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"EXP-%02d"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">6</span><span class="op">)</span>,</span>
@@ -544,12 +572,11 @@ las otras dos.</p>
 <span><span class="co">#&gt; fila 4: fecha_ingreso=2023; anio_fiscal=2024; anio_archivo=2023; universo: 5 de 6 filas</span></span>
 <span><span class="co">#&gt; con todas las columnas presentes</span></span></code></pre></div>
 <p>La fila 4 entró el 30 de diciembre de 2023, figura en el año fiscal
-2024 y se archivó en 2023. La fila 6 no tiene fecha: no se cuenta ni
-como discordante ni como concordante, y sale del universo evaluado
+2024 y se archivó en 2023. La fila 6 no tiene fecha: no cuenta como
+discordante ni como concordante, y sale del universo evaluado
 (<code>n_evaluadas</code>). Ausencia no es desacuerdo. Para tolerar
 diferencias, <code>ventana</code> fija cuánto pueden separarse los
-valores numéricos (con años, <code>ventana = 1</code> acepta un
-año).</p>
+valores numéricos (con años, <code>ventana = 1</code> acepta 1 año).</p>
 </div>
 <div class="section level2">
 <h2 id="glosario">Glosario<a class="anchor" aria-label="anchor" href="#glosario"></a>
@@ -560,8 +587,8 @@ alfabético.</p>
 <li>
 <strong>alcance</strong>: sobre qué filas y con qué método se
 calculó una cifra. En memoria, <code><a href="../reference/perfilar.html">perfilar()</a></code> cuenta ausentes,
-distintos y duplicados sobre todas las filas, e infiere patrones, tipos,
-formatos de fecha y dependencias sobre una muestra de hasta 100.000
+distintos y duplicados sobre todas las filas. Patrones, tipos, formatos
+de fecha y dependencias los infiere sobre una muestra de hasta 100.000
 filas (<code>muestra</code>).</li>
 <li>
 <strong><code>alta_cardinalidad</code></strong>: hallazgo
@@ -576,14 +603,14 @@ En la API se escriben <code>sentinelas_*</code>
 que trae el paquete por omisión se informan; los que declaramos, además,
 salen del resumen numérico.</li>
 <li>
-<strong>cobertura</strong>: tiene dos sentidos. La <em>cobertura de
+<strong>cobertura</strong>: tiene 2 sentidos. La <em>cobertura de
 diagnósticos</em> (<code>cobertura(perfil)</code>) lista los controles
 que no se pudieron ejecutar, con su motivo. La <em>cobertura de un
 marco</em> (<code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code>) dice qué factores del
 marco quedaron medidos, sin declarar o fuera de alcance.</li>
 <li>
-<strong>dimensión y factor</strong>: los dos niveles de un marco.
-Por ejemplo, la dimensión Exactitud agrupa el factor Correctitud
+<strong>dimensión y factor</strong>: los 2 niveles de un marco. Por
+ejemplo, la dimensión Exactitud agrupa el factor Correctitud
 sintáctica.</li>
 <li>
 <strong>entidad, atributo, instancia</strong>: el vocabulario de los
@@ -640,8 +667,8 @@ copia, y deja un registro.</li>
 <code>sospechoso</code> (merece revisión) o <code>error</code> (cruzó un
 criterio declarado), en ese orden.</li>
 <li>
-<strong>universo</strong>: tiene dos sentidos. El <em>universo de
-una columna</em> son las filas donde corresponde que tenga valor: por
+<strong>universo</strong>: tiene 2 sentidos. El <em>universo de una
+columna</em> son las filas donde corresponde que tenga valor: por
 omisión todas, y se recorta con <code>aplicabilidad</code>. En
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>, el argumento <code>universo</code> dice
 sobre qué filas del motor se calculan los agregados SQL:
@@ -649,7 +676,7 @@ sobre qué filas del motor se calculan los agregados SQL:
 <code>"muestra_motor"</code>.</li>
 <li>
 <strong>vacío por diseño</strong>: una celda vacía que es correcta,
-porque la columna no corresponde a esa fila: quien no tiene auto no
+porque la columna no corresponde a esa fila. Quien no tiene auto no
 tiene marca de auto. Se declara; lo explica <a href="vacio-por-diseno.html">5. El vacío por diseño</a>.</li>
 </ul>
 <p>La tabla que traduce las granularidades al vocabulario de las bases
@@ -696,7 +723,7 @@ contradicen.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p><a href="explorar-columnas.html">3. Explorar columnas con
 <code>analizar()</code></a> (<code><a href="../articles/explorar-columnas.html">vignette("explorar-columnas")</a></code>)

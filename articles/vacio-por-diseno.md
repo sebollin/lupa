@@ -1,8 +1,8 @@
 # 5. El vacío por diseño
 
 ¿Por qué un perfil puede decir que falta la mayor parte de una columna
-que está completa en todas las filas donde corresponde? Porque nadie le
-dijo al paquete dónde corresponde.
+completa donde corresponde? Porque nadie le dijo al paquete dónde
+corresponde.
 
 > **En esta guía:**
 >
@@ -15,10 +15,10 @@ dijo al paquete dónde corresponde.
 
 ## Qué pasa si no se declara nada
 
-Empezamos por el caso mínimo. Para que el vacío por diseño se vea entero
-usamos una encuesta construida acá, con una columna que sólo corresponde
-a parte de las filas; `datos_operativos` no tiene ninguna. Pregunta si
-la persona tiene auto y, sólo si tiene, de qué marca:
+Empezamos por el caso mínimo: una encuesta construida acá, con una
+columna que sólo corresponde a parte de las filas (`datos_operativos` no
+tiene ninguna). Pregunta si la persona tiene auto y, sólo si tiene, de
+qué marca:
 
 ``` r
 
@@ -36,10 +36,10 @@ h[h$tipo_hallazgo == "faltantes", c("columna", "severidad", "n_afectados", "n_ev
 #> 3 marca_auto     error        1400        2000
 ```
 
-Falta el 70 % de `marca_auto`, con severidad `error`, en una columna que
+Falta el 70 % de `marca_auto`, con severidad `error`. Pero la columna
 está completa en todas las filas donde corresponde que tenga valor.
 
-## Seis formas de tabla donde el vacío es la estructura
+## 6 formas de tabla donde el vacío es la estructura
 
 La encuesta no es un caso raro. En estas formas de tabla, los vacíos son
 parte del diseño:
@@ -55,25 +55,25 @@ parte del diseño:
 
 ## El supuesto que `lupa` hace
 
-Todo perfilador de datos asume una forma de tabla. `lupa` asume tres
-cosas a la vez:
+Todo perfilador de datos asume una forma de tabla. `lupa` asume 3 cosas
+a la vez:
 
 1.  una fila es un hecho sobre una entidad;
 2.  una columna es un dominio semántico;
 3.  una celda vacía debería tener un valor y no lo tiene.
 
-Las tres son razonables y ninguna es universal. La tercera es la que
-hace daño, porque una base administrativa está llena de vacíos
-legítimos: la celda que no corresponde que tenga valor. Sin declarar
-nada, `lupa` cuenta esos vacíos como ausencia y los informa como
-defecto. El conteo es correcto y la lectura es falsa.
+Las 3 son razonables y ninguna es universal. La tercera es la que hace
+daño: una base administrativa está llena de vacíos legítimos, celdas
+donde no corresponde que haya valor. Sin declarar nada, `lupa` cuenta
+esos vacíos como ausencia y los informa como defecto. El conteo es
+correcto y la lectura es falsa.
 
-## La señal que dice que hay algo para declarar
+## 🔎 La señal que dice que hay algo para declarar
 
-El arreglo, que se ve más abajo, exige saber que existe `aplicabilidad`,
-el argumento que declara en qué filas corresponde una columna. Quien no
-lo sabe recibe el informe engañoso y nada más. Por eso el mismo perfil
-trae otra fila:
+El arreglo, que se ve más abajo, exige conocer `aplicabilidad`: el
+argumento que declara en qué filas corresponde una columna. Quien no lo
+conoce recibiría sólo el informe engañoso. Por eso el mismo perfil trae
+otra fila:
 
 ``` r
 
@@ -92,32 +92,36 @@ writeLines(strwrap(estructural$sugerencia, 88))
 #> `cobertura_diagnosticos`.
 ```
 
-Severidad `ok`: no es un defecto, es una lectura de la estructura. La
-evidencia es un hecho medido sobre los datos: qué proporción de las
-filas queda explicada por el valor de la otra columna, y cuántas de las
-ausencias caen donde la regla dice que la columna no corresponde, que es
-lo que cuenta `n_afectados`. La sugerencia trae la línea exacta que
-habría que escribir. La decisión sigue siendo nuestra: el paquete no
-cambia por su cuenta el *universo* de la columna (las filas donde
-corresponde que tenga valor; ver el
-[glosario](https://sebollin.github.io/lupa/articles/leer-un-perfil.html#glosario)
-de *Leer un perfil*), y las columnas ya declaradas quedan fuera del
-examen.
+Severidad `ok`: no es un defecto, es una lectura de la estructura.
 
-La señal sale por dos caminos. Uno es el de la encuesta: **una columna
-determina la presencia de otra**, con un cumplimiento de al menos 0,99,
-y entonces se puede escribir la fórmula. El otro es el reparto: **dos o
-más columnas se turnan las filas sin pisarse** y entre todas cubren la
-tabla, que es la forma de los atributos excluyentes por subtipo. Ahí no
-hay fórmula que ofrecer, porque falta la columna que diga cuál
-corresponde, y la sugerencia es la honesta: si existe esa columna,
-`aplicabilidad`; si no existe y la ausencia es por diseño,
-`columnas_opcionales`.
+- La evidencia es un hecho medido sobre los datos. Dice qué proporción
+  de las filas queda explicada por el valor de la otra columna. Dice
+  también cuántas ausencias caen donde la regla dice que la columna no
+  corresponde: eso cuenta `n_afectados`.
+- La sugerencia trae la línea exacta que habría que escribir.
+
+La decisión sigue siendo nuestra. El *universo* de una columna son las
+filas donde corresponde que tenga valor (ver el
+[glosario](https://sebollin.github.io/lupa/articles/leer-un-perfil.html#glosario)
+de *Leer un perfil*). El paquete no lo cambia por su cuenta, y las
+columnas ya declaradas quedan fuera del examen.
+
+La señal sale por 2 caminos:
+
+- **Una columna determina la presencia de otra**, con un cumplimiento de
+  al menos 0,99. Es el caso de la encuesta, y se puede escribir la
+  fórmula.
+- **Las filas se reparten entre 2 o más columnas sin pisarse**, y entre
+  todas cubren la tabla. Es la forma de los atributos excluyentes por
+  subtipo. No hay fórmula que ofrecer, porque falta la columna que diga
+  cuál corresponde. La sugerencia es la honesta: si existe esa columna,
+  `aplicabilidad`; si no existe y la ausencia es por diseño,
+  `columnas_opcionales`.
 
 Y no dispara por cualquier cosa. Si una parte de las filas rompe el
-patrón, se calla, porque entonces la relación existe y no es una regla,
-y ofrecer una fórmula sería afirmar de más. El sorteo de abajo pone
-marca de auto a algunas personas que dicen no tener:
+patrón, se calla. La relación existe pero no es una regla, y ofrecer una
+fórmula sería afirmar de más. El sorteo de abajo pone marca de auto a
+algunas personas que dicen no tener:
 
 ``` r
 
@@ -168,9 +172,9 @@ writeLines(strwrap(
 #> `~tiene_auto == "Si"`.
 ```
 
-Cuando la ausencia nunca es defecto y no hay una regla que escribir (el
-historial con vigencia abierta es el caso típico), alcanza con
-`columnas_opcionales`:
+Cuando la ausencia nunca es defecto y no hay regla que escribir, alcanza
+con `columnas_opcionales`. El caso típico es el historial con vigencia
+abierta:
 
 ``` r
 
@@ -187,13 +191,13 @@ sum(hallazgos(opcional)$tipo_hallazgo == "faltantes")
 ```
 
 Con el 40 % de la columna vacío, el perfil suma además un aviso de
-severidad `ok`, `regla_silencia_ausencia`, que se explica al final de la
+severidad `ok`: `regla_silencia_ausencia`. Lo explicamos al final de la
 guía.
 
 ## El error simétrico
 
-Declarar el universo hace visible un diagnóstico que sin la declaración
-no puede existir: el valor que aparece donde la regla dice que no
+Declarar el universo hace visible un diagnóstico imposible sin la
+declaración: el valor que aparece donde la regla dice que no
 corresponde.
 
 ``` r
@@ -252,8 +256,8 @@ columnas(pd)[
 
 Una tabla en formato largo no es una tabla: son muchas apiladas.
 Perfilarla entera mezcla dominios que no tienen nada que ver, y el
-resultado no describe a ninguno. La tabla de abajo apila tres atributos
-de cada entidad; sus valores se sortean:
+resultado no describe a ninguno. La tabla de abajo apila 3 atributos de
+cada entidad; sus valores se sortean:
 
 ``` r
 
@@ -302,10 +306,10 @@ table(as.character(por_grupo$tipo_hallazgo))
 ```
 
 El argumento `clave` no es cosmético. Sin la columna de identidad, cada
-repetición del valor de un atributo se lee como fila duplicada y el
+repetición del valor de un atributo se lee como fila duplicada. Así, el
 diagnóstico de unicidad informa la tabla entera. Si se declara,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-separa la unicidad de la ausencia de nulos: `meta$clave` conserva ambos
+separa la unicidad de la ausencia de nulos. `meta$clave` conserva ambos
 estados cuando alguno no queda verificado, y la trazabilidad deja
 explícita su semántica de R cuando agrupa ausentes.
 
@@ -330,10 +334,10 @@ head(attr(por_grupo, "cobertura_grupos"), 3)
 
 ## Lo que `lupa` no hace
 
-No infiere el modelo. No mira una tabla y decide por su cuenta que es un
-entidad-atributo-valor, ni que dos columnas son mutuamente excluyentes.
-Una heurística de ese tipo fallaría sobre tablas anchas legítimas, y por
-la misma razón el paquete tampoco adivina claves ni jerarquías.
+No infiere el modelo. No decide por su cuenta que una tabla es
+entidad-atributo-valor, ni que 2 columnas son mutuamente excluyentes.
+Una heurística así fallaría sobre tablas anchas legítimas. Por la misma
+razón, el paquete tampoco adivina claves ni jerarquías.
 
 El universo lo declara quien conoce el dato. Sin declaración, toda la
 columna aplica y el resultado es el del principio de esta guía: es la
@@ -343,10 +347,10 @@ Lo que sí hace es medir la evidencia y ofrecerla. La diferencia importa:
 sugerir con la evidencia a la vista deja la decisión donde estaba, y
 adivinar la mueve.
 
-## Y el reverso: cuando la declaración tapa un problema
+## ⚠️ Y el reverso: cuando la declaración tapa un problema
 
 Una regla declarada puede silenciar algo real. Declarar opcional una
-columna casi vacía deja el perfil limpio, y quien no lea la cobertura de
+columna casi vacía deja el perfil limpio. Quien no lea la cobertura de
 diagnósticos no se entera de nada:
 
 ``` r
@@ -371,19 +375,19 @@ el mismo que apareció en el historial. También es `ok`, y por la misma
 razón: la declaración hizo su trabajo. El aviso existe para que eso sea
 una decisión y no un efecto lateral. Vale igual cuando el universo se
 declaró con `aplicabilidad` y la columna sigue casi vacía *dentro* de
-ese universo, que es el caso donde la regla resultó más ancha que el
+ese universo. Es el caso donde la regla resultó más ancha que el
 universo real.
 
 ## Todo lo que se le declara al paquete
 
 El universo de una columna es una de varias cosas que `lupa` no puede
 saber mirando los datos. Todas siguen la misma idea: quien conoce el
-dato lo declara, el paquete lo respeta y deja constancia. Son argumentos
-de [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-(y, por `argumentos_perfil` o `...`, de
+dato lo declara, y el paquete lo respeta y deja constancia. Son
+argumentos de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+salvo la unidad, que viaja con la columna.
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) y
-de las demás vías de perfilado), salvo la unidad, que viaja con la
-columna:
+las demás vías de perfilado los reciben por `argumentos_perfil` o `...`:
 
 | qué declaramos | argumento | qué cambia en el perfil |
 |----|----|----|
@@ -397,9 +401,9 @@ columna:
 | qué columnas traen datos personales | `columnas_personales` | se clasifican como datos personales aunque ni el nombre ni la forma los delaten, y con `proteger_datos_personales = TRUE` sus valores salen enmascarados |
 | en qué unidad está una magnitud | atributo `units` de la columna | [`columnas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md) publica la unidad junto a las cifras, y [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md) la usa para proponer la escala |
 
-Dos de ellas cambian lo que el perfil calcula, y conviene verlas. Un
-código de rubro con un valor fuera de catálogo, sin declarar y
-declarado:
+Conviene ver 2 de ellas, porque cambian lo que el perfil calcula.
+Primero, un código de rubro con un valor fuera de catálogo, sin declarar
+y declarado:
 
 ``` r
 
@@ -420,12 +424,12 @@ rbind(
 
 Sin declarar, el código se mide como magnitud: tiene media y el `99`
 sale como valor atípico. Declarado, la media no se calcula
-(`omitidos_codigo`) y el `99` sigue a la vista en el máximo, que es
-donde aparece un código fuera de catálogo.
+(`omitidos_codigo`). El `99` sigue a la vista en el máximo, que es donde
+aparece un código fuera de catálogo.
 
-Una edad donde `999` significa “no informada”. `999` está en la lista
-que el paquete sospecha por omisión, pero una sospecha sólo se informa:
-no mueve los números. Declarado, sale del resumen:
+Después, una edad donde `999` significa “no informada”. `999` está en la
+lista que el paquete sospecha por omisión, pero una sospecha sólo se
+informa: no mueve los números. Declarado, sale del resumen:
 
 ``` r
 
@@ -445,7 +449,7 @@ rbind(
 
 `sentinelas_numericos` reemplaza la lista entera: declaramos exactamente
 los valores que valen como “sin dato” en nuestros datos. El paquete trae
-además `sentinelas_naniar`, una lista más amplia que se pide de manera
+además `sentinelas_naniar`, una lista más amplia. Se pide de manera
 explícita, porque valores como `66`, `77` y `88` pueden ser datos
 legítimos:
 
@@ -463,10 +467,13 @@ c(
 #>           0           2
 ```
 
-Los detalles de cada declaración (qué se excluye de cada diagnóstico,
-cómo se reconoce una numeración sin declararla, qué se enmascara) están
-en el artículo [Alcance y
-cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
+El artículo [Alcance y
+cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html)
+trae los detalles de cada declaración:
+
+- qué se excluye de cada diagnóstico;
+- cómo se reconoce una numeración sin declararla;
+- qué se enmascara.
 
 ## Resumen
 
@@ -482,7 +489,7 @@ cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 - Códigos, centinelas, claves, datos personales y unidades se declaran
   igual: el paquete no los adivina.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 [6. Limpiar con un
 plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md)

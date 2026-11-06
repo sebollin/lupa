@@ -86,8 +86,8 @@
     
     
 <p>El perfil encontró problemas. ¿Cómo corregimos los que se pueden
-corregir sin romper nada, decidiendo nosotros lo que depende del dominio
-y dejando registro de cada cambio?</p>
+corregir sin romper nada? ¿Y cómo decidimos nosotros lo que depende del
+dominio, con registro de cada cambio?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
 <ul>
@@ -102,10 +102,15 @@ después;</li>
 </ul>
 </blockquote>
 <p>Usamos <code>datos_administrativos</code>, el otro conjunto de
-ejemplo del paquete: 13 registros de personas con defectos sembrados,
-como una cédula <code>S/D</code>, un sexo en blanco, fechas de
-nacimiento en formatos mezclados, un ingreso <code>-99</code>, una
-columna constante y dos filas idénticas.</p>
+ejemplo del paquete: 13 registros de personas con defectos sembrados.
+Entre ellos:</p>
+<ul>
+<li>una cédula <code>S/D</code> y un sexo en blanco;</li>
+<li>fechas de nacimiento en formatos mezclados;</li>
+<li>un ingreso <code>-99</code>;</li>
+<li>una columna constante;</li>
+<li>una fila duplicada (2 filas idénticas).</li>
+</ul>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span></span>
@@ -128,9 +133,9 @@ columna constante y dos filas idénticas.</p>
 <h2 id="un-plan-no-un-cambio">Un plan, no un cambio<a class="anchor" aria-label="anchor" href="#un-plan-no-un-cambio"></a>
 </h2>
 <p>Diagnosticar no autoriza a modificar datos.
-<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> no toca nada: devuelve una tabla de
-acciones posibles, una por fila, que se puede filtrar y editar como
-cualquier <code>data.frame</code>.</p>
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> no toca nada. Devuelve una tabla de
+acciones posibles, una por fila, que se filtra y edita como cualquier
+<code>data.frame</code>.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">planificar_limpieza</a></span><span class="op">(</span><span class="va">perfil</span>, <span class="va">datos_administrativos</span><span class="op">)</span></span>
@@ -153,9 +158,13 @@ cualquier <code>data.frame</code>.</p>
 <span><span class="co">#&gt; 15 accion-0015       id_persona     eliminar_columna_duplicada       FALSE   FALSE</span></span></code></pre></div>
 <p><code>aplicar</code> dice qué se ejecutaría si aplicáramos el plan
 tal como está: por omisión, sólo lo recomendado. <code>estado</code>
-separa lo que está listo de lo que sólo pide revisar
-(<code>informativa</code>) y de lo que no se puede ejecutar sin una
-decisión previa (<code>bloqueada</code>):</p>
+separa:</p>
+<ul>
+<li>lo que está listo (<code>lista</code>);</li>
+<li>lo que sólo pide revisar (<code>informativa</code>);</li>
+<li>lo que no se puede ejecutar sin una decisión previa
+(<code>bloqueada</code>).</li>
+</ul>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span><span class="op">[</span><span class="va">plan</span><span class="op">$</span><span class="va">estado</span> <span class="op">!=</span> <span class="st">"lista"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"estrategia"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;      id_accion                 estrategia      estado</span></span>
@@ -170,10 +179,10 @@ decisión previa (<code>bloqueada</code>):</p>
 <h2 id="recomendaciones-y-decisiones-de-dominio">Recomendaciones y decisiones de dominio<a class="anchor" aria-label="anchor" href="#recomendaciones-y-decisiones-de-dominio"></a>
 </h2>
 <p>Una acción se recomienda sólo si es correcta con independencia del
-dominio: por ejemplo, convertir un centinela textual inequívoco a
-<code>NA</code> o quitar espacios de borde. Normalizar mayúsculas,
+dominio. Es el caso de convertir un centinela textual inequívoco a
+<code>NA</code> o de quitar espacios de borde. Normalizar mayúsculas,
 convertir un centinela numérico o eliminar una columna constante exige
-contexto y queda desactivado. La justificación acompaña cada
+contexto, y queda desactivado. La justificación acompaña cada
 alternativa:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">justificaciones</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">[</span><span class="va">plan</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sexo"</span>, <span class="st">"ingreso"</span><span class="op">)</span>, <span class="op">]</span></span>
@@ -192,7 +201,7 @@ alternativa:</p>
 <p>Convertir <code>S/D</code> en ausencia es seguro en casi cualquier
 columna, y aun así la justificación pide confirmarlo. Que
 <code>-99</code> signifique “sin dato” en <code>ingreso</code> sólo lo
-sabe quien conoce el sistema, así que la acción queda propuesta y sin
+sabe quien conoce el sistema. Por eso esa acción queda propuesta y sin
 activar.</p>
 <p>Si lo que molesta es sólo la comparación (mayúsculas, acentos,
 puntuación), no hace falta limpiar. <code><a href="../reference/normalizacion.html">normalizacion()</a></code> declara
@@ -231,21 +240,28 @@ nada”.</p>
 <span><span class="co">#&gt; 14 grupo-0018     marcar_columnas_duplicadas        TRUE    TRUE    recomendada</span></span>
 <span><span class="co">#&gt; 15 grupo-0018     eliminar_columna_duplicada       FALSE   FALSE    recomendada</span></span></code></pre></div>
 <p>En el grupo de las filas duplicadas, por ejemplo, las alternativas
-son marcarlas, conservar la primera o conservar la más completa; marcar
-es lo recomendado porque no elimina nada. <code>decision_grupo</code>
-vale <code>pendiente</code> donde falta nuestra decisión (el
-<code>-99</code> de <code>ingreso</code>) y <code>recomendada</code>
-donde el plan sigue su propia recomendación, aunque esa recomendación
-sea no actuar: la columna constante se deja como está.</p>
+son marcarlas, conservar la primera o conservar la más completa. Marcar
+es lo recomendado porque no elimina nada.</p>
+<p><code>decision_grupo</code> vale:</p>
+<ul>
+<li>
+<code>pendiente</code> donde falta nuestra decisión (el
+<code>-99</code> de <code>ingreso</code>);</li>
+<li>
+<code>recomendada</code> donde el plan sigue su propia
+recomendación, aunque sea no actuar: la columna constante se deja como
+está.</li>
+</ul>
 <p>El modo guiado, <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code>, es una capa opcional.
 En una consola recorre sólo las decisiones pendientes o riesgosas,
 pregunta qué hacer con cada una y devuelve el plan con nuestras
 respuestas:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/guiar_limpieza.html">guiar_limpieza</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span></span></code></pre></div>
-<p>Al tejer esta guía no hay nadie que conteste, y fuera de una sesión
-interactiva <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> devuelve el plan sin cambios y
-sin bloquear; por eso seguimos con las acciones que marcamos a mano.</p>
+<p>Al tejer esta guía no hay nadie que conteste. Fuera de una sesión
+interactiva, <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> devuelve el plan sin cambios
+y sin bloquear. Por eso seguimos con las acciones que marcamos a
+mano.</p>
 </div>
 <div class="section level2">
 <h2 id="aplicar-sobre-una-copia">Aplicar sobre una copia<a class="anchor" aria-label="anchor" href="#aplicar-sobre-una-copia"></a>
@@ -264,7 +280,7 @@ y el registro dice qué hizo cada acción:</p>
 <span><span class="co">#&gt; 2 accion-0002 convertir_ausencias_textuales ejecutada           1</span></span>
 <span><span class="co">#&gt; 3 accion-0006 convertir_ausencias_textuales ejecutada           2</span></span>
 <span><span class="co">#&gt; 4 accion-0014    marcar_columnas_duplicadas ejecutada           1</span></span></code></pre></div>
-<p>Veamos los valores antes y después en las dos columnas que
+<p>Veamos los valores antes y después en las 2 columnas que
 cambiaron:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -290,11 +306,13 @@ cambiaron:</p>
 <p><code>S/D</code> y la celda en blanco pasaron a <code>NA</code>.
 <code>MAL-5</code> y <code>00000033</code> siguen igual: corregir una
 cédula exige saber cuál era, y eso no sale de los datos.</p>
-<p>Las marcas no cambian valores: agregan información. Las filas
-duplicadas quedan señaladas en dos columnas nuevas,
+<p>Las marcas no cambian valores: agregan información.</p>
+<ul>
+<li>Las filas duplicadas quedan señaladas en 2 columnas nuevas:
 <code>.fila_duplicada</code> (la repetición) y
-<code>.grupo_duplicado</code> (todas las filas del grupo), y las
-columnas duplicadas, en un atributo:</p>
+<code>.grupo_duplicado</code> (todas las filas del grupo).</li>
+<li>Las columnas duplicadas quedan señaladas en un atributo.</li>
+</ul>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">marcadas</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">$</span><span class="va">.grupo_duplicado</span><span class="op">)</span></span>
 <span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">[</span><span class="va">marcadas</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_persona"</span>, <span class="st">"cedula"</span>, <span class="st">".fila_duplicada"</span>, <span class="st">".grupo_duplicado"</span><span class="op">)</span><span class="op">]</span></span>
@@ -304,36 +322,42 @@ columnas duplicadas, en un atributo:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span>, <span class="st">"columnas_duplicadas_marcadas"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    columna_1 columna_2</span></span>
 <span><span class="co">#&gt; 1 id_persona  id_copia</span></span></code></pre></div>
-<p>El plan se puede editar antes de aplicar: quitar una acción, corregir
+<p>El plan se puede editar antes de aplicar. Quitar una acción, corregir
 un parámetro o cambiar <code>n_afectadas</code> no altera la obligación
 de observar qué pasó. Si una acción seleccionada no cambia ningún valor,
-el registro dice <code>fallida</code> con su motivo, incluso cuando el
-estimado está ausente (<code>NA</code>).</p>
+el registro dice <code>fallida</code> con su motivo. Lo dice incluso
+cuando el estimado está ausente (<code>NA</code>).</p>
 <p>Las acciones destructivas nunca son recomendadas. Aunque las
 activemos en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
-<code>permitir_eliminacion = TRUE</code>; lo retirado se conserva en
-<code>resultado$eliminados</code> salvo decisión contraria. Sin ese
+<code>permitir_eliminacion = TRUE</code>. Lo retirado se conserva en
+<code>resultado$eliminados</code>, salvo decisión contraria. Sin ese
 consentimiento, la llamada se niega <strong>antes de tocar
-nada</strong>: no corre ninguna acción del plan, tampoco las que no
-eliminan, y el error dice cuáles son los dos caminos.</p>
-<p><code>n_no_reversibles</code>, en el registro, no se lee por el
-nombre de la acción sino por lo que quedó en el resultado: una
-normalización que funde dos valores que eran distintos (pasar
-<code>ana</code> y <code>ANA</code> a <code>ANA</code>) cuenta esas
-celdas, porque lo que las separaba no quedó en ningún lado.</p>
+nada</strong>. No corre ninguna acción del plan, tampoco las que no
+eliminan, y el error dice cuáles son los 2 caminos.</p>
+<p><code>n_no_reversibles</code>, en el registro, no se calcula por el
+nombre de la acción sino por lo que quedó en el resultado. Una
+normalización que funde 2 valores distintos (pasar <code>ana</code> y
+<code>ANA</code> a <code>ANA</code>) cuenta esas celdas: lo que las
+separaba no quedó en ningún lado.</p>
 </div>
 <div class="section level2">
-<h2 id="lo-que-el-plan-no-cubre-lo-dice">Lo que el plan no cubre lo dice<a class="anchor" aria-label="anchor" href="#lo-que-el-plan-no-cubre-lo-dice"></a>
+<h2 id="lo-que-el-plan-no-cubre-lo-dice">⚠️ Lo que el plan no cubre lo dice<a class="anchor" aria-label="anchor" href="#lo-que-el-plan-no-cubre-lo-dice"></a>
 </h2>
-<p>Que el plan tenga pocas acciones no significa que lo demás esté bien,
-así que declara sus huecos en tres atributos:
-<code>cobertura_diagnosticos</code> (los diagnósticos que el perfil no
-pudo evaluar), <code>hallazgos_sin_accion_por_columna_ambigua</code>
-(los hallazgos cuya columna comparte nombre con otra, así que no hay
-forma de saber sobre cuál actuaría la limpieza) y
-<code>hallazgos_sin_accion</code> (los hallazgos que el perfil midió y
-que ninguna acción atiende, con el motivo medido de cada uno). La
-impresión del plan los anuncia y el informe HTML les da su propia
+<p>Que el plan tenga pocas acciones no significa que lo demás esté bien.
+Por eso declara sus huecos en 3 atributos:</p>
+<ul>
+<li>
+<code>cobertura_diagnosticos</code>: los diagnósticos que el perfil
+no pudo evaluar;</li>
+<li>
+<code>hallazgos_sin_accion_por_columna_ambigua</code>: los hallazgos
+cuya columna comparte nombre con otra, sin forma de saber sobre cuál
+actuaría la limpieza;</li>
+<li>
+<code>hallazgos_sin_accion</code>: los hallazgos que el perfil midió
+y que ninguna acción atiende, con el motivo medido de cada uno.</li>
+</ul>
+<p>La impresión del plan los anuncia y el informe HTML les da su propia
 sección.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sin_accion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"hallazgos_sin_accion"</span><span class="op">)</span></span>
@@ -358,14 +382,19 @@ hallazgos se resolvieron y cuáles aparecieron:</p>
 <span><span class="co">#&gt; 12             &lt;NA&gt; no_comparable      filas_duplicadas         &lt;NA&gt;</span></span>
 <span><span class="co">#&gt; 13           cedula      resuelto faltantes_disfrazados         &lt;NA&gt;</span></span>
 <span><span class="co">#&gt; 14             sexo      resuelto faltantes_disfrazados         &lt;NA&gt;</span></span></code></pre></div>
-<p>Los faltantes disfrazados de <code>cedula</code> y <code>sexo</code>
-quedaron <code>resuelto</code>. Los hallazgos <code>aparecido</code> en
-<code>.grupo_duplicado</code> son la huella de la marca: esa columna
+<ul>
+<li>Los faltantes disfrazados de <code>cedula</code> y <code>sexo</code>
+quedaron <code>resuelto</code>.</li>
+<li>Los hallazgos <code>aparecido</code> en
+<code>.grupo_duplicado</code> son la huella de la marca. Esa columna
 sólo tiene valor en las filas duplicadas, así que el perfil la encuentra
-casi vacía y con un único valor. Y <code>filas_duplicadas</code> queda
-<code>no_comparable</code>: la tabla ganó las columnas de marca, y con
-otro conjunto de columnas no se puede decidir si las filas repetidas se
-resolvieron. La comparación entre entregas se explica en <a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">9.
+casi vacía y con un único valor.</li>
+<li>
+<code>filas_duplicadas</code> queda <code>no_comparable</code>,
+porque la tabla ganó las columnas de marca. Con otro conjunto de
+columnas no se puede decidir si las filas repetidas se resolvieron.</li>
+</ul>
+<p>La comparación entre entregas se explica en <a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">9.
 Comparar entregas y seguir la calidad</a>.</p>
 </div>
 <div class="section level2">
@@ -453,16 +482,16 @@ resolvió.</li>
 regla.</li>
 </ul>
 <p>Si la limpieza es parte de entregas periódicas y la pregunta es qué
-cambió entre una y otra, se puede saltar directamente a <a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">9.
+cambió entre una y otra, se puede saltar a <a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">9.
 Comparar entregas y seguir la calidad</a>.</p>
 </div>
 <div class="section level2">
-<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+<h2 id="paso-siguiente">🧭 Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
 </h2>
 <p><a href="https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html">7.
-Del hallazgo a la métrica</a>, en el sitio del paquete: cómo pasar de lo
-que el perfil encontró a métricas que se miden y se evalúan contra un
-umbral.</p>
+Del hallazgo a la métrica</a>, en el sitio del paquete. Muestra cómo
+pasar de lo que el perfil encontró a métricas que se miden y se evalúan
+contra un umbral.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

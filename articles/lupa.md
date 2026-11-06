@@ -1,8 +1,8 @@
 # 1. Empezar en diez minutos
 
 Llega una tabla y, antes de usarla, queremos saber si podemos confiar en
-ella: qué tiene mal, en qué filas está cada problema y qué no se pudo
-revisar.
+ella. ¿Qué tiene mal, en qué filas está cada problema y qué no se pudo
+revisar?
 
 > **En esta guía:**
 >
@@ -56,21 +56,21 @@ datos_operativos
 #> 13               contacto-mal       11    EVT011
 ```
 
-Esto es lo que trae cada columna (lo describe
-[`?datos_operativos`](https://sebollin.github.io/lupa/reference/datos_operativos.md))
-y el hallazgo que lo va a señalar:
+Esto trae cada columna (lo describe
+[`?datos_operativos`](https://sebollin.github.io/lupa/reference/datos_operativos.md)),
+con el hallazgo que lo señala:
 
 | columna | qué trae a propósito | hallazgo que lo señala |
 |----|----|----|
-| `id_registro` | `1` y `10` repetidos; las dos filas con `10` no coinciden en lo demás | `posible_identificador`; la repetición, al declararla clave (guía 2) |
+| `id_registro` | `1` y `10` repetidos; las 2 filas con `10` no coinciden en lo demás | `posible_identificador`; la repetición, al declararla clave (guía 2) |
 | `codigo_usuario` | `"S/D"` en lugar de un ausente; `USR0003` y `MAL-5` fuera del formato | `faltantes_disfrazados`; los formatos, ninguno (se ve más abajo por qué) |
-| `fecha_evento` | cinco formatos de fecha y un `"NULL"` | `formatos_fecha_mixtos`, `faltantes_disfrazados` |
+| `fecha_evento` | 5 formatos de fecha y un `"NULL"` | `formatos_fecha_mixtos`, `faltantes_disfrazados` |
 | `canal` | `"web"`, `"Web"` y `"web "`; `"S/D"` y una celda vacía | `mayusculas_inconsistentes`, `espacios_sobrantes`, `faltantes_disfrazados` |
 | `monto` | `-99`, `0`, `-50` y `999999` | `faltantes_disfrazados` para el `-99`; el `0` y el `-50`, sólo si declaramos que no se admiten (`columnas_sin_ceros`, `columnas_no_negativas`); el `999999`, ninguno (se ve más abajo por qué) |
 | `sistema` | el mismo valor en todas las filas | `constante` |
 | `contacto` | correos sintéticos y uno mal formado | `dato_personal_posible`; el mal formado, ninguno (por la misma razón que los formatos de `codigo_usuario`) |
 | `id_copia` | una copia de `id_registro` | `columnas_duplicadas` |
-| `id_evento` | el identificador del evento; `EVT001` dos veces | `clave_no_unica`, al declararla clave |
+| `id_evento` | el identificador del evento; `EVT001` 2 veces | `clave_no_unica`, al declararla clave |
 | filas 1 y 12 | idénticas | `filas_duplicadas` |
 
 `zona` no trae defectos.
@@ -78,9 +78,9 @@ y el hallazgo que lo va a señalar:
 ## Perfilar
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-lee la tabla y no la modifica. Le pasamos en `clave` la columna que
-identifica cada evento en el sistema de origen: así cada hallazgo podrá
-decir en qué eventos está.
+lee la tabla sin modificarla. En `clave` le pasamos la columna que
+identifica cada evento en el sistema de origen. Así, cada hallazgo dice
+en qué eventos está.
 
 ``` r
 
@@ -90,8 +90,8 @@ perfil <- perfilar(datos_operativos, clave = "id_evento")
 #> valores ausentes.
 ```
 
-El aviso ya es un resultado: la clave que declaramos se repite. `lupa`
-no la da por buena; la comprueba. Al imprimir el perfil vemos el
+El aviso es el primer resultado: la clave que declaramos se repite.
+`lupa` no la da por buena; la comprueba. Al imprimir el perfil vemos el
 resumen:
 
 ``` r
@@ -128,13 +128,16 @@ perfil
 #> ℹ Se muestran 5 de 118 campos; los demás están en `columnas()`.
 ```
 
-Las cuatro primeras líneas cuentan los hallazgos por severidad y los
-diagnósticos que no se pudieron evaluar. `error` quiere decir que un
-control cruzó su criterio; `sospechoso`, que algo merece que lo
-revisemos; `ok`, que es una lectura informativa, no un defecto. Debajo
-vienen el resumen general y unas pocas medidas por columna. (La
+Las 4 primeras líneas cuentan los hallazgos por severidad y los
+diagnósticos que no se pudieron evaluar:
+
+- `error`: un control cruzó su criterio;
+- `sospechoso`: algo merece que lo revisemos;
+- `ok`: una lectura informativa, no un defecto.
+
+Debajo vienen el resumen general y unas pocas medidas por columna. La
 impresión trae también la memoria que ocupa la tabla; acá no la
-mostramos porque cambia según la instalación de R).
+mostramos porque cambia según la instalación de R.
 
 ## Empezar por los errores
 
@@ -153,14 +156,14 @@ h[h$severidad == "error", c("columna", "tipo_hallazgo", "n_afectados")]
 #> 21           <NA>      filas_duplicadas           2
 ```
 
-Son 6. Una `columna` en `NA` quiere decir que el hallazgo es de la tabla
-entera: las filas 1 y 12 son idénticas (`filas_duplicadas`), y por eso
-`EVT001` aparece dos veces en la clave (`clave_no_unica`).
+Son 6. Una `columna` en `NA` indica un hallazgo de la tabla entera. Las
+filas 1 y 12 son idénticas (`filas_duplicadas`), y por eso `EVT001`
+aparece 2 veces en la clave (`clave_no_unica`).
 
 ## Del hallazgo a la fila
 
 Tomamos uno: los ausentes disfrazados de `canal`. La evidencia dice qué
-se vio, y la sugerencia, qué se podría hacer.
+se vio; la sugerencia, qué se podría hacer.
 
 ``` r
 
@@ -197,7 +200,7 @@ print(datos_operativos[filas, c("id_evento", "canal")], quote = TRUE)
 Sin `clave`, la trazabilidad trae sólo los números de fila, que sirven
 dentro de R pero no en el sistema de origen.
 
-## Lo que no se pudo evaluar
+## ⚠️ Lo que no se pudo evaluar
 
 Un control que no encontró nada no es lo mismo que un control que no
 corrió. Lo segundo queda en
@@ -221,7 +224,7 @@ no_evaluados[, c("diagnostico", "columna")]
 ```
 
 El `999999` de `monto` no aparece entre los hallazgos, y no porque esté
-bien: la búsqueda de valores extremos no corrió en esa columna.
+bien. La búsqueda de valores extremos no corrió en esa columna:
 
 ``` r
 
@@ -236,15 +239,15 @@ writeLines(strwrap(motivo, 88))
 Lo que no se pudo medir queda registrado; nunca cuenta como cero.
 
 Los formatos raros de `codigo_usuario` (`USR0003` y `MAL-5`) tampoco
-tienen hallazgo, por otra razón: ese control sí corrió, pero cada
-formato ocupa una fila de 13, y por omisión un formato es raro cuando no
-llega al 5 % de los valores (`umbral_patron_raro`). En una tabla más
-larga lo señalaría.
+tienen hallazgo, por otra razón: ese control sí corrió. Cada formato
+ocupa 1 fila de 13. Por omisión, un formato es raro cuando no llega al 5
+% de los valores (`umbral_patron_raro`). En una tabla más larga lo
+señalaría.
 
-## Un informe para compartir
+## 📄 Un informe para compartir
 
 [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
-escribe un único archivo HTML, que se abre en cualquier navegador y no
+escribe un solo archivo HTML. Se abre en cualquier navegador y no
 necesita red ni programas aparte.
 
 ``` r
@@ -258,18 +261,18 @@ severidad; Resumen por columna; Clasificación de posibles datos
 personales; Cobertura del análisis; Cobertura de diagnósticos; Patrones
 de formato; Formatos de fecha; Dependencias funcionales.
 [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
-devuelve la ruta del archivo: en una sesión interactiva,
+devuelve la ruta del archivo; en una sesión interactiva,
 `browseURL(archivo)` lo abre en el navegador. También recibe el
 resultado completo de
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
-con las mediciones y el plan de limpieza; eso lo vemos en [3. Explorar
+con las mediciones y el plan de limpieza: lo vemos en [3. Explorar
 columnas con
 `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.md).
 
 ## Limpiar una columna
 
 `lupa` no cambia los datos que perfila. Para limpiar, propone un plan
-editable, y
+editable;
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 ejecuta sobre una copia sólo las acciones que marcamos.
 
@@ -286,11 +289,14 @@ plan[plan$columna %in% "canal", c("id_accion", "estrategia", "recomendada", "apl
 #> 11 accion-0011   convertir_segun_diccionario       FALSE   FALSE
 ```
 
-Para `canal`, el plan recomienda y deja marcadas dos acciones: convertir
-en `NA` los ausentes escritos como texto y recortar los espacios del
-borde. Entre minúsculas, mayúsculas o un diccionario no elige: esa
-decisión es nuestra. Cada acción trae su justificación, que dice también
-qué conviene confirmar:
+Para `canal`, el plan recomienda y deja marcadas 2 acciones:
+
+- convertir en `NA` los ausentes escritos como texto;
+- recortar los espacios del borde.
+
+Entre minúsculas, mayúsculas o un diccionario no elige: esa decisión es
+nuestra. Cada acción trae su justificación, que dice también qué
+conviene confirmar:
 
 ``` r
 
@@ -303,7 +309,7 @@ writeLines(strwrap(justificacion, 88))
 #> la columna -`NA` es el código de Namibia, `NULL` puede ser un apellido-.
 ```
 
-Para esta guía aplicamos sólo esas dos.
+Para esta guía aplicamos sólo esas 2 acciones.
 
 ``` r
 
@@ -333,20 +339,20 @@ print(data.frame(id_evento = datos_operativos$id_evento, antes, despues)[cambiar
 La columna `antes` se leyó de `datos_operativos` después de aplicar el
 plan: el original sigue como estaba. `"Web"` y `"APP"` quedaron igual,
 porque no elegimos ninguna convención de mayúsculas. El plan completo,
-con los grupos de acciones y su registro, está en [6. Limpiar con un
+con sus grupos de acciones y su registro, está en [6. Limpiar con un
 plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md).
 
 ## Resumen
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  lee la tabla sin modificarla; imprimir el perfil da el recuento por
+  lee la tabla sin modificarla; su impresión cuenta los hallazgos por
   severidad y lo que no se pudo evaluar.
 - [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
   es una tabla: empezamos por `severidad == "error"`.
 - Con `clave`, la trazabilidad de cada hallazgo trae los identificadores
   para ir al sistema de origen.
 - [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
-  lista los controles que no corrieron: un hallazgo que falta no prueba
+  lista los controles que no corrieron: que falte un hallazgo no prueba
   que el dato esté bien.
 - [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   guarda un informe HTML;
@@ -355,7 +361,7 @@ plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md).
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   limpian una copia con las acciones que elegimos.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 [2. Leer un
 perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md)

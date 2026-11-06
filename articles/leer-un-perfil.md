@@ -1,19 +1,19 @@
 # 2. Leer un perfil
 
-Ya tenemos un perfil. ¿Qué quiere decir cada fila de
-`hallazgos(perfil)`, cuándo un `ok` es una buena noticia, y qué hacemos
-con una clave que no se cumple?
+Ya tenemos un perfil. ¿Qué significa cada fila de `hallazgos(perfil)`?
+¿Cuándo un `ok` es una buena noticia? ¿Qué hacemos con una clave que no
+se cumple?
 
 > **En esta guía:**
 >
-> - qué significan las tres severidades y por qué sólo `error` puede
->   frenar un proceso;
+> - qué significan las 3 severidades y por qué sólo `error` puede frenar
+>   un proceso;
 > - qué trae cada hallazgo: evidencia, sugerencia, conteos y
 >   trazabilidad;
 > - cómo leer cualquier perfil con los mismos accesores;
 > - cómo se declara y se comprueba una clave;
-> - cómo encontrar filas donde dos columnas que dicen lo mismo se
->   contradicen.
+> - cómo encontrar filas donde se contradicen columnas que dicen lo
+>   mismo.
 >
 > Al final hay un glosario con las palabras del paquete.
 
@@ -34,11 +34,11 @@ h <- hallazgos(perfil)
 El aviso es el mismo de la guía 1: `EVT001` se repite. Lo retomamos al
 hablar de claves.
 
-## Tres severidades
+## Las 3 severidades
 
-`severidad` es un factor ordenado, `ok < sospechoso < error`, así que se
-puede contar y comparar: `h$severidad >= "sospechoso"` deja los
-hallazgos que piden atención.
+`severidad` es un factor ordenado, `ok < sospechoso < error`: se puede
+contar y comparar. `h$severidad >= "sospechoso"` deja los hallazgos que
+piden atención.
 
 ``` r
 
@@ -52,12 +52,10 @@ nrow(h[h$severidad >= "sospechoso", ])
 #> [1] 17
 ```
 
-Cada nivel dice una cosa distinta:
-
 - **`ok`** registra una lectura informativa o una condición aceptable.
   No es un defecto, y tampoco es una aprobación.
 - **`sospechoso`** es evidencia que merece revisión. Es heurística o
-  necesita conocer el dominio, y no alcanza por sí sola para rechazar,
+  necesita conocer el dominio. Por sí sola no alcanza para rechazar,
   reparar ni suprimir datos.
 - **`error`** afirma que un control cruzó su criterio declarado.
 
@@ -76,12 +74,13 @@ h[h$severidad == "ok", c("columna", "tipo_hallazgo", "n_afectados")]
 #> 23       contacto       dato_personal_posible           1
 ```
 
-`posible_identificador` dice que una columna tiene forma de
-identificador o de código; `dato_personal_posible`, que parece contener
-datos personales; `casi_duplicados_vocabulario` con cero afectados, que
-se buscaron variantes de escritura y no se formó ningún grupo.
+- `posible_identificador`: la columna tiene forma de identificador o de
+  código.
+- `dato_personal_posible`: parece contener datos personales.
+- `casi_duplicados_vocabulario` con 0 afectados: se buscaron variantes
+  de escritura y no se formó ningún grupo.
 
-El mismo tipo de hallazgo puede tener dos severidades. Los ausentes
+El mismo tipo de hallazgo puede salir con 2 severidades. Los ausentes
 disfrazados de texto son `error`; el de `monto`, `sospechoso`:
 
 ``` r
@@ -96,10 +95,9 @@ h[h$tipo_hallazgo == "faltantes_disfrazados", c("columna", "severidad", "evidenc
 
 `"S/D"`, `"NULL"` y la celda vacía son marcas de ausencia sin
 ambigüedad. El `-99` está en la lista de centinelas numéricos que `lupa`
-usa por omisión, pero en otra columna podría ser un dato real: es una
-conjetura del paquete. Si nosotros lo declaramos en
-`sentinelas_numericos`, la conjetura pasa a criterio y la severidad
-sube.
+usa por omisión. Pero en otra columna podría ser un dato real: es una
+conjetura del paquete. Si lo declaramos en `sentinelas_numericos`, la
+conjetura pasa a criterio y la severidad sube.
 
 ``` r
 
@@ -110,8 +108,7 @@ hd[hd$tipo_hallazgo == "faltantes_disfrazados", c("columna", "severidad", "evide
 #> 1   monto     error   -99 (1)
 ```
 
-Declararlo tiene además consecuencias en los números: el `-99` sale del
-resumen.
+Declararlo cambia además los números: el `-99` sale del resumen.
 
 ``` r
 
@@ -125,18 +122,18 @@ rbind(
 #> declarado      -50    1545                           1
 ```
 
-### Por qué sólo `error` frena
+### ⚠️ Por qué sólo `error` frena
 
-De los tres niveles, `error` es el único candidato para alimentar una
-barrera automática —un proceso que rechaza una entrega—, y sólo después
-de que aceptemos su criterio y verifiquemos su alcance. Un `sospechoso`
-pide una persona que mire.
+De los 3 niveles, `error` es el único candidato para alimentar una
+barrera automática, un proceso que rechaza una entrega. Lo es sólo
+después de que aceptemos su criterio y verifiquemos su alcance. Un
+`sospechoso` pide una persona que mire.
 
 Pero buscar errores no alcanza. Lo que no se pudo evaluar queda fuera de
 la escala, en
-[`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md),
-y un guion que decide solo tiene que mirar las dos cosas: cero errores
-con diagnósticos sin ejecutar no es un perfil limpio.
+[`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md).
+Un guion que decide solo tiene que mirar las 2 cosas: cero errores con
+diagnósticos sin ejecutar no es un perfil limpio.
 
 ``` r
 
@@ -145,7 +142,7 @@ c(errores = sum(h$severidad == "error"), no_evaluados = nrow(cobertura(perfil)))
 #>            6            9
 ```
 
-## Qué trae cada hallazgo
+## 🔎 Qué trae cada hallazgo
 
 Cada fila de
 [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
@@ -160,7 +157,7 @@ tiene los mismos campos.
 | `evidencia` | lo que se midió para afirmarla |
 | `sugerencia` | qué se podría hacer; la decisión es nuestra |
 | `n_evaluados`, `n_afectados` | cuántas unidades se miraron y en cuántas está la señal |
-| `unidad_conteo` | en qué se cuentan las dos anteriores: filas, columnas, formatos, valores distintos |
+| `unidad_conteo` | en qué se cuentan las 2 anteriores: filas, columnas, formatos, valores distintos |
 | `estado_reparacion` | en los hallazgos de codificación, si el texto se puede reparar; en los demás, `NA` |
 | `trazabilidad` | en qué filas está: sus índices y, si declaramos `clave`, sus valores |
 
@@ -168,8 +165,8 @@ El vocabulario completo de `tipo_hallazgo`, con lo que mide cada uno,
 está en el artículo [Alcance y
 cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 
-Veamos uno entero: las mayúsculas de `canal`. Los textos largos se leen
-mejor fuera de la tabla.
+Veamos uno entero: las mayúsculas de `canal`, con los textos largos
+fuera de la tabla.
 
 ``` r
 
@@ -188,14 +185,14 @@ mayus$trazabilidad[[1]]$claves$id_evento
 ```
 
 La unidad importa. `n_afectados` cuenta valores distintos: `"web"` y
-`"Web"`, dos de los 8 que tiene la columna. La trazabilidad, en cambio,
-enumera filas, y todas las que contienen esos valores: `lupa` no sabe
-cuál de las dos formas es la correcta. Por eso la traza tiene 6 filas,
-primero la variante y después la forma más frecuente.
+`"Web"`, 2 de los 8 que tiene la columna. La trazabilidad, en cambio,
+enumera todas las filas que contienen esos valores, porque `lupa` no
+sabe cuál de las 2 formas es la correcta. Por eso la traza tiene 6
+filas: primero la variante y después la forma más frecuente.
 
 ### Alta cardinalidad
 
-`alta_cardinalidad` aparece tres veces en este perfil:
+`alta_cardinalidad` aparece en estas columnas del perfil:
 
 ``` r
 
@@ -206,21 +203,27 @@ h[h$tipo_hallazgo == "alta_cardinalidad", c("columna", "severidad", "evidencia")
 #> 14       contacto sospechoso Tasa de valores distintos: 0.923
 ```
 
-Una columna de texto con muchos valores distintos (por omisión, más de
-la mitad: `umbral_alta_cardinalidad`) admite tres lecturas: es texto
-libre, es un identificador o es una categoría mal normalizada. El
-hallazgo no afirma que sea un defecto; las ofrece para que decida quien
-conoce la columna. En este perfil, ninguna de las tres columnas tiene un
-problema de cardinalidad: `codigo_usuario` es un identificador,
-`fecha_evento` son fechas guardadas como texto y `contacto` son correos.
-Lo sabemos porque conocemos las columnas; los datos solos no lo dicen.
-Por eso se informa siempre: el largo de los valores no distingue un
-catálogo de un texto libre.
+Una columna de texto con muchos valores distintos admite 3 lecturas:
+texto libre, identificador o categoría mal normalizada. «Muchos» es, por
+omisión, más de la mitad (`umbral_alta_cardinalidad`). El hallazgo no
+afirma que sea un defecto: ofrece las lecturas para que decida quien
+conoce la columna.
 
-La columna `contacto` parece contener correos, y el perfil lo dice
-(`dato_personal_posible`). Su evidencia sale entera: enmascarar los
+En este perfil, ninguna de esas columnas tiene un problema de
+cardinalidad:
+
+- `codigo_usuario` es un identificador;
+- `fecha_evento` son fechas guardadas como texto;
+- `contacto` son correos.
+
+Lo sabemos porque conocemos las columnas. Los datos solos no lo dicen:
+el largo de los valores no distingue un catálogo de un texto libre. Por
+eso el hallazgo se informa siempre.
+
+El perfil también señala que `contacto` parece contener correos
+(`dato_personal_posible`). Su evidencia sale entera. Enmascarar los
 posibles datos personales es un complemento que se pide con
-`proteger_datos_personales = TRUE`, y con él esa evidencia saldría como
+`proteger_datos_personales = TRUE`; con él, esa evidencia saldría como
 `[evidencia protegida]`. Publicar o no los valores de una base es
 decisión de quien la usa. Qué se enmascara y con qué alcance está en el
 artículo [Alcance y
@@ -228,18 +231,21 @@ cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 
 ## Leer cualquier perfil
 
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-devuelve un perfil plano.
-[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-devuelve un contenedor con dos bloques, y
-[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
-una fila por tabla. Las formas son distintas: `perfil$general$filas`
-existe en el primero y es `NULL` en el segundo, donde el conteo vive en
-otro lugar. Un `NULL` que no avisa es la peor forma de fallar en un
-guion: lo que sigue calcula sobre nada.
+Cada vía de perfilado devuelve una forma distinta:
 
-Los accesores le ponen un solo nombre a lo mismo, y andan igual sobre
-los resultados de
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  un perfil plano;
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  un contenedor con 2 bloques;
+- [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+  una fila por tabla.
+
+`perfil$general$filas` existe en el primero y es `NULL` en el segundo,
+donde el conteo vive en otro lugar. Un `NULL` que no avisa es la peor
+forma de fallar en un guion: lo que sigue calcula sobre nada.
+
+Los accesores le ponen un solo nombre a lo mismo. Andan igual sobre los
+resultados de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
@@ -267,11 +273,12 @@ columnas(perfil)[1:4, campos]
 trae, además del nombre de cada columna, 117 campos analíticos; su
 significado, por familias, está en
 [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md).
-Los accesores no inventan lo que no hay:
+
+Los accesores no inventan lo que no hay.
 [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
-lista las consultas que se enviaron al motor, y sobre un perfil en
-memoria devuelve `NULL`, porque una tabla vacía sugeriría que se
-consultó y no se encontró nada.
+lista las consultas que se enviaron al motor. Sobre un perfil en memoria
+devuelve `NULL`, porque una tabla vacía sugeriría que se consultó y no
+se encontró nada.
 
 ``` r
 
@@ -280,7 +287,7 @@ is.null(sql_perfil(perfil))
 ```
 
 Del mismo modo, un perfil de una base sin filas leídas devuelve una
-tabla de hallazgos vacía con su aviso. Cómo se leen los dos bloques de
+tabla de hallazgos vacía con su aviso. Cómo se leen los 2 bloques de
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 está en [10. Perfilar una
 base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
@@ -290,11 +297,13 @@ base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
 ### Declarar y comprobar
 
 `clave` dice qué columnas identifican una fila en el sistema de origen.
-Con ella, `lupa` hace dos cosas. La trazabilidad trae los valores de la
-clave, y `trazabilidad$localizador` dice con qué se localizó
-(`clave_declarada`, o `indice_fila` si no hay clave). Además comprueba
-dos garantías por separado y las deja en `perfil$meta$clave`: que la
-clave no se repita y que no tenga ausentes.
+Con ella, `lupa` hace 2 cosas:
+
+- la trazabilidad trae los valores de la clave, y
+  `trazabilidad$localizador` dice con qué se localizó
+  (`clave_declarada`, o `indice_fila` si no hay clave);
+- comprueba por separado 2 garantías, que deja en `perfil$meta$clave`:
+  que la clave no se repita y que no tenga ausentes.
 
 ``` r
 
@@ -315,8 +324,8 @@ writeLines(strwrap(repetida$sugerencia, 88))
 #> una fila.
 ```
 
-`clave_no_unica` es un `error` con las filas que repiten. Acá las dos
-filas con `EVT001` son la misma fila cargada dos veces; la sugerencia
+`clave_no_unica` es un `error` con las filas que repiten. Acá las 2
+filas con `EVT001` son la misma fila cargada 2 veces; la sugerencia
 enumera las otras causas posibles.
 
 `id_registro` también parece una clave, y su repetición es de otra
@@ -342,17 +351,16 @@ datos_operativos[datos_operativos$id_registro == 10,
 #> 11          10   -50    EVT012
 ```
 
-Las filas 1 y 12 son copias exactas, y las dos señales las cuentan. Las
-dos filas con `id_registro` 10, en cambio, no son copias: dicen montos
+Las filas 1 y 12 son copias exactas, y las 2 señales las cuentan. Las 2
+filas con `id_registro` 10, en cambio, no son copias: dicen montos
 distintos para el mismo registro. Sólo la clave declarada las muestra.
 
 ### Ausentes en la clave
 
 Que una clave no se repita y que no tenga ausentes son preguntas
-distintas. La unicidad se mira sólo entre las filas con la clave
-completa, porque en una base de datos dos ausentes (`NULL`) no son
-iguales entre sí; los ausentes van a otro hallazgo,
-`clave_con_ausentes`.
+distintas. En una base de datos, 2 ausentes (`NULL`) no son iguales
+entre sí. Por eso la unicidad se mira sólo entre las filas con la clave
+completa, y los ausentes van a otro hallazgo, `clave_con_ausentes`.
 
 ``` r
 
@@ -372,8 +380,8 @@ p_tramites$meta$clave$ausencia_nulos$estado
 #> [1] "refutada"
 ```
 
-Entre las tres filas completas la clave no se repite (`verificada`), y
-aun así no cumple `NOT NULL` (`refutada`): dos filas no tienen clave.
+Entre las 3 filas completas la clave no se repite (`verificada`). Aun
+así, no cumple `NOT NULL` (`refutada`), porque 2 filas no tienen clave.
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
 avisa además con una advertencia, que acá no mostramos.
 
@@ -392,9 +400,11 @@ perfilar(vacia, clave = "id_tramite")$meta$clave$unicidad$estado
 
 Si no sabemos cuál es la clave,
 [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
-ordena las columnas candidatas por tres señales que publica por
-separado: si la columna identifica cada fila, si no tiene ausentes y
-cuánto se parece su nombre al de una clave.
+ordena las columnas candidatas por 3 señales, que publica por separado:
+
+- si la columna identifica cada fila;
+- si no tiene ausentes;
+- cuánto se parece su nombre al de una clave.
 
 ``` r
 
@@ -412,20 +422,22 @@ writeLines(candidatas$motivo[1])
 #> no identifica: 92.3% de valores distintos, el resto repite; su nombre es el de una clave
 ```
 
-Con la fila duplicada, ninguna columna identifica las 13 filas, y
-ninguna llega al 95 % de valores distintos que pide `umbral_casi` por
-omisión: la primera llamada no devuelve nada. Con un umbral menor
-aparecen las que casi identifican, que suelen ser claves con duplicados
-de carga. `id_evento` va primera por su nombre. `monto` también aparece:
-un importe que casi no se repite. Ordenar no es decidir; esa diferencia
-no está en los datos.
+Con la fila duplicada, ninguna columna identifica las 13 filas. Ninguna
+llega tampoco al 95 % de valores distintos que pide `umbral_casi` por
+omisión, así que la primera llamada no devuelve nada. Con un umbral
+menor aparecen las que casi identifican, que suelen ser claves con
+duplicados de carga. `id_evento` va primera por su nombre. `monto`
+también aparece: un importe que casi no se repite. Ordenar no es
+decidir; esa diferencia no está en los datos.
 
 [`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
-muestra esas candidatas numeradas, con su motivo, y una opción para
-escribir otra (o varias separadas por coma, para una clave compuesta).
-Si un nombre real contiene una coma, esa escritura es ambigua: pasar un
+muestra esas candidatas numeradas, con su motivo. Ofrece además escribir
+otra, o varias separadas por coma para una clave compuesta. Si un nombre
+real contiene una coma, esa escritura es ambigua: conviene pasar el
 vector de nombres directamente a `clave`, por ejemplo
-`clave = c("a,b")`. Devuelve la elegida, lista para
+`clave = c("a,b")`.
+[`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
+devuelve la elegida, lista para
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
 
 ``` r
@@ -436,7 +448,7 @@ perfil <- perfilar(datos_operativos, clave = clave)
 
 En un guion que corre solo no pregunta: devuelve `NULL` y avisa qué
 habría ofrecido. En una base de datos, la clave primaria declarada en el
-catálogo del motor se lee en vez de sugerirse; qué garantiza cada motor
+catálogo del motor se lee en vez de sugerirse. Qué garantiza cada motor
 está en el artículo [Motores y
 escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
 
@@ -444,15 +456,14 @@ escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
 
 A veces cada columna está bien y la fila se contradice. El año de la
 fecha de ingreso, el año fiscal y el año del archivo pueden ser
-plausibles cada uno por su cuenta y no coincidir entre sí. Ninguna
-columna sola lo muestra, así que el perfil no lo ve.
+plausibles por separado y no coincidir. Ninguna columna sola lo muestra,
+así que el perfil no lo ve.
 
 El grupo lo declaramos nosotros con
-[`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md);
-`lupa` no lo adivina, porque dos columnas de año pueden ser el de
-nacimiento y el de ingreso, y no tienen por qué coincidir.
-`transformacion` lleva la fecha a su año para compararla con las otras
-dos.
+[`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md).
+`lupa` no lo adivina: 2 columnas de año pueden ser el de nacimiento y el
+de ingreso, y no tienen por qué coincidir. `transformacion` lleva la
+fecha a su año para compararla con las otras 2.
 
 ``` r
 
@@ -479,11 +490,11 @@ writeLines(strwrap(discordancias$evidencia, 88))
 ```
 
 La fila 4 entró el 30 de diciembre de 2023, figura en el año fiscal 2024
-y se archivó en 2023. La fila 6 no tiene fecha: no se cuenta ni como
+y se archivó en 2023. La fila 6 no tiene fecha: no cuenta como
 discordante ni como concordante, y sale del universo evaluado
 (`n_evaluadas`). Ausencia no es desacuerdo. Para tolerar diferencias,
 `ventana` fija cuánto pueden separarse los valores numéricos (con años,
-`ventana = 1` acepta un año).
+`ventana = 1` acepta 1 año).
 
 ## Glosario
 
@@ -492,9 +503,9 @@ Las palabras que usan el paquete y sus guías, en orden alfabético.
 - **alcance**: sobre qué filas y con qué método se calculó una cifra. En
   memoria,
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  cuenta ausentes, distintos y duplicados sobre todas las filas, e
-  infiere patrones, tipos, formatos de fecha y dependencias sobre una
-  muestra de hasta 100.000 filas (`muestra`).
+  cuenta ausentes, distintos y duplicados sobre todas las filas.
+  Patrones, tipos, formatos de fecha y dependencias los infiere sobre
+  una muestra de hasta 100.000 filas (`muestra`).
 - **`alta_cardinalidad`**: hallazgo `sospechoso` de una columna de texto
   con muchos valores distintos. Puede ser texto libre, un identificador
   o una categoría mal normalizada; lo decide quien conoce la columna.
@@ -503,13 +514,13 @@ Las palabras que usan el paquete y sus guías, en orden alfabético.
   (`sentinelas_numericos`, `sentinelas_naniar`). Los que trae el paquete
   por omisión se informan; los que declaramos, además, salen del resumen
   numérico.
-- **cobertura**: tiene dos sentidos. La *cobertura de diagnósticos*
+- **cobertura**: tiene 2 sentidos. La *cobertura de diagnósticos*
   (`cobertura(perfil)`) lista los controles que no se pudieron ejecutar,
   con su motivo. La *cobertura de un marco*
   ([`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md))
   dice qué factores del marco quedaron medidos, sin declarar o fuera de
   alcance.
-- **dimensión y factor**: los dos niveles de un marco. Por ejemplo, la
+- **dimensión y factor**: los 2 niveles de un marco. Por ejemplo, la
   dimensión Exactitud agrupa el factor Correctitud sintáctica.
 - **entidad, atributo, instancia**: el vocabulario de los marcos de
   calidad. Entidad es una tabla, atributo es una columna, instancia de
@@ -562,14 +573,14 @@ Las palabras que usan el paquete y sus guías, en orden alfabético.
   un registro.
 - **severidad**: `ok` (informativo), `sospechoso` (merece revisión) o
   `error` (cruzó un criterio declarado), en ese orden.
-- **universo**: tiene dos sentidos. El *universo de una columna* son las
+- **universo**: tiene 2 sentidos. El *universo de una columna* son las
   filas donde corresponde que tenga valor: por omisión todas, y se
   recorta con `aplicabilidad`. En
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
   el argumento `universo` dice sobre qué filas del motor se calculan los
   agregados SQL: `"tabla_completa"`, por omisión, o `"muestra_motor"`.
 - **vacío por diseño**: una celda vacía que es correcta, porque la
-  columna no corresponde a esa fila: quien no tiene auto no tiene marca
+  columna no corresponde a esa fila. Quien no tiene auto no tiene marca
   de auto. Se declara; lo explica [5. El vacío por
   diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.md).
 
@@ -620,7 +631,7 @@ calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html).
   [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
   encuentra las filas donde se contradicen.
 
-## Paso siguiente
+## 🧭 Paso siguiente
 
 [3. Explorar columnas con
 `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.md)
