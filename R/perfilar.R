@@ -3282,7 +3282,13 @@ perfilar <- function(datos,
   }
   benford <- .diagnosticar_benford(
     datos_magnitudes, columnas, hallazgos, clave_declarada = clave,
-    columnas_codigo = columnas_codigo
+    columnas_codigo = columnas_codigo,
+    # La mascara que cuenta `n_faltantes_disfrazados`: Benford la necesita
+    # para decir que la desviacion la pueden estar haciendo ellos.
+    disfrazados = lapply(resultados, function(resultado) {
+      disfrazados <- resultado$faltantes_disfrazados
+      disfrazados$mascara_numerica %||% disfrazados$mascara
+    })
   )
   if (nrow(benford$cobertura)) {
     cobertura_diagnosticos <- rbind(
@@ -3539,8 +3545,13 @@ perfilar <- function(datos,
   if (!is.null(benford$meta)) {
     meta$benford <- benford$meta
   }
+  # Tambien cuando se descarto una identidad por escala: la ayuda promete el
+  # conteo en `identidades_descartadas_escala`, y si la unica candidata era esa
+  # el campo no existia y "no habia candidatas" no se distinguia de "habia una
+  # y se descarto".
   if (length(relaciones_aritmeticas$hallazgos) ||
-      isTRUE(relaciones_aritmeticas$alcance$truncado)) {
+      isTRUE(relaciones_aritmeticas$alcance$truncado) ||
+      isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_escala > 0)) {
     meta$aritmetica_columnas <- relaciones_aritmeticas$alcance
   }
   cobertura_diagnosticos <- .anotar_columnas_cobertura(

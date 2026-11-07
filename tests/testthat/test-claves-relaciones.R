@@ -72,18 +72,21 @@ test_that("se distinguen las cuatro cardinalidades y la falta de coincidencias",
   expect_error(detectar_relaciones(1:3, data.frame(x = 1:3)), "data.frame")
 })
 
-test_that("las relaciones documentan y respetan el muestreo", {
+test_that("las relaciones documentan su alcance y validan la muestra", {
   tabla1 <- data.frame(id = seq_len(1000))
   tabla2 <- data.frame(id = seq_len(1000))
+  # La cobertura se calcula sobre las columnas completas: `muestra` se valida
+  # pero no recorta, y los atributos lo dicen.
   resultado <- detectar_relaciones(tabla1, tabla2, muestra = 100)
 
   expect_equal(attr(resultado, "filas_totales"), c(tabla1 = 1000, tabla2 = 1000))
-  expect_equal(attr(resultado, "filas_analizadas"), c(tabla1 = 100, tabla2 = 100))
-  expect_true(all(attr(resultado, "muestreado")))
+  expect_equal(attr(resultado, "filas_analizadas"), c(tabla1 = 1000, tabla2 = 1000))
+  expect_false(any(attr(resultado, "muestreado")))
   expect_error(detectar_relaciones(tabla1, tabla2, muestra = 0), "positivo")
   expect_error(detectar_relaciones(tabla1, tabla2, muestra = "100"), "positivo")
 
   completo <- detectar_relaciones(tabla1, tabla2, muestra = Inf)
+  expect_identical(as.data.frame(completo), as.data.frame(resultado))
   expect_false(any(attr(completo, "muestreado")))
   expect_equal(attr(completo, "filas_analizadas"), c(tabla1 = 1000, tabla2 = 1000))
 })

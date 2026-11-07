@@ -25,7 +25,9 @@ clasificar_variables(
 
 \item{muestra}{Máximo de valores usados para enumerar niveles no declarados;
 los niveles ausentes de factores y metadatos se verifican sobre toda la
-columna.}
+columna, y \code{n_niveles_observados} cuenta los valores distintos de la
+columna entera, con o sin \code{perfil}. \code{niveles_muestreados} dice si la lista
+de niveles salió de una muestra.}
 
 \item{proteger_datos_personales}{Si se ocultan niveles concretos de columnas
 cuya clasificación activa protección automática. Véase \code{\link[=perfilar]{perfilar()}}. Con

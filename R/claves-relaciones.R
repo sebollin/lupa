@@ -740,13 +740,12 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   NULL
 }
 
-.resumir_columna_relacion <- function(x, muestra, rango = NULL,
-                                      origen_rango = NULL) {
+.resumir_columna_relacion <- function(x, rango = NULL, origen_rango = NULL) {
   no_comparable <- .columna_no_comparable(x)
   if (!is.null(no_comparable)) {
     return(list(
-      muestra = character(), unicos = character(), unico = FALSE,
-      n_distintos = NA_integer_, familia = "no_comparable",
+      unicos = character(), frecuencias = integer(), n_filas = 0L,
+      unico = FALSE, n_distintos = NA_integer_, familia = "no_comparable",
       rango = .rango_relacion_sin_evidencia(),
       origen_rango = "no_disponible", no_comparable = no_comparable
     ))
@@ -756,7 +755,6 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # encontraba, y la cobertura de una clave foranea daba 0 sobre 2 de 3.
   # Medido.
   valores <- .texto_identidad(.valores_relacion(x))
-  valores_muestra <- .muestrear_vector(valores, muestra)$valores
   valores_completos <- valores[!is.na(valores)]
   familia <- .familia_relacion(x)
   if (is.null(origen_rango)) {
@@ -770,9 +768,22 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # tablas, asi que el sobrecosto se multiplica por el ancho. Medido sobre
   # 500.000 filas con 200.000 distintos: 0,028 s contra 0,014 s por columna.
   unicos <- unique(valores_completos)
+  # **La cobertura se estimaba con una muestra sistematica y la muestra podia
+  # alinearse con los datos.** Medido: `tabla1` con 200.000 `id` y `tabla2` con
+  # los 100.000 que la muestra iba a tomar publicaba cobertura 1 contra 0,5
+  # real, en la misma fila que decia `1:1` y `n_valores_comunes = 100000`
+  # -tres campos que obligan a 0,5-. La cardinalidad y los valores comunes ya
+  # se calculaban sobre las columnas completas, y con las frecuencias de cada
+  # valor distinto la cobertura por filas tambien sale exacta: una pasada mas
+  # por columna -entre una decima y un cuarto de lo que cuesta este resumen,
+  # medido sobre un millon de filas- y, por par, menos que `intersect()`. No
+  # hay nada que estimar.
+  frecuencias <- tabulate(match(valores_completos, unicos),
+                          nbins = length(unicos))
   list(
-    muestra = valores_muestra[!is.na(valores_muestra)],
     unicos = unicos,
+    frecuencias = frecuencias,
+    n_filas = length(valores_completos),
     unico = anyDuplicated(valores_completos) == 0L,
     n_distintos = length(unicos),
     familia = familia,
@@ -781,16 +792,23 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   )
 }
 
+# La proporcion de filas no ausentes de `x` cuyo valor existe en `y`, exacta:
+# las frecuencias de los valores de `x` que tambien estan en `y`.
+.cobertura_relacion <- function(x, y) {
+  if (!x$n_filas) return(NA_real_)
+  sum(x$frecuencias[x$unicos %in% y$unicos]) / x$n_filas
+}
+
 .normalizar_relleno_final_relacion <- function(x) {
   if (!is.character(x)) return(x)
   sub(" +$", "", x, perl = TRUE)
 }
 
-.rehacer_resumen_relleno_relacion <- function(x, resumen, muestra) {
+.rehacer_resumen_relleno_relacion <- function(x, resumen) {
   normalizado <- .normalizar_relleno_final_relacion(x)
   if (identical(normalizado, x)) return(resumen)
   .resumir_columna_relacion(
-    normalizado, muestra, resumen$rango, resumen$origen_rango
+    normalizado, resumen$rango, resumen$origen_rango
   )
 }
 
@@ -937,7 +955,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # exactamente el umbral -o sea alcanzable-.
   #
   # Pero esa cota es de VALORES DISTINTOS, y la cobertura que se compara con el
-  # umbral es por FILAS: `mean(y$muestra %in% x$unicos)`. Un solo valor comun
+  # umbral es por FILAS: ver `.cobertura_relacion()`. Un solo valor comun
   # puede cubrir casi todas las filas. Medido: `a = {1}` contra
   # `b` con 91 filas en 1 y nueve valores mas daba cobertura 0,91 y la poda la
   # declaraba "imposible" con umbral 0,9 -la FK se perdia con un motivo falso-.
@@ -949,13 +967,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # cubren al menos k/d de las filas- y la de filas, que cuesta una tabla de
   # frecuencias, solo se calcula cuando aquella dispara.
   if (umbral_cobertura > 0 && x$n_distintos > 0L && y$n_distintos > 0L &&
-      length(y$muestra) &&
+      y$n_filas &&
       x$n_distintos / y$n_distintos < umbral_cobertura) {
-    frecuencias <- .sort_por_bytes(
-      tabulate(match(y$muestra, unique(y$muestra))), decreasing = TRUE
-    )
+    frecuencias <- .sort_por_bytes(y$frecuencias, decreasing = TRUE)
     k <- min(x$n_distintos, length(frecuencias))
-    cota <- sum(frecuencias[seq_len(k)]) / length(y$muestra)
+    cota <- sum(frecuencias[seq_len(k)]) / y$n_filas
     if (cota < umbral_cobertura) {
       return(list(
         motivo = "cardinalidades_imposibles",
@@ -1037,15 +1053,14 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' Todas las podas, de las dos clases, quedan además en el atributo `podas` con
 #' su motivo y su detalle.
 #'
-#' Cuando una tabla supera `muestra`, la función estima cada cobertura con una
-#' muestra sistemática del lado que se verifica y conserva completo el conjunto
-#' de referencia. La cardinalidad y la cantidad de valores comunes siempre se
-#' calculan con ambas columnas completas.
+#' La cardinalidad, la cantidad de valores comunes y las dos coberturas se
+#' calculan con ambas columnas completas: la cobertura cuenta las filas de cada
+#' valor distinto, así que sale exacta por el costo de una pasada más por
+#' columna, sin una muestra que pueda alinearse con los datos.
 #'
 #' @param tabla1,tabla2 Objetos que heredan de `data.frame`.
-#' @param muestra Máximo de filas del lado verificado que se usan para estimar
-#'   cada cobertura. El muestreo es sistemático y reproducible; el lado de
-#'   referencia no se muestrea. Use `Inf` para calcular todo sin muestreo.
+#' @param muestra Se conserva por compatibilidad y se valida como antes, pero ya
+#'   no limita nada: las coberturas se calculan sobre todas las filas.
 #' @param columnas_candidatas Lista de dos vectores de nombres, para `tabla1` y
 #'   `tabla2`, que declara las columnas que pueden participar. `NULL` conserva
 #'   la exploración completa por compatibilidad.
@@ -1071,7 +1086,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #'   `n_valores_comunes`,
 #'   coberturas de integridad referencial en ambas direcciones y `motivo_poda`,
 #'   que sólo tiene valor en los pares no comparados. Los atributos
-#'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el muestreo;
+#'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el alcance:
+#'   `filas_analizadas` son todas las filas y `muestreado` vale `FALSE`;
 #'   `podas`, `n_pares_totales`, `n_pares_comparados` y `n_pares_podados`
 #'   documentan qué se comparó y qué no.
 #' @export
@@ -1104,7 +1120,7 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
     .detener("`tope_memoria_mb` debe ser un n\u00famero no negativo.", call. = FALSE)
   }
-  limite_muestra <- .validar_muestra(muestra)
+  .validar_muestra(muestra)
   nombres_1 <- names(tabla1)
   nombres_2 <- names(tabla2)
   candidatas <- .resolver_columnas_candidatas_relacion(
@@ -1176,10 +1192,10 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   columnas_1 <- lapply(indices_1, function(i) {
     especificacion <- rango_de("tabla1", nombres_1[[i]])
     if (is.null(especificacion)) {
-      .resumir_columna_relacion(tabla1[[i]], limite_muestra)
+      .resumir_columna_relacion(tabla1[[i]])
     } else {
       .resumir_columna_relacion(
-        tabla1[[i]], limite_muestra, especificacion$rango,
+        tabla1[[i]], especificacion$rango,
         especificacion$origen
       )
     }
@@ -1187,10 +1203,10 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   columnas_2 <- lapply(indices_2, function(i) {
     especificacion <- rango_de("tabla2", nombres_2[[i]])
     if (is.null(especificacion)) {
-      .resumir_columna_relacion(tabla2[[i]], limite_muestra)
+      .resumir_columna_relacion(tabla2[[i]])
     } else {
       .resumir_columna_relacion(
-        tabla2[[i]], limite_muestra, especificacion$rango,
+        tabla2[[i]], especificacion$rango,
         especificacion$origen
       )
     }
@@ -1232,12 +1248,12 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
            is.character(tabla2[[indices_2[[j]]]]))) {
         if (normalizar_relleno_de("tabla1", nombre_1)) {
           x <- .rehacer_resumen_relleno_relacion(
-            tabla1[[indices_1[[i]]]], x, limite_muestra
+            tabla1[[indices_1[[i]]]], x
           )
         }
         if (normalizar_relleno_de("tabla2", nombre_2)) {
           y <- .rehacer_resumen_relleno_relacion(
-            tabla2[[indices_2[[j]]]], y, limite_muestra
+            tabla2[[indices_2[[j]]]], y
           )
         }
       }
@@ -1325,8 +1341,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
         filas[[length(filas) + 1L]] <- data.frame(
           columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
           cardinalidad = "sin_coincidencias", n_valores_comunes = 0L,
-          cobertura_tabla1_en_tabla2 = if (length(x$muestra)) 0 else NA_real_,
-          cobertura_tabla2_en_tabla1 = if (length(y$muestra)) 0 else NA_real_,
+          cobertura_tabla1_en_tabla2 = if (x$n_filas) 0 else NA_real_,
+          cobertura_tabla2_en_tabla1 = if (y$n_filas) 0 else NA_real_,
           motivo_poda = NA_character_, stringsAsFactors = FALSE
         )
         comparadas <- comparadas + 1L
@@ -1376,16 +1392,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
         columna_tabla2 = nombre_2,
         cardinalidad = cardinalidad,
         n_valores_comunes = n_valores_comunes,
-        cobertura_tabla1_en_tabla2 = if (length(x$muestra)) {
-          mean(x$muestra %in% y$unicos)
-        } else {
-          NA_real_
-        },
-        cobertura_tabla2_en_tabla1 = if (length(y$muestra)) {
-          mean(y$muestra %in% x$unicos)
-        } else {
-          NA_real_
-        },
+        cobertura_tabla1_en_tabla2 = .cobertura_relacion(x, y),
+        cobertura_tabla2_en_tabla1 = .cobertura_relacion(y, x),
         motivo_poda = NA_character_,
         stringsAsFactors = FALSE
       )
@@ -1411,14 +1419,13 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   attr(resultado, "filas_totales") <- c(
     tabla1 = nrow(tabla1), tabla2 = nrow(tabla2)
   )
+  # Las coberturas se calculan sobre las columnas completas: ver
+  # `.resumir_columna_relacion()`. `muestra` se sigue validando para no romper
+  # a quien la pasa, y los dos atributos dicen lo que se analizo.
   attr(resultado, "filas_analizadas") <- c(
-    tabla1 = min(nrow(tabla1), limite_muestra),
-    tabla2 = min(nrow(tabla2), limite_muestra)
+    tabla1 = as.numeric(nrow(tabla1)), tabla2 = as.numeric(nrow(tabla2))
   )
-  attr(resultado, "muestreado") <- c(
-    tabla1 = nrow(tabla1) > limite_muestra,
-    tabla2 = nrow(tabla2) > limite_muestra
-  )
+  attr(resultado, "muestreado") <- c(tabla1 = FALSE, tabla2 = FALSE)
   attr(resultado, "podas") <- if (length(podas)) {
     do.call(rbind, podas)
   } else {

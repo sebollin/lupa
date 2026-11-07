@@ -79,7 +79,11 @@ cita la cédula— se tapa con el mismo piso que aplica \code{\link[=perfilar]{p
 \code{n_pares_comparados}, \code{n_pares_sin_comparar} y \code{max_comparaciones}
 documentan el presupuesto de comparaciones. \code{trabajo_estimado},
 \code{trabajo_comparado}, \code{trabajo_sin_comparar}, \code{unidad_trabajo} y
-\code{max_trabajo} documentan el presupuesto por filas. \code{columnas_descartadas}
+\code{max_trabajo} documentan el presupuesto por filas. Con muestra,
+\code{verificadas_tabla_completa} dice, fila por fila, si las cifras se
+recalcularon sobre la tabla completa, y \code{n_descartadas_tabla_completa}
+cuenta las que la muestra mostraba y la tabla no sostiene.
+\code{columnas_descartadas}
 es un data frame que explica por qué una columna no se usó como
 determinante. Una columna cuyo nombre se repite en la tabla no entra en
 ninguna dependencia, de ningún lado, y se descarta con el motivo
@@ -95,7 +99,11 @@ directamente las filas minoritarias que pueden ser errores de carga.
 Para evitar resultados vacíos o triviales, se omiten por defecto las claves
 únicas, los determinantes cuya tasa de valores distintos alcanza
 \code{umbral_casi_clave}, los determinantes cuya moda alcanza
-\code{umbral_casi_constante} y los dependientes constantes. El
+\code{umbral_casi_constante} y los dependientes constantes. Tampoco se informa un
+par cuyo determinante no acierta más filas que la moda del dependiente sin
+agrupar: con un dependiente casi constante —un \code{estado} que vale \code{"ACTIVO"}
+en el 99,7 \% de las filas— cualquier columna alcanzaría el umbral sin
+aportar nada. El
 valor predeterminado de \code{umbral = 0.995} exige que como máximo 5 de cada
 1.000 filas contradigan la relación. Los ausentes de cualquiera de las dos
 columnas no integran el cálculo.
@@ -123,6 +131,16 @@ completa; si sólo la muestra los produjo, el motivo es
 \code{casi_clave_solo_en_muestra} o \code{casi_constante_solo_en_muestra}, la columna
 sigue fuera —evaluarla sobre esa muestra daría dependencias exactas sin
 evidencia— y \code{\link[=perfilar]{perfilar()}} lo declara en \code{cobertura_diagnosticos}.
+
+Lo que la muestra encuentra se recalcula sobre la tabla completa: cada
+dependencia publicada sale con el cumplimiento, los grupos, las violaciones
+y la evidencia de todas las filas, y la que ya no alcanza el criterio no se
+publica. Una muestra sistemática puede alinearse con datos periódicos —un
+panel mensual cuyo tamaño hace que el paso caiga justo en el período toma
+siempre los mismos meses— y publicar exacta una relación que la tabla
+contradice. El recálculo cuesta una pasada por dependencia publicada y entra
+en \code{max_trabajo}; las que no entran conservan las cifras de la muestra, y
+\code{\link[=perfilar]{perfilar()}} lo declara.
 }
 \examples{
 datos <- data.frame(

@@ -22,13 +22,14 @@ print.perfil <- function(x, ...) {
   if (isTRUE(original$meta$muestreo) && length(analizadas) == 1L &&
       is.finite(analizadas) && analizadas < original$general$filas) {
     cli::cli_alert_info(.cli_literal(paste0(
-      "Patrones, tipos, formatos de fecha y dependencias sobre una muestra de ",
+      "Patrones, tipos y formatos de fecha sobre una muestra de ",
       format(analizadas, big.mark = ".", decimal.mark = ",", scientific = FALSE),
       " de ",
       format(original$general$filas, big.mark = ".", decimal.mark = ",",
              scientific = FALSE),
       if (original$general$filas == 1L) " fila: sus conteos son de la muestra" else
-        " filas: sus conteos son de la muestra"
+        " filas: sus conteos son de la muestra",
+      .nota_consola_dependencias(original$dependencias)
     )))
   }
 
@@ -376,4 +377,22 @@ sql_perfil <- function(x, ...) {
   # Un perfil en memoria no emitio SQL, y decirlo con una tabla vacia seria
   # sugerir que emitio y no encontro.
   NULL
+}
+
+# Las dependencias se buscan en la muestra y las publicadas se recalculan sobre la
+# tabla (`detectar_dependencias()`): sus cifras ya no son de la muestra. Un perfil
+# guardado antes del recalculo no trae el atributo y sus cifras si lo son.
+.nota_consola_dependencias <- function(dependencias) {
+  verificadas <- attr(dependencias, "verificadas_tabla_completa", exact = TRUE)
+  if (is.null(verificadas)) {
+    return(if (isTRUE(attr(dependencias, "muestreado", exact = TRUE))) {
+      "; las dependencias, tambi\u00e9n"
+    } else "")
+  }
+  sin_verificar <- sum(!verificadas)
+  paste0(
+    "; las dependencias se buscaron en ella y las publicadas se recalcularon ",
+    "sobre la tabla entera",
+    if (sin_verificar) paste0(", salvo ", sin_verificar) else ""
+  )
 }

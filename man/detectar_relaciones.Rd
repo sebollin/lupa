@@ -19,9 +19,8 @@ detectar_relaciones(
 \arguments{
 \item{tabla1, tabla2}{Objetos que heredan de \code{data.frame}.}
 
-\item{muestra}{Máximo de filas del lado verificado que se usan para estimar
-cada cobertura. El muestreo es sistemático y reproducible; el lado de
-referencia no se muestrea. Use \code{Inf} para calcular todo sin muestreo.}
+\item{muestra}{Se conserva por compatibilidad y se valida como antes, pero ya
+no limita nada: las coberturas se calculan sobre todas las filas.}
 
 \item{columnas_candidatas}{Lista de dos vectores de nombres, para \code{tabla1} y
 \code{tabla2}, que declara las columnas que pueden participar. \code{NULL} conserva
@@ -54,7 +53,8 @@ Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}
 \code{n_valores_comunes},
 coberturas de integridad referencial en ambas direcciones y \code{motivo_poda},
 que sólo tiene valor en los pares no comparados. Los atributos
-\code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el muestreo;
+\code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el alcance:
+\code{filas_analizadas} son todas las filas y \code{muestreado} vale \code{FALSE};
 \code{podas}, \code{n_pares_totales}, \code{n_pares_comparados} y \code{n_pares_podados}
 documentan qué se comparó y qué no.
 }
@@ -114,10 +114,10 @@ de las tres es; la función sigue con las demás columnas.
 Todas las podas, de las dos clases, quedan además en el atributo \code{podas} con
 su motivo y su detalle.
 
-Cuando una tabla supera \code{muestra}, la función estima cada cobertura con una
-muestra sistemática del lado que se verifica y conserva completo el conjunto
-de referencia. La cardinalidad y la cantidad de valores comunes siempre se
-calculan con ambas columnas completas.
+La cardinalidad, la cantidad de valores comunes y las dos coberturas se
+calculan con ambas columnas completas: la cobertura cuenta las filas de cada
+valor distinto, así que sale exacta por el costo de una pasada más por
+columna, sin una muestra que pueda alinearse con los datos.
 }
 \examples{
 personas <- data.frame(id = 1:3)

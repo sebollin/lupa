@@ -2945,7 +2945,9 @@
     .clave_bytes(x_identidad)
   } else NULL
   n_distintos <- .n_distintos_columna(x_identidad, claves = claves_identidad)
-  valor_concentrado <- .estadisticos_valor_concentrado(x_identidad)
+  valor_concentrado <- .estadisticos_valor_concentrado(
+    x_identidad, sentinelas_declarados
+  )
   vocabulario_texto <- if (
     (is.character(x_analisis_diagnostico) ||
        is.factor(x_analisis_diagnostico)) &&

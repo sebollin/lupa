@@ -133,7 +133,8 @@
                                        posible_identificador,
                                        umbrales = .umbrales_benford(),
                                        clave_declarada = FALSE,
-                                       codigo_declarado = FALSE) {
+                                       codigo_declarado = FALSE,
+                                       sospechosos = NULL) {
   finitos <- if (is.numeric(x)) {
     as.numeric(x[is.finite(x)])
   } else {
@@ -144,23 +145,7 @@
   n_positivos <- length(positivos)
   proporcion_positivos <- if (n_finitos) n_positivos / n_finitos else NA_real_
   variacion <- length(unique(finitos)) > 1L
-  ordenes <- if (n_positivos && variacion) {
-    # La ayuda promete `log10(max/min)`, y la resta de logaritmos no es esa
-    # cuenta en el borde: con 534 y 0,534 el cociente da 1000 exacto en doble y
-    # `log10(1000)` es 3, que cumple; la resta daba 2,9999999999999996 y el motivo
-    # publicaba "3.000000000000000 < 3". De 50.000 pares decimales con cociente
-    # 1000, la resta dejaba 5.728 por debajo de 3. El cociente solo puede
-    # desbordar con extremos fuera de toda escala -un subnormal y un 1e300-, y
-    # ahi la resta es la misma magnitud sin desbordar.
-    cociente <- max(positivos) / min(positivos)
-    if (is.finite(cociente)) {
-      log10(cociente)
-    } else {
-      log10(max(positivos)) - log10(min(positivos))
-    }
-  } else {
-    NA_real_
-  }
+  ordenes <- .ordenes_magnitud_benford(positivos, variacion)
   # Las tres condiciones que excluyen a Benford por identificador se publicaban
   # como una DISYUNCION -"parece un identificador (tipo_inferido,
   # posible_identificador o secuencia correlativa)"- y el usuario no podia saber
@@ -222,6 +207,35 @@
   )
   if (length(fallas)) return(base)
 
+  resultado <- c(base, .prueba_benford(positivos, umbrales))
+  sin_sospechosos <- .benford_sin_sospechosos(
+    x, sospechosos, es_identificador, umbrales
+  )
+  if (!is.null(sin_sospechosos)) {
+    resultado$sin_faltantes_disfrazados <- sin_sospechosos
+  }
+  resultado
+}
+
+# La ayuda promete `log10(max/min)`, y la resta de logaritmos no es esa cuenta
+# en el borde: con 534 y 0,534 el cociente da 1000 exacto en doble y
+# `log10(1000)` es 3, que cumple; la resta daba 2,9999999999999996 y el motivo
+# publicaba "3.000000000000000 < 3". De 50.000 pares decimales con cociente
+# 1000, la resta dejaba 5.728 por debajo de 3. El cociente solo puede desbordar
+# con extremos fuera de toda escala -un subnormal y un 1e300-, y ahi la resta es
+# la misma magnitud sin desbordar.
+.ordenes_magnitud_benford <- function(positivos, variacion) {
+  if (!length(positivos) || !variacion) return(NA_real_)
+  cociente <- max(positivos) / min(positivos)
+  if (is.finite(cociente)) {
+    log10(cociente)
+  } else {
+    log10(max(positivos)) - log10(min(positivos))
+  }
+}
+
+.prueba_benford <- function(positivos, umbrales) {
+  n_positivos <- length(positivos)
   digitos <- .primer_digito_significativo(positivos)
   observados <- tabulate(digitos, nbins = 9L)
   proporcion_esperada <- log10(1 + 1 / seq_len(9L))
@@ -236,14 +250,64 @@
     n_esperado = as.numeric(esperados),
     stringsAsFactors = FALSE
   )
-  c(base, list(
+  list(
     metodo = "chi-cuadrado de Pearson; 8 grados de libertad",
     estadistico = as.numeric(estadistico),
     grados_libertad = 8L,
     p_valor = as.numeric(p_valor),
     distribucion = distribucion,
     desviacion = isTRUE(p_valor < umbrales$nivel_significacion)
-  ))
+  )
+}
+
+# **La desviacion que fabrican los posibles centinelas.** Medido: 4.000 montos
+# con 200 `999` sin declarar publicaban `desviacion_benford` -X2 = 232, p =
+# 1e-45- en el mismo perfil que contaba esos 200 como `faltantes_disfrazados`;
+# sin ellos la columna cumple (X2 = 10,6, p = 0,22). Los valores de la lista
+# por omision no son una declaracion y no salen de ningun diagnostico -el
+# resumen tambien los cuenta, ver `.universo_del_resumen()`-, asi que la prueba
+# sobre los datos tal como vienen sigue siendo la que decide. Lo que faltaba es
+# lo que el paquete hace con un centinela que sospecha y no le declararon
+# (`posible_centinela_numerico`): decir que esta ahi y que pasa si se declara.
+# La misma prueba, sin esos valores, va a la evidencia y a
+# `sin_faltantes_disfrazados`, con sus precondiciones, porque sacar un valor
+# extremo puede dejar a la columna sin los ordenes de magnitud o las
+# observaciones que exige.
+.benford_sin_sospechosos <- function(x, sospechosos, es_identificador,
+                                     umbrales) {
+  if (is.null(sospechosos) || !is.logical(sospechosos) ||
+      length(sospechosos) != length(x) || !is.numeric(x)) {
+    return(NULL)
+  }
+  valores <- as.numeric(x)
+  utilizables <- is.finite(valores)
+  marcados <- !is.na(sospechosos) & sospechosos & utilizables & valores > 0
+  if (!any(marcados)) return(NULL)
+  finitos <- valores[utilizables & !marcados]
+  positivos <- finitos[finitos > 0]
+  variacion <- length(unique(finitos)) > 1L
+  ordenes <- .ordenes_magnitud_benford(positivos, variacion)
+  # La precondicion de identificador es la de la columna entera: sacar un
+  # centinela no convierte un monto en una numeracion ni al reves.
+  fallas <- .precondiciones_benford(
+    variacion, es_identificador, length(positivos),
+    if (length(finitos)) length(positivos) / length(finitos) else NA_real_,
+    ordenes, umbrales
+  )
+  base <- list(
+    n_excluidos = sum(marcados),
+    valores_excluidos = .sort_por_bytes(unique(valores[marcados])),
+    n_positivos = length(positivos),
+    proporcion_positivos = if (length(finitos)) {
+      length(positivos) / length(finitos)
+    } else NA_real_,
+    ordenes_magnitud = ordenes,
+    aplica = !length(fallas),
+    precondiciones_fallidas = fallas
+  )
+  if (length(fallas)) return(base)
+  prueba <- .prueba_benford(positivos, umbrales)
+  c(base, prueba[c("estadistico", "p_valor", "desviacion")])
 }
 
 # Una comparacion que se publica tiene que leerse verdadera: 2,99957 con tres
@@ -267,7 +331,78 @@
   .formatear_decimal_publicado(valor, 17L)
 }
 
-.motivo_no_aplica_benford <- function(resultado, umbrales) {
+.texto_p_benford <- function(p_valor) {
+  opciones <- options(scipen = 0)
+  on.exit(options(opciones), add = TRUE)
+  format.pval(p_valor, digits = 4L)
+}
+
+# Lo que el hallazgo dice de la prueba sin los faltantes disfrazados que nadie
+# declaro: ver `.benford_sin_sospechosos()`. Vacio si no hay ninguno.
+.textos_benford_sin_sospechosos <- function(sin, umbrales) {
+  if (is.null(sin)) {
+    return(list(descripcion = "", evidencia = "", como_resolverlo = ""))
+  }
+  valores <- paste(
+    .formatear_numero_publicado(utils::head(sin$valores_excluidos, 5L)),
+    collapse = ", "
+  )
+  if (length(sin$valores_excluidos) > 5L) valores <- paste0(valores, ", ...")
+  inicio <- paste0(
+    " Sin los ", .formatear_numero_publicado(sin$n_excluidos),
+    if (sin$n_excluidos == 1L) " valor que el perfil cuenta " else
+      " valores que el perfil cuenta ",
+    "como faltantes disfrazados sin que est\u00e9n declarados en ",
+    "`sentinelas_numericos` (", valores, ")"
+  )
+  if (!isTRUE(sin$aplica)) {
+    motivo <- .motivo_no_aplica_benford(c(sin, list(
+      clave_declarada = FALSE, motivos_identificador = character()
+    )), umbrales, prefijo = "")
+    return(list(
+      descripcion = "",
+      evidencia = paste0(inicio, ", la prueba no se puede hacer: ", motivo),
+      como_resolverlo = .sugerencia_benford_sin_sospechosos(sin, valores)
+    ))
+  }
+  evidencia <- paste0(
+    inicio, ", la prueba sobre ", .formatear_numero_publicado(sin$n_positivos),
+    if (sin$n_positivos == 1L) " valor positivo da X2=" else
+      " valores positivos da X2=",
+    .formatear_decimal_publicado(sin$estadistico),
+    ", p=", .texto_p_benford(sin$p_valor),
+    if (isTRUE(sin$desviacion)) ": la desviaci\u00f3n se mantiene sin ellos." else
+      ": sin ellos la columna no se desv\u00eda."
+  )
+  list(
+    descripcion = if (isTRUE(sin$desviacion)) "" else paste0(
+      " Sin los valores que el perfil cuenta como faltantes disfrazados la ",
+      "columna sigue ese reparto: la desviaci\u00f3n la producen ellos."
+    ),
+    evidencia = evidencia,
+    como_resolverlo = .sugerencia_benford_sin_sospechosos(sin, valores)
+  )
+}
+
+.sugerencia_benford_sin_sospechosos <- function(sin, valores) {
+  if (length(sin$valores_excluidos) == 1L) {
+    paste0(
+      "Si ", valores, " es un c\u00f3digo de ausencia, declararlo en ",
+      "`sentinelas_numericos`: sale de esta prueba como sale del resumen. "
+    )
+  } else {
+    paste0(
+      "Si ", valores, " son c\u00f3digos de ausencia, declararlos en ",
+      "`sentinelas_numericos`: salen de esta prueba como salen del resumen. "
+    )
+  }
+}
+
+.motivo_no_aplica_benford <- function(resultado, umbrales,
+                                      prefijo = paste0(
+                                        "No aplica la ley de Benford. ",
+                                        "Precondiciones fallidas: "
+                                      )) {
   # «Parece un identificador» y «se declaro como clave» son dos afirmaciones
   # distintas: la primera es una inferencia del paquete y la segunda un hecho que
   # trajo el usuario. Publicar la primera cuando corresponde la segunda le
@@ -327,15 +462,18 @@
     )
   )
   paste0(
-    "No aplica la ley de Benford. Precondiciones fallidas: ",
+    prefijo,
     paste(unname(etiquetas[resultado$precondiciones_fallidas]), collapse = "; "),
     "."
   )
 }
 
+# `disfrazados`: la mascara de faltantes disfrazados de cada columna, la misma
+# que cuenta `n_faltantes_disfrazados` en la fila del perfil.
 .diagnosticar_benford <- function(datos, columnas, hallazgos,
                                   clave_declarada = NULL,
-                                  columnas_codigo = NULL) {
+                                  columnas_codigo = NULL,
+                                  disfrazados = NULL) {
   candidatas <- which(vapply(datos, .columna_candidata_benford, logical(1L)))
 
   # `integer64` esta excluido por tipo desde el primer commit, junto con `Date`,
@@ -411,7 +549,8 @@
       clave_declarada = clave_operativa %in%
         .nombres_para_operar(as.character(clave_declarada)),
       codigo_declarado = clave_operativa %in%
-        .nombres_para_operar(as.character(columnas_codigo))
+        .nombres_para_operar(as.character(columnas_codigo)),
+      sospechosos = if (length(disfrazados) >= i) disfrazados[[i]]
     )
   })
   names(resultados) <- names(datos)[candidatas]
@@ -446,11 +585,9 @@
 
   nuevos <- lapply(resultados, function(resultado) {
     if (!isTRUE(resultado$aplica) || !isTRUE(resultado$desviacion)) return(NULL)
-    texto_p <- local({
-      opciones <- options(scipen = 0)
-      on.exit(options(opciones), add = TRUE)
-      format.pval(resultado$p_valor, digits = 4L)
-    })
+    sospechosos <- .textos_benford_sin_sospechosos(
+      resultado$sin_faltantes_disfrazados, umbrales
+    )
     .nuevo_hallazgo(
       resultado$columna, "desviacion_benford", "sospechoso",
       paste0(
@@ -459,16 +596,19 @@
         "cerca del 30 % de los valores y el 9 menos del 5 %. En esta columna los ",
         "primeros d\u00edgitos no siguen ese reparto. Es una se\u00f1al descriptiva para ",
         "revisar, no evidencia de fraude ni de manipulaci\u00f3n: un tope ",
-        "administrativo o un monto fijo la producen igual."
+        "administrativo o un monto fijo la producen igual.",
+        sospechosos$descripcion
       ),
       paste0(
         resultado$metodo, ": X2=",
         .formatear_decimal_publicado(resultado$estadistico),
-        ", p=", texto_p,
+        ", p=", .texto_p_benford(resultado$p_valor),
         "; observado/esperado por d\u00edgito: ",
-        .texto_distribucion_benford(resultado$distribucion), "."
+        .texto_distribucion_benford(resultado$distribucion), ".",
+        sospechosos$evidencia
       ),
       paste0(
+        sospechosos$como_resolverlo,
         "Revisar el proceso y explicaciones inocentes como topes administrativos, ",
         "redondeos, precios psicol\u00f3gicos o subsidios de monto fijo."
       ),
@@ -476,6 +616,16 @@
     )
   })
   nuevos <- nuevos[!vapply(nuevos, is.null, logical(1L))]
+  # Los ordenes de magnitud sin los sospechosos solo los usa el motivo de la
+  # evidencia: son log10(max/min), una relacion entre dos datos que la
+  # proteccion de datos personales borra de `ordenes_magnitud` y que en una
+  # lista anidada se le escaparia.
+  resultados <- lapply(resultados, function(resultado) {
+    if (!is.null(resultado$sin_faltantes_disfrazados)) {
+      resultado$sin_faltantes_disfrazados$ordenes_magnitud <- NULL
+    }
+    resultado
+  })
 
   list(
     hallazgos = nuevos,

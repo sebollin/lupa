@@ -405,12 +405,14 @@ El paquete separa lo que se declara de lo que sospecha:
 - **La lista por omisión** de `sentinelas_numericos`
   (`r defecto(perfilar, "sentinelas_numericos")`) informa y no toca los números.
   Sus valores aparecen como `faltantes_disfrazados`, pero siguen dentro de la
-  media. Es una conjetura, y una conjetura no mueve un promedio.
+  media. Es una conjetura, y una conjetura no mueve un promedio. Tampoco mueve
+  la prueba de Benford, pero si sin esos valores la columna no se desvía,
+  `desviacion_benford` lo dice y publica la prueba sin ellos.
 - **Una lista declarada** excluye. Sus valores salen de `media`, `mediana`,
   `minimo`, `maximo` y `desvio`. `n_valores_excluidos_resumen` dice cuántos
   quedaron afuera, igual que los `NA` y las filas que `aplicabilidad` deja fuera
-  del universo. También salen de la ley de Benford y de las relaciones
-  aritméticas. La misma celda no puede ser ausencia en el resumen y valor en un
+  del universo. También salen de la ley de Benford, de las relaciones
+  aritméticas y de `valor_concentrado`. La misma celda no puede ser ausencia en el resumen y valor en un
   diagnóstico. `moda` y `n_distintos` siguen describiendo lo que está guardado.
 - **`posible_centinela_numerico`** informa un valor que reúne 3 rasgos: queda
   fuera de los límites, se repite y tiene forma de dígito repetido. No lo cuenta

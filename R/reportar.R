@@ -467,9 +467,9 @@
       .html_texto(format(attr(dependencias, "filas_totales", exact = TRUE),
                          big.mark = ".", decimal.mark = ",", scientific = FALSE)),
       if (identical(as.integer(attr(dependencias, "filas_totales", exact = TRUE)), 1L)) {
-        " fila: el cumplimiento y la exactitud son los de la muestra, no los de "
-      } else " filas: el cumplimiento y la exactitud son los de la muestra, no los de ",
-      "la tabla entera.</p>"
+        " fila"
+      } else " filas",
+      .nota_verificacion_dependencias(dependencias), "</p>"
     )
   }
   paste0(
@@ -1720,4 +1720,27 @@ reportar <- function(x, ...,
     .html_texto(.version_paquete()), ".</footer></main></body></html>"
   )
   .escribir_reporte(documento, archivo, sobrescribir)
+}
+
+# Que dice la nota de la muestra sobre las cifras publicadas: las dependencias
+# se buscan en la muestra y las publicadas se recalculan sobre la tabla
+# (`detectar_dependencias()`), salvo las que no entraron en el presupuesto.
+.nota_verificacion_dependencias <- function(dependencias) {
+  verificadas <- attr(dependencias, "verificadas_tabla_completa", exact = TRUE)
+  if (is.null(verificadas)) {
+    return(paste0(
+      ": el cumplimiento y la exactitud son los de la muestra, no los de ",
+      "la tabla entera."
+    ))
+  }
+  sin_verificar <- sum(!verificadas)
+  paste0(
+    "; las publicadas se recalcularon sobre la tabla entera",
+    if (!sin_verificar) "." else paste0(
+      ", salvo ", sin_verificar,
+      if (sin_verificar == 1L) ", que conserva" else ", que conservan",
+      " el cumplimiento y la exactitud de la muestra: el presupuesto de trabajo ",
+      "no alcanz\u00f3."
+    )
+  )
 }

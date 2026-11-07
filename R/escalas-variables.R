@@ -265,7 +265,9 @@
 #' @param max_niveles Máximo de niveles guardados en cada lista.
 #' @param muestra Máximo de valores usados para enumerar niveles no declarados;
 #'   los niveles ausentes de factores y metadatos se verifican sobre toda la
-#'   columna.
+#'   columna, y `n_niveles_observados` cuenta los valores distintos de la
+#'   columna entera, con o sin `perfil`. `niveles_muestreados` dice si la lista
+#'   de niveles salió de una muestra.
 #' @param proteger_datos_personales Si se ocultan niveles concretos de columnas
 #'   cuya clasificación activa protección automática. Véase [perfilar()]. Con
 #'   `perfil`, se respeta la clasificación de ese perfil; sin `perfil`, se
@@ -408,13 +410,19 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     # Una escala que no guarda niveles no los cuenta: publicaba 0 para una columna
     # `1, 2, 3`, que se lee como "ningun nivel observado". `NA` dice que la cifra
     # no aplica.
+    # Sin perfil, la cuenta es la de la columna entera y con la misma regla que
+    # el perfil (`.n_distintos_columna()`). Se contaba sobre la muestra con la
+    # que se enumeran los niveles: una columna de 200.000 valores distintos
+    # publicaba 100.000 sin perfil y 200.000 con el, dos cifras para un hecho.
+    # La lista de niveles sigue saliendo de la muestra, y `niveles_muestreados`
+    # habla de la lista.
     n_observados <- if (!guardar_niveles) {
       NA_integer_
     } else if (!is.null(perfil)) {
       perfil$columnas$n_distintos[[i]]
     } else if (is.factor(x)) {
       sum(tabulate(as.integer(x), nbins = length(levels(x))) > 0L)
-    } else length(unique(muestra_texto))
+    } else .n_distintos_columna(x)
     n_ausentes <- length(ausentes)
     truncado <- any(c(length(declarados), length(observados), length(ausentes)) >
                      max_niveles)

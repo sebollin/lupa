@@ -149,6 +149,28 @@ Primera versión publicada.
 
 ## Correcciones
 
+- Las relaciones aritméticas aditivas entre columnas con decimales fijos
+  cuentan como rota una diferencia de medio cuanto o más, en cualquier escala:
+  con la tolerancia relativa por omisión, `comision + neto = bruto` con 30
+  filas rotas por centavos salía `ok` con 0 filas sobre importes de 1e8, y
+  contaba 21 de 30 sobre importes de 1e6. La evidencia declara la cota, y las
+  proporcionalidades siguen con la tolerancia relativa.
+- `desviacion_benford` dice si la desviación la producen los faltantes
+  disfrazados que no se declararon, con la prueba sin ellos: 200 valores `999`
+  entre 4.000 importes daban p = 1e-45, y sin ellos p = 0,22.
+- Con `sentinelas_numericos` declarado, `valor_concentrado` deja afuera lo
+  declarado, como el resumen: publicaba como moda el `-99` que el resumen
+  excluía.
+- `detectar_dependencias()` no publica un par cuyo determinante no acierta más
+  filas que la moda del dependiente (con un `estado` al 99,66 % salían cinco
+  dependencias que no decían nada), y lo que encuentra en la muestra lo
+  recalcula sobre la tabla completa: una muestra alineada con la estructura de
+  los datos publicaba 0,996 de cumplimiento donde la tabla da 0,899.
+  `detectar_relaciones()` calcula las coberturas sobre las columnas completas
+  (con una muestra alineada publicaba 1 donde era 0,5) y `muestra` ya no
+  recorta. `clasificar_variables()` cuenta `n_niveles_observados` sobre la
+  columna entera también sin perfil, y `meta$aritmetica_columnas` se publica
+  también cuando la única identidad candidata se descarta.
 - La identidad de filas ya no desborda en R anterior a 4.6. Con dos o más
   columnas de decenas de miles de valores distintos, `aplicar()` con
   `conservar_primera_duplicada` podía borrar filas legítimas (23.673 de 60.100
