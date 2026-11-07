@@ -101,9 +101,9 @@ Primera versión publicada.
   arma su tabla de tres mil caracteres en cada llamada: un texto ASCII sólo
   baja la caja, y uno corto usa la parte del mapa que trae. Sobre la tabla de
   ejemplo de 13 filas, `perfilar()` tarda 0,11 s y
-  `analizar()` 0,21 s en una sesión ya iniciada, y 0,20 s y 0,35 s en la primera
-  llamada de una sesión nueva (0,25 s y 0,41 s para `perfilar()` con la
-  protección pedida). Las cifras son de `benchmark/medir_costo_fijo.R` y quedan
+  `analizar()` 0,21 s en una sesión ya iniciada, y 0,20 s y 0,34 s en la primera
+  llamada de una sesión nueva. Con la protección pedida, `perfilar()` tarda
+  0,25 s y 0,39 s, y `analizar()` 0,62 s y 0,79 s. Las cifras son de `benchmark/medir_costo_fijo.R` y quedan
   en `benchmark/datos/medir-costo-fijo.csv`.
 - `perfilar()` sobre tablas anchas con muchas columnas iguales o de códigos de
   texto es varias veces más rápido, con la misma salida. Los hallazgos
