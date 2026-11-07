@@ -195,11 +195,21 @@
     como_resolverlo = character(), stringsAsFactors = FALSE
   )
   if (!inherits(hallazgos, "data.frame") || !nrow(hallazgos)) return(vacio)
-  ambiguos <- which(!is.na(hallazgos$columna) & vapply(
-    hallazgos$columna,
-    function(columna) .accion_columna_ambigua(perfil, columna),
-    logical(1L)
-  ))
+  # La misma pregunta que `.accion_columna_ambigua()` -cuantas columnas del
+  # perfil tienen ese nombre-, con los nombres normalizados y contados una sola
+  # vez. Preguntarla por hallazgo normalizaba todos los nombres del perfil en
+  # cada uno: con un perfil guardado por pares de 1.000 columnas iguales
+  # (499.500 hallazgos) eran 81 de los 87 s de `planificar_limpieza()`.
+  # `.nombres_para_operar()` es elemento a elemento, asi que normalizar el
+  # vector entero da las mismas claves que normalizar cada nombre.
+  candidatos <- which(!is.na(hallazgos$columna))
+  nombres <- .nombres_para_operar(perfil$columnas$columna)
+  distintos <- unique(nombres)
+  veces <- tabulate(match(nombres, distintos), nbins = length(distintos))[
+    match(.nombres_para_operar(hallazgos$columna[candidatos]), distintos)
+  ]
+  veces[is.na(veces)] <- 0L
+  ambiguos <- candidatos[veces != 1L]
   if (!length(ambiguos)) return(vacio)
   data.frame(
     hallazgo = as.character(hallazgos$tipo_hallazgo[ambiguos]),

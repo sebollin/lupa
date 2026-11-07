@@ -3137,10 +3137,14 @@
 .aviso_costo_agregados_dbi <- function(conexion, tabla, preparacion) {
   if (!identical(preparacion$universo, "tabla_completa")) return(NULL)
   estimacion <- tryCatch(
-    # Es una consulta interna del aviso previo. No puede consumir el presupuesto
-    # del perfil: hacerlo cambiaria que metricas entran cuando max_consultas es
-    # pequeno, aunque el aviso solo hable del costo de la tabla.
-    .estimar_bytes_fila_muestra_dbi(conexion, tabla, NULL),
+    # Es una consulta interna del aviso previo y no pasa por el presupuesto:
+    # `max_consultas` no la deja afuera. Pero viaja al motor, y se cuenta en
+    # las emitidas; el plan la anticipa con la misma pregunta
+    # (`.consultas_catalogo_aviso_dbi()`), asi que un `max_consultas` igual al
+    # total del plan sigue alcanzando para todas las metricas.
+    .estimar_bytes_fila_muestra_dbi(
+      conexion, tabla, NULL, contar_en = preparacion$presupuesto
+    ),
     error = function(e) NULL
   )
   if (is.null(estimacion) || !isTRUE(estimacion$disponible) ||
@@ -13109,6 +13113,30 @@
        conteo = conteo)
 }
 
+# Como calcula el desvio la corrida, en las dos preguntas que cambian cuantas
+# consultas emite: por ventana sobre la muestra del motor, sin sondear la forma,
+# o en una segunda pasada centrada sobre la tabla. Las hacen los agregados y el
+# plan con estas mismas funciones; con dos copias de la regla, el plan cobraba
+# las dos consultas de la forma tambien en la muestra, donde no se emiten, y no
+# veia la segunda pasada de MySQL sin `basicos`.
+.desvio_por_ventana_dbi <- function(conexion, metricas, universo) {
+  "desvio" %in% metricas && identical(universo, "muestra_motor") &&
+    .soporta_ventana_desvio_dbi(conexion)
+}
+
+.desvio_separado_dbi <- function(conexion, metricas, universo,
+                                 columnas_float8_numeric = character()) {
+  if (!"desvio" %in% metricas || !identical(universo, "tabla_completa")) {
+    return(FALSE)
+  }
+  senas <- .senas_conexion_dbi(conexion)
+  grepl("sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE,
+        useBytes = TRUE) ||
+    (grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
+       length(columnas_float8_numeric) > 0L) ||
+    (.es_mysql_dbi(senas) && !"basicos" %in% metricas)
+}
+
 .agregados_consolidados_dbi <- function(conexion, tabla_sql, columnas,
                                         columnas_sql, es_numerico, metricas,
                                         incluir_valores, presupuesto,
@@ -13161,12 +13189,10 @@
   } else {
     stats::setNames(as.character(tipos_declarados), columnas)
   }
-  ventana_desvio <- "desvio" %in% metricas &&
-    identical(universo, "muestra_motor") &&
-    .soporta_ventana_desvio_dbi(conexion)
-  separar_desvio <- "desvio" %in% metricas &&
-    identical(universo, "tabla_completa") &&
-    (sqlserver || postgres_float8 || (mysql && !"basicos" %in% metricas))
+  ventana_desvio <- .desvio_por_ventana_dbi(conexion, metricas, universo)
+  separar_desvio <- .desvio_separado_dbi(
+    conexion, metricas, universo, columnas_float8_numeric
+  )
   columnas_desvio_exactas <- columnas_float8_numeric
   metricas_planas <- intersect(c("validos", "basicos", "desvio"), metricas)
   if (separar_desvio) {
@@ -16445,7 +16471,7 @@
 # cambia de nombres. `tipos_motor` sale de `dbColumnInfo()$.typname`, que solo
 # RPostgres publica: con otro controlador no se convierte nada.
 .lectura_convertida_dbi <- function(conexion, campos, campos_sql, tipos_motor,
-                                    tipos = NULL) {
+                                    tipos = NULL, presupuesto = NULL) {
   vacia <- data.frame(
     columna = character(), tipo_motor = character(), lectura = character(),
     stringsAsFactors = FALSE
@@ -16496,7 +16522,7 @@
   if (any(doble)) {
     version <- .version_servidor_postgresql_dbi(conexion)
     extra_float_digits <- if (!is.na(version) && version >= 120000L) {
-      .extra_float_digits_postgresql_dbi(conexion)
+      .extra_float_digits_postgresql_dbi(conexion, presupuesto)
     } else {
       NA_integer_
     }
@@ -16616,12 +16642,15 @@
   as.integer(numeros[[1L]] * 10000L + menor * 100L + revision)
 }
 
-.extra_float_digits_postgresql_dbi <- function(conexion) {
+.extra_float_digits_postgresql_dbi <- function(conexion, presupuesto = NULL) {
   # Las conexiones que solo declaran senas de PostgreSQL (por ejemplo, un
   # adaptador de prueba sobre otro motor) no necesariamente implementan SHOW.
   # Para ellas se conserva el valor por omision de PostgreSQL 12+; RPostgres
   # si puede preguntar y, si la pregunta falla, deja la lectura exacta.
   if (!inherits(conexion, "PqConnection")) return(1L)
+  # La pregunta viaja al motor y se cuenta como el resto de la preparacion: el
+  # plan, que prepara igual, la anticipa con la misma cuenta.
+  .contar_dbi(presupuesto)
   valor <- tryCatch(
     DBI::dbGetQuery(conexion, "SHOW extra_float_digits"),
     error = function(e) NULL
@@ -16754,7 +16783,11 @@
                                   columnas_mediana_max = NULL,
                                   columnas_mediana_centrales = character(),
                                   consultas_muestra = 1L,
-                                  desvio_en_lotes = FALSE) {
+                                  desvio_en_lotes = FALSE,
+                                  desvio_por_ventana = FALSE,
+                                  lectura_muestra = FALSE,
+                                  catalogo_aviso = 0L,
+                                  reintento_muestreo = FALSE) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -16813,13 +16846,33 @@
   clases <- list(c(
     "portones (esquema y sondas)", emitidas, "una vez"
   ))
+  # La estimacion de filas del catalogo que usa el aviso de costo de la tabla
+  # completa: una lectura de metadatos que la corrida hace antes de los
+  # agregados (ver `.aviso_costo_agregados_dbi()`).
+  if (catalogo_aviso > 0) {
+    clases[[length(clases) + 1L]] <- c(
+      "estimacion de filas del catalogo (aviso de costo)", catalogo_aviso,
+      "lee el catalogo"
+    )
+  }
+  # Bajo la muestra del motor sin bloque de filas, la corrida lee la muestra
+  # una vez antes de los agregados para saber si todas las columnas se pueden
+  # leer.
+  if (isTRUE(lectura_muestra) && mide_metricas) {
+    clases[[length(clases) + 1L]] <- c(
+      "lectura de comprobacion de la muestra", 1, alcance_agregado
+    )
+  }
   if (hay_planos) {
     n_planos <- n_lotes(columnas_planas, tamano_lote_planos)
-    if ("desvio" %in% metricas && n_numericas > 0) {
+    # Las dos consultas de la forma del desvio se pagan una vez si hay lote plano,
+    # aunque ninguna columna sea numerica, y no se pagan cuando el desvio sale
+    # por ventana sobre la muestra (ver `.desvio_por_ventana_dbi()`).
+    if ("desvio" %in% metricas && !isTRUE(desvio_por_ventana)) {
       n_planos <- n_planos + .PEAJE_FORMA_DESVIO
-      if (isTRUE(desvio_en_lotes)) {
-        n_planos <- n_planos + n_lotes(n_numericas, tamano_lote_planos)
-      }
+    }
+    if ("desvio" %in% metricas && isTRUE(desvio_en_lotes)) {
+      n_planos <- n_planos + n_lotes(n_numericas, tamano_lote_planos)
     }
     clases[[length(clases) + 1L]] <- c(
       "agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio)",
@@ -16917,7 +16970,216 @@
         extra_biseccion(columnas_planas, tamano_lote_planos)
       } else 0)
     )
+  # Una muestra `TABLESAMPLE` que vuelve con menos de la mitad de lo pedido se
+  # reintenta con otra forma, y el resumen entero se vuelve a ejecutar sobre la
+  # muestra nueva: el peor caso repite todas las consultas de agregados. Cuando
+  # pasa depende de las paginas que el motor sortee, asi que va al extremo
+  # superior y no al total.
+  repetidas <- !plan$clase_consulta %in% c(
+    "portones (esquema y sondas)",
+    "estimacion de filas del catalogo (aviso de costo)",
+    "lectura de comprobacion de la muestra", "muestra",
+    "verificacion de unicidad del orden"
+  )
+  attr(plan, "extra_si_se_reintenta_muestreo") <- if (
+    isTRUE(reintento_muestreo) && mide_metricas
+  ) {
+    sum(plan$n_consultas_max[repetidas])
+  } else 0
   plan
+}
+
+# El plan de la via SQL -la tabla completa y la muestra del motor sin bloque de
+# filas-, armado desde la preparacion. Lo piden `plan_perfilado_dbi()` y la
+# corrida, que lo usa para la barra de avance y lo publica en `meta$plan`: eran
+# dos llamadas a `.plan_consultas_dbi()` con argumentos distintos, y la corrida
+# publicaba una cuenta que no era la del plan. Cada pregunta que cambia cuantas
+# consultas se emiten se contesta con la misma funcion que usa la corrida para
+# decidir (`.desvio_por_ventana_dbi()`, `.desvio_separado_dbi()`, las medianas
+# que dejan la consolidada). `emitidas` son las consultas ya pagadas -o, en el
+# plan, previstas- antes de los agregados.
+.plan_sql_dbi <- function(conexion, tabla, preparacion, es_numerico,
+                          incluir_valores, tope_muestra, emitidas,
+                          catalogo_aviso = 0L) {
+  # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
+  # estructural ya leido puede fijar la decision; lo demas abre un rango entre
+  # omitir y ejecutar la moda. La mediana queda fuera de ese criterio y la
+  # corrida medira lo que la politica explicita necesite, una sola vez.
+  decisiones_costo <- .decisiones_costo_dbi(
+    conexion, preparacion$campos,
+    list(conteos = stats::setNames(
+      vector("list", length(preparacion$campos)), preparacion$campos
+    )),
+    preparacion$politica_costo, preparacion$n_total, preparacion$universo,
+    fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
+  )
+  columnas_moda_plan <- NULL
+  columnas_moda_max <- NULL
+  columnas_mediana_plan <- NULL
+  columnas_mediana_max <- NULL
+  if (identical(preparacion$politica_costo$nombre, "por_cardinalidad") &&
+      isTRUE(incluir_valores) &&
+      .METRICA_CARDINALIDAD_COSTO_DBI %in% preparacion$metricas) {
+    desconocidas <- vapply(
+      preparacion$fuentes_cardinalidad_costo,
+      function(x) identical(x$nombre, "desconocida"), logical(1L)
+    )
+    if ("moda" %in% preparacion$metricas) {
+      columnas_moda_plan <- preparacion$campos[
+        vapply(decisiones_costo, function(x) isTRUE(x$moda), logical(1L)) &
+          !desconocidas
+      ]
+      columnas_moda_max <- unique(c(
+        columnas_moda_plan, preparacion$campos[desconocidas]
+      ))
+    } else {
+      columnas_moda_plan <- character()
+      columnas_moda_max <- character()
+    }
+    if ("mediana" %in% preparacion$metricas) {
+      columnas_mediana_plan <- preparacion$campos[
+        vapply(decisiones_costo, function(x) isTRUE(x$mediana), logical(1L)) &
+          !desconocidas
+      ]
+      columnas_mediana_plan <- intersect(
+        columnas_mediana_plan, preparacion$campos[preparacion$es_numerico]
+      )
+      columnas_mediana_max <- unique(c(
+        columnas_mediana_plan,
+        preparacion$campos[desconocidas & preparacion$es_numerico]
+      ))
+    } else {
+      columnas_mediana_plan <- character()
+      columnas_mediana_max <- character()
+    }
+  }
+  senas <- .senas_conexion_dbi(conexion)
+  # Las medianas que la corrida saca de la consolidada, con las mismas dos
+  # preguntas que `.resumen_tabla_dbi()`: un `float8` de PostgreSQL, que se lee
+  # como NUMERIC, y un decimal, cuya mediana es la suma de sus centrales. Cada
+  # una es una consulta propia (o la CTE de la muestra).
+  fuera_de_consolidada <- vapply(seq_along(preparacion$campos), function(i) {
+    preparacion$campos[[i]] %in% preparacion$columnas_float8_numeric ||
+      .mediana_decimal_por_centrales_dbi(
+        senas,
+        if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+          NA_character_
+      )
+  }, logical(1L))
+  muestra_sql <- identical(preparacion$universo, "muestra_motor") &&
+    !.solicita_muestra_dbi(preparacion$bloque_muestra)
+  .plan_consultas_dbi(
+    preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
+    length(preparacion$orden_sql) > 0 &&
+      .solicita_muestra_dbi(preparacion$bloque_muestra), preparacion$dialecto,
+    emitidas = emitidas,
+    universo = preparacion$universo,
+    muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
+      preparacion$muestreo$disponible,
+    tamano_lote_planos = preparacion$tamano_lote_planos,
+    tamano_lote_distintos = preparacion$tamano_lote_distintos,
+    incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
+    mediana_consolidada = !is.null(preparacion$mediana_consolidada),
+    columnas_distintos = preparacion$columnas_distintos_ejecucion,
+    columnas_moda = columnas_moda_plan,
+    columnas_moda_max = columnas_moda_max,
+    columnas_mediana = columnas_mediana_plan,
+    columnas_mediana_max = columnas_mediana_max,
+    columnas_mediana_centrales = preparacion$campos[fuera_de_consolidada],
+    consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
+                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
+    desvio_en_lotes = .desvio_separado_dbi(
+      conexion, preparacion$metricas_ejecucion, preparacion$universo,
+      preparacion$columnas_float8_numeric
+    ),
+    desvio_por_ventana = .desvio_por_ventana_dbi(
+      conexion, preparacion$metricas_ejecucion, preparacion$universo
+    ),
+    lectura_muestra = muestra_sql,
+    catalogo_aviso = catalogo_aviso,
+    reintento_muestreo = muestra_sql && identical(
+      .candidato_muestreo_previsto_dbi(conexion, preparacion)$tipo,
+      "tablesample"
+    )
+  )
+}
+
+# El plan de la muestra del motor con bloque de filas: la corrida materializa la
+# muestra una vez en un spool de la sesion y calcula todo en R, sin los
+# agregados SQL que el plan contaba. Lo que manda al motor es la preparacion, la
+# estimacion de bytes por fila del catalogo, el conteo del universo si la
+# preparacion no lo hizo, la seleccion de la muestra -dos si un `TABLESAMPLE`
+# corto se reintenta- y, al final, la preparacion del plan que publica en
+# `meta$plan`, que `replan` cuenta (ver `perfilar_dbi()`).
+.plan_spool_dbi <- function(conexion, tabla, preparacion, emitidas, replan,
+                            conteo_en_preparacion) {
+  muestreo <- preparacion$muestreo
+  disponible <- !is.null(muestreo) && isTRUE(muestreo$disponible)
+  catalogo <- if (is.null(.sql_catalogo_bytes_fila_dbi(
+    conexion, tabla, preparacion$campos, preparacion$esquema$tipos_motor
+  ))) 0 else 1
+  reintento <- disponible && identical(
+    .candidato_muestreo_previsto_dbi(conexion, preparacion)$tipo, "tablesample"
+  )
+  clases <- list(
+    c("portones (esquema y sondas)", emitidas, "una vez", emitidas),
+    c("estimacion de bytes por fila (catalogo)", catalogo, "lee el catalogo",
+      catalogo),
+    c("conteo del universo", if (isTRUE(conteo_en_preparacion)) 0 else 1,
+      "escanea la tabla completa",
+      if (isTRUE(conteo_en_preparacion)) 0 else 1),
+    c("seleccion de la muestra (spool de la sesion)", if (disponible) 1 else 0,
+      .ALCANCE_BLOQUE_CLIENTE_DBI,
+      if (disponible) 1 + as.numeric(reintento) else 0),
+    c("preparacion del plan publicado en meta$plan", replan, "lee el catalogo",
+      replan)
+  )
+  plan <- data.frame(
+    clase_consulta = vapply(clases, function(x) x[[1L]], character(1L)),
+    n_consultas = vapply(clases, function(x) as.numeric(x[[2L]]), numeric(1L)),
+    alcance = vapply(clases, function(x) x[[3L]], character(1L)),
+    n_consultas_max = vapply(clases, function(x) as.numeric(x[[4L]]), numeric(1L)),
+    stringsAsFactors = FALSE
+  )
+  plan <- plan[plan$n_consultas > 0 | plan$n_consultas_max > 0, , drop = FALSE]
+  rownames(plan) <- NULL
+  attr(plan, "extra_si_se_rechazan_lotes") <- 0
+  attr(plan, "extra_si_se_reintenta_muestreo") <- 0
+  plan
+}
+
+# La forma de muestreo que la corrida va a aceptar, para contar sus consultas.
+# El plan no sondea: elige la primera candidata por las senas del motor, y en
+# PostgreSQL anterior a 9.5, que no tiene `TABLESAMPLE`, la corrida la rechaza y
+# usa el orden aleatorio, que no cuenta la tabla antes. Medido en 9.3: el plan
+# anunciaba ese conteo y la corrida emitia una consulta menos. Solo cambia la
+# cuenta; `attr(plan, "muestreo")` sigue publicando la candidata sin sondear.
+.candidato_muestreo_previsto_dbi <- function(conexion, preparacion) {
+  muestreo <- preparacion$muestreo
+  if (is.null(muestreo) || is.null(muestreo$candidato)) return(NULL)
+  candidato <- muestreo$candidato
+  if (!identical(candidato$tipo, "tablesample") ||
+      !grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+             useBytes = TRUE)) {
+    return(candidato)
+  }
+  version <- .version_servidor_postgresql_dbi(conexion)
+  if (is.na(version) || version >= 90500L) return(candidato)
+  candidatos <- .candidatos_muestreo_dbi(
+    conexion, preparacion$dialecto, preparacion$tipo_objeto
+  )
+  sin_tablesample <- Filter(function(x) {
+    !grepl("^tablesample", as.character(x$tipo))
+  }, candidatos)
+  if (length(sin_tablesample)) sin_tablesample[[1L]] else NULL
+}
+
+# Cuantas consultas manda la estimacion de filas del catalogo con que la tabla
+# completa decide su aviso de costo: la misma pregunta que se hace
+# `.estimar_bytes_fila_muestra_dbi()` antes de mandar la suya.
+.consultas_catalogo_aviso_dbi <- function(conexion, tabla, preparacion) {
+  if (!identical(preparacion$universo, "tabla_completa")) return(0L)
+  if (is.null(.sql_catalogo_bytes_fila_dbi(conexion, tabla))) 0L else 1L
 }
 
 # Cuantas consultas se emiten no dice cuanto cuestan. Catorce consultas sobre
@@ -16949,6 +17211,10 @@
     # solo: la traduccion vive arriba y aca se cuenta lo que llego.
     "lee una muestra del motor" = n_consultas * muestra,
     "lee las filas pedidas" = muestra,
+    # Las lecturas de catalogo y de metadatos -la estimacion de filas del aviso
+    # de costo, la preparacion que la corrida repite para publicar su plan- no
+    # recorren la tabla.
+    "lee el catalogo" = 0,
     NA_real_
   )
 }
@@ -17472,6 +17738,12 @@
 #' y 500.000 filas dieron 0,448/1,684/5,598 s con spool frente a
 #' 0,814/2,178/3,265 s reordenando cada pasada; el cruce está entre 100.000 y
 #' 500.000, y la elección prioriza identidad.
+#' Con el bloque de filas, esa vía no corre los agregados SQL de la muestra: el
+#' plan cuenta la preparación, la estimación de bytes por fila del catálogo, el
+#' conteo del universo cuando la preparación no lo hace, la selección de la
+#' muestra —dos en el extremo superior, si un `TABLESAMPLE` corto se reintenta—
+#' y la preparación que la corrida repite para publicar su plan en
+#' `meta$plan`.
 #'
 #' @inheritParams perfilar_dbi
 #' @param bloque_filas Entero positivo que activa la fuente por
@@ -17479,7 +17751,12 @@
 #'   set (`dbSendQuery()` + `dbFetch(n = bloque_filas)`) y se absorbe antes de
 #'   liberar la entrada. `NULL` conserva el plan historico. El plan publica la
 #'   proyeccion, el orden, los bloques previstos y el costo declarado sin leer
-#'   las filas.
+#'   las filas. Cuenta la preparación, las pruebas de la fuente, el recorrido, la
+#'   segunda pasada del localizador, la moda exacta de binarios y decimales
+#'   anchos, la media de los decimales en el decimal y la lectura de
+#'   `perfil_muestra`; la mediana de un decimal cuyas centrales son dobles
+#'   distintos, su desvío centrado y la moda de un entero leído como doble los
+#'   piden los datos y van al extremo superior.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -17534,6 +17811,15 @@
 #'   y el intervalo queda condicionado a que la sonda de la corrida la acepte.
 #'   Si la forma muestreada no se puede construir, el plan declara ese caso,
 #'   excluye sus métricas del rango y `attr(plan, "supuesto")` dice por qué.
+#'   El extremo superior incluye además, con `universo = "muestra_motor"` y una
+#'   forma `TABLESAMPLE`, el reintento del resumen cuando la muestra vuelve con
+#'   menos de la mitad de lo pedido, que depende de las páginas que sortee el
+#'   motor. La cuenta es la de `max_consultas` y la de
+#'   `resumen_tabla$meta$consultas$emitidas`: toda sentencia que el perfilado
+#'   manda al motor, salvo las de la guarda de transacción y las lecturas de
+#'   `pg_stat_statements` de `instrumentar`. Con `max_consultas` igual a
+#'   `total_maximo` ninguna métrica queda afuera por el presupuesto; con
+#'   `total`, sólo las consultas que piden los datos pueden quedar afuera.
 #'
 #'   Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 #'   sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -17673,6 +17959,17 @@ plan_perfilado_dbi <- function(conexion, tabla,
   muestreo_plan <- identical(preparacion$universo, "muestra_motor") &&
     !is.null(preparacion$muestreo) &&
     !is.null(preparacion$muestreo$candidato)
+  candidato_previsto <- .candidato_muestreo_previsto_dbi(conexion, preparacion)
+  conteo_muestreo <- isTRUE(muestreo_plan) && !is.null(candidato_previsto) && (
+    identical(candidato_previsto$tipo, "tablesample") || (
+      identical(candidato_previsto$tipo, "aleatorio") &&
+        any(vapply(
+          candidato_previsto$funciones,
+          function(funcion) identical(funcion$nombre, "newid"),
+          logical(1L)
+        ))
+    )
+  )
   emitidas_plan <- consultas_antes_agregados +
     if (isTRUE(muestreo_plan)) {
       sondas_muestreo <- if (is.null(preparacion$muestreo$sondas_previstas)) {
@@ -17680,16 +17977,6 @@ plan_perfilado_dbi <- function(conexion, tabla,
       } else {
         preparacion$muestreo$sondas_previstas
       }
-      conteo_muestreo <- identical(
-        preparacion$muestreo$candidato$tipo, "tablesample"
-      ) || (
-        identical(preparacion$muestreo$candidato$tipo, "aleatorio") &&
-          any(vapply(
-            preparacion$muestreo$candidato$funciones,
-            function(funcion) identical(funcion$nombre, "newid"),
-            logical(1L)
-          ))
-      )
       as.integer(sondas_muestreo) + as.integer(conteo_muestreo)
     } else {
       0L
@@ -17706,103 +17993,33 @@ plan_perfilado_dbi <- function(conexion, tabla,
   emitidas_plan <- emitidas_plan + .prueba_cte_mediana_plan_dbi(
     conexion, preparacion, es_numerico, incluir_valores
   )
-  # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
-  # estructural ya leido puede fijar la decision; lo demas abre un rango entre
-  # omitir y ejecutar la moda. La mediana queda fuera de ese criterio y la
-  # corrida medira lo que la politica explicita necesite, una sola vez.
-  decisiones_costo <- .decisiones_costo_dbi(
-    conexion, preparacion$campos,
-    list(conteos = stats::setNames(
-      vector("list", length(preparacion$campos)), preparacion$campos
-    )),
-    preparacion$politica_costo, preparacion$n_total, preparacion$universo,
-    fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
-  )
-  columnas_moda_plan <- NULL
-  columnas_moda_max <- NULL
-  columnas_mediana_plan <- NULL
-  columnas_mediana_max <- NULL
-  if (identical(preparacion$politica_costo$nombre, "por_cardinalidad") &&
-      isTRUE(incluir_valores) &&
-      .METRICA_CARDINALIDAD_COSTO_DBI %in% preparacion$metricas) {
-    desconocidas <- vapply(
-      preparacion$fuentes_cardinalidad_costo,
-      function(x) identical(x$nombre, "desconocida"), logical(1L)
-    )
-    if ("moda" %in% preparacion$metricas) {
-      columnas_moda_plan <- preparacion$campos[
-        vapply(decisiones_costo, function(x) isTRUE(x$moda), logical(1L)) &
-          !desconocidas
-      ]
-      columnas_moda_max <- unique(c(
-        columnas_moda_plan, preparacion$campos[desconocidas]
-      ))
-    } else {
-      columnas_moda_plan <- character()
-      columnas_moda_max <- character()
-    }
-    if ("mediana" %in% preparacion$metricas) {
-      columnas_mediana_plan <- preparacion$campos[
-        vapply(decisiones_costo, function(x) isTRUE(x$mediana), logical(1L)) &
-          !desconocidas
-      ]
-      columnas_mediana_plan <- intersect(
-        columnas_mediana_plan, preparacion$campos[preparacion$es_numerico]
-      )
-      columnas_mediana_max <- unique(c(
-        columnas_mediana_plan,
-        preparacion$campos[desconocidas & preparacion$es_numerico]
-      ))
-    } else {
-      columnas_mediana_plan <- character()
-      columnas_mediana_max <- character()
-    }
-  }
-  plan <- .plan_consultas_dbi(
-    preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
-    length(preparacion$orden_sql) > 0 &&
-      .solicita_muestra_dbi(preparacion$bloque_muestra), preparacion$dialecto,
-    # Solo se cuentan aqui las consultas de preparacion. No hay un COUNT(*)
-    # propio: el total se conocera en la corrida y viajara con el primer
-    # agregado plano que pueda llevarlo.
+  plan <- .plan_sql_dbi(
+    conexion, tabla, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = emitidas_plan,
-    universo = preparacion$universo,
-    muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
-      preparacion$muestreo$disponible,
-    tamano_lote_planos = preparacion$tamano_lote_planos,
-    tamano_lote_distintos = preparacion$tamano_lote_distintos,
-    incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
-    mediana_consolidada = !is.null(preparacion$mediana_consolidada),
-    columnas_distintos = preparacion$columnas_distintos_ejecucion,
-    columnas_moda = columnas_moda_plan,
-    columnas_moda_max = columnas_moda_max,
-    columnas_mediana = columnas_mediana_plan,
-    columnas_mediana_max = columnas_mediana_max,
-    columnas_mediana_centrales = preparacion$campos[vapply(
-      seq_along(preparacion$campos), function(i) {
-        .mediana_decimal_por_centrales_dbi(
-          .senas_conexion_dbi(conexion),
-          if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
-            NA_character_
-        )
-      }, logical(1L)
-    )],
-    consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
-                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
-    desvio_en_lotes = identical(preparacion$universo, "tabla_completa") &&
-      "desvio" %in% preparacion$metricas_ejecucion && (
-        grepl("sql server|microsoft sql|sqlserver|mssql",
-              .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE) ||
-        length(preparacion$columnas_float8_numeric) > 0L
-      )
+    catalogo_aviso = .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
   )
+  # Con el bloque de filas, la muestra del motor no corre los agregados SQL:
+  # se materializa una vez y se calcula en R (ver `.plan_spool_dbi()`). La
+  # corrida vuelve a preparar la tabla para publicar este plan, y esa
+  # preparacion es la de este plan: `consultas_antes_agregados`.
+  if (identical(preparacion$universo, "muestra_motor") &&
+      .solicita_muestra_dbi(preparacion$bloque_muestra)) {
+    plan <- .plan_spool_dbi(
+      conexion, tabla, preparacion, emitidas = emitidas_plan,
+      replan = consultas_antes_agregados,
+      conteo_en_preparacion = conteo_muestreo
+    )
+  }
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
   if (is.null(extra)) extra <- 0
+  reintento <- attr(plan, "extra_si_se_reintenta_muestreo", exact = TRUE)
+  if (is.null(reintento)) reintento <- 0
   attr(plan, "total_minimo") <- sum(plan$n_consultas)
-  attr(plan, "total_maximo") <- sum(plan$n_consultas_max) + extra
+  attr(plan, "total_maximo") <- sum(plan$n_consultas_max) + extra + reintento
   attr(plan, "total_lotes_rechazados") <- attr(plan, "total_maximo")
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
+  attr(plan, "extra_si_se_reintenta_muestreo") <- NULL
   muestreo_plan_publico <- .publicar_muestreo_plan_dbi(
     preparacion$muestreo, if (identical(
       preparacion$universo, "muestra_motor"
@@ -17914,22 +18131,40 @@ plan_perfilado_dbi <- function(conexion, tabla,
     celdas = attr(plan, "celdas", exact = TRUE),
     pares_texto = attr(plan, "pares_texto", exact = TRUE)
   )
-  if (!is.null(bloque_filas)) {
-    fuente <- .fuente_bloques_dbi(
-      conexion, tabla, tabla_sql = preparacion$tabla_sql,
-      campos = preparacion$campos,
-      campos_sql = preparacion$campos_sql_bloques %||%
-        preparacion$campos_sql_proyeccion,
-      prototipo = preparacion$prototipo, tipos = preparacion$tipos,
-      orden_sql = preparacion$orden_sql,
-      clave = preparacion$catalogo_cardinalidad,
-      dialecto = preparacion$dialecto, presupuesto = preparacion$presupuesto,
-      bloque_filas = bloque_filas
-    )
-    plan <- .plan_bloques_fuente_dbi(
-      fuente, bloque_filas, preparacion$campos,
-      preparacion$metricas_ejecucion, preparacion$bloque_muestra,
-      preparacion$muestra
+  # La muestra del motor con el bloque de filas va por el spool aunque se pida
+  # `bloque_filas`, que ahi solo fija el tamano de cada lectura.
+  if (!is.null(bloque_filas) && !(
+    identical(preparacion$universo, "muestra_motor") &&
+      .solicita_muestra_dbi(preparacion$bloque_muestra)
+  )) {
+    # La corrida por bloques sobre la muestra del motor no tiene fuente: queda
+    # `no_disponible` sin probarla, y el plan no paga esas consultas.
+    usadas_antes_fuente <- preparacion$presupuesto$usadas
+    fuente <- if (identical(preparacion$universo, "tabla_completa")) {
+      .fuente_bloques_dbi(
+        conexion, tabla, tabla_sql = preparacion$tabla_sql,
+        campos = preparacion$campos,
+        campos_sql = preparacion$campos_sql_bloques %||%
+          preparacion$campos_sql_proyeccion,
+        prototipo = preparacion$prototipo, tipos = preparacion$tipos,
+        orden_sql = preparacion$orden_sql,
+        clave = preparacion$catalogo_cardinalidad,
+        dialecto = preparacion$dialecto, presupuesto = preparacion$presupuesto,
+        bloque_filas = bloque_filas
+      )
+    } else {
+      list(disponible = FALSE,
+           motivo = "no_disponible:fuente_bloques_solo_tabla_completa")
+    }
+    plan <- .plan_bloques_dbi(
+      conexion, preparacion, fuente, bloque_filas,
+      preparacion$metricas_ejecucion, incluir_valores, tope_muestra,
+      emitidas = emitidas_plan,
+      pruebas_fuente = preparacion$presupuesto$usadas - usadas_antes_fuente,
+      catalogo_aviso = .consultas_catalogo_aviso_dbi(
+        conexion, tabla, preparacion
+      ),
+      orden_muestra = NULL
     )
   }
   if (identical(preparacion$universo, "muestra_motor") &&
@@ -21993,7 +22228,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # que nombra los agregados sobre la tabla de lectura.
   lectura <- .lectura_convertida_dbi(
     conexion, campos, esquema$campos_sql, esquema$tipos_motor,
-    tipos = esquema$tipos
+    tipos = esquema$tipos, presupuesto = presupuesto
   )
   tipos_declarados <- .tipos_declarados_con_motor_dbi(
     esquema$tipos, esquema$tipos_motor
@@ -23388,7 +23623,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   ejemplo, antes de `ANALYZE`— o hay ambigüedad, la métrica queda
 #'   `no_disponible`, no en cero.
 #' @param max_consultas Presupuesto declarado de consultas. Al agotarse, las
-#'   métricas restantes quedan en `no_disponible` con ese motivo.
+#'   métricas restantes quedan en `no_disponible` con ese motivo. Cuenta toda
+#'   sentencia que el perfilado manda al motor —la preparación, las lecturas de
+#'   catálogo, el recorrido por bloques y, por el spool de la muestra del
+#'   motor, la preparación que la corrida repite para publicar su plan—, la
+#'   misma cuenta de [plan_perfilado_dbi()] y de
+#'   `resumen_tabla$meta$consultas$emitidas`. No cuentan las sentencias de la
+#'   guarda de transacción (`SAVEPOINT` y, en SQL Server, la pregunta por la
+#'   transacción abierta antes de cada consulta) ni las lecturas de
+#'   `pg_stat_statements` de `instrumentar`. La preparación y el recorrido por
+#'   bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
+#'   `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda afuera
+#'   por el presupuesto.
 #' @param tamano_lote Cantidad máxima de columnas por consulta consolidada.
 #'   Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos
 #'   familias. Para control separado, usar `tamano_lote_planos` y
@@ -23765,6 +24011,18 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_materializacion = max_bytes_materializacion
     )
     resultado$resumen_tabla$meta$plan <- plan_corrida
+    # Armar ese plan vuelve a preparar la tabla, y esas consultas viajan al
+    # motor: se cuentan con las demas y el plan las anuncia
+    # (ver `.plan_spool_dbi()`).
+    .contar_dbi(
+      preparacion$presupuesto,
+      attr(plan_corrida, "consultas_emitidas", exact = TRUE) %||% 0
+    )
+    if (is.list(resultado$resumen_tabla$meta$consultas) &&
+        !is.null(preparacion$presupuesto)) {
+      resultado$resumen_tabla$meta$consultas$emitidas <-
+        preparacion$presupuesto$usadas
+    }
     resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
     # El spool ya materializo los datos y aplica estas guardas antes de la
     # corroboracion; se repite aqui para cubrir un adaptador que devuelva un
@@ -23880,26 +24138,18 @@ perfilar_dbi <- function(conexion, tabla,
     preparacion$muestra, length(preparacion$campos),
     max_celdas_muestra, max_bytes_muestra
   )
-  plan <- .plan_consultas_dbi(
-    preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
-    length(preparacion$orden_sql) > 0 &&
-      .solicita_muestra_dbi(preparacion$bloque_muestra), preparacion$dialecto,
-    emitidas = presupuesto$usadas, universo = preparacion$universo,
-    muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
-      preparacion$muestreo$disponible,
-    tamano_lote_planos = preparacion$tamano_lote_planos,
-    tamano_lote_distintos = preparacion$tamano_lote_distintos,
-    columnas_distintos = preparacion$columnas_distintos_ejecucion,
-    incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
-    mediana_consolidada = !is.null(preparacion$mediana_consolidada),
-    consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
-                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
-    desvio_en_lotes = identical(preparacion$universo, "tabla_completa") &&
-      "desvio" %in% preparacion$metricas_ejecucion && (
-        grepl("sql server|microsoft sql|sqlserver|mssql",
-              .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE) ||
-        length(preparacion$columnas_float8_numeric) > 0L
-      )
+  # El mismo plan que `plan_perfilado_dbi()` (ver `.plan_sql_dbi()`), con las
+  # consultas que esta corrida ya pago en lugar de las previstas. La estimacion
+  # del aviso de costo ya esta en `presupuesto$usadas`; se separa para que la
+  # forma del plan sea la del previo.
+  aviso_catalogo <- .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
+  plan <- .plan_sql_dbi(
+    conexion, tabla, preparacion, es_numerico, incluir_valores, tope_muestra,
+    emitidas = presupuesto$usadas - aviso_catalogo +
+      .prueba_cte_mediana_plan_dbi(
+        conexion, preparacion, es_numerico, incluir_valores
+      ),
+    catalogo_aviso = aviso_catalogo
   )
   # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
   # pidio, muestra- se reservan para que el presupuesto no se las coma.

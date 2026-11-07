@@ -162,7 +162,18 @@ el estado \code{no_solicitado} y \code{meta$bloques$filas_vistas = 0}. La segund
 opción no cambia el alcance de esos agregados: eso lo decide \code{universo}.}
 
 \item{max_consultas}{Presupuesto declarado de consultas. Al agotarse, las
-métricas restantes quedan en \code{no_disponible} con ese motivo.}
+métricas restantes quedan en \code{no_disponible} con ese motivo. Cuenta toda
+sentencia que el perfilado manda al motor —la preparación, las lecturas de
+catálogo, el recorrido por bloques y, por el spool de la muestra del
+motor, la preparación que la corrida repite para publicar su plan—, la
+misma cuenta de \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} y de
+\code{resumen_tabla$meta$consultas$emitidas}. No cuentan las sentencias de la
+guarda de transacción (\code{SAVEPOINT} y, en SQL Server, la pregunta por la
+transacción abierta antes de cada consulta) ni las lecturas de
+\code{pg_stat_statements} de \code{instrumentar}. La preparación y el recorrido por
+bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
+\code{max_consultas = attr(plan, "total_maximo")} ninguna métrica queda afuera
+por el presupuesto.}
 
 \item{dialecto}{Capacidad de acotar filas: \code{"auto"} la sondea, y
 \code{"limit"}, \code{"top"}, \code{"fetch_first"}, \code{"rownum"} o \code{"portable"} la

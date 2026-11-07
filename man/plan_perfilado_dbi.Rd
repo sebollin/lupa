@@ -150,7 +150,18 @@ el estado \code{no_solicitado} y \code{meta$bloques$filas_vistas = 0}. La segund
 opción no cambia el alcance de esos agregados: eso lo decide \code{universo}.}
 
 \item{max_consultas}{Presupuesto declarado de consultas. Al agotarse, las
-métricas restantes quedan en \code{no_disponible} con ese motivo.}
+métricas restantes quedan en \code{no_disponible} con ese motivo. Cuenta toda
+sentencia que el perfilado manda al motor —la preparación, las lecturas de
+catálogo, el recorrido por bloques y, por el spool de la muestra del
+motor, la preparación que la corrida repite para publicar su plan—, la
+misma cuenta de \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} y de
+\code{resumen_tabla$meta$consultas$emitidas}. No cuentan las sentencias de la
+guarda de transacción (\code{SAVEPOINT} y, en SQL Server, la pregunta por la
+transacción abierta antes de cada consulta) ni las lecturas de
+\code{pg_stat_statements} de \code{instrumentar}. La preparación y el recorrido por
+bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
+\code{max_consultas = attr(plan, "total_maximo")} ninguna métrica queda afuera
+por el presupuesto.}
 
 \item{dialecto}{Capacidad de acotar filas: \code{"auto"} la sondea, y
 \code{"limit"}, \code{"top"}, \code{"fetch_first"}, \code{"rownum"} o \code{"portable"} la
@@ -222,7 +233,12 @@ bloques de \code{tabla_completa}. Cada bloque se obtiene con un unico result
 set (\code{dbSendQuery()} + \code{dbFetch(n = bloque_filas)}) y se absorbe antes de
 liberar la entrada. \code{NULL} conserva el plan historico. El plan publica la
 proyeccion, el orden, los bloques previstos y el costo declarado sin leer
-las filas.}
+las filas. Cuenta la preparación, las pruebas de la fuente, el recorrido, la
+segunda pasada del localizador, la moda exacta de binarios y decimales
+anchos, la media de los decimales en el decimal y la lectura de
+\code{perfil_muestra}; la mediana de un decimal cuyas centrales son dobles
+distintos, su desvío centrado y la moda de un entero leído como doble los
+piden los datos y van al extremo superior.}
 
 \item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
@@ -291,6 +307,15 @@ de lotes puede agregar las sondas de bisección declaradas por
 y el intervalo queda condicionado a que la sonda de la corrida la acepte.
 Si la forma muestreada no se puede construir, el plan declara ese caso,
 excluye sus métricas del rango y \code{attr(plan, "supuesto")} dice por qué.
+El extremo superior incluye además, con \code{universo = "muestra_motor"} y una
+forma \code{TABLESAMPLE}, el reintento del resumen cuando la muestra vuelve con
+menos de la mitad de lo pedido, que depende de las páginas que sortee el
+motor. La cuenta es la de \code{max_consultas} y la de
+\code{resumen_tabla$meta$consultas$emitidas}: toda sentencia que el perfilado
+manda al motor, salvo las de la guarda de transacción y las lecturas de
+\code{pg_stat_statements} de \code{instrumentar}. Con \code{max_consultas} igual a
+\code{total_maximo} ninguna métrica queda afuera por el presupuesto; con
+\code{total}, sólo las consultas que piden los datos pueden quedar afuera.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -426,6 +451,12 @@ justificar este costo es PostgreSQL 16, 2 millones de filas: 10.000, 100.000
 y 500.000 filas dieron 0,448/1,684/5,598 s con spool frente a
 0,814/2,178/3,265 s reordenando cada pasada; el cruce está entre 100.000 y
 500.000, y la elección prioriza identidad.
+Con el bloque de filas, esa vía no corre los agregados SQL de la muestra: el
+plan cuenta la preparación, la estimación de bytes por fila del catálogo, el
+conteo del universo cuando la preparación no lo hace, la selección de la
+muestra —dos en el extremo superior, si un \code{TABLESAMPLE} corto se reintenta—
+y la preparación que la corrida repite para publicar su plan en
+\code{meta$plan}.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

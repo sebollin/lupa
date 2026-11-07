@@ -1018,6 +1018,15 @@ El rango vale cuando el muestreo se puede construir. Si
 `"no_sondeado"`, la forma sólo se construyó localmente. El rango queda
 condicionado a que la sonda de la corrida la acepte.
 
+El plan cuenta lo mismo que `max_consultas` y que `meta$consultas$emitidas`: toda
+sentencia que el perfilado manda al motor, salvo la guarda de transacción y las
+lecturas de `pg_stat_statements` de `instrumentar`. Por `bloque_filas` cuenta la
+preparación, el recorrido y las consultas que siguen; las que piden los datos
+—la mediana de un decimal cuyas centrales son dobles distintos, su desvío
+centrado, el reintento de un `TABLESAMPLE` corto— van a `total_maximo`. Con
+`max_consultas = attr(plan, "total_maximo")` ninguna métrica queda afuera por el
+presupuesto.
+
 La cuenta sigue a la composición de la tabla, no a la cantidad de columnas. Con
 la tabla ancha de la sección anterior y una de 158 columnas, todas de texto:
 

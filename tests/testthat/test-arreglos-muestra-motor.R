@@ -296,17 +296,26 @@ test_that("el umbral de costo avisa y sugiere una muestra", {
   expect_equal(resultado$resumen_tabla$meta$filas, 4)
 })
 
-test_that("el aviso de costo no consume el presupuesto del perfil", {
+test_that("el aviso de costo se cuenta y no queda afuera por el presupuesto", {
+  # La estimacion del aviso no pasa por el presupuesto -`max_consultas` no la
+  # deja afuera, aunque este agotado- pero viaja al motor y se cuenta en el
+  # mismo presupuesto, como la anuncia el plan: antes se mandaba sin contarse y
+  # el plan de la tabla completa quedaba una consulta corto en PostgreSQL y SQL
+  # Server.
   skip_on_cran()
   presupuesto <- .presupuesto_dbi(3)
-  recibido <- NULL
+  presupuesto$usadas <- 3
+  recibido <- "sin llamar"
+  contado_en <- NULL
   estimacion <- list(
     disponible = TRUE, bytes_por_fila = 10, filas_catalogo = 200000000,
     fuente = "catalogo de prueba", motivo = NA_character_
   )
   testthat::local_mocked_bindings(
-    .estimar_bytes_fila_muestra_dbi = function(conexion, tabla, presupuesto) {
+    .estimar_bytes_fila_muestra_dbi = function(conexion, tabla, presupuesto,
+                                               contar_en = NULL) {
       recibido <<- presupuesto
+      contado_en <<- contar_en
       estimacion
     },
     .package = "lupa"
@@ -317,7 +326,7 @@ test_that("el aviso de costo no consume el presupuesto del perfil", {
   )
   expect_true(is.list(aviso))
   expect_null(recibido)
-  expect_equal(presupuesto$usadas, 0)
+  expect_identical(contado_en, presupuesto)
 })
 
 .arrm_conexion_pg <- function(puerto) {

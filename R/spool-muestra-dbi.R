@@ -410,14 +410,12 @@
   )
 }
 
-.estimar_bytes_fila_muestra_dbi <- function(
-    conexion, tabla, presupuesto, campos = NULL, tipos_motor = NULL) {
-  vacia <- list(
-    disponible = FALSE, bytes_por_fila = NA_real_, filas_catalogo = NA_real_,
-    fuente = NA_character_, motivo = "sin_estimacion_catalogo",
-    version_sqlserver = NA_real_,
-    consulta = .medicion_consulta_vacia_dbi("catalogo_bytes_muestra")
-  )
+# La consulta de catalogo que estima los bytes por fila y las filas de la
+# tabla, o `NULL` si el motor no tiene una o el nombre no se puede escribir como
+# literal. Vive aparte para que el plan sepa, con la misma pregunta, si la
+# corrida la va a mandar (ver `.consultas_catalogo_aviso_dbi()`).
+.sql_catalogo_bytes_fila_dbi <- function(conexion, tabla, campos = NULL,
+                                         tipos_motor = NULL) {
   senas <- .senas_conexion_dbi(conexion)
   nombre <- .texto_tabla_dbi(tabla)
   literal <- tryCatch(
@@ -425,7 +423,7 @@
     error = function(e) NA_character_
   )
   if (length(literal) != 1L || is.na(literal) || !nzchar(literal)) {
-    return(vacia)
+    return(NULL)
   }
   partes <- strsplit(gsub('"', "", nombre, fixed = TRUE), ".", fixed = TRUE)[[1L]]
   tabla_nombre <- partes[[length(partes)]]
@@ -440,7 +438,7 @@
     esquema <- if (is.na(esquema_nombre)) "current_schema()" else
       quote_texto(esquema_nombre)
     tabla_citada <- quote_texto(tabla_nombre)
-    if (is.na(tabla_citada) || is.na(esquema)) return(vacia)
+    if (is.na(tabla_citada) || is.na(esquema)) return(NULL)
     nombres_proyeccion <- character()
     binarios <- logical()
     if (length(campos) && length(tipos_motor) == length(campos)) {
@@ -487,23 +485,9 @@
       "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace ",
       "WHERE n.nspname = ", esquema, " AND c.relname = ", tabla_citada
     )
-    resultado <- .consultar_dbi(
-      conexion, sql, presupuesto, etapa = "catalogo_bytes_muestra"
-    )
-    if (!isTRUE(resultado$ok) || !is.data.frame(resultado$datos) ||
-        !nrow(resultado$datos)) return(vacia)
-    bytes <- suppressWarnings(as.numeric(resultado$datos[[1L]][[1L]]))
-    filas <- if (ncol(resultado$datos) > 1L) {
-      suppressWarnings(as.numeric(resultado$datos[[2L]][[1L]]))
-    } else NA_real_
-    if (!is.finite(bytes) || bytes <= 0) return(vacia)
     return(list(
-      disponible = TRUE, bytes_por_fila = bytes, filas_catalogo = filas,
-      fuente = if (length(nombres_proyeccion)) {
-        "pg_stats.avg_width sobre la proyecci\u00f3n; pg_table_size / reltuples como respaldo"
-      } else "pg_table_size / pg_class.reltuples",
-      motivo = NA_character_, version_sqlserver = NA_real_,
-      consulta = resultado
+      motor = "postgres", sql = sql,
+      proyeccion = length(nombres_proyeccion) > 0L
     ))
   }
   if (grepl("sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE)) {
@@ -521,29 +505,58 @@
       "CONVERT(int, SERVERPROPERTY('ProductMajorVersion')) AS ",
       "lupa_version_mayor FROM lupa_filas CROSS JOIN lupa_paginas"
     )
-    resultado <- .consultar_dbi(
-      conexion, sql, presupuesto, etapa = "catalogo_bytes_muestra"
-    )
-    if (!isTRUE(resultado$ok) || !is.data.frame(resultado$datos) ||
-        !nrow(resultado$datos)) return(vacia)
-    bytes <- suppressWarnings(as.numeric(resultado$datos[[1L]][[1L]]))
-    filas <- if (ncol(resultado$datos) > 1L) {
-      suppressWarnings(as.numeric(resultado$datos[[2L]][[1L]]))
-    } else NA_real_
-    version <- if (ncol(resultado$datos) > 2L) {
-      suppressWarnings(as.numeric(resultado$datos[[3L]][[1L]]))
-    } else NA_real_
+    return(list(motor = "sqlserver", sql = sql, proyeccion = FALSE))
+  }
+  NULL
+}
+
+# `contar_en` es un presupuesto donde se cuenta la consulta sin pasar por el:
+# la del aviso de costo no puede quedar fuera por `max_consultas` -se manda
+# siempre, antes de los agregados- pero viaja al motor y el plan la anticipa.
+.estimar_bytes_fila_muestra_dbi <- function(
+    conexion, tabla, presupuesto, campos = NULL, tipos_motor = NULL,
+    contar_en = NULL) {
+  vacia <- list(
+    disponible = FALSE, bytes_por_fila = NA_real_, filas_catalogo = NA_real_,
+    fuente = NA_character_, motivo = "sin_estimacion_catalogo",
+    version_sqlserver = NA_real_,
+    consulta = .medicion_consulta_vacia_dbi("catalogo_bytes_muestra")
+  )
+  consulta <- .sql_catalogo_bytes_fila_dbi(conexion, tabla, campos, tipos_motor)
+  if (is.null(consulta)) return(vacia)
+  .contar_dbi(contar_en)
+  resultado <- .consultar_dbi(
+    conexion, consulta$sql, presupuesto, etapa = "catalogo_bytes_muestra"
+  )
+  if (!isTRUE(resultado$ok) || !is.data.frame(resultado$datos) ||
+      !nrow(resultado$datos)) return(vacia)
+  bytes <- suppressWarnings(as.numeric(resultado$datos[[1L]][[1L]]))
+  filas <- if (ncol(resultado$datos) > 1L) {
+    suppressWarnings(as.numeric(resultado$datos[[2L]][[1L]]))
+  } else NA_real_
+  if (identical(consulta$motor, "postgres")) {
     if (!is.finite(bytes) || bytes <= 0) return(vacia)
     return(list(
       disponible = TRUE, bytes_por_fila = bytes, filas_catalogo = filas,
-      fuente = paste(
-        "sys.partitions + sys.allocation_units total_pages * 8192 / row_count"
-      ),
-      motivo = NA_character_, version_sqlserver = version,
+      fuente = if (isTRUE(consulta$proyeccion)) {
+        "pg_stats.avg_width sobre la proyecci\u00f3n; pg_table_size / reltuples como respaldo"
+      } else "pg_table_size / pg_class.reltuples",
+      motivo = NA_character_, version_sqlserver = NA_real_,
       consulta = resultado
     ))
   }
-  vacia
+  version <- if (ncol(resultado$datos) > 2L) {
+    suppressWarnings(as.numeric(resultado$datos[[3L]][[1L]]))
+  } else NA_real_
+  if (!is.finite(bytes) || bytes <= 0) return(vacia)
+  list(
+    disponible = TRUE, bytes_por_fila = bytes, filas_catalogo = filas,
+    fuente = paste(
+      "sys.partitions + sys.allocation_units total_pages * 8192 / row_count"
+    ),
+    motivo = NA_character_, version_sqlserver = version,
+    consulta = resultado
+  )
 }
 
 .alternativa_muestreo_reintento_dbi <- function(

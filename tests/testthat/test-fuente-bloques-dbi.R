@@ -213,7 +213,9 @@ test_that("La lectura por bloques registra n, memoria acotada y las dos pasadas 
   expect_match(resultado$meta$orden_muestra$motivo, "no_gobierna_fuente_bloques")
   expect_true(resultado$meta$consultas$emitidas >= 2L)
   expect_true(resultado$meta$consultas$fetches > resultado$meta$bloques$recorridos)
-  expect_equal(resultado$meta$plan$n_consultas, resultado$meta$consultas$emitidas)
+  # El plan publicado es el anunciado, con la preparacion y la muestra; lo
+  # emitido cuenta las mismas consultas.
+  expect_equal(attr(resultado$meta$plan, "total"), resultado$meta$consultas$emitidas)
 })
 
 test_that("el preflight prefiere una clave primaria y publica orden completo", {

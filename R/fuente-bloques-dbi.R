@@ -1405,7 +1405,8 @@
 
 .plan_bloques_fuente_dbi <- function(fuente, bloque_filas, campos, metricas,
                                      bloque_muestra = "con_muestra",
-                                     muestra = NA_real_, orden_muestra = NULL) {
+                                     muestra = NA_real_, orden_muestra = NULL,
+                                     previas = NULL, posteriores = NULL) {
   plan <- data.frame(
     clase_consulta = "fuente por bloques (dbSendQuery + dbFetch)",
     n_consultas = if (isTRUE(fuente$disponible)) 1L else 0L,
@@ -1413,9 +1414,19 @@
     n_consultas_max = if (isTRUE(fuente$disponible)) 1L else 0L,
     stringsAsFactors = FALSE
   )
-  attr(plan, "total") <- plan$n_consultas
-  attr(plan, "total_minimo") <- plan$n_consultas
-  attr(plan, "total_maximo") <- plan$n_consultas_max
+  # Lo que la corrida manda antes y despues del recorrido (ver
+  # `.plan_bloques_dbi()`); sin ellas el plan contaba solo el recorrido, y una
+  # corrida de veinte consultas se anunciaba como de una.
+  if (!is.null(previas) || !is.null(posteriores)) {
+    plan$n_consultas <- as.numeric(plan$n_consultas)
+    plan$n_consultas_max <- as.numeric(plan$n_consultas_max)
+    plan <- rbind(previas, plan, posteriores)
+    plan <- plan[plan$n_consultas > 0 | plan$n_consultas_max > 0, , drop = FALSE]
+    rownames(plan) <- NULL
+  }
+  attr(plan, "total") <- sum(plan$n_consultas)
+  attr(plan, "total_minimo") <- sum(plan$n_consultas)
+  attr(plan, "total_maximo") <- sum(plan$n_consultas_max)
   attr(plan, "pagado") <- FALSE
   attr(plan, "bloque_filas") <- bloque_filas
   attr(plan, "fuente") <- fuente
@@ -1454,6 +1465,110 @@
   )
   class(plan) <- c("plan_perfilado_dbi", class(plan))
   plan
+}
+
+# Las clases del plan por bloques, con las mismas preguntas que hace
+# `.perfilar_dbi_bloques()` para decidir cada consulta: la preparacion y la
+# estimacion del aviso de costo (`emitidas`, `catalogo_aviso`), las pruebas de
+# capacidad de la fuente (`pruebas_fuente`, las que `.fuente_bloques_dbi()`
+# acaba de pagar), la
+# segunda pasada del localizador, la moda exacta de los binarios y los
+# decimales anchos, la media, la mediana y el desvio de los decimales en el
+# decimal, y la lectura de `perfil_muestra`. El minimo supone que los datos no
+# piden ninguna consulta mas; el maximo, que piden todas las que pueden: la
+# mediana de un decimal se pide solo si sus dos centrales son dobles distintos,
+# el desvio solo si la cota del peor caso no alcanza, y la moda de un entero
+# leido como doble solo si sus extremos pasan de 2^53.
+.plan_bloques_dbi <- function(conexion, preparacion, fuente, bloque_filas,
+                              metricas, incluir_valores, tope_muestra,
+                              emitidas, pruebas_fuente = 0, catalogo_aviso = 0,
+                              orden_muestra = preparacion$orden_muestra) {
+  fila <- function(clase, n, alcance, maximo = n) {
+    data.frame(clase_consulta = clase, n_consultas = as.numeric(n),
+               alcance = alcance, n_consultas_max = as.numeric(maximo),
+               stringsAsFactors = FALSE)
+  }
+  previas <- rbind(
+    fila("portones (esquema y sondas)", emitidas, "una vez"),
+    fila("estimacion de filas del catalogo (aviso de costo)", catalogo_aviso,
+         "lee el catalogo"),
+    fila("pruebas de capacidad de la fuente por bloques", pruebas_fuente,
+         "lee el catalogo")
+  )
+  posteriores <- NULL
+  if (isTRUE(fuente$disponible) &&
+      identical(preparacion$universo, "tabla_completa")) {
+    senas <- .senas_conexion_dbi(conexion)
+    tipos_motor <- preparacion$esquema$tipos_motor
+    tipo_de <- function(i) {
+      tipo <- if (!is.null(tipos_motor) && i <= length(tipos_motor)) {
+        tipos_motor[[i]]
+      } else NA_character_
+      if (length(tipo) != 1L || is.na(tipo) || !nzchar(as.character(tipo))) {
+        tipo <- if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+          NA_character_
+      }
+      as.character(tipo)
+    }
+    campos <- preparacion$campos
+    modas_seguras <- 0
+    modas_posibles <- 0
+    if ("moda" %in% metricas && isTRUE(incluir_valores)) {
+      for (i in seq_along(campos)) {
+        tipo <- tipo_de(i)
+        exacta <- .es_tipo_binario_muestra_dbi(tipo, senas) || (
+          .tipo_declarado_decimal_dbi(tipo) &&
+            .tipo_declarado_entero_ancho_dbi(tipo)
+        )
+        if (exacta) {
+          modas_seguras <- modas_seguras + 1
+        } else if (.entero_doble_ancho_moda_dbi(
+          if (i <= length(preparacion$prototipo)) preparacion$prototipo[[i]] else
+            NULL, tipo, NULL
+        )) {
+          modas_posibles <- modas_posibles + 1
+        }
+      }
+      # Con la politica por cardinalidad la moda depende de los distintos que
+      # cuente el recorrido: ninguna es segura.
+      if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
+        modas_posibles <- modas_posibles + modas_seguras
+        modas_seguras <- 0
+      }
+    }
+    decimales <- sum(vapply(seq_along(campos), function(i) {
+      tipo <- tipo_de(i)
+      .mediana_decimal_por_centrales_dbi(senas, tipo) &&
+        !identical(.escala_declarada_dbi(tipo), 0L) &&
+        i <= length(preparacion$campos_sql_proyeccion)
+    }, logical(1L)))
+    media <- if ("basicos" %in% metricas && decimales > 0) 1 else 0
+    medianas <- if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
+      decimales
+    } else 0
+    desvio <- if ("desvio" %in% metricas && decimales > 0) 1 else 0
+    con_muestra <- .solicita_muestra_dbi(preparacion$bloque_muestra)
+    posteriores <- rbind(
+      fila("segunda pasada del localizador",
+           if (identical(fuente$metodo_orden, "row_locator")) 1 else 0,
+           "tabla_completa"),
+      fila("moda exacta en el motor", modas_seguras,
+           "ordena o agrupa la tabla completa", modas_seguras + modas_posibles),
+      fila("media, mediana y desvio de los decimales en el decimal", media,
+           "escanea la tabla completa", media + medianas + desvio),
+      fila("verificacion de unicidad del orden",
+           if (con_muestra && length(fuente$orden_expresiones)) 1 else 0,
+           "ordena o agrupa la tabla completa"),
+      fila("muestra", if (!con_muestra) 0 else if (
+        isTRUE(tope_muestra$requiere_sonda_bytes)
+      ) 2 else 1, .ALCANCE_BLOQUE_CLIENTE_DBI)
+    )
+  }
+  .plan_bloques_fuente_dbi(
+    fuente, bloque_filas, preparacion$campos, metricas,
+    preparacion$bloque_muestra, preparacion$muestra, orden_muestra,
+    previas = previas, posteriores = posteriores
+  )
 }
 
 .recorrer_fuente_bloques_dbi <- function(conexion, fuente, metricas,
@@ -1765,6 +1880,12 @@
     salida <- .sellar_perfil_dbi(salida)
     return(salida)
   }
+  # Lo que la corrida ya pago antes de llegar aca -la preparacion y la
+  # estimacion del aviso de costo- y lo que pagan las pruebas de la fuente: el
+  # plan publicado es el de `plan_perfilado_dbi()`, con estas cuentas.
+  catalogo_aviso <- .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
+  usadas_antes_fuente <- if (is.null(preparacion$presupuesto)) 0 else
+    preparacion$presupuesto$usadas
   fuente <- .fuente_bloques_dbi(
     conexion, tabla, tabla_sql = preparacion$tabla_sql,
     campos = preparacion$campos,
@@ -1776,9 +1897,16 @@
     dialecto = preparacion$dialecto,
     presupuesto = preparacion$presupuesto, bloque_filas = bloque_filas
   )
-  plan <- .plan_bloques_fuente_dbi(
-    fuente, bloque_filas, preparacion$campos, metricas,
-    preparacion$bloque_muestra, preparacion$muestra, preparacion$orden_muestra
+  plan <- .plan_bloques_dbi(
+    conexion, preparacion, fuente, bloque_filas, metricas, incluir_valores,
+    .tope_muestra_plan_dbi(
+      preparacion$muestra, length(preparacion$campos), max_celdas_muestra,
+      max_bytes_muestra
+    ),
+    emitidas = usadas_antes_fuente - catalogo_aviso,
+    pruebas_fuente = if (is.null(preparacion$presupuesto)) 0 else
+      preparacion$presupuesto$usadas - usadas_antes_fuente,
+    catalogo_aviso = catalogo_aviso
   )
   vigilante <- .iniciar_vigilante(
     corrida_id = paste0("dbi-bloques-", as.integer(Sys.time())),
@@ -1793,6 +1921,10 @@
     columnas_binarias = preparacion$columnas_binarias_bloques,
     sentinelas = argumentos[["sentinelas_numericos"]]
   )
+  # El recorrido no pasa por el presupuesto -sin el no hay perfil- pero viaja
+  # al motor: se cuenta antes de las consultas que si pueden quedar afuera, para
+  # que estas decidan con lo que de verdad queda.
+  .contar_dbi(preparacion$presupuesto, recorrido$bloques$consultas_sql %||% 0L)
   if (isTRUE(fuente$disponible) && !is.null(recorrido$error)) {
     extras <- argumentos
     extras$antes_segunda_pasada <- NULL
@@ -1873,6 +2005,7 @@
     motivo = if (is.null(recorrido$error)) "pk_o_resultset_sin_locator" else
       "primera_pasada_no_disponible", consultas_sql = 0L, fetches = 0L
   )
+  .contar_dbi(preparacion$presupuesto, segunda_pasada$consultas_sql %||% 0L)
   agregados_costo <- list(conteos = stats::setNames(lapply(
     preparacion$campos, function(campo) {
       sobre <- recorrido$sobres[[.clave_par_identificador(campo, "conteos", sep = "\u001f")]]
@@ -1958,6 +2091,27 @@
     }
     as.character(tipo)
   }
+  # Lo que el total del plan anuncia y falta pagar queda reservado (ver
+  # `.plan_bloques_dbi()`): la moda de un entero leido como doble, la mediana
+  # por centrales y el desvio centrado los piden los datos y entran solo con lo
+  # que sobra. Sin la reserva, con un `max_consultas` igual al total del plan,
+  # una de esas consultas se llevaba el lugar de la media de un decimal o de la
+  # lectura de la muestra, que el total si anuncia.
+  reservado <- function(clase) {
+    sum(plan$n_consultas[plan$clase_consulta == clase])
+  }
+  reserva_modas <- reservado("moda exacta en el motor")
+  reserva_decimales <- reservado(
+    "media, mediana y desvio de los decimales en el decimal"
+  )
+  reserva_muestra <- reservado("verificacion de unicidad del orden") +
+    reservado("muestra")
+  fijar_reserva <- function() {
+    if (!is.null(presupuesto)) {
+      presupuesto$reserva <- reserva_modas + reserva_decimales + reserva_muestra
+    }
+  }
+  fijar_reserva()
   if ("moda" %in% metricas && isTRUE(incluir_valores) &&
       is.null(recorrido$error) && isTRUE(fuente$disponible)) {
     for (campo in preparacion$campos) {
@@ -1991,6 +2145,12 @@
       # que usa la via SQL. Los decimales comunes siguen resolviendose con el
       # mapa de la lectura, sin una consulta adicional.
       if (!binaria && !decimal_ancho && !entero_doble) next
+      # La moda de un binario o de un decimal ancho esta en el total: usa su
+      # lugar reservado.
+      if ((binaria || decimal_ancho) && reserva_modas > 0) {
+        reserva_modas <- reserva_modas - 1
+        fijar_reserva()
+      }
       columna_moda_sql <- .expresion_binaria_moda_dbi(
         conexion, preparacion$campos_sql_proyeccion[[posicion]], tipo
       )
@@ -2028,9 +2188,12 @@
                            isTRUE(fuente$disponible)) {
     .media_mediana_decimal_bloques_dbi(
       conexion, preparacion, fuente, recorrido$sobres, metricas,
-      incluir_valores, tipo_motor_de, presupuesto = presupuesto
+      incluir_valores, tipo_motor_de, presupuesto = presupuesto,
+      reserva_media = reserva_decimales
     )
   } else list(columnas = list(), consultas = 0L)
+  # La muestra corre sin reserva, como en la via SQL.
+  if (!is.null(presupuesto)) presupuesto$reserva <- 0
   consultas_segunda <- as.integer(segunda_pasada$consultas_sql %||% 0L)
   fetches_segunda <- as.integer(segunda_pasada$fetches %||% 0L)
   recorrido$bloques$consultas_sql <- as.integer(
@@ -2038,11 +2201,10 @@
   ) + consultas_segunda + length(modas_bloques) +
     as.integer(decimales_bloques$consultas)
   recorrido$bloques$fetches <- as.integer(recorrido$bloques$fetches) + fetches_segunda
-  plan$n_consultas <- recorrido$bloques$consultas_sql
-  plan$n_consultas_max <- recorrido$bloques$consultas_sql
-  attr(plan, "total") <- recorrido$bloques$consultas_sql
-  attr(plan, "total_minimo") <- recorrido$bloques$consultas_sql
-  attr(plan, "total_maximo") <- recorrido$bloques$consultas_sql
+  # Las filas del plan quedan como las anuncio `plan_perfilado_dbi()`; lo que
+  # se pago esta en `meta$consultas`. Antes se pisaban con las consultas de la
+  # via por bloques sola, sin la preparacion ni la muestra, y el plan de la
+  # corrida decia una cuenta que no era ni la anunciada ni la emitida.
   costo_plan <- attr(plan, "costo", exact = TRUE)
   costo_plan$consultas_sql <- recorrido$bloques$consultas_sql
   costo_plan$resultsets <- recorrido$bloques$consultas_sql
@@ -2177,10 +2339,13 @@
     eventos = .eventos_vigilante(vigilante),
     plan = plan,
     consultas = list(
-      emitidas = as.integer(recorrido$bloques$consultas_sql %||% 0L),
+      emitidas = if (is.null(presupuesto)) {
+        as.integer(recorrido$bloques$consultas_sql %||% 0L)
+      } else presupuesto$usadas,
       fetches = as.integer(recorrido$bloques$fetches %||% 0L),
-      presupuesto = preparacion$max_consultas,
-      agotado = FALSE
+      presupuesto = if (is.null(presupuesto)) preparacion$max_consultas else
+        presupuesto$max,
+      agotado = !is.null(presupuesto) && isTRUE(presupuesto$agotado)
     ),
     orden_muestra = orden_muestra_meta,
     decisiones_costo = decisiones_costo,
@@ -2281,6 +2446,12 @@
     resumen$meta$proteccion_personal <- list(
       aplicada = FALSE, base = "desactivada por el usuario", columnas = character()
     )
+  }
+  # Lo emitido se lee al final: la lectura de `perfil_muestra` y la proteccion
+  # tambien consultan.
+  if (!is.null(presupuesto)) {
+    resumen$meta$consultas$emitidas <- presupuesto$usadas
+    resumen$meta$consultas$agotado <- isTRUE(presupuesto$agotado)
   }
   salida <- list(resumen_tabla = resumen, perfil_muestra = perfil_muestra)
   salida <- .sellar_perfil_dbi(salida)
@@ -2838,7 +3009,8 @@
 .media_mediana_decimal_bloques_dbi <- function(conexion, preparacion, fuente,
                                                sobres, metricas,
                                                incluir_valores, tipo_de,
-                                               presupuesto = NULL) {
+                                               presupuesto = NULL,
+                                               reserva_media = 0) {
   salida <- list(columnas = list(), consultas = 0L)
   senas <- .senas_conexion_dbi(conexion)
   dialecto <- preparacion$dialecto
@@ -2978,6 +3150,11 @@
       "SELECT ", paste(partes, collapse = ", "), " FROM ", fuente$tabla_sql
     )
     salida$consultas <- salida$consultas + 1L
+    # La media esta en el total del plan y usa el lugar que se le reservo; las
+    # medianas de arriba no podian tomarlo (ver `.perfilar_dbi_bloques()`).
+    if (!is.null(presupuesto) && reserva_media > 0) {
+      presupuesto$reserva <- max(0, presupuesto$reserva - reserva_media)
+    }
     leida <- .consultar_dbi(conexion, sql, presupuesto, etapa = "basicos")
     for (k in seq_along(medias)) {
       campo <- names(medias)[[k]]

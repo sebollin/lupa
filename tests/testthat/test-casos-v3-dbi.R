@@ -326,11 +326,21 @@ test_that("Caso 2 no paga sonda de magnitud redundante", {
       con, tabla, metricas = "desvio", incluir_valores = FALSE,
       proteger_datos_personales = FALSE
     )))
+    plan <- suppressWarnings(suppressMessages(plan_perfilado_dbi(
+      con, tabla, metricas = "desvio", incluir_valores = FALSE
+    )))
     expect_equal(perfil$resumen_tabla$columnas$desvio, 3.02765035409749,
                  tolerance = 1e-12)
     expect_false(any(as.character(perfil$resumen_tabla$sql$metrica) ==
                      "sonda_magnitud"))
-    expect_lte(perfil$resumen_tabla$meta$consultas$emitidas, 12)
+    # La estimacion de filas del catalogo del aviso de costo se manda siempre y
+    # ahora se cuenta; el tope de 12 es el de las demas consultas.
+    aviso <- lupa:::.consultas_catalogo_aviso_dbi(
+      con, tabla, list(universo = "tabla_completa")
+    )
+    expect_lte(perfil$resumen_tabla$meta$consultas$emitidas - aviso, 12)
+    expect_equal(perfil$resumen_tabla$meta$consultas$emitidas,
+                 attr(plan, "total"))
     .av3_limpiar(con, tabla)
     .av3_desconectar(con)
   }

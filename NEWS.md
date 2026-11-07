@@ -545,6 +545,27 @@ Primera versión publicada.
   su control negativo, que la muestra del motor corre cuando una columna
   decimal, o un `float8` de PostgreSQL, deja la mediana consolidada: dos
   consultas que el plan no anticipaba.
+- `plan_perfilado_dbi()` anuncia lo que `perfilar_dbi()` manda al motor en cada
+  vía, contado sentencia por sentencia en los siete motores. Por `bloque_filas`
+  contaba sólo el recorrido —1 consulta donde se mandaban de 8 a 24— y ahora
+  cuenta la preparación, las consultas de prueba de la fuente, la segunda pasada
+  del localizador, la moda exacta, la media de los decimales y la muestra, con la
+  mediana por centrales y el desvío centrado de un decimal en `total_maximo`,
+  porque los piden los datos. Por la muestra del motor sin bloque de filas
+  contaba consultas del desvío que no se emiten, y no la lectura de comprobación
+  de la muestra; con el bloque de filas contaba los agregados SQL, que el spool
+  no corre. En PostgreSQL y SQL Server la estimación de filas del catálogo del
+  aviso de costo, y en PostgreSQL `SHOW extra_float_digits`, se mandaban sin
+  contarse. `max_consultas` y `meta$consultas$emitidas` cuentan lo mismo que el
+  plan, y por bloques lo que el total anuncia tiene su lugar reservado: con
+  `max_consultas = attr(plan, "total")` la media de un decimal y
+  `perfil_muestra` ya no quedan afuera; con `total_maximo` no queda afuera nada.
+  Con un `max_consultas` más chico que el plan pueden entrar menos métricas que
+  antes: esas consultas ya llegaban al motor, sin contarse.
+- `planificar_limpieza()` sobre un perfil guardado por una versión anterior, con
+  un hallazgo por par de columnas iguales, ya no compara cada hallazgo con todas
+  las columnas: con 1.000 columnas iguales (499.500 hallazgos), de 87 s a 4 s,
+  con el mismo plan.
 - El desvío de un decimal que la muestra lee como doble (5e14 con centavos) ya
   no se publica en `perfil_muestra`, en ninguna vía, y la corroboración no lo
   cuenta como divergencia: queda en `perfil_muestra$meta$desvio_decimal_doble`

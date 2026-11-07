@@ -96,7 +96,9 @@ plan_muestreado <- lupa::plan_perfilado_dbi(
 )
 
 .alcance <- as.character(plan$alcance)
-sin_escanear <- .alcance %in% c("una vez", "lee las filas pedidas")
+# `"lee el catalogo"` es la estimacion de filas del aviso de costo, que no
+# recorre la tabla (no aparece en SQLite).
+sin_escanear <- .alcance %in% c("una vez", "lee las filas pedidas", "lee el catalogo")
 tabla_entera <- sum(plan$n_consultas[!sin_escanear])
 
 cat("lupa ", as.character(utils::packageVersion("lupa")), "\n", sep = "")

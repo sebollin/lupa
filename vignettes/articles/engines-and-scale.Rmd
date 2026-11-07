@@ -1052,6 +1052,15 @@ The range holds when the sampling can be built. If
 status `"no_sondeado"` (*not probed*), the form was only built locally. The
 range stays conditional on the probe of the run accepting it.
 
+The plan counts what `max_consultas` and `meta$consultas$emitidas` count: every
+statement the profile sends to the engine, except the transaction guard and the
+`pg_stat_statements` reads of `instrumentar`. With `bloque_filas` it counts the
+preparation, the scan and the queries that follow; those the data ask for —the
+median of a decimal whose central values are distinct doubles, its centred
+standard deviation, the retry of a short `TABLESAMPLE`— go to `total_maximo`.
+With `max_consultas = attr(plan, "total_maximo")` no metric is left out by the
+budget.
+
 The count follows the composition of the table, not the number of columns. With
 the wide table of the previous section and one of 158 columns, all of them
 text:
