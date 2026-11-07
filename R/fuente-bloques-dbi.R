@@ -1542,11 +1542,15 @@
         !identical(.escala_declarada_dbi(tipo), 0L) &&
         i <= length(preparacion$campos_sql_proyeccion)
     }, logical(1L)))
-    media <- if ("basicos" %in% metricas && decimales > 0) 1 else 0
+    # La media y el desvio de todos los decimales van en una consulta
+    # (`.sumas_exactas_decimales_dbi()`).
+    media <- if (any(c("basicos", "desvio") %in% metricas) && decimales > 0) {
+      1
+    } else 0
     medianas <- if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
       decimales
     } else 0
-    desvio <- if ("desvio" %in% metricas && decimales > 0) 1 else 0
+    desvio <- 0
     con_muestra <- .solicita_muestra_dbi(preparacion$bloque_muestra)
     posteriores <- rbind(
       fila("segunda pasada del localizador",
@@ -2844,16 +2848,219 @@
   NA_real_
 }
 
-# El desvio de un decimal escrito como texto, centrado en uno de sus valores
-# (`centro`, una posicion de `texto`) con la resta hecha en el decimal: el
-# doble de cada valor no guarda todas sus cifras, y el desvio de esos dobles se
-# aparta del de los decimales en hasta `max|x| / desvio * 2^-53` (ver
-# `.desvio_mal_condicionado_dbi()`); la diferencia exacta con el centro, en
-# cambio, llega al doble con su error relativo de siempre, y el desvio de esas
-# diferencias es el de la columna con el de `perfilar()` (unos ulps). Si cada
-# valor es en la escala comun un entero de menos de 2^49, la resta es la de esos
-# enteros, exacta en doble; si no, por sus cifras, con los prestamos llevados
-# para que todos los grupos tengan el signo del resultado y su suma no cancele.
+# `a * b`, enteros grandes. Cada producto de cifras queda debajo de 1e14 y cada
+# posicion suma a lo sumo 80 de ellos antes de llevar: debajo de 2^53.
+.multiplicar_entero_grande_dbi <- function(a, b) {
+  if (all(a == 0) || all(b == 0)) return(0)
+  if (length(a) < length(b)) {
+    c_ <- a
+    a <- b
+    b <- c_
+  }
+  salida <- numeric(length(a) + length(b) + 1L)
+  for (inicio in seq(1L, length(b), by = 80L)) {
+    for (j in inicio:min(length(b), inicio + 79L)) {
+      if (b[[j]] == 0) next
+      posiciones <- j + seq_along(a) - 1L
+      salida[posiciones] <- salida[posiciones] + a * b[[j]]
+    }
+    acarreo <- 0
+    for (k in seq_along(salida)) {
+      partes <- .dividir_base_entero_grande_dbi(salida[[k]] + acarreo)
+      acarreo <- partes[[1L]]
+      salida[[k]] <- partes[[2L]]
+    }
+  }
+  .normalizar_entero_grande_dbi(salida)
+}
+
+# Un doble aproximado de un entero grande, como mantisa y exponente decimal,
+# para no desbordar con mas de 308 cifras.
+.aproximar_entero_grande_dbi <- function(a) {
+  arriba <- length(a)
+  tomar <- max(1L, arriba - 3L):arriba
+  mantisa <- sum(a[tomar] * .BASE_ENTERO_GRANDE_DBI^(tomar - min(tomar)))
+  list(mantisa = mantisa, exponente = 7 * (min(tomar) - 1L))
+}
+
+# El doble mas cercano de `sqrt(N / D)`, con `N >= 0` y `D > 0` enteros
+# grandes, con empate a par: un candidato se acepta cuando `N / D` queda entre
+# los cuadrados de los puntos medios con sus vecinos, que se comparan como
+# enteros (`B^2 * 2^(2E) * D` contra `N`). `NA` fuera de los dobles normales.
+.raiz_mas_cercana_cociente_dbi <- function(numerador, denominador) {
+  if (all(numerador == 0)) return(0)
+  if (all(denominador == 0)) return(NA_real_)
+  an <- .aproximar_entero_grande_dbi(numerador)
+  ad <- .aproximar_entero_grande_dbi(denominador)
+  # Un candidato a pocos ulps: la raiz del cociente de las mantisas, con la
+  # potencia de diez partida en una par.
+  diferencia <- an$exponente - ad$exponente
+  cociente <- an$mantisa / ad$mantisa
+  if (diferencia %% 2 != 0) {
+    cociente <- cociente * 10
+    diferencia <- diferencia - 1
+  }
+  y <- sqrt(cociente) * 10^(diferencia / 2)
+  if (!is.finite(y) || y < 2^-500 || y > 2^500) return(NA_real_)
+  # El signo de `(B * 2^E)^2 - N / D`.
+  frente <- function(b, e) {
+    cuadrado <- .multiplicar_entero_grande_dbi(
+      .multiplicar_entero_grande_dbi(b, b), denominador
+    )
+    izquierda <- .por_potencia_dos_entero_grande_dbi(cuadrado, max(0, 2 * e))
+    derecha <- .por_potencia_dos_entero_grande_dbi(numerador, max(0, -2 * e))
+    .comparar_entero_grande_dbi(izquierda, derecha)
+  }
+  uno <- 1
+  for (intento in seq_len(16L)) {
+    e <- floor(log2(y)) - 52
+    m <- y / 2^e
+    if (m >= 2^53) {
+      e <- e + 1
+      m <- y / 2^e
+    } else if (m < 2^52) {
+      e <- e - 1
+      m <- y / 2^e
+    }
+    entero_m <- .entero_grande_desde_doble_dbi(m)
+    potencia <- m == 2^52
+    arriba <- frente(
+      .sumar_entero_grande_dbi(.por_chico_entero_grande_dbi(entero_m, 2), uno),
+      e - 1
+    )
+    if (arriba < 0) {
+      y <- y + 2^e
+      next
+    }
+    abajo <- if (potencia) {
+      frente(
+        .restar_entero_grande_dbi(
+          .por_chico_entero_grande_dbi(entero_m, 4), uno
+        ),
+        e - 2
+      )
+    } else {
+      frente(
+        .restar_entero_grande_dbi(
+          .por_chico_entero_grande_dbi(entero_m, 2), uno
+        ),
+        e - 1
+      )
+    }
+    if (abajo > 0) {
+      y <- y - if (potencia) 2^(e - 1) else 2^e
+      next
+    }
+    par <- m %% 2 == 0
+    if (arriba == 0 && !par) y <- y + 2^e
+    if (abajo == 0 && !par && !potencia) y <- y - 2^e
+    return(y)
+  }
+  NA_real_
+}
+
+# Un decimal exacto -`list(negativo, cifras, escala)`- llevado a otra escala
+# mayor o igual.
+.a_escala_decimal_dbi <- function(decimal, escala) {
+  decimal$cifras <- .por_potencia_diez_entero_grande_dbi(
+    decimal$cifras, escala - decimal$escala
+  )
+  decimal$escala <- escala
+  decimal
+}
+
+# Un decimal exacto desde su texto (`NULL` si no lo es).
+.decimal_desde_texto_dbi <- function(texto) {
+  if (length(texto) != 1L || is.na(texto)) return(NULL)
+  .sumar_decimales_texto_dbi(as.character(texto))
+}
+
+# El desvio muestral exacto, el doble mas cercano de `sqrt(V)`, de la suma de
+# las diferencias con un centro `A` y la de sus cuadrados `B`, exactas (como las
+# devuelven `.sumar_decimales_texto_dbi()` o la suma del motor):
+# `V = (n * B - A^2) / (n * (n - 1))`. Sin cancelacion: es aritmetica entera.
+.desvio_exacto_sumas_dbi <- function(n, suma, cuadrados) {
+  if (is.null(suma) || is.null(cuadrados) || length(n) != 1L ||
+      !is.finite(n) || n < 2 || n >= 2^53 || n != floor(n) ||
+      isTRUE(cuadrados$negativo)) {
+    return(NA_real_)
+  }
+  escala <- max(cuadrados$escala, 2 * suma$escala)
+  cuadrados <- .a_escala_decimal_dbi(cuadrados, escala)
+  suma2 <- .por_potencia_diez_entero_grande_dbi(
+    .multiplicar_entero_grande_dbi(suma$cifras, suma$cifras),
+    escala - 2 * suma$escala
+  )
+  entero_n <- .entero_grande_desde_doble_dbi(n)
+  primero <- .por_entero_entero_grande_dbi(cuadrados$cifras, n)
+  if (.comparar_entero_grande_dbi(primero, suma2) < 0) return(NA_real_)
+  numerador <- .restar_entero_grande_dbi(primero, suma2)
+  denominador <- .por_potencia_diez_entero_grande_dbi(
+    .por_entero_entero_grande_dbi(entero_n, n - 1), escala
+  )
+  .raiz_mas_cercana_cociente_dbi(numerador, denominador)
+}
+
+# Las sumas exactas de unos enteros no negativos y de sus cuadrados, con signo
+# para la primera: `cifras` es una matriz de cifras en base 1e7, la menos
+# significativa primero, y `negativo` el signo de cada fila. Cada cifra se parte
+# en `r` (menos de 1e4) y `h` (menos de 1e3), en las posiciones `10^(7j)` y
+# `10^(7j + 4)`: los productos quedan debajo de 1e8 y sus sumas, con menos de
+# 9e7 filas, debajo de 2^53.
+.sumas_enteras_y_cuadrados_dbi <- function(cifras, negativo) {
+  n <- nrow(cifras)
+  if (n > 9e7) return(NULL)
+  terminos <- list()
+  exponentes <- numeric()
+  for (j in seq_len(ncol(cifras))) {
+    alto <- floor(cifras[, j] / 1e4)
+    terminos[[length(terminos) + 1L]] <- cifras[, j] - alto * 1e4
+    exponentes <- c(exponentes, 7 * (j - 1L))
+    terminos[[length(terminos) + 1L]] <- alto
+    exponentes <- c(exponentes, 7 * (j - 1L) + 4)
+  }
+  sumar_potencias <- function(valores, exponente) {
+    .por_potencia_diez_entero_grande_dbi(
+      .entero_grande_desde_doble_dbi(valores), exponente
+    )
+  }
+  positivos <- 0
+  negativos <- 0
+  for (t in seq_along(terminos)) {
+    positivos <- .sumar_entero_grande_dbi(
+      positivos, sumar_potencias(sum(terminos[[t]][!negativo]), exponentes[[t]])
+    )
+    negativos <- .sumar_entero_grande_dbi(
+      negativos, sumar_potencias(sum(terminos[[t]][negativo]), exponentes[[t]])
+    )
+  }
+  signo <- .comparar_entero_grande_dbi(positivos, negativos)
+  cuadrados <- 0
+  for (t in seq_along(terminos)) {
+    for (u in t:length(terminos)) {
+      producto <- sum(terminos[[t]] * terminos[[u]])
+      if (producto == 0) next
+      termino <- sumar_potencias(producto, exponentes[[t]] + exponentes[[u]])
+      if (u > t) termino <- .por_chico_entero_grande_dbi(termino, 2)
+      cuadrados <- .sumar_entero_grande_dbi(cuadrados, termino)
+    }
+  }
+  list(
+    suma = list(
+      negativo = signo < 0,
+      cifras = if (signo >= 0) {
+        .restar_entero_grande_dbi(positivos, negativos)
+      } else .restar_entero_grande_dbi(negativos, positivos)
+    ),
+    cuadrados = cuadrados
+  )
+}
+
+# El desvio exacto de un decimal escrito como texto, el doble mas cercano. Las
+# diferencias con una de sus centrales (`centro`, una posicion de `texto`) se
+# toman exactas -como enteros de menos de 2^49 en la escala comun, o por sus
+# cifras con los prestamos llevados- y se suman, ellas y sus cuadrados, sin
+# redondeo (`.sumas_enteras_y_cuadrados_dbi()`).
 .desvio_decimal_texto_dbi <- function(texto, dobles, centro) {
   n <- length(texto)
   if (n < 2L || length(dobles) != n || length(centro) != 1L ||
@@ -2863,12 +3070,25 @@
   punto <- regexpr(".", texto, fixed = TRUE, useBytes = TRUE)
   escala <- max((nchar(texto, type = "bytes") - punto) * (punto > 0))
   k <- if (escala <= 22) round(dobles * 10^escala) else NA_real_
+  base <- .BASE_ENTERO_GRANDE_DBI
   if (!anyNA(k) && all(abs(k) < 2^49)) {
-    delta <- (k - k[[centro]]) / 10^escala
+    delta <- k - k[[centro]]
+    negativo <- delta < 0
+    a <- abs(delta)
+    alto <- floor(a / 1e14)
+    resto <- a - alto * 1e14
+    medio <- floor(resto / base)
+    bajo <- resto - medio * base
+    corregir <- bajo < 0
+    medio[corregir] <- medio[corregir] - 1
+    bajo[corregir] <- bajo[corregir] + base
+    corregir <- bajo >= base
+    medio[corregir] <- medio[corregir] + 1
+    bajo[corregir] <- bajo[corregir] - base
+    cifras <- cbind(bajo, medio, alto)
   } else {
     grupos <- .grupos_decimales_texto_dbi(texto)
     if (is.null(grupos)) return(NA_real_)
-    base <- .BASE_ENTERO_GRANDE_DBI
     d <- ifelse(grupos$negativo, -1, 1) * grupos$grupos
     d <- d - matrix(d[centro, ], nrow = n, ncol = ncol(d), byrow = TRUE)
     signo <- numeric(n)
@@ -2884,12 +3104,15 @@
       d[, j] <- valor - acarreo * base
     }
     # La resta de dos valores de distinto signo puede tener un grupo mas.
-    potencias <- 10^(7 * (ncol(d) - seq_len(ncol(d))) - escala)
-    delta <- signo * (as.vector(d %*% potencias) +
-                        acarreo * 10^(7 * ncol(d) - escala))
+    cifras <- cbind(d[, rev(seq_len(ncol(d))), drop = FALSE], acarreo)
+    negativo <- signo < 0
   }
-  media <- sum(delta) / n
-  sqrt(sum((delta - media)^2) / (n - 1))
+  sumas <- .sumas_enteras_y_cuadrados_dbi(cifras, negativo)
+  if (is.null(sumas)) return(NA_real_)
+  .desvio_exacto_sumas_dbi(
+    n, c(sumas$suma, list(escala = escala)),
+    list(negativo = FALSE, cifras = sumas$cuadrados, escala = 2 * escala)
+  )
 }
 
 # La media, la mediana y el desvio exactos de un decimal escrito como texto -lo
@@ -2969,6 +3192,17 @@
   if (grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
     return(paste0("CAST(SUM(", columna_sql, ") AS TEXT)"))
   }
+  # DuckDB suma un `DECIMAL(38, s)` en `DECIMAL(38, s)` y desborda igual que
+  # T-SQL (tres valores de 9e7 en un `DECIMAL(38,30)`): la parte entera y la
+  # fraccion por separado (medido: 269999999 y 1,1234...).
+  if (grepl("duckdb", senas, useBytes = TRUE)) {
+    return(c(
+      paste0("CAST(SUM(CAST(TRUNC(", columna_sql,
+             ") AS DECIMAL(38,0))) AS VARCHAR)"),
+      paste0("CAST(SUM(", columna_sql, " - TRUNC(", columna_sql,
+             ")) AS VARCHAR)")
+    ))
+  }
   paste0("CAST(SUM(", columna_sql, ") AS VARCHAR)")
 }
 
@@ -2978,11 +3212,366 @@
   "al motor en el tipo de la columna."
 )
 
-# La media y la mediana por `bloque_filas` de cada decimal que el controlador
-# entrega como doble, en el decimal (ver `.media_mediana_decimal_texto_dbi()`):
+# El centro con el que el motor resta: la media aproximada escrita como decimal
+# en la escala de la columna -`money` de SQL Server, cuatro decimales-, un
+# literal que el motor resta en el tipo de la columna sin perder cifras
+# (medido en SQL Server con compatibilidad 160 y 100, y en MySQL: `decimal(38,
+# s)` menos un literal de escala `s` sigue siendo `decimal(38, s)` para `s` de
+# 2 a 30). En PostgreSQL un `numeric` sin escala se centra con 20 decimales: su
+# aritmetica es exacta con cualquier escala. `NULL` sin escala declarada en los
+# demas, donde no se sabe con cuantas cifras escribirlo.
+.centro_decimal_dbi <- function(senas, tipo, media) {
+  escala <- .escala_declarada_dbi(tipo)
+  if (.es_transact_sql_dbi(senas) && .moneda_sqlserver_dbi(tipo)) escala <- 4L
+  if (is.na(escala)) {
+    if (!grepl("postgres|pqconnection", senas, useBytes = TRUE)) return(NULL)
+    escala <- 20L
+  }
+  if (length(media) != 1L || !is.finite(media)) return(NULL)
+  texto <- formatC(media, format = "f", digits = escala)
+  decimal <- .decimal_desde_texto_dbi(texto)
+  if (is.null(decimal)) return(NULL)
+  list(texto = texto, decimal = decimal, escala = escala)
+}
+
+# Las expresiones que suman en el motor, sin redondeo, los cuadrados de
+# `x - centro`, y como se combinan: `list(expresiones, factores, exponentes)`,
+# cuya suma `sum(factor * valor * 10^exponente)` es la de la columna. `NULL`
+# donde el motor no puede. `cifras` son las cifras enteras de la mayor
+# diferencia con el centro -lo dicen los extremos que ya se conocen-.
 #
-# * la media, de la suma exacta que calcula el motor, leida como texto, en una
-#   consulta para todas las columnas (una pasada sin orden);
+# * PostgreSQL: `numeric`, exacto con cualquier escala.
+# * MySQL y MariaDB: el producto de dos `DECIMAL` tiene la suma de sus escalas,
+#   hasta 30, y 65 cifras (medido: `DECIMAL(65,15)` al cuadrado, las 30
+#   cifras).
+# * T-SQL: la diferencia se lleva a `decimal(q, s)` con `q` las cifras que
+#   necesita; su cuadrado es `decimal(2q + 1, 2s)` y entra en 38 si `q <= 18`.
+#   La suma se parte en la parte entera, en `decimal(38,0)`, y la fraccion,
+#   `x % 1`, para no desbordar.
+# * DuckDB: igual, con `DECIMAL(q, s)` y un producto de hasta 38 cifras.
+#
+# Si el cuadrado no entra en el tipo -una escala de 30, o una diferencia de
+# muchas cifras-, en T-SQL, MySQL, MariaDB y DuckDB la diferencia se escribe
+# como texto sin el punto, con sus `q` cifras, y se parte en trozos de nueve:
+# cada producto de dos trozos es un entero de 18 cifras, y sus sumas, enteros
+# que el motor suma exactos (`.cuadrados_por_trozos_decimal_dbi()`).
+.cuadrados_texto_decimal_dbi <- function(senas, columna_sql, tipo, centro,
+                                         cifras, n) {
+  s <- centro$escala
+  filas <- max(1, ceiling(log10(n + 1)))
+  diferencia <- paste0("(", columna_sql, " - (", centro$texto, "))")
+  directo <- function(expresiones) {
+    list(expresiones = expresiones, factores = rep(1, length(expresiones)),
+         exponentes = rep(0, length(expresiones)))
+  }
+  if (grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
+    return(directo(paste0(
+      "CAST(SUM(", diferencia, " * ", diferencia, ") AS TEXT)"
+    )))
+  }
+  q <- cifras + s
+  if (.es_mysql_dbi(senas)) {
+    if (2 * s <= 30 && 2 * q <= 64 && 2 * q + filas <= 65) {
+      return(directo(paste0(
+        "CAST(SUM(", diferencia, " * ", diferencia, ") AS CHAR)"
+      )))
+    }
+    return(.cuadrados_por_trozos_decimal_dbi(senas, diferencia, q, s, n))
+  }
+  if (.es_transact_sql_dbi(senas)) {
+    valor <- if (.moneda_sqlserver_dbi(tipo)) {
+      paste0("CAST(", columna_sql, " AS DECIMAL(19,4))")
+    } else columna_sql
+    if (q > 38) return(NULL)
+    d <- paste0(
+      "CAST(", valor, " - (", centro$texto, ") AS DECIMAL(", q, ",", s, "))"
+    )
+    if (q <= 18 && 2 * cifras + filas <= 37 && 2 * s + filas <= 37) {
+      cuadrado <- paste0("(", d, " * ", d, ")")
+      return(directo(c(
+        paste0(
+          "CONVERT(VARCHAR(100), SUM(CAST(ROUND(", cuadrado,
+          ", 0, 1) AS DECIMAL(38,0))))"
+        ),
+        paste0("CONVERT(VARCHAR(100), SUM(", cuadrado, " % 1))")
+      )))
+    }
+    return(.cuadrados_por_trozos_decimal_dbi(senas, d, q, s, n))
+  }
+  if (grepl("duckdb", senas, useBytes = TRUE)) {
+    if (q > 38) return(NULL)
+    d <- paste0("CAST(", diferencia, " AS DECIMAL(", q, ",", s, "))")
+    if (2 * q <= 38 && 2 * q + filas <= 38) {
+      return(directo(paste0("CAST(SUM(", d, " * ", d, ") AS VARCHAR)")))
+    }
+    return(.cuadrados_por_trozos_decimal_dbi(senas, d, q, s, n))
+  }
+  NULL
+}
+
+# Los cuadrados por trozos (ver `.cuadrados_texto_decimal_dbi()`): `diferencia`
+# es un decimal de escala `s` y a lo sumo `q` cifras; su valor absoluto, escrito
+# sin el punto y con ceros a la izquierda hasta `q + 1` cifras, es el entero
+# `|d| * 10^s`, que se parte en trozos de nueve cifras desde la derecha. La suma
+# de los cuadrados es la de los productos de cada par de trozos, por dos si son
+# distintos, en su posicion.
+.cuadrados_por_trozos_decimal_dbi <- function(senas, diferencia, q, s, n) {
+  ancho <- q + 1L
+  if (ceiling(log10(n + 1)) + 18 > 37) return(NULL)
+  if (.es_transact_sql_dbi(senas)) {
+    texto <- paste0(
+      "REPLACE(CONVERT(VARCHAR(80), ABS(", diferencia, ")), '.', '')"
+    )
+    relleno <- paste0("RIGHT(REPLICATE('0', ", ancho, ") + ", texto, ", ",
+                      ancho, ")")
+    trozo <- function(inicio, largo) {
+      paste0("CAST(SUBSTRING(", relleno, ", ", inicio, ", ", largo,
+             ") AS DECIMAL(18,0))")
+    }
+    sumar <- function(x) paste0("CONVERT(VARCHAR(100), SUM(", x, "))")
+  } else if (.es_mysql_dbi(senas)) {
+    texto <- paste0("REPLACE(CAST(ABS(", diferencia, ") AS CHAR), '.', '')")
+    relleno <- paste0("LPAD(", texto, ", ", ancho, ", '0')")
+    trozo <- function(inicio, largo) {
+      paste0("CAST(SUBSTRING(", relleno, ", ", inicio, ", ", largo,
+             ") AS DECIMAL(18,0))")
+    }
+    sumar <- function(x) paste0("CAST(SUM(", x, ") AS CHAR)")
+  } else if (grepl("duckdb", senas, useBytes = TRUE)) {
+    texto <- paste0("REPLACE(CAST(ABS(", diferencia, ") AS VARCHAR), '.', '')")
+    relleno <- paste0("LPAD(", texto, ", ", ancho, ", '0')")
+    trozo <- function(inicio, largo) {
+      paste0("CAST(SUBSTRING(", relleno, ", ", inicio, ", ", largo,
+             ") AS DECIMAL(18,0))")
+    }
+    sumar <- function(x) paste0("CAST(SUM(", x, ") AS VARCHAR)")
+  } else {
+    return(NULL)
+  }
+  cantidad <- ceiling(ancho / 9)
+  trozos <- character(cantidad)
+  for (j in seq_len(cantidad)) {
+    fin <- ancho - 9L * (j - 1L)
+    inicio <- max(1L, fin - 8L)
+    trozos[[j]] <- trozo(inicio, fin - inicio + 1L)
+  }
+  expresiones <- character()
+  factores <- numeric()
+  exponentes <- numeric()
+  for (i in seq_len(cantidad)) {
+    for (j in i:cantidad) {
+      expresiones <- c(expresiones, sumar(paste0(trozos[[i]], " * ",
+                                                 trozos[[j]])))
+      factores <- c(factores, if (i == j) 1 else 2)
+      exponentes <- c(exponentes, 9 * (i - 1L) + 9 * (j - 1L) - 2 * s)
+    }
+  }
+  list(expresiones = expresiones, factores = factores, exponentes = exponentes)
+}
+
+# `decimal * factor * 10^exponente`, exacto, con `factor` 1 o 2.
+.escalar_decimal_dbi <- function(decimal, factor, exponente) {
+  if (factor != 1) {
+    decimal$cifras <- .por_chico_entero_grande_dbi(decimal$cifras, factor)
+  }
+  if (exponente >= 0) {
+    decimal$cifras <- .por_potencia_diez_entero_grande_dbi(
+      decimal$cifras, exponente
+    )
+  } else {
+    decimal$escala <- decimal$escala - exponente
+  }
+  decimal
+}
+
+# La media y el desvio exactos de unas columnas decimales, de una consulta: por
+# cada una, la cuenta, la suma en su tipo (`.sumas_texto_decimal_dbi()`) y, si
+# se pide el desvio y el tipo lo permite, la suma de los cuadrados de sus
+# diferencias con un centro (`.cuadrados_texto_decimal_dbi()`), todo como
+# texto. R divide y redondea al doble mas cercano
+# (`.doble_mas_cercano_decimal_dbi()`) y saca el desvio exacto de las dos sumas
+# (`.desvio_exacto_sumas_dbi()`), sin
+# cancelacion: es aritmetica entera. La usan la via por bloques y la tabla
+# completa.
+#
+# `columnas`, una lista por columna con `columna_sql`, `tipo`, `n` (la cuenta
+# que ya se conoce), `media` (la aproximada: centra el desvio y contrasta el
+# resultado), `cota` (cuanto puede distar la aproximada de la exacta) y
+# `extremos`, y `media_pedida` y `desvio_pedido`. Devuelve, por columna, `media`
+# y `desvio` como `list(ok, valor, sql, motivo)`; un desvio que el tipo no
+# permite sumar exacto no se devuelve. Si la consulta falla o lo que devuelve
+# no es lo que ya se sabia de la columna -la cuenta, o una media mas lejos que
+# la cota-, `ok = FALSE` con el motivo.
+#
+# El centro es un literal que sale de los datos: con `incluir_valores = FALSE`
+# el SQL que se devuelve para publicar lo lleva tapado, y el que corre, no.
+.sumas_exactas_decimales_dbi <- function(conexion, tabla_sql, columnas,
+                                         presupuesto = NULL,
+                                         etapa = "basicos",
+                                         prefijo_motivo =
+                                           .MOTIVO_DECIMAL_BLOQUES_DBI,
+                                         incluir_valores = TRUE) {
+  salida <- list(columnas = list(), consultas = 0L, sql = NA_character_)
+  if (!length(columnas)) return(salida)
+  senas <- .senas_conexion_dbi(conexion)
+  alias <- function(nombre) .citar_identificador_dbi(conexion, nombre)
+  fallo <- function(motivo, sql) {
+    list(ok = FALSE, valor = NA_real_, sql = sql,
+         motivo = paste(prefijo_motivo, motivo))
+  }
+  partes <- character()
+  for (k in seq_along(columnas)) {
+    columna <- columnas[[k]]
+    sumas <- .sumas_texto_decimal_dbi(conexion, columna$columna_sql,
+                                      columna$tipo)
+    cuadrados <- NULL
+    centro <- NULL
+    if (isTRUE(columna$desvio_pedido) && isTRUE(columna$n >= 2)) {
+      centro <- .centro_decimal_dbi(senas, columna$tipo, columna$media)
+      extremos <- suppressWarnings(as.numeric(columna$extremos))
+      if (!is.null(centro) && length(extremos) == 2L &&
+          all(is.finite(extremos))) {
+        # Las cifras enteras de la mayor diferencia, con margen: los extremos y
+        # el centro son dobles.
+        mayor <- max(abs(extremos - as.numeric(centro$texto))) * (1 + 1e-9)
+        cifras <- if (mayor < 0.999) 0 else floor(log10(mayor)) + 1
+        cuadrados <- .cuadrados_texto_decimal_dbi(
+          senas, columna$columna_sql, columna$tipo, centro, cifras,
+          columna$n
+        )
+      }
+    }
+    partes <- c(
+      partes,
+      paste0(
+        .conteo_sql_dbi(
+          .contar_no_nulos_sql_dbi(columna$columna_sql, senas), senas
+        ),
+        " AS ", alias(paste0("lupa_n_", k))
+      ),
+      paste0(sumas, " AS ", alias(paste0(
+        "lupa_suma_", k, "_", seq_along(sumas)
+      ))),
+      if (length(cuadrados$expresiones)) paste0(
+        cuadrados$expresiones, " AS ", alias(paste0(
+          "lupa_cuadrados_", k, "_", seq_along(cuadrados$expresiones)
+        ))
+      )
+    )
+    columnas[[k]]$piezas <- c(length(sumas), length(cuadrados$expresiones))
+    columnas[[k]]$cuadrados <- cuadrados
+    columnas[[k]]$centro <- centro
+  }
+  consulta <- paste0(
+    "SELECT ", paste(partes, collapse = ", "), " FROM ", tabla_sql
+  )
+  sql <- consulta
+  if (!isTRUE(incluir_valores)) {
+    for (columna in columnas) {
+      if (is.null(columna$centro)) next
+      sql <- gsub(
+        paste0(" - (", columna$centro$texto, ")"),
+        paste0(" - (", .LITERAL_MOTOR_OMITIDO, ")"), sql, fixed = TRUE
+      )
+    }
+  }
+  salida$sql <- sql
+  salida$consultas <- 1L
+  leida <- .consultar_dbi(conexion, consulta, presupuesto, etapa = etapa)
+  textos_de <- function(datos, prefijo, cuantos) {
+    vapply(seq_len(cuantos), function(j) {
+      v <- datos[[paste0(prefijo, j)]]
+      if (length(v) == 1L && !is.na(v)) as.character(v) else NA_character_
+    }, character(1L))
+  }
+  for (k in seq_along(columnas)) {
+    campo <- names(columnas)[[k]]
+    columna <- columnas[[k]]
+    resultado <- list()
+    if (!isTRUE(leida$ok) || !is.data.frame(leida$datos) ||
+        nrow(leida$datos) != 1L) {
+      motivo <- fallo(paste0("La consulta fall\u00f3: ", leida$motivo), sql)
+      if (isTRUE(columna$media_pedida)) resultado$media <- motivo
+      if (columna$piezas[[2L]] > 0L) resultado$desvio <- motivo
+      salida$columnas[[campo]] <- resultado
+      next
+    }
+    datos <- leida$datos
+    cuenta <- .numero_dbi(datos[[paste0("lupa_n_", k)]])
+    textos <- textos_de(
+      datos, paste0("lupa_suma_", k, "_"), columna$piezas[[1L]]
+    )
+    suma <- if (!anyNA(textos)) .sumar_decimales_texto_dbi(textos) else NULL
+    media <- .doble_mas_cercano_decimal_dbi(suma, columna$n)
+    distinta <- fallo(paste(
+      "La suma del motor no es la de lo que ya se ley\u00f3 de la columna:",
+      "la tabla cambi\u00f3 entre las dos lecturas."
+    ), sql)
+    coincide <- !is.null(suma) && isTRUE(cuenta == columna$n) &&
+      is.finite(media) && isTRUE(abs(media - columna$media) <= columna$cota)
+    if (isTRUE(columna$media_pedida)) {
+      resultado$media <- if (coincide) {
+        list(ok = TRUE, valor = media, sql = sql, motivo = NA_character_)
+      } else distinta
+    }
+    if (columna$piezas[[2L]] > 0L) {
+      textos_cuadrados <- textos_de(
+        datos, paste0("lupa_cuadrados_", k, "_"), columna$piezas[[2L]]
+      )
+      cuadrados <- if (!anyNA(textos_cuadrados)) {
+        partes <- lapply(seq_along(textos_cuadrados), function(j) {
+          parte <- .decimal_desde_texto_dbi(textos_cuadrados[[j]])
+          if (is.null(parte)) return(NULL)
+          .escalar_decimal_dbi(
+            parte, columna$cuadrados$factores[[j]],
+            columna$cuadrados$exponentes[[j]]
+          )
+        })
+        if (any(vapply(partes, is.null, logical(1L)))) NULL else {
+          escala <- max(vapply(partes, `[[`, numeric(1L), "escala"))
+          total <- list(negativo = FALSE, cifras = 0, escala = escala)
+          for (parte in partes) {
+            total <- .sumar_con_signo_decimal_dbi(
+              total, .a_escala_decimal_dbi(parte, escala)
+            )
+          }
+          total
+        }
+      } else NULL
+      # La suma de las diferencias con el centro es la suma de la columna menos
+      # `n` veces el centro, exacta.
+      diferencias <- if (is.null(suma)) NULL else {
+        escala <- max(suma$escala, columna$centro$escala)
+        a <- .a_escala_decimal_dbi(suma, escala)
+        c_ <- .a_escala_decimal_dbi(columna$centro$decimal, escala)
+        c_$cifras <- .por_entero_entero_grande_dbi(c_$cifras, columna$n)
+        c_$negativo <- !isTRUE(c_$negativo)
+        .sumar_con_signo_decimal_dbi(a, c_)
+      }
+      desvio <- if (coincide && !is.null(cuadrados)) {
+        .desvio_exacto_sumas_dbi(columna$n, diferencias, cuadrados)
+      } else NA_real_
+      resultado$desvio <- if (coincide && is.finite(desvio)) {
+        list(ok = TRUE, valor = desvio, sql = sql, motivo = NA_character_)
+      } else distinta
+    }
+    salida$columnas[[campo]] <- resultado
+  }
+  salida
+}
+
+# La media, la mediana y el desvio por `bloque_filas` de cada decimal que el
+# controlador entrega como doble, en el decimal (ver
+# `.media_mediana_decimal_texto_dbi()`):
+#
+# * la media y el desvio, de las sumas exactas que calcula el motor, leidas
+#   como texto, en una consulta para todas las columnas, sin orden
+#   (`.sumas_exactas_decimales_dbi()`). El desvio es el doble mas cercano del
+#   exacto donde el tipo deja sumar los cuadrados sin redondeo; si no, el de
+#   los dobles, y si ese no se puede publicar
+#   (`.desvio_mal_condicionado_dbi()`), `no_disponible`. Antes se pedia al
+#   motor solo el mal condicionado, con las diferencias como dobles: quedaba a
+#   un ulp (500000000000006.60 y vecinos, en los cinco motores con bloques);
 # * la mediana solo cuando hace falta: con una cantidad impar la central es un
 #   valor, y su doble es el mas cercano; con una par y las dos centrales en el
 #   mismo doble, la mediana tambien cae en el, porque el redondeo es monotono.
@@ -2993,16 +3582,9 @@
 #   valores, a un ulp), asi que ni la central de una cantidad impar es la
 #   buena.
 #
-# * el desvio, solo si el de los dobles no se puede publicar
-#   (`.desvio_mal_condicionado_dbi()`): el motor resta a cada valor un centro
-#   en el tipo de la columna, y suma esas diferencias y sus cuadrados como
-#   dobles, en una consulta para todas las columnas: la diferencia exacta
-#   llega al doble con su error relativo de siempre, como cuando la via SQL
-#   centra en el tipo (ver `.centro_desvio_decimal_dbi()`).
-#
 # Un decimal de escala 0 por debajo de 2^53 no entra: sus dobles son los
 # valores. Lo que el motor devuelve se contrasta con lo que leyeron los
-# bloques -la cuenta, y que la media quede a menos de 2^-50 del mayor valor
+# bloques -la cuenta, que la media quede a menos de 2^-50 del mayor valor
 # absoluto de la de los dobles, y las centrales en sus dobles-: si no, o si la
 # consulta no se pudo hacer, la metrica queda `no_disponible` con el motivo, en
 # lugar de publicar la de los dobles.
@@ -3027,8 +3609,7 @@
       .MOTIVO_DECIMAL_BLOQUES_DBI, motivo
     ))
   }
-  medias <- list()
-  desvios <- list()
+  exactas <- list()
   for (i in seq_along(preparacion$campos)) {
     campo <- preparacion$campos[[i]]
     tipo <- tipo_de(campo)
@@ -3050,26 +3631,15 @@
     }
     columna_sql <- preparacion$campos_sql_proyeccion[[i]]
     columna <- list()
-    desvio <- suppressWarnings(as.numeric(cuantitativos$desvio))
     media_dobles <- suppressWarnings(as.numeric(cuantitativos$media))
-    if ("desvio" %in% metricas && n >= 2 && length(desvio) == 1L &&
-        is.finite(desvio) && length(media_dobles) == 1L &&
-        is.finite(media_dobles) &&
-        .desvio_mal_condicionado_dbi(desvio, extremos, tipo = tipo)) {
-      centro <- .centro_desvio_decimal_dbi(senas, tipo, media_dobles)
-      if (!is.null(centro)) {
-        desvios[[campo]] <- list(
-          columna_sql = columna_sql, tipo = tipo, n = n, centro = centro,
-          media = media_dobles, cota = max(abs(extremos)) * 2^-48
-        )
-      }
-    }
-    if ("basicos" %in% metricas &&
-        isTRUE(is.finite(suppressWarnings(as.numeric(cuantitativos$media))))) {
-      medias[[campo]] <- list(
-        columna_sql = columna_sql, tipo = tipo, n = n,
-        media = as.numeric(cuantitativos$media), cota = max(abs(extremos)) *
-          2^-50
+    media_pedida <- "basicos" %in% metricas
+    desvio_pedido <- "desvio" %in% metricas && n >= 2
+    if ((media_pedida || desvio_pedido) && length(media_dobles) == 1L &&
+        is.finite(media_dobles)) {
+      exactas[[campo]] <- list(
+        columna_sql = columna_sql, tipo = tipo, n = n, media = media_dobles,
+        cota = max(abs(extremos)) * 2^-50, extremos = extremos,
+        media_pedida = media_pedida, desvio_pedido = desvio_pedido
       )
     }
     mapa <- if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
@@ -3126,163 +3696,24 @@
     }
     if (length(columna)) salida$columnas[[campo]] <- columna
   }
-  if (length(medias)) {
-    partes <- character()
-    for (k in seq_along(medias)) {
-      columna <- medias[[k]]
-      sumas <- .sumas_texto_decimal_dbi(conexion, columna$columna_sql,
-                                        columna$tipo)
-      partes <- c(
-        partes,
-        paste0(
-          .conteo_sql_dbi(
-            .contar_no_nulos_sql_dbi(columna$columna_sql, senas), senas
-          ),
-          " AS ", alias(paste0("lupa_n_", k))
-        ),
-        paste0(sumas, " AS ", alias(paste0(
-          "lupa_suma_", k, "_", seq_along(sumas)
-        )))
-      )
-      medias[[k]]$sumas <- length(sumas)
-    }
-    sql <- paste0(
-      "SELECT ", paste(partes, collapse = ", "), " FROM ", fuente$tabla_sql
-    )
-    salida$consultas <- salida$consultas + 1L
+  if (length(exactas)) {
     # La media esta en el total del plan y usa el lugar que se le reservo; las
     # medianas de arriba no podian tomarlo (ver `.perfilar_dbi_bloques()`).
     if (!is.null(presupuesto) && reserva_media > 0) {
       presupuesto$reserva <- max(0, presupuesto$reserva - reserva_media)
     }
-    leida <- .consultar_dbi(conexion, sql, presupuesto, etapa = "basicos")
-    for (k in seq_along(medias)) {
-      campo <- names(medias)[[k]]
-      columna <- medias[[k]]
-      media <- if (!isTRUE(leida$ok) || !is.data.frame(leida$datos) ||
-                   nrow(leida$datos) != 1L) {
-        fallo(paste0("La consulta fall\u00f3: ", leida$motivo), sql)
-      } else {
-        datos <- leida$datos
-        cuenta <- .numero_dbi(datos[[paste0("lupa_n_", k)]])
-        textos <- vapply(seq_len(columna$sumas), function(j) {
-          v <- datos[[paste0("lupa_suma_", k, "_", j)]]
-          if (length(v) == 1L && !is.na(v)) as.character(v) else NA_character_
-        }, character(1L))
-        suma <- if (!anyNA(textos)) .sumar_decimales_texto_dbi(textos) else NULL
-        valor <- .doble_mas_cercano_decimal_dbi(suma, columna$n)
-        if (is.null(suma) || !isTRUE(cuenta == columna$n) ||
-            !is.finite(valor) || abs(valor - columna$media) > columna$cota) {
-          fallo(paste(
-            "La suma del motor no es la de lo que leyeron los bloques:",
-            "la tabla cambi\u00f3 entre las dos lecturas."
-          ), sql)
-        } else list(ok = TRUE, valor = valor, sql = sql, motivo = NA_character_)
-      }
-      salida$columnas[[campo]]$media <- media
-    }
-  }
-  if (length(desvios)) {
-    partes <- character()
-    for (k in seq_along(desvios)) {
-      columna <- desvios[[k]]
-      diferencia <- .diferencia_doble_decimal_dbi(
-        senas, columna$columna_sql, columna$tipo, columna$centro$texto
-      )
-      partes <- c(
-        partes,
-        paste0(
-          .conteo_sql_dbi(
-            .contar_no_nulos_sql_dbi(columna$columna_sql, senas), senas
-          ),
-          " AS ", alias(paste0("lupa_n_", k))
-        ),
-        paste0("SUM(", diferencia, ") AS ", alias(paste0("lupa_s_", k))),
-        paste0(
-          "SUM(", diferencia, " * ", diferencia, ") AS ",
-          alias(paste0("lupa_q_", k))
-        )
-      )
-    }
-    sql <- paste0(
-      "SELECT ", paste(partes, collapse = ", "), " FROM ", fuente$tabla_sql
+    sumas <- .sumas_exactas_decimales_dbi(
+      conexion, fuente$tabla_sql, exactas, presupuesto = presupuesto,
+      incluir_valores = incluir_valores
     )
-    salida$consultas <- salida$consultas + 1L
-    leida <- .consultar_dbi(conexion, sql, presupuesto, etapa = "desvio")
-    for (k in seq_along(desvios)) {
-      campo <- names(desvios)[[k]]
-      columna <- desvios[[k]]
-      desvio <- if (!isTRUE(leida$ok) || !is.data.frame(leida$datos) ||
-                    nrow(leida$datos) != 1L) {
-        fallo(paste0("La consulta fall\u00f3: ", leida$motivo), sql)
-      } else {
-        datos <- leida$datos
-        cuenta <- .numero_dbi(datos[[paste0("lupa_n_", k)]])
-        s <- .numero_dbi(datos[[paste0("lupa_s_", k)]])
-        q <- .numero_dbi(datos[[paste0("lupa_q_", k)]])
-        n <- columna$n
-        varianza <- (q - s * s / n) / (n - 1)
-        valor <- if (length(varianza) == 1L && is.finite(varianza) &&
-                     varianza >= 0) sqrt(varianza) else NA_real_
-        if (!isTRUE(cuenta == n) || !is.finite(valor) ||
-            abs(s / n - (columna$media - columna$centro$valor)) >
-              columna$cota) {
-          fallo(paste(
-            "El desv\u00edo del motor no es el de lo que leyeron los",
-            "bloques: la tabla cambi\u00f3 entre las dos lecturas."
-          ), sql)
-        } else list(ok = TRUE, valor = valor, sql = sql, motivo = NA_character_)
-      }
+    salida$consultas <- salida$consultas + sumas$consultas
+    for (campo in names(sumas$columnas)) {
       if (is.null(salida$columnas[[campo]])) salida$columnas[[campo]] <- list()
-      salida$columnas[[campo]]$desvio <- desvio
+      for (metrica in names(sumas$columnas[[campo]])) {
+        salida$columnas[[campo]][[metrica]] <-
+          sumas$columnas[[campo]][[metrica]]
+      }
     }
   }
   salida
-}
-
-# El centro del desvio de un decimal por bloques: la media de los dobles
-# escrita como decimal en la escala de la columna, un literal que el motor
-# resta en el tipo de la columna. Con la misma escala que la columna la resta
-# es exacta: medido en SQL Server con compatibilidad 160 y 100, `decimal(38, s)`
-# menos un literal de escala `s` sigue siendo `decimal(38, s)` para `s` de 2 a
-# 30, con la ultima cifra, y en MySQL `DECIMAL(65,30)` igual.
-# Lo que se recortaba en T-SQL era la resta de un centro con mas cifras que la
-# columna. `NULL` sin escala declarada en T-SQL, MySQL y MariaDB, donde no se
-# sabe con cuantas cifras escribir el centro.
-.centro_desvio_decimal_dbi <- function(senas, tipo, media) {
-  escala <- .escala_declarada_dbi(tipo)
-  postgres <- grepl("postgres|pqconnection", senas, useBytes = TRUE)
-  if (.es_transact_sql_dbi(senas) && .moneda_sqlserver_dbi(tipo)) {
-    escala <- 4L
-  }
-  if (is.na(escala)) {
-    if (!postgres) return(NULL)
-    escala <- 30L
-  }
-  texto <- formatC(media, format = "f", digits = escala)
-  valor <- suppressWarnings(as.numeric(texto))
-  if (!is.finite(valor)) return(NULL)
-  list(texto = texto, valor = valor)
-}
-
-# La diferencia de cada valor con el centro, hecha en el decimal y llevada a
-# doble: en PostgreSQL un `numeric`; en MySQL y MariaDB un `DECIMAL`, que
-# `* 1e0` pasa a `DOUBLE`; en T-SQL un `decimal` -`money` como `decimal(19,4)`,
-# que lo guarda entero y no llega al recorte de 38 cifras-.
-.diferencia_doble_decimal_dbi <- function(senas, columna_sql, tipo, centro) {
-  if (.es_transact_sql_dbi(senas)) {
-    valor <- if (.moneda_sqlserver_dbi(tipo)) {
-      paste0("CAST(", columna_sql, " AS DECIMAL(19,4))")
-    } else columna_sql
-    return(paste0("CAST(", valor, " - ", centro, " AS FLOAT)"))
-  }
-  if (.es_mysql_dbi(senas)) {
-    return(paste0("((", columna_sql, " - ", centro, ") * 1e0)"))
-  }
-  if (grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
-    return(paste0(
-      "CAST(", columna_sql, " - ", centro, " AS DOUBLE PRECISION)"
-    ))
-  }
-  paste0("CAST(", columna_sql, " - ", centro, " AS DOUBLE)")
 }

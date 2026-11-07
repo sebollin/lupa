@@ -15968,6 +15968,18 @@
       columna_sql = sql_de(campo)
     )
   })
+  if (identical(universo, "tabla_completa")) {
+    resultados <- .decimales_exactos_tabla_dbi(
+      conexion, tabla_metricas_sql, campos, resultados, metricas,
+      tipo_de = function(i) {
+        tipo <- tipo_motor_de(campos[[i]])
+        if (length(tipo) != 1L || is.na(tipo) || !nzchar(tipo)) tipo_de(i) else
+          tipo
+      },
+      tipo_regla = tipo_de, sql_de = sql_de, agregados = agregados,
+      presupuesto = presupuesto, incluir_valores = incluir_valores
+    )
+  }
   .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
   columnas <- if (length(resultados)) {
     filas <- lapply(
@@ -16732,6 +16744,106 @@
   )$convertidas) > 0L
 }
 
+# La media y el desvio de un decimal por la tabla completa, en el decimal. El
+# motor los calculaba en doble: SQL Server con `AVG(CAST(x AS FLOAT))`, MySQL y
+# MariaDB con `AVG(x * 1e0)`, y el desvio, centrado en esa media, tambien en
+# doble. Con valores que se cancelan la media no era ni la de los dobles:
+# `999999999999999.99`, `-999999999999999.98`, `0.01`, `0.02`, `0.03` y
+# `-0.04` daban 0,00333 por 0,005. Y aun sin cancelar, la media y el desvio
+# quedaban a un ulp del doble mas cercano en los cinco motores con decimales
+# (0,0000000000000001 a 0,0000000000000004; 1,10, 2,20 y 3,30; escala 30). Las
+# sumas exactas de `.sumas_exactas_decimales_dbi()` -una consulta para todas
+# las columnas decimales de la tabla- dan los dos: la media es el doble mas
+# cercano de la suma dividida por la cuenta, y el desvio, donde el tipo deja
+# sumar los cuadrados de las diferencias con un centro sin redondeo, el doble
+# mas cercano del exacto. Se aplica solo donde el resumen publico la del motor;
+# si la consulta falla, queda la del motor, con su falla en
+# `meta$consultas$fallas`. Un decimal de escala 0 tambien entra: sus dobles son
+# los valores, pero el motor promediaba y restaba en doble, y su desvio quedaba
+# a un ulp.
+.decimales_exactos_tabla_dbi <- function(conexion, tabla_sql, campos,
+                                         resultados, metricas, tipo_de,
+                                         tipo_regla, sql_de, agregados,
+                                         presupuesto = NULL,
+                                         incluir_valores = TRUE) {
+  if (!any(c("basicos", "desvio") %in% metricas)) return(resultados)
+  senas <- .senas_conexion_dbi(conexion)
+  publicado <- function(sql, metrica) {
+    estado <- as.character(sql$estado[as.character(sql$metrica) == metrica])
+    length(estado) > 0L && all(estado %in% c("calculado", "estimado"))
+  }
+  columnas <- list()
+  for (i in seq_along(campos)) {
+    campo <- campos[[i]]
+    tipo <- tipo_de(i)
+    if (!.mediana_decimal_por_centrales_dbi(senas, tipo_regla(i))) next
+    fila <- resultados[[i]]$fila
+    sql <- resultados[[i]]$sql
+    n <- .numero_dbi(fila$n_validos)
+    datos <- agregados$basicos[[campo]]$datos
+    extremos <- if (is.data.frame(datos) && nrow(datos)) {
+      suppressWarnings(as.numeric(c(
+        .valor_campo_dbi(datos, "minimo")$valor,
+        .valor_campo_dbi(datos, "maximo")$valor
+      )))
+    } else NA_real_
+    media <- suppressWarnings(as.numeric(fila$media))
+    if (length(n) != 1L || !is.finite(n) || n < 1 || length(extremos) != 2L ||
+        any(!is.finite(extremos)) ||
+        any(abs(extremos) >= .MAX_ENTERO_EXACTO_DBI)) {
+      next
+    }
+    # Un promedio que desbordo en el motor -`AVG(x * 1.0)` de un
+    # `DECIMAL(38,30)` de 9e7 en DuckDB- se puede sumar exacto: la media y el
+    # desvio, que se centraba en ella, se calculan aca.
+    motivo_media <- as.character(
+      sql$motivo[as.character(sql$metrica) == "media"]
+    )
+    desbordada <- "basicos" %in% metricas &&
+      any(motivo_media %in% .MOTIVO_MEDIA_DESBORDADA_DBI)
+    media_pedida <- "basicos" %in% metricas &&
+      (publicado(sql, "media") || desbordada)
+    desvio_pedido <- "desvio" %in% metricas && n >= 2 &&
+      (publicado(sql, "desvio") || desbordada)
+    if (!media_pedida && !desvio_pedido) next
+    # La media del motor suma en doble: dista de la exacta a lo sumo unas `n`
+    # veces el redondeo del mayor valor. Sin ella, la del medio del rango, que
+    # dista de la exacta a lo sumo medio rango.
+    if (length(media) == 1L && is.finite(media)) {
+      cota <- max(abs(extremos)) * (n + 2) * 2^-50
+    } else {
+      media <- extremos[[1L]] / 2 + extremos[[2L]] / 2
+      cota <- (extremos[[2L]] - extremos[[1L]]) / 2 +
+        max(abs(extremos)) * (n + 2) * 2^-50
+    }
+    columnas[[campo]] <- list(
+      columna_sql = sql_de(campo), tipo = tipo, n = n, media = media,
+      cota = cota, extremos = extremos,
+      media_pedida = media_pedida, desvio_pedido = desvio_pedido
+    )
+  }
+  if (!length(columnas)) return(resultados)
+  sumas <- .sumas_exactas_decimales_dbi(
+    conexion, tabla_sql, columnas, presupuesto = presupuesto,
+    prefijo_motivo = "", incluir_valores = incluir_valores
+  )
+  for (campo in names(sumas$columnas)) {
+    i <- match(campo, campos)
+    for (metrica in names(sumas$columnas[[campo]])) {
+      decision <- sumas$columnas[[campo]][[metrica]]
+      if (!isTRUE(decision$ok)) next
+      resultados[[i]]$fila[[metrica]] <- decision$valor
+      sql <- resultados[[i]]$sql
+      filas <- as.character(sql$metrica) == metrica
+      sql$estado[filas] <- "calculado"
+      sql$motivo[filas] <- NA_character_
+      sql$sql[filas] <- decision$sql
+      resultados[[i]]$sql <- sql
+    }
+  }
+  resultados
+}
+
 # ---- Plan previo ---------------------------------------------------------
 
 # Cuantas consultas de prueba de la CTE de ventanas correra la muestra sin que
@@ -16787,7 +16899,8 @@
                                   desvio_por_ventana = FALSE,
                                   lectura_muestra = FALSE,
                                   catalogo_aviso = 0L,
-                                  reintento_muestreo = FALSE) {
+                                  reintento_muestreo = FALSE,
+                                  consultas_decimales = 0L) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -16937,6 +17050,10 @@
       c(
         "verificacion de unicidad del orden", if (con_orden) 1 else 0,
         "ordena o agrupa la tabla completa"
+      ),
+      c(
+        "media y desvio de los decimales en el decimal",
+        n_metricas(consultas_decimales), "escanea la tabla completa"
       )
     )
   )
@@ -17068,6 +17185,16 @@
   }, logical(1L))
   muestra_sql <- identical(preparacion$universo, "muestra_motor") &&
     !.solicita_muestra_dbi(preparacion$bloque_muestra)
+  # La media y el desvio exactos de los decimales de la tabla completa, una
+  # consulta para todos (ver `.decimales_exactos_tabla_dbi()`).
+  decimales <- identical(preparacion$universo, "tabla_completa") &&
+    any(c("basicos", "desvio") %in% preparacion$metricas_ejecucion) &&
+    any(vapply(seq_along(preparacion$campos), function(i) {
+      tipo <- if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+        NA_character_
+      isTRUE(es_numerico[[i]]) &&
+        .mediana_decimal_por_centrales_dbi(senas, tipo)
+    }, logical(1L)))
   .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
@@ -17100,7 +17227,8 @@
     reintento_muestreo = muestra_sql && identical(
       .candidato_muestreo_previsto_dbi(conexion, preparacion)$tipo,
       "tablesample"
-    )
+    ),
+    consultas_decimales = if (decimales) 1L else 0L
   )
 }
 
@@ -22964,20 +23092,38 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R. La media y el desvío de R
 #'   —[perfilar()], `perfil_muestra` y `bloque_filas`— son los dobles más
-#'   cercanos de la media y el desvío exactos de los dobles que leyó. La de un decimal que el controlador entrega
-#'   como doble, por `bloque_filas` y en el resumen de la muestra con
-#'   `bloque_muestra = "con_muestra"`, es la del decimal: por bloques el motor
-#'   suma la columna en su tipo —en SQL Server, la parte entera y `x % 1` por
-#'   separado, porque la suma de un `decimal(38,30)` desborda— y la devuelve
-#'   como texto; la muestra suma el texto de cada valor; R divide por la cuenta
-#'   y redondea al doble más cercano. Si la suma del motor no es la de lo que
-#'   leyeron los bloques, o la consulta falla, la media queda `no_disponible`.
-#'   La media y el desvío que calcula el motor
-#'   salen de su aritmética y no son, en general, el doble más cercano del
+#'   cercanos de la media y el desvío exactos de los dobles que leyó. La media
+#'   y el desvío de un decimal que el controlador entrega como doble son los
+#'   del decimal, los dobles más cercanos de los exactos, por la tabla
+#'   completa, por `bloque_filas` y en el resumen de la muestra con
+#'   `bloque_muestra = "con_muestra"`. Por la tabla completa y por bloques, una
+#'   consulta para todos los decimales de la tabla pide al motor, en el tipo de
+#'   la columna y como texto, la suma de la columna —en SQL Server y duckdb, la
+#'   parte entera y la fracción por separado, porque la suma de un
+#'   `decimal(38,30)` desborda— y la de los cuadrados de sus diferencias con la
+#'   media escrita en la escala de la columna —donde el cuadrado no entra en el
+#'   tipo, en trozos de nueve cifras—; R divide y saca la raíz con aritmética
+#'   entera, sin cancelación. Esa media es un literal que sale de los datos: con
+#'   `incluir_valores = FALSE` el SQL publicado la lleva tapada. La muestra hace
+#'   lo mismo con el texto de cada valor. Por la
+#'   tabla completa esa consulta reemplaza la media y el desvío del motor, que
+#'   los calculaba en doble: en MySQL, MariaDB y SQL Server promediaba el doble
+#'   de cada valor, y con valores que se cancelan la media salía lejos
+#'   (`999999999999999.99`, `-999999999999999.98`, `0.01`, `0.02`, `0.03` y
+#'   `-0.04` daban 0,00333 por 0,005); el desvío, y la media con escala 30,
+#'   quedaban a un ulp. Si la consulta falla, por la tabla completa queda la
+#'   del motor, y por bloques la media y el desvío quedan `no_disponible`, como
+#'   si la suma del motor no es la de lo que leyeron los bloques. Sin escala
+#'   declarada (SQL Server, MySQL, MariaDB) el desvío por bloques sale de los
+#'   dobles, con su guarda. La media y el desvío de una columna de coma flotante
+#'   o entera que calcula el motor salen de su aritmética y no son, en general,
+#'   el doble más cercano del
 #'   exacto: medido sobre columnas de cuatro a nueve valores en los siete
 #'   motores, por la tabla completa, la media quedó a uno o dos ulps en hasta 19
 #'   de 112 columnas (SQL Server) y el desvío a un ulp en 6 a 11 de cada 21 a
-#'   112; con más filas la diferencia puede crecer. La corroboración cruzada la
+#'   112; con más filas la diferencia puede crecer, y con valores que se
+#'   cancelan, más: `1e20`, `1`, `-1e20` y `2` dan 0,5 por 0,75 en MySQL,
+#'   MariaDB, SQL Server y duckdb. La corroboración cruzada la
 #'   tolera hasta `1e-10` relativa y la declara cuando pasa de ahí. La media y
 #'   el desvío se le piden al motor como doble donde su aritmética decimal los
 #'   recortaría: en SQL Server `AVG(CAST(x AS FLOAT))`, porque `AVG` de un
@@ -23008,19 +23154,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   escala y redondea, y un empate se redondearía hacia lados distintos según
 #'   el signo, así que el centro de un decimal nunca termina en 5. Con
 #'   `bloque_filas` los momentos se acumulan centrados, sobre los dobles que
-#'   entrega el controlador: el desvío de un decimal tan grande frente a su
-#'   desvío que el redondeo de cada valor a doble puede moverlo más de una parte
-#'   en mil millones (`max |x| / desvio * 2^-53`) queda `no_disponible`, salvo
-#'   que el tipo declare escala 0 —`numeric(18,0)`, `decimal(38,0)`— y los
-#'   valores queden por debajo de 2^53: ahí los dobles son los valores. Ese
-#'   desvío se le pide entonces al motor, en una consulta para todas esas
-#'   columnas: a cada valor le resta, en el tipo de la columna, la media escrita
-#'   como decimal en su escala, y suma esas diferencias y sus cuadrados como
-#'   dobles; con la escala de la columna, la resta es exacta (medido en SQL
-#'   Server y MySQL hasta `decimal(38,30)` y `DECIMAL(65,30)`). Sigue
-#'   `no_disponible` sin escala declarada en SQL Server, MySQL y MariaDB, o si
-#'   la consulta falla.
-#'   La escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el
+#'   entrega el controlador. El desvío de un decimal sale de las sumas exactas
+#'   del motor (ver «La media en coma flotante»): la resta con la media escrita
+#'   en la escala de la columna es exacta (medido en SQL Server, con
+#'   compatibilidad 160 y 100, y en MySQL hasta `decimal(38,30)` y
+#'   `DECIMAL(65,30)`). Sin escala declarada en SQL Server, MySQL y MariaDB, el
+#'   de los dobles: si es tan grande frente a su desvío que el redondeo de cada
+#'   valor a doble puede moverlo más de una parte en mil millones
+#'   (`max |x| / desvio * 2^-53`) queda `no_disponible`, salvo que el tipo
+#'   declare escala 0 —`numeric(18,0)`, `decimal(38,0)`— y los valores queden
+#'   por debajo de 2^53: ahí los dobles son los valores. La escala la publican
+#'   PostgreSQL, MySQL, MariaDB, DuckDB y el
 #'   catálogo de SQL Server. Bajo `muestra_motor`, la media y el desvío
 #'   se piden en la misma consulta, sobre las mismas filas de una sola
 #'   evaluación de la muestra: una relación derivada calcula la media de esas
@@ -23032,8 +23176,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   dobles: el desvío de un decimal queda `no_disponible` con la misma regla que
 #'   con `bloque_filas` sin la consulta. Con `bloque_muestra = "con_muestra"` el
 #'   resumen de un decimal sale del texto que la muestra trae de cada valor: el
-#'   desvío se resta en el decimal, centrado en una de sus centrales, y se
-#'   publica. El de `perfil_muestra` lo calcula [perfilar()] sobre lo leído, que
+#'   desvío es el doble más cercano del exacto, de las sumas sin redondeo de
+#'   las diferencias con una de sus centrales y de sus cuadrados. El de
+#'   `perfil_muestra` lo calcula [perfilar()] sobre lo leído, que
 #'   para un decimal es el doble de su texto, y rige la regla de los dobles en
 #'   todas las vías, también por la tabla completa, donde el de `resumen_tabla`
 #'   es el exacto: no se publica (queda `NA`) y la columna queda en

@@ -1075,20 +1075,38 @@ cubre: el desvío es el doble más cercano también en esas magnitudes. Las colu
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R. La media y el desvío de R
 —\code{\link[=perfilar]{perfilar()}}, \code{perfil_muestra} y \code{bloque_filas}— son los dobles más
-cercanos de la media y el desvío exactos de los dobles que leyó. La de un decimal que el controlador entrega
-como doble, por \code{bloque_filas} y en el resumen de la muestra con
-\code{bloque_muestra = "con_muestra"}, es la del decimal: por bloques el motor
-suma la columna en su tipo —en SQL Server, la parte entera y \verb{x \% 1} por
-separado, porque la suma de un \code{decimal(38,30)} desborda— y la devuelve
-como texto; la muestra suma el texto de cada valor; R divide por la cuenta
-y redondea al doble más cercano. Si la suma del motor no es la de lo que
-leyeron los bloques, o la consulta falla, la media queda \code{no_disponible}.
-La media y el desvío que calcula el motor
-salen de su aritmética y no son, en general, el doble más cercano del
+cercanos de la media y el desvío exactos de los dobles que leyó. La media
+y el desvío de un decimal que el controlador entrega como doble son los
+del decimal, los dobles más cercanos de los exactos, por la tabla
+completa, por \code{bloque_filas} y en el resumen de la muestra con
+\code{bloque_muestra = "con_muestra"}. Por la tabla completa y por bloques, una
+consulta para todos los decimales de la tabla pide al motor, en el tipo de
+la columna y como texto, la suma de la columna —en SQL Server y duckdb, la
+parte entera y la fracción por separado, porque la suma de un
+\code{decimal(38,30)} desborda— y la de los cuadrados de sus diferencias con la
+media escrita en la escala de la columna —donde el cuadrado no entra en el
+tipo, en trozos de nueve cifras—; R divide y saca la raíz con aritmética
+entera, sin cancelación. Esa media es un literal que sale de los datos: con
+\code{incluir_valores = FALSE} el SQL publicado la lleva tapada. La muestra hace
+lo mismo con el texto de cada valor. Por la
+tabla completa esa consulta reemplaza la media y el desvío del motor, que
+los calculaba en doble: en MySQL, MariaDB y SQL Server promediaba el doble
+de cada valor, y con valores que se cancelan la media salía lejos
+(\code{999999999999999.99}, \code{-999999999999999.98}, \code{0.01}, \code{0.02}, \code{0.03} y
+\code{-0.04} daban 0,00333 por 0,005); el desvío, y la media con escala 30,
+quedaban a un ulp. Si la consulta falla, por la tabla completa queda la
+del motor, y por bloques la media y el desvío quedan \code{no_disponible}, como
+si la suma del motor no es la de lo que leyeron los bloques. Sin escala
+declarada (SQL Server, MySQL, MariaDB) el desvío por bloques sale de los
+dobles, con su guarda. La media y el desvío de una columna de coma flotante
+o entera que calcula el motor salen de su aritmética y no son, en general,
+el doble más cercano del
 exacto: medido sobre columnas de cuatro a nueve valores en los siete
 motores, por la tabla completa, la media quedó a uno o dos ulps en hasta 19
 de 112 columnas (SQL Server) y el desvío a un ulp en 6 a 11 de cada 21 a
-112; con más filas la diferencia puede crecer. La corroboración cruzada la
+112; con más filas la diferencia puede crecer, y con valores que se
+cancelan, más: \code{1e20}, \code{1}, \code{-1e20} y \code{2} dan 0,5 por 0,75 en MySQL,
+MariaDB, SQL Server y duckdb. La corroboración cruzada la
 tolera hasta \code{1e-10} relativa y la declara cuando pasa de ahí. La media y
 el desvío se le piden al motor como doble donde su aritmética decimal los
 recortaría: en SQL Server \verb{AVG(CAST(x AS FLOAT))}, porque \code{AVG} de un
@@ -1119,19 +1137,17 @@ exacto; en SQL Server, si la resta pasa de 38 cifras el motor recorta la
 escala y redondea, y un empate se redondearía hacia lados distintos según
 el signo, así que el centro de un decimal nunca termina en 5. Con
 \code{bloque_filas} los momentos se acumulan centrados, sobre los dobles que
-entrega el controlador: el desvío de un decimal tan grande frente a su
-desvío que el redondeo de cada valor a doble puede moverlo más de una parte
-en mil millones (\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}, salvo
-que el tipo declare escala 0 —\code{numeric(18,0)}, \code{decimal(38,0)}— y los
-valores queden por debajo de 2^53: ahí los dobles son los valores. Ese
-desvío se le pide entonces al motor, en una consulta para todas esas
-columnas: a cada valor le resta, en el tipo de la columna, la media escrita
-como decimal en su escala, y suma esas diferencias y sus cuadrados como
-dobles; con la escala de la columna, la resta es exacta (medido en SQL
-Server y MySQL hasta \code{decimal(38,30)} y \code{DECIMAL(65,30)}). Sigue
-\code{no_disponible} sin escala declarada en SQL Server, MySQL y MariaDB, o si
-la consulta falla.
-La escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el
+entrega el controlador. El desvío de un decimal sale de las sumas exactas
+del motor (ver «La media en coma flotante»): la resta con la media escrita
+en la escala de la columna es exacta (medido en SQL Server, con
+compatibilidad 160 y 100, y en MySQL hasta \code{decimal(38,30)} y
+\code{DECIMAL(65,30)}). Sin escala declarada en SQL Server, MySQL y MariaDB, el
+de los dobles: si es tan grande frente a su desvío que el redondeo de cada
+valor a doble puede moverlo más de una parte en mil millones
+(\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}, salvo que el tipo
+declare escala 0 —\code{numeric(18,0)}, \code{decimal(38,0)}— y los valores queden
+por debajo de 2^53: ahí los dobles son los valores. La escala la publican
+PostgreSQL, MySQL, MariaDB, DuckDB y el
 catálogo de SQL Server. Bajo \code{muestra_motor}, la media y el desvío
 se piden en la misma consulta, sobre las mismas filas de una sola
 evaluación de la muestra: una relación derivada calcula la media de esas
@@ -1143,8 +1159,9 @@ la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y l
 dobles: el desvío de un decimal queda \code{no_disponible} con la misma regla que
 con \code{bloque_filas} sin la consulta. Con \code{bloque_muestra = "con_muestra"} el
 resumen de un decimal sale del texto que la muestra trae de cada valor: el
-desvío se resta en el decimal, centrado en una de sus centrales, y se
-publica. El de \code{perfil_muestra} lo calcula \code{\link[=perfilar]{perfilar()}} sobre lo leído, que
+desvío es el doble más cercano del exacto, de las sumas sin redondeo de
+las diferencias con una de sus centrales y de sus cuadrados. El de
+\code{perfil_muestra} lo calcula \code{\link[=perfilar]{perfilar()}} sobre lo leído, que
 para un decimal es el doble de su texto, y rige la regla de los dobles en
 todas las vías, también por la tabla completa, donde el de \code{resumen_tabla}
 es el exacto: no se publica (queda \code{NA}) y la columna queda en

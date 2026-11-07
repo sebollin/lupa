@@ -552,10 +552,11 @@ Primera versión publicada.
   doble no representa ya no sale de esos dobles: un `numeric(18,2)` de 5e14 con
   desvío 3 daba 3,1115 por 3,1047, y con la muestra leída en R
   (`bloque_muestra = "con_muestra"`) se publicaba movido en una parte en 300.
-  Por bloques, si el redondeo de cada valor puede moverlo más de una parte en
-  mil millones, el motor lo calcula restando a cada valor la media en el tipo
-  de la columna, en una consulta para todas esas columnas; con la muestra leída
-  en R sale del texto de cada valor, que la muestra ya traía. Por la muestra del
+  Por la tabla completa y por bloques, el motor suma en el tipo de la columna,
+  y devuelve como texto, la columna y los cuadrados de sus diferencias con la
+  media escrita en su escala, y R saca el desvío exacto: es el doble más
+  cercano. Con la muestra leída en R sale del texto de cada valor, que la
+  muestra ya traía. Por la muestra del
   motor con `bloque_muestra = "solo_agregados"`, en SQL Server, MySQL, MariaDB y
   DuckDB, que centran en doble, queda `no_disponible`. Un decimal de escala 0
   con valores por debajo de 2^53 se publica en todas las vías: ahí los dobles
@@ -573,6 +574,19 @@ Primera versión publicada.
   caen en dobles distintos (una consulta ordenada por columna; `money` de SQL
   Server siempre, porque odbc no lo lee al doble más cercano). La muestra leída
   en R ya traía cada decimal como texto.
+- La media y el desvío de un decimal por la tabla completa son los dobles más
+  cercanos de los exactos. MySQL, MariaDB y SQL Server promediaban el doble de
+  cada valor, y con valores que se cancelan la media salía lejos:
+  `999999999999999.99`, `-999999999999999.98`, `0.01`, `0.02`, `0.03` y
+  `-0.04` daban 0,00333 por 0,005; y el desvío de los cinco motores con
+  decimales, y la media con escala 30, quedaban a un ulp. Una consulta más,
+  para todos los decimales de la tabla, pide al motor la suma de la columna y
+  la de los cuadrados de sus diferencias con la media, en su tipo y como texto,
+  y R divide y saca la raíz con aritmética entera. Por bloques, el desvío de un
+  decimal sale de la misma consulta, sin consultas de más: el de
+  500000000000006.60 y sus vecinos quedaba a un ulp, y el de `1.10`, `2.20` y
+  `3.30`, también. Con `incluir_valores = FALSE`, el SQL publicado de esa
+  consulta lleva la media tapada.
 - `plan_perfilado_dbi()` cuenta la consulta de prueba de la CTE de ventanas, y
   su control negativo, que la muestra del motor corre cuando una columna
   decimal, o un `float8` de PostgreSQL, deja la mediana consolidada: dos
