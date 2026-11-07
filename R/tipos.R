@@ -49,7 +49,12 @@
 #' con el pliegue de caja de [normalizacion()], que no depende del locale.
 #' Un separador seguido de exactamente tres dígitos (`1.500`, `1,500`) cuenta
 #' como número sólo si la columna aporta evidencia de una sola convención
-#' decimal, con punto o con coma por igual.
+#' decimal, con punto o con coma por igual. Un número con los miles agrupados
+#' —`1.234,56`, `1,234.56`, `10.000,00`— cuenta como número con la misma
+#' condición: que la columna aporte evidencia de una sola convención, y que con
+#' ella el valor agrupe los miles de a tres, que es como lo lee el resumen de
+#' [perfilar()]. Sin esa evidencia, o con evidencia de las dos convenciones, no
+#' cuenta.
 #'
 #' @param x Vector que se desea examinar. Una tabla —también la de una columna
 #'   que da `tibble[, "f"]`— se rechaza: se pasa la columna, `tabla[["f"]]`.
@@ -158,12 +163,40 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   # formas si son numeros, y el resumen las lee con ella.
   separador_ambiguo <- dobles &
     grepl("^[+-]?[0-9]{1,3}[.,][0-9]{3}$", formas, perl = TRUE)
-  if (any(separador_ambiguo)) {
+  # Un numero con los miles agrupados -`1.234,56`, `1,234.56`, `1.234.567`- no
+  # casa con `dobles`, que admite un solo separador. Es la escritura corriente
+  # de un importe en Uruguay, y una columna entera de ellos salia `texto`, sin
+  # resumen, al lado de `numero_texto_seguro = TRUE` y de la convencion que la
+  # misma fila publicaba; con nueve `1234,56` y un `1.234,56` salia `doble` y el
+  # resumen leia ese `1.234,56` como 1234,56. Cuenta como numero lo que el
+  # resumen lee: la decision es la de `.leer_numeros_texto()` con la convencion
+  # de la misma evidencia, no una regla aparte que algun dia difiera.
+  #
+  # Solo con evidencia de UNA convencion, la misma condicion que la guarda de
+  # arriba. Sin evidencia -una columna de `1.234.567`- no hay lectura. Con las
+  # dos -`"mixta"`- el plan bloquea la conversion por falta de evidencia, y una
+  # columna de importes agrupados de las dos maneras que pasara a `doble`
+  # publicaria un `tipo_declarado_distinto` que dice que convertirla no pierde
+  # nada, al lado de esa conversion bloqueada; sigue `texto`, como antes.
+  agrupado <- !dobles & (
+    grepl("^[+-]?[0-9]{1,3}(?:\\.[0-9]{3})+(?:,[0-9]+)?$", formas, perl = TRUE) |
+      grepl("^[+-]?[0-9]{1,3}(?:,[0-9]{3})+(?:\\.[0-9]+)?$", formas, perl = TRUE)
+  )
+  if (any(separador_ambiguo) || any(agrupado)) {
     con_separador <- grepl("[.,]", formas, perl = TRUE)
     partes_numero <- .componentes_numero_texto(formas[con_separador])
-    if (!xor(any(partes_numero$evidencia_coma),
-             any(partes_numero$evidencia_punto))) {
+    evidencia_coma <- any(partes_numero$evidencia_coma)
+    evidencia_punto <- any(partes_numero$evidencia_punto)
+    if (!xor(evidencia_coma, evidencia_punto)) {
       dobles[separador_ambiguo] <- FALSE
+    }
+    if (any(agrupado) && xor(evidencia_coma, evidencia_punto)) {
+      # El nombre que `.interpretar_numeros_texto()` publica en
+      # `numero_texto_convencion` con esa evidencia.
+      convencion <- if (evidencia_coma) "decimal_coma" else "decimal_punto"
+      dobles[agrupado] <- !is.na(
+        .leer_numeros_texto(formas[agrupado], convencion)
+      )
     }
   }
   horas <- grepl(
@@ -247,6 +280,109 @@ print.inferencia_tipo <- function(x, ...) {
     )
   )
   invisible(x)
+}
+
+# Lo que convertir la columna al tipo inferido perderia aunque todos sus valores
+# sean compatibles. La evidencia de `tipo_declarado_distinto` decia "la
+# conversion no pierde ningun valor" solo porque la proporcion compatible era 1,
+# al lado de un plan que declaraba la misma conversion destructiva o la
+# bloqueaba. Son las razones de ese plan, leidas del perfil y de la columna:
+#
+# - un numero escrito con cero inicial (`007`) lo pierde como numero: la regla
+#   de `.evaluar_conversion()`, sobre la misma representacion;
+# - un numero con mas cifras de las que guarda un `double` (el resumen ya lo
+#   declara: `omitidos_precision`);
+# - una convencion decimal no decidida (`ambigua`, `mixta`) obliga a elegir;
+# - lecturas de fecha sin decidir -dia/mes, el siglo de un ano de dos cifras-;
+# - dos escrituras distintas que quedan en el mismo valor -`2020-01-31` y
+#   `31/01/2020`, `1` y `1.0`-: la conversion no es inyectiva. Mezclar formatos
+#   sin que ninguno choque no pierde nada, y el plan la deja `lista`.
+#
+# Devuelve las frases para la evidencia, vacio si no hay ninguna, y `NULL` si no
+# puede saberlo -sin la columna-: entonces la evidencia no afirma nada.
+.riesgos_conversion_tipo <- function(x, fila, formatos = NULL) {
+  tipo <- as.character(fila$tipo_inferido[[1L]])
+  numero <- tipo %in% c("entero", "doble", "integer64")
+  fecha <- tipo %in% c("fecha", "fecha-hora")
+  if (!numero && !fecha) return(character())
+  if (is.null(x) || !(is.character(x) || is.factor(x))) return(NULL)
+  riesgos <- character()
+  antes <- .texto_representacion_conversion(x)
+  plural <- function(n, uno, varios) {
+    paste0(.miles_trabajo(n), if (n == 1L) uno else varios)
+  }
+  if (numero) {
+    ceros <- !is.na(antes) &
+      grepl("^0[0-9]", .recortar_bytes(antes), perl = TRUE, useBytes = TRUE)
+    if (any(ceros)) {
+      riesgos <- c(riesgos, plural(
+        sum(ceros), " valor tiene cero inicial y como n\u00famero lo pierde",
+        " valores tienen cero inicial y como n\u00famero lo pierden"
+      ))
+    }
+    if ("estado_resumen_cuantitativo" %in% names(fila) &&
+        identical(as.character(fila$estado_resumen_cuantitativo[[1L]]),
+                  "omitidos_precision")) {
+      riesgos <- c(riesgos, paste0(
+        "hay valores con m\u00e1s cifras de las que guarda un n\u00famero de ",
+        "doble precisi\u00f3n"
+      ))
+    }
+    convencion <- if ("numero_texto_convencion" %in% names(fila)) {
+      as.character(fila$numero_texto_convencion[[1L]])
+    } else ""
+    if (length(convencion) == 1L && !is.na(convencion) &&
+        convencion %in% c("ambigua", "mixta")) {
+      riesgos <- c(riesgos, paste0(
+        "la convenci\u00f3n decimal no est\u00e1 decidida (", convencion, ")"
+      ))
+      despues <- NULL
+    } else {
+      despues <- suppressWarnings(.leer_numeros_texto(
+        x, if (nzchar(convencion)) convencion else NULL
+      ))
+    }
+  } else {
+    if (!is.data.frame(formatos) || !all(c("n", "estado") %in% names(formatos))) {
+      return(NULL)
+    }
+    con_valores <- !is.na(formatos$n) & formatos$n > 0
+    if (any(con_valores & formatos$estado %in% "candidato")) {
+      riesgos <- c(riesgos, "hay valores con m\u00e1s de una lectura de fecha")
+    }
+    despues <- tryCatch(
+      as.numeric(.parsear_fechas(x, formatos)), error = function(e) NULL
+    )
+    # `fecha` se guarda como `Date`: dos instantes del mismo dia son el mismo.
+    if (!is.null(despues) && identical(tipo, "fecha")) {
+      despues <- floor(despues / 86400)
+    }
+  }
+  # Sin la lectura no se sabe si dos escrituras chocan: no se afirma nada.
+  if (is.null(despues) || length(despues) != length(antes)) {
+    return(if (length(riesgos)) riesgos else NULL)
+  }
+  # La misma cuenta que `.evaluar_conversion()`: cada valor de llegada con mas
+  # de una escritura de partida.
+  presentes <- !is.na(antes) & nzchar(.recortar_bytes(antes)) &
+    !is.na(despues)
+  if (any(presentes)) {
+    claves <- .nombres_para_operar(antes)
+    pares <- unique(data.frame(
+      original = claves[presentes], convertido = despues[presentes],
+      stringsAsFactors = FALSE
+    ))
+    repetidos <- pares$convertido[duplicated(pares$convertido)]
+    chocan <- presentes & despues %in% repetidos
+    if (any(chocan)) {
+      riesgos <- c(riesgos, plural(
+        sum(chocan),
+        " valor escrito de otra forma queda igual a otro al convertir",
+        " valores escritos de formas distintas quedan iguales al convertir"
+      ))
+    }
+  }
+  riesgos
 }
 
 # La reversibilidad de una conversión se evalúa sobre la representación que

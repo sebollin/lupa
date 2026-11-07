@@ -149,6 +149,26 @@ Primera versión publicada.
 
 ## Correcciones
 
+- `inferir_tipo()` y `perfilar()` leen como número un importe con los miles
+  agrupados (`1.234,56`, `1,234.56`) cuando la columna aporta evidencia de una
+  sola convención: quedaba `texto` y sin resumen, aunque la fila publicaba la
+  convención, y la misma columna sin los puntos de miles se resumía. Una
+  columna que mezcla las dos convenciones, y las formas que también son
+  teléfonos o cédulas (`099.123.456`, `1.234.567`), siguen como texto.
+- La evidencia de `tipo_declarado_distinto` ya no dice que la conversión «no
+  pierde ningún valor» cuando pierde algo: nombra el cero inicial de un código
+  (`007`), la precisión, la convención sin decidir o las fechas de lectura
+  ambigua, las mismas razones por las que el plan no convierte.
+  `fecha_nacimiento_fuera_rango` cuenta las filas fuera de rango, que publicaba
+  como `NA`.
+- `detectar_formatos_fecha()` reconoce la `t` y la `z` minúsculas de RFC 3339
+  y cuenta la fecha civil distinta en UTC de un `POSIXlt` como la de su
+  `POSIXct` (daba 0).
+- `validar_ci_uy()` completa con ceros la cédula guardada como número (`1236`
+  es `00001236`, y daba `FALSE`) y rechaza el cuerpo `0000000`, el relleno de
+  muchas planillas. `validar_url()` rechaza la contrabarra y los invisibles de
+  formato (U+200B, U+FEFF, U+200D, marcas de dirección): un escape de su clase
+  de caracteres dejaba pasar `https://ejemplo.com\@otro.com`.
 - Las relaciones aritméticas aditivas entre columnas con decimales fijos
   cuentan como rota una diferencia de medio cuanto o más, en cualquier escala:
   con la tolerancia relativa por omisión, `comision + neto = bruto` con 30

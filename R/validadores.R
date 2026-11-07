@@ -218,7 +218,11 @@
 #' porcentual válida. No se consultan DNS ni se afirma que el recurso exista.
 #' Los espacios, separadores Unicode y caracteres de control literales hacen
 #' que el valor sea inválido; un espacio porcentualmente codificado sigue la
-#' sintaxis de una URL y no es un espacio literal.
+#' sintaxis de una URL y no es un espacio literal. También lo hacen los
+#' invisibles de formato —U+200B, U+FEFF, U+200D, las marcas de dirección—, que
+#' hacen que dos URL distintas se vean iguales, y la contrabarra, que no está en
+#' la gramática de RFC 3986 y que un navegador lee como barra: delante de una
+#' arroba, el host al que va el navegador no es el que se validaría.
 #'
 #' `validar_luhn()` acepta únicamente dígitos y aplica el algoritmo de Luhn.
 #' `validar_mod97()` acepta letras ASCII y dígitos, transforma las letras a
@@ -345,8 +349,17 @@ NULL
 }
 
 .url_uno <- function(valor, esquema_obligatorio) {
+  # La contrabarra no esta en la gramatica de RFC 3986 en ningun componente, y
+  # un navegador la lee como `/`: `https://evil.example\@x.example` va a
+  # `evil.example`, y aca pasaba con `evil.example\` de usuario y
+  # `x.example` de host. La clase de
+  # `.url_componentes_validos()` no la tenia: `\\^` llega a PCRE como `\^`, un
+  # `^` literal. Y un invisible de formato (`\p{Cf}`: U+200B, U+FEFF, U+200D,
+  # las marcas de direccion) es un control para el resto del paquete -ver
+  # `.codigos_invisibles_eliminables`- y hace que dos URL distintas se vean
+  # iguales; el host ya lo rechazaba, la ruta y la consulta no.
   if (!nzchar(valor) ||
-      grepl("[[:space:]]|\\p{Z}|\\p{Cc}", valor, perl = TRUE) ||
+      grepl("[[:space:]]|\\p{Z}|\\p{Cc}|\\p{Cf}|\\\\", valor, perl = TRUE) ||
       !.url_porcentaje_valido(valor)) return(FALSE)
 
   tiene_esquema <- grepl("^[A-Za-z][A-Za-z0-9+.-]*:", valor, perl = TRUE)
@@ -553,7 +566,13 @@ validar_mod97 <- function(x) {
 #' ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
 #' como cualquier otra escritura del mismo documento, y por sus dígitos: el
 #' doble `12000000` es la cédula `"12000000"` aunque `scipen` lo imprima en
-#' notación científica. `NaN` es ausente y devuelve `NA`.
+#' notación científica. Un número no guarda ceros iniciales, así que en
+#' `validar_ci_uy()` sus dígitos se completan con ceros hasta ocho: el número
+#' `1236` es la cédula `"00001236"`. El texto, que sí los guarda, sigue
+#' exigiendo siete u ocho dígitos: `"1236"` devuelve `FALSE`. El cuerpo
+#' `0000000` no es una cédula —su dígito cuadra, pero la numeración empieza en
+#' 1—, así que `0` y `"00000000"` devuelven `FALSE`, como el RUT de secuencia
+#' `000000`. `NaN` es ausente y devuelve `NA`.
 #'
 #' @inheritParams validar_iso3166
 #'
@@ -592,14 +611,36 @@ NULL
   digitos
 }
 
-.ci_uy_vector <- function(valor) {
+# `numero = TRUE` cuando los valores son las cifras de un numero entero -un
+# `double`, un `integer` o un `integer64`-: un numero no guarda ceros iniciales,
+# asi que se completan todos hasta los ocho digitos. El texto conserva la regla
+# de siete u ocho, que es la escritura de una persona; el numero `1236` solo
+# puede ser la cedula `00001236`, y se rechazaba mientras ese mismo texto se
+# aceptaba y `1234561` -un cero perdido- tambien.
+.ci_uy_vector <- function(valor, numero = FALSE) {
   resultado <- rep(FALSE, length(valor))
   digitos <- .solo_digitos(valor)
+  if (isTRUE(numero)) {
+    cortos <- !is.na(digitos) & grepl("^[0-9]{1,6}$", digitos, perl = TRUE)
+    digitos[cortos] <- paste0(
+      strrep("0", 8L - nchar(digitos[cortos])), digitos[cortos]
+    )
+  }
   validos <- grepl("^[0-9]{7,8}$", digitos, perl = TRUE)
   if (!any(validos)) return(resultado)
   indices <- which(validos)
   texto <- digitos[indices]
   texto[nchar(texto) == 7L] <- paste0("0", texto[nchar(texto) == 7L])
+  # El cuerpo `0000000` no es una cedula -la numeracion empieza en 1- y su
+  # digito, 0, cuadra: sin esto el `0` con que una planilla marca "sin cedula"
+  # se validaba en cuanto el numero se completa con ceros. Es la regla de la
+  # secuencia `000000` del RUT.
+  cuerpo_cero <- startsWith(texto, "0000000")
+  if (any(cuerpo_cero)) {
+    indices <- indices[!cuerpo_cero]
+    texto <- texto[!cuerpo_cero]
+    if (!length(indices)) return(resultado)
+  }
   numeros <- do.call(cbind, lapply(seq_len(8L), function(j) {
     as.integer(substr(texto, j, j))
   }))
@@ -613,7 +654,12 @@ NULL
 #' @rdname validadores_uy
 #' @export
 validar_ci_uy <- function(x) {
-  .resultado_validador_vector(x, .ci_uy_vector)
+  # Un factor guarda texto en sus niveles; las magnitudes con clase -fechas,
+  # duraciones- ya se rechazan en `.texto_validador()`.
+  numero <- !is.factor(x) && typeof(x) %in% c("double", "integer")
+  .resultado_validador_vector(x, function(valor) {
+    .ci_uy_vector(valor, numero = numero)
+  })
 }
 
 .rut_uy_uno <- function(valor) {

@@ -81,7 +81,11 @@ puertos entre 1 y 65535, rutas, consultas y fragmentos con codificación
 porcentual válida. No se consultan DNS ni se afirma que el recurso exista.
 Los espacios, separadores Unicode y caracteres de control literales hacen
 que el valor sea inválido; un espacio porcentualmente codificado sigue la
-sintaxis de una URL y no es un espacio literal.
+sintaxis de una URL y no es un espacio literal. También lo hacen los
+invisibles de formato —U+200B, U+FEFF, U+200D, las marcas de dirección—, que
+hacen que dos URL distintas se vean iguales, y la contrabarra, que no está en
+la gramática de RFC 3986 y que un navegador lee como barra: delante de una
+arroba, el host al que va el navegador no es el que se validaría.
 
 \code{validar_luhn()} acepta únicamente dígitos y aplica el algoritmo de Luhn.
 \code{validar_mod97()} acepta letras ASCII y dígitos, transforma las letras a

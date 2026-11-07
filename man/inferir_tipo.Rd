@@ -33,7 +33,12 @@ lógica. Los literales se reconocen sin distinguir mayúsculas —\code{SÍ} es 
 con el pliegue de caja de \code{\link[=normalizacion]{normalizacion()}}, que no depende del locale.
 Un separador seguido de exactamente tres dígitos (\code{1.500}, \verb{1,500}) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
-decimal, con punto o con coma por igual.
+decimal, con punto o con coma por igual. Un número con los miles agrupados
+—\verb{1.234,56}, \verb{1,234.56}, \verb{10.000,00}— cuenta como número con la misma
+condición: que la columna aporte evidencia de una sola convención, y que con
+ella el valor agrupe los miles de a tres, que es como lo lee el resumen de
+\code{\link[=perfilar]{perfilar()}}. Sin esa evidencia, o con evidencia de las dos convenciones, no
+cuenta.
 }
 \examples{
 inferir_tipo(c("1", "2", "3"))

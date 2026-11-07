@@ -1870,8 +1870,49 @@
   )
 }
 
+# Cuantas fechas de la columna caen fuera de los limites, leidas como las leyo el
+# resumen que dispara el hallazgo: `.valores_cuantitativos()` sobre la columna
+# preparada como la prepara `.perfilar_columna()` -`.texto_analizable()` y el
+# universo aplicable-, con la inferencia, los formatos y los meses escritos de su
+# resultado. El hallazgo publicaba `n_afectados = NA` con los datos a la vista:
+# el `NA` dice "no se puede saber", y se podia. Sin la columna o su resultado no
+# se puede, y sigue `NA`; tambien si la cuenta no ve ninguna fecha afuera, que
+# contradiria al minimo o al maximo que disparo el hallazgo.
+.n_fechas_fuera_de_rango_personal <- function(x, resultado, limite_inferior,
+                                              limite_superior) {
+  if (is.null(x) || !is.list(resultado) || is.null(resultado$inferencia)) {
+    return(NA_real_)
+  }
+  valores <- .texto_analizable(x)$valores
+  aplicable <- resultado$aplicable
+  if (length(aplicable) == length(valores) && !all(aplicable)) {
+    valores[!aplicable] <- NA
+  }
+  meses <- attr(resultado$inferencia$formatos_fecha, "meses_texto", exact = TRUE)
+  cuantitativos <- tryCatch(
+    .valores_cuantitativos(
+      valores, resultado$inferencia, resultado$formatos, meses_texto = meses
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(cuantitativos) ||
+      !isTRUE(cuantitativos$clase %in% c("fecha", "fecha-hora"))) {
+    return(NA_real_)
+  }
+  segundos <- as.numeric(cuantitativos$valores)
+  # El dia civil en UTC, que es el de `minimo_fecha` y `maximo_fecha`.
+  dias <- floor(segundos[is.finite(segundos)] / 86400)
+  n <- sum(dias < as.numeric(limite_inferior) |
+             dias > as.numeric(limite_superior))
+  if (n > 0) as.numeric(n) else NA_real_
+}
+
+# `datos` y `resultados` -la tabla y los resultados por columna de
+# `.perfilar_columna()`, en el orden de `columnas`- son opcionales: con ellos el
+# hallazgo cuenta las filas afectadas; sin ellos publica `NA`.
 .hallazgos_rango_fecha_personal <- function(columnas, clasificacion,
-                                            fecha_referencia, tipo) {
+                                            fecha_referencia, tipo,
+                                            datos = NULL, resultados = NULL) {
   configuraciones <- list(
     fecha_nacimiento = list(
       hallazgo = "fecha_nacimiento_fuera_rango",
@@ -1902,6 +1943,13 @@
       if (anterior) "al menos una fecha anterior a 1900",
       if (futura) "al menos una fecha posterior a la fecha del perfil"
     )
+    n_afectados <- if (is.data.frame(datos) && is.list(resultados) &&
+                         indice <= ncol(datos) && indice <= length(resultados)) {
+      .n_fechas_fuera_de_rango_personal(
+        datos[[indice]], resultados[[indice]], limite_inferior,
+        limite_superior
+      )
+    } else NA_real_
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       nombre, configuracion$hallazgo,
       if (futura) "error" else "sospechoso",
@@ -1915,7 +1963,7 @@
         "observadas."
       ),
       "Revisar los registros se\u00f1alados contra la fuente antes de corregirlos.",
-      columnas$n[[indice]], NA_real_, "fila"
+      columnas$n[[indice]], n_afectados, "fila"
     )
   }
   hallazgos

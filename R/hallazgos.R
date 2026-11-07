@@ -5088,6 +5088,20 @@
         round(analizadas * (1 - compatible))
       } else NA_real_
       sobre_muestra <- isTRUE(fila$muestreado_tipo_inferido)
+      # Que todos los valores sean compatibles no dice que convertirlos no
+      # pierda nada: `007` es compatible con entero y pierde el cero, y una
+      # columna con tres formatos de fecha une escrituras distintas. Son las
+      # razones por las que el plan declara la conversion destructiva o la
+      # bloquea; la evidencia las nombra, y solo sin ninguna afirma que no se
+      # pierde nada. Ver `.riesgos_conversion_tipo()`.
+      riesgos_conversion <- if (isTRUE(compatible == 1)) {
+        .riesgos_conversion_tipo(
+          if (is.data.frame(datos) && i <= ncol(datos)) datos[[i]] else NULL,
+          fila, resultado$formatos
+        )
+      } else character()
+      sin_perdida <- isTRUE(compatible == 1) && !is.null(riesgos_conversion) &&
+        !length(riesgos_conversion)
       agregar(.nuevo_hallazgo(
         nombre, "tipo_declarado_distinto", "sospechoso",
         "El tipo declarado no coincide con el tipo impl\u00edcito dominante.",
@@ -5101,8 +5115,10 @@
             "; convertir dejar\u00eda ", .miles_trabajo(incompatibles), " de ",
             .miles_trabajo(analizadas),
             if (analizadas == 1L) " valor en NA" else " valores en NA"
-          ) else if (isTRUE(compatible == 1)) {
+          ) else if (sin_perdida) {
             "; la conversi\u00f3n no pierde ning\u00fan valor"
+          } else if (length(riesgos_conversion)) {
+            paste0("; ", paste(riesgos_conversion, collapse = "; "))
           } else "",
           if (sobre_muestra) paste0(
             "; medido sobre una muestra de ", .miles_trabajo(analizadas),
@@ -5110,8 +5126,14 @@
               " filas, no sobre la columna entera"
           ) else ""
         ),
-        if (isTRUE(compatible == 1)) {
+        if (isTRUE(compatible == 1) && !length(riesgos_conversion)) {
           "Confirmar el tipo esperado y convertir la columna de forma expl\u00edcita."
+        } else if (length(riesgos_conversion)) {
+          paste(
+            "Confirmar el tipo esperado. Antes de convertir, resolver lo que",
+            "la conversi\u00f3n perder\u00eda: el plan de limpieza la declara",
+            "destructiva o la bloquea."
+          )
         } else {
           paste(
             "Confirmar el tipo esperado. Antes de convertir, revisar los valores",

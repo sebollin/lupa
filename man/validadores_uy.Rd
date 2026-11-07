@@ -38,7 +38,13 @@ número fraccionario o negativo devuelve \code{FALSE} —no se le quita la fracc
 ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
 como cualquier otra escritura del mismo documento, y por sus dígitos: el
 doble \code{12000000} es la cédula \code{"12000000"} aunque \code{scipen} lo imprima en
-notación científica. \code{NaN} es ausente y devuelve \code{NA}.
+notación científica. Un número no guarda ceros iniciales, así que en
+\code{validar_ci_uy()} sus dígitos se completan con ceros hasta ocho: el número
+\code{1236} es la cédula \code{"00001236"}. El texto, que sí los guarda, sigue
+exigiendo siete u ocho dígitos: \code{"1236"} devuelve \code{FALSE}. El cuerpo
+\code{0000000} no es una cédula —su dígito cuadra, pero la numeración empieza en
+1—, así que \code{0} y \code{"00000000"} devuelven \code{FALSE}, como el RUT de secuencia
+\code{000000}. \code{NaN} es ausente y devuelve \code{NA}.
 }
 \examples{
 validar_ci_uy(c("1.234.567-2", "1.234.567-3"))

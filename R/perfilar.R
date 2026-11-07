@@ -3340,10 +3340,12 @@ perfilar <- function(datos,
   hallazgos_personales <- c(
     hallazgos_personales,
     .hallazgos_rango_fecha_personal(
-      columnas, datos_personales, fecha_hora, "fecha_nacimiento"
+      columnas, datos_personales, fecha_hora, "fecha_nacimiento",
+      datos = datos, resultados = resultados
     ),
     .hallazgos_rango_fecha_personal(
-      columnas, datos_personales, fecha_hora, "fecha_fallecimiento"
+      columnas, datos_personales, fecha_hora, "fecha_fallecimiento",
+      datos = datos, resultados = resultados
     )
   )
   if (length(hallazgos_personales)) {

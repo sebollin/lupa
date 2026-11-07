@@ -1765,6 +1765,9 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 
 .fechas_civiles_distintas_utc <- function(x) {
   if (!inherits(x, "POSIXt")) return(NA_integer_)
+  # Un `POSIXlt` se cuenta como su `POSIXct`: sus campos son la hora civil de
+  # su propia zona y no se pueden comparar con UTC campo por campo.
+  if (inherits(x, "POSIXlt")) x <- as.POSIXct(x)
   zona <- .zona_horaria_origen(x)
   if (identical(zona, "sin_declarar")) return(NA_integer_)
   presentes <- !is.na(x)

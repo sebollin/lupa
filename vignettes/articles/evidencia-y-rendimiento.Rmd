@@ -352,7 +352,10 @@ Hay 2 salvedades:
 Aparte, `validar_ci_uy()` revisó las cédulas de 8 columnas en tablas enteras de 4
 de esas bases. Las tablas iban de 1 millón a decenas de millones de filas: casi 88
 millones de valores, leídos en bloques de 100.000. En las 8 columnas da la misma
-cantidad de cédulas válidas que la misma regla escrita en SQL.
+cantidad de cédulas válidas que la misma regla escrita en SQL. Las dos
+coincidencias de `validar_ci_uy()` se midieron con la regla de esa versión: el
+cuerpo `0000000` —el `00000000` de relleno— contaba como cédula válida, y un
+número de menos de siete dígitos no se completaba con ceros.
 
 La coincidencia es exacta y no depende de la máquina. No se repite en otro entorno
 sin esos datos. Tampoco dice que no haya defectos de completitud: dice que, donde

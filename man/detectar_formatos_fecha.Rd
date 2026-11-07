@@ -43,6 +43,10 @@ identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
 Tampoco la hora \code{24:00}: R la leería como la medianoche del día siguiente,
 y el perfil publicaría una fecha que nadie escribió.
+El separador \code{T} y la zona \code{Z} de una fecha-hora se reconocen también en
+minúscula (\verb{2020-01-31t23:30:00z}), como lo admite RFC 3339 (sección 5.6).
+Un \code{POSIXlt} se lee como el \code{POSIXct} del mismo instante: el atributo
+\code{n_filas_fecha_civil_distinta_utc} cuenta igual en las dos clases.
 }
 \examples{
 detectar_formatos_fecha(c("2020-01-31", "31/01/2020"))
