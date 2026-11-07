@@ -203,7 +203,18 @@
 #
 # Las comparaciones se hacen por longitud y con `method = "radix"`: comparar
 # decimales con `<` depende del locale, y este paquete ya se quemo con eso.
-.extremos_enteros_texto_fuera_de_precision <- function(texto, tipo) {
+#
+# Los centinelas declarados salen antes de todo, con la regla de la rama
+# numerica y de `integer64`: no entran en los extremos, los conteos ni la
+# mediana, y se cuentan como excluidos. Se reconocen por el texto que
+# identifica al numero (`.texto_identidad()`, la comparacion de `integer64`).
+# Esta rama no los sacaba: con `-999` declarado publicaba `minimo_exacto =
+# "-999"` y `n_negativos = 1`, mientras `integer64` con los mismos valores
+# publicaba el menor de los otros. Si sin ellos ningun valor pasa de 2^53, la
+# columna es la de un resumen comun y se devuelve `NULL`.
+.extremos_enteros_texto_fuera_de_precision <- function(texto, tipo,
+                                                       sentinelas_numericos =
+                                                         numeric()) {
   if (!identical(as.character(tipo)[1L], "entero")) return(NULL)
   presentes <- texto[!is.na(texto) & nzchar(texto)]
   if (!length(presentes)) return(NULL)
@@ -214,6 +225,21 @@
   negativos <- startsWith(sin_mas, "-")
   digitos <- sub("^-", "", sin_mas)
   digitos <- sub("^0+(?=[0-9])", "", digitos, perl = TRUE)
+  # "-0" es el cero, como en `.texto_identidad()` y en `integer64`: no es
+  # negativo, y el extremo que lo tiene es "0". Contado como negativo, la
+  # columna `c("-0", "5", "9007199254740993")` publicaba `minimo_exacto = "-0"`
+  # y `n_negativos = 1`.
+  negativos <- negativos & digitos != "0"
+  n_sentinelas <- 0L
+  if (length(sentinelas_numericos)) {
+    identidad <- digitos
+    identidad[negativos] <- paste0("-", digitos[negativos])
+    centinela <- identidad %in% .texto_identidad(sentinelas_numericos)
+    n_sentinelas <- as.integer(sum(centinela))
+    negativos <- negativos[!centinela]
+    digitos <- digitos[!centinela]
+    if (!length(digitos)) return(NULL)
+  }
   limite <- "9007199254740991"
   largo <- nchar(digitos)
   excede <- any(largo > nchar(limite))
@@ -246,11 +272,10 @@
   }
   # Las centrales por valor, con el mismo orden: los negativos de mayor a menor
   # magnitud y despues los demas de menor a mayor. La mediana la decide
-  # `.mediana_centrales_exactas()`, como la de un `integer64`. Un "-0" es el
+  # `.mediana_centrales_exactas()`, como la de un `integer64`. Un "-0" ya es el
   # cero y va con los demas.
-  bajo_cero <- negativos & digitos != "0"
-  debajo <- digitos[bajo_cero]
-  encima <- digitos[!bajo_cero]
+  debajo <- digitos[negativos]
+  encima <- digitos[!negativos]
   # `paste0("-", character())` da "-": sin negativos no se pega nada.
   ordenados <- c(
     if (length(debajo)) paste0("-", debajo[.orden_por_bytes(
@@ -263,13 +288,15 @@
     minimo_exacto = minimo, maximo_exacto = maximo,
     n_ceros = as.integer(sum(digitos == "0")),
     n_negativos = as.integer(sum(negativos)),
-    centrales = ordenados[unique(c((n + 1L) %/% 2L, (n + 2L) %/% 2L))]
+    centrales = ordenados[unique(c((n + 1L) %/% 2L, (n + 2L) %/% 2L))],
+    n_sentinelas = n_sentinelas
   )
 }
 
 .valores_cuantitativos <- function(x, inferencia, formatos,
                                    meses_texto = NULL, vocabulario = NULL,
-                                   valores_preparados = NULL) {
+                                   valores_preparados = NULL,
+                                   sentinelas_numericos = numeric()) {
   if (inherits(x, "POSIXt")) {
     return(list(valores = as.numeric(x), clase = "fecha-hora",
                 n_fechas_resumidas = sum(is.finite(x)),
@@ -359,7 +386,7 @@
                   n_valores_excluidos_resumen = n_excluidas,
                   fuera_de_precision =
                     .extremos_enteros_texto_fuera_de_precision(
-                      texto, inferencia$tipo
+                      texto, inferencia$tipo, sentinelas_numericos
                     ),
                   estado = if (n_excluidas > 0L) {
                     "calculados_sobre_valores"
@@ -1245,12 +1272,13 @@
                                   sentinelas_numericos = NULL,
                                   vocabulario = NULL,
                                   valores_preparados = NULL) {
-  cuantitativos <- .valores_cuantitativos(
-    x, inferencia, formatos, meses_texto = meses_texto,
-    vocabulario = vocabulario, valores_preparados = valores_preparados
-  )
   sentinelas_declarados <- .sentinelas_numericos_declarados(
     sentinelas_numericos
+  )
+  cuantitativos <- .valores_cuantitativos(
+    x, inferencia, formatos, meses_texto = meses_texto,
+    vocabulario = vocabulario, valores_preparados = valores_preparados,
+    sentinelas_numericos = sentinelas_declarados
   )
   if (identical(cuantitativos$clase, "fecha_granularidad_incompleta")) {
     salida <- .resumen_vacio_cuantitativo("granularidad_incompleta")
@@ -1277,20 +1305,18 @@
     salida$maximo_exacto <- fuera$maximo_exacto
     salida$n_ceros <- fuera$n_ceros
     salida$n_negativos <- fuera$n_negativos
-    # La mediana, por sus centrales, como en `integer64`. Este camino no saca
-    # los centinelas declarados -los extremos tampoco-: con alguno declarado,
-    # la mediana se calcularia sobre otros valores que los del resto del
-    # paquete, y no se publica.
-    if (!length(sentinelas_declarados)) {
-      salida$mediana <- .mediana_centrales_exactas(fuera$centrales)
-    }
+    # La mediana, por sus centrales, como en `integer64`. Los centinelas
+    # declarados ya salieron (`.extremos_enteros_texto_fuera_de_precision()`):
+    # los extremos, los conteos y la mediana son los de los mismos valores que
+    # en las otras ramas, y los excluidos se cuentan.
+    salida$mediana <- .mediana_centrales_exactas(fuera$centrales)
     salida$n_valores_excluidos_resumen <- as.integer(
       if (is.null(cuantitativos$n_valores_excluidos_resumen)) {
         0L
       } else {
         cuantitativos$n_valores_excluidos_resumen
       }
-    )
+    ) + as.integer(fuera$n_sentinelas %||% 0L)
     return(salida)
   }
   valores_originales <- cuantitativos$valores

@@ -90,10 +90,19 @@ test_that("el mismo entero escrito como texto recibe la misma mediana que el int
   expect_identical(.mce_perfil(data.frame(
     v = conjuntos[[3L]], stringsAsFactors = FALSE
   ))$mediana, 2)
-  # Esa rama no saca los centinelas declarados: la mediana no se publica.
+  # Los centinelas declarados salen antes de las centrales, como en
+  # `integer64`. Sin el 1 quedan 2 y 2^63 - 1, que no cabe: `NA`. Sin el 4,
+  # la central es 7.
   fila <- .mce_perfil(data.frame(v = conjuntos[[1L]], stringsAsFactors = FALSE),
                       sentinelas_numericos = 1)
   expect_true(is.na(fila$mediana))
+  fila <- .mce_perfil(data.frame(v = conjuntos[[2L]], stringsAsFactors = FALSE),
+                      sentinelas_numericos = 4)
+  expect_identical(fila$mediana, 7)
+  expect_identical(fila$mediana, .mce_perfil(
+    data.frame(v = bit64::as.integer64(conjuntos[[2L]])),
+    sentinelas_numericos = 4
+  )$mediana)
 })
 
 test_that("una columna de codigo que pasa de 2^53 sigue sin publicar la mediana", {

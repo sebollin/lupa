@@ -127,6 +127,7 @@
     cuantitativos = list(
       n = 0, media = 0, media_abs = 0, suma = 0,
       suma_compensacion = 0, partes_suma = numeric(), exponente_partes = 0,
+      partes_suma_chicas = numeric(),
       m2 = 0,
       centro = NA_real_, minimo = Inf, maximo = -Inf,
       desplazamiento = if (length(configuracion$configuracion$desplazamiento) == 1L &&
@@ -142,7 +143,14 @@
         configuracion$configuracion$escala_adaptativa
       ),
       n_nan = 0, n_infinito_positivo = 0, n_infinito_negativo = 0,
-      n_ceros = 0, n_negativos = 0, contar_signos = TRUE
+      n_ceros = 0, n_negativos = 0, contar_signos = TRUE,
+      # El desvio: ver `.desvio_mas_cercano_bloques()`. "exacto" salvo que la
+      # configuracion pida "rapido" (`perfilar()` en memoria).
+      desvio_modo = if (identical(configuracion$configuracion$desvio,
+                                  "rapido")) "rapido" else "exacto",
+      desvio_valido = TRUE, centro_desvio = NA_real_,
+      partes_cuadrados = numeric(), exponente_cuadrados = 0,
+      cota_cuadrados = 0
     ),
     longitudes = list(n = 0, suma = 0, minimo = Inf, maximo = -Inf),
     distintos = list(
@@ -659,13 +667,30 @@
 
 # Las partes se guardan en la unidad `x / 2^exponente_partes`. El exponente es
 # 0 mientras los valores no pasan de 2^900, y si pasan, el justo para que ni
-# `sigma` ni la suma de 2^53 valores desborden. Asi solo pierden cifras los
-# valores por debajo de `2^(exponente - 1022)` en una columna que pasa de
-# 2^900: con 2^1000 en la columna, los menores que 2^-922 (medido: a 1 ulp con
-# valores de 2^-921 por `rnorm()`, y 0 con valores de 2^-1000).
+# `sigma` ni la suma de 2^53 valores desborden. En esa unidad los valores
+# menores que `2^(exponente - 1022)` caerian en los subnormales y perderian
+# cifras: con 2^1000 en la columna, los de 2^-921 quedaban a 1 ulp y los de
+# 2^-1000 daban la media 0. Esos van a `partes_suma_chicas`, sumadas en la
+# unidad 1, donde son exactas (`.media_mas_cercana_bloques()` junta las dos).
+# Una columna comun nunca llega aca: el exponente es 0.
 .exponente_partes_necesario_bloques <- function(maximo_abs) {
   if (!is.finite(maximo_abs) || maximo_abs <= 2^900) return(0)
   ceiling(log2(maximo_abs)) - 900
+}
+
+# Las partes de la unidad `2^viejo` llevadas a `2^nuevo` (`nuevo > viejo`). Las
+# que en la nueva quedarian subnormales pasan a las chicas, en la unidad 1:
+# cada parte es un doble de la unidad vieja, y multiplicarla por `2^viejo`
+# solo le sube el exponente.
+.llevar_partes_suma_bloques <- function(partes, viejo, nuevo) {
+  if (is.null(partes) || viejo == nuevo) {
+    return(list(partes = partes, chicas = numeric()))
+  }
+  chicas <- partes != 0 & abs(partes) < 2^(nuevo - viejo - 1022)
+  list(
+    partes = partes[!chicas] * 2^(viejo - nuevo),
+    chicas = partes[chicas] * 2^viejo
+  )
 }
 
 .exponente_partes_bloques <- function(estado) {
@@ -743,7 +768,8 @@
 # esa unidad cuando la media publicada es subnormal. Asi `c * 2^exponente` es
 # exacto y la media subnormal tambien es la mas cercana. Una suma diminuta se
 # lleva a los dobles normales por otra potencia de dos, que pasa al exponente.
-.cociente_mas_cercano_bloques <- function(partes, n, exponente = 0) {
+.cociente_mas_cercano_bloques <- function(partes, n, exponente = 0,
+                                          desempate = 0) {
   s <- .expansion_no_solapada_bloques(partes)
   publicar <- function(x) {
     # En dos factores: `2^exponente` solo puede no ser representable.
@@ -754,7 +780,9 @@
   tope <- abs(s[[length(s)]])
   if (!is.finite(tope)) return(publicar(sum(partes) / n))
   if (tope < 2^-900) {
-    return(.cociente_mas_cercano_bloques(s * 2^600, n, exponente - 600))
+    return(.cociente_mas_cercano_bloques(
+      s * 2^600, n, exponente - 600, desempate
+    ))
   }
   # El espaciado de un doble subnormal publicado, en la unidad de las partes;
   # con `exponente > 0` es mas fino que el de cualquier doble de esta unidad.
@@ -792,6 +820,13 @@
     }
     if (lado < 0) return(publicar(candidato))
     if (lado == 0) {
+      # Un empate exacto lo rompe `desempate`, el signo de lo que se sumo
+      # aparte (ver `.media_mas_cercana_bloques()`); si no hay, va a par.
+      if (desempate != 0) {
+        return(publicar(if ((desempate > 0) == (signo > 0)) vecino else {
+          candidato
+        }))
+      }
       mantisa <- abs(candidato) / espaciado(candidato, hacia_cero = FALSE)
       return(publicar(if (mantisa %% 2 == 0) candidato else vecino))
     }
@@ -808,6 +843,480 @@
   publicar(candidato)
 }
 
+# La media de las dos listas de partes: las de la unidad `2^exponente_partes` y
+# las chicas, en la unidad 1 (`.exponente_partes_necesario_bloques()`). Si la
+# suma de las primeras cabe en la unidad 1 por debajo de 2^950, todo se junta
+# ahi y el cociente es exacto. Si no, la de las chicas -menor que 2^-845- solo
+# puede decidir un empate exacto, y entra como su signo.
+.media_mas_cercana_bloques <- function(estado) {
+  n <- estado$n
+  exponente <- .exponente_partes_bloques(estado)
+  chicas <- estado$partes_suma_chicas
+  if (!length(chicas) || all(chicas == 0)) {
+    return(.cociente_mas_cercano_bloques(estado$partes_suma, n, exponente))
+  }
+  grandes <- .expansion_no_solapada_bloques(estado$partes_suma)
+  if (!length(grandes)) return(.cociente_mas_cercano_bloques(chicas, n, 0))
+  if (abs(grandes[[length(grandes)]]) < 2^(950 - exponente)) {
+    return(.cociente_mas_cercano_bloques(
+      c(grandes * 2^exponente, chicas), n, 0
+    ))
+  }
+  .cociente_mas_cercano_bloques(
+    grandes, n, exponente,
+    desempate = .signo_expansion_bloques(.expansion_no_solapada_bloques(chicas))
+  )
+}
+
+# ---------------------------------------------------------------------------
+# El desvio publicado es el doble mas cercano del desvio exacto (`n - 1`).
+#
+# Con Welford en doble -el centrado, los cuadrados y la fusion de 200 bloques,
+# cada paso con su redondeo- el desvio de una columna comun de 2.000.000 de
+# filas quedaba a 1-3 ulps del mas cercano. El exacto sale de
+# `S n = n Q - X^2`, con `X = sum(x - c)` y `Q = sum((x - c)^2)` para un
+# centro `c` fijo del estado: `X` ya es exacta (las partes de la media y
+# `n c` con Dekker) y queda `Q`. El estado guarda `Q` como partes cuya suma
+# exacta se conoce, mas una cota de lo que no se sumo exacto; al publicar,
+# `.desvio_mas_cercano_bloques()` compara `S n` contra los puntos medios entre
+# dobles vecinos con aritmetica exacta, y si la cota no deja decidir lo dice.
+#
+# Hay dos maneras de llenar ese estado, con el mismo resultado:
+# - "exacto": `Q = sum(x^2)` sin centro, cada cuadrado partido sin error con
+#   Dekker y sumado con `.partes_suma_exacta_bloques()`. La cota es cero salvo
+#   en una columna con valores 2^885 veces menores que el mayor. Unas 40
+#   operaciones vectoriales por bloque: es la manera por omision, la de
+#   `bloque_filas`, donde lo que cuesta es leer del motor.
+# - "rapido": la de `perfilar()` en memoria, que tiene la columna entera y
+#   puede volver a recorrerla. `Q` se calcula con cuatro sumas, tres exactas
+#   y una con cota demostrada (`.cuadrados_rapidos_bloques()`); la cota deja
+#   decidir el redondeo salvo que el desvio exacto caiga a unos 2^-70
+#   relativos de un punto medio, y entonces `.resumen_cuantitativo_bloques()`
+#   recorre la columna otra vez por la manera exacta.
+# Ninguna de las dos depende de la precision extendida de `sum()`: lo que se
+# suma exacto son multiplos de una grilla que entran en 53 bits, y las cotas
+# son las de una suma en doble en cualquier orden.
+
+# `x * 2^k` en factores que no desbordan; exacto mientras el resultado no
+# quede subnormal.
+.por_potencia_dos_bloques <- function(x, k) {
+  while (k > 1000) {
+    x <- x * 2^1000
+    k <- k - 1000
+  }
+  while (k < -1000) {
+    x <- x * 2^-1000
+    k <- k + 1000
+  }
+  x * 2^k
+}
+
+# El exponente de la menor potencia de dos que no es menor que `maximo` (> 0).
+.exponente_cota_bloques <- function(maximo) {
+  exponente <- ceiling(log2(maximo))
+  if (2^exponente < maximo) exponente <- exponente + 1
+  exponente
+}
+
+# `y^2` sin error como `p + e` (Dekker), vectorial. Exacto si `|y|` esta entre
+# 2^-485 -por debajo `e` cae en los subnormales- y 2^996.
+.cuadrado_exacto_bloques <- function(y) {
+  p <- y * y
+  t <- 134217729 * y
+  alto <- t - (t - y)
+  bajo <- y - alto
+  list(p = p, e = ((alto * alto - p) + 2 * alto * bajo) + bajo * bajo)
+}
+
+# `.producto_exacto_bloques()` con la cota de su error: Dekker es exacto salvo
+# que el producto caiga cerca de los subnormales, y ahi el error es de unos
+# pocos 2^-1074.
+.producto_cota_bloques <- function(a, b) {
+  producto <- .producto_exacto_bloques(a, b)
+  p <- producto[[1L]]
+  exacto <- if (p == 0) a == 0 || b == 0 else abs(p) >= 2^-968
+  list(valores = producto, cota = if (exacto) 0 else 2^-1070)
+}
+
+# El signo exacto de una suma de dobles. Primero la cuenta en doble con la cota
+# de una suma en cualquier orden; si no alcanza, la expansion de Shewchuk.
+.signo_suma_exacta_bloques <- function(valores) {
+  valores <- valores[valores != 0]
+  k <- length(valores)
+  if (!k) return(0)
+  aproximada <- sum(valores)
+  cota <- sum(abs(valores)) * (k + 2) * 2^-52 + 2^-1060
+  if (abs(aproximada) > cota) return(sign(aproximada))
+  .signo_expansion_bloques(.expansion_no_solapada_bloques(valores))
+}
+
+# El centro de la manera rapida se elige con el primer bloque: si sus valores
+# son de un mismo signo y estan dentro de un factor 4, un centro entre la mitad
+# del mayor y el doble del menor hace exacta cada resta `x - c` (Sterbenz),
+# y se toma el mas cercano a la media del bloque. Si no, 0: `x - 0` es exacta.
+# Un bloque constante se centra en su valor: cada `x - c` es cero y la suma no
+# tiene cota que la aleje del cero. Centrado en su media en doble -que puede no
+# ser el valor- la cota no dejaba decidir que el desvio es 0, y una columna
+# constante se recorria dos veces.
+.elegir_centro_desvio_bloques <- function(minimo, maximo, media) {
+  if (minimo == maximo) return(minimo)
+  if (minimo > 0 && maximo <= 4 * minimo) {
+    return(min(max(media, maximo / 2), 2 * minimo))
+  }
+  if (maximo < 0 && minimo >= 4 * maximo) {
+    return(min(max(media, 2 * maximo), minimo / 2))
+  }
+  0
+}
+
+# La suma de `(x - c)^2` de un bloque, partida en dobles cuya suma exacta se
+# conoce, y la cota de la diferencia con la verdadera. `d = x - c` se lleva a
+# una grilla fija por la extraccion de Rump, Ogita y Oishi: con `2^E` cota de
+# `|d|`, `alto` cae en la grilla 2^(E - 19) con a lo sumo 19 bits, `medio` en
+# la de 2^(E - 38) con otros 19, y `|bajo| <= 2^(E - 38)`. Con a lo sumo 2^15
+# valores, `sum(alto^2)` y `sum(alto * medio)` son multiplos de su grilla que
+# no pasan de 2^53 grillas: exactas en cualquier orden y acumulador.
+# `(alto + medio + bajo)^2` deja dos sumas en doble, `sum(alto * bajo)` y
+# `sum(resto^2)`, que pesan 2^-36 y 2^-34 de la suma, y su error es el de una
+# suma en doble de `m` terminos (`(m + 2) 2^-52` de la suma de sus modulos,
+# con `sum(|alto bajo|)` acotada por Cauchy-Schwarz), mas el de los productos
+# que caigan en los subnormales. Sobre un bloque comun la cota queda en 2^-73
+# de la suma. Si `x - c` no es exacta, `d + resto_d` lo es (TwoSum) y el
+# cruce `2 sum(d resto_d)` entra con su cota. `ok = FALSE`: fuera del rango
+# en que vale la cuenta.
+.cuadrados_rapidos_bloques <- function(x, centro, minimo, maximo) {
+  m <- length(x)
+  maximo_d <- max(maximo - centro, centro - minimo) * (1 + 2^-50)
+  if (!(maximo_d > 0)) return(list(partes = numeric(), cota = 0, ok = TRUE))
+  exponente <- .exponente_cota_bloques(maximo_d)
+  if (m > 32768L || !is.finite(exponente) || exponente > 460 ||
+      exponente < -460) {
+    return(list(partes = NULL, cota = Inf, ok = FALSE))
+  }
+  exacta <- centro == 0 ||
+    (centro > 0 && minimo >= centro / 2 && maximo <= 2 * centro) ||
+    (centro < 0 && maximo <= centro / 2 && minimo >= 2 * centro)
+  d <- if (centro == 0) x else x - centro
+  resto_d <- NULL
+  if (!exacta) {
+    b <- d - x
+    resto_d <- (x - (d - b)) + (-centro - b)
+  }
+  s1 <- 2^(exponente + 34)
+  alto <- (s1 + d) - s1
+  resto <- d - alto
+  s2 <- 2^(exponente + 15)
+  medio <- (s2 + resto) - s2
+  bajo <- resto - medio
+  cuadrados_alto <- sum(alto * alto)
+  cruce_medio <- sum(alto * medio)
+  cruce_bajo <- sum(alto * bajo)
+  cuadrados_resto <- sum(resto * resto)
+  gamma <- (m + 2) * 2^-52
+  subnormales <- m * 2^-1074
+  cota <- 2 * (gamma * sqrt(cuadrados_alto * m) * 2^(exponente - 38) *
+                 (1 + 2^-50) + subnormales) +
+    2 * gamma * cuadrados_resto + subnormales
+  partes <- c(cuadrados_alto, 2 * cruce_medio, 2 * cruce_bajo, cuadrados_resto)
+  if (!is.null(resto_d)) {
+    cruce_d <- sum(d * resto_d)
+    cuadrados_d <- cuadrados_alto + 2 * cruce_medio + 2 * abs(cruce_bajo) +
+      cuadrados_resto + cota
+    cota <- cota + 2 * (gamma * 2^-53 * cuadrados_d + subnormales) +
+      2^-106 * cuadrados_d
+    partes <- c(partes, 2 * cruce_d)
+  }
+  list(partes = partes, cota = cota * (1 + 2^-50), ok = TRUE)
+}
+
+.absorber_desvio_rapido_bloques <- function(estado, finitos, minimo, maximo,
+                                            partes_bloque) {
+  if (!isTRUE(estado$desvio_valido)) return(estado)
+  # Tambien los valores, y no solo `x - c`, tienen que estar en el rango: `X`
+  # se arma en la unidad 1, y con una constante de 1,8e308 desbordaba.
+  if (max(-minimo, maximo) > 2^460) {
+    estado$desvio_valido <- FALSE
+    return(estado)
+  }
+  centro <- estado$centro_desvio
+  primero <- length(centro) != 1L || is.na(centro)
+  m <- length(finitos)
+  if (primero) {
+    media <- 0
+    for (parte in partes_bloque) media <- media + parte
+    media <- media / m
+    centro <- .elegir_centro_desvio_bloques(minimo, maximo, media)
+  }
+  cuenta <- .cuadrados_rapidos_bloques(finitos, centro, minimo, maximo)
+  # Con centro 0, `S = Q - X^2 / n` cancela cuando la media es grande frente al
+  # desvio (valores de 1000 +- 1 y algun cero), y la cota relativa de `S` crece
+  # en la misma proporcion. Si el primer bloque ya cancela mas de 2^10, se
+  # centra en su media y cada resta inexacta va por TwoSum.
+  if (primero && isTRUE(cuenta$ok) && centro == 0 && is.finite(media) &&
+      media != 0) {
+    q <- sum(cuenta$partes)
+    if (!(q - media * media * m > q * 2^-10)) {
+      centro <- media
+      cuenta <- .cuadrados_rapidos_bloques(finitos, centro, minimo, maximo)
+    }
+  }
+  if (!isTRUE(cuenta$ok)) {
+    estado$desvio_valido <- FALSE
+    return(estado)
+  }
+  estado$centro_desvio <- centro
+  estado$partes_cuadrados <- .agregar_partes_suma_bloques(
+    estado$partes_cuadrados, cuenta$partes
+  )
+  estado$cota_cuadrados <- (estado$cota_cuadrados + cuenta$cota) *
+    (1 + 2^-52)
+  estado
+}
+
+# La manera exacta: `sum(x^2)` en la unidad `2^(2 exponente_cuadrados)`. El
+# exponente deja el mayor del primer bloque en 2^400 y sube si llega un bloque
+# 2^50 veces mayor. Un valor que en esa unidad quede por debajo de 2^-485 -uno
+# 2^885 veces menor que el mayor- no se eleva exacto (Dekker caeria en los
+# subnormales): se cuenta en la cota, que frente a `S` pesa menos de 2^-1700 y
+# solo puede cambiar un empate.
+.absorber_desvio_exacto_bloques <- function(estado, finitos, minimo, maximo) {
+  maximo_abs <- max(-minimo, maximo)
+  if (!(maximo_abs > 0)) return(estado)
+  exponente_maximo <- .exponente_cota_bloques(maximo_abs)
+  exponente <- estado$exponente_cuadrados
+  if (!length(estado$partes_cuadrados) && estado$cota_cuadrados == 0) {
+    exponente <- exponente_maximo - 400
+  } else if (exponente_maximo - exponente > 450) {
+    nuevo <- exponente_maximo - 400
+    k <- 2 * (exponente - nuevo)
+    viejas <- estado$partes_cuadrados
+    llevadas <- .por_potencia_dos_bloques(viejas, k)
+    perdidas <- sum(.por_potencia_dos_bloques(llevadas, -k) != viejas)
+    estado$cota_cuadrados <- .por_potencia_dos_bloques(
+      estado$cota_cuadrados, k
+    ) * (1 + 2^-52) + perdidas * 2^-1073
+    estado$partes_cuadrados <- llevadas
+    exponente <- nuevo
+  }
+  estado$exponente_cuadrados <- exponente
+  y <- if (exponente != 0) .por_potencia_dos_bloques(finitos, -exponente) else {
+    finitos
+  }
+  minimo_abs <- if (minimo > 0) minimo else if (maximo < 0) -maximo else 0
+  if (.por_potencia_dos_bloques(minimo_abs, -exponente) < 2^-485) {
+    diminutos <- y != 0 & abs(y) < 2^-485
+    k <- sum(diminutos)
+    if (k) {
+      y[diminutos] <- 0
+      estado$cota_cuadrados <- (estado$cota_cuadrados + k * 2^-970) *
+        (1 + 2^-52)
+    }
+  }
+  cuadrado <- .cuadrado_exacto_bloques(y)
+  estado$partes_cuadrados <- .agregar_partes_suma_bloques(
+    estado$partes_cuadrados,
+    c(.partes_suma_exacta_bloques(cuadrado$p),
+      .partes_suma_exacta_bloques(cuadrado$e))
+  )
+  estado
+}
+
+# Las partes de `sum((x - c_b)^2)` llevadas al centro `c_a`: se suma
+# `2 (c_b - c_a) sum(x - c_b) + n (c_b - c_a)^2`, todo con productos exactos.
+.recentrar_cuadrados_bloques <- function(b, centro_a) {
+  centro_b <- b$centro_desvio
+  if (length(centro_b) != 1L || is.na(centro_b) || centro_b == centro_a) {
+    return(list(partes = b$partes_cuadrados, cota = b$cota_cuadrados))
+  }
+  if (.exponente_partes_bloques(b) != 0 || length(centro_a) != 1L ||
+      is.na(centro_a)) {
+    return(list(partes = NULL, cota = Inf))
+  }
+  # `centro_b - centro_a` sin error, por TwoSum.
+  delta <- centro_b - centro_a
+  bb <- delta - centro_b
+  resto_delta <- (centro_b - (delta - bb)) + (-centro_a - bb)
+  deltas <- c(delta, resto_delta)
+  suma_b <- c(b$partes_suma, -.producto_exacto_bloques(b$n, centro_b))
+  terminos <- numeric()
+  cota <- b$cota_cuadrados
+  for (u in deltas) {
+    for (s in suma_b) {
+      producto <- .producto_cota_bloques(u, s)
+      terminos <- c(terminos, 2 * producto$valores)
+      cota <- cota + 2 * producto$cota
+    }
+    for (v in deltas) {
+      producto <- .producto_cota_bloques(u, v)
+      for (w in producto$valores) {
+        otro <- .producto_cota_bloques(b$n, w)
+        terminos <- c(terminos, otro$valores)
+        cota <- cota + otro$cota + b$n * producto$cota
+      }
+    }
+  }
+  list(
+    partes = .agregar_partes_suma_bloques(b$partes_cuadrados, terminos),
+    cota = cota * (1 + 2^-50)
+  )
+}
+
+# El doble mas cercano de `2^exponente sqrt(W / (n (n - 1)))`, con
+# `W = n Q - X^2` en la unidad `2^(2 exponente)`, comparando `W` contra
+# `n (n - 1) m^2` para los puntos medios `m` a cada lado del candidato. `W` se
+# conoce exacta salvo la cota; si un punto medio cae dentro de ella,
+# `decidido = FALSE` y el valor es el candidato. Con cota cero el empate va a
+# par, como el resto del paquete.
+.desvio_mas_cercano_bloques <- function(estado) {
+  # En doble: `n` llega `integer`, y `n * n` desborda desde 46.341.
+  n <- as.numeric(estado$n)
+  if (!isTRUE(n > 1)) return(list(valor = NA_real_, decidido = TRUE))
+  if (!isTRUE(estado$desvio_valido) || is.null(estado$partes_suma) ||
+      is.null(estado$partes_cuadrados)) {
+    return(list(valor = NA_real_, decidido = FALSE))
+  }
+  exponente <- estado$exponente_cuadrados
+  centro <- estado$centro_desvio
+  if (length(centro) != 1L || is.na(centro)) centro <- 0
+  # `X` en la unidad `2^exponente`. Un cambio de unidad que deja una parte en
+  # los subnormales se cuenta en la cota de `X`.
+  desplazamiento <- .exponente_partes_bloques(estado) - exponente
+  partes_x <- estado$partes_suma
+  cota_x <- 0
+  if (desplazamiento != 0) {
+    llevadas <- .por_potencia_dos_bloques(partes_x, desplazamiento)
+    cota_x <- sum(.por_potencia_dos_bloques(llevadas, -desplazamiento) !=
+                    partes_x) * 2^-1073
+    partes_x <- llevadas
+  }
+  chicas <- estado$partes_suma_chicas
+  if (length(chicas)) {
+    llevadas <- .por_potencia_dos_bloques(chicas, -exponente)
+    cota_x <- cota_x + sum(.por_potencia_dos_bloques(llevadas, exponente) !=
+                             chicas) * 2^-1073
+    partes_x <- c(partes_x, llevadas)
+  }
+  if (centro != 0) {
+    producto <- .producto_cota_bloques(n, centro)
+    partes_x <- c(partes_x, -.por_potencia_dos_bloques(
+      producto$valores, -exponente
+    ))
+    cota_x <- cota_x + .por_potencia_dos_bloques(producto$cota, -exponente)
+  }
+  if (!all(is.finite(partes_x))) {
+    return(list(valor = NA_real_, decidido = FALSE))
+  }
+  xs <- .expansion_no_solapada_bloques(partes_x)
+  qs <- .expansion_no_solapada_bloques(estado$partes_cuadrados)
+  if (!all(is.finite(c(xs, qs)))) {
+    return(list(valor = NA_real_, decidido = FALSE))
+  }
+  terminos <- numeric()
+  cota_redondeo <- 0
+  for (q in qs) {
+    producto <- .producto_cota_bloques(n, q)
+    terminos <- c(terminos, producto$valores)
+    cota_redondeo <- cota_redondeo + producto$cota
+  }
+  for (i in seq_along(xs)) {
+    for (j in seq_len(i)) {
+      producto <- .producto_cota_bloques(xs[[i]], xs[[j]])
+      factor <- if (i == j) 1 else 2
+      terminos <- c(terminos, -factor * producto$valores)
+      cota_redondeo <- cota_redondeo + factor * producto$cota
+    }
+  }
+  if (!all(is.finite(terminos))) {
+    return(list(valor = NA_real_, decidido = FALSE))
+  }
+  w <- .expansion_no_solapada_bloques(terminos)
+  modulo_x <- sum(abs(xs))
+  cota_w <- (n * estado$cota_cuadrados + (2 * modulo_x + cota_x) * cota_x +
+               cota_redondeo) * (1 + 2^-40)
+  if (!is.finite(cota_w)) return(list(valor = NA_real_, decidido = FALSE))
+  # `W` exacta y cero: todos los valores son iguales. Se dice aca porque el
+  # punto medio sobre el 0, 2^-1075, no es un doble en la unidad 1.
+  if (cota_w == 0 && !length(w)) return(list(valor = 0, decidido = TRUE))
+  pares <- .producto_exacto_bloques(n, n - 1)
+  aproximada <- 0
+  for (componente in w) aproximada <- aproximada + componente
+  v <- aproximada / (n * (n - 1))
+  candidato <- .por_potencia_dos_bloques(if (v > 0) sqrt(v) else 0, exponente)
+  if (!is.finite(candidato)) return(list(valor = candidato, decidido = TRUE))
+  # El signo de `W - n (n - 1) m^2 - margen`, con `m = c + h` en la unidad y
+  # `h` una potencia de dos: `m^2 = c^2 + 2 c h + h^2`.
+  signo_frente <- function(cm, h, margen) {
+    cuadrado <- .producto_cota_bloques(cm, cm)
+    medio <- c(cuadrado$valores, 2 * cm * h, h * h)
+    # `2 c h` y `h^2` son exactos salvo que caigan en los subnormales.
+    if ((cm != 0 && abs(2 * cm * h) < 2^-1000) || h * h < 2^-1000) {
+      margen <- margen + n * n * 2^-1060
+    }
+    restar <- numeric()
+    for (factor in pares) {
+      for (componente in medio) {
+        producto <- .producto_cota_bloques(factor, componente)
+        restar <- c(restar, producto$valores)
+        margen <- margen + producto$cota
+      }
+    }
+    margen <- margen + n * n * cuadrado$cota
+    list(
+      arriba = .signo_suma_exacta_bloques(c(w, -restar, -margen)),
+      abajo = .signo_suma_exacta_bloques(c(w, -restar, margen))
+    )
+  }
+  en_unidad <- function(x) .por_potencia_dos_bloques(x, -exponente)
+  vecino <- function(x, arriba) {
+    if (x == 0) return(if (arriba) 2^-1074 else 0)
+    paso <- .espaciado_doble_bloques(x, hacia_cero = !arriba)
+    x + if (arriba) paso else -paso
+  }
+  par <- function(a, b) {
+    if (a == 0) return(a)
+    mantisa <- abs(a) / .espaciado_doble_bloques(a, hacia_cero = FALSE)
+    if (mantisa %% 2 == 0) a else b
+  }
+  for (intento in seq_len(8L)) {
+    cm <- en_unidad(candidato)
+    paso_arriba <- if (candidato == 0) 2^-1074 else {
+      .espaciado_doble_bloques(candidato, hacia_cero = FALSE)
+    }
+    h_arriba <- .por_potencia_dos_bloques(paso_arriba, -exponente - 1)
+    if (!(h_arriba > 0)) return(list(valor = candidato, decidido = FALSE))
+    frente <- signo_frente(cm, h_arriba, cota_w)
+    if (frente$arriba > 0) {
+      candidato <- vecino(candidato, TRUE)
+      next
+    }
+    if (frente$abajo >= 0) {
+      if (cota_w == 0 && frente$arriba == 0) {
+        return(list(valor = par(candidato, vecino(candidato, TRUE)),
+                    decidido = TRUE))
+      }
+      return(list(valor = candidato, decidido = FALSE))
+    }
+    if (candidato == 0) return(list(valor = 0, decidido = TRUE))
+    paso_abajo <- .espaciado_doble_bloques(candidato, hacia_cero = TRUE)
+    h_abajo <- .por_potencia_dos_bloques(paso_abajo, -exponente - 1)
+    if (!(h_abajo > 0)) return(list(valor = candidato, decidido = FALSE))
+    frente <- signo_frente(cm, -h_abajo, cota_w)
+    if (frente$abajo < 0) {
+      candidato <- vecino(candidato, FALSE)
+      next
+    }
+    if (frente$arriba <= 0) {
+      if (cota_w == 0 && frente$abajo == 0) {
+        return(list(valor = par(candidato, vecino(candidato, FALSE)),
+                    decidido = TRUE))
+      }
+      return(list(valor = candidato, decidido = FALSE))
+    }
+    return(list(valor = candidato, decidido = TRUE))
+  }
+  list(valor = candidato, decidido = FALSE)
+}
+
 .absorber_cuantitativos <- function(acumulador, bloque) {
   valores <- bloque$valores
   aplicable <- bloque$aplicable
@@ -816,12 +1325,19 @@
       acumulador, "valores_cuantitativos_no_numericos"
     ))
   }
-  valores <- valores[!is.na(aplicable) & aplicable]
+  # Con la mascara entera en `TRUE` -la de un bloque sin centinelas- el
+  # subconjunto es el mismo vector: no se copia.
+  if (!is.null(attributes(valores)) || !isTRUE(all(aplicable))) {
+    valores <- valores[!is.na(aplicable) & aplicable]
+  }
   estado <- acumulador$estado_familia
   if (!length(valores)) {
     acumulador$estado_familia <- estado
     return(acumulador)
   }
+  # Un estado sin `desvio_modo` se guardo antes de que el desvio fuera el mas
+  # cercano: conserva su cuenta de Welford.
+  welford <- is.null(estado$desvio_modo)
   # `min()`, `max()`, `mean()` y la resta de base leen los bits de un
   # `integer64` como si fueran un doble: con `bloque_filas`, una clave
   # `bigserial` publicaba `minimo = 4.94e-324` y su `media` `integer64` truncaba
@@ -850,7 +1366,7 @@
     acumulador$estado_familia <- estado
     return(acumulador)
   }
-  if (isTRUE(estado$escala_adaptativa)) {
+  if (welford && isTRUE(estado$escala_adaptativa)) {
     extremos_previos <- c(estado$minimo, estado$maximo)
     extremos_previos <- extremos_previos[is.finite(extremos_previos)]
     max_abs <- max(c(abs(extremos_previos), abs(finitos)), na.rm = TRUE)
@@ -879,23 +1395,6 @@
       )
     }
   }
-  # Los momentos se acumulan centrados en una constante -la media del primer
-  # bloque-, y la media publicada es `centro + media`. Sin centrar, la fusion de
-  # bloques operaba con medias absolutas: sobre 61 marcas de tiempo en
-  # milisegundos de una ventana de un segundo el desvio salia 2,3e-8 relativo
-  # lejos del de R, porque la diferencia entre dos medias de 1,76e12 conserva
-  # pocas cifras. Centrado, esa diferencia es la de dos medias
-  # chicas. Ver `.formas_desvio_dbi()`, la misma propiedad en el motor.
-  escala <- if (length(estado$escala) == 1L && is.finite(estado$escala) &&
-                estado$escala > 0) estado$escala else 1
-  escalado <- !identical(escala, 1)
-  desplazamiento <- if (escalado && length(estado$desplazamiento) == 1L &&
-                        is.finite(estado$desplazamiento)) {
-    estado$desplazamiento
-  } else 0
-  valores_operacion <- if (escalado) {
-    (finitos - desplazamiento) / escala
-  } else finitos
   minimo_bloque <- min(finitos)
   maximo_bloque <- max(finitos)
   # La media de Welford es buena para los momentos, no para publicar la media:
@@ -908,76 +1407,133 @@
   # mayor: con 2^1000, -2^1000 y valores de 2^-100 la media salia 0. Las partes
   # se dividen solo por la potencia de dos que evita el desborde
   # (`.exponente_partes_bloques()`), y el desplazamiento queda para los momentos
-  # del desvio. `suma` y su compensacion de Neumaier quedan para un estado
-  # guardado sin partes.
+  # del desvio de un estado guardado sin `desvio_modo`, como `suma` y su
+  # compensacion de Neumaier.
   maximo_abs_bloque <- max(-minimo_bloque, maximo_bloque)
   exponente_partes <- .exponente_partes_bloques(estado)
   necesario <- .exponente_partes_necesario_bloques(maximo_abs_bloque)
   if (necesario > exponente_partes) {
-    if (!is.null(estado$partes_suma)) {
-      estado$partes_suma <- .agregar_partes_suma_bloques(
-        estado$partes_suma * 2^(exponente_partes - necesario), numeric()
+    llevadas <- .llevar_partes_suma_bloques(
+      estado$partes_suma, exponente_partes, necesario
+    )
+    estado$partes_suma <- .agregar_partes_suma_bloques(
+      llevadas$partes, numeric()
+    )
+    if (length(llevadas$chicas)) {
+      estado$partes_suma_chicas <- .agregar_partes_suma_bloques(
+        estado$partes_suma_chicas, llevadas$chicas
       )
     }
     exponente_partes <- necesario
     estado$exponente_partes <- necesario
   }
-  estado$partes_suma <- .agregar_partes_suma_bloques(
-    estado$partes_suma,
-    .partes_suma_exacta_bloques(
-      if (exponente_partes > 0) finitos * 2^-exponente_partes else finitos,
-      if (exponente_partes > 0) NULL else maximo_abs_bloque
-    )
-  )
-  suma_bloque <- sum(valores_operacion)
-  total_suma <- estado$suma + suma_bloque
-  correccion <- if (abs(estado$suma) >= abs(suma_bloque)) {
-    (estado$suma - total_suma) + suma_bloque
-  } else {
-    (suma_bloque - total_suma) + estado$suma
-  }
-  if (is.finite(correccion)) {
-    estado$suma_compensacion <- estado$suma_compensacion + correccion
-  }
-  estado$suma <- total_suma
-  centro <- if (escalado && !isTRUE(estado$n > 0)) {
-    sum(valores_operacion) / length(valores_operacion)
-  } else {
-    .centro_cuantitativo_bloques(estado, valores_operacion)
-  }
-  estado$centro <- centro
-  centrados <- valores_operacion - centro
-  n_bloque <- length(centrados)
-  media_bloque <- if (escalado) sum(centrados) / n_bloque else {
-    mean(centrados)
-  }
-  media_bloque_abs <- if (escalado) {
-    sum(valores_operacion) / n_bloque + desplazamiento / escala
-  } else NULL
-  diferencias <- centrados - media_bloque
-  m2_bloque <- sum(diferencias * diferencias)
-  if (estado$n == 0L) {
-    estado$media <- media_bloque
-    if (escalado) estado$media_abs <- media_bloque_abs
-    estado$m2 <- m2_bloque
-    estado$n <- n_bloque
-  } else {
-    total <- estado$n + n_bloque
-    diferencia <- media_bloque - estado$media
-    estado$m2 <- estado$m2 + m2_bloque +
-      diferencia * diferencia * estado$n * n_bloque / total
-    estado$media <- estado$media + diferencia * n_bloque / total
-    if (escalado) {
-      estado$media_abs <- estado$media_abs +
-        (media_bloque_abs - estado$media_abs) * n_bloque / total
+  partes_bloque <- if (exponente_partes > 0) {
+    chicos <- abs(finitos) < 2^(exponente_partes - 1022)
+    if (any(chicos)) {
+      estado$partes_suma_chicas <- .agregar_partes_suma_bloques(
+        estado$partes_suma_chicas,
+        .partes_suma_exacta_bloques(finitos[chicos])
+      )
     }
-    estado$n <- total
+    .partes_suma_exacta_bloques(finitos[!chicos] * 2^-exponente_partes)
+  } else {
+    .partes_suma_exacta_bloques(finitos, maximo_abs_bloque)
+  }
+  estado$partes_suma <- .agregar_partes_suma_bloques(
+    estado$partes_suma, partes_bloque
+  )
+  n_bloque <- length(finitos)
+  if (welford) {
+    # Los momentos se acumulan centrados en una constante -la media del primer
+    # bloque-, y la media publicada es `centro + media`. Sin centrar, la fusion
+    # de bloques operaba con medias absolutas: sobre 61 marcas de tiempo en
+    # milisegundos de una ventana de un segundo el desvio salia 2,3e-8 relativo
+    # lejos del de R, porque la diferencia entre dos medias de 1,76e12 conserva
+    # pocas cifras. Centrado, esa diferencia es la de dos medias
+    # chicas. Ver `.formas_desvio_dbi()`, la misma propiedad en el motor.
+    escala <- if (length(estado$escala) == 1L && is.finite(estado$escala) &&
+                  estado$escala > 0) estado$escala else 1
+    escalado <- !identical(escala, 1)
+    desplazamiento <- if (escalado && length(estado$desplazamiento) == 1L &&
+                          is.finite(estado$desplazamiento)) {
+      estado$desplazamiento
+    } else 0
+    valores_operacion <- if (escalado) {
+      (finitos - desplazamiento) / escala
+    } else finitos
+    suma_bloque <- sum(valores_operacion)
+    total_suma <- estado$suma + suma_bloque
+    correccion <- if (abs(estado$suma) >= abs(suma_bloque)) {
+      (estado$suma - total_suma) + suma_bloque
+    } else {
+      (suma_bloque - total_suma) + estado$suma
+    }
+    if (is.finite(correccion)) {
+      estado$suma_compensacion <- estado$suma_compensacion + correccion
+    }
+    estado$suma <- total_suma
+    centro <- if (escalado && !isTRUE(estado$n > 0)) {
+      sum(valores_operacion) / length(valores_operacion)
+    } else {
+      .centro_cuantitativo_bloques(estado, valores_operacion)
+    }
+    estado$centro <- centro
+    centrados <- valores_operacion - centro
+    n_bloque <- length(centrados)
+    media_bloque <- if (escalado) sum(centrados) / n_bloque else {
+      mean(centrados)
+    }
+    media_bloque_abs <- if (escalado) {
+      sum(valores_operacion) / n_bloque + desplazamiento / escala
+    } else NULL
+    diferencias <- centrados - media_bloque
+    m2_bloque <- sum(diferencias * diferencias)
+    if (estado$n == 0L) {
+      estado$media <- media_bloque
+      if (escalado) estado$media_abs <- media_bloque_abs
+      estado$m2 <- m2_bloque
+      estado$n <- n_bloque
+    } else {
+      total <- estado$n + n_bloque
+      diferencia <- media_bloque - estado$media
+      estado$m2 <- estado$m2 + m2_bloque +
+        diferencia * diferencia * estado$n * n_bloque / total
+      estado$media <- estado$media + diferencia * n_bloque / total
+      if (escalado) {
+        estado$media_abs <- estado$media_abs +
+          (media_bloque_abs - estado$media_abs) * n_bloque / total
+      }
+      estado$n <- total
+    }
+  } else {
+    estado <- if (identical(estado$desvio_modo, "rapido")) {
+      .absorber_desvio_rapido_bloques(
+        estado, finitos, minimo_bloque, maximo_bloque, partes_bloque
+      )
+    } else {
+      .absorber_desvio_exacto_bloques(
+        estado, finitos, minimo_bloque, maximo_bloque
+      )
+    }
+    # El mismo tipo que la cuenta de Welford: `integer` desde el primer bloque
+    # (`n_evaluados` se publica en `meta`), y doble solo si no entra.
+    estado$n <- if (!isTRUE(estado$n > 0)) n_bloque else if (
+      is.integer(estado$n) && estado$n <= .Machine$integer.max - n_bloque
+    ) estado$n + n_bloque else as.numeric(estado$n) + n_bloque
   }
   estado$minimo <- min(estado$minimo, minimo_bloque)
   estado$maximo <- max(estado$maximo, maximo_bloque)
+  # Los signos solo se cuentan en un bloque que cruza el cero: si no, el
+  # minimo y el maximo ya los dicen.
   if (isTRUE(estado$contar_signos)) {
-    estado$n_ceros <- estado$n_ceros + sum(finitos == 0)
-    estado$n_negativos <- estado$n_negativos + sum(finitos < 0)
+    if (maximo_bloque < 0) {
+      estado$n_negativos <- estado$n_negativos + n_bloque
+    } else if (minimo_bloque <= 0) {
+      estado$n_ceros <- estado$n_ceros + sum(finitos == 0)
+      if (minimo_bloque < 0) {
+        estado$n_negativos <- estado$n_negativos + sum(finitos < 0)
+      }
+    }
   }
   acumulador$estado_familia <- estado
   acumulador
@@ -1824,6 +2380,56 @@
   estado
 }
 
+# Las partes de `Q` de dos estados con valores. `b$partes_suma` y `b$n` son
+# todavia los de `b`. Un estado guardado sin `desvio_modo` no se puede juntar
+# con uno que lo tiene: el desvio queda sin calcular.
+.fusionar_desvio_bloques <- function(a, b) {
+  if (is.null(a$desvio_modo) || !identical(a$desvio_modo, b$desvio_modo) ||
+      !isTRUE(a$desvio_valido) || !isTRUE(b$desvio_valido)) {
+    a$desvio_modo <- a$desvio_modo %||% b$desvio_modo
+    a$desvio_valido <- FALSE
+    return(a)
+  }
+  if (identical(a$desvio_modo, "rapido")) {
+    llevado <- .recentrar_cuadrados_bloques(b, a$centro_desvio)
+    a$partes_cuadrados <- .agregar_partes_suma_bloques(
+      a$partes_cuadrados, llevado$partes
+    )
+    a$cota_cuadrados <- (a$cota_cuadrados + llevado$cota) * (1 + 2^-52)
+  } else {
+    # La unidad de un estado sin cuadrados todavia no se eligio.
+    sin_cuadrados <- function(e) {
+      !length(e$partes_cuadrados) && e$cota_cuadrados == 0
+    }
+    exponente <- if (sin_cuadrados(a)) b$exponente_cuadrados else
+      if (sin_cuadrados(b)) a$exponente_cuadrados else
+        max(a$exponente_cuadrados, b$exponente_cuadrados)
+    llevar <- function(estado) {
+      k <- 2 * (estado$exponente_cuadrados - exponente)
+      partes <- estado$partes_cuadrados
+      if (k == 0) return(list(partes = partes, cota = estado$cota_cuadrados))
+      llevadas <- .por_potencia_dos_bloques(partes, k)
+      perdidas <- sum(.por_potencia_dos_bloques(llevadas, -k) != partes)
+      list(
+        partes = llevadas,
+        cota = .por_potencia_dos_bloques(estado$cota_cuadrados, k) *
+          (1 + 2^-52) + perdidas * 2^-1073
+      )
+    }
+    de_a <- llevar(a)
+    de_b <- llevar(b)
+    a$exponente_cuadrados <- exponente
+    a$partes_cuadrados <- .agregar_partes_suma_bloques(
+      de_a$partes, de_b$partes
+    )
+    a$cota_cuadrados <- (de_a$cota + de_b$cota) * (1 + 2^-52)
+  }
+  if (is.null(a$partes_cuadrados) || !is.finite(a$cota_cuadrados)) {
+    a$desvio_valido <- FALSE
+  }
+  a
+}
+
 .fusionar_estado_cuantitativo <- function(a, b) {
   a$n_nan <- a$n_nan + b$n_nan
   a$n_infinito_positivo <- a$n_infinito_positivo + b$n_infinito_positivo
@@ -1858,15 +2464,27 @@
   exponente_a <- .exponente_partes_bloques(a)
   exponente_b <- .exponente_partes_bloques(b)
   exponente_ab <- max(exponente_a, exponente_b)
-  a$partes_suma <- if (is.null(a$partes_suma) || is.null(b$partes_suma)) {
-    NULL
+  if (is.null(a$partes_suma) || is.null(b$partes_suma)) {
+    a$partes_suma <- NULL
   } else {
-    .agregar_partes_suma_bloques(
-      a$partes_suma * 2^(exponente_a - exponente_ab),
-      b$partes_suma * 2^(exponente_b - exponente_ab)
+    de_a <- .llevar_partes_suma_bloques(
+      a$partes_suma, exponente_a, exponente_ab
     )
+    de_b <- .llevar_partes_suma_bloques(
+      b$partes_suma, exponente_b, exponente_ab
+    )
+    a$partes_suma <- .agregar_partes_suma_bloques(de_a$partes, de_b$partes)
+    chicas <- c(de_a$chicas, de_b$chicas, b$partes_suma_chicas)
+    if (length(chicas)) {
+      a$partes_suma_chicas <- .agregar_partes_suma_bloques(
+        a$partes_suma_chicas %||% numeric(), chicas
+      )
+    }
   }
   a$exponente_partes <- exponente_ab
+  if (!is.null(a$desvio_modo) || !is.null(b$desvio_modo)) {
+    a <- .fusionar_desvio_bloques(a, b)
+  }
   a$suma_compensacion <- a$suma_compensacion +
     b$suma_compensacion * factor_b + correccion
   # Cada estado acumula centrado en su propia constante: la media de `b` se
@@ -2278,19 +2896,29 @@
         # sin partes -guardado antes de que existieran- conserva la cuenta
         # anterior.
         exacta <- !is.null(estado$partes_suma)
+        # El doble mas cercano del desvio exacto. Un estado guardado sin
+        # `desvio_modo` conserva la cuenta de Welford; uno nuevo no la lleva.
+        welford <- is.null(estado$desvio_modo)
         media <- if (exacta) {
-          .cociente_mas_cercano_bloques(
-            estado$partes_suma, estado$n, .exponente_partes_bloques(estado)
-          )
+          .media_mas_cercana_bloques(estado)
+        } else if (!welford) {
+          NA_real_
         } else if (identical(estado$escala, 1)) {
           .centro_estado_bloques(estado) + estado$media
         } else {
           (estado$suma + estado$suma_compensacion) / estado$n
         }
-        desvio <- if (estado$n > 1L) {
+        desvio <- if (!welford) {
+          decision <- .desvio_mas_cercano_bloques(estado)
+          # Fuera del estado, para que `bytes_retenidos` no cambie: lo lee
+          # `.resumen_cuantitativo_bloques()` para saber si hay que recorrer
+          # la columna otra vez por la manera exacta.
+          acumulador$desvio_decidido <- decision$decidido
+          decision$valor
+        } else if (estado$n > 1L) {
           sqrt(estado$m2 / (estado$n - 1))
         } else NA_real_
-        if (!identical(escala, 1)) {
+        if (welford && !identical(escala, 1)) {
           # Con escala por dispersion los momentos se acumularon desplazados
           # por el minimo (ver `.resumen_cuantitativo_bloques()`); la media
           # exacta ya esta en la unidad publicada.
@@ -2775,31 +3403,26 @@
   } else {
     NULL
   }
-  valores_escala <- if (length(excluir)) {
-    coincide <- tryCatch(x %in% excluir, error = function(e) NULL)
-    if (is.null(coincide) || length(coincide) != length(x)) x else x[!coincide]
-  } else x
-  finitos_escala <- suppressWarnings(valores_escala[is.finite(valores_escala)])
-  max_abs <- if (length(finitos_escala)) max(abs(finitos_escala)) else 0
-  rango <- if (length(finitos_escala) >= 2L) {
-    suppressWarnings(max(finitos_escala) - min(finitos_escala))
-  } else {
-    NA_real_
+  # La escala y el desplazamiento de la columna eran para los momentos de
+  # Welford; el desvio de un estado nuevo no los usa, y calcularlos eran seis
+  # pasadas por la columna entera. En memoria el desvio va por la manera
+  # rapida, y si su cota no deja decidir el redondeo la columna se recorre
+  # otra vez por la exacta (ver `.desvio_mas_cercano_bloques()`).
+  ejecutar <- function(modo) {
+    .ejecutar_vector_bloques(
+      x, "cuantitativos", k = k, tamano = tamano, max_bytes = max_bytes,
+      configuracion = list(
+        contar_signos = isTRUE(contar_signos), escala = 1,
+        desplazamiento = 0, desvio = modo
+      ),
+      aplicable = aplicable
+    )
   }
-  desplazamiento <- if (.rango_requiere_escala(rango)) {
-    min(finitos_escala)
-  } else {
-    0
+  ejecucion <- ejecutar("rapido")
+  if (identical(ejecucion$resultado$estado, "calculado") &&
+      isFALSE(ejecucion$acumulador$desvio_decidido)) {
+    ejecucion <- ejecutar("exacto")
   }
-  ejecucion <- .ejecutar_vector_bloques(
-    x, "cuantitativos", k = k, tamano = tamano, max_bytes = max_bytes,
-    configuracion = list(
-      contar_signos = isTRUE(contar_signos),
-      escala = .escala_extrema_bloques(max_abs, rango = rango),
-      desplazamiento = desplazamiento
-    ),
-    aplicable = aplicable
-  )
   salida <- ejecucion$resultado$resultado
   if (!isTRUE(contar_signos)) {
     salida$n_ceros <- 0L

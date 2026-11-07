@@ -791,7 +791,19 @@ relativo— en la proporción de \code{umbral_aritmetica}; la evidencia lo dice,
 las descartadas se cuentan en
 \code{meta$aritmetica_columnas$identidades_descartadas_escala}, junto a la
 resolución usada en \code{resolucion_exacta}. Es el mismo
-criterio que el filtro de magnitud de las relaciones de orden.}
+criterio que el filtro de magnitud de las relaciones de orden.
+Con el valor por omisión, una identidad aditiva cuyas tres columnas guardan
+decimales fijos —todos sus valores son múltiplos de un mismo cuanto
+decimal, como los centavos o los enteros— acota la tolerancia a la mitad de
+ese cuanto: entre esos valores una diferencia es un múltiplo del cuanto, y
+la tolerancia relativa tragaba centavos en los importes grandes (un peso
+entero sobre 1e8). La cota se usa sólo si la identidad se cumple exacta,
+salvo el redondeo del tipo double, en la mayoría de las filas que caben en
+la tolerancia relativa, y sólo si el cuanto es al menos 1024 veces esa
+resolución a la magnitud de la columna; la evidencia la declara. Una
+tolerancia declarada no se acota, y las proporcionalidades usan siempre la
+relativa. \code{meta$aritmetica_columnas} se publica cuando hay una relación, un
+recorte o una identidad descartada.}
 
 \item{max_columnas_aritmetica}{Máximo de columnas numéricas que intervienen
 en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
@@ -1129,7 +1141,10 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{maximo_fecha}, \code{media_fecha} y \code{mediana_fecha} en \code{NA}. No es una omisión:
 \code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
-rango aparece una vez que el usuario resuelve la ambigüedad.
+rango aparece una vez que el usuario resuelve la ambigüedad. Si sólo algunos
+valores traen el año con dos dígitos, la columna conserva su rango: esos
+valores quedan fuera, como cualquier valor con más de una lectura, y lo
+declaran \code{n_valores_excluidos_resumen} y \code{"calculados_sobre_valores"}.
 Lo mismo vale para un valor que dos formatos confirmados de la misma columna
 leen distinto: en una columna que tiene \code{13/06/2020} y \code{06/30/2020}, el valor
 \code{01/12/2020} puede ser el 1 de diciembre o el 12 de enero, y no se decide por
@@ -1152,23 +1167,28 @@ del segundo caso son los centinelas que se llevan todos los valores. La
 presencia se define igual que en \code{n_faltantes}, que cuenta el \code{NaN} como
 ausente: una columna de treinta \code{NaN} es \code{"sin_valores"}.
 
-\strong{La \code{media} es el doble más cercano de la media exacta; la \code{mediana} es
-exacta.} La media se acumula por bloques con una suma exacta —cada bloque se
-parte en sumandos que se suman sin redondeo—, así que no depende de cómo se
-agrupen las filas, de que los valores se cancelen ni de la precisión con que
-la plataforma acumula \code{sum()}; también es la más cercana cuando es subnormal.
-La única excepción medida: en una columna con valores de más de 2^900
-(8,5e270), para que la suma no desborde los valores se dividen por
-\code{2^(e - 900)}, con \code{e} el exponente del mayor, y los menores que
-\code{2^(e - 1922)} pierden cifras (con 2^1000, -2^1000 y valores de 2^-1000 la
-media sale 0). La mediana se calcula con \code{median()} sobre el
-vector entero y no como el cuantil 0,5. \code{mean()} no es la referencia: puede
-quedar a varios ulps. Medido sobre \code{rnorm(2e6)} con \code{set.seed(1)}: \code{mean()} a
-208 ulps de la media exacta y la \code{media} en la exacta; sobre
-\code{c(-2^51, 1, 2, 2^51)}, \code{0.75}. El \code{desvio} se acumula en doble y puede
-diferir del exacto en los últimos bits: medido, hasta tres ulps en columnas
-comunes de dos millones de filas. Quien rehaga \code{mean()} o \code{sd()} sobre una
-columna grande y vea otro último dígito está viendo esto y no un error.
+\strong{La \code{media} y el \code{desvio} son los dobles más cercanos de la media y del
+desvío exactos (el desvío con \code{n - 1}); la \code{mediana} es exacta.} La media se
+acumula por bloques con una suma exacta —cada bloque se parte en sumandos que
+se suman sin redondeo—, así que no depende de cómo se agrupen las filas, de
+que los valores se cancelen ni de la precisión con que la plataforma acumula
+\code{sum()}; también es la más cercana cuando es subnormal y cuando la columna
+junta valores de más de 2^900 (8,5e270) con otros diminutos, que se suman
+aparte para que no se pierdan. El desvío sale de la suma de los cuadrados,
+exacta o con una cota de error demostrada, y se elige comparando con
+aritmética exacta contra los puntos medios entre dobles vecinos; si la cota
+no alcanza para decidir, la columna se recorre otra vez con la suma exacta.
+Vale con cuadrados que desbordan (1e200) o que caen en los subnormales. La
+única excepción: en una columna con un valor 2^885 veces menor que el mayor,
+el cuadrado de ese valor entra con una cota, y el desvío puede quedar a un
+ulp sólo si el exacto cae a menos de 2^-1700 relativos de un punto medio (un
+empate, en la práctica). La mediana se calcula con \code{median()} sobre el vector
+entero y no como el cuantil 0,5. \code{mean()} y \code{sd()} no son la referencia:
+pueden quedar a varios ulps. Medido sobre \code{rnorm(2e6)} con \code{set.seed(1)}:
+\code{mean()} a 208 ulps de la media exacta y la \code{media} en la exacta; sobre
+\code{c(-2^51, 1, 2, 2^51)}, \code{0.75}; sobre \code{((1:25) \%\% 7 - 3) * 0.3}, \code{sd()} y el
+desvío en doble a un ulp del exacto. Quien rehaga \code{mean()} o \code{sd()} sobre una
+columna y vea otro último dígito está viendo esto y no un error.
 }
 \section{La unidad viaja al lado de la cifra}{
 
@@ -1352,7 +1372,10 @@ falla alguna precondición no emite un
 hallazgo: la enumera en \code{cobertura_diagnosticos}. Si aplica,
 \code{meta$benford$resultados} conserva la distribución observada y esperada por
 primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y el valor
-p; \code{meta$benford$umbrales} publica todos los cortes. Un valor p menor que
+p; si entre los positivos hay valores que el perfil cuenta como faltantes
+disfrazados sin que estén declarados, \code{sin_faltantes_disfrazados} publica la
+misma prueba sin ellos, y el hallazgo dice si la desviación se mantiene o la
+producen ellos. \code{meta$benford$umbrales} publica todos los cortes. Un valor p menor que
 \code{0.01} genera \code{desviacion_benford} como señal descriptiva para revisar, no
 como evidencia de fraude o manipulación. Topes administrativos, redondeos,
 precios psicológicos y subsidios de monto fijo son explicaciones posibles.

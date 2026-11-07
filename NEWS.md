@@ -574,7 +574,20 @@ Primera versión publicada.
   contra el `AVG` del motor. También sin cancelación: `rnorm(2e6)` quedaba a 19
   ulps, y cuarenta enteros chicos por `bloque_filas = 7`, a ocho. Cada bloque se
   suma ahora sin redondeo, sin depender del `long double` de `sum()`, con el
-  mismo costo. El desvío no cambia: puede quedar a unos ulps del exacto.
+  mismo costo.
+- El desvío de `perfilar()`, de `perfil_muestra`, de `bloque_filas` y de la
+  muestra del motor es el doble más cercano del desvío exacto (con `n - 1`). Se
+  acumulaba con Welford en doble y quedaba a uno, dos o tres ulps:
+  `((1:25) %% 7 - 3) * 0.3` a uno en memoria (como `sd()`), y por
+  `bloque_filas = 7` a dos. Ahora la suma de los cuadrados es exacta o tiene una
+  cota demostrada, y el redondeo se decide comparando contra los puntos medios
+  con aritmética exacta, sin depender del `long double` de `sum()`; el resumen
+  de una columna común de 2 millones de filas no tarda más. La media también es
+  la más cercana en una columna con valores de más de 2^900 junto a otros
+  diminutos (con 2^1000, -2^1000 y valores de 2^-1000 salía 0). Y la rama de
+  texto de un entero que pasa de 2^53 saca los centinelas declarados como
+  `integer64` —no entraban en los extremos exactos, los conteos ni la mediana—
+  y lee `"-0"` como el cero.
 - La mediana de un decimal en SQL Server (compatibilidad 110 o más),
   PostgreSQL 9.4 o más y DuckDB es el doble más cercano de la exacta, por la
   tabla completa y por la muestra del motor: el motor suma sus una o dos

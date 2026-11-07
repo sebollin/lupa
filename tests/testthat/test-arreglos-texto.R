@@ -243,7 +243,12 @@ test_that("el tope no altera valores cortos ni el perfil sin largos", {
     normalizar = FALSE, casi_duplicados_vocabulario = FALSE,
     duplicados_aproximados = FALSE
   ))
-  expect_identical(perfil$columnas$n_negativos[[1L]], 2L)
+  # Los dos -9999 son centinelas declarados: salen de los conteos y se cuentan
+  # como excluidos, como en la rama numerica y en `integer64`.
+  expect_identical(perfil$columnas$n_negativos[[1L]], 0L)
+  expect_identical(
+    as.integer(perfil$columnas$n_valores_excluidos_resumen[[1L]]), 2L
+  )
   expect_identical(perfil$columnas$n_faltantes_disfrazados[[1L]], 2L)
   expect_identical(perfil$columnas$n_distintos[[1L]], 4L)
   expect_identical(perfil$columnas$tipo_inferido[[1L]], "entero")

@@ -22722,15 +22722,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   puede, la métrica queda `no_disponible` con su falla en
 #'   `meta$consultas$fallas` y el aviso: no se publica `Inf` ni un `0` sobre
 #'   valores distintos. `perfilar()` y `perfilar_dbi(..., bloque_filas = n)`
-#'   escalan igual al acumular por bloques; en el recorrido por bloques, que no
-#'   conoce la magnitud antes del primer bloque, el estado acumulado se reescala
-#'   por una potencia de dos cuando llega un bloque que la escala vigente no
-#'   cubre. Las columnas de magnitud común no cambian de consulta ni de cifra.
+#'   suman los cuadrados sin error en una unidad que es potencia de dos —la que
+#'   deja el mayor valor en 2^400— y que sube cuando llega un bloque que no
+#'   cubre: el desvío es el doble más cercano también en esas magnitudes. Las columnas de magnitud común no cambian de consulta ni de cifra.
 #' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
-#'   diferir entre motores y con la de R. La de R —[perfilar()],
-#'   `perfil_muestra` y `bloque_filas`— es el doble más cercano de la media
-#'   exacta de los dobles que leyó. La de un decimal que el controlador entrega
+#'   diferir entre motores y con la de R. La media y el desvío de R
+#'   —[perfilar()], `perfil_muestra` y `bloque_filas`— son los dobles más
+#'   cercanos de la media y el desvío exactos de los dobles que leyó. La de un decimal que el controlador entrega
 #'   como doble, por `bloque_filas` y en el resumen de la muestra con
 #'   `bloque_muestra = "con_muestra"`, es la del decimal: por bloques el motor
 #'   suma la columna en su tipo —en SQL Server, la parte entera y `x % 1` por

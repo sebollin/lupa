@@ -842,7 +842,10 @@
 #' `maximo_fecha`, `media_fecha` y `mediana_fecha` en `NA`. No es una omisión:
 #' `23` puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 #' inventarlo. El hallazgo `anio_de_dos_digitos` señala esas columnas, y el
-#' rango aparece una vez que el usuario resuelve la ambigüedad.
+#' rango aparece una vez que el usuario resuelve la ambigüedad. Si sólo algunos
+#' valores traen el año con dos dígitos, la columna conserva su rango: esos
+#' valores quedan fuera, como cualquier valor con más de una lectura, y lo
+#' declaran `n_valores_excluidos_resumen` y `"calculados_sobre_valores"`.
 #' Lo mismo vale para un valor que dos formatos confirmados de la misma columna
 #' leen distinto: en una columna que tiene `13/06/2020` y `06/30/2020`, el valor
 #' `01/12/2020` puede ser el 1 de diciembre o el 12 de enero, y no se decide por
@@ -865,23 +868,28 @@
 #' presencia se define igual que en `n_faltantes`, que cuenta el `NaN` como
 #' ausente: una columna de treinta `NaN` es `"sin_valores"`.
 #'
-#' **La `media` es el doble más cercano de la media exacta; la `mediana` es
-#' exacta.** La media se acumula por bloques con una suma exacta —cada bloque se
-#' parte en sumandos que se suman sin redondeo—, así que no depende de cómo se
-#' agrupen las filas, de que los valores se cancelen ni de la precisión con que
-#' la plataforma acumula `sum()`; también es la más cercana cuando es subnormal.
-#' La única excepción medida: en una columna con valores de más de 2^900
-#' (8,5e270), para que la suma no desborde los valores se dividen por
-#' `2^(e - 900)`, con `e` el exponente del mayor, y los menores que
-#' `2^(e - 1922)` pierden cifras (con 2^1000, -2^1000 y valores de 2^-1000 la
-#' media sale 0). La mediana se calcula con `median()` sobre el
-#' vector entero y no como el cuantil 0,5. `mean()` no es la referencia: puede
-#' quedar a varios ulps. Medido sobre `rnorm(2e6)` con `set.seed(1)`: `mean()` a
-#' 208 ulps de la media exacta y la `media` en la exacta; sobre
-#' `c(-2^51, 1, 2, 2^51)`, `0.75`. El `desvio` se acumula en doble y puede
-#' diferir del exacto en los últimos bits: medido, hasta tres ulps en columnas
-#' comunes de dos millones de filas. Quien rehaga `mean()` o `sd()` sobre una
-#' columna grande y vea otro último dígito está viendo esto y no un error.
+#' **La `media` y el `desvio` son los dobles más cercanos de la media y del
+#' desvío exactos (el desvío con `n - 1`); la `mediana` es exacta.** La media se
+#' acumula por bloques con una suma exacta —cada bloque se parte en sumandos que
+#' se suman sin redondeo—, así que no depende de cómo se agrupen las filas, de
+#' que los valores se cancelen ni de la precisión con que la plataforma acumula
+#' `sum()`; también es la más cercana cuando es subnormal y cuando la columna
+#' junta valores de más de 2^900 (8,5e270) con otros diminutos, que se suman
+#' aparte para que no se pierdan. El desvío sale de la suma de los cuadrados,
+#' exacta o con una cota de error demostrada, y se elige comparando con
+#' aritmética exacta contra los puntos medios entre dobles vecinos; si la cota
+#' no alcanza para decidir, la columna se recorre otra vez con la suma exacta.
+#' Vale con cuadrados que desbordan (1e200) o que caen en los subnormales. La
+#' única excepción: en una columna con un valor 2^885 veces menor que el mayor,
+#' el cuadrado de ese valor entra con una cota, y el desvío puede quedar a un
+#' ulp sólo si el exacto cae a menos de 2^-1700 relativos de un punto medio (un
+#' empate, en la práctica). La mediana se calcula con `median()` sobre el vector
+#' entero y no como el cuantil 0,5. `mean()` y `sd()` no son la referencia:
+#' pueden quedar a varios ulps. Medido sobre `rnorm(2e6)` con `set.seed(1)`:
+#' `mean()` a 208 ulps de la media exacta y la `media` en la exacta; sobre
+#' `c(-2^51, 1, 2, 2^51)`, `0.75`; sobre `((1:25) %% 7 - 3) * 0.3`, `sd()` y el
+#' desvío en doble a un ulp del exacto. Quien rehaga `mean()` o `sd()` sobre una
+#' columna y vea otro último dígito está viendo esto y no un error.
 #'
 #' @section La unidad viaja al lado de la cifra:
 #'
@@ -1064,7 +1072,10 @@
 #' hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
 #' `meta$benford$resultados` conserva la distribución observada y esperada por
 #' primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y el valor
-#' p; `meta$benford$umbrales` publica todos los cortes. Un valor p menor que
+#' p; si entre los positivos hay valores que el perfil cuenta como faltantes
+#' disfrazados sin que estén declarados, `sin_faltantes_disfrazados` publica la
+#' misma prueba sin ellos, y el hallazgo dice si la desviación se mantiene o la
+#' producen ellos. `meta$benford$umbrales` publica todos los cortes. Un valor p menor que
 #' `0.01` genera `desviacion_benford` como señal descriptiva para revisar, no
 #' como evidencia de fraude o manipulación. Topes administrativos, redondeos,
 #' precios psicológicos y subsidios de monto fijo son explicaciones posibles.
@@ -2497,6 +2508,18 @@
 #'   `meta$aritmetica_columnas$identidades_descartadas_escala`, junto a la
 #'   resolución usada en `resolucion_exacta`. Es el mismo
 #'   criterio que el filtro de magnitud de las relaciones de orden.
+#'   Con el valor por omisión, una identidad aditiva cuyas tres columnas guardan
+#'   decimales fijos —todos sus valores son múltiplos de un mismo cuanto
+#'   decimal, como los centavos o los enteros— acota la tolerancia a la mitad de
+#'   ese cuanto: entre esos valores una diferencia es un múltiplo del cuanto, y
+#'   la tolerancia relativa tragaba centavos en los importes grandes (un peso
+#'   entero sobre 1e8). La cota se usa sólo si la identidad se cumple exacta,
+#'   salvo el redondeo del tipo double, en la mayoría de las filas que caben en
+#'   la tolerancia relativa, y sólo si el cuanto es al menos 1024 veces esa
+#'   resolución a la magnitud de la columna; la evidencia la declara. Una
+#'   tolerancia declarada no se acota, y las proporcionalidades usan siempre la
+#'   relativa. `meta$aritmetica_columnas` se publica cuando hay una relación, un
+#'   recorte o una identidad descartada.
 #' @param max_columnas_aritmetica Máximo de columnas numéricas que intervienen
 #'   en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
 #'   `20`. Si se omiten columnas, `cobertura_diagnosticos` declara el recorte y
