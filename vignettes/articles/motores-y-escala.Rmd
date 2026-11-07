@@ -466,7 +466,12 @@ Lo que cada forma implica queda publicado:
 - `max_bytes_muestra` (`r lupa:::.MAX_BYTES_MUESTRA / 1024^2` MiB por omisión)
   se cruza con el presupuesto del spool. En los motores que lo permiten usa el
   catálogo. En los demás, comienza con un bloque pequeño y adapta `dbFetch(n)`.
-  La muestra no se trae entera para recortarla en R.
+  La muestra no se trae entera para recortarla en R. Medido en PostgreSQL 16 y
+  SQL Server: 200 filas con un texto de un millón de caracteres y un binario de
+  250 KB (250 y 300 MB) llegan al spool en 27 KB, cada valor largo como su largo
+  y su MD5; con `max_bytes_muestra = 1e6` sobre 2.000 textos de 9.000
+  caracteres se leen 109 filas, 0,99 MB, y `meta$materializacion$tope_que_mando`
+  es `"bytes"`.
 
 Si `muestra = n` y un tope es más estricto, manda el menor. La cobertura de
 diagnósticos de `perfil_muestra` declara las celdas o bytes observados, el
@@ -815,7 +820,9 @@ eso las consultas se agrupan:
   con un valor de más de 1e8 y otro de menos de 1e-10, que tienen que volver
   idénticos. En SQL Server eso requiere nivel de compatibilidad 110 o mayor.
   Las columnas decimales no entran en ese `SELECT`: su mediana es la suma de
-  sus centrales, una consulta por columna.
+  sus centrales, una consulta por columna. Con `bloque_filas`, la media de las
+  columnas decimales es una consulta más para todas, y su mediana, cuando las
+  dos centrales caen en dobles distintos, una consulta ordenada por columna.
   MariaDB acepta la forma, pero devuelve el percentil con 10 decimales y un
   tope en 1e8: usa la mediana por columna, como MySQL. El motivo de un rechazo
   queda en `meta$mediana_consolidada$motivo`.
@@ -1316,14 +1323,23 @@ esas llamadas sacó su propia muestra del motor, así que las filas no fueron
 exactamente las mismas. El motor y el controlador también cobran su parte. La
 protección es un costo de dos dígitos bajos, no un costo nulo.
 
-Lo más lento de esa corrida está resuelto en el código que se publica:
+Lo más lento de esa corrida se corrigió después. Cada arreglo se midió sobre una
+reproducción local, no sobre esas bases, y la corrida sobre ellas queda por
+repetirse:
 
 - el desvío en SQL Server, que iba en una consulta por columna, cada una sobre la
-  tabla entera ([Consultas por lote](#lotes));
-- las columnas de fecha en R anterior a 4.6;
-- los textos muy largos;
-- la muestra del motor, que podía traer a R más que su presupuesto
+  tabla entera, va por lotes ([Consultas por lote](#lotes)): sobre un millón de
+  filas y 27 columnas numéricas pasó de 27 consultas a 2, y de 1,42 millones de
+  lecturas lógicas a 105 mil, con las mismas cifras;
+- las columnas de fecha en R anterior a 4.6: 100.000 fechas pasaron de 171 s a
+  1,3 s en R 4.5.2;
+- los textos muy largos: 700 filas de cuatro columnas de 14 KB pasaron de 23 s a
+  5 s;
+- la muestra del motor, que podía traer a R más que su presupuesto: 200 filas de
+  1,25 MB entre texto y binario llegan al spool en 27 KB
   ([Topes de la lectura a R](#topes)).
+
+Las tres primeras cifras están en la entrada de `NEWS.md` de cada arreglo.
 
 La coincidencia de las cifras con un conteo SQL escrito aparte está en
 [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#contraste-contra-el-servidor).
@@ -1471,7 +1487,7 @@ paquete:
 | SQL Server | no admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography` | esas métricas quedan `no_disponible` sin enviar la sentencia |
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
 | cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | quedan `no_disponible` las métricas de magnitud que dependen de un valor que el doble no representa (`r enumerar(setdiff(lupa:::.METRICAS_DE_MAGNITUD_DBI, "mediana"))`). La mediana se publica cuando su valor es exacto: con una cantidad impar, si la central queda por debajo de 2^53; con una par, si las dos centrales quedan entre -2^52 y 2^52, lo que en la tabla completa cuesta una consulta más. `perfil_muestra`, la muestra leída en R y `perfilar()` la deciden por sus centrales, que tienen a la vista: se publica si caben en un doble. La moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
-| cualquiera | un decimal con más cifras de las que guarda un doble llega como doble | por bloques y por la muestra del motor (salvo en PostgreSQL), y también con la muestra leída en R, el desvío queda `no_disponible` si el redondeo de cada valor puede moverlo más de una parte en mil millones, salvo que el catálogo declare escala 0 y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB y SQL Server); por la tabla completa se resta en el tipo de la columna. El desvío de `perfil_muestra` sigue la misma regla en todas las vías, también por la tabla completa: no se publica, queda en `perfil_muestra$meta$desvio_decimal_doble`, y la corroboración no lo compara (causa `decimal_doble`) |
+| cualquiera | un decimal con más cifras de las que guarda un doble llega como doble | por bloques, si el redondeo de cada valor puede mover el desvío más de una parte en mil millones, el motor lo calcula restando en el tipo de la columna una media escrita como decimal; con la muestra leída en R, la media, la mediana y el desvío salen del texto de cada valor, y la media y la mediana por bloques, de la suma y las centrales que el motor devuelve como texto; por la muestra del motor con `solo_agregados` (salvo en PostgreSQL) el desvío queda `no_disponible` con esa regla, salvo que el catálogo declare escala 0 y los valores queden por debajo de 2^53; por la tabla completa se resta en el tipo de la columna. El desvío de `perfil_muestra` sigue la regla de los dobles en todas las vías, también por la tabla completa: no se publica, queda en `perfil_muestra$meta$desvio_decimal_doble`, y la corroboración no lo compara (causa `decimal_doble`) |
 | MySQL, MariaDB, SQL Server, PostgreSQL, DuckDB | `AVG(x * 1.0)` de un decimal se recorta en la escala máxima del motor (30, 38), `PERCENTILE_CONT` interpola en doble, y promediar en R los dobles de dos centrales no es exacto | la mediana de un decimal suma en el motor sus centrales y R divide por cuántas son: una consulta por columna decimal |
 | SQL Server | `CAST(x AS VARCHAR)` es `VARCHAR(30)`, y escribe `money` con dos decimales | la muestra pide el texto de un decimal como `VARCHAR(48)` y el de `money` con `CONVERT(..., 2)` |
 | DuckDB | `AVG(x * 1.0)` desborda con un `HUGEINT` desde 10^37 o un `UHUGEINT` desde 10^38 | los básicos se repiten sin el promedio; la media queda `no_disponible` y lo demás se juzga como en cualquier columna |

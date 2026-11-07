@@ -474,15 +474,35 @@ Primera versión publicada.
 - En SQL Server con compatibilidad 110 o más, el desvío de un `decimal(38, s)`
   ya no sale mal cuando la media termina en la mitad de la última unidad:
   `{1, 2, 3, 4}` en `decimal(38,0)` daba 1,8257 por 1,2910.
-- Con `bloque_filas`, y por la muestra del motor en SQL Server, MySQL, MariaDB y
-  DuckDB, el desvío de un decimal que el doble no representa queda
-  `no_disponible` cuando ese redondeo puede moverlo: un `numeric(18,2)` de 5e14
-  con desvío 3 daba 3,1115 por 3,1047. También con la muestra leída en R
-  (`bloque_muestra = "con_muestra"`), que lo publicaba movido en una parte en
-  300. Un decimal de escala 0 con valores por debajo de 2^53 sí se publica: ahí
-  los dobles son los valores, y la escala la dicen los catálogos de PostgreSQL,
-  MySQL, MariaDB, DuckDB y SQL Server, que ahora publica la precisión y la
-  escala de un decimal (`decimal(18,0)` y no `decimal`).
+- Con `bloque_filas`, y por la muestra del motor, el desvío de un decimal que el
+  doble no representa ya no sale de esos dobles: un `numeric(18,2)` de 5e14 con
+  desvío 3 daba 3,1115 por 3,1047, y con la muestra leída en R
+  (`bloque_muestra = "con_muestra"`) se publicaba movido en una parte en 300.
+  Por bloques, si el redondeo de cada valor puede moverlo más de una parte en
+  mil millones, el motor lo calcula restando a cada valor la media en el tipo
+  de la columna, en una consulta para todas esas columnas; con la muestra leída
+  en R sale del texto de cada valor, que la muestra ya traía. Por la muestra del
+  motor con `bloque_muestra = "solo_agregados"`, en SQL Server, MySQL, MariaDB y
+  DuckDB, que centran en doble, queda `no_disponible`. Un decimal de escala 0
+  con valores por debajo de 2^53 se publica en todas las vías: ahí los dobles
+  son los valores, y la escala la dicen los catálogos de PostgreSQL, MySQL,
+  MariaDB, DuckDB y SQL Server, que ahora publica la precisión y la escala de un
+  decimal (`decimal(18,0)` y no `decimal`).
+- Con `bloque_filas` y con la muestra leída en R, la media y la mediana de un
+  decimal que el controlador entrega como doble son el doble más cercano de las
+  del decimal, y no las de esos dobles: la de 0,0001 y 0,0002 daba
+  0,00015000000000000001, a un ulp en 14 de 112 medias y 9 de 112 medianas de
+  SQL Server y en 4 y 2 de 46 de PostgreSQL, MySQL, MariaDB y DuckDB, y con
+  valores de hasta 1e12 con seis decimales que se cancelan, una media por
+  bloques de `numeric(20,6)` en PostgreSQL quedaba a 1.447 ulps. Por bloques el motor suma la columna en su tipo, en una consulta para
+  todas las columnas decimales, y devuelve como texto las dos centrales cuando
+  caen en dobles distintos (una consulta ordenada por columna; `money` de SQL
+  Server siempre, porque odbc no lo lee al doble más cercano). La muestra leída
+  en R ya traía cada decimal como texto.
+- `plan_perfilado_dbi()` cuenta la consulta de prueba de la CTE de ventanas, y
+  su control negativo, que la muestra del motor corre cuando una columna
+  decimal, o un `float8` de PostgreSQL, deja la mediana consolidada: dos
+  consultas que el plan no anticipaba.
 - El desvío de un decimal que la muestra lee como doble (5e14 con centavos) ya
   no se publica en `perfil_muestra`, en ninguna vía, y la corroboración no lo
   cuenta como divergencia: queda en `perfil_muestra$meta$desvio_decimal_doble`

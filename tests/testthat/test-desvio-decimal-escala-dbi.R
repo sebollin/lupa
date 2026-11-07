@@ -6,8 +6,10 @@
 #   si representa: 5e14 + k en `numeric(18,0)` tiene el desvio exacto. Cuando el
 #   tipo declara la escala, la guarda la mira.
 # - El spool de la muestra del motor -el camino por omision de
-#   `universo = "muestra_motor"`- calcula el desvio en R sobre esos dobles y no
-#   tenia la guarda: publicaba un desvio a una parte en 300 del exacto.
+#   `universo = "muestra_motor"`- calculaba el desvio en R sobre esos dobles y
+#   no tenia la guarda: publicaba un desvio a una parte en 300 del exacto.
+#   Ahora el resumen lo calcula del texto de cada valor, restado en el decimal,
+#   y `perfil_muestra`, que sale de los dobles, no lo publica.
 # - El spool de SQL Server leia `money` con dos decimales.
 
 .dde_fecha <- as.POSIXct("2026-11-06 12:00:00", tz = "UTC")
@@ -62,6 +64,7 @@ test_that("por bloques, un decimal de escala 0 por debajo de 2^53 publica su des
 })
 
 test_that("el spool de la muestra del motor no publica el desvio que el doble de un decimal movio", {
+  # El resumen publica el del decimal; `perfil_muestra`, ninguno.
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
   skip_if_not_installed("bit64")
@@ -80,16 +83,16 @@ test_that("el spool de la muestra del motor no publica el desvio que el doble de
     )
   ))
   # El primer valor de `ancho` es 500000000000000.60: lo que el doble guarda es
-  # 500000000000000.625. Medido sin esta guarda: el spool publicaba 3,3097 contra
-  # 3,3205 (una parte en 300).
+  # 500000000000000.625. Medido sin la guarda: el spool publicaba 3,3097 contra
+  # 3,3205 (una parte en 300). Del texto, restado en el decimal, sale el
+  # exacto: el de los centavos.
   p <- suppressWarnings(perfilar_dbi(
     con, "t", universo = "muestra_motor", muestra_motor = length(k),
     proteger_datos_personales = FALSE, fecha = .dde_fecha
   ))
   ancho <- .dde_desvio(p, "ancho")
-  expect_identical(ancho$estado, "no_disponible")
-  expect_identical(ancho$motivo, lupa:::.MOTIVO_DESVIO_DECIMAL_DOBLE_DBI)
-  expect_true(is.na(ancho$valor))
+  expect_true(ancho$estado %in% c("estimado", "observado_muestra"))
+  expect_lt(abs(ancho$valor - stats::sd(k)) / stats::sd(k), 1e-12)
   pm <- p$perfil_muestra$columnas
   expect_true(is.na(pm$desvio[pm$columna == "ancho"]))
   # Control: los mismos centavos, chicos, y los enteros que la muestra convirtio

@@ -1589,6 +1589,12 @@
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
     datos_materializados, columnas_castadas, preparacion$tipos
   )
+  # La media, la mediana y el desvio de un decimal que llego como texto y
+  # quedo en doble se publican del texto, no de los dobles.
+  decimales_texto <- .media_mediana_decimales_muestra_dbi(
+    datos_materializados, conversion_muestra$datos, columnas_castadas,
+    preparacion$tipos
+  )
   datos_completos <- .ajustar_sentinelas_real_dbi(
     conversion_muestra$datos, campos, preparacion$tipos,
     argumentos[["sentinelas_numericos"]],
@@ -2202,8 +2208,14 @@
     resumen_tabla = resumen,
     perfil_muestra = perfil
   )
+  estructura <- .publicar_media_mediana_decimal_muestra_dbi(
+    estructura, decimales_texto
+  )
   estructura <- .tapar_desvio_decimal_doble_muestra_dbi(
-    estructura, datos_completos, campos, preparacion$tipos, conexion
+    estructura, datos_completos, campos, preparacion$tipos, conexion,
+    desvio_exacto = names(Filter(function(x) {
+      isTRUE(is.finite(x$desvio))
+    }, decimales_texto))
   )
   estructura <- .aplicar_guardas_salida_muestra_dbi(
     estructura, incluir_valores = incluir_valores,
@@ -2218,4 +2230,62 @@
   if (!is.null(spool$path)) unlink(spool$path, force = TRUE)
   estructura <- .sellar_perfil_dbi(estructura)
   estructura
+}
+
+# La media, la mediana y el desvio de cada decimal que la muestra trajo como
+# texto -para no perder sus cifras- y la conversion dejo en doble: las de
+# `perfilar()` salen de esos dobles, y la media y la mediana de los dobles no
+# son las del decimal (la de 0,0001 y 0,0002 daba 0,00015000000000000001), y su
+# desvio se aparta del del decimal cuando la magnitud es mucho mayor que el
+# desvio (un `numeric(18,2)` de 5e14 con centavos: una parte en 300). Salen del
+# texto (`.media_mediana_decimal_texto_dbi()`). Un decimal entero que la
+# conversion llevo a `integer64` o a `integer` ya es exacto y no entra.
+.media_mediana_decimales_muestra_dbi <- function(textos, datos, columnas,
+                                                tipos) {
+  salida <- list()
+  if (!is.data.frame(textos) || !is.data.frame(datos) || !length(columnas) ||
+      nrow(textos) != nrow(datos)) {
+    return(salida)
+  }
+  for (columna in intersect(columnas, names(datos))) {
+    posicion <- match(columna, names(datos))
+    tipo <- if (!is.null(tipos) && posicion <= length(tipos)) {
+      tipos[[posicion]]
+    } else NA_character_
+    x <- datos[[posicion]]
+    if (!.tipo_decimal_o_moneda_dbi(tipo) || !is.double(x) ||
+        inherits(x, "integer64") || !is.character(textos[[posicion]])) {
+      next
+    }
+    salida[[columna]] <- .media_mediana_decimal_texto_dbi(
+      textos[[posicion]], x
+    )
+  }
+  salida
+}
+
+# Pone en el resumen del spool la media, la mediana y el desvio del texto de
+# cada decimal (`.media_mediana_decimales_muestra_dbi()`), donde el resumen los
+# publico: las guardas que vienen despues -la del decimal desde 2^53, la
+# privacidad- siguen mandando, y la del desvio de los dobles ya no corre sobre
+# el resumen de esas columnas (ver `.tapar_desvio_decimal_doble_muestra_dbi()`).
+# `perfil_muestra` es `perfilar()` sobre lo leido y conserva los suyos.
+.publicar_media_mediana_decimal_muestra_dbi <- function(resultado, exactas) {
+  columnas <- resultado$resumen_tabla$columnas
+  if (!length(exactas) || !is.data.frame(columnas)) return(resultado)
+  for (columna in names(exactas)) {
+    filas <- .nombres_presentes(columnas$columna, columna)
+    metricas <- intersect(c("media", "mediana", "desvio"), names(columnas))
+    for (metrica in metricas) {
+      valor <- exactas[[columna]][[metrica]]
+      publicado <- filas & is.finite(suppressWarnings(
+        as.numeric(columnas[[metrica]])
+      ))
+      if (length(valor) == 1L && is.finite(valor) && any(publicado)) {
+        columnas[[metrica]][publicado] <- valor
+      }
+    }
+  }
+  resultado$resumen_tabla$columnas <- columnas
+  resultado
 }

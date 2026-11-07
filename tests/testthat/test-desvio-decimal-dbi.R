@@ -112,11 +112,11 @@ test_that("el desvio de un decimal que el doble no guarda no sale calculado de l
   completa <- .ddd_desvio(.ddd_perfil(con, "ddd_ancho"), "v")
   expect_identical(completa$estado, "calculado")
   expect_equal(completa$valor, exacto, tolerance = 1e-12)
-  # Por bloques, de los dobles: 3,1115 contra 3,1047. No se publica.
+  # Por bloques, de los dobles, daria 3,1115 contra 3,1047: no sale de ahi. El
+  # motor resta a cada valor un centro en `numeric` y suma las diferencias.
   bloques <- .ddd_desvio(.ddd_perfil(con, "ddd_ancho", bloque_filas = 3L), "v")
-  expect_identical(bloques$estado, "no_disponible")
-  expect_true(is.na(bloques$valor))
-  expect_match(bloques$motivo, "doble de cada valor", fixed = TRUE)
+  expect_identical(bloques$estado, "calculado")
+  expect_equal(bloques$valor, exacto, tolerance = 1e-12)
   # Control: un decimal chico por bloques se sigue publicando.
   DBI::dbExecute(con, "DELETE FROM ddd_ancho")
   DBI::dbExecute(con, "INSERT INTO ddd_ancho VALUES (1.25), (2.50), (3.75), (4.00)")

@@ -16705,6 +16705,40 @@
 
 # ---- Plan previo ---------------------------------------------------------
 
+# Cuantas consultas de prueba de la CTE de ventanas correra la muestra sin que
+# la preparacion las haya corrido (ver `plan_perfilado_dbi()`): dos por
+# candidato -la prueba y su control negativo-, o cero.
+.prueba_cte_mediana_plan_dbi <- function(conexion, preparacion, es_numerico,
+                                        incluir_valores) {
+  # Con `bloque_muestra = "con_muestra"` la mediana de la muestra sale del
+  # spool, en R, y la prueba no corre.
+  if (!identical(preparacion$universo, "muestra_motor") ||
+      .solicita_muestra_dbi(preparacion$bloque_muestra) ||
+      !"mediana" %in% preparacion$metricas_ejecucion ||
+      !isTRUE(incluir_valores) || is.null(preparacion$mediana_consolidada) ||
+      !is.null(preparacion$mediana_escalar) ||
+      !is.null(preparacion$mediana_cte_ventana) ||
+      !is.null(preparacion$aproximaciones$mediana) ||
+      !is.null(preparacion$presupuesto$mediana_cte_ventana) ||
+      (!is.null(preparacion$muestreo) &&
+         !isTRUE(preparacion$muestreo$disponible))) {
+    return(0L)
+  }
+  senas <- .senas_conexion_dbi(conexion)
+  fuera <- vapply(seq_along(preparacion$campos), function(i) {
+    isTRUE(es_numerico[[i]]) && (
+      preparacion$campos[[i]] %in% preparacion$columnas_float8_numeric ||
+        .mediana_decimal_por_centrales_dbi(
+          senas,
+          if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+            NA_character_
+        )
+    )
+  }, logical(1L))
+  if (!any(fuera)) return(0L)
+  2L * length(.candidatos_mediana_cte_ventana_dbi(conexion))
+}
+
 .plan_consultas_dbi <- function(campos, es_numerico, metricas, incluir_valores,
                                   con_orden, dialecto, emitidas = 0,
                                   universo = "tabla_completa",
@@ -17660,6 +17694,18 @@ plan_perfilado_dbi <- function(conexion, tabla,
     } else {
       0L
     }
+  # La prueba de la CTE de ventanas. La preparacion solo la corre cuando no hay
+  # mediana consolidada ni escalar; si la hay, una columna que la deja -un
+  # decimal, cuya mediana es la suma de sus centrales, o un `float8` de
+  # PostgreSQL, que la deja por `numeric_exact`- llega a la muestra sin forma de
+  # una sola sentencia, y la corrida prueba la CTE entonces, una vez: su
+  # consulta y su control negativo por candidato. El plan no la contaba
+  # (DuckDB, un decimal y un doble por la muestra: una consulta de mas, y su
+  # control). Una columna que la deja por sus extremos depende de los datos y
+  # no se anticipa.
+  emitidas_plan <- emitidas_plan + .prueba_cte_mediana_plan_dbi(
+    conexion, preparacion, es_numerico, incluir_valores
+  )
   # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
   # estructural ya leido puede fijar la decision; lo demas abre un rango entre
   # omitir y ejecutar la moda. La mediana queda fuera de ese criterio y la
@@ -20988,10 +21034,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # via por bloques, y la guarda es la misma. Sin ella, un `numeric(18,2)` de 5e14
 # con desvio 3 publicaba por la muestra del motor -el camino por omision de
 # `universo = "muestra_motor"`- un desvio a una parte en 300 del exacto, en
-# PostgreSQL, MySQL, MariaDB y DuckDB. Aca el resumen sale de los mismos dobles,
-# asi que se tapa en los dos.
+# PostgreSQL, MySQL, MariaDB y DuckDB. `perfil_muestra` sale de esos dobles y
+# se tapa; el resumen, salvo en las columnas de `desvio_exacto`, cuyo desvio ya
+# salio del texto de cada decimal, restado en el decimal
+# (`.desvio_decimal_texto_dbi()`).
 .tapar_desvio_decimal_doble_muestra_dbi <- function(resultado, datos, campos,
-                                                    tipos, conexion = NULL) {
+                                                    tipos, conexion = NULL,
+                                                    desvio_exacto =
+                                                      character()) {
   resumen <- resultado$resumen_tabla
   if (!is.list(resumen)) return(resultado)
   tapar_columnas <- .columnas_desvio_decimal_doble_dbi(
@@ -20999,7 +21049,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   if (!length(tapar_columnas)) return(resultado)
   sql <- resumen$sql
-  for (campo in tapar_columnas) {
+  for (campo in setdiff(tapar_columnas, desvio_exacto)) {
     filas <- .nombres_presentes(resumen$columnas$columna, campo)
     resumen$columnas$desvio[filas] <- NA_real_
     if (is.data.frame(sql) && nrow(sql)) {
@@ -22458,8 +22508,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `n_validos` y `n_distintos` son exactos, incoherentes y provienen de grupos
 #' distintos; su motivo conserva ambas sentencias.
 #' La mediana muestral que no tiene una forma consolidada o escalar, y la de
-#' cada columna que no puede usar la consolidada (un `float8` de PostgreSQL o
-#' una columna con extremos), usa una sola CTE con `COUNT(*) OVER ()`,
+#' cada columna que no puede usar la consolidada (un decimal, un `float8` de
+#' PostgreSQL o una columna con extremos), usa una sola CTE con
+#' `COUNT(*) OVER ()`,
 #' `ROW_NUMBER() OVER` y el promedio de las posiciones centrales, elegidas sin
 #' dividir; con extremos, el promedio no desborda y sigue en la misma
 #' sentencia. La sonda barata repite esa construccion sobre
@@ -22467,7 +22518,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' falle; no se sondea la tabla de produccion. Si esa capacidad falla, la
 #' mediana se publica como `no_disponible` con
 #' `capacidad_no_aceptada:sonda_mediana_cte_ventana`, nunca como
-#' `dos_consultas` bajo `muestra_motor`.
+#' `dos_consultas` bajo `muestra_motor`. Si la preparación no la probó —porque
+#' hay mediana consolidada— y una columna decimal o un `float8` de PostgreSQL la
+#' van a necesitar, [plan_perfilado_dbi()] cuenta esa prueba y su control
+#' negativo entre los portones; la que deja la consolidada por sus extremos
+#' depende de los datos y no se anticipa.
 #'
 #' Las cotas de error no documentadas de una aproximacion nativa quedan como
 #' `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
@@ -22527,6 +22582,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' sus una o dos filas centrales y cuántas son, y R divide: es el doble más
 #' cercano de la mediana exacta, por la tabla completa y por la muestra del
 #' motor. Cuesta una consulta por columna decimal, que el plan cuenta.
+#' Con `bloque_filas` y en el resumen de la muestra del motor con
+#' `bloque_muestra = "con_muestra"` (el spool), la mediana de un decimal que el
+#' controlador entrega como doble también es la del decimal: por bloques, con
+#' una cantidad impar la central es un valor y su doble es el más cercano, y con
+#' dos centrales que caen en el mismo doble la mediana cae en él; con dos
+#' centrales distintas se le piden al motor como texto, con el mismo salto que
+#' la vía de dos consultas —una consulta ordenada por columna—, y R las suma.
+#' `money` de SQL Server se pide siempre, porque odbc no lo lee al doble más
+#' cercano. El spool ya trae cada decimal como texto y la calcula de ahí.
 #' `PERCENTILE_CONT` interpola en doble, y la de un decimal quedaba a un ulp
 #' del doble más cercano (la de 0,10 y 0,20 daba 0,15000000000000002, el
 #' promedio de los dobles); en DuckDB, además, interpola un `DECIMAL` en su
@@ -22666,7 +22730,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R. La de R —[perfilar()],
 #'   `perfil_muestra` y `bloque_filas`— es el doble más cercano de la media
-#'   exacta de los dobles que leyó. La media y el desvío que calcula el motor
+#'   exacta de los dobles que leyó. La de un decimal que el controlador entrega
+#'   como doble, por `bloque_filas` y en el resumen de la muestra con
+#'   `bloque_muestra = "con_muestra"`, es la del decimal: por bloques el motor
+#'   suma la columna en su tipo —en SQL Server, la parte entera y `x % 1` por
+#'   separado, porque la suma de un `decimal(38,30)` desborda— y la devuelve
+#'   como texto; la muestra suma el texto de cada valor; R divide por la cuenta
+#'   y redondea al doble más cercano. Si la suma del motor no es la de lo que
+#'   leyeron los bloques, o la consulta falla, la media queda `no_disponible`.
+#'   La media y el desvío que calcula el motor
 #'   salen de su aritmética y no son, en general, el doble más cercano del
 #'   exacto: medido sobre columnas de cuatro a nueve valores en los siete
 #'   motores, por la tabla completa, la media quedó a uno o dos ulps en hasta 19
@@ -22706,9 +22778,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   desvío que el redondeo de cada valor a doble puede moverlo más de una parte
 #'   en mil millones (`max |x| / desvio * 2^-53`) queda `no_disponible`, salvo
 #'   que el tipo declare escala 0 —`numeric(18,0)`, `decimal(38,0)`— y los
-#'   valores queden por debajo de 2^53: ahí los dobles son los valores. La
-#'   escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el catálogo de SQL
-#'   Server. Bajo `muestra_motor`, la media y el desvío
+#'   valores queden por debajo de 2^53: ahí los dobles son los valores. Ese
+#'   desvío se le pide entonces al motor, en una consulta para todas esas
+#'   columnas: a cada valor le resta, en el tipo de la columna, la media escrita
+#'   como decimal en su escala, y suma esas diferencias y sus cuadrados como
+#'   dobles; con la escala de la columna, la resta es exacta (medido en SQL
+#'   Server y MySQL hasta `decimal(38,30)` y `DECIMAL(65,30)`). Sigue
+#'   `no_disponible` sin escala declarada en SQL Server, MySQL y MariaDB, o si
+#'   la consulta falla.
+#'   La escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el
+#'   catálogo de SQL Server. Bajo `muestra_motor`, la media y el desvío
 #'   se piden en la misma consulta, sobre las mismas filas de una sola
 #'   evaluación de la muestra: una relación derivada calcula la media de esas
 #'   filas con una ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en
@@ -22717,12 +22796,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `n * (media - centro)^2` (las dos pasadas corregidas), porque la media de
 #'   la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
 #'   dobles: el desvío de un decimal queda `no_disponible` con la misma regla que
-#'   con `bloque_filas`. Con `bloque_muestra = "con_muestra"` el desvío lo
-#'   calcula [perfilar()] sobre lo leído, que para un decimal es el doble de su
-#'   texto, y rige la misma regla. Lo mismo vale para el desvío de
-#'   `perfil_muestra` en todas las vías, también por la tabla completa, donde el
-#'   de `resumen_tabla` es el exacto: no se publica (queda `NA`) y la columna
-#'   queda en `perfil_muestra$meta$desvio_decimal_doble`. No
+#'   con `bloque_filas` sin la consulta. Con `bloque_muestra = "con_muestra"` el
+#'   resumen de un decimal sale del texto que la muestra trae de cada valor: el
+#'   desvío se resta en el decimal, centrado en una de sus centrales, y se
+#'   publica. El de `perfil_muestra` lo calcula [perfilar()] sobre lo leído, que
+#'   para un decimal es el doble de su texto, y rige la regla de los dobles en
+#'   todas las vías, también por la tabla completa, donde el de `resumen_tabla`
+#'   es el exacto: no se publica (queda `NA`) y la columna queda en
+#'   `perfil_muestra$meta$desvio_decimal_doble`. No
 #'   se fija una semilla ni se toca el generador de números aleatorios de R.
 #'   Como red en todas las
 #'   vías, un desvío `0` sobre una columna con dos valores distintos —un mínimo

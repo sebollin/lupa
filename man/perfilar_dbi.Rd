@@ -837,8 +837,9 @@ transaccional cuando el adaptador la demuestra. La cobertura agrega una entrada 
 \code{n_validos} y \code{n_distintos} son exactos, incoherentes y provienen de grupos
 distintos; su motivo conserva ambas sentencias.
 La mediana muestral que no tiene una forma consolidada o escalar, y la de
-cada columna que no puede usar la consolidada (un \code{float8} de PostgreSQL o
-una columna con extremos), usa una sola CTE con \verb{COUNT(*) OVER ()},
+cada columna que no puede usar la consolidada (un decimal, un \code{float8} de
+PostgreSQL o una columna con extremos), usa una sola CTE con
+\verb{COUNT(*) OVER ()},
 \verb{ROW_NUMBER() OVER} y el promedio de las posiciones centrales, elegidas sin
 dividir; con extremos, el promedio no desborda y sigue en la misma
 sentencia. La sonda barata repite esa construccion sobre
@@ -846,7 +847,11 @@ sentencia. La sonda barata repite esa construccion sobre
 falle; no se sondea la tabla de produccion. Si esa capacidad falla, la
 mediana se publica como \code{no_disponible} con
 \code{capacidad_no_aceptada:sonda_mediana_cte_ventana}, nunca como
-\code{dos_consultas} bajo \code{muestra_motor}.
+\code{dos_consultas} bajo \code{muestra_motor}. Si la preparación no la probó —porque
+hay mediana consolidada— y una columna decimal o un \code{float8} de PostgreSQL la
+van a necesitar, \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} cuenta esa prueba y su control
+negativo entre los portones; la que deja la consolidada por sus extremos
+depende de los datos y no se anticipa.
 
 Las cotas de error no documentadas de una aproximacion nativa quedan como
 \code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
@@ -910,6 +915,15 @@ Server, PostgreSQL y DuckDB se piden, en el tipo de la columna, la suma de
 sus una o dos filas centrales y cuántas son, y R divide: es el doble más
 cercano de la mediana exacta, por la tabla completa y por la muestra del
 motor. Cuesta una consulta por columna decimal, que el plan cuenta.
+Con \code{bloque_filas} y en el resumen de la muestra del motor con
+\code{bloque_muestra = "con_muestra"} (el spool), la mediana de un decimal que el
+controlador entrega como doble también es la del decimal: por bloques, con
+una cantidad impar la central es un valor y su doble es el más cercano, y con
+dos centrales que caen en el mismo doble la mediana cae en él; con dos
+centrales distintas se le piden al motor como texto, con el mismo salto que
+la vía de dos consultas —una consulta ordenada por columna—, y R las suma.
+\code{money} de SQL Server se pide siempre, porque odbc no lo lee al doble más
+cercano. El spool ya trae cada decimal como texto y la calcula de ahí.
 \code{PERCENTILE_CONT} interpola en doble, y la de un decimal quedaba a un ulp
 del doble más cercano (la de 0,10 y 0,20 daba 0,15000000000000002, el
 promedio de los dobles); en DuckDB, además, interpola un \code{DECIMAL} en su
@@ -1051,7 +1065,15 @@ cubre. Las columnas de magnitud común no cambian de consulta ni de cifra.
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R. La de R —\code{\link[=perfilar]{perfilar()}},
 \code{perfil_muestra} y \code{bloque_filas}— es el doble más cercano de la media
-exacta de los dobles que leyó. La media y el desvío que calcula el motor
+exacta de los dobles que leyó. La de un decimal que el controlador entrega
+como doble, por \code{bloque_filas} y en el resumen de la muestra con
+\code{bloque_muestra = "con_muestra"}, es la del decimal: por bloques el motor
+suma la columna en su tipo —en SQL Server, la parte entera y \verb{x \% 1} por
+separado, porque la suma de un \code{decimal(38,30)} desborda— y la devuelve
+como texto; la muestra suma el texto de cada valor; R divide por la cuenta
+y redondea al doble más cercano. Si la suma del motor no es la de lo que
+leyeron los bloques, o la consulta falla, la media queda \code{no_disponible}.
+La media y el desvío que calcula el motor
 salen de su aritmética y no son, en general, el doble más cercano del
 exacto: medido sobre columnas de cuatro a nueve valores en los siete
 motores, por la tabla completa, la media quedó a uno o dos ulps en hasta 19
@@ -1091,9 +1113,16 @@ entrega el controlador: el desvío de un decimal tan grande frente a su
 desvío que el redondeo de cada valor a doble puede moverlo más de una parte
 en mil millones (\verb{max |x| / desvio * 2^-53}) queda \code{no_disponible}, salvo
 que el tipo declare escala 0 —\code{numeric(18,0)}, \code{decimal(38,0)}— y los
-valores queden por debajo de 2^53: ahí los dobles son los valores. La
-escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el catálogo de SQL
-Server. Bajo \code{muestra_motor}, la media y el desvío
+valores queden por debajo de 2^53: ahí los dobles son los valores. Ese
+desvío se le pide entonces al motor, en una consulta para todas esas
+columnas: a cada valor le resta, en el tipo de la columna, la media escrita
+como decimal en su escala, y suma esas diferencias y sus cuadrados como
+dobles; con la escala de la columna, la resta es exacta (medido en SQL
+Server y MySQL hasta \code{decimal(38,30)} y \code{DECIMAL(65,30)}). Sigue
+\code{no_disponible} sin escala declarada en SQL Server, MySQL y MariaDB, o si
+la consulta falla.
+La escala la publican PostgreSQL, MySQL, MariaDB, DuckDB y el
+catálogo de SQL Server. Bajo \code{muestra_motor}, la media y el desvío
 se piden en la misma consulta, sobre las mismas filas de una sola
 evaluación de la muestra: una relación derivada calcula la media de esas
 filas con una ventana (\verb{AVG(x) OVER ()}) y el desvío se pide centrado en
@@ -1102,12 +1131,14 @@ SQLite, que suma los cuadrados en la consulta, se resta además
 \code{n * (media - centro)^2} (las dos pasadas corregidas), porque la media de
 la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
 dobles: el desvío de un decimal queda \code{no_disponible} con la misma regla que
-con \code{bloque_filas}. Con \code{bloque_muestra = "con_muestra"} el desvío lo
-calcula \code{\link[=perfilar]{perfilar()}} sobre lo leído, que para un decimal es el doble de su
-texto, y rige la misma regla. Lo mismo vale para el desvío de
-\code{perfil_muestra} en todas las vías, también por la tabla completa, donde el
-de \code{resumen_tabla} es el exacto: no se publica (queda \code{NA}) y la columna
-queda en \code{perfil_muestra$meta$desvio_decimal_doble}. No
+con \code{bloque_filas} sin la consulta. Con \code{bloque_muestra = "con_muestra"} el
+resumen de un decimal sale del texto que la muestra trae de cada valor: el
+desvío se resta en el decimal, centrado en una de sus centrales, y se
+publica. El de \code{perfil_muestra} lo calcula \code{\link[=perfilar]{perfilar()}} sobre lo leído, que
+para un decimal es el doble de su texto, y rige la regla de los dobles en
+todas las vías, también por la tabla completa, donde el de \code{resumen_tabla}
+es el exacto: no se publica (queda \code{NA}) y la columna queda en
+\code{perfil_muestra$meta$desvio_decimal_doble}. No
 se fija una semilla ni se toca el generador de números aleatorios de R.
 Como red en todas las
 vías, un desvío \code{0} sobre una columna con dos valores distintos —un mínimo

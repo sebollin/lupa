@@ -485,7 +485,12 @@ What each form implies is published:
 - `max_bytes_muestra` (`r lupa:::.MAX_BYTES_MUESTRA / 1024^2` MiB by default)
   is crossed with the budget of the spool. In the engines that allow it, it
   uses the catalog. In the others, it starts with a small block and adapts
-  `dbFetch(n)`. The sample is not brought in whole to be cut in R.
+  `dbFetch(n)`. The sample is not brought in whole to be cut in R. Measured in
+  PostgreSQL 16 and SQL Server: 200 rows with a text of a million characters
+  and a 250 KB binary (250 and 300 MB) reach the spool in 27 KB, each long
+  value as its length and its MD5; with `max_bytes_muestra = 1e6` on 2,000
+  texts of 9,000 characters, 109 rows are read, 0.99 MB, and
+  `meta$materializacion$tope_que_mando` is `"bytes"`.
 
 If `muestra = n` and a cap is stricter, the smaller one rules. The coverage of
 diagnostics of `perfil_muestra` declares the cells or bytes observed, the
@@ -848,7 +853,9 @@ why the queries are grouped:
   with a value above 1e8 and another below 1e-10, which have to come back
   identical. In SQL Server that requires compatibility level 110 or higher.
   Decimal columns do not go in that `SELECT`: their median is the sum of their
-  middle values, one query per column.
+  middle values, one query per column. With `bloque_filas`, the mean of the
+  decimal columns is one more query for all of them, and their median, when the
+  two middle values fall on different doubles, one sorted query per column.
   MariaDB accepts the form, but returns the percentile with 10 decimals and a
   cap at 1e8: it uses the median per column, like MySQL. The reason for a
   rejection stays in `meta$mediana_consolidada$motivo`.
@@ -1358,14 +1365,22 @@ higher. Each of those calls drew its own engine sample, so the rows were not
 exactly the same. The engine and the driver also take their share. The
 protection is a cost in the low double digits, not a null cost.
 
-The slowest parts of that run are solved in the code that is published:
+The slowest parts of that run were fixed afterwards. Each fix was measured on a
+local reproduction, not on those databases, and the run on them is still to be
+repeated:
 
 - the standard deviation in SQL Server, which went in one query per column,
-  each one on the whole table ([Batched queries](#batches));
-- the date columns in R before 4.6;
-- the very long texts;
-- the engine sample, which could bring into R more than its budget
+  each one on the whole table, goes in batches ([Batched queries](#batches)): on
+  a million rows and 27 numeric columns it went from 27 queries to 2, and from
+  1.42 million logical reads to 105 thousand, with the same figures;
+- the date columns in R before 4.6: 100,000 dates went from 171 s to 1.3 s in
+  R 4.5.2;
+- the very long texts: 700 rows of four 14 KB columns went from 23 s to 5 s;
+- the engine sample, which could bring into R more than its budget: 200 rows of
+  1.25 MB of text and binary reach the spool in 27 KB
   ([Caps on the read into R](#caps)).
+
+The first three figures are in the `NEWS.md` entry of each fix.
 
 The agreement of the figures with an SQL count written separately is in
 [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#contraste-contra-el-servidor)
@@ -1516,7 +1531,7 @@ package publishes:
 | SQL Server | it does not admit `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` or `MIN`/`MAX` on `text`, `ntext`, `image`, `xml` and `geography` | those metrics stay `no_disponible` without sending the statement |
 | any | the collation of the column groups values that R tells apart (`COLLATE NOCASE`, non-deterministic ICU, trailing spaces in SQL Server) | `meta$criterio_comparacion` and `meta$criterio_moda` declare it; the corroboration leaves it `no_corroborada`, not `divergencia` |
 | any | 64-bit integers (or `HUGEINT` and `UHUGEINT` in DuckDB) or decimals that arrive as double from 2^53 | the magnitude metrics that depend on a value a double cannot represent stay `no_disponible` (`r sub(" y ", " and ", enumerar(setdiff(lupa:::.METRICAS_DE_MAGNITUD_DBI, "mediana")), fixed = TRUE)`). The median is published when its value is exact: with an odd count, if the middle value is below 2^53; with an even count, if both middle values lie between -2^52 and 2^52, which costs one more query on the full table. `perfil_muestra`, the sample read into R and `perfilar()` decide it from its middle values, which they see: it is published when they fit in a double. The mode is requested from the engine as exact text; the sample reads those columns as text and, with [`bit64`](https://CRAN.R-project.org/package=bit64), as `integer64` |
-| any | a decimal with more digits than a double holds arrives as a double | with blocks and on the engine sample (except in PostgreSQL), and also with the sample read into R, the standard deviation stays `no_disponible` when rounding each value can move it by more than one part in a billion, unless the catalog declares scale 0 and the values stay below 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB and SQL Server); on the full table the subtraction is done in the column's type. The `perfil_muestra` standard deviation follows the same rule on every path, the full table included: it is not published, it is listed in `perfil_muestra$meta$desvio_decimal_doble`, and the cross-check does not compare it (cause `decimal_doble`) |
+| any | a decimal with more digits than a double holds arrives as a double | with blocks, when rounding each value can move the standard deviation by more than one part in a billion, the engine computes it by subtracting in the column's type a mean written as a decimal; with the sample read into R, the mean, the median and the standard deviation come from each value's text, and the block mean and median from the sum and the middle values the engine returns as text; on the engine sample with `solo_agregados` (except in PostgreSQL) the standard deviation stays `no_disponible` under that rule, unless the catalog declares scale 0 and the values stay below 2^53; on the full table the subtraction is done in the column's type. The `perfil_muestra` standard deviation follows the rule of the doubles on every path, the full table included: it is not published, it is listed in `perfil_muestra$meta$desvio_decimal_doble`, and the cross-check does not compare it (cause `decimal_doble`) |
 | MySQL, MariaDB, SQL Server, PostgreSQL, DuckDB | `AVG(x * 1.0)` of a decimal is cut at the engine's maximum scale (30, 38), `PERCENTILE_CONT` interpolates in double, and averaging in R the doubles of two middle values is not exact | a decimal's median sums its middle values in the engine and R divides by how many there are: one query per decimal column |
 | SQL Server | `CAST(x AS VARCHAR)` is `VARCHAR(30)`, and writes `money` with two decimals | the sample reads a decimal's text as `VARCHAR(48)` and `money` with `CONVERT(..., 2)` |
 | DuckDB | `AVG(x * 1.0)` overflows with a `HUGEINT` from 10^37 or a `UHUGEINT` from 10^38 | the basics are requested again without the average; the mean stays `no_disponible` and the rest is judged as in any column |
