@@ -40,7 +40,7 @@ testthat::skip_on_cran()
   )))
   cb <- cobertura(p)
   motivo <- cb$motivo[cb$diagnostico == "proximidad_vocabulario"]
-  m <- regmatches(motivo, regexpr("Se identificaron [0-9]+ par(es)? ", motivo))
+  m <- regmatches(motivo, regexpr("Se identific(aron|\u00f3) [0-9]+ par(es)? ", motivo))
   expect_length(m, 1L)
   as.integer(gsub("[^0-9]", "", m))
 }

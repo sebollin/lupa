@@ -844,13 +844,18 @@ parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
 que con quinientas, y en una tabla chica ese reparto sale por casualidad
 más seguido. Es aditivo: encenderlo no cambia ni pierde ninguna
 detección de \code{casi_duplicados_vocabulario}. El límite que deja de cubrir se
-declara igual, encendido o apagado, en \code{n_grupos_sin_variante_rara}. Una
-pareja que \code{casi_duplicados_vocabulario} ya publicó entera no se cuenta
-ahí ni se publica otra vez como equifrecuente: pasa con una clase exacta
-de normalización unida por distancia a su vecina, y cuando la asimetría
-llega a \code{min_asimetria_vocabulario} sin pasar
-\code{max_asimetria_equifrecuente_vocabulario}. Lo que el piso de asimetría deja
-afuera sí se cuenta.}
+declara igual, encendido o apagado, en \code{n_grupos_sin_variante_rara}. Cada
+par cercano se declara una sola vez: si \code{casi_duplicados_vocabulario} ya
+publicó sus dos formas en un mismo grupo, el par no se cuenta ahí ni se
+publica otra vez como equifrecuente, aunque otra forma cercana cuelgue de
+ese grupo. Pasa con una clase exacta de normalización unida por distancia
+a su vecina, y cuando la asimetría llega a \code{min_asimetria_vocabulario} sin
+pasar \code{max_asimetria_equifrecuente_vocabulario}. La forma que comparten se
+nombra en los dos grupos y cada uno declara sus pares: con \code{Montevideo}
+(100), \code{Montevido} (50) y \code{Montividoo} (50), \code{casi_duplicados_vocabulario}
+publica \code{Montevideo} y \code{Montevido}, y el grupo equifrecuente, \code{Montevido}
+y \code{Montividoo}, con un solo par. Lo que el piso de asimetría deja afuera sí
+se cuenta.}
 
 \item{max_asimetria_equifrecuente_vocabulario}{Razón máxima entre la
 frecuencia mayor y la menor para considerar que dos formas se reparten la
