@@ -31,7 +31,11 @@ test_that("la evidencia solo afirma que no se pierde nada cuando el plan tampoco
     limpio = c("7", "8", "9", "10"),
     fechas_limpias = c("2020-01-31", "2020-02-29"),
     mezcla_sin_choque = c("2020-01-31", "15/02/2020", "2020-03-10",
-                          "20/04/2020")
+                          "20/04/2020"),
+    # Dieciocho decimales: el `double` no los guarda y el plan la declara
+    # destructiva por precision.
+    decimales_largos = c("0,123456789012345678", "0,987654321098765432"),
+    decimales_cortos = c("1,23", "2,45")
   )
   for (nombre in names(casos)) {
     r <- .evidencia_y_plan(casos[[nombre]])
@@ -56,4 +60,10 @@ test_that("la evidencia nombra lo que la conversion perderia", {
   expect_match(r$evidencia, "5 valores escritos de formas distintas", fixed = TRUE)
   r <- .evidencia_y_plan(c("01/02/2020", "03/04/2020", "05/06/2020"))
   expect_match(r$evidencia, "lectura de fecha", fixed = TRUE)
+  # A mano: `as.numeric("0.123456789012345678")` a 18 cifras es
+  # 0.123456789012345677, y el otro tambien cambia la ultima.
+  expect_identical(sprintf("%.18f", as.numeric("0.123456789012345678")),
+                   "0.123456789012345677")
+  r <- .evidencia_y_plan(c("0,123456789012345678", "0,987654321098765432"))
+  expect_match(r$evidencia, "2 valores tienen m\u00e1s cifras", fixed = TRUE)
 })

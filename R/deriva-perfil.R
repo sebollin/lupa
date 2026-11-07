@@ -1195,6 +1195,90 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   anyNA(grupos) || length(unique(grupos)) > 1L
 }
 
+# La igualdad que publica `columnas_duplicadas` es la del detector, que solo
+# iguala columnas del mismo tipo: `identical()` sobre lo que el perfil lee como
+# contenido. Si un grupo se separa porque una de sus columnas cambio de tipo
+# declarado -un entero que llega como doble, un logico como entero-, el
+# detector no volvio a compararlas: con tipos distintos no hay igualdad que
+# medir, y los valores pueden seguir siendo los mismos. Publicar `resuelto` era
+# afirmar una mejora que no se midio. Es el mismo caso que el de un diagnostico
+# de texto sobre una columna que dejo de ser texto: no se volvio a evaluar, y
+# dejar de mirar no es lo mismo que arreglar.
+#
+# Se decide sobre las columnas del grupo que siguen en el otro perfil
+# (`presentes`): la separacion es solo de tipo si, dentro de cada tipo
+# declarado, siguen todas en un mismo grupo -o son una sola-, y hay mas de un
+# tipo. Y si el otro perfil ya muestra valores distintos entre los tipos -otros
+# faltantes, otra cantidad de distintos, otro minimo o maximo-, la igualdad se
+# perdio de verdad y no hace falta comparar los valores para saberlo.
+# Devuelve las columnas que cambiaron de tipo, o `character()` si la
+# separacion no se explica solo por el tipo.
+.duplicadas_separadas_por_tipo <- function(miembros, presentes, propio, otro,
+                                           resumen_otro, exigir_todas = FALSE) {
+  if (length(miembros) < 2L) return(character())
+  sigue <- miembros[.nombres_para_operar(miembros) %in% presentes]
+  if (length(sigue) < 2L || (exigir_todas && length(sigue) < length(miembros))) {
+    return(character())
+  }
+  tipos <- .tipos_declarados_deriva(otro, sigue)
+  if (anyNA(tipos) || length(unique(tipos)) < 2L) return(character())
+  grupos <- .grupo_duplicadas_deriva(resumen_otro, sigue)
+  por_tipo <- .dividir_por_bytes(seq_along(sigue), tipos, drop = TRUE)
+  for (indices in por_tipo) {
+    if (length(indices) < 2L) next
+    g <- grupos[indices]
+    if (anyNA(g) || length(unique(g)) > 1L) return(character())
+  }
+  representantes <- vapply(por_tipo, function(indices) indices[[1L]], integer(1L))
+  if (.resumenes_distintos_deriva(otro, sigue[representantes])) {
+    return(character())
+  }
+  antes <- .tipos_declarados_deriva(propio, sigue)
+  sigue[is.na(antes) | antes != tipos]
+}
+
+.tipos_declarados_deriva <- function(perfil, nombres) {
+  columnas <- perfil$columnas
+  if (!is.data.frame(columnas) ||
+      !all(c("columna", "tipo_declarado") %in% names(columnas))) {
+    return(rep(NA_character_, length(nombres)))
+  }
+  as.character(columnas$tipo_declarado)[match(
+    .nombres_para_operar(nombres),
+    .nombres_para_operar(as.character(columnas$columna))
+  )]
+}
+
+# Si el perfil ya distingue los valores de estas columnas por lo que resume de
+# cada una. Solo lo que no depende del tipo -faltantes y distintos- y, si las
+# dos lo tienen, el rango numerico, que un entero y un doble comparten.
+.resumenes_distintos_deriva <- function(perfil, nombres) {
+  columnas <- perfil$columnas
+  if (!is.data.frame(columnas) || length(nombres) < 2L) return(FALSE)
+  filas <- match(
+    .nombres_para_operar(nombres),
+    .nombres_para_operar(as.character(columnas$columna))
+  )
+  if (anyNA(filas)) return(FALSE)
+  for (campo in intersect(c("n_faltantes", "n_distintos", "minimo", "maximo"),
+                          names(columnas))) {
+    valores <- suppressWarnings(as.numeric(columnas[[campo]][filas]))
+    valores <- valores[is.finite(valores)]
+    if (length(valores) == length(filas) && length(unique(valores)) > 1L) {
+      return(TRUE)
+    }
+  }
+  FALSE
+}
+
+.columnas_con_tipo_deriva <- function(columnas, anterior, actual) {
+  antes <- .tipos_declarados_deriva(anterior, columnas)
+  despues <- .tipos_declarados_deriva(actual, columnas)
+  paste0(
+    "`", columnas, "` (", antes, " a ", despues, ")", collapse = ", "
+  )
+}
+
 # `se_unio`: algun par del grupo nuevo no estaba en un mismo grupo antes,
 # porque una de sus columnas no existia o porque estaban en grupos distintos.
 .grupo_duplicadas_se_unio <- function(miembros, existian, resumen_anterior) {
@@ -1413,11 +1497,17 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' declara—; la descripción nombra el argumento. Al revés, un hallazgo que
 #' aparece porque el perfil nuevo encendió o declaró lo que lo habilita sigue
 #' saliendo `aparecido`, y su descripción dice que el anterior no lo evaluaba.
-#' Un hallazgo de varias columnas —un par de columnas duplicado, una relación
-#' entre columnas— se compara por el contenido de sus columnas, no por sus
-#' posiciones en la tabla: reordenar columnas no hace aparecer ni desaparecer
-#' un par. Sólo no se presenta como resuelto si alguna de sus columnas
-#' desapareció. Si el tope de un diagnóstico deja un hallazgo fuera del alcance
+#' Un hallazgo de varias columnas —un grupo de columnas duplicadas, una
+#' relación entre columnas— se compara por el contenido de sus columnas, no por
+#' sus posiciones en la tabla: reordenar columnas no hace aparecer ni
+#' desaparecer un grupo. Sólo no se presenta como resuelto si alguna de sus
+#' columnas desapareció. Un grupo de columnas duplicadas que se separa sólo
+#' porque una de sus columnas cambió de tipo declarado —un entero que llega
+#' como doble— se publica `no_evaluado`, con severidad `sospechoso`: el
+#' diagnóstico sólo iguala columnas del mismo tipo y no volvió a compararlas,
+#' salvo que el perfil nuevo ya muestre valores distintos (otros faltantes,
+#' otra cantidad de distintos, otro mínimo o máximo); y uno que aparece sólo
+#' por un cambio de tipo sale `aparecido` con esa causa en la descripción. Si el tope de un diagnóstico deja un hallazgo fuera del alcance
 #' nuevo, se publica `no_evaluado` con el motivo de cobertura. La proximidad de
 #' vocabulario también puede dejar pares con frecuencias parejas bajo su piso de
 #' asimetría sin emitir un hallazgo; esa cobertura parcial se conserva como
@@ -2260,11 +2350,17 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   habilitados_ahora <- .declinados_por_declaracion_retirada(actual, anterior)
   for (clave in nuevos) {
     x <- hallazgos_b[match(clave, hallazgos_b$clave), , drop = FALSE]
-    if (identical(as.character(x$tipo_hallazgo), "columnas_duplicadas") &&
-        !.grupo_duplicadas_se_unio(
-          .miembros_duplicadas_deriva(hallazgos_b, clave),
-          nombres_anteriores, hallazgos_a
-        )) next
+    unidas_por_tipo <- character()
+    if (identical(as.character(x$tipo_hallazgo), "columnas_duplicadas")) {
+      miembros_nuevos <- .miembros_duplicadas_deriva(hallazgos_b, clave)
+      if (!.grupo_duplicadas_se_unio(
+        miembros_nuevos, nombres_anteriores, hallazgos_a
+      )) next
+      unidas_por_tipo <- .duplicadas_separadas_por_tipo(
+        miembros_nuevos, nombres_anteriores, actual, anterior, hallazgos_a,
+        exigir_todas = TRUE
+      )
+    }
     clave_habilitada <- .clave_declinacion_deriva(x$columna, x$tipo_hallazgo)
     argumento_nuevo <- if (clave_habilitada %in% habilitados_ahora) {
       names(habilitados_ahora)[match(clave_habilitada, habilitados_ahora)]
@@ -2272,7 +2368,15 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
       "hallazgo", "aparecido", x$severidad, NA_character_, x$tipo_hallazgo,
-      descripcion = if (is.na(argumento_nuevo)) {
+      descripcion = if (length(unidas_por_tipo)) {
+        paste0(
+          "Apareci\u00f3 un hallazgo que el perfil anterior no pod\u00eda medir: ",
+          "cambi\u00f3 el tipo declarado de ",
+          .columnas_con_tipo_deriva(unidas_por_tipo, anterior, actual),
+          ", y este diagn\u00f3stico s\u00f3lo iguala columnas del mismo tipo, as\u00ed ",
+          "que no es necesariamente un cambio de los valores."
+        )
+      } else if (is.na(argumento_nuevo)) {
         "Apareci\u00f3 un hallazgo que no estaba en el perfil anterior."
       } else {
         paste0(
@@ -2324,11 +2428,15 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
                              length(x$trazabilidad[[1L]]$columnas)) {
       x$trazabilidad[[1L]]$columnas
     } else NULL
+    separadas_por_tipo <- character()
     if (identical(as.character(x$tipo_hallazgo), "columnas_duplicadas")) {
+      miembros_viejos <- .miembros_duplicadas_deriva(hallazgos_a, clave)
       if (!.grupo_duplicadas_se_separo(
-        .miembros_duplicadas_deriva(hallazgos_a, clave),
-        nombres_actuales, hallazgos_b
+        miembros_viejos, nombres_actuales, hallazgos_b
       )) next
+      separadas_por_tipo <- .duplicadas_separadas_por_tipo(
+        miembros_viejos, nombres_actuales, anterior, actual, hallazgos_b
+      )
     } else if (x$columna != "<tabla>" &&
         !.nombres_para_operar(x$columna) %in% nombres_actuales &&
         .hallazgo_nombra_columna_retirada(
@@ -2381,13 +2489,22 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     } else NA_character_
     por_tipo <- clave_declinacion %in%
       .declinados_por_cambio_de_tipo(anterior, actual)
+    declinado <- declinado || length(separadas_por_tipo) > 0L
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
       "hallazgo",
       if (declinado) "no_evaluado" else "resuelto",
       if (declinado) "sospechoso" else "ok",
       x$tipo_hallazgo, NA_character_,
-      descripcion = if (por_tipo) {
+      descripcion = if (length(separadas_por_tipo)) {
+        paste0(
+          "Cambi\u00f3 el tipo declarado de ",
+          .columnas_con_tipo_deriva(separadas_por_tipo, anterior, actual),
+          ", y este diagn\u00f3stico s\u00f3lo iguala columnas del mismo tipo, as\u00ed ",
+          "que no las volvi\u00f3 a comparar: sus valores pueden seguir siendo ",
+          "los mismos. Dejar de mirar no es lo mismo que arreglar."
+        )
+      } else if (por_tipo) {
         paste(
           "La columna dej\u00f3 de ser texto y este diagn\u00f3stico compara valores",
           "de texto entre s\u00ed, as\u00ed que no se volvi\u00f3 a evaluar: los valores",

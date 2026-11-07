@@ -64,10 +64,22 @@ test_that("sin evidencia de una sola convencion, el separador de tres digitos si
   # Un valor que no agrupa de a tres no tiene lectura con la coma decimal y no
   # cuenta como numero.
   expect_identical(inferir_tipo(c("1.23,5", "2.34,5", "3.45,5"))$tipo, "texto")
-  # Con evidencia de las dos convenciones el plan bloquea la conversion por
-  # falta de evidencia, y la columna sigue `texto`: pasarla a `doble` publicaba
-  # que convertirla no pierde nada.
-  mixta <- .fila_miles(c("1.234,56", "2.345,67", "1,234.56", "2,345.67"))
+})
+
+test_that("con evidencia de las dos convenciones, cada agrupado se lee con la suya", {
+  # Como lo lee el resumen: `1.234,56` solo admite la coma decimal y
+  # `1,234.56` solo el punto. La convencion de la columna sigue sin decidir, y
+  # la evidencia lo dice en vez de afirmar que convertirla no pierde nada.
+  datos <- data.frame(v = c("1.234,56", "2.345,67", "1,234.56", "2,345.67"),
+                      stringsAsFactors = FALSE)
+  p <- perfilar(datos, fecha = .fecha_miles)
+  mixta <- p$columnas
   expect_identical(mixta$numero_texto_convencion, "mixta")
-  expect_identical(mixta$tipo_inferido, "texto")
+  expect_identical(mixta$tipo_inferido, "doble")
+  # A mano: 1234,56, 2345,67, 1234,56 y 2345,67.
+  expect_equal(c(mixta$minimo, mixta$maximo, mixta$media),
+               c(1234.56, 2345.67, mean(c(1234.56, 2345.67))))
+  h <- p$hallazgos[p$hallazgos$tipo_hallazgo == "tipo_declarado_distinto", ]
+  expect_match(h$evidencia, "no est\u00e1 decidida (mixta)", fixed = TRUE)
+  expect_false(grepl("no pierde", h$evidencia, fixed = TRUE))
 })

@@ -5097,7 +5097,11 @@
       riesgos_conversion <- if (isTRUE(compatible == 1)) {
         .riesgos_conversion_tipo(
           if (is.data.frame(datos) && i <= ncol(datos)) datos[[i]] else NULL,
-          fila, resultado$formatos
+          fila, resultado$formatos,
+          # Los meses escritos que la inferencia ya leyo: sin ellos se volvian a
+          # detectar, una pasada entera sobre la columna por segunda vez.
+          meses_texto = attr(resultado$inferencia$formatos_fecha, "meses_texto",
+                             exact = TRUE)
         )
       } else character()
       sin_perdida <- isTRUE(compatible == 1) && !is.null(riesgos_conversion) &&
@@ -5930,6 +5934,44 @@
 # clase en el atributo `grupo`; sin el -una tabla armada a mano- las filas de un
 # grupo son las consecutivas con la misma primera columna, que es como las
 # ordena el detector.
+# Las posiciones en la tabla de las columnas de un grupo, la primera y despues
+# las repetidas. Sin las que deja el detector -una tabla armada a mano-, por
+# nombre, que con nombres repetidos da la primera de las que se llaman igual.
+.posiciones_grupo_duplicadas <- function(duplicadas, filas, posiciones, columnas) {
+  if (is.list(posiciones) && length(posiciones) == 2L &&
+      length(posiciones[[1L]]) == nrow(duplicadas) &&
+      length(posiciones[[2L]]) == nrow(duplicadas)) {
+    return(as.integer(c(posiciones[[1L]][[filas[[1L]]]], posiciones[[2L]][filas])))
+  }
+  .indice_nombre(
+    c(duplicadas$columna_1[[filas[[1L]]]], duplicadas$columna_2[filas]), columnas
+  )
+}
+
+.nombres_repetidos_en_tabla <- function(columnas) {
+  claves <- .nombres_para_operar(as.character(columnas))
+  claves %in% claves[duplicated(claves)]
+}
+
+# Un nombre que, puesto suelto entre los ` = ` de la evidencia, no se lee como
+# un nombre y uno solo: vacio, con espacios al borde, con un separador de la
+# evidencia o de una lista de columnas (`=`, `;`, `,`), con comillas, o con algo
+# que al publicarse se escapa.
+.nombre_ambiguo_en_evidencia_duplicadas <- function(nombres) {
+  nombres <- as.character(nombres)
+  ambiguo <- is.na(nombres)
+  presentes <- !ambiguo
+  ambiguo[presentes] <- !nzchar(nombres[presentes]) |
+    grepl("^[[:space:]]|[[:space:]]$|[=;,\"]", nombres[presentes],
+          perl = TRUE, useBytes = TRUE)
+  for (i in which(!ambiguo)) {
+    ambiguo[[i]] <- isTRUE(tryCatch(
+      .hay_escapes_al_publicar(nombres[[i]]), error = function(e) TRUE
+    ))
+  }
+  ambiguo
+}
+
 .filas_por_grupo_duplicadas <- function(duplicadas, grupo = NULL) {
   if (is.null(grupo) || length(grupo) != nrow(duplicadas)) {
     primera <- .nombres_para_operar(duplicadas$columna_1)
@@ -5967,11 +6009,18 @@
                                  trazador_tiempos = NULL,
                                  nombres_texto = NULL,
                                  duplicadas_texto = NULL,
-                                 grupo_duplicadas = NULL) {
+                                 grupo_duplicadas = NULL,
+                                 posiciones_duplicadas = NULL) {
   if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(columnas)
   if (is.null(duplicadas_texto)) duplicadas_texto <- duplicadas
   if (is.null(grupo_duplicadas)) {
     grupo_duplicadas <- attr(duplicadas, "grupo", exact = TRUE)
+  }
+  if (is.null(posiciones_duplicadas)) {
+    posiciones_duplicadas <- list(
+      attr(duplicadas, "posicion_1", exact = TRUE),
+      attr(duplicadas, "posicion_2", exact = TRUE)
+    )
   }
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
@@ -6149,12 +6198,30 @@
     primeras <- vapply(filas_grupo, function(f) f[[1L]], integer(1L))
     n_miembros <- lengths(filas_grupo) + 1L
     # El mismo `paste()` que armaba el par, para que con dos columnas el texto
-    # salga con los mismos bytes y la misma marca.
+    # salga con los mismos bytes y la misma marca. Salvo que algun nombre no se
+    # pueda leer suelto entre los ` = `: ahi el grupo entero se cita, y un
+    # nombre que se repite en la tabla lleva ademas su posicion. Sin eso,
+    # `X = X` publicaba una igualdad sin decir de que columnas, y una columna
+    # llamada `A = B` igual a `C` se leia como un grupo de tres.
+    repetidos <- .nombres_repetidos_en_tabla(columnas)
     miembros_texto <- vapply(filas_grupo, function(f) {
-      paste(
-        c(duplicadas_texto$columna_1[[f[[1L]]]], duplicadas_texto$columna_2[f]),
-        collapse = " = "
+      nombres_grupo <- c(
+        duplicadas_texto$columna_1[[f[[1L]]]], duplicadas_texto$columna_2[f]
       )
+      posiciones <- .posiciones_grupo_duplicadas(
+        duplicadas, f, posiciones_duplicadas, columnas
+      )
+      repetido <- !is.na(posiciones) & repetidos[posiciones]
+      repetido[is.na(repetido)] <- FALSE
+      if (!any(repetido) &&
+          !any(.nombre_ambiguo_en_evidencia_duplicadas(nombres_grupo))) {
+        return(paste(nombres_grupo, collapse = " = "))
+      }
+      citados <- .citar_publicable(nombres_grupo)
+      citados[repetido] <- paste0(
+        citados[repetido], " (columna ", posiciones[repetido], ")"
+      )
+      paste(citados, collapse = " = ")
     }, character(1L))
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       duplicadas$columna_1[primeras], "columnas_duplicadas", "sospechoso",

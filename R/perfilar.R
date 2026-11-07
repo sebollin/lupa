@@ -1680,6 +1680,12 @@
 #' número, con punto o con coma por igual: una columna entera de esos valores
 #' queda `texto` y sin resumen, y si son pocos quedan fuera del resumen y lo
 #' declaran `n_valores_excluidos_resumen` y `"calculados_sobre_valores"`.
+#' El resumen lee sólo las formas que la inferencia cuenta como número, también
+#' en las filas que su muestra no miró: un primer grupo de miles con cero
+#' adelante —`099.123.456`, un teléfono—, un hexadecimal o un `5.` quedan afuera
+#' y se declaran igual. Un número con moneda o unidad (`USD 1,234.56`, `12 kg`)
+#' no se resume: es un número escrito como texto, y `numero_texto_moneda` y
+#' `numero_texto_unidad` publican lo que traía.
 #' Los prefijos de tres letras separados
 #' del número, incluso como sufijo, `U$S` y los símbolos monetarios se
 #' conservan como evidencia; `monedas_mixtas` informa sus frecuencias sin
@@ -2547,7 +2553,16 @@
 #'   del grupo en el orden de los datos, la evidencia nombra a todas
 #'   (`A = B = C`) y `n_afectados` las cuenta a todas. `general$columnas_duplicadas`
 #'   tiene una fila por cada columna repetida, con la primera de su grupo en
-#'   `columna_1` y la repetida en `columna_2`. Cuando el camino
+#'   `columna_1` y la repetida en `columna_2`. Dos columnas son iguales si lo
+#'   son en lo que el perfil lee como contenido: un factor con nivel `NA` y el
+#'   mismo sin ese nivel, un `POSIXlt` y su `POSIXct`, o dos factores sin orden
+#'   con los mismos niveles en otro orden son la misma columna; un entero y un
+#'   doble, que el perfil declara de tipos distintos, no. Si algún nombre del
+#'   grupo no se puede leer suelto —vacío, repetido en la tabla, con espacios
+#'   al borde o con `=`, `;`, `,` o comillas—, la evidencia cita todos los
+#'   nombres entre comillas, y el que se repite lleva su posición:
+#'   `"X" (columna 1) = "X" (columna 2)`. Sin filas no hay hallazgo ni filas en
+#'   `general`: la cobertura declara que no se compararon. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
@@ -3126,19 +3141,29 @@ perfilar <- function(datos,
     error = function(e) NA_integer_
   )
   duplicadas <- .columnas_duplicadas(datos, nombres)
-  # La clase de cada fila se usa para armar los hallazgos y no se guarda en
-  # `general`: con los nombres de las dos columnas alcanza para planificar y
-  # comparar, salvo nombres repetidos, que ya tienen su propio hallazgo.
+  # Sin filas, dos columnas vacias coinciden sin que eso sea evidencia: el
+  # constructor no publica el hallazgo y la cobertura declara que no se
+  # compararon. `general` tampoco las lista; las listaba, y el mismo perfil
+  # decia en un lado que eran iguales y en otro que no las habia comparado.
+  if (!nrow(datos) && nrow(duplicadas)) {
+    duplicadas <- .grupos_de_columnas_identicas(datos, integer(), nombres)
+  }
+  # La clase de cada fila y las posiciones de sus columnas se usan para armar
+  # los hallazgos y no se guardan en `general`: con los nombres de las dos
+  # columnas alcanza para planificar y comparar, salvo nombres repetidos, que
+  # ya tienen su propio hallazgo.
   grupo_duplicadas <- attr(duplicadas, "grupo", exact = TRUE)
+  posiciones_duplicadas <- list(
+    attr(duplicadas, "posicion_1", exact = TRUE),
+    attr(duplicadas, "posicion_2", exact = TRUE)
+  )
   attr(duplicadas, "grupo") <- NULL
+  attr(duplicadas, "posicion_1") <- NULL
+  attr(duplicadas, "posicion_2") <- NULL
   duplicadas_texto <- duplicadas
   if (nrow(duplicadas_texto)) {
-    duplicadas_texto$columna_1 <- nombres_texto[
-      .indice_nombre(duplicadas$columna_1, nombres)
-    ]
-    duplicadas_texto$columna_2 <- nombres_texto[
-      .indice_nombre(duplicadas$columna_2, nombres)
-    ]
+    duplicadas_texto$columna_1 <- nombres_texto[posiciones_duplicadas[[1L]]]
+    duplicadas_texto$columna_2 <- nombres_texto[posiciones_duplicadas[[2L]]]
   }
   relaciones_orden <- .detectar_orden_columnas(
     datos, columnas, formatos_fecha,
@@ -3207,7 +3232,8 @@ perfilar <- function(datos,
     trazador_tiempos = trazador_tiempos,
     nombres_texto = nombres_texto,
     duplicadas_texto = duplicadas_texto,
-    grupo_duplicadas = grupo_duplicadas
+    grupo_duplicadas = grupo_duplicadas,
+    posiciones_duplicadas = posiciones_duplicadas
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE

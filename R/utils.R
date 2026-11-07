@@ -1119,7 +1119,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # `indices`: cada clase en orden creciente y las clases por su primera columna.
 .clases_de_columnas_identicas <- function(datos, indices) {
   if (length(indices) < 2L) return(list())
-  columnas <- lapply(indices, function(i) .normalizar_columna_entrada(datos[[i]]))
+  columnas <- lapply(indices, function(i) .normalizar_columna_igualdad(datos[[i]]))
   huellas <- vapply(columnas, .huella_columna_identica, character(1L))
   grupo_de <- match(huellas, unique(huellas))
   clase <- seq_along(columnas)
@@ -1168,13 +1168,16 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # datos: k columnas iguales son k - 1 filas, no k (k - 1) / 2. Es la forma de
 # `duplicated()` y de `.fila_duplicada`, que tambien marcan cada repeticion y
 # no cada par; con dos columnas es la misma fila que daba el par. La clase de
-# cada fila va en el atributo `grupo`, porque dos columnas pueden llamarse
-# igual y el nombre de la primera no alcanza para separar dos clases.
+# cada fila va en el atributo `grupo`, y las posiciones de sus dos columnas en
+# `posicion_1` y `posicion_2`, porque dos columnas pueden llamarse igual y el
+# nombre no alcanza para separar dos clases ni para decir cual es cual.
 .grupos_de_columnas_identicas <- function(datos, indices, nombres) {
   vacio <- .data_frame_simple(
     columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
   )
   attr(vacio, "grupo") <- integer()
+  attr(vacio, "posicion_1") <- integer()
+  attr(vacio, "posicion_2") <- integer()
   clases <- .clases_de_columnas_identicas(datos, indices)
   if (!length(clases)) return(vacio)
   primero <- unlist(lapply(clases, function(m) rep.int(m[[1L]], length(m) - 1L)),
@@ -1187,6 +1190,8 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
     stringsAsFactors = FALSE
   )
   attr(salida, "grupo") <- grupo
+  attr(salida, "posicion_1") <- as.integer(indices[primero])
+  attr(salida, "posicion_2") <- as.integer(indices[segundo])
   salida
 }
 
@@ -1255,6 +1260,10 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 .miembros_columnas_duplicadas_evidencia <- function(evidencia) {
   evidencia <- as.character(evidencia)
   if (length(evidencia) != 1L || is.na(evidencia)) return(character())
+  # Una evidencia con los nombres entre comillas es la de nombres que no se
+  # pueden partir por " = " -tienen el separador, se repiten o estan vacios-:
+  # no se adivina.
+  if (startsWith(evidencia, "\"")) return(character())
   tramo <- trimws(sub(";.*$", "", evidencia))
   partes <- strsplit(tramo, " = ", fixed = TRUE)[[1L]]
   if (length(partes) < 2L) character() else partes
@@ -2419,8 +2428,39 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   # registraba `fallida` con "dejaron de tener contenido duplicado" sobre la
   # tabla original. La comparacion es una sola, aca.
   .columnas_normalizadas_identicas(
-    .normalizar_columna_entrada(x), .normalizar_columna_entrada(y)
+    .normalizar_columna_igualdad(x), .normalizar_columna_igualdad(y)
   )
+}
+
+# Lo que la igualdad de columnas mira es lo que el perfil lee como contenido.
+# A la regla de la entrada -el nivel `NA` es un faltante, un `POSIXlt` es su
+# instante- se suma, solo para comparar columnas entre si, el orden de los
+# niveles de un factor sin orden: el perfil lo lee como texto -mismo tipo
+# declarado, mismos valores, misma moda- y en ninguna salida publica ese orden,
+# asi que `factor(x, levels = c("a", "b"))` y `factor(x, levels = c("b", "a"))`
+# son la misma columna. Con dos columnas asi el perfil no las agrupaba, y
+# `comparar_perfiles()` publicaba `resuelto` un grupo cuyos valores seguian
+# iguales. El tipo si cuenta: un entero y un doble, o un logico y un entero,
+# tienen tipos declarados distintos en el perfil. Y en un factor ordenado el
+# orden de los niveles es el orden de los valores. No se toca la entrada de la
+# tabla: los demas diagnosticos ven el factor como llego.
+.normalizar_columna_igualdad <- function(x) {
+  x <- .normalizar_columna_entrada(x)
+  if (is.factor(x) && !is.ordered(x)) x <- .factor_niveles_por_bytes(x)
+  x
+}
+
+# El mismo factor con los niveles en orden de bytes, que no depende del locale.
+# Cambian los codigos, no las etiquetas de ninguna fila.
+.factor_niveles_por_bytes <- function(x) {
+  niveles <- levels(x)
+  orden <- .orden_por_bytes(niveles)
+  if (identical(orden, seq_along(niveles))) return(x)
+  atributos <- attributes(x)
+  codigos <- match(as.integer(x), orden)
+  atributos$levels <- niveles[orden]
+  attributes(codigos) <- atributos
+  codigos
 }
 
 # La comparacion sobre columnas ya normalizadas, para quien normaliza una vez y

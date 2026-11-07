@@ -24,19 +24,27 @@ Primera versión publicada.
   `detectar_formatos_fecha()`, `descubrir_patrones()`, `inferir_tipo()` y
   `distribucion_valores()`.
 - `columnas_duplicadas` publica un hallazgo por **grupo** de columnas con el
-  mismo contenido, no uno por par: `columna` es la primera del grupo en el
-  orden de los datos, la evidencia las nombra a todas (`A = B = C; comparadas
-  sobre 5 filas`) y `n_afectados` las cuenta a todas, como `filas_duplicadas`
-  con sus filas. Con dos columnas el hallazgo es el de siempre.
-  `general$columnas_duplicadas` tiene una fila por columna repetida, junto a la
-  primera de su grupo. `planificar_limpieza()` propone una decisión por grupo
-  —marcarlo, o eliminar las repetidas y conservar la primera— y
-  `comparar_perfiles()` compara los grupos por las igualdades que afirman: si C
-  deja de ser igual a `A = B`, publica un resuelto y no dos, y un perfil
-  guardado con la forma por pares se compara sin deriva falsa. Con 1.000
-  columnas iguales eran 499.500 hallazgos: `planificar_limpieza()`,
-  `comparar_perfiles()` y `analizar()` no terminaban en 5 minutos y ahora tardan
-  2, 3 y 22 s, y `print()` del perfil pasa de 37 s a 0,6 s.
+  mismo contenido, no uno por par: `columna` es la primera del grupo en el orden
+  de los datos, la evidencia las nombra a todas (`A = B = C; comparadas sobre 5
+  filas`) y `n_afectados` las cuenta a todas, como `filas_duplicadas` con sus
+  filas. Con dos columnas el hallazgo es el de siempre. Si un nombre no se puede
+  leer suelto —vacío, repetido, con espacios al borde o con `=`, `;`, `,` o
+  comillas—, la evidencia cita todos los del grupo y el repetido lleva su
+  posición (`"X" (columna 1) = "X" (columna 2)`). Dos columnas son iguales en lo
+  que el perfil lee como contenido: dos factores sin orden con los mismos
+  niveles en otro orden son la misma columna, y un entero y un doble no. Sin
+  filas no se compara: no hay hallazgo, y `general$columnas_duplicadas`, que
+  tiene una fila por columna repetida junto a la primera de su grupo, queda
+  vacía. `planificar_limpieza()` propone una decisión por grupo —marcarlo, o
+  eliminar las repetidas y conservar la primera— y `comparar_perfiles()` compara
+  los grupos por las igualdades que afirman: si C deja de ser igual a `A = B`,
+  publica un resuelto y no dos; si un grupo se separa sólo porque una columna
+  cambió de tipo declarado, publica `no_evaluado`, porque el diagnóstico no
+  volvió a compararlas; y un perfil guardado con la forma por pares se compara
+  sin deriva falsa. Con 1.000 columnas iguales eran 499.500 hallazgos:
+  `planificar_limpieza()`, `comparar_perfiles()` y `analizar()` no terminaban en
+  5 minutos y ahora tardan 2, 3 y 22 s, y `print()` del perfil pasa de 37 s a
+  0,6 s.
 
 ## Medición de la calidad
 
@@ -150,11 +158,18 @@ Primera versión publicada.
 ## Correcciones
 
 - `inferir_tipo()` y `perfilar()` leen como número un importe con los miles
-  agrupados (`1.234,56`, `1,234.56`) cuando la columna aporta evidencia de una
-  sola convención: quedaba `texto` y sin resumen, aunque la fila publicaba la
-  convención, y la misma columna sin los puntos de miles se resumía. Una
-  columna que mezcla las dos convenciones, y las formas que también son
-  teléfonos o cédulas (`099.123.456`, `1.234.567`), siguen como texto.
+  agrupados (`1.234,56`, `1,234.56`, `12.500.000`) con la convención de la
+  columna: quedaba `texto` y sin resumen, aunque la fila publicaba la
+  convención, y la misma columna sin los puntos de miles se resumía. Si la
+  columna aporta las dos convenciones, cada valor se lee con la que trae. Sin
+  evidencia de convención —una columna de `1.234.567`— sigue como texto, y un
+  primer grupo de miles que empieza con cero (`099.123.456`, la forma de un
+  teléfono) no se lee como número en ninguna. El resumen lee sólo lo que la
+  inferencia cuenta como número, también fuera de su muestra: lo demás —un
+  teléfono, `0x1A`, `5.`— queda afuera y lo declara
+  `n_valores_excluidos_resumen`. Un importe con moneda o unidad (`USD 1,234.56`,
+  `12 kg`) sigue siendo un número escrito como texto: `numero_como_texto` lo
+  señala y `planificar_limpieza()` lo convierte.
 - La evidencia de `tipo_declarado_distinto` ya no dice que la conversión «no
   pierde ningún valor» cuando pierde algo: nombra el cero inicial de un código
   (`007`), la precisión, la convención sin decidir o las fechas de lectura

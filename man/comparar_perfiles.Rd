@@ -152,11 +152,17 @@ otros parámetros, la fila \code{configuracion_duplicados_aproximados} lo
 declara—; la descripción nombra el argumento. Al revés, un hallazgo que
 aparece porque el perfil nuevo encendió o declaró lo que lo habilita sigue
 saliendo \code{aparecido}, y su descripción dice que el anterior no lo evaluaba.
-Un hallazgo de varias columnas —un par de columnas duplicado, una relación
-entre columnas— se compara por el contenido de sus columnas, no por sus
-posiciones en la tabla: reordenar columnas no hace aparecer ni desaparecer
-un par. Sólo no se presenta como resuelto si alguna de sus columnas
-desapareció. Si el tope de un diagnóstico deja un hallazgo fuera del alcance
+Un hallazgo de varias columnas —un grupo de columnas duplicadas, una
+relación entre columnas— se compara por el contenido de sus columnas, no por
+sus posiciones en la tabla: reordenar columnas no hace aparecer ni
+desaparecer un grupo. Sólo no se presenta como resuelto si alguna de sus
+columnas desapareció. Un grupo de columnas duplicadas que se separa sólo
+porque una de sus columnas cambió de tipo declarado —un entero que llega
+como doble— se publica \code{no_evaluado}, con severidad \code{sospechoso}: el
+diagnóstico sólo iguala columnas del mismo tipo y no volvió a compararlas,
+salvo que el perfil nuevo ya muestre valores distintos (otros faltantes,
+otra cantidad de distintos, otro mínimo o máximo); y uno que aparece sólo
+por un cambio de tipo sale \code{aparecido} con esa causa en la descripción. Si el tope de un diagnóstico deja un hallazgo fuera del alcance
 nuevo, se publica \code{no_evaluado} con el motivo de cobertura. La proximidad de
 vocabulario también puede dejar pares con frecuencias parejas bajo su piso de
 asimetría sin emitir un hallazgo; esa cobertura parcial se conserva como

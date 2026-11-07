@@ -1799,12 +1799,27 @@
 #   fecha que dos formatos leen distinto.
 # - sin separadores, o sin convencion evaluada: la lectura de siempre.
 #
+# Y en todas, dos reglas que valen para cualquier convencion:
+#
+# - un valor cuyo primer grupo de miles empieza con cero -`099.123.456`, o
+#   `0.500` con coma decimal- no es un importe en ninguna: es un telefono o un
+#   codigo, y quitarle los separadores lo volvia `99123456`;
+# - solo se lee la FORMA que la inferencia cuenta como numero
+#   (`.formas_numero_texto()`): el resumen recorre la columna entera y la
+#   inferencia puede haber mirado una muestra, y `as.numeric()` lee mas de lo
+#   que la inferencia valido -`0x1A` es 26, `5.` es 5-. Lo que entraba asi al
+#   maximo y a la media lo hacia sin declararse.
+#
 # Lo que queda afuera vuelve `NA`, y quien llama lo cuenta y lo declara
 # (`n_valores_excluidos_resumen`), como cualquier texto que no llega a numero.
+# `NaN` e `Inf` escritos siguen siendo `NaN` e `Inf`: el resumen los cuenta en
+# sus propios campos y no en el maximo.
 .leer_numeros_texto <- function(texto, convencion = NULL) {
   texto <- trimws(as.character(texto))
   con_separador <- !is.na(texto) & grepl("[.,]", texto, perl = TRUE)
-  if (!any(con_separador)) return(suppressWarnings(as.numeric(texto)))
+  if (!any(con_separador)) {
+    return(.solo_formas_numero(suppressWarnings(as.numeric(texto)), texto))
+  }
   if (is.null(convencion)) {
     convencion <- .analizar_numeros_texto(texto)$convencion
   }
@@ -1816,12 +1831,8 @@
   if (convencion %in% c("decimal_coma", "decimal_punto")) {
     coma <- identical(convencion, "decimal_coma")
     miles <- if (coma) "." else ","
-    agrupado <- if (coma) {
-      "^[+-]?[0-9]{1,3}(?:\\.[0-9]{3})+(?:,[0-9]+)?$"
-    } else {
-      "^[+-]?[0-9]{1,3}(?:,[0-9]{3})+(?:\\.[0-9]+)?$"
-    }
-    con_miles <- con_separador & grepl(miles, texto, fixed = TRUE)
+    agrupado <- if (coma) .patron_miles_coma else .patron_miles_punto
+    con_miles <- con_separador & grepl(miles, texto, fixed = TRUE, useBytes = TRUE)
     sin_lectura <- con_miles & !grepl(agrupado, texto, perl = TRUE)
     normalizado[sin_lectura] <- NA_character_
     normalizado <- .normalizar_separadores_numero(normalizado, convencion)
@@ -1831,6 +1842,16 @@
     propia[partes$evidencia_coma & !partes$evidencia_punto] <- "decimal_coma"
     propia[partes$evidencia_punto & !partes$evidencia_coma] <- "decimal_punto"
     leidos <- texto[con_separador]
+    # La misma regla que con la convencion de la columna, con la del valor:
+    # los miles agrupan de a tres y sin cero adelante. `099.123,45` trae la
+    # coma y su primer grupo empieza con cero; `1.23,5` no agrupa.
+    cero <- (propia %in% "decimal_coma" &
+               grepl(".", leidos, fixed = TRUE, useBytes = TRUE) &
+               !grepl(.patron_miles_coma, leidos, perl = TRUE)) |
+      (propia %in% "decimal_punto" &
+         grepl(",", leidos, fixed = TRUE, useBytes = TRUE) &
+         !grepl(.patron_miles_punto, leidos, perl = TRUE))
+    propia[cero] <- NA_character_
     for (lectura in c("decimal_coma", "decimal_punto")) {
       cuales <- !is.na(propia) & propia == lectura
       leidos[cuales] <- .normalizar_separadores_numero(leidos[cuales], lectura)
@@ -1840,7 +1861,36 @@
   } else {
     normalizado <- sub(",", ".", texto, fixed = TRUE)
   }
-  suppressWarnings(as.numeric(normalizado))
+  .solo_formas_numero(suppressWarnings(as.numeric(normalizado)), texto)
+}
+
+# Los miles agrupados de a tres, con el primer grupo sin cero adelante, y la
+# parte decimal con el otro separador. Los comparten la inferencia y el lector.
+.patron_miles_coma <- "^[+-]?[1-9][0-9]{0,2}(?:\\.[0-9]{3})+(?:,[0-9]+)?$"
+.patron_miles_punto <- "^[+-]?[1-9][0-9]{0,2}(?:,[0-9]{3})+(?:\\.[0-9]+)?$"
+
+# Las formas que la inferencia cuenta como numero, antes de la convencion: un
+# solo separador con su exponente (`1234,56`, `1.5e3`, `.5`), o los miles
+# agrupados de a tres sin cero adelante (`1.234,56`, `1,234.56`, `1.234.567`).
+# Que una forma este aca no dice que se lea: la convencion decide. Dice que lo
+# que no esta no se lee nunca.
+.formas_numero_texto <- function(texto) {
+  !is.na(texto) & (
+    grepl("^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?$",
+          texto, perl = TRUE) |
+      grepl(.patron_miles_coma, texto, perl = TRUE) |
+      grepl(.patron_miles_punto, texto, perl = TRUE)
+  )
+}
+
+.solo_formas_numero <- function(valores, texto) {
+  leidos <- is.finite(valores)
+  if (any(leidos)) {
+    fuera <- leidos
+    fuera[leidos] <- !.formas_numero_texto(texto[leidos])
+    valores[fuera] <- NA_real_
+  }
+  valores
 }
 
 .frecuencias_unidades_numero <- function(partes, presentes) {

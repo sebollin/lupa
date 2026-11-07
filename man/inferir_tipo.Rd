@@ -34,11 +34,12 @@ con el pliegue de caja de \code{\link[=normalizacion]{normalizacion()}}, que no 
 Un separador seguido de exactamente tres dígitos (\code{1.500}, \verb{1,500}) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
 decimal, con punto o con coma por igual. Un número con los miles agrupados
-—\verb{1.234,56}, \verb{1,234.56}, \verb{10.000,00}— cuenta como número con la misma
-condición: que la columna aporte evidencia de una sola convención, y que con
-ella el valor agrupe los miles de a tres, que es como lo lee el resumen de
-\code{\link[=perfilar]{perfilar()}}. Sin esa evidencia, o con evidencia de las dos convenciones, no
-cuenta.
+—\verb{1.234,56}, \verb{1,234.56}, \verb{12.500.000}— cuenta como número si agrupa los miles
+de a tres con la convención de la columna o, cuando la columna aporta
+evidencia de las dos, con la que trae el propio valor (\verb{1.234,56} sólo admite
+la coma decimal): es como lo lee el resumen de \code{\link[=perfilar]{perfilar()}}. Sin evidencia de
+convención no cuenta, y un primer grupo de miles que empieza con cero
+(\verb{099.123.456}, la forma de un teléfono) no es un número en ninguna.
 }
 \examples{
 inferir_tipo(c("1", "2", "3"))

@@ -963,7 +963,16 @@ columnas con el mismo contenido, no uno por par: \code{columna} es la primera
 del grupo en el orden de los datos, la evidencia nombra a todas
 (\code{A = B = C}) y \code{n_afectados} las cuenta a todas. \code{general$columnas_duplicadas}
 tiene una fila por cada columna repetida, con la primera de su grupo en
-\code{columna_1} y la repetida en \code{columna_2}. Cuando el camino
+\code{columna_1} y la repetida en \code{columna_2}. Dos columnas son iguales si lo
+son en lo que el perfil lee como contenido: un factor con nivel \code{NA} y el
+mismo sin ese nivel, un \code{POSIXlt} y su \code{POSIXct}, o dos factores sin orden
+con los mismos niveles en otro orden son la misma columna; un entero y un
+doble, que el perfil declara de tipos distintos, no. Si algún nombre del
+grupo no se puede leer suelto —vacío, repetido en la tabla, con espacios
+al borde o con \code{=}, \verb{;}, \verb{,} o comillas—, la evidencia cita todos los
+nombres entre comillas, y el que se repite lleva su posición:
+\verb{"X" (columna 1) = "X" (columna 2)}. Sin filas no hay hallazgo ni filas en
+\code{general}: la cobertura declara que no se compararon. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por
@@ -1979,6 +1988,12 @@ lee si la columna aporta evidencia de una sola convención; si no la aporta
 número, con punto o con coma por igual: una columna entera de esos valores
 queda \code{texto} y sin resumen, y si son pocos quedan fuera del resumen y lo
 declaran \code{n_valores_excluidos_resumen} y \code{"calculados_sobre_valores"}.
+El resumen lee sólo las formas que la inferencia cuenta como número, también
+en las filas que su muestra no miró: un primer grupo de miles con cero
+adelante —\verb{099.123.456}, un teléfono—, un hexadecimal o un \code{5.} quedan afuera
+y se declaran igual. Un número con moneda o unidad (\verb{USD 1,234.56}, \verb{12 kg})
+no se resume: es un número escrito como texto, y \code{numero_texto_moneda} y
+\code{numero_texto_unidad} publican lo que traía.
 Los prefijos de tres letras separados
 del número, incluso como sufijo, \code{U$S} y los símbolos monetarios se
 conservan como evidencia; \code{monedas_mixtas} informa sus frecuencias sin
