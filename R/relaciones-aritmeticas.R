@@ -222,6 +222,10 @@
 # 500 veces la potencia de diez-, que son los que sobreviven a una fila rota.
 .FRACCION_RESOLUCION <- 0.9
 
+# Las bases y respuestas distintas que pide una proporcionalidad leida por
+# debajo de la compuerta: ver `.lectura_proporcional_aritmetica()`.
+.MINIMO_DISTINTOS_PROPORCIONAL <- 20L
+
 # La cota de que `dentro` de `n` valores caigan por azar en una reticula
 # `veces` mas gruesa que la de sus cifras, contra 1e-6.
 .reticula_no_es_azar <- function(n, dentro, veces) {
@@ -842,16 +846,35 @@
   r <- respuesta[comparables]
   b <- base[comparables]
   esperado_mediana <- b * mediana
-  # Solo donde la relativa supera al redondeo: por debajo, la tolerancia de
-  # siempre manda y un producto redondeado no se reconoce, como antes. Salvo
-  # que la relativa ya lo reconozca y acuse filas: con la respuesta redondeada
-  # a 0,05 sobre 2,2e6 la relativa vale 0,022 y el redondeo llega a 0,025, y
-  # las filas entre una y otro -8 de 100, sanas- salian discrepantes; una
-  # lectura que la relativa reconoce se mide con su redondeo. Si la relativa
-  # no la reconoce, la decision de siempre: no se reconoce.
-  if (!con_fallas &&
-      !any(tolerancia * pmax(1, abs(r), abs(esperado_mediana)) > cota)) {
-    return(no_aplica)
+  # Donde la relativa supera al redondeo en alguna fila, o ya reconoce la
+  # relacion acusando filas -con la respuesta a 0,05 sobre 2,2e6 la relativa
+  # vale 0,022 y acusaba las 8 filas sanas cuyo redondeo caia entre 0,022 y
+  # 0,025-, la lectura se intenta siempre. Por debajo -respuestas chicas
+  # frente a su cuanto-, si la relativa reconoce la relacion sin acusar nada
+  # queda como estaba; si no la reconoce, la lectura se intenta con dos
+  # guardas, porque ahi la mitad del cuanto es ancha frente a los valores y
+  # casi cualquier par chico "cumple". Medido sobre 14.094 pares de columnas
+  # independientes con decimales fijos (enteros de 1 a 5 y de 1 a 100,
+  # importes, porcentajes a 0,05, cantidades, edades, una binaria, una sesgada
+  # 1/2 al 95 %, una base de rango estrecho, una respuesta con un valor en el
+  # 92 % de las filas; de 10 a 10.000 filas, con y sin `NA`), sin guardas se
+  # publicaban 229 proporcionalidades espurias: 30 con respuestas de dos
+  # valores -una binaria "es" la mitad de una columna casi siempre 1- y 199
+  # entre una base estrecha y una respuesta dominante, que la "explica" con
+  # `k = 0.05` en las filas de la moda. Con al menos 20 bases y 20 respuestas
+  # distintas, y la condicion de explicar mas filas que la moda de la
+  # respuesta sola -la de las dependencias-, ninguna; las relaciones reales de
+  # las auditorias tienen cientos de valores distintos y una moda de a lo sumo
+  # el 8 %.
+  debajo <- !any(tolerancia * pmax(1, abs(r), abs(esperado_mediana)) > cota)
+  guardado <- debajo && !con_fallas
+  if (guardado && reconocida) return(no_aplica)
+  if (guardado) {
+    leidos <- utilizables & en_reticula
+    if (length(unique(base[leidos])) < .MINIMO_DISTINTOS_PROPORCIONAL ||
+        length(unique(respuesta[leidos])) < .MINIMO_DISTINTOS_PROPORCIONAL) {
+      return(no_aplica)
+    }
   }
   # El barrido ordena dos extremos por fila. Si la relativa no reconocia la
   # relacion, se ordena solo si con la mediana -cuyo error corre el esperado
@@ -879,6 +902,11 @@
     8 * .Machine$double.eps * pmax(1, abs(r), abs(esperado)) &
     en_reticula[comparables]
   if (!.cumple_criterio_aritmetica(mean(cumple), umbral)) return(no_alcanza)
+  if (guardado) {
+    valores <- r[is.finite(r)]
+    moda <- if (length(valores)) max(tabulate(match(valores, unique(valores)))) else 0L
+    if (sum(cumple) <= moda) return(no_aplica)
+  }
   list(
     aplica = TRUE, alcanza = TRUE,
     constante = as.vector(constante),

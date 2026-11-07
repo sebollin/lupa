@@ -811,7 +811,12 @@ publica sólo si es exacta. Una tolerancia declarada no se acota. En una
 proporcionalidad, con el valor por omisión, una columna con decimales fijos
 cuyo redondeo la tolerancia relativa supera en alguna fila —o cuya relación
 la relativa ya reconoce acusando filas— se lee como la
-respuesta redondeada: la mitad de su cuanto —la resolución de su redondeo,
+respuesta redondeada. Con respuestas más chicas frente a su cuanto, donde la
+relativa no reconoce la relación, se lee igual si hay al menos 20 bases y 20
+respuestas distintas y la relación explica más filas que la moda de la
+respuesta: entre columnas independientes chicas, sin esas dos condiciones,
+la mitad del cuanto publicaba proporcionalidades espurias. En la lectura, la
+mitad de su cuanto —la resolución de su redondeo,
 como 0,05, 0,25 o 5, y no la potencia de diez de sus decimales; la de al
 menos el 90 \% de sus valores, y un valor fuera de ella cuenta como
 discrepante—, inclusiva, es la tolerancia de

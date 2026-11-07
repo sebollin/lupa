@@ -236,11 +236,18 @@ Primera versión publicada.
   no se publicaba nunca. La resolución es la de al menos el 90 % de los valores,
   y sólo si esa retícula no se explica por azar: unas filas rotas fuera de ella
   no la hacen caer, y un valor que no es múltiplo de la resolución cuenta como
-  discrepante aunque su residuo quede debajo de medio cuanto. Como con los
-  centavos, con respuestas chicas un producto redondeado sigue sin reconocerse
-  con la tolerancia por omisión. Las identidades siguen con la potencia de diez
-  de sus decimales, que entre valores de una misma retícula separa igual lo sano
-  de lo roto.
+  discrepante aunque su residuo quede debajo de medio cuanto. Las identidades
+  siguen con la potencia de diez de sus decimales, que entre valores de una
+  misma retícula separa igual lo sano de lo roto.
+- Un producto redondeado con respuestas chicas frente a su cuanto —un iva a
+  centavos sobre netos de 10 a 1.000, o una respuesta a 0,05 de unos miles—, que
+  la tolerancia relativa no reconocía, se lee con la mitad del cuanto si hay al
+  menos 20 bases y 20 respuestas distintas y la relación explica más filas que la
+  moda de la respuesta. Sin esas dos condiciones, entre columnas independientes
+  con decimales fijos se publicaban proporcionalidades espurias (una binaria
+  «era» la mitad de una columna casi siempre 1; una base estrecha «explicaba» la
+  moda de la respuesta); con ellas, en las tablas de `datasets` y las del paquete
+  no aparece ninguna relación nueva.
 - Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
   `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
   la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna
