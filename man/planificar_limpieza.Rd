@@ -170,15 +170,20 @@ Tres atributos del plan declaran lo que el plan no cubre.
 \code{cobertura_diagnosticos} trae los diagnósticos que el perfil no pudo
 evaluar, para que leer tres acciones no se confunda con "lo demás está
 bien". \code{hallazgos_sin_accion_por_columna_ambigua} trae los hallazgos medidos
-que no produjeron acción porque su columna comparte nombre con otra y no hay
-forma de saber sobre cuál actuaría la limpieza; el remedio es normalizar los
-nombres y volver a perfilar. \code{hallazgos_sin_accion} trae el resto: los
-hallazgos que el perfil midió, con su columna identificada, y que ninguna
-acción del plan atiende —porque el plan no tiene una estrategia para ese
-tipo, o porque la que tiene necesitaba una condición que no se cumplió—. Su
-\code{motivo} dice si la misma columna recibió otras acciones, sin afirmar que
-alguna cubra el hallazgo: eso es una decisión del dominio. Los tres se
-imprimen con el plan.
+que no produjeron acción porque su columna no se puede identificar: comparte
+nombre con otra y no hay forma de saber sobre cuál actuaría la limpieza —el
+remedio es normalizar los nombres y volver a perfilar—, o no está entre las
+columnas del perfil; el \code{motivo} dice cuál de los dos. Un hallazgo de varias
+columnas —una relación aritmética en \verb{neto,iva,total}, una de orden— no es una
+columna ambigua: lo es sólo si alguna de sus columnas lo es. \code{hallazgos_sin_accion}
+trae el resto: los hallazgos que el perfil midió, de una columna
+identificada, de varias o de la tabla, y que ninguna acción del plan atiende
+—porque el plan no tiene una estrategia para ese tipo, o porque la que tiene
+necesitaba una condición que no se cumplió—. Su \code{motivo} dice si la misma
+columna (o esas columnas) recibió otras acciones, sin afirmar que alguna
+cubra el hallazgo: eso es una decisión del dominio. Un hallazgo \code{ok} no
+espera acción y no entra a ninguno de los dos. Los tres se imprimen con el
+plan.
 
 \code{convertir_numero_regional} sólo se recomienda si todos los valores
 presentes comparten convención decimal, unidad y moneda. Un valor con \verb{\%}

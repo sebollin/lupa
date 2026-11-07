@@ -289,14 +289,42 @@
   # (499.500 hallazgos) eran 81 de los 87 s de `planificar_limpieza()`.
   # `.nombres_para_operar()` es elemento a elemento, asi que normalizar el
   # vector entero da las mismas claves que normalizar cada nombre.
-  candidatos <- which(!is.na(hallazgos$columna))
+  # Un hallazgo `ok` no espera accion, como en `.hallazgos_sin_accion_declarados()`.
+  candidatos <- which(!is.na(hallazgos$columna) &
+                        as.character(hallazgos$severidad) != "ok")
   nombres <- .nombres_para_operar(perfil$columnas$columna)
   distintos <- unique(nombres)
-  veces <- tabulate(match(nombres, distintos), nbins = length(distintos))[
+  conteo <- tabulate(match(nombres, distintos), nbins = length(distintos))
+  veces <- conteo[
     match(.nombres_para_operar(hallazgos$columna[candidatos]), distintos)
   ]
   veces[is.na(veces)] <- 0L
+  # **Un hallazgo de varias columnas no es una columna ambigua.** La regla es la
+  # de `.accion_columna_ambigua()` -la columna no se identifica si su nombre no
+  # aparece exactamente una vez-, pero un hallazgo de varias columnas
+  # -`relacion_aritmetica_columnas` en `neto,iva,total`,
+  # `relacion_orden_columnas` en `inicio,fin`- no nombra UNA columna: nombra
+  # varias del perfil, y caia aca con el motivo "el nombre de columna se repite
+  # en la tabla", falso; tambien los `ok`. Uno asi es ambiguo solo si alguna de
+  # SUS columnas se repite o no esta; si no, va a `hallazgos_sin_accion` con su
+  # razon. Y el motivo dice cual de los dos casos es: repetida, o ausente del
+  # perfil.
   ambiguo <- veces != 1L
+  ausente <- veces == 0L
+  for (j in which(veces == 0L)) {
+    i <- candidatos[[j]]
+    miembros <- .miembros_hallazgo_varias_columnas(
+      hallazgos$columna[[i]],
+      if ("trazabilidad" %in% names(hallazgos)) hallazgos$trazabilidad[[i]],
+      perfil$columnas$columna
+    )
+    if (length(miembros) > 1L) {
+      repeticiones <- conteo[match(.nombres_para_operar(miembros), distintos)]
+      repeticiones[is.na(repeticiones)] <- 0L
+      ambiguo[[j]] <- any(repeticiones != 1L)
+      ausente[[j]] <- any(repeticiones == 0L) && !any(repeticiones > 1L)
+    }
+  }
   # Un grupo de columnas iguales puede nombrarse por una columna unica y tener
   # otra repetida (`Y, X, X`): el plan tampoco propone su accion (ver
   # `.grupo_con_nombre_repetido()`), y el motivo es el mismo.
@@ -316,10 +344,18 @@
   data.frame(
     hallazgo = as.character(hallazgos$tipo_hallazgo[ambiguos]),
     columna = as.character(hallazgos$columna[ambiguos]),
-    motivo = paste0(
-      "El nombre de columna se repite en la tabla, as\u00ed que no hay forma de ",
-      "saber sobre cu\u00e1l de ellas act\u00faa la limpieza: el plan no propone acci\u00f3n ",
-      "para este hallazgo."
+    motivo = ifelse(
+      ausente[ambiguo],
+      paste0(
+        "La columna del hallazgo no est\u00e1 entre las del perfil: el hallazgo no ",
+        "corresponde a las columnas que el perfil describe, y el plan no propone ",
+        "acci\u00f3n para \u00e9l."
+      ),
+      paste0(
+        "El nombre de columna se repite en la tabla, as\u00ed que no hay forma de ",
+        "saber sobre cu\u00e1l de ellas act\u00faa la limpieza: el plan no propone acci\u00f3n ",
+        "para este hallazgo."
+      )
     ),
     como_resolverlo = paste0(
       "Aplicar `normalizar_nombres` -o renombrar las columnas a mano- y volver ",
@@ -328,6 +364,37 @@
     ),
     stringsAsFactors = FALSE
   )
+}
+
+# Las columnas que nombra un hallazgo de varias, cuando su `columna` no es una
+# columna del perfil: las de su trazabilidad, que las guarda como lista, o la
+# `columna` partida por los nombres del perfil (`a,b,c`), con el mismo lector
+# que la deriva. Solo si son dos o mas; si no, ninguna. No normaliza la
+# `columna` -quien llama ya la comparo- y solo parte un texto con coma: con
+# 499.500 hallazgos de un perfil viejo, partir cada uno contra todos los
+# nombres era otra vez cuadratico.
+.miembros_hallazgo_varias_columnas <- function(columna, trazabilidad,
+                                               nombres_perfil) {
+  columna <- as.character(columna)
+  if (length(columna) != 1L || is.na(columna)) return(character())
+  miembros <- if (is.list(trazabilidad) && length(trazabilidad$columnas)) {
+    as.character(trazabilidad$columnas)
+  } else if (grepl(",", columna, fixed = TRUE, useBytes = TRUE)) {
+    as.character(.separar_nombres_columnas(columna, nombres_perfil))
+  } else character()
+  if (length(miembros) > 1L) miembros else character()
+}
+
+# Para el motivo de `hallazgos_sin_accion`: la columna del hallazgo si es una
+# del perfil, sus columnas si es de varias, ninguna si es de la tabla.
+.columnas_de_hallazgo_plan <- function(hallazgos, i, nombres_perfil,
+                                       claves_perfil) {
+  columna <- as.character(hallazgos$columna[[i]])
+  if (is.na(columna)) return(character())
+  if (.nombres_para_operar(columna) %in% claves_perfil) return(columna)
+  traza <- if ("trazabilidad" %in% names(hallazgos)) hallazgos$trazabilidad[[i]]
+  miembros <- .miembros_hallazgo_varias_columnas(columna, traza, nombres_perfil)
+  if (length(miembros)) miembros else columna
 }
 
 .hallazgos_sin_accion_declarados <- function(perfil, plan, ambiguos) {
@@ -395,6 +462,7 @@
   if (!length(sin_accion)) return(vacio)
   marcas_plan <- as.character(perfil$columnas$columna)
   marcas_plan <- marcas_plan[.marcas_del_plan(marcas_plan)]
+  claves_perfil <- .nombres_para_operar(as.character(perfil$columnas$columna))
   motivos <- vapply(sin_accion, function(i) {
     columna <- as.character(hallazgos$columna[[i]])
     if (!is.na(columna) &&
@@ -406,7 +474,37 @@
         "ning\u00fan grupo."
       ))
     }
-    estrategias <- if (is.na(columna)) character() else {
+    # Un hallazgo de la tabla (`NA`) o de varias columnas no tiene "la misma
+    # columna": el motivo decia "ni para el resto de esta columna" sobre una
+    # clave compuesta o una fecha partida en tres columnas.
+    miembros <- .columnas_de_hallazgo_plan(hallazgos, i, perfil$columnas$columna,
+                                           claves_perfil)
+    if (length(miembros) != 1L) {
+      estrategias <- if (!length(miembros)) character() else {
+        unicas <- .identificadores_unicos(as.character(
+          plan$estrategia[.identificadores_en(as.character(plan$columna), miembros)]
+        ))
+        unicas[!is.na(unicas)]
+      }
+      return(paste0(
+        if (length(miembros)) {
+          paste0(
+            "El hallazgo es de varias columnas (",
+            paste0("`", miembros, "`", collapse = ", "), ")"
+          )
+        } else "El hallazgo es de la tabla y no de una columna",
+        ", y el plan no tiene una estrategia para este tipo de hallazgo: no ",
+        "propone acci\u00f3n.",
+        if (length(estrategias)) {
+          paste0(
+            " Sobre esas columnas s\u00ed propone: ", paste(estrategias, collapse = ", "),
+            "; si alguna lo cubre, es una decisi\u00f3n del dominio, no una ",
+            "correspondencia que el paquete haya medido."
+          )
+        } else ""
+      ))
+    }
+    estrategias <- {
       unicas <- .identificadores_unicos(as.character(
         plan$estrategia[.identificadores_en(as.character(plan$columna), columna)]
       ))
@@ -1174,15 +1272,20 @@
 #' `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
 #' evaluar, para que leer tres acciones no se confunda con "lo demás está
 #' bien". `hallazgos_sin_accion_por_columna_ambigua` trae los hallazgos medidos
-#' que no produjeron acción porque su columna comparte nombre con otra y no hay
-#' forma de saber sobre cuál actuaría la limpieza; el remedio es normalizar los
-#' nombres y volver a perfilar. `hallazgos_sin_accion` trae el resto: los
-#' hallazgos que el perfil midió, con su columna identificada, y que ninguna
-#' acción del plan atiende —porque el plan no tiene una estrategia para ese
-#' tipo, o porque la que tiene necesitaba una condición que no se cumplió—. Su
-#' `motivo` dice si la misma columna recibió otras acciones, sin afirmar que
-#' alguna cubra el hallazgo: eso es una decisión del dominio. Los tres se
-#' imprimen con el plan.
+#' que no produjeron acción porque su columna no se puede identificar: comparte
+#' nombre con otra y no hay forma de saber sobre cuál actuaría la limpieza —el
+#' remedio es normalizar los nombres y volver a perfilar—, o no está entre las
+#' columnas del perfil; el `motivo` dice cuál de los dos. Un hallazgo de varias
+#' columnas —una relación aritmética en `neto,iva,total`, una de orden— no es una
+#' columna ambigua: lo es sólo si alguna de sus columnas lo es. `hallazgos_sin_accion`
+#' trae el resto: los hallazgos que el perfil midió, de una columna
+#' identificada, de varias o de la tabla, y que ninguna acción del plan atiende
+#' —porque el plan no tiene una estrategia para ese tipo, o porque la que tiene
+#' necesitaba una condición que no se cumplió—. Su `motivo` dice si la misma
+#' columna (o esas columnas) recibió otras acciones, sin afirmar que alguna
+#' cubra el hallazgo: eso es una decisión del dominio. Un hallazgo `ok` no
+#' espera acción y no entra a ninguno de los dos. Los tres se imprimen con el
+#' plan.
 #'
 #' `convertir_numero_regional` sólo se recomienda si todos los valores
 #' presentes comparten convención decimal, unidad y moneda. Un valor con `%`

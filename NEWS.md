@@ -258,6 +258,13 @@ Primera versión publicada.
   `columnas_duplicadas` cuando una columna del grupo no está en el perfil, quedan
   `bloqueada` con el motivo: con un perfil de otra versión de la tabla salían
   recomendadas y `aplicar()` las registraba `fallida`.
+- El plan ya no declara un hallazgo de varias columnas —una relación aritmética
+  en `neto,iva,total`, una de orden en `inicio,fin`— como de «columna ambigua»
+  con el motivo «el nombre de columna se repite en la tabla», que era falso,
+  también para las relaciones `ok`. Uno así va a `hallazgos_sin_accion` con su
+  razón, nombrando sus columnas; un `ok` no entra a ninguna lista sin acción; uno
+  de la tabla ya no habla de «esta columna»; y una columna que no está en el
+  perfil lo dice en vez de decir que se repite.
 - `detectar_claves()` con muchas copias de un identificador ya no arma las
   combinaciones que contienen una clave simple: con 100 copias tardaba 36 s y con
   1.000 `combn()` no entraba en memoria; ahora 0,2 s y 6 s, con la misma salida.
