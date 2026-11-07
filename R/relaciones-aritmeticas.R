@@ -31,10 +31,17 @@
 # `cota` es un tope absoluto para la tolerancia relativa: ver
 # `.cota_cuanto_aritmetica()`. Con `Inf` -lo que llega cuando no hay cota- el
 # `pmin()` devuelve la tolerancia relativa sin tocarla, bit a bit.
+#
+# `escala` es la magnitud de los operandos de una suma, por fila. **El error de
+# sumar en doble es relativo a los sumandos, no al resultado**: con
+# `a = 1e9 + x`, `b = -1e9 + y` y `c = x + y`, la suma `a + b` arrastra el
+# redondeo de 1e9 -hasta 1,1e-7- y la tolerancia anclada al total, que vale
+# unas centenas o menos, acusaba 16 de 300 filas de una identidad verdadera. Con
+# `0` -lo que llega fuera de las identidades aditivas- no cambia nada.
 .dentro_tolerancia_aritmetica <- function(observado, esperado, tolerancia,
-                                          cota = Inf) {
+                                          cota = Inf, escala = 0) {
   abs(observado - esperado) <=
-    pmin(tolerancia * pmax(1, abs(observado), abs(esperado)), cota)
+    pmin(tolerancia * pmax(1, abs(observado), abs(esperado), escala), cota)
 }
 
 .varia_columna_aritmetica <- function(x, tolerancia) {
@@ -77,9 +84,9 @@
 # `identidades_descartadas_escala`.
 .resolucion_exacta_aritmetica <- function() 4 * .Machine$double.eps
 
-.exacta_salvo_redondeo <- function(observado, esperado) {
+.exacta_salvo_redondeo <- function(observado, esperado, escala = 0) {
   abs(observado - esperado) <= .resolucion_exacta_aritmetica() *
-    pmax(1, abs(observado), abs(esperado))
+    pmax(1, abs(observado), abs(esperado), escala)
 }
 
 # **La tolerancia relativa absorbia centavos en los importes grandes.** Con
@@ -113,48 +120,74 @@
 #     mediana: con la cota, `iva = round(neto * 0.22, 2)` sobre 1e8 ganaba 8
 #     filas rotas falsas, porque `k` difiere de 0,22 en 4,5e-12 y por `base`
 #     eso suma 4e-4 a una diferencia que ya llegaba a `q / 2`;
-#   - **solo si la identidad se cumple exacta en la mayoria de las filas que
-#     caben en la tolerancia relativa.** Tres columnas redondeadas cada una a
-#     nueve u once cifras significativas tambien son multiplos de un cuanto -el
-#     de sus valores mas chicos- y su suma difiere en hasta unidades de la
-#     ultima cifra de los mas grandes: con la cota dejaban de publicarse. Ahi
-#     se cumplen exactas 8 a 12 de cada 100 filas; una identidad exacta con
-#     filas rotas, 70 o mas, aun con tres de cada diez rotas.
-# El cuanto se reconoce solo si es al menos 1024 veces la resolucion exacta a
-# la magnitud de la columna: por debajo, los valores tienen mas de unas doce
-# cifras significativas, que es lo que deja un texto de 15 cifras, y su ultima
-# cifra no es un decimal guardado sino ruido.
+#   - **solo si el total guarda exactamente los decimales de la suma, o si la
+#     identidad se cumple exacta en la mayoria de las filas.** Tres columnas
+#     redondeadas cada una a nueve u once cifras significativas tambien son
+#     multiplos de un cuanto -el de sus valores mas chicos- y su suma difiere en
+#     hasta unidades de la ultima cifra de los mas grandes: con la cota dejaban
+#     de publicarse. Ahi el total tiene menos decimales que un sumando (vive en
+#     una decada mas alta) o mas (en una cancelacion), y se cumplen exactas 8 a
+#     12 de cada 100 filas. Pedir solo la mayoria exacta dejaba afuera a los
+#     decimales fijos con mas de la mitad de las filas rotas: con 153 de 300
+#     filas corridas un centavo sobre importes de 1e7, la identidad salia `ok`
+#     con "0 filas discrepantes". Con centavos en las tres columnas el total
+#     tiene los decimales de la suma, y la cota se aplica igual.
+# El cuanto se reconoce solo si los valores tienen menos de 15 cifras
+# significativas en ese cuanto: 15 son las de un texto exportado -R y las
+# planillas escriben 15-, y ahi la ultima cifra es el redondeo del texto y no un
+# decimal guardado; ademas, desde unas 1e14 unidades del cuanto la comparacion
+# en doble ya no distingue un multiplo de lo que no lo es. El piso anterior -1024
+# veces la resolucion exacta, unas doce cifras- dejaba los centavos sin cota
+# desde importes de 1,1e10, y la tolerancia relativa volvia a tragarlos: 30 filas
+# rotas por un centavo salian `ok` sobre importes de 7e9 a 1e12. Ahora los
+# centavos se reconocen hasta 1e12 y los enteros hasta 1e14; por encima la
+# evidencia dice que la tolerancia no se acota y cuanto vale.
 .TOLERANCIA_ARITMETICA_OMISION <- 1e-8
+
+# El cuanto mas grueso del que todos los valores son multiplos, de 10^k a
+# 10^-15. Tambien los gruesos -10, 100-: nueve cifras significativas sobre 1e11
+# son multiplos de 100, y detenerse en el entero las hacia parecer columnas con
+# el mismo cuanto que su total (ver la regla del total arriba).
+.CIFRAS_MAXIMAS_CUANTO <- 1e14
 
 .cuanto_decimal_aritmetica <- function(x) {
   x <- as.double(x[is.finite(x)])
   if (!length(x)) return(NA_real_)
-  piso <- 1024 * .resolucion_exacta_aritmetica() * max(1, abs(x))
+  magnitud <- max(1, abs(x))
   # Una cabeza corta descarta enseguida las columnas sin cuanto -casi todas las
   # de dobles calculados- sin recorrer la columna entera por cada decimal.
   cabeza <- utils::head(x, 64L)
-  en_reticula <- function(v, escala) {
-    w <- v * escala
+  # Por una potencia de diez exacta: con decimales negativos se divide, porque
+  # `0.1` no es exacto en doble y `v * 0.1` correria el resultado.
+  en_reticula <- function(v, decimales) {
+    w <- if (decimales >= 0L) v * 10^decimales else v / 10^(-decimales)
     all(abs(w - round(w)) <= 8 * .Machine$double.eps * pmax(1, abs(w)))
   }
-  for (decimales in 0:15) {
+  for (decimales in seq.int(-floor(log10(magnitud)), 15L)) {
     cuanto <- 10^-decimales
-    if (cuanto < piso) return(NA_real_)
-    escala <- 10^decimales
-    if (en_reticula(cabeza, escala) && en_reticula(x, escala)) return(cuanto)
+    if (magnitud / cuanto >= .CIFRAS_MAXIMAS_CUANTO) return(NA_real_)
+    if (en_reticula(cabeza, decimales) && en_reticula(x, decimales)) {
+      return(cuanto)
+    }
   }
   NA_real_
 }
 
 # La cota de una identidad aditiva: la mitad del cuanto mas fino de sus tres
-# columnas, o `Inf` si alguna no tiene cuanto reconocido. Devuelve tambien el
-# cuanto, para la evidencia.
+# columnas, o `Inf` si alguna no tiene cuanto reconocido. `cuantos` va en el
+# orden sumando, sumando, total. `total_en_reticula` dice si el total tiene
+# exactamente los decimales de la suma: ni menos -un total redondeado mas
+# grueso que un sumando- ni mas -un total mas fino que lo que la suma puede
+# dar-. Devuelve tambien el cuanto, para la evidencia.
 .cota_cuanto_aritmetica <- function(cuantos) {
   if (length(cuantos) != 3L || anyNA(cuantos)) {
-    return(list(cuanto = NA_real_, cota = Inf))
+    return(list(cuanto = NA_real_, cota = Inf, total_en_reticula = FALSE))
   }
   cuanto <- min(cuantos)
-  list(cuanto = cuanto, cota = cuanto / 2)
+  list(
+    cuanto = cuanto, cota = cuanto / 2,
+    total_en_reticula = abs(cuantos[[3L]] / min(cuantos[1:2]) - 1) < 1e-9
+  )
 }
 
 # Para cada sumando, si la identidad sin el ya alcanza el criterio.
@@ -229,6 +262,9 @@
     ),
     minimo_filas_comparables = as.integer(min_filas),
     identidades_descartadas_escala = 0,
+    # Las que la tolerancia relativa reconocia y la cota del cuanto no: ver
+    # `.hallazgo_identidad_aditiva()`.
+    identidades_descartadas_cuanto = 0,
     resolucion_exacta = .resolucion_exacta_aritmetica(),
     clases_excluidas = clases_excluidas,
     columnas_excluidas_por_clase = excluidas_por_clase
@@ -367,25 +403,40 @@
     return(NULL)
   }
   esperado <- x[comparables] + y[comparables]
+  # La magnitud de los operandos: ver `.dentro_tolerancia_aritmetica()`. Entra
+  # solo donde supera al total y al esperado, o sea donde hay cancelacion.
+  escala <- pmax(abs(x[comparables]), abs(y[comparables]))
   cumple <- .dentro_tolerancia_aritmetica(
-    z[comparables], esperado, tolerancia
+    z[comparables], esperado, tolerancia, escala = escala
   )
+  tolerancia_relativa <- tolerancia *
+    pmax(1, abs(z[comparables]), abs(esperado), escala)
   # La cota del cuanto, con las tres condiciones de
   # `.TOLERANCIA_ARITMETICA_OMISION`. Solo se usa si achica la tolerancia en
   # alguna fila: si no, el criterio aplicado es el relativo de siempre y la
   # evidencia lo dice igual que antes.
   cuanto <- .cota_cuanto_aritmetica(cuantos)
   cota <- Inf
+  mayoria_exacta <- FALSE
   if (is.finite(cuanto$cota) && any(cumple) &&
-      any(tolerancia * pmax(1, abs(z[comparables]), abs(esperado)) >
-            cuanto$cota)) {
-    exactas_relativas <- .exacta_salvo_redondeo(z[comparables], esperado) &
-      cumple
-    if (sum(exactas_relativas) > sum(cumple) / 2) {
+      any(tolerancia_relativa > cuanto$cota)) {
+    exactas_relativas <- .exacta_salvo_redondeo(
+      z[comparables], esperado, escala
+    ) & cumple
+    mayoria_exacta <- sum(exactas_relativas) > sum(cumple) / 2
+    if (isTRUE(cuanto$total_en_reticula) || mayoria_exacta) {
       cota <- cuanto$cota
+      reconocida_sin_cota <- .cumple_criterio_aritmetica(mean(cumple), umbral)
       cumple <- .dentro_tolerancia_aritmetica(
-        z[comparables], esperado, tolerancia, cota
+        z[comparables], esperado, tolerancia, cota, escala
       )
+      # La tolerancia relativa la reconocia y la cota no: la regularidad se
+      # sostenia solo porque a esa escala la tolerancia traga el cuanto. Se
+      # descarta y se cuenta, como las de un sumando absorbido.
+      if (reconocida_sin_cota &&
+          !.cumple_criterio_aritmetica(mean(cumple), umbral)) {
+        return("descartada_cuanto")
+      }
     }
   }
   proporcion <- mean(cumple)
@@ -393,18 +444,37 @@
   absorbidos <- .sumandos_absorbidos(
     x[comparables], y[comparables], z[comparables], umbral, tolerancia, cota
   )
+  # Lo mismo del lado del total: con la tolerancia anclada a los operandos, un
+  # total que vive por debajo de ella se cumple con cualquier valor chico, como
+  # un sumando absorbido. Si la identidad tambien vale con el total en cero, se
+  # publica solo si es exacta.
+  total_absorbido <- .cumple_criterio_aritmetica(mean(
+    .dentro_tolerancia_aritmetica(0, esperado, tolerancia, cota, escala)
+  ), umbral)
   texto_escala <- ""
-  if (any(absorbidos)) {
-    exactas <- .exacta_salvo_redondeo(z[comparables], esperado)
+  if (any(absorbidos) || total_absorbido) {
+    exactas <- .exacta_salvo_redondeo(z[comparables], esperado, escala)
     if (!.cumple_criterio_aritmetica(mean(exactas), umbral)) {
       return("descartada_escala")
     }
     texto_escala <- paste0(
       "Con la tolerancia declarada, ",
-      paste0("`", nombres_texto[sumandos[absorbidos]], "`", collapse = " y "),
-      " no se distingue de cero frente a `", nombres_texto[[total]],
-      "`: la identidad sin ese sumando ya alcanza el criterio. Se publica ",
-      "porque se cumple exacta, salvo el redondeo del tipo double, en ",
+      if (any(absorbidos)) {
+        paste0(
+          paste0("`", nombres_texto[sumandos[absorbidos]], "`", collapse = " y "),
+          " no se distingue de cero frente a `", nombres_texto[[total]],
+          "`: la identidad sin ese sumando ya alcanza el criterio. "
+        )
+      },
+      if (total_absorbido) {
+        paste0(
+          if (any(absorbidos)) "Y " else "",
+          "`", nombres_texto[[total]], "` no se distingue de cero frente a ",
+          "los sumandos: la identidad con el total en cero ya alcanza el ",
+          "criterio. "
+        )
+      },
+      "Se publica porque se cumple exacta, salvo el redondeo del tipo double, en ",
       sum(exactas), " de ", n_evaluados,
       if (n_evaluados == 1L) " fila comparable. " else " filas comparables. "
     )
@@ -422,6 +492,29 @@
     nombres_texto[[sumandos[[2L]]]]
   )
   tolerancia_texto <- .texto_tolerancia_aritmetica(tolerancia)
+  # Los sumandos entran en la magnitud solo donde la mueven: si no, el texto
+  # es el de siempre.
+  texto_magnitud <- if (any(escala > pmax(1, abs(z[comparables]),
+                                          abs(esperado)))) {
+    "max(1, |observado|, |esperado|, |sumandos|)"
+  } else "max(1, |observado|, |esperado|)"
+  # Sin cota y sobre magnitudes donde un decimal guardado ya tiene 15 cifras
+  # significativas, la tolerancia relativa puede tragar diferencias que estan
+  # en el dato, y la evidencia lo dice con su valor.
+  texto_limite <- ""
+  magnitud_maxima <- max(abs(c(x[comparables], y[comparables],
+                               z[comparables])))
+  if (identical(as.double(tolerancia), .TOLERANCIA_ARITMETICA_OMISION) &&
+      magnitud_maxima >= .CIFRAS_MAXIMAS_CUANTO * 0.01) {
+    texto_limite <- paste0(
+      "No se acota por un cuanto decimal: con valores de ",
+      .formatear_numero_publicado(signif(magnitud_maxima, 3)),
+      " un decimal de dos cifras ya tiene 15 cifras significativas, las de un ",
+      "texto exportado, y no se distingue de su redondeo; la tolerancia llega ",
+      "a ", .formatear_numero_publicado(signif(max(tolerancia_relativa), 3)),
+      " en estas filas, y una diferencia menor no se cuenta como discrepancia. "
+    )
+  }
   ejemplos <- .evidencia_filas_aritmetica(
     datos, indices_incumplen, c(sumandos, total), esperados_incumplen,
     paste0(nombres_texto[[total]], " esperado"), nombres_texto
@@ -449,15 +542,19 @@
       "; criterio |observado - esperado| <= ",
       if (is.finite(cota)) {
         paste0(
-          "min(", tolerancia_texto, " * max(1, |observado|, |esperado|), ",
+          "min(", tolerancia_texto, " * ", texto_magnitud, ", ",
           .formatear_numero_publicado(cota), "): la cota es la mitad del ",
           "cuanto decimal com\u00fan de las tres columnas (",
           .formatear_numero_publicado(cuanto$cuanto), "), porque entre valores ",
-          "con ese cuanto una diferencia es un m\u00faltiplo de \u00e9l, y la ",
-          "identidad se cumple exacta en la mayor\u00eda de las filas. "
+          "con ese cuanto una diferencia es un m\u00faltiplo de \u00e9l, y ",
+          if (mayoria_exacta) {
+            "la identidad se cumple exacta en la mayor\u00eda de las filas. "
+          } else {
+            "el total guarda exactamente los decimales de la suma. "
+          }
         )
       } else {
-        paste0(tolerancia_texto, " * max(1, |observado|, |esperado|). ")
+        paste0(tolerancia_texto, " * ", texto_magnitud, ". ", texto_limite)
       },
       texto_escala, ejemplos
     ),
@@ -643,8 +740,12 @@
         )
       })
       descartadas <- vapply(candidatos, is.character, logical(1L))
+      por_cuanto <- vapply(candidatos, identical, logical(1L),
+                           "descartada_cuanto")
       alcance$identidades_descartadas_escala <-
-        alcance$identidades_descartadas_escala + sum(descartadas)
+        alcance$identidades_descartadas_escala + sum(descartadas & !por_cuanto)
+      alcance$identidades_descartadas_cuanto <-
+        alcance$identidades_descartadas_cuanto + sum(por_cuanto)
       candidatos <- candidatos[!descartadas]
       candidatos <- Filter(Negate(is.null), candidatos)
       if (!length(candidatos)) next

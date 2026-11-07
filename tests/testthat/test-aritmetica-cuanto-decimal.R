@@ -109,8 +109,8 @@ test_that("el cuanto se reconoce en decimales fijos y no en texto de 15 cifras",
   expect_equal(cuanto(1:10), 1)
   expect_true(is.na(cuanto(as.numeric(format(stats::runif(200), digits = 15)))))
   expect_true(is.na(cuanto(stats::runif(200) * 1e8)))
-  # Centavos sobre 1e12 tienen 14 cifras: su ultima cifra ya no se distingue
-  # del ruido de un texto de 15, y no se acota.
+  # Centavos sobre 1e12 tienen 15 cifras: su ultima cifra ya no se distingue
+  # del redondeo de un texto de 15, y no se acota.
   expect_true(is.na(cuanto(round(stats::runif(200, 1, 2) * 1e12, 2))))
   expect_true(is.na(cuanto(numeric())))
   expect_identical(

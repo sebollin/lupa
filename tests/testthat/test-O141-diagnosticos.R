@@ -104,7 +104,12 @@ test_that("H2: una columna que la tolerancia absorbe no completa una suma", {
   expect_equal(rel$columna, "neto,comision,bruto")
   expect_equal(as.character(rel$severidad), "ok")
   expect_match(rel$evidencia, "se cumple exacta", fixed = TRUE)
-  expect_gte(p$meta$aritmetica_columnas$identidades_descartadas_escala, 1)
+  # La ajena se descarta y se cuenta. Con centavos en las tres columnas la
+  # descarta la cota del cuanto antes que el filtro del sumando absorbido: las
+  # dos son descartes por escala, cada una en su conteo.
+  alcance <- p$meta$aritmetica_columnas
+  expect_gte(alcance$identidades_descartadas_escala +
+               alcance$identidades_descartadas_cuanto, 1)
 
   # Sin la columna real, la ajena no inventa la suma; y la misma tabla en otra
   # escala sigue sin relaciones.

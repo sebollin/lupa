@@ -2519,13 +2519,21 @@
 #'   decimal, como los centavos o los enteros— acota la tolerancia a la mitad de
 #'   ese cuanto: entre esos valores una diferencia es un múltiplo del cuanto, y
 #'   la tolerancia relativa tragaba centavos en los importes grandes (un peso
-#'   entero sobre 1e8). La cota se usa sólo si la identidad se cumple exacta,
-#'   salvo el redondeo del tipo double, en la mayoría de las filas que caben en
-#'   la tolerancia relativa, y sólo si el cuanto es al menos 1024 veces esa
-#'   resolución a la magnitud de la columna; la evidencia la declara. Una
-#'   tolerancia declarada no se acota, y las proporcionalidades usan siempre la
-#'   relativa. `meta$aritmetica_columnas` se publica cuando hay una relación, un
-#'   recorte o una identidad descartada.
+#'   entero sobre 1e8). La cota se usa si el total guarda exactamente los
+#'   decimales de la suma o si la identidad se cumple exacta, salvo el redondeo
+#'   del tipo double, en la mayoría de las filas, y sólo si los valores tienen
+#'   menos de 15 cifras significativas en ese cuanto —con centavos, hasta
+#'   importes de 1e12; con enteros, hasta 1e14—; por encima la evidencia dice
+#'   que la tolerancia no se acota y cuánto vale. Una identidad que la
+#'   tolerancia relativa reconoce y la cota no se descarta y se cuenta en
+#'   `meta$aritmetica_columnas$identidades_descartadas_cuanto`. En una suma la
+#'   tolerancia se mide también sobre los sumandos —`max(1, |observado|,
+#'   |esperado|, |sumandos|)`—, porque el error de sumar en doble es relativo a
+#'   ellos; si el total queda por debajo de esa tolerancia, la identidad se
+#'   publica sólo si es exacta. Una tolerancia declarada no se acota, y las
+#'   proporcionalidades usan siempre la relativa. `meta$aritmetica_columnas` se
+#'   publica cuando hay una relación, un recorte o una identidad descartada —por
+#'   escala o por la cota del cuanto—.
 #' @param max_columnas_aritmetica Máximo de columnas numéricas que intervienen
 #'   en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
 #'   `20`. Si se omiten columnas, `cobertura_diagnosticos` declara el recorte y
@@ -3596,13 +3604,14 @@ perfilar <- function(datos,
   if (!is.null(benford$meta)) {
     meta$benford <- benford$meta
   }
-  # Tambien cuando se descarto una identidad por escala: la ayuda promete el
-  # conteo en `identidades_descartadas_escala`, y si la unica candidata era esa
-  # el campo no existia y "no habia candidatas" no se distinguia de "habia una
-  # y se descarto".
+  # Tambien cuando se descarto una identidad, por escala o por la cota del
+  # cuanto: la ayuda promete el conteo en `identidades_descartadas_escala`, y si
+  # la unica candidata era esa el campo no existia y "no habia candidatas" no se
+  # distinguia de "habia una y se descarto".
   if (length(relaciones_aritmeticas$hallazgos) ||
       isTRUE(relaciones_aritmeticas$alcance$truncado) ||
-      isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_escala > 0)) {
+      isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_escala > 0) ||
+      isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_cuanto > 0)) {
     meta$aritmetica_columnas <- relaciones_aritmeticas$alcance
   }
   cobertura_diagnosticos <- .anotar_columnas_cobertura(

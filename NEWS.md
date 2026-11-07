@@ -193,11 +193,19 @@ Primera versión publicada.
   muchas planillas. `validar_url()` rechaza la contrabarra y los invisibles de
   formato (U+200B, U+FEFF, U+200D, marcas de dirección): un escape de su clase
   de caracteres dejaba pasar `https://ejemplo.com\@otro.com`.
-- Las relaciones aritméticas aditivas entre columnas con decimales fijos
-  cuentan como rota una diferencia de medio cuanto o más, en cualquier escala:
-  con la tolerancia relativa por omisión, `comision + neto = bruto` con 30
-  filas rotas por centavos salía `ok` con 0 filas sobre importes de 1e8, y
-  contaba 21 de 30 sobre importes de 1e6. La evidencia declara la cota, y las
+- Las relaciones aritméticas aditivas entre columnas con decimales fijos cuentan
+  como rota una diferencia de medio cuanto o más mientras los valores tengan
+  menos de 15 cifras significativas en ese cuanto: con centavos, importes de
+  hasta 1e12; con enteros, hasta 1e14. Con la tolerancia relativa por omisión,
+  `comision + neto = bruto` con 30 filas rotas por centavos salía `ok` con 0
+  filas sobre importes de 1e8, y contaba 21 de 30 sobre importes de 1e6. Por
+  encima de ese límite un decimal guardado no se distingue del redondeo de un
+  texto de 15 cifras: la tolerancia relativa manda y la evidencia dice cuánto
+  tolera. Con más de la mitad de las filas rotas por un cuanto la identidad no
+  se publica como sana: se descarta y se cuenta en
+  `meta$aritmetica_columnas$identidades_descartadas_cuanto`. En una suma, la
+  tolerancia se mide también sobre los sumandos: `a = 1e9 + x`, `b = -1e9 + y`,
+  `c = x + y` acusaba 16 de 300 filas sanas. La evidencia declara la cota, y las
   proporcionalidades siguen con la tolerancia relativa.
 - `desviacion_benford` dice si la desviación la producen los faltantes
   disfrazados que no se declararon, con la prueba sin ellos: 200 valores `999`
