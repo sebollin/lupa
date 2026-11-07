@@ -35,15 +35,56 @@ test_that("la fila de coleccion declara el universo de sus metricas", {
   )
 })
 
+# Una conexion SQLite que hace al motor calcular mal la media (un uno por
+# ciento de mas): una divergencia de verdad, del lado del motor. Los metodos
+# van en el nivel del archivo y solo si RSQLite esta: sin el no hay
+# `SQLiteConnection` de la que heredar, y la prueba se saltea en `.con_o28()`.
+if (requireNamespace("DBI", quietly = TRUE) &&
+    requireNamespace("RSQLite", quietly = TRUE) &&
+    !methods::isClass("conexion_sqlite_media_falsa_o28")) {
+  # Con DBI adjunto y el generico por su nombre: con `DBI::dbSendQuery` como
+  # objeto, `callNextMethod()` no encuentra el metodo siguiente.
+  suppressPackageStartupMessages(library(DBI))
+  methods::setClass("conexion_sqlite_media_falsa_o28",
+                    contains = "SQLiteConnection")
+  # `dbGetQuery()` pasa por `dbSendQuery()`: la reescritura no se repite.
+  .o28_falsear <- function(statement) {
+    gsub("(?<!1\\.01 \\* )AVG\\(", "1.01 * AVG(", statement, perl = TRUE)
+  }
+  methods::setMethod(
+    "dbSendQuery", c("conexion_sqlite_media_falsa_o28", "character"),
+    function(conn, statement, ...) {
+      methods::callNextMethod(conn, .o28_falsear(statement), ...)
+    }
+  )
+  methods::setMethod(
+    "dbGetQuery", c("conexion_sqlite_media_falsa_o28", "character"),
+    function(conn, statement, ...) {
+      methods::callNextMethod(conn, .o28_falsear(statement), ...)
+    }
+  )
+}
+
+.o28_conexion_media_falsa <- function(cruda) {
+  con <- methods::new("conexion_sqlite_media_falsa_o28")
+  for (ranura in methods::slotNames(cruda)) {
+    methods::slot(con, ranura) <- methods::slot(cruda, ranura)
+  }
+  con
+}
+
 test_that("la coleccion conserva las divergencias del perfil interno", {
-  con <- .con_o28()
-  on.exit(DBI::dbDisconnect(con), add = TRUE)
-  # Una divergencia de verdad: la media de {1e16, 1, -1e16} el motor la suma
-  # en doble y da 0, R da 1/3 (README). Una columna `COLLATE RTRIM` no sirve:
-  # esa diferencia es la que `criterio_comparacion` declara esperable, y va a
-  # `no_corroborada`, no a `divergencia`.
-  DBI::dbExecute(con, "CREATE TABLE t (v REAL)")
-  DBI::dbExecute(con, "INSERT INTO t VALUES (1e16), (1), (-1e16)")
+  cruda <- .con_o28()
+  on.exit(DBI::dbDisconnect(cruda), add = TRUE)
+  # Una divergencia de verdad: el motor da la media un uno por ciento de mas.
+  # Antes la daba la media de {1e16, 1, -1e16}, pero la que se equivocaba era
+  # la de R (0,556 por 1/3), y desde que la media de `perfilar()` es la mas
+  # cercana a la exacta las dos coinciden. Una columna `COLLATE RTRIM` no
+  # sirve: esa diferencia es la que `criterio_comparacion` declara esperable, y
+  # va a `no_corroborada`, no a `divergencia`.
+  DBI::dbExecute(cruda, "CREATE TABLE t (v REAL)")
+  DBI::dbExecute(cruda, "INSERT INTO t VALUES (1), (2), (3.5)")
+  con <- .o28_conexion_media_falsa(cruda)
   col <- coleccion(con, "t", nombre = "o28")
 
   interno <- perfilar_dbi(con, "t", muestra = 10)
