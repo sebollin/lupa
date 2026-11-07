@@ -25,9 +25,12 @@ test_that("el desborde de la media de un HUGEINT no se lleva los demas basicos n
   tope_h <- "170141183460469231731687303715884105727"
   tope_u <- "340282366920938463463374607431768211455"
   DBI::dbExecute(con, "CREATE TABLE h (v HUGEINT, u UHUGEINT, b BIGINT, w INTEGER)")
+  # Los topes como texto con su tipo: DuckDB 1.1.3 (medido) lee el literal suelto
+  # del maximo de `UHUGEINT` como doble y no lo puede convertir.
   DBI::dbExecute(con, paste0(
     "INSERT INTO h VALUES (1, 1, 1, 1), (2, 2, 2, 2), (",
-    tope_h, ", ", tope_u, ", 9223372036854775807, 3)"
+    "CAST('", tope_h, "' AS HUGEINT), CAST('", tope_u, "' AS UHUGEINT), ",
+    "9223372036854775807, 3)"
   ))
   for (incluir in c(TRUE, FALSE)) {
     p <- suppressWarnings(perfilar_dbi(
