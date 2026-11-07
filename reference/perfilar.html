@@ -1305,14 +1305,23 @@ así que decir «sin valores» de ella contradiría a su propia fila. La otra pu
 del segundo caso son los centinelas que se llevan todos los valores. La
 presencia se define igual que en <code>n_faltantes</code>, que cuenta el <code>NaN</code> como
 ausente: una columna de treinta <code>NaN</code> es <code>"sin_valores"</code>.</p>
-<p><strong>La <code>media</code> se acumula por bloques y puede diferir de <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> en los últimos
-bits; la <code>mediana</code> es exacta.</strong> El paquete no promete exactitud bit a bit para
-la media —sí para la mediana, que se calcula con <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code> sobre el vector
-entero y no como el cuantil 0,5—. Medido: sobre veinte mil
-valores de <code>1e12</code> y veinte mil de <code>1e-6</code> la diferencia es de <code>6,1e-05</code>, y sobre
-treinta mil valores con signo del orden de <code>1e9</code> es de <code>2,3e-10</code>; con valores de
-magnitud parecida no hay diferencia en ningún bit. Quien rehaga <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> sobre
-una columna grande y vea otro último dígito está viendo esto y no un error.</p>
+<p><strong>La <code>media</code> es el doble más cercano de la media exacta; la <code>mediana</code> es
+exacta.</strong> La media se acumula por bloques con una suma exacta —cada bloque se
+parte en sumandos que se suman sin redondeo—, así que no depende de cómo se
+agrupen las filas, de que los valores se cancelen ni de la precisión con que
+la plataforma acumula <code><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum()</a></code>; también es la más cercana cuando es subnormal.
+La única excepción medida: en una columna con valores de más de 2^900
+(8,5e270), para que la suma no desborde los valores se dividen por
+<code>2^(e - 900)</code>, con <code>e</code> el exponente del mayor, y los menores que
+<code>2^(e - 1922)</code> pierden cifras (con 2^1000, -2^1000 y valores de 2^-1000 la
+media sale 0). La mediana se calcula con <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code> sobre el
+vector entero y no como el cuantil 0,5. <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> no es la referencia: puede
+quedar a varios ulps. Medido sobre <code>rnorm(2e6)</code> con <code>set.seed(1)</code>: <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> a
+208 ulps de la media exacta y la <code>media</code> en la exacta; sobre
+<code>c(-2^51, 1, 2, 2^51)</code>, <code>0.75</code>. El <code>desvio</code> se acumula en doble y puede
+diferir del exacto en los últimos bits: medido, hasta tres ulps en columnas
+comunes de dos millones de filas. Quien rehaga <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> o <code><a href="https://rdrr.io/r/stats/sd.html" class="external-link">sd()</a></code> sobre una
+columna grande y vea otro último dígito está viendo esto y no un error.</p>
     </div>
     <div class="section level2">
     <h2 id="la-unidad-viaja-al-lado-de-la-cifra">La unidad viaja al lado de la cifra<a class="anchor" aria-label="anchor" href="#la-unidad-viaja-al-lado-de-la-cifra"></a></h2>

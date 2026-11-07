@@ -599,14 +599,15 @@ y el mínimo, el máximo y los conteos se juzgan como en cualquier otra
 columna. En una columna que no pasa de 2^53, la mediana de una cantidad
 par tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
 `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble y esa
-resta redondea. Lo que el motor cuenta con exactitud -`n_distintos`, la
-moda- se sigue publicando. La moda de un entero ancho que llego como
-`numeric` se pide al motor como texto exacto cuando la magnitud cruza
-2^53; un `BIGINT` con valores chicos conserva la moda numerica de
-siempre. Lo decide el valor: un decimal desde 2^53 ya no cabe en un
-doble -90071992547409001 y 90071992547409002 son el mismo-, y el tipo
-solo dice que viene de un decimal: RPostgres lo publica como `numeric`
-sin precision y odbc con su codigo ODBC (2 y 3), asi que una regla que
+resta redondea. La de un `numeric` no pasa por ahí: es la suma de sus
+centrales. Lo que el motor cuenta con exactitud -`n_distintos`, la moda-
+se sigue publicando. La moda de un entero ancho que llego como `numeric`
+se pide al motor como texto exacto cuando la magnitud cruza 2^53; un
+`BIGINT` con valores chicos conserva la moda numerica de siempre. Lo
+decide el valor: un decimal desde 2^53 ya no cabe en un doble
+-90071992547409001 y 90071992547409002 son el mismo-, y el tipo solo
+dice que viene de un decimal: RPostgres lo publica como `numeric` sin
+precision y odbc con su codigo ODBC (2 y 3), asi que una regla que
 esperara `numeric(20,0)` no se ejerceria. Para la muestra, la seleccion
 SQL trae esas columnas como texto y, si `bit64` esta instalado, las
 convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
@@ -1022,21 +1023,22 @@ satura en 1e8 y redondea a diez decimales, y por eso usa la mediana por
 columna como MySQL. En ese caso el mensaje del motor queda en
 `meta$mediana_consolidada$motivo` —sin sus literales con la protección
 activa, entero sin ella, como todo mensaje del motor: ver «Datos
-personales»—, y se conserva la mediana por columna. En DuckDB,
-`PERCENTILE_CONT` de un `DECIMAL` interpola en el `DECIMAL` de la
-columna y trunca a su escala —la mediana de 1,00 y 1,01 en
-`DECIMAL(10,2)` salía 1,00—: se pide sobre el doble de cada valor, que
-es la mediana de R sobre lo que lee el controlador. La mediana por
-columna de un decimal en MySQL, MariaDB y SQL Server suma en el tipo de
-la columna sus una o dos filas centrales, y R divide esa suma por
-cuántas son: es el doble más cercano de la mediana exacta.
+personales»—, y se conserva la mediana por columna. La mediana de un
+decimal no entra en la consolidada: en MySQL, MariaDB, SQL Server,
+PostgreSQL y DuckDB se piden, en el tipo de la columna, la suma de sus
+una o dos filas centrales y cuántas son, y R divide: es el doble más
+cercano de la mediana exacta, por la tabla completa y por la muestra del
+motor. Cuesta una consulta por columna decimal, que el plan cuenta.
+`PERCENTILE_CONT` interpola en doble, y la de un decimal quedaba a un
+ulp del doble más cercano (la de 0,10 y 0,20 daba 0,15000000000000002,
+el promedio de los dobles); en DuckDB, además, interpola un `DECIMAL` en
+su propia escala y trunca, y convierte a doble un decimal de más de 18
+cifras sin dar el más cercano: ahí la suma se lee por su texto.
 `AVG(x * 1.0)` necesita una cifra de escala más que la columna y en la
 escala máxima del motor —30 en MySQL, 38 en MariaDB— se recortaba (la
-mediana de 1e-30 y 2e-30 salía 2e-30); promediar en R los dobles de las
-dos centrales, como se hacía en SQL Server, no es exacto (la de 0,10 y
-0,20 daba 0,15000000000000002). La mediana consolidada
-(`PERCENTILE_CONT`) interpola en doble y puede quedar a una unidad de la
-última cifra del doble más cercano.
+mediana de 1e-30 y 2e-30 salía 2e-30). La mediana consolidada de las
+demás columnas numéricas interpola en doble y puede quedar a una unidad
+de la última cifra del doble más cercano.
 
 ## Lo que el motor guarda distinto que R
 
@@ -1180,15 +1182,23 @@ eso no es lo mismo que la tabla en R:
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
-  medias pueden diferir entre motores y con la de R, y ninguna es la
-  exacta. La corroboración cruzada lo declara cuando compara las dos. La
-  media y el desvío se le piden al motor como doble donde su aritmética
-  decimal los recortaría: en SQL Server `AVG(CAST(x AS FLOAT))`, porque
-  `AVG` de un `numeric` devuelve seis decimales, y en PostgreSQL
-  `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))`, porque sobre magnitudes
-  grandes el desvío de un `numeric` sale con cuatro; en MySQL y MariaDB
-  `AVG(x * 1e0)`, porque `AVG` de un `DECIMAL` devuelve cinco decimales.
-  En los demás motores, `x * 1.0`.
+  medias pueden diferir entre motores y con la de R. La de R
+  —[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  `perfil_muestra` y `bloque_filas`— es el doble más cercano de la media
+  exacta de los dobles que leyó. La media y el desvío que calcula el
+  motor salen de su aritmética y no son, en general, el doble más
+  cercano del exacto: medido sobre columnas de cuatro a nueve valores en
+  los siete motores, por la tabla completa, la media quedó a uno o dos
+  ulps en hasta 19 de 112 columnas (SQL Server) y el desvío a un ulp en
+  6 a 11 de cada 21 a 112; con más filas la diferencia puede crecer. La
+  corroboración cruzada la tolera hasta `1e-10` relativa y la declara
+  cuando pasa de ahí. La media y el desvío se le piden al motor como
+  doble donde su aritmética decimal los recortaría: en SQL Server
+  `AVG(CAST(x AS FLOAT))`, porque `AVG` de un `numeric` devuelve seis
+  decimales, y en PostgreSQL `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))`,
+  porque sobre magnitudes grandes el desvío de un `numeric` sale con
+  cuatro; en MySQL y MariaDB `AVG(x * 1e0)`, porque `AVG` de un
+  `DECIMAL` devuelve cinco decimales. En los demás motores, `x * 1.0`.
 
 - **El desvío de una sola pasada.** `STDEV` de SQL Server —y, con menos
   pérdida, el desvío nativo de SQLite, duckdb, MariaDB y MySQL— acumula

@@ -649,7 +649,8 @@ con su motivo, y el mínimo, el máximo y los conteos se juzgan como en
 cualquier otra columna. En una columna que no pasa de 2^53, la mediana de una cantidad par
 tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
 <code>PERCENTILE_CONT</code> interpola <code>bajo + (alto - bajo) * 0.5</code> en doble y esa resta
-redondea. Lo que el motor cuenta con exactitud -<code>n_distintos</code>, la moda- se
+redondea. La de un <code>numeric</code> no pasa por ahí: es la suma de sus centrales.
+Lo que el motor cuenta con exactitud -<code>n_distintos</code>, la moda- se
 sigue publicando. La moda de un entero ancho que llego como <code>numeric</code> se pide al
 motor como texto exacto cuando la magnitud cruza 2^53; un <code>BIGINT</code> con
 valores chicos conserva la moda numerica de siempre. Lo decide el valor: un
@@ -1053,20 +1054,22 @@ en 1e8 y redondea a diez decimales, y por eso usa la mediana por columna
 como MySQL. En ese caso el mensaje del motor queda en
 <code>meta$mediana_consolidada$motivo</code> —sin sus literales con la protección
 activa, entero sin ella, como todo mensaje del motor: ver «Datos
-personales»—, y se conserva la mediana por columna. En DuckDB,
-<code>PERCENTILE_CONT</code> de un <code>DECIMAL</code> interpola en el <code>DECIMAL</code> de la columna y
-trunca a su escala —la mediana de 1,00 y 1,01 en <code>DECIMAL(10,2)</code> salía
-1,00—: se pide sobre el doble de cada valor, que es la mediana de R sobre lo
-que lee el controlador.
-La mediana por columna de un decimal en MySQL, MariaDB y SQL Server suma en el
-tipo de la columna sus una o dos filas centrales, y R divide esa suma por
-cuántas son: es el doble más cercano de la mediana exacta. <code>AVG(x * 1.0)</code>
+personales»—, y se conserva la mediana por columna.
+La mediana de un decimal no entra en la consolidada: en MySQL, MariaDB, SQL
+Server, PostgreSQL y DuckDB se piden, en el tipo de la columna, la suma de
+sus una o dos filas centrales y cuántas son, y R divide: es el doble más
+cercano de la mediana exacta, por la tabla completa y por la muestra del
+motor. Cuesta una consulta por columna decimal, que el plan cuenta.
+<code>PERCENTILE_CONT</code> interpola en doble, y la de un decimal quedaba a un ulp
+del doble más cercano (la de 0,10 y 0,20 daba 0,15000000000000002, el
+promedio de los dobles); en DuckDB, además, interpola un <code>DECIMAL</code> en su
+propia escala y trunca, y convierte a doble un decimal de más de 18 cifras
+sin dar el más cercano: ahí la suma se lee por su texto. <code>AVG(x * 1.0)</code>
 necesita una cifra de escala más que la columna y en la escala máxima del
 motor —30 en MySQL, 38 en MariaDB— se recortaba (la mediana de 1e-30 y 2e-30
-salía 2e-30); promediar en R los dobles de las dos centrales, como se hacía en
-SQL Server, no es exacto (la de 0,10 y 0,20 daba 0,15000000000000002). La
-mediana consolidada (<code>PERCENTILE_CONT</code>) interpola en doble y puede quedar a
-una unidad de la última cifra del doble más cercano.</p>
+salía 2e-30). La
+mediana consolidada de las demás columnas numéricas interpola en doble y
+puede quedar a una unidad de la última cifra del doble más cercano.</p>
     </div>
     <div class="section level2">
     <h2 id="lo-que-el-motor-guarda-distinto-que-r">Lo que el motor guarda distinto que R<a class="anchor" aria-label="anchor" href="#lo-que-el-motor-guarda-distinto-que-r"></a></h2>
@@ -1194,9 +1197,16 @@ por una potencia de dos cuando llega un bloque que la escala vigente no
 cubre. Las columnas de magnitud común no cambian de consulta ni de cifra.</p></li>
 <li><p><strong>La media en coma flotante.</strong> Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —<code>1e20</code> junto a <code>1</code>— las medias pueden
-diferir entre motores y con la de R, y ninguna es la exacta. La
-corroboración cruzada lo declara cuando compara las dos. La media y el
-desvío se le piden al motor como doble donde su aritmética decimal los
+diferir entre motores y con la de R. La de R —<code><a href="perfilar.html">perfilar()</a></code>,
+<code>perfil_muestra</code> y <code>bloque_filas</code>— es el doble más cercano de la media
+exacta de los dobles que leyó. La media y el desvío que calcula el motor
+salen de su aritmética y no son, en general, el doble más cercano del
+exacto: medido sobre columnas de cuatro a nueve valores en los siete
+motores, por la tabla completa, la media quedó a uno o dos ulps en hasta 19
+de 112 columnas (SQL Server) y el desvío a un ulp en 6 a 11 de cada 21 a
+112; con más filas la diferencia puede crecer. La corroboración cruzada la
+tolera hasta <code>1e-10</code> relativa y la declara cuando pasa de ahí. La media y
+el desvío se le piden al motor como doble donde su aritmética decimal los
 recortaría: en SQL Server <code>AVG(CAST(x AS FLOAT))</code>, porque <code>AVG</code> de un
 <code>numeric</code> devuelve seis decimales, y en PostgreSQL
 <code>STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))</code>, porque sobre magnitudes

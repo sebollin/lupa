@@ -149,12 +149,13 @@ Primera versión publicada.
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   tarda 0,11 s y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  0,21 s en una sesión ya iniciada, y 0,20 s y 0,35 s en la primera
-  llamada de una sesión nueva (0,25 s y 0,41 s para
+  0,21 s en una sesión ya iniciada, y 0,20 s y 0,34 s en la primera
+  llamada de una sesión nueva. Con la protección pedida,
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  con la protección pedida). Las cifras son de
-  `benchmark/medir_costo_fijo.R` y quedan en
-  `benchmark/datos/medir-costo-fijo.csv`.
+  tarda 0,25 s y 0,39 s, y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  0,62 s y 0,79 s. Las cifras son de `benchmark/medir_costo_fijo.R` y
+  quedan en `benchmark/datos/medir-costo-fijo.csv`.
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre tablas anchas con muchas columnas iguales o de códigos de texto
   es varias veces más rápido, con la misma salida. Los hallazgos
@@ -618,6 +619,32 @@ Primera versión publicada.
   `meta$consultas$fallas`, la muestra ni los bloques: pasa por el mismo
   piso que con la protección pedida. PostgreSQL, SQL Server y DuckDB lo
   publicaban entero.
+- La media de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  de `perfil_muestra`, de `bloque_filas` y de la muestra del motor es el
+  doble más cercano de la media exacta. Se acumulaba en doble, centrada
+  en la media del primer bloque, y se equivocaba sin aviso cuando los
+  valores se cancelan: `c(-2^51, 1, 2, 2^51)` daba 0,6875 por 0,75;
+  quince mil valores de 2^51, quince mil de -2^51 y `1:3`, una media de
+  signo cambiado; y en `perfil_muestra` la corroboración lo contaba como
+  divergencia contra el `AVG` del motor. También sin cancelación:
+  `rnorm(2e6)` quedaba a 19 ulps, y cuarenta enteros chicos por
+  `bloque_filas = 7`, a ocho. Cada bloque se suma ahora sin redondeo,
+  sin depender del `long double` de
+  [`sum()`](https://rdrr.io/r/base/sum.html), con el mismo costo. El
+  desvío no cambia: puede quedar a unos ulps del exacto.
+- La mediana de un decimal en SQL Server (compatibilidad 110 o más),
+  PostgreSQL 9.4 o más y DuckDB es el doble más cercano de la exacta,
+  por la tabla completa y por la muestra del motor: el motor suma sus
+  una o dos centrales, como ya en MySQL, MariaDB y SQL Server con
+  compatibilidad 100, en lugar de `PERCENTILE_CONT`, que interpola en
+  doble y la dejaba a un ulp. En DuckDB la suma se lee por su texto (el
+  controlador convierte un decimal de más de 18 cifras a un doble que no
+  es el más cercano), y en SQL Server el `money` se suma como
+  `decimal(38,4)`, que no desborda. Cuesta una consulta por columna
+  decimal, que
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  cuenta.
 - En SQL Server, la muestra del motor lee el texto de un decimal de más
   de 30 cifras (`CAST(... AS VARCHAR)` es `VARCHAR(30)`, y la lectura de
   toda la muestra abortaba) y `money` con sus cuatro decimales: 0,0001

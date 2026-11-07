@@ -1280,10 +1280,12 @@ If the probe accepts <code>PERCENTILE_CONT(...) WITHIN GROUP</code> and
 the percentile returns its full digits, several travel in a single
 <code>SELECT</code> per batch. The test asks for a row with a value
 above 1e8 and another below 1e-10, which have to come back identical. In
-SQL Server that requires compatibility level 110 or higher. MariaDB
-accepts the form, but returns the percentile with 10 decimals and a cap
-at 1e8: it uses the median per column, like MySQL. The reason for a
-rejection stays in <code>meta$mediana_consolidada$motivo</code>.</li>
+SQL Server that requires compatibility level 110 or higher. Decimal
+columns do not go in that <code>SELECT</code>: their median is the sum
+of their middle values, one query per column. MariaDB accepts the form,
+but returns the percentile with 10 decimals and a cap at 1e8: it uses
+the median per column, like MySQL. The reason for a rejection stays in
+<code>meta$mediana_consolidada$motivo</code>.</li>
 <li>In the dialects with <code>LIMIT</code> that do not have
 <code>PERCENTILE_CONT</code>, like SQLite and PostgreSQL 9.3, the count
 of the median goes in a scalar subquery of the same statement. For that,
@@ -2299,13 +2301,14 @@ listed in <code>perfil_muestra$meta$desvio_decimal_doble</code>, and the
 cross-check does not compare it (cause <code>decimal_doble</code>)</td>
 </tr>
 <tr class="odd">
-<td>MySQL, MariaDB, SQL Server</td>
+<td>MySQL, MariaDB, SQL Server, PostgreSQL, DuckDB</td>
 <td>
 <code>AVG(x * 1.0)</code> of a decimal is cut at the engine’s
-maximum scale (30, 38), and averaging in R the doubles of two middle
-values is not exact</td>
+maximum scale (30, 38), <code>PERCENTILE_CONT</code> interpolates in
+double, and averaging in R the doubles of two middle values is not
+exact</td>
 <td>a decimal’s median sums its middle values in the engine and R
-divides by how many there are</td>
+divides by how many there are: one query per decimal column</td>
 </tr>
 <tr class="even">
 <td>SQL Server</td>
@@ -2328,9 +2331,10 @@ writes <code>money</code> with two decimals</td>
 <td>DuckDB</td>
 <td>
 <code>PERCENTILE_CONT</code> interpolates a <code>DECIMAL</code> in
-its own scale and truncates</td>
-<td>the median of a <code>DECIMAL</code> is requested on the double of
-each value</td>
+its own scale and truncates, and the driver converts a decimal of more
+than 18 digits to a double that is not the nearest</td>
+<td>the median of a <code>DECIMAL</code> goes by the sum of its middle
+values, read through its text</td>
 </tr>
 <tr class="odd">
 <td>PostgreSQL</td>
@@ -2338,8 +2342,8 @@ each value</td>
 <code>PERCENTILE_CONT</code> interpolates
 <code>low + (high - low) * 0.5</code> in double</td>
 <td>with an even count and middle values more than 2^53 apart, the
-median stays <code>no_disponible</code>
-</td>
+median stays <code>no_disponible</code> (that of a <code>numeric</code>
+goes by the sum of its middle values and is published)</td>
 </tr>
 <tr class="even">
 <td>SQL Server</td>

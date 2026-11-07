@@ -801,10 +801,11 @@ muestreo. Por eso las consultas se agrupan:
   cifras completas, varias viajan en un solo `SELECT` por lote. La
   prueba pide una fila con un valor de más de 1e8 y otro de menos de
   1e-10, que tienen que volver idénticos. En SQL Server eso requiere
-  nivel de compatibilidad 110 o mayor. MariaDB acepta la forma, pero
-  devuelve el percentil con 10 decimales y un tope en 1e8: usa la
-  mediana por columna, como MySQL. El motivo de un rechazo queda en
-  `meta$mediana_consolidada$motivo`.
+  nivel de compatibilidad 110 o mayor. Las columnas decimales no entran
+  en ese `SELECT`: su mediana es la suma de sus centrales, una consulta
+  por columna. MariaDB acepta la forma, pero devuelve el percentil con
+  10 decimales y un tope en 1e8: usa la mediana por columna, como MySQL.
+  El motivo de un rechazo queda en `meta$mediana_consolidada$motivo`.
 - En los dialectos con `LIMIT` que no tienen `PERCENTILE_CONT`, como
   SQLite y PostgreSQL 9.3, el conteo de la mediana va en una subconsulta
   escalar de la misma sentencia. Para eso, la sonda tiene que aceptar la
@@ -1539,11 +1540,11 @@ Los casos conocidos, con lo que publica el paquete:
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
 | cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | quedan `no_disponible` las métricas de magnitud que dependen de un valor que el doble no representa (`minimo`, `maximo`, `media`, `desvio`, `n_ceros` y `n_negativos`). La mediana se publica cuando su valor es exacto: con una cantidad impar, si la central queda por debajo de 2^53; con una par, si las dos centrales quedan entre -2^52 y 2^52, lo que en la tabla completa cuesta una consulta más. `perfil_muestra`, la muestra leída en R y [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) la deciden por sus centrales, que tienen a la vista: se publica si caben en un doble. La moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con [`bit64`](https://CRAN.R-project.org/package=bit64), como `integer64` |
 | cualquiera | un decimal con más cifras de las que guarda un doble llega como doble | por bloques y por la muestra del motor (salvo en PostgreSQL), y también con la muestra leída en R, el desvío queda `no_disponible` si el redondeo de cada valor puede moverlo más de una parte en mil millones, salvo que el catálogo declare escala 0 y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB y SQL Server); por la tabla completa se resta en el tipo de la columna. El desvío de `perfil_muestra` sigue la misma regla en todas las vías, también por la tabla completa: no se publica, queda en `perfil_muestra$meta$desvio_decimal_doble`, y la corroboración no lo compara (causa `decimal_doble`) |
-| MySQL, MariaDB, SQL Server | `AVG(x * 1.0)` de un decimal se recorta en la escala máxima del motor (30, 38), y promediar en R los dobles de dos centrales no es exacto | la mediana de un decimal suma en el motor sus centrales y R divide por cuántas son |
+| MySQL, MariaDB, SQL Server, PostgreSQL, DuckDB | `AVG(x * 1.0)` de un decimal se recorta en la escala máxima del motor (30, 38), `PERCENTILE_CONT` interpola en doble, y promediar en R los dobles de dos centrales no es exacto | la mediana de un decimal suma en el motor sus centrales y R divide por cuántas son: una consulta por columna decimal |
 | SQL Server | `CAST(x AS VARCHAR)` es `VARCHAR(30)`, y escribe `money` con dos decimales | la muestra pide el texto de un decimal como `VARCHAR(48)` y el de `money` con `CONVERT(..., 2)` |
 | DuckDB | `AVG(x * 1.0)` desborda con un `HUGEINT` desde 10^37 o un `UHUGEINT` desde 10^38 | los básicos se repiten sin el promedio; la media queda `no_disponible` y lo demás se juzga como en cualquier columna |
-| DuckDB | `PERCENTILE_CONT` interpola un `DECIMAL` en su propia escala y trunca | la mediana de un `DECIMAL` se pide sobre el doble de cada valor |
-| PostgreSQL | `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble | con una cantidad par y centrales que distan más de 2^53, la mediana queda `no_disponible` |
+| DuckDB | `PERCENTILE_CONT` interpola un `DECIMAL` en su propia escala y trunca, y el controlador convierte un decimal de más de 18 cifras a un doble que no es el más cercano | la mediana de un `DECIMAL` va por la suma de sus centrales, que se lee por su texto |
+| PostgreSQL | `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble | con una cantidad par y centrales que distan más de 2^53, la mediana queda `no_disponible` (la de un `numeric` va por la suma de sus centrales y se publica) |
 | SQL Server | `decimal - literal` de más de 38 cifras se redondea, y desde la compatibilidad 110 el empate va lejos del cero | el centro del desvío de un decimal nunca termina en 5 |
 | SQLite | RSQLite da `integer` o `integer64` según los valores de cada bloque | con `bloque_filas`, los bloques se unen como `integer64` antes de contar distintos, moda y mediana |
 | SQLite | la media de la ventana de la muestra es un doble redondeado | la suma de cuadrados resta `n * (media - centro)^2` |

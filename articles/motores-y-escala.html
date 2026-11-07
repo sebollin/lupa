@@ -1261,9 +1261,11 @@ respaldo. Si la sonda acepta
 sus cifras completas, varias viajan en un solo <code>SELECT</code> por
 lote. La prueba pide una fila con un valor de más de 1e8 y otro de menos
 de 1e-10, que tienen que volver idénticos. En SQL Server eso requiere
-nivel de compatibilidad 110 o mayor. MariaDB acepta la forma, pero
-devuelve el percentil con 10 decimales y un tope en 1e8: usa la mediana
-por columna, como MySQL. El motivo de un rechazo queda en
+nivel de compatibilidad 110 o mayor. Las columnas decimales no entran en
+ese <code>SELECT</code>: su mediana es la suma de sus centrales, una
+consulta por columna. MariaDB acepta la forma, pero devuelve el
+percentil con 10 decimales y un tope en 1e8: usa la mediana por columna,
+como MySQL. El motivo de un rechazo queda en
 <code>meta$mediana_consolidada$motivo</code>.</li>
 <li>En los dialectos con <code>LIMIT</code> que no tienen
 <code>PERCENTILE_CONT</code>, como SQLite y PostgreSQL 9.3, el conteo de
@@ -2269,13 +2271,13 @@ en <code>perfil_muestra$meta$desvio_decimal_doble</code>, y la
 corroboración no lo compara (causa <code>decimal_doble</code>)</td>
 </tr>
 <tr class="odd">
-<td>MySQL, MariaDB, SQL Server</td>
+<td>MySQL, MariaDB, SQL Server, PostgreSQL, DuckDB</td>
 <td>
 <code>AVG(x * 1.0)</code> de un decimal se recorta en la escala
-máxima del motor (30, 38), y promediar en R los dobles de dos centrales
-no es exacto</td>
+máxima del motor (30, 38), <code>PERCENTILE_CONT</code> interpola en
+doble, y promediar en R los dobles de dos centrales no es exacto</td>
 <td>la mediana de un decimal suma en el motor sus centrales y R divide
-por cuántas son</td>
+por cuántas son: una consulta por columna decimal</td>
 </tr>
 <tr class="even">
 <td>SQL Server</td>
@@ -2299,9 +2301,10 @@ columna</td>
 <td>DuckDB</td>
 <td>
 <code>PERCENTILE_CONT</code> interpola un <code>DECIMAL</code> en su
-propia escala y trunca</td>
-<td>la mediana de un <code>DECIMAL</code> se pide sobre el doble de cada
-valor</td>
+propia escala y trunca, y el controlador convierte un decimal de más de
+18 cifras a un doble que no es el más cercano</td>
+<td>la mediana de un <code>DECIMAL</code> va por la suma de sus
+centrales, que se lee por su texto</td>
 </tr>
 <tr class="odd">
 <td>PostgreSQL</td>
@@ -2309,8 +2312,8 @@ valor</td>
 <code>PERCENTILE_CONT</code> interpola
 <code>bajo + (alto - bajo) * 0.5</code> en doble</td>
 <td>con una cantidad par y centrales que distan más de 2^53, la mediana
-queda <code>no_disponible</code>
-</td>
+queda <code>no_disponible</code> (la de un <code>numeric</code> va por
+la suma de sus centrales y se publica)</td>
 </tr>
 <tr class="even">
 <td>SQL Server</td>
