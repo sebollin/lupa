@@ -339,7 +339,11 @@ matrices, \code{data.frame} anidados o \code{POSIXlt}; una tabla con columnas de
 deja las acciones bloqueadas. Las de columnas duplicadas comparan el
 contenido como el perfil: un factor con nivel \code{NA} y el mismo factor sin ese
 nivel, o un \code{POSIXlt} y su \code{POSIXct}, son la misma columna también al
-aplicar. Marcar no elimina filas. Con las dos columnas
+aplicar. Hay una decisión por grupo de columnas iguales, no por par:
+marcarlo, o eliminar las repetidas y conservar la primera del grupo.
+\code{columna_1} nombra la que se conserva, y \code{columna_2} y \code{eliminar}, todas las
+repetidas; el atributo \code{columnas_duplicadas_marcadas} lleva una fila por
+repetida, junto a la primera. Marcar no elimina filas. Con las dos columnas
 incluidas, las marcas distinguen la primera aparición de las repetidas, pero
 no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 posterior sigue contando duplicadas. Para saber si los duplicados siguen en

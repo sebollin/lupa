@@ -23,6 +23,20 @@ Primera versión publicada.
   `detectar_relaciones()`, `detectar_dependencias()`,
   `detectar_formatos_fecha()`, `descubrir_patrones()`, `inferir_tipo()` y
   `distribucion_valores()`.
+- `columnas_duplicadas` publica un hallazgo por **grupo** de columnas con el
+  mismo contenido, no uno por par: `columna` es la primera del grupo en el
+  orden de los datos, la evidencia las nombra a todas (`A = B = C; comparadas
+  sobre 5 filas`) y `n_afectados` las cuenta a todas, como `filas_duplicadas`
+  con sus filas. Con dos columnas el hallazgo es el de siempre.
+  `general$columnas_duplicadas` tiene una fila por columna repetida, junto a la
+  primera de su grupo. `planificar_limpieza()` propone una decisión por grupo
+  —marcarlo, o eliminar las repetidas y conservar la primera— y
+  `comparar_perfiles()` compara los grupos por las igualdades que afirman: si C
+  deja de ser igual a `A = B`, publica un resuelto y no dos, y un perfil
+  guardado con la forma por pares se compara sin deriva falsa. Con 1.000
+  columnas iguales eran 499.500 hallazgos: `planificar_limpieza()`,
+  `comparar_perfiles()` y `analizar()` no terminaban en 5 minutos y ahora tardan
+  2, 3 y 22 s, y `print()` del perfil pasa de 37 s a 0,6 s.
 
 ## Medición de la calidad
 
@@ -106,10 +120,9 @@ Primera versión publicada.
   0,25 s y 0,39 s, y `analizar()` 0,62 s y 0,79 s. Las cifras son de `benchmark/medir_costo_fijo.R` y quedan
   en `benchmark/datos/medir-costo-fijo.csv`.
 - `perfilar()` sobre tablas anchas con muchas columnas iguales o de códigos de
-  texto es varias veces más rápido, con la misma salida. Los hallazgos
-  `columnas_duplicadas` se arman, trazan y revisan de una vez y no par por par,
-  y la búsqueda de casi duplicados del vocabulario no calcula la mitad de la
-  matriz de distancias que no lee. Las columnas iguales se buscan agrupándolas
+  texto es varias veces más rápido. La búsqueda de casi duplicados del
+  vocabulario no calcula la mitad de la matriz de distancias que no lee, y
+  `columnas_duplicadas` publica un hallazgo por grupo (ver «Perfilado»). Las columnas iguales se buscan agrupándolas
   por una huella y comparando cada una con un representante, no par por par.
   Con 500 filas y 1.000 columnas iguales, de 379 a 387 s pasa a 28 a 30 s (los
   2 CSV fechados de `benchmark/medir_topes_valores_ancho.R` en
@@ -432,6 +445,14 @@ Primera versión publicada.
   de `max_asimetria_equifrecuente_vocabulario` ahora se cuenta, y dos grupos que
   sólo se tocaban por una pareja publicada salen separados. Los grupos de
   `casi_duplicados_vocabulario` no cambian.
+- En la fila de cobertura de `proximidad_vocabulario`, los pares cercanos que
+  forman cadenas cuya asimetría de punta a punta supera
+  `max_asimetria_equifrecuente_vocabulario` se declaran aparte: con
+  `Montevideo` (25), `Montevido` (20) y `Montividoo` (10), a 1,25 y 2 de a
+  pares y a 2,5 de punta a punta, la fila dice «…2 pares cercanos, con
+  asimetría <= 2.0 entre ellos, forman cadenas cuya asimetría de punta a punta
+  supera 2.0 y no se agrupan». Antes no se declaraban en ningún lado. El tope
+  por grupo no cambia.
 - La mediana de una columna entera o decimal con valores de 2^53 o más se decide
   por su valor y no por la columna, con la misma regla en los siete motores: con
   una cantidad impar se publica si la central queda por debajo de 2^53 (la de

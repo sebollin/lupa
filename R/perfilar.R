@@ -1894,7 +1894,12 @@
 #'   columna. Con `2`, `40` contra `5` no entra y `5` contra `5` sí. Las
 #'   grafías que la normalización junta cuentan juntas: `MONTEVIDEO` (10) y
 #'   `Montevideo` (40) contra `Montevido` (50) es un empate, el grupo publica
-#'   las tres formas con sus frecuencias y su asimetría es 1.
+#'   las tres formas con sus frecuencias y su asimetría es 1. El tope es del
+#'   grupo, no de cada par: `Montevideo` (25), `Montevido` (20) y
+#'   `Montividoo` (10) están a 1,25 y 2 de a pares, pero a 2,5 de punta a
+#'   punta, y no se agrupan. Sus pares se declaran aparte en la misma fila de
+#'   `cobertura_diagnosticos`, como pares cercanos que forman cadenas sobre el
+#'   tope.
 #' @param max_comparaciones_dependencias Tope de pares determinante-dependiente
 #'   que se comparan. El costo de las dependencias es del orden de
 #'   `columnas^2 x filas` y empeora con determinantes casi únicos; cuando el
@@ -2514,7 +2519,12 @@
 #'   formas variantes y cuantas a las formas dominantes.
 #'   En `filas_duplicadas`, el conteo y la traza incluyen todas las filas
 #'   participantes de los grupos; el numero de excedentes queda en la
-#'   evidencia. Cuando el camino
+#'   evidencia. `columnas_duplicadas` publica un hallazgo por grupo de
+#'   columnas con el mismo contenido, no uno por par: `columna` es la primera
+#'   del grupo en el orden de los datos, la evidencia nombra a todas
+#'   (`A = B = C`) y `n_afectados` las cuenta a todas. `general$columnas_duplicadas`
+#'   tiene una fila por cada columna repetida, con la primera de su grupo en
+#'   `columna_1` y la repetida en `columna_2`. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
@@ -3093,6 +3103,11 @@ perfilar <- function(datos,
     error = function(e) NA_integer_
   )
   duplicadas <- .columnas_duplicadas(datos, nombres)
+  # La clase de cada fila se usa para armar los hallazgos y no se guarda en
+  # `general`: con los nombres de las dos columnas alcanza para planificar y
+  # comparar, salvo nombres repetidos, que ya tienen su propio hallazgo.
+  grupo_duplicadas <- attr(duplicadas, "grupo", exact = TRUE)
+  attr(duplicadas, "grupo") <- NULL
   duplicadas_texto <- duplicadas
   if (nrow(duplicadas_texto)) {
     duplicadas_texto$columna_1 <- nombres_texto[
@@ -3168,7 +3183,8 @@ perfilar <- function(datos,
     max_largo_valor = max_largo_valor_vocabulario,
     trazador_tiempos = trazador_tiempos,
     nombres_texto = nombres_texto,
-    duplicadas_texto = duplicadas_texto
+    duplicadas_texto = duplicadas_texto,
+    grupo_duplicadas = grupo_duplicadas
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE

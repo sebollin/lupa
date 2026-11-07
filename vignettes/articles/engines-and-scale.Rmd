@@ -1215,8 +1215,8 @@ and numeric and categorical columns.
 It is a reference for the common case, not a bound.
 `benchmark/medir_topes_valores_ancho.R` measures equal columns of text codes
 (`"valor_1"`, `"valor_2"`...), with the near-duplicate search of the vocabulary
-turned off and a `columnas_duplicadas` finding for each pair of columns. Its
-slowest case is `r chartr(".,", ",.", num(round(codigos_minima)))` cells per
+turned off. As all the columns are equal, the profile publishes a single
+`columnas_duplicadas` finding that names them all. Its slowest case is `r chartr(".,", ",.", num(round(codigos_minima)))` cells per
 second, also above the reference.
 
 ```{r codigos-ancho-comprobar, echo = FALSE}

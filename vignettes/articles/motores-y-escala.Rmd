@@ -1176,8 +1176,8 @@ numéricas y categóricas.
 Es una referencia para el caso común, no una cota.
 `benchmark/medir_topes_valores_ancho.R` mide columnas iguales de códigos de texto
 (`"valor_1"`, `"valor_2"`...), con la búsqueda de casi duplicados del vocabulario
-apagada y un hallazgo `columnas_duplicadas` por cada par de columnas. Su caso más
-lento son `r num(round(codigos_minima))` celdas por segundo, también por encima de
+apagada. Como todas las columnas son iguales, el perfil publica un solo hallazgo
+`columnas_duplicadas` que las nombra a todas. Su caso más lento son `r num(round(codigos_minima))` celdas por segundo, también por encima de
 la referencia.
 
 ```{r codigos-ancho-comprobar, echo = FALSE}

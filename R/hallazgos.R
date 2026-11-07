@@ -160,7 +160,8 @@
                             estado_reparacion = NA_character_) {
   # Una fila por elemento de `columna` y `evidencia`: un detector que informa
   # muchos casos del mismo tipo los arma de una vez (ver `columnas_duplicadas`
-  # en `.construir_hallazgos()`). Cada fila lleva su propia traza vacia.
+  # en `.construir_hallazgos()`, un hallazgo por grupo). Cada fila lleva su
+  # propia traza vacia.
   n_filas <- max(length(columna), length(evidencia), 1L)
   data.frame(
     columna = columna,
@@ -1184,6 +1185,7 @@
       n_grupos_bajo_piso_asimetria = 0L,
       n_grupos_sin_variante_rara = 0L,
       n_pares_equifrecuentes = 0,
+      n_pares_cadenas_equifrecuentes = 0,
       max_asimetria_equifrecuente = max_asimetria_equifrecuente,
       min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = 0,
@@ -1972,6 +1974,7 @@
     n_unidades,
     cbind(unidad_extremo_1, unidad_extremo_2)[par_sin_declarar, , drop = FALSE]
   )
+  cadenas_sobre_el_tope <- list()
   grupos_equifrecuentes_candidatos <- if (length(unidad_activa)) {
     # Las variantes que se publican y sus frecuencias son de formas. La
     # asimetria no: es de unidades, la misma con que `registrar_equifrecuentes()`
@@ -1981,12 +1984,18 @@
     componente_forma <- componentes_equifrecuentes[clases]
     activa_forma <- unidad_activa[clases]
     candidatos <- split(which(activa_forma), componente_forma[activa_forma])
-    Filter(function(indices) {
+    dentro_del_tope <- function(indices) {
       frecuencias_unidades <- frecuencia_unidad[unique(clases[indices])]
       length(indices) > 1L &&
         max(frecuencias_unidades) / min(frecuencias_unidades) <=
           max_asimetria_equifrecuente
-    }, candidatos)
+    }
+    # Lo que el tope deja afuera tambien se declara: cada par esta dentro del
+    # tope, pero la cadena que forman lo pasa de punta a punta -25, 20 y 10
+    # con tope 2- y no se agrupa. Sin declararlos, esos pares no salian en
+    # ningun lado.
+    cadenas_sobre_el_tope <- Filter(Negate(dentro_del_tope), candidatos)
+    Filter(dentro_del_tope, candidatos)
   } else list()
   # La misma regla del limite, y no una segunda: las aristas equifrecuentes se
   # registran despues del filtro numerico, asi que un candidato tampoco mezcla
@@ -2000,6 +2009,16 @@
     ]
     evaluado_aparte_sin_numeros <- evaluado_aparte_sin_numeros ||
       length(grupos_equifrecuentes_candidatos) > 0L
+  }
+  # Una cadena fuera del limite ya la declara la fila de "no aplica" de la
+  # columna; se cuentan las que el limite admite, con la misma regla.
+  if (!aplicable && length(cadenas_sobre_el_tope)) {
+    cadenas_sobre_el_tope <- cadenas_sobre_el_tope[
+      admitido_por_limite(vapply(
+        cadenas_sobre_el_tope,
+        function(indices) any(con_numeros_unidad[clases[indices]]), logical(1L)
+      ))
+    ]
   }
   # La fila de cobertura dice "N grupos de formas cercanas no se formaron...
   # Se identificaron M pares", y M se lee como los pares de esos N grupos. Se
@@ -2015,6 +2034,16 @@
     par_sin_declarar &
       pares_equifrecuentes_1 %in% formas_contadas &
       pares_equifrecuentes_2 %in% formas_contadas
+  )
+  # Los pares de las cadenas, contados con la misma definicion: sin declarar
+  # por el camino principal y con los dos extremos en una cadena. Una cadena
+  # es otro componente que los candidatos contados, asi que ningun par entra
+  # en las dos cuentas.
+  formas_en_cadenas <- unlist(cadenas_sobre_el_tope, use.names = FALSE)
+  n_pares_cadenas_equifrecuentes <- sum(
+    par_sin_declarar &
+      pares_equifrecuentes_1 %in% formas_en_cadenas &
+      pares_equifrecuentes_2 %in% formas_en_cadenas
   )
   grupos_equifrecuentes <- list()
   if (isTRUE(detectar_variantes_equifrecuentes) &&
@@ -2123,6 +2152,7 @@
         length(grupos_equifrecuentes_candidatos)
       ),
       n_pares_equifrecuentes = as.numeric(n_pares_equifrecuentes),
+      n_pares_cadenas_equifrecuentes = as.numeric(n_pares_cadenas_equifrecuentes),
       max_asimetria_equifrecuente = max_asimetria_equifrecuente,
       min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = n_pares_descartados_numeros,
@@ -2268,31 +2298,68 @@
       )
     }
     # Con la columna fuera del limite, los candidatos que quedan son los sin
-    # numeros que se juzgaron aparte; los demas ya no se cuentan.
-    if (isTRUE(alcance$n_grupos_sin_variante_rara > 0L) &&
-        (isTRUE(alcance$aplicable) ||
-           isTRUE(alcance$evaluado_aparte_sin_numeros))) {
+    # numeros que se juzgaron aparte; los demas ya no se cuentan. Las cadenas
+    # que pasan el tope de punta a punta van en la misma fila, en una
+    # clausula aparte, y la fila sale tambien si son lo unico que hay: cada
+    # par cercano se declara en algun lado.
+    n_pares_cadenas <- alcance$n_pares_cadenas_equifrecuentes
+    hay_cadenas <- isTRUE(n_pares_cadenas > 0)
+    hay_sin_variante_rara <- isTRUE(alcance$n_grupos_sin_variante_rara > 0L) &&
+      (isTRUE(alcance$aplicable) ||
+         isTRUE(alcance$evaluado_aparte_sin_numeros))
+    if (hay_sin_variante_rara || hay_cadenas) {
+      tope_equifrecuente <- formatC(
+        alcance$max_asimetria_equifrecuente, format = "f", digits = 1
+      )
       nueva_cobertura <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],
         paste0(
-          alcance$n_grupos_sin_variante_rara,
-          if (alcance$n_grupos_sin_variante_rara == 1L) {
-            " grupo de formas cercanas no se form\u00f3"
-          } else " grupos de formas cercanas no se formaron",
-          " porque sus frecuencias fueron parecidas: el criterio de variante",
-          " rara no pudo distinguir una forma correcta de otra.",
-          if (alcance$n_pares_equifrecuentes == 1L) {
-            " Se identific\u00f3 "
-          } else " Se identificaron ",
-          .formatear_numero_publicado(alcance$n_pares_equifrecuentes),
-          if (alcance$n_pares_equifrecuentes == 1L) " par cercano con asimetr\u00eda <= " else " pares cercanos con asimetr\u00eda <= ",
-          formatC(alcance$max_asimetria_equifrecuente,
-                  format = "f", digits = 1), "."
+          if (hay_sin_variante_rara) paste0(
+            alcance$n_grupos_sin_variante_rara,
+            if (alcance$n_grupos_sin_variante_rara == 1L) {
+              " grupo de formas cercanas no se form\u00f3"
+            } else " grupos de formas cercanas no se formaron",
+            " porque sus frecuencias fueron parecidas: el criterio de variante",
+            " rara no pudo distinguir una forma correcta de otra.",
+            if (alcance$n_pares_equifrecuentes == 1L) {
+              " Se identific\u00f3 "
+            } else " Se identificaron ",
+            .formatear_numero_publicado(alcance$n_pares_equifrecuentes),
+            if (alcance$n_pares_equifrecuentes == 1L) " par cercano con asimetr\u00eda <= " else " pares cercanos con asimetr\u00eda <= ",
+            tope_equifrecuente, "."
+          ),
+          if (hay_cadenas) paste0(
+            if (hay_sin_variante_rara) {
+              if (n_pares_cadenas == 1) " Otro " else " Otros "
+            } else "",
+            .formatear_numero_publicado(n_pares_cadenas),
+            if (n_pares_cadenas == 1) {
+              paste0(
+                " par cercano, con asimetr\u00eda <= ", tope_equifrecuente,
+                " entre sus formas, forma parte de una cadena"
+              )
+            } else {
+              paste0(
+                " pares cercanos, con asimetr\u00eda <= ", tope_equifrecuente,
+                " entre ellos, forman cadenas"
+              )
+            },
+            " cuya asimetr\u00eda de punta a punta supera ", tope_equifrecuente,
+            " y no se agrupan."
+          )
         ),
         paste0(
-          "Activar un detector de formas equifrecuentes con conocimiento del ",
-          "dominio, o revisar los pares manualmente; no se puede elegir una ",
-          "forma correcta s\u00f3lo por su frecuencia."
+          if (hay_sin_variante_rara) paste0(
+            "Activar un detector de formas equifrecuentes con conocimiento del ",
+            "dominio, o revisar los pares manualmente; no se puede elegir una ",
+            "forma correcta s\u00f3lo por su frecuencia."
+          ),
+          if (hay_sin_variante_rara && hay_cadenas) " ",
+          if (hay_cadenas) paste0(
+            "Las cadenas se pueden agrupar subiendo ",
+            "`max_asimetria_equifrecuente_vocabulario`, o revisar sus pares ",
+            "manualmente."
+          )
         )
       )
       indice_cobertura <- which(vapply(cobertura, function(x) {
@@ -3748,9 +3815,11 @@
   })
   # Un hallazgo contado en columnas o en formatos no tiene filas que trazar, y
   # `.trazabilidad_hallazgo()` le devuelve la traza `no_aplica` antes de mirar
-  # nada mas. Se resuelve aca, sin extraer la fila con `hallazgos[i, ]`: con
-  # 300 columnas iguales son 44.850 hallazgos `columnas_duplicadas`, y extraer
-  # cada fila de esa tabla costaba 4,4 de los 10,1 s de esta funcion.
+  # nada mas. Se resuelve aca, sin extraer la fila con `hallazgos[i, ]`: cuando
+  # `columnas_duplicadas` publicaba un hallazgo por par, 300 columnas iguales
+  # eran 44.850, y extraer cada fila de esa tabla costaba 4,4 de los 10,1 s de
+  # esta funcion. Sigue valiendo para cualquier tabla con muchos hallazgos
+  # contados en columnas.
   sin_filas <- as.character(hallazgos$unidad_conteo) %in% c("columna", "formato")
   traza_no_aplica <- .trazabilidad_vacia(
     "no_aplica", alcance = "no_aplica", limite = limite
@@ -3906,10 +3975,10 @@
   problemas <- character()
   # Las filas que el recorrido de abajo saltea sin acusar nada se separan antes,
   # de una vez: las informativas (`ok`), las que no traen una traza, y las
-  # contadas en columnas o formatos con su traza `no_aplica`. Con 1.000
-  # columnas iguales son 499.500 hallazgos `columnas_duplicadas`, todos de la
-  # ultima clase, y recorrerlos de a uno costaba 10 s al perfilar y otros 8 en
-  # cada `hallazgos()`. Las demas filas siguen el recorrido completo, en el
+  # contadas en columnas o formatos con su traza `no_aplica`. Cuando
+  # `columnas_duplicadas` publicaba un hallazgo por par, 1.000 columnas iguales
+  # eran 499.500, todos de la ultima clase, y recorrerlos de a uno costaba 10 s
+  # al perfilar y otros 8 en cada `hallazgos()`. Las demas filas siguen el recorrido completo, en el
   # mismo orden. Un objeto editado a mano con columnas de otro tipo lo sigue
   # entero.
   revisar <- seq_len(nrow(hallazgos))
@@ -5832,7 +5901,19 @@
 }
 
 .columnas_duplicadas <- function(datos, nombres) {
-  .pares_de_columnas_identicas(datos, seq_len(ncol(datos)), nombres)
+  .grupos_de_columnas_identicas(datos, seq_len(ncol(datos)), nombres)
+}
+
+# Las filas de `columnas_duplicadas` que forman cada grupo. El detector deja la
+# clase en el atributo `grupo`; sin el -una tabla armada a mano- las filas de un
+# grupo son las consecutivas con la misma primera columna, que es como las
+# ordena el detector.
+.filas_por_grupo_duplicadas <- function(duplicadas, grupo = NULL) {
+  if (is.null(grupo) || length(grupo) != nrow(duplicadas)) {
+    primera <- .nombres_para_operar(duplicadas$columna_1)
+    grupo <- cumsum(c(TRUE, primera[-1L] != primera[-length(primera)]))
+  }
+  unname(split(seq_len(nrow(duplicadas)), match(grupo, unique(grupo))))
 }
 
 .construir_hallazgos <- function(datos, resultados, columnas, duplicadas,
@@ -5863,9 +5944,13 @@
                                  evaluacion_clave = NULL,
                                  trazador_tiempos = NULL,
                                  nombres_texto = NULL,
-                                 duplicadas_texto = NULL) {
+                                 duplicadas_texto = NULL,
+                                 grupo_duplicadas = NULL) {
   if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(columnas)
   if (is.null(duplicadas_texto)) duplicadas_texto <- duplicadas
+  if (is.null(grupo_duplicadas)) {
+    grupo_duplicadas <- attr(duplicadas, "grupo", exact = TRUE)
+  }
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -6028,24 +6113,48 @@
       "Perfilar una tabla con al menos una fila para comparar contenidos."
     ))
   } else if (nrow(duplicadas)) {
-    # Un hallazgo por PAR de columnas iguales: k columnas identicas son
-    # k (k - 1) / 2 filas. Armarlas de a una -un `data.frame()` por par, unido
-    # despues con el resto- costaba 0,3 ms por par: 13 s con 300 columnas
-    # iguales (44.850 pares). Con 1.000 son 499.500, y armar, trazar y revisar
-    # cada uno por separado era casi todo el tiempo de
-    # `benchmark/medir_topes_valores_ancho.R`. Se arman todas juntas; las filas
-    # son las mismas y en el mismo orden.
+    # Un hallazgo por GRUPO de columnas iguales, como `filas_duplicadas` por
+    # sus filas: la igualdad es una equivalencia, y el grupo dice todo lo que
+    # decian sus pares. Con uno por par, k columnas iguales eran
+    # k (k - 1) / 2 hallazgos -499.500 con 1.000 columnas- y cada consumidor
+    # pagaba por ellos: el plan proponia eliminar la misma columna varias
+    # veces y fallaba al aplicarse, el informe desplazaba otros hallazgos fuera
+    # de sus filas y planificar se estimaba en un dia. `columna` es la primera
+    # del grupo en el orden de los datos, la que el plan conserva; la evidencia
+    # nombra a todas, y `n_afectados` las cuenta a todas, como las filas en
+    # grupos de `filas_duplicadas`. Con dos columnas la fila es la de siempre.
+    filas_grupo <- .filas_por_grupo_duplicadas(duplicadas, grupo_duplicadas)
+    primeras <- vapply(filas_grupo, function(f) f[[1L]], integer(1L))
+    n_miembros <- lengths(filas_grupo) + 1L
+    # El mismo `paste()` que armaba el par, para que con dos columnas el texto
+    # salga con los mismos bytes y la misma marca.
+    miembros_texto <- vapply(filas_grupo, function(f) {
+      paste(
+        c(duplicadas_texto$columna_1[[f[[1L]]]], duplicadas_texto$columna_2[f]),
+        collapse = " = "
+      )
+    }, character(1L))
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-      duplicadas$columna_1, "columnas_duplicadas", "sospechoso",
-      "Dos columnas tienen el mismo contenido.",
+      duplicadas$columna_1[primeras], "columnas_duplicadas", "sospechoso",
+      ifelse(
+        n_miembros == 2L,
+        "Dos columnas tienen el mismo contenido.",
+        paste0(
+          .formatear_numero_publicado(n_miembros),
+          " columnas tienen el mismo contenido."
+        )
+      ),
       paste0(
-        duplicadas_texto$columna_1, " = ",
-        duplicadas_texto$columna_2,
+        miembros_texto,
         "; comparadas sobre ", nrow(datos),
         if (nrow(datos) == 1L) " fila" else " filas"
       ),
-      "Confirmar si ambas columnas son necesarias o si existe redundancia.",
-      ncol(datos), 2, "columna"
+      ifelse(
+        n_miembros == 2L,
+        "Confirmar si ambas columnas son necesarias o si existe redundancia.",
+        "Confirmar si todas las columnas son necesarias o si existe redundancia."
+      ),
+      ncol(datos), n_miembros, "columna"
     )
   }
   nombres_problematicos <- .nombres_columnas_problematicos(nombres_texto)

@@ -420,9 +420,11 @@ test_that("las columnas duplicadas se anotan y detectan deriva", {
   resultado <- aplicar(plan, datos)
   marcas <- attr(resultado$datos, "columnas_duplicadas_marcadas")
 
-  expect_equal(nrow(marcas), 3L)
+  # Una marca por repetida, junto a la primera del grupo: `b c` se deduce de
+  # las otras dos.
+  expect_equal(nrow(marcas), 2L)
   expect_setequal(paste(marcas$columna_1, marcas$columna_2), c(
-    "a b", "a c", "b c"
+    "a b", "a c"
   ))
 
   datos_derivados <- datos
@@ -436,7 +438,7 @@ test_that("las columnas duplicadas se anotan y detectan deriva", {
     perfil_incompleto$hallazgos$tipo_hallazgo == "columnas_duplicadas", ,
     drop = FALSE
   ][1L, , drop = FALSE]
-  expect_null(lupa:::.par_columnas_duplicadas(perfil_incompleto, hallazgo))
+  expect_null(lupa:::.miembros_columnas_duplicadas(perfil_incompleto, hallazgo))
 })
 
 test_that("la eliminación comprueba que una columna siga siendo constante", {

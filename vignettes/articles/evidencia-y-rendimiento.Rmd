@@ -624,8 +624,8 @@ una referencia para el caso común y no una cota.
 `benchmark/medir_topes_valores_ancho.R` mide otro caso. Repite una misma columna de
 códigos de texto (`"valor_1"`, `"valor_2"`...) en las mismas 3 anchuras, 3 veces
 cada una, con la búsqueda de casi duplicados del vocabulario apagada. Como todas
-las columnas son iguales, el perfil publica un hallazgo `columnas_duplicadas` por
-cada par: con 1.000 columnas, `r numero(choose(1000, 2))`. Deja
+las columnas son iguales, el perfil publica un solo hallazgo `columnas_duplicadas`
+que las nombra a todas, también con 1.000 columnas. Deja
 `r codigo(archivo_codigos)`, con su fecha, entorno y huella del código:
 
 ```{r velocidad-ancha-codigos}

@@ -74,28 +74,6 @@
   .nombres_unicos(salida, sep = "_")
 }
 
-.par_columnas_duplicadas <- function(perfil, hallazgo) {
-  pares <- perfil$general$columnas_duplicadas
-  if (is.null(pares) || !nrow(pares)) return(NULL)
-  evidencias <- paste(pares$columna_1, "=", pares$columna_2)
-  # La evidencia es prosa para quien lee y puede crecer —hoy declara sobre
-  # cuantas filas se comparo—, asi que el vinculo se hace contra su primer
-  # tramo, no contra la cadena entera. Atarlo al texto completo hacia que
-  # cualquier agregado colapsara dos pares distintos en el mismo.
-  evidencia_hallazgo <- trimws(sub(";.*$", "", hallazgo$evidencia[[1L]]))
-  mismas_columnas <- .nombres_para_operar(pares$columna_1) %in%
-    .nombres_para_operar(hallazgo$columna[[1L]])
-  indices <- which(
-    mismas_columnas &
-      evidencias == evidencia_hallazgo
-  )
-  if (!length(indices)) {
-    indices <- which(mismas_columnas)
-  }
-  if (!length(indices)) return(NULL)
-  unname(unlist(pares[indices[[1L]], c("columna_1", "columna_2")]))
-}
-
 .fila_perfil <- function(perfil, columna) {
   indices <- which(.nombres_para_operar(perfil$columnas$columna) %in%
                     .nombres_para_operar(columna))
@@ -263,6 +241,25 @@
   # Un hallazgo `ok` no espera accion: describe una propiedad medida, no un
   # problema.
   candidatos <- which(as.character(hallazgos$severidad) != "ok")
+  # Un perfil de una version anterior trae un hallazgo `columnas_duplicadas`
+  # por par, y el plan cubre el grupo con las acciones del primero: los demas
+  # pares del grupo estan cubiertos, aunque nombren otra columna.
+  duplicadas_plan <- as.character(plan$hallazgo) == "columnas_duplicadas"
+  duplicadas_h <- candidatos[
+    as.character(hallazgos$tipo_hallazgo[candidatos]) == "columnas_duplicadas"
+  ]
+  if (any(duplicadas_plan) && length(duplicadas_h)) {
+    grupos <- .grupos_columnas_duplicadas_perfil(perfil)
+    if (length(grupos$grupos)) {
+      grupo_de <- function(columnas) {
+        grupos$grupo[match(.nombres_para_operar(as.character(columnas)), grupos$claves)]
+      }
+      planificados <- grupo_de(plan$columna[duplicadas_plan])
+      cubiertos <- duplicadas_h[grupo_de(hallazgos$columna[duplicadas_h]) %in%
+                                  planificados[!is.na(planificados)]]
+      candidatos <- setdiff(candidatos, cubiertos)
+    }
+  }
   if (!length(candidatos)) return(vacio)
   claves_plan <- .clave_par_identificador(
     as.character(plan$columna), as.character(plan$hallazgo)
@@ -1165,7 +1162,11 @@
 #' deja las acciones bloqueadas. Las de columnas duplicadas comparan el
 #' contenido como el perfil: un factor con nivel `NA` y el mismo factor sin ese
 #' nivel, o un `POSIXlt` y su `POSIXct`, son la misma columna también al
-#' aplicar. Marcar no elimina filas. Con las dos columnas
+#' aplicar. Hay una decisión por grupo de columnas iguales, no por par:
+#' marcarlo, o eliminar las repetidas y conservar la primera del grupo.
+#' `columna_1` nombra la que se conserva, y `columna_2` y `eliminar`, todas las
+#' repetidas; el atributo `columnas_duplicadas_marcadas` lleva una fila por
+#' repetida, junto a la primera. Marcar no elimina filas. Con las dos columnas
 #' incluidas, las marcas distinguen la primera aparición de las repetidas, pero
 #' no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 #' posterior sigue contando duplicadas. Para saber si los duplicados siguen en
@@ -1316,7 +1317,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
       as.character(fila$tipo_inferido[[1L]]) %in% c("entero", "doble", "integer64")
   }
 
+  # Los grupos de columnas iguales se leen una vez: buscarlos por hallazgo
+  # recorria todos los pares en cada uno, y con 1.000 columnas iguales
+  # planificar se estimaba en un dia.
+  # Un perfil de una version anterior trae un hallazgo por par: todos los de un
+  # grupo caen en el mismo, que se planifica en el primero. Los demas se saltean
+  # antes de extraer la fila, porque con 1.000 columnas iguales son 499.500.
+  grupos_duplicadas <- .grupos_columnas_duplicadas_perfil(perfil)
+  claves_columnas_perfil <- .nombres_para_operar(as.character(perfil$columnas$columna))
+  grupo_de_hallazgo <- rep(NA_integer_, nrow(hallazgos))
+  filas_duplicadas_h <- which(
+    as.character(hallazgos$tipo_hallazgo) == "columnas_duplicadas"
+  )
+  if (length(filas_duplicadas_h) && length(grupos_duplicadas$grupos)) {
+    grupo_de_hallazgo[filas_duplicadas_h] <- grupos_duplicadas$grupo[match(
+      .nombres_para_operar(as.character(hallazgos$columna[filas_duplicadas_h])),
+      grupos_duplicadas$claves
+    )]
+  }
+  grupo_ya_planificado <- !is.na(grupo_de_hallazgo) &
+    duplicated(grupo_de_hallazgo)
+
   for (i in seq_len(nrow(hallazgos))) {
+    if (grupo_ya_planificado[[i]]) next
     hallazgo <- hallazgos[i, , drop = FALSE]
     tipo <- hallazgo$tipo_hallazgo[[1L]]
     columna <- hallazgo$columna[[1L]]
@@ -2019,22 +2042,31 @@ planificar_limpieza <- function(perfil, datos = NULL,
         recomendacion_grupo = "no_hacer_nada", destructiva = TRUE
       ))
     } else if (identical(tipo, "columnas_duplicadas")) {
-      par <- .par_columnas_duplicadas(perfil, hallazgo)
+      # Una decision por GRUPO de columnas iguales: marcar la redundancia, o
+      # eliminar las repetidas y conservar la primera, como
+      # `conservar_primera_duplicada` con las filas. Con una decision por par,
+      # `A = B = C` proponia eliminar B, C y otra vez C, y la tercera quedaba
+      # `fallida`.
+      g <- grupo_de_hallazgo[[i]]
+      miembros <- if (is.na(g)) NULL else grupos_duplicadas$grupos[[g]]
       estado_par <- if (
-        is.null(par) || any(vapply(par, function(nombre) {
-          sum(.nombres_para_operar(perfil$columnas$columna) %in%
-                .nombres_para_operar(nombre)) != 1L
-        }, logical(1L)))
+        is.null(miembros) || !all(tabulate(
+          match(claves_columnas_perfil, .nombres_para_operar(miembros)),
+          length(miembros)
+        ) == 1L)
       ) "bloqueada" else "lista"
-      parametros_par <- if (is.null(par)) list() else list(
-        columna_1 = par[[1L]], columna_2 = par[[2L]],
-        eliminar = par[[2L]]
+      parametros_par <- if (is.null(miembros)) list() else list(
+        columna_1 = miembros[[1L]], columna_2 = miembros[-1L],
+        eliminar = miembros[-1L]
       )
+      n_repetidas <- if (is.null(miembros)) 1 else length(miembros) - 1L
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "marcar_columnas_duplicadas", TRUE,
-        paste0(
+        if (n_repetidas == 1L) {
           "La anotaci\u00f3n conserva ambas columnas y registra expl\u00edcitamente la redundancia."
-        ), 1, TRUE, estado = estado_par,
+        } else {
+          "La anotaci\u00f3n conserva todas las columnas y registra expl\u00edcitamente la redundancia."
+        }, n_repetidas, TRUE, estado = estado_par,
         aplicar = identical(estado_par, "lista"),
         parametros = parametros_par, orden = 700L,
         grupo = grupo_hallazgo, decision_grupo = "recomendada",
@@ -2042,10 +2074,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
       ))
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "eliminar_columna_duplicada", FALSE,
-        paste0(
-          "Eliminar una columna puede romper consumidores que dependan de su ",
-          "nombre aunque el contenido sea redundante."
-        ), 1, FALSE, estado = estado_par, aplicar = FALSE,
+        if (n_repetidas == 1L) {
+          paste0(
+            "Eliminar una columna puede romper consumidores que dependan de su ",
+            "nombre aunque el contenido sea redundante."
+          )
+        } else {
+          paste0(
+            "Elimina las ", .formatear_numero_publicado(n_repetidas),
+            " columnas repetidas y conserva la primera del grupo. Puede ",
+            "romper consumidores que dependan de sus nombres aunque el ",
+            "contenido sea redundante."
+          )
+        }, n_repetidas, FALSE, estado = estado_par, aplicar = FALSE,
         parametros = parametros_par, orden = 705L,
         grupo = grupo_hallazgo, decision_grupo = "recomendada",
         recomendacion_grupo = "marcar_columnas_duplicadas",
@@ -3952,16 +3993,23 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (estrategia %in% c(
     "marcar_columnas_duplicadas", "eliminar_columna_duplicada"
   )) {
+    # `columna_1` es la primera del grupo y `columna_2` las repetidas: una con
+    # dos columnas iguales, todas las demas con tres o mas. Se comprueba cada
+    # una contra la primera, que es contra la que el perfil las agrupo.
     indice_1 <- .indice_columna(datos, parametros$columna_1)
-    indice_2 <- .indice_columna(datos, parametros$columna_2)
-    if (!.contenido_igual(datos[[indice_1]], datos[[indice_2]])) {
-      .detener("Las columnas dejaron de tener contenido duplicado.", call. = FALSE)
+    repetidas <- as.character(parametros$columna_2)
+    if (!length(repetidas)) .indice_columna(datos, parametros$columna_2)
+    for (repetida in repetidas) {
+      indice_2 <- .indice_columna(datos, repetida)
+      if (!.contenido_igual(datos[[indice_1]], datos[[indice_2]])) {
+        .detener("Las columnas dejaron de tener contenido duplicado.", call. = FALSE)
+      }
     }
     if (identical(estrategia, "marcar_columnas_duplicadas")) {
       marcas <- attr(datos, "columnas_duplicadas_marcadas", exact = TRUE)
       nueva <- data.frame(
-        columna_1 = parametros$columna_1,
-        columna_2 = parametros$columna_2,
+        columna_1 = rep(parametros$columna_1, length(repetidas)),
+        columna_2 = repetidas,
         stringsAsFactors = FALSE
       )
       combinadas <- if (is.null(marcas)) {
@@ -3970,24 +4018,47 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
         unique(rbind(marcas, nueva))
       }
       attr(datos, "columnas_duplicadas_marcadas") <- combinadas
-      # El conteo es el cambio REAL, no un 1 fijo. Con la marca ya puesta
-      # -dos acciones iguales en el mismo plan- `unique()` la descarta y no
-      # cambia nada, y devolver 1 informaba un efecto que no ocurrio. Con 0,
-      # el registro la marca `fallida`, que es lo que promete la documentacion
-      # para una accion seleccionada sin efecto.
+      # El conteo es el cambio REAL, no un numero fijo: las marcas que se
+      # agregaron. Con la marca ya puesta -dos acciones iguales en el mismo
+      # plan- `unique()` la descarta y no cambia nada, y contarla informaba un
+      # efecto que no ocurrio. Con 0, el registro la marca `fallida`, que es lo
+      # que promete la documentacion para una accion seleccionada sin efecto.
       return(list(
         datos = datos,
-        n = if (identical(combinadas, marcas)) 0 else 1
+        n = if (identical(combinadas, marcas)) 0 else
+          nrow(combinadas) - if (is.null(marcas)) 0L else nrow(marcas)
       ))
     }
-    indice <- .indice_columna(datos, parametros$eliminar)
-    retirada <- list(
-      nombre = names(datos)[[indice]], posicion = indice, valores = datos[[indice]]
-    )
-    datos[[indice]] <- NULL
+    eliminar <- as.character(parametros$eliminar)
+    indices <- if (length(eliminar) <= 1L) {
+      .indice_columna(datos, parametros$eliminar)
+    } else {
+      unname(vapply(eliminar, function(nombre) {
+        .indice_columna(datos, nombre)
+      }, integer(1L)))
+    }
+    if (anyDuplicated(indices)) {
+      .detener(
+        "La acci\u00f3n nombra m\u00e1s de una vez la misma columna a eliminar.",
+        call. = FALSE
+      )
+    }
+    # Con una sola columna, lo retirado se guarda como siempre; con varias, los
+    # mismos tres campos con una entrada por columna, `valores` como lista.
+    retirada <- if (length(indices) == 1L) {
+      list(
+        nombre = names(datos)[[indices]], posicion = indices,
+        valores = datos[[indices]]
+      )
+    } else {
+      valores <- lapply(indices, function(j) datos[[j]])
+      names(valores) <- names(datos)[indices]
+      list(nombre = names(datos)[indices], posicion = indices, valores = valores)
+    }
+    for (j in .sort_por_bytes(indices, decreasing = TRUE)) datos[[j]] <- NULL
     return(list(
-      datos = datos, n = 1, columna_eliminada = retirada,
-      n_filas_eliminadas = 0, n_columnas_eliminadas = 1
+      datos = datos, n = length(indices), columna_eliminada = retirada,
+      n_filas_eliminadas = 0, n_columnas_eliminadas = length(indices)
     ))
   }
   if (identical(estrategia, "eliminar_columna_constante")) {
@@ -4298,8 +4369,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (estrategia %in% c(
     "eliminar_columna_duplicada", "eliminar_columna_constante"
   )) {
-    return(isTRUE(.nombres_para_operar(parametros$eliminar) %in%
-                  .nombres_para_operar(clave)) ||
+    # `eliminar` nombra todas las repetidas de un grupo de columnas iguales:
+    # basta con que una sea de la clave.
+    return(any(.nombres_para_operar(parametros$eliminar) %in%
+                 .nombres_para_operar(clave)) ||
       isTRUE(.nombres_para_operar(accion$columna[[1L]]) %in%
              .nombres_para_operar(clave)))
   }
@@ -4427,10 +4500,17 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     # La accion de quitar una columna duplicada va en el plan bajo la columna que
     # se CONSERVA -es la del hallazgo-, y el registro la publicaba como la tocada:
     # nombraba la que quedo y no la que se elimino. Medido.
+    # Con un grupo de tres o mas columnas iguales se eliminan varias, y se
+    # nombran todas separadas por coma, como un hallazgo de varias columnas.
     columna_registro <- accion$columna[[1L]]
     if (identical(accion$estrategia[[1L]], "eliminar_columna_duplicada") &&
-        length(accion$parametros[[1L]]$eliminar) == 1L) {
-      columna_registro <- as.character(accion$parametros[[1L]]$eliminar)
+        length(accion$parametros[[1L]]$eliminar) >= 1L) {
+      eliminadas <- as.character(accion$parametros[[1L]]$eliminar)
+      columna_registro <- if (length(eliminadas) == 1L) {
+        eliminadas
+      } else {
+        .pegar_texto(eliminadas, collapse = ",")
+      }
     }
     registro <- data.frame(
       id_accion = accion$id_accion[[1L]],

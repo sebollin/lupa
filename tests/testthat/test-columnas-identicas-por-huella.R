@@ -3,7 +3,10 @@
 # columnas otra vez (unos 10 s, iguales o distintas). Ahora agrupa por una huella
 # y compara contra un representante por clase. Estas pruebas fijan las dos
 # cosas que eso promete: la salida es la de comparar todos los pares -los
-# mismos, en el mismo orden-, y cada columna se normaliza una sola vez.
+# mismos, en el mismo orden-, y cada columna se normaliza una sola vez. El
+# perfil guarda una fila por columna repetida, junto a la primera de su clase
+# (`.columnas_duplicadas()`); `detectar_claves()` sigue recibiendo todos los
+# pares (`.pares_redundantes()`). Las dos salen de la misma definicion.
 
 # Fuera de CRAN: el archivo tarda unos 0,3 s (medido el 2026-11-06), por encima
 # de los 0,2 s que se admiten en modo CRAN. Corre en la suite completa y en el
@@ -12,7 +15,10 @@ testthat::skip_on_cran()
 
 # La referencia es la definicion: todos los pares de `combn()`, comparados uno
 # por uno con la regla del paquete.
-.pares_por_definicion <- function(datos, indices, nombres) {
+# Con `primera = TRUE`, solo los pares cuya primera columna no es la segunda de
+# ningun otro: con una equivalencia, cada repetida junto a la primera de su
+# clase. Se decide por posicion, porque dos columnas pueden llamarse igual.
+.pares_por_definicion <- function(datos, indices, nombres, primera = FALSE) {
   if (length(indices) < 2L) {
     return(data.frame(columna_1 = character(), columna_2 = character(),
                       stringsAsFactors = FALSE))
@@ -22,6 +28,7 @@ testthat::skip_on_cran()
     lupa:::.columnas_identicas(datos[[p[[1L]]]], datos[[p[[2L]]]])
   })
   pares <- pares[, iguales, drop = FALSE]
+  if (primera) pares <- pares[, !pares[1L, ] %in% pares[2L, ], drop = FALSE]
   data.frame(columna_1 = nombres[pares[1L, ]], columna_2 = nombres[pares[2L, ]],
              stringsAsFactors = FALSE)
 }
@@ -29,10 +36,15 @@ testthat::skip_on_cran()
 .comprobar_como_definicion <- function(datos) {
   nombres <- names(datos)
   esperado <- .pares_por_definicion(datos, seq_along(datos), nombres)
-  obtenido <- lupa:::.columnas_duplicadas(datos, nombres)
+  obtenido <- lupa:::.pares_de_columnas_identicas(datos, seq_along(datos), nombres)
   expect_identical(obtenido$columna_1, esperado$columna_1)
   expect_identical(obtenido$columna_2, esperado$columna_2)
   n_pares <- nrow(esperado)
+  esperado <- .pares_por_definicion(datos, seq_along(datos), nombres,
+                                    primera = TRUE)
+  obtenido <- lupa:::.columnas_duplicadas(datos, nombres)
+  expect_identical(obtenido$columna_1, esperado$columna_1)
+  expect_identical(obtenido$columna_2, esperado$columna_2)
   # Indices desordenados y con una columna repetida, como puede llegar un
   # subconjunto de claves: el orden de los pares es el de `combn()` sobre ese
   # vector, no el de las columnas.
@@ -143,8 +155,12 @@ test_that("cada columna se normaliza una sola vez", {
     },
     .package = "lupa"
   )
+  # Y la salida tambien es lineal: 199 repetidas junto a la primera, no los
+  # 19.900 pares.
   pares <- lupa:::.columnas_duplicadas(datos, names(datos))
-  expect_equal(nrow(pares), choose(200L, 2L))
+  expect_equal(nrow(pares), 199L)
+  expect_identical(unique(pares$columna_1), "V1")
+  expect_identical(pares$columna_2, paste0("V", 2:200))
   expect_lte(llamadas, 200L)
 
   llamadas <- 0L

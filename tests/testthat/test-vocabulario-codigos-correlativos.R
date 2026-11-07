@@ -149,7 +149,7 @@ test_that("comparar por pares entrega los mismos pares que la matriz de cada tes
   }
 })
 
-test_that("k columnas iguales siguen dando un hallazgo por par, en orden", {
+test_that("k columnas iguales dan un hallazgo por grupo, con todas", {
   v <- c("a", "b", NA, "a")
   datos <- data.frame(p = v, q = v, r = v, s = 1:4, t = v,
                       stringsAsFactors = FALSE)
@@ -159,13 +159,13 @@ test_that("k columnas iguales siguen dando un hallazgo por par, en orden", {
   todos <- hallazgos(perfil)
   iguales <- todos[todos$tipo_hallazgo == "columnas_duplicadas", ,
                    drop = FALSE]
-  pares <- c("p = q", "p = r", "p = t", "q = r", "q = t", "r = t")
   expect_identical(
-    iguales$evidencia, paste0(pares, "; comparadas sobre 4 filas")
+    iguales$evidencia, "p = q = r = t; comparadas sobre 4 filas"
   )
-  expect_identical(iguales$columna, c("p", "p", "p", "q", "q", "r"))
-  expect_equal(iguales$n_evaluados, rep(5, 6L))
-  expect_equal(iguales$n_afectados, rep(2, 6L))
+  expect_identical(iguales$columna, "p")
+  expect_identical(iguales$descripcion, "4 columnas tienen el mismo contenido.")
+  expect_equal(iguales$n_evaluados, 5)
+  expect_equal(iguales$n_afectados, 4)
   expect_true(all(iguales$unidad_conteo == "columna"))
   expect_true(all(vapply(iguales$trazabilidad, function(traza) {
     identical(traza$estado, "no_aplica") && identical(traza$alcance, "no_aplica")

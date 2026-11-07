@@ -862,7 +862,12 @@ frecuencia mayor y la menor para considerar que dos formas se reparten la
 columna. Con \code{2}, \code{40} contra \code{5} no entra y \code{5} contra \code{5} sí. Las
 grafías que la normalización junta cuentan juntas: \code{MONTEVIDEO} (10) y
 \code{Montevideo} (40) contra \code{Montevido} (50) es un empate, el grupo publica
-las tres formas con sus frecuencias y su asimetría es 1.}
+las tres formas con sus frecuencias y su asimetría es 1. El tope es del
+grupo, no de cada par: \code{Montevideo} (25), \code{Montevido} (20) y
+\code{Montividoo} (10) están a 1,25 y 2 de a pares, pero a 2,5 de punta a
+punta, y no se agrupan. Sus pares se declaran aparte en la misma fila de
+\code{cobertura_diagnosticos}, como pares cercanos que forman cadenas sobre el
+tope.}
 
 \item{max_comparaciones_dependencias}{Tope de pares determinante-dependiente
 que se comparan. El costo de las dependencias es del orden de
@@ -941,7 +946,12 @@ corregirse; la evidencia declara cuantas filas mostradas pertenecen a las
 formas variantes y cuantas a las formas dominantes.
 En \code{filas_duplicadas}, el conteo y la traza incluyen todas las filas
 participantes de los grupos; el numero de excedentes queda en la
-evidencia. Cuando el camino
+evidencia. \code{columnas_duplicadas} publica un hallazgo por grupo de
+columnas con el mismo contenido, no uno por par: \code{columna} es la primera
+del grupo en el orden de los datos, la evidencia nombra a todas
+(\code{A = B = C}) y \code{n_afectados} las cuenta a todas. \code{general$columnas_duplicadas}
+tiene una fila por cada columna repetida, con la primera de su grupo en
+\code{columna_1} y la repetida en \code{columna_2}. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por

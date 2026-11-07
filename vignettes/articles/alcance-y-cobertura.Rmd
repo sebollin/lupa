@@ -294,6 +294,9 @@ señales que cuentan valores:
   medición queda en `cobertura_diagnosticos`, con la proporción observada.
 - `filas_duplicadas` cuenta todas las filas que participan en grupos
   duplicados; la evidencia informa aparte los excedentes.
+- `columnas_duplicadas` publica un hallazgo por grupo de columnas con el mismo
+  contenido: `columna` es la primera del grupo, la evidencia las nombra a todas
+  y `n_afectados` las cuenta a todas.
 
 Por eso una traza puede tener más filas que `n_afectados`. La traza usa la misma
 comparación que el conteo, en las 2 direcciones y también en una columna

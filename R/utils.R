@@ -1113,12 +1113,12 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # por iguales (nunca separa un par verdadero; si junta dos distintas, la
 # comparacion las separa), y la igualdad es una relacion de equivalencia
 # -`identical()`, o los bits para `integer64`-, asi que igual al representante
-# es igual a toda la clase. Los pares salen en el orden de `combn()`.
-.pares_de_columnas_identicas <- function(datos, indices, nombres) {
-  vacio <- .data_frame_simple(
-    columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
-  )
-  if (length(indices) < 2L) return(vacio)
+# es igual a toda la clase.
+#
+# Devuelve las clases con dos o mas columnas, como posiciones dentro de
+# `indices`: cada clase en orden creciente y las clases por su primera columna.
+.clases_de_columnas_identicas <- function(datos, indices) {
+  if (length(indices) < 2L) return(list())
   columnas <- lapply(indices, function(i) .normalizar_columna_entrada(datos[[i]]))
   huellas <- vapply(columnas, .huella_columna_identica, character(1L))
   grupo_de <- match(huellas, unique(huellas))
@@ -1141,7 +1141,17 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
       }
     }
   }
-  con_pares <- Filter(function(m) length(m) > 1L, split(seq_along(clase), clase))
+  unname(Filter(function(m) length(m) > 1L, split(seq_along(clase), clase)))
+}
+
+# Todos los pares de cada clase, en el orden de `combn()`. Es la forma que
+# consume `detectar_claves()`, que publica para cada clave las demas de su
+# clase.
+.pares_de_columnas_identicas <- function(datos, indices, nombres) {
+  vacio <- .data_frame_simple(
+    columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
+  )
+  con_pares <- .clases_de_columnas_identicas(datos, indices)
   if (!length(con_pares)) return(vacio)
   pares <- do.call(cbind, lapply(con_pares, function(m) utils::combn(m, 2L)))
   orden <- .orden_por_bytes(pares[1L, ], pares[2L, ])
@@ -1152,6 +1162,102 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
     columna_2 = nombres[segundo],
     stringsAsFactors = FALSE
   )
+}
+
+# Cada columna repetida junto a la PRIMERA de su clase, en el orden de los
+# datos: k columnas iguales son k - 1 filas, no k (k - 1) / 2. Es la forma de
+# `duplicated()` y de `.fila_duplicada`, que tambien marcan cada repeticion y
+# no cada par; con dos columnas es la misma fila que daba el par. La clase de
+# cada fila va en el atributo `grupo`, porque dos columnas pueden llamarse
+# igual y el nombre de la primera no alcanza para separar dos clases.
+.grupos_de_columnas_identicas <- function(datos, indices, nombres) {
+  vacio <- .data_frame_simple(
+    columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
+  )
+  attr(vacio, "grupo") <- integer()
+  clases <- .clases_de_columnas_identicas(datos, indices)
+  if (!length(clases)) return(vacio)
+  primero <- unlist(lapply(clases, function(m) rep.int(m[[1L]], length(m) - 1L)),
+                    use.names = FALSE)
+  segundo <- unlist(lapply(clases, function(m) m[-1L]), use.names = FALSE)
+  grupo <- rep.int(seq_along(clases), lengths(clases) - 1L)
+  salida <- .data_frame_simple(
+    columna_1 = nombres[indices[primero]],
+    columna_2 = nombres[indices[segundo]],
+    stringsAsFactors = FALSE
+  )
+  attr(salida, "grupo") <- grupo
+  salida
+}
+
+# Los grupos de columnas iguales que guarda un perfil en
+# `general$columnas_duplicadas`. Ahi cada columna repetida va junto a la primera
+# de su grupo; un perfil guardado por una version anterior trae, en cambio,
+# todos los pares. La igualdad es una equivalencia, asi que las dos formas dan
+# los mismos grupos si se unen por componentes, y con eso el plan y la deriva
+# leen igual un perfil viejo y uno nuevo. Cada grupo sale en el orden de las
+# columnas del perfil, y los grupos por su primera columna. `grupo` dice a que
+# grupo pertenece cada `clave` (los nombres como los compara el paquete).
+.grupos_columnas_duplicadas_perfil <- function(perfil) {
+  vacio <- list(grupos = list(), claves = character(), grupo = integer())
+  pares <- if (is.list(perfil) && is.list(perfil$general)) {
+    perfil$general$columnas_duplicadas
+  } else NULL
+  if (!is.data.frame(pares) || !nrow(pares) ||
+      !all(c("columna_1", "columna_2") %in% names(pares))) {
+    return(vacio)
+  }
+  extremo_1 <- as.character(pares$columna_1)
+  extremo_2 <- as.character(pares$columna_2)
+  validos <- !is.na(extremo_1) & !is.na(extremo_2)
+  if (!any(validos)) return(vacio)
+  extremo_1 <- extremo_1[validos]
+  extremo_2 <- extremo_2[validos]
+  originales <- c(extremo_1, extremo_2)
+  claves_extremos <- .nombres_para_operar(originales)
+  claves <- unique(claves_extremos)
+  originales <- originales[match(claves, claves_extremos)]
+  n_pares <- length(extremo_1)
+  componente <- .unir_componentes_vocabulario(length(claves), cbind(
+    match(claves_extremos[seq_len(n_pares)], claves),
+    match(claves_extremos[n_pares + seq_len(n_pares)], claves)
+  ))
+  columnas_perfil <- if (is.data.frame(perfil$columnas)) {
+    .nombres_para_operar(as.character(perfil$columnas$columna))
+  } else character()
+  posicion <- match(claves, columnas_perfil)
+  orden <- .orden_por_bytes(posicion, seq_along(claves))
+  # Los grupos se numeran por su primera columna, en ese mismo orden.
+  numero <- match(componente, unique(componente[orden]))
+  grupos <- unname(split(originales[orden], numero[orden]))
+  list(grupos = grupos, claves = claves, grupo = numero)
+}
+
+# Los nombres de un hallazgo `columnas_duplicadas`, del grupo que guarda el
+# perfil. Se busca por `columna`, que es una columna del grupo -la primera en
+# un perfil nuevo, el primer extremo del par en uno viejo- y no por la
+# evidencia, que es prosa y puede estar protegida. Si el perfil no trae los
+# grupos, la evidencia es lo unico que queda: `A = B = C; comparadas...`.
+.miembros_columnas_duplicadas <- function(perfil, hallazgo, grupos = NULL) {
+  if (is.null(grupos)) grupos <- .grupos_columnas_duplicadas_perfil(perfil)
+  g <- .grupo_de_columna_duplicada(grupos, hallazgo$columna[[1L]])
+  if (is.na(g)) NULL else grupos$grupos[[g]]
+}
+
+.grupo_de_columna_duplicada <- function(grupos, columna) {
+  columna <- as.character(columna)
+  if (!length(grupos$grupos) || length(columna) != 1L || is.na(columna)) {
+    return(NA_integer_)
+  }
+  grupos$grupo[match(.nombres_para_operar(columna), grupos$claves)]
+}
+
+.miembros_columnas_duplicadas_evidencia <- function(evidencia) {
+  evidencia <- as.character(evidencia)
+  if (length(evidencia) != 1L || is.na(evidencia)) return(character())
+  tramo <- trimws(sub(";.*$", "", evidencia))
+  partes <- strsplit(tramo, " = ", fixed = TRUE)[[1L]]
+  if (length(partes) < 2L) character() else partes
 }
 
 # Huella para agrupar columnas antes de compararlas. Solo tiene que cumplir una
