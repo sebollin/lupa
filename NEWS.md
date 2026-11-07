@@ -229,6 +229,18 @@ Primera versión publicada.
   el redondeo del neto guardado. La que la tolerancia relativa reconoce y esa
   resolución no se descarta y se cuenta en
   `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto`.
+- El cuanto de una proporcionalidad es la resolución del redondeo que la
+  columna muestra, no la potencia de diez de sus decimales: una respuesta
+  redondeada a múltiplos de 0,05 —100 filas sanas con residuo de hasta 0,024—
+  se descartaba porque la cota quedaba en medio centavo, y con 0,25, 0,5, 5 o 25
+  no se publicaba nunca. La resolución es la de al menos el 90 % de los valores,
+  y sólo si esa retícula no se explica por azar: unas filas rotas fuera de ella
+  no la hacen caer, y un valor que no es múltiplo de la resolución cuenta como
+  discrepante aunque su residuo quede debajo de medio cuanto. Como con los
+  centavos, con respuestas chicas un producto redondeado sigue sin reconocerse
+  con la tolerancia por omisión. Las identidades siguen con la potencia de diez
+  de sus decimales, que entre valores de una misma retícula separa igual lo sano
+  de lo roto.
 - Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
   `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
   la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna

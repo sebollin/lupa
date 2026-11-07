@@ -2535,8 +2535,12 @@
 #'   ellos; si el total queda por debajo de esa tolerancia, la identidad se
 #'   publica sólo si es exacta. Una tolerancia declarada no se acota. En una
 #'   proporcionalidad, con el valor por omisión, una columna con decimales fijos
-#'   cuyo redondeo la tolerancia relativa supera en alguna fila se lee como la
-#'   respuesta redondeada: la mitad de su cuanto, inclusiva, es la tolerancia de
+#'   cuyo redondeo la tolerancia relativa supera en alguna fila —o cuya relación
+#'   la relativa ya reconoce acusando filas— se lee como la
+#'   respuesta redondeada: la mitad de su cuanto —la resolución de su redondeo,
+#'   como 0,05, 0,25 o 5, y no la potencia de diez de sus decimales; la de al
+#'   menos el 90 % de sus valores, y un valor fuera de ella cuenta como
+#'   discrepante—, inclusiva, es la tolerancia de
 #'   todas las filas, y `k` es la constante con menos cifras que deja casi tantas
 #'   filas dentro de ella como la que más. Si las dos columnas admiten esa
 #'   lectura se usa la de la constante claramente más corta (`1.22` y no

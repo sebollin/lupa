@@ -191,6 +191,102 @@
   NA_real_
 }
 
+# **La resolucion de una columna: el redondeo que muestra.** El cuanto de arriba
+# es la potencia de diez de sus decimales, y para una identidad alcanza: entre
+# valores de una misma reticula la suma de dos es exacta y cualquier diferencia
+# es un multiplo, asi que medio cuanto de la potencia de diez -mas fino que el
+# verdadero- separa igual lo sano de lo roto, y ademas cuenta como rota una
+# diferencia que se sale de la reticula. Para una proporcionalidad no: la
+# respuesta difiere del producto en su redondeo, y el redondeo es al cuanto que
+# la columna usa. Con la respuesta redondeada a multiplos de 0,05 el residuo
+# llega a 0,025; medido con la potencia de diez de sus decimales (0,01) la
+# cota quedaba en 0,005, las 100 filas sanas no la alcanzaban y la
+# proporcionalidad se descartaba. Lo mismo con 0,25, 0,5, 5 o 25.
+#
+# La resolucion es la potencia de diez de los decimales multiplicada por el
+# maximo comun de los valores llevados a enteros en esa escala. Una fila rota
+# fuera de la reticula -un centavo en una columna de multiplos de 0,05- haria
+# caer ese maximo comun a 1, y con el la cota, y las filas sanas pasarian a
+# acusarse o la relacion a descartarse. Por eso vale el `q` del que son
+# multiplos casi todos: al menos `.FRACCION_RESOLUCION` de los valores, la
+# misma proporcion que pide el criterio por omision -si mas de una de cada
+# diez filas esta fuera de la reticula, la relacion no se reconoceria igual-, y
+# solo si la reticula no se explica por azar: con valores cuya ultima cifra es
+# cualquiera, la probabilidad de que tantos caigan en una reticula `m` veces
+# mas gruesa es a lo sumo `choose(n, fuera) * m^-dentro`, y se pide menor que
+# 1e-6. Asi tres centavos pares no hacen una columna de 0,02 (1/8), ni nueve de
+# diez (1 %), y cien multiplos de 0,05 si (5^-100). Sin filas fuera de la
+# reticula de potencia de diez rige la regla de siempre del cuanto. Los
+# multiplos que se prueban ademas del maximo comun son los de las
+# resoluciones decimales usuales -2, 4, 5, 8, 20, 25, 40, 50, 125, 200, 250 y
+# 500 veces la potencia de diez-, que son los que sobreviven a una fila rota.
+.FRACCION_RESOLUCION <- 0.9
+
+# La cota de que `dentro` de `n` valores caigan por azar en una reticula
+# `veces` mas gruesa que la de sus cifras, contra 1e-6.
+.reticula_no_es_azar <- function(n, dentro, veces) {
+  lchoose(n, n - dentro) - dentro * log(veces) < log(1e-6)
+}
+
+.multiplos_resolucion <- c(2, 4, 5, 8, 20, 25, 40, 50, 125, 200, 250, 500)
+
+.resolucion_columna_aritmetica <- function(x) {
+  x <- as.double(x[is.finite(x)])
+  n <- length(x)
+  if (!n) return(NA_real_)
+  magnitud <- max(1, abs(x))
+  minimo <- ceiling(.FRACCION_RESOLUCION * n)
+  for (decimales in seq.int(-floor(log10(magnitud)), 15L)) {
+    potencia <- 10^-decimales
+    if (magnitud / potencia >= .CIFRAS_MAXIMAS_CUANTO) return(NA_real_)
+    # Por una potencia de diez exacta, como `.cuanto_decimal_aritmetica()`.
+    w <- if (decimales >= 0L) x * 10^decimales else x / 10^(-decimales)
+    escala <- if (decimales >= 0L) magnitud * 10^decimales else
+      magnitud / 10^(-decimales)
+    entero <- round(w)
+    dentro <- abs(w - entero) <= 8 * .Machine$double.eps * max(1, escala)
+    # Todos en la reticula es la regla de siempre del cuanto; casi todos, solo
+    # si no se explica por azar.
+    if (sum(dentro) < minimo ||
+        (sum(dentro) < n && !.reticula_no_es_azar(n, sum(dentro), 10))) {
+      next
+    }
+    enteros <- abs(entero[dentro])
+    enteros <- enteros[enteros > 0]
+    comun <- if (length(enteros)) Reduce(.maximo_comun_divisor, enteros) else 1
+    veces <- 1
+    for (candidato in unique(c(comun, .multiplos_resolucion))) {
+      if (candidato <= veces) next
+      en_candidato <- dentro & (abs(entero) %% candidato == 0)
+      if (sum(en_candidato) >= minimo &&
+          .reticula_no_es_azar(n, sum(en_candidato), candidato)) {
+        veces <- candidato
+      }
+    }
+    return(veces * potencia)
+  }
+  NA_real_
+}
+
+.maximo_comun_divisor <- function(a, b) {
+  while (b > 0) {
+    resto <- a %% b
+    a <- b
+    b <- resto
+  }
+  a
+}
+
+# Si cada valor esta en la reticula de `resolucion`, con el mismo margen del
+# doble que la mide.
+.en_resolucion_aritmetica <- function(x, resolucion) {
+  x <- as.double(x)
+  w <- x / resolucion
+  magnitud <- max(1, abs(x[is.finite(x)]))
+  is.finite(x) &
+    abs(w - round(w)) <= 8 * .Machine$double.eps * max(1, magnitud / resolucion)
+}
+
 # La cota de una identidad aditiva: la mitad del cuanto mas fino de sus tres
 # columnas, o `Inf` si alguna no tiene cuanto reconocido. `cuantos` va en el
 # orden sumando, sumando, total. `total_en_reticula` dice si el total tiene
@@ -729,10 +825,15 @@
 # cifra, y con la cota la relacion sana se descartaba.
 .lectura_proporcional_aritmetica <- function(base, respuesta, comparables,
                                              cuanto, tolerancia, umbral,
-                                             min_filas, reconocida) {
+                                             min_filas, reconocida,
+                                             con_fallas = FALSE) {
   no_aplica <- list(aplica = FALSE, alcanza = FALSE)
   no_alcanza <- list(aplica = TRUE, alcanza = FALSE)
   if (is.null(cuanto) || !isTRUE(cuanto$fijo)) return(no_aplica)
+  # Un valor fuera de la reticula de la respuesta no es un redondeo a su
+  # resolucion: no entra al barrido y no cumple (ver
+  # `.resolucion_columna_aritmetica()`). Una fila sana siempre esta adentro.
+  en_reticula <- .en_resolucion_aritmetica(respuesta, cuanto$cuanto)
   utilizables <- is.finite(base) & is.finite(respuesta) & base != 0
   if (sum(utilizables) < min_filas) return(no_aplica)
   mediana <- stats::median(respuesta[utilizables] / base[utilizables])
@@ -742,8 +843,14 @@
   b <- base[comparables]
   esperado_mediana <- b * mediana
   # Solo donde la relativa supera al redondeo: por debajo, la tolerancia de
-  # siempre manda y un producto redondeado no se reconoce, como antes.
-  if (!any(tolerancia * pmax(1, abs(r), abs(esperado_mediana)) > cota)) {
+  # siempre manda y un producto redondeado no se reconoce, como antes. Salvo
+  # que la relativa ya lo reconozca y acuse filas: con la respuesta redondeada
+  # a 0,05 sobre 2,2e6 la relativa vale 0,022 y el redondeo llega a 0,025, y
+  # las filas entre una y otro -8 de 100, sanas- salian discrepantes; una
+  # lectura que la relativa reconoce se mide con su redondeo. Si la relativa
+  # no la reconoce, la decision de siempre: no se reconoce.
+  if (!con_fallas &&
+      !any(tolerancia * pmax(1, abs(r), abs(esperado_mediana)) > cota)) {
     return(no_aplica)
   }
   # El barrido ordena dos extremos por fila. Si la relativa no reconocia la
@@ -760,15 +867,17 @@
       return(no_alcanza)
     }
   }
+  barrido <- utilizables & en_reticula
+  if (sum(barrido) < min_filas) return(no_alcanza)
   constante <- .constante_por_intervalos_aritmetica(
-    as.double(base[utilizables]), as.double(respuesta[utilizables]), cota,
-    mediana
+    as.double(base[barrido]), as.double(respuesta[barrido]), cota, mediana
   )
   esperado <- b * constante
   # El margen del doble va sobre el de los intervalos: una fila que el barrido
   # conto adentro no queda afuera por el redondeo de `k` ni del producto.
   cumple <- abs(r - esperado) <= cota +
-    8 * .Machine$double.eps * pmax(1, abs(r), abs(esperado))
+    8 * .Machine$double.eps * pmax(1, abs(r), abs(esperado)) &
+    en_reticula[comparables]
   if (!.cumple_criterio_aritmetica(mean(cumple), umbral)) return(no_alcanza)
   list(
     aplica = TRUE, alcanza = TRUE,
@@ -896,13 +1005,14 @@
   ))
   if (is.function(cuanto_de)) {
     reconocida_sin_cota <- .cumple_criterio_aritmetica(proporcion, umbral)
+    con_fallas <- reconocida_sin_cota && proporcion < 1
     lectura_directa <- .lectura_proporcional_aritmetica(
       base, respuesta, comparables, cuanto_de(indice_respuesta), tolerancia,
-      umbral, min_filas, reconocida_sin_cota
+      umbral, min_filas, reconocida_sin_cota, con_fallas
     )
     lectura_inversa <- .lectura_proporcional_aritmetica(
       respuesta, base, comparables, cuanto_de(indice_base), tolerancia,
-      umbral, min_filas, reconocida_sin_cota
+      umbral, min_filas, reconocida_sin_cota, con_fallas
     )
     # Medidas en la misma columna -la respuesta de la lectura directa- para
     # desempatar dos constantes igual de largas.
@@ -1202,19 +1312,33 @@
   # El cuanto de la respuesta y si es de decimales fijos, una vez por columna
   # y solo cuando una proporcionalidad lo pide.
   fijos <- new.env(parent = emptyenv())
+  # La resolucion de la columna, no el cuanto de la potencia de diez de las
+  # identidades: ver `.resolucion_columna_aritmetica()`.
+  por_omision <- identical(as.double(tolerancia), .TOLERANCIA_ARITMETICA_OMISION)
   cuanto_de <- function(i) {
-    if (is.na(cuantos[[i]])) return(NULL)
+    if (!por_omision) return(NULL)
     clave <- as.character(i)
     if (is.null(fijos[[clave]])) {
       x <- as.double(datos[[i]])
       x <- abs(x[is.finite(x)])
-      superior <- .cuanto_decimal_aritmetica(x[x >= stats::median(x)])
-      fijos[[clave]] <- list(
-        cuanto = cuantos[[i]],
-        fijo = is.finite(superior) &&
-          abs(superior / cuantos[[i]] - 1) < 1e-9
+      resolucion <- .resolucion_columna_aritmetica(x)
+      # Decimales fijos: la misma resolucion en la mitad de valores grandes y en
+      # la de los chicos. Con la resolucion de casi todos, mirar solo la mitad
+      # grande ya no alcanza: once cifras significativas sobre dos decadas dejan
+      # nueve de cada diez valores en la decada alta, con un decimal menos, y la
+      # resolucion de casi todos es la de esos; los de la decada baja no son
+      # filas rotas sino valores con mas cifras, y estan todos en la mitad chica.
+      mitades <- if (is.finite(resolucion)) {
+        mediana <- stats::median(x)
+        c(.resolucion_columna_aritmetica(x[x >= mediana]),
+          .resolucion_columna_aritmetica(x[x <= mediana]))
+      } else NA_real_
+      fijos[[clave]] <- if (!is.finite(resolucion)) list(cuanto = NA_real_, fijo = FALSE) else list(
+        cuanto = resolucion,
+        fijo = all(is.finite(mitades)) && all(abs(mitades / resolucion - 1) < 1e-9)
       )
     }
+    if (!is.finite(fijos[[clave]]$cuanto)) return(NULL)
     fijos[[clave]]
   }
   if (length(seleccion) >= 2L && nrow(datos)) {
