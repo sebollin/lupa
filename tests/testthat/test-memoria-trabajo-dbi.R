@@ -209,6 +209,7 @@ test_that("el registro coincide con los metodos publicados, sin clasificar por m
     "cte_ventana_tablesample_system" = "creciente",
     "cte_ventana_newid" = "creciente",
     "dos_consultas" = "creciente",
+    "sumas_exactas_decimal" = "acotado",
     "PERCENTILE_CONT" = "creciente",
     "PERCENTILE_CONT_OVER" = "creciente",
     "approx_percentile" = "acotado",

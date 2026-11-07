@@ -838,11 +838,11 @@ why the queries are grouped:
   That way it keeps the centered computation. Each query brings
   `COUNT(*) AS n_total_consulta`: completeness uses that local denominator and
   not the total of another batch. The mean and the standard deviation of the
-  decimal columns are also requested in one query per batch of up to
-  `tamano_lote_planos` columns: the sum and the sum of the squares of the
-  differences from the mean, in the column's type. If the engine rejects a
-  batch, it is split until the column is isolated. On the engine sample those
-  sums go in the batch of aggregates, in the same statement.
+  decimal columns come from exact sums that the engine computes in the
+  column's type —the sum and the sum of the squares— and that travel in that
+  same batch, with no extra query (with blocks, in one query of sums per batch
+  of up to `tamano_lote_planos` columns). If the engine rejects a batch, it is
+  split until the column is isolated.
 - **Exact cardinalities** go in their own class, in batches of
   `tamano_lote_distintos` (*distinct batch size*;
   `r lupa:::.TAMANO_LOTE_DISTINTOS_DBI` by default). Each

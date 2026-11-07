@@ -68,21 +68,16 @@ test_that("el desvio de un decimal leido como doble no se cuenta como divergenci
 })
 
 # Una conexion que hace al motor calcular mal el desvio de `chico` (un uno por
-# ciento de mas), y la del decimal ancho tambien. El desvio de un decimal sale
-# de la suma exacta de los cuadrados de las diferencias con un centro; la
-# conexion la multiplica por 1,0201, y el desvio queda a una parte en cien
-# millones de 1,01 veces el exacto (la suma de las diferencias no se toca).
-# Tambien falsea `STDDEV_SAMP()`, por si la via vuelve a pedirselo al motor.
+# ciento de mas), y la del decimal ancho tambien: falsea `STDDEV_SAMP()`. El
+# desvio de un decimal sale de las sumas exactas, que viajan en el lote de
+# agregados; la prueba las falsea al leerlas (`.leer_sumas_exactas_dbi()`), un
+# uno por ciento de mas en el desvio de `chico`, la segunda columna del lote.
 library(DBI)
 if (!methods::isClass("conexion_duckdb_desvio_falso")) {
   setClass("conexion_duckdb_desvio_falso", contains = "duckdb_connection")
 }
 # `dbGetQuery()` pasa por `dbSendQuery()`: la reescritura no se repite.
 .ddc_falsear <- function(statement) {
-  statement <- gsub(
-    "SUM\\((?!1\\.0201 \\* )CAST\\(\\((chico|ancho) - ",
-    "SUM(1.0201 * CAST((\\1 - ", statement, perl = TRUE
-  )
   gsub("(?<!1\\.01 \\* )STDDEV_SAMP\\((chico|ancho)", "1.01 * STDDEV_SAMP(\\1",
        statement, perl = TRUE)
 }
@@ -105,12 +100,23 @@ test_that("un desvio que el motor calcula mal sigue siendo divergencia", {
     methods::slot(con, ranura) <- methods::slot(cruda, ranura)
   }
   exacto <- stats::sd(as.numeric(.ddc_centavos))
+  leer <- lupa:::.leer_sumas_exactas_dbi
+  testthat::local_mocked_bindings(
+    .leer_sumas_exactas_dbi = function(datos, nombres, ...) {
+      leida <- leer(datos, nombres, ...)
+      if (grepl("_c2_", nombres$n, fixed = TRUE, useBytes = TRUE)) {
+        leida$desvio <- leida$desvio * 1.01
+      }
+      leida
+    },
+    .package = "lupa"
+  )
   perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
     con, "ddc_t", proteger_datos_personales = FALSE
   )))
-  # La conexion falseo de verdad el desvio del motor.
+  # La lectura falseo de verdad el desvio publicado.
   expect_equal(.ddc_desvio(perfil, "resumen_tabla", "chico"), 1.01 * exacto,
-               tolerance = 1e-7)
+               tolerance = 1e-12)
   corroboracion <- perfil$resumen_tabla$meta$corroboracion_bloques
   expect_identical(as.integer(corroboracion$divergencias), 1L)
   cobertura <- perfil$resumen_tabla$cobertura

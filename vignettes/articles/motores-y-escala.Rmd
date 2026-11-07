@@ -805,12 +805,11 @@ eso las consultas se agrupan:
   para `float8` de PostgreSQL, el desvío suma una segunda consulta por lote.
   Así conserva el cálculo centrado. Cada consulta trae
   `COUNT(*) AS n_total_consulta`: la completitud usa ese denominador local y no
-  el total de otro lote. La media y el desvío de las columnas decimales se
-  piden, además, en una consulta por lote de hasta `tamano_lote_planos`
-  columnas: la suma y la suma de los cuadrados de las diferencias con la media,
-  en el tipo de la columna. Si el motor rechaza un lote, se parte hasta aislar
-  la columna. Bajo la muestra del motor esas sumas van en el lote de agregados,
-  en la misma sentencia.
+  el total de otro lote. La media y el desvío de las columnas decimales salen
+  de sumas exactas que el motor hace en el tipo de la columna —la suma y la de
+  los cuadrados— y que viajan en ese mismo lote, sin consultas de más (por
+  bloques, en una consulta de sumas por lote de hasta `tamano_lote_planos`
+  columnas). Si el motor rechaza un lote, se parte hasta aislar la columna.
 - **Cardinalidades exactas** van en su propia clase, por lotes de
   `tamano_lote_distintos` (`r lupa:::.TAMANO_LOTE_DISTINTOS_DBI` por omisión).
   Cada `COUNT(DISTINCT col)` viaja con `COUNT(col) AS n_validos_guard`, un conteo

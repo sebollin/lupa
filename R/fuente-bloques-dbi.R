@@ -960,7 +960,7 @@
       valor = if (isTRUE(decision$ok)) decision$valor else NA_real_,
       estado = if (isTRUE(decision$ok)) "calculado" else "no_disponible",
       motivo = if (isTRUE(decision$ok)) NA_character_ else decision$motivo,
-      sql = decision$sql
+      sql = decision$sql, exacta = isTRUE(decision$ok)
     )
   }
   registros <- list()
@@ -1113,7 +1113,10 @@
           campo, nombre, metrica$estado, metrica$motivo, metrica$sql,
           metadatos = .metadatos_sql_dbi(
             alcance = "tabla_completa", universo = "tabla_completa",
-            metodo = "dbfetch_bloques", error_esperado = "no_aplica",
+            metodo = if (isTRUE(metrica$exacta)) {
+              "sumas_exactas_decimal"
+            } else "dbfetch_bloques",
+            error_esperado = "no_aplica",
             id_consulta = NA_integer_, columnas_compartidas = length(fuente$campos)
           ), medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
         )

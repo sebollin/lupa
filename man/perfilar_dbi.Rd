@@ -1090,21 +1090,25 @@ duckdb el cuadrado con un factor de 19 cifras, que lo lleva a 128 bits —el
 de dos \code{DECIMAL(15,0)} desbordaba en 64—; y donde nada de eso entra, en
 trozos de nueve cifras. R divide y saca la raíz con aritmética entera, sin
 cancelación. La muestra leída en R hace lo mismo con el texto de cada
-valor. Las columnas van en lotes de hasta \code{tamano_lote_planos}, con las
-expresiones que acepta el motor (1.664 en PostgreSQL); un lote que el
-motor rechaza se parte hasta aislar la columna, y las demás siguen. Entran
-con cualquier \code{metricas}, con \code{incluir_valores = FALSE} —la media es un
-literal que sale de los datos, y el SQL publicado la lleva tapada— y con
-valores de 2^53 o más; en PostgreSQL, \code{NaN} e \code{Infinity} quedan fuera,
-como en la media de la tabla completa. Bajo la muestra del motor las sumas
-van en la misma sentencia que los demás agregados, sobre las mismas filas.
-Por la tabla completa reemplazan la media y el desvío del motor, que los
+valor. Por la tabla completa y bajo la muestra del motor las sumas van en
+la misma consulta que los demás agregados, sin consultas de más y, bajo la
+muestra, sobre las mismas filas; por bloques, en lotes de hasta
+\code{tamano_lote_planos} columnas, con las expresiones que acepta el motor
+(1.664 en PostgreSQL). Un lote que el motor rechaza se parte hasta aislar
+la columna, y las demás siguen. Entran con cualquier \code{metricas}, con
+\code{incluir_valores = FALSE} —la media es un literal que sale de los datos, y
+el SQL publicado la lleva tapada— y con valores de 2^53 o más; en
+PostgreSQL, \code{NaN} e \code{Infinity} quedan fuera, como en la media de la tabla
+completa. En duckdb la media y el desvío del motor de esas columnas se
+piden sobre el doble: \code{x * 1.0} de un \code{DECIMAL(38,30)} desborda. Las
+sumas reemplazan la media y el desvío del motor, que los
 calculaba en doble: en MySQL, MariaDB y SQL Server promediaba el doble de
 cada valor, y con valores que se cancelan la media salía lejos
 (\code{999999999999999.99}, \code{-999999999999999.98}, \code{0.01}, \code{0.02}, \code{0.03} y
 \code{-0.04} daban 0,00333 por 0,005); el desvío, y la media con escala 30,
-quedaban a un ulp. Si la consulta no corre —el presupuesto, o el motor la
-rechaza aun sola—, por la tabla completa la del motor queda sólo si su
+quedaban a un ulp. Si las sumas no llegan —el presupuesto, o el motor
+rechaza el lote aun con la columna sola—, por la tabla completa la del
+motor queda sólo si su
 error cabe en una parte en mil millones (el desvío, con la guarda de los
 dobles; la media, si \code{n} redondeos del mayor valor no pasan de esa parte de
 la media), y si no queda \code{no_disponible} con el motivo; por bloques, la

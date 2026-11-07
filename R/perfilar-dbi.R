@@ -2553,6 +2553,9 @@
   "cte_ventana_tablesample_system" = "creciente",
   "cte_ventana_newid" = "creciente",
   "dos_consultas" = "creciente",
+  # La media y el desvio de un decimal de sus sumas exactas: `SUM()` de piezas
+  # de largo fijo, sin ordenar ni agrupar.
+  "sumas_exactas_decimal" = "acotado",
   "PERCENTILE_CONT" = "creciente",
   "PERCENTILE_CONT_OVER" = "creciente",
   "approx_percentile" = "acotado",
@@ -12614,9 +12617,11 @@
       }
     )
   }
-  # La media y el desvio exactos de un decimal de la muestra del motor, en la
-  # misma sentencia que los agregados (`.piezas_sumas_sin_centro_dbi()`): otra
-  # veria otra muestra.
+  # La media y el desvio exactos de un decimal, en la misma sentencia que los
+  # agregados (`.piezas_sumas_sin_centro_dbi()`): no cuestan una consulta mas
+  # -con `max_consultas` justo, la de mas se quedaba sin lugar- y, bajo la
+  # muestra del motor, otra sentencia veria otra muestra. Los cuadrados van si
+  # se pide el desvio, aunque el de este lote salga en una segunda pasada.
   piezas_exactas <- list()
   if (length(decimales_exactos) &&
       any(c("basicos", "desvio") %in% metricas)) {
@@ -12626,15 +12631,16 @@
       if (is.null(datos_campo) || !isTRUE(es_numerico[[i]])) next
       piezas <- .piezas_sumas_sin_centro_dbi(
         senas, nombres_sql[[campo]], datos_campo$tipo, datos_campo$filas,
-        "desvio" %in% metricas, paste0("lupa_suma_l", numero, "_c", i, "_"),
-        alias
+        isTRUE(datos_campo$desvio) || "desvio" %in% metricas,
+        paste0("lupa_suma_l", numero, "_c", i, "_"), alias
       )
       if (!is.null(piezas)) piezas_exactas[[campo]] <- piezas
     }
   }
-  # Con esas sumas la media del motor no se publica, pero tiene que poder
-  # calcularse: el `AVG` de un `DECIMAL(38,30)` de DuckDB desborda y tumbaba la
-  # sentencia entera, con las sumas adentro. Se promedia el doble.
+  # Con esas sumas la media y el desvio del motor no se publican, pero tienen
+  # que poder calcularse: en DuckDB `x * 1.0` de un `DECIMAL(38,30)` de 9e7
+  # desborda ("Overflow in multiplication of DECIMAL(38)") y tumbaba la
+  # sentencia entera, con las sumas adentro. Se promedia y se desvia el doble.
   promedio_de <- function(campo) {
     if (!is.null(piezas_exactas[[campo]]) && .duckdb_senas_dbi(senas)) {
       paste0("CAST(", nombres_sql[[campo]], " AS DOUBLE)")
@@ -12733,7 +12739,7 @@
       ),
       if ("desvio" %in% metricas && es_numerico[[i]]) {
         formas <- .formas_desvio_dbi(
-          tabla_agregados_sql, nombres_sql[[campo]],
+          tabla_agregados_sql, promedio_de(campo),
           function(nombre) aliases$desvio, senas,
           centro = if (is.null(centros_desvio)) NULL else {
             centros_desvio[[campo]]
@@ -12883,18 +12889,11 @@
                s = paste0(piezas$prefijo, "s"), q = paste0(piezas$prefijo, "q")),
           piezas$suma, piezas$cuadrados, piezas$postgres
         )
-        basicos <- valores[[i]]$basicos
-        if (is.finite(exacto$media) && isTRUE(basicos$ok) &&
-            is.data.frame(basicos$datos) && "media" %in% names(basicos$datos)) {
-          valores[[i]]$basicos$datos$media <- exacto$media
-          valores[[i]]$basicos$media_exacta_decimal <- TRUE
-        }
-        if (is.finite(exacto$desvio) && !is.null(valores[[i]]$desvio)) {
-          valores[[i]]$desvio$ok <- TRUE
-          valores[[i]]$desvio$valor <- exacto$desvio
-          valores[[i]]$desvio$motivo <- NA_character_
-          valores[[i]]$desvio$exacto_decimal <- TRUE
-        }
+        # Lo del motor queda como esta, con sus guardas: el resumen lo
+        # reemplaza al final (`.decimales_exactos_tabla_dbi()`).
+        valores[[i]]$exacto_decimal <- list(
+          media = exacto$media, desvio = exacto$desvio, sql = entrada$sql
+        )
       }
       resultado[[campo]] <- valores[[i]]
     }
@@ -13344,11 +13343,12 @@
     stats::setNames(as.character(tipos_declarados), columnas)
   }
   ventana_desvio <- .desvio_por_ventana_dbi(conexion, metricas, universo)
-  # Bajo la muestra del motor, la media y el desvio de un decimal salen de sus
-  # sumas exactas, pedidas en el mismo lote (ver
-  # `.agregados_lote_con_biseccion_dbi()`). La cota de filas es la de la tabla.
+  # La media y el desvio de un decimal salen de sus sumas exactas, pedidas en
+  # el mismo lote de agregados (ver `.agregados_lote_con_biseccion_dbi()`), por
+  # la tabla completa y bajo la muestra del motor. La cota de filas es la de la
+  # tabla.
   decimales_exactos <- NULL
-  if (identical(universo, "muestra_motor") && !is.null(tipos_por_nombre)) {
+  if (!is.null(tipos_por_nombre) && any(c("basicos", "desvio") %in% metricas)) {
     for (i in seq_along(columnas)) {
       tipo <- tipos_por_nombre[[columnas[[i]]]]
       if (!isTRUE(es_numerico[[i]]) ||
@@ -13356,7 +13356,8 @@
         next
       }
       decimales_exactos[[columnas[[i]]]] <- list(
-        tipo = tipo, filas = if (is.finite(n_total)) n_total else 1e12
+        tipo = tipo, filas = if (is.finite(n_total)) n_total else 1e12,
+        desvio = "desvio" %in% metricas
       )
     }
   }
@@ -13406,7 +13407,9 @@
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
         metricas_consulta, incluir_valores, presupuesto, tamano_lote_planos, numero,
         alias, forma, etapa,
-        incluir_total = "validos" %in% metricas_consulta || incluir_total_muestra,
+        # El total va siempre en los agregados: sin `validos` se pedia aparte,
+        # en una consulta que el plan no cuenta.
+        incluir_total = TRUE,
         tabla_total_sql = tabla_total_sql,
         columnas_float8_numeric = columnas_float8_numeric,
         infinitos_como_numeric = infinitos_como_numeric,
@@ -13476,6 +13479,11 @@
         }
         if ("basicos" %in% metricas && !is.null(resultado$basicos)) {
           agregados$basicos[[campo]] <- resultado$basicos
+        }
+        if (!is.null(decimales_exactos[[campo]])) {
+          agregados$exactos[[campo]] <- resultado$exacto_decimal %||% list(
+            media = NA_real_, desvio = NA_real_, sql = NA_character_
+          )
         }
         if ("desvio" %in% metricas_planas && !is.null(resultado$desvio)) {
           agregados$desvio[[campo]] <- resultado$desvio
@@ -14683,22 +14691,10 @@
 
   mediana_conservada <- is.null(decisiones_costo) ||
     isTRUE(decisiones_costo$mediana)
-  tipo_sonda_desvio <- .minusculas_ascii(as.character(tipo_operacion))
-  desvio_directo_sin_magnitud <- "desvio" %in% pedidas_numericas &&
-    !("basicos" %in% pedidas_numericas) &&
-    !("mediana" %in% pedidas_numericas) &&
-    !.tipo_declarado_decimal_dbi(tipo_operacion) &&
-    grepl(
-      "^(smallint|int2|integer|int|int4|tinyint|mediumint)$",
-      tipo_sonda_desvio, perl = TRUE
-    )
-  necesita_sonda_magnitud <- !("basicos" %in% pedidas_numericas) &&
-    ("desvio" %in% pedidas_numericas ||
-      ("mediana" %in% pedidas_numericas &&
-       isTRUE(incluir_valores) && mediana_conservada)) &&
-    !desvio_directo_sin_magnitud ||
-    (.tipo_declarado_decimal_dbi(tipo_declarado) &&
-     !isTRUE(incluir_valores))
+  necesita_sonda_magnitud <- .necesita_sonda_magnitud_dbi(
+    pedidas_numericas, tipo_operacion, tipo_declarado, incluir_valores,
+    mediana_conservada
+  )
 
   if (necesita_sonda_magnitud) {
     sondeo <- .sonda_magnitud_columna_dbi(
@@ -15527,7 +15523,6 @@
 
   if (es_muestreado && .tipo_decimal_o_moneda_dbi(tipo_declarado) &&
       .centra_muestra_en_doble_dbi(conexion) &&
-      !isTRUE(agregados$desvio[[columna]]$exacto_decimal) &&
       .desvio_mal_condicionado_dbi(fila$desvio, c(
         fila$minimo, fila$maximo, minimo_basicos, maximo_basicos
       ), tipo = tipo_declarado)) {
@@ -16144,22 +16139,21 @@
       columna_sql = sql_de(campo)
     )
   })
-  if (identical(universo, "tabla_completa")) {
+  if (identical(universo, "tabla_completa") ||
+      (identical(universo, "muestra_motor") && !is.null(agregados$exactos))) {
     resultados <- .decimales_exactos_tabla_dbi(
-      conexion, tabla_metricas_sql, campos, resultados, metricas,
+      conexion, campos, resultados, metricas,
       tipo_de = function(i) {
         tipo <- tipo_motor_de(campos[[i]])
         if (length(tipo) != 1L || is.na(tipo) || !nzchar(tipo)) tipo_de(i) else
           tipo
       },
-      tipo_regla = tipo_de, sql_de = sql_de, agregados = agregados,
-      presupuesto = presupuesto, incluir_valores = incluir_valores,
+      tipo_regla = tipo_de, agregados = agregados, universo = universo,
       es_numerico = vapply(seq_along(campos), function(i) {
         .es_numerico_dbi(
           if (i <= length(prototipo)) prototipo[[i]] else NULL, tipo_de(i)
         )
-      }, logical(1L)),
-      tamano_lote = tamano_lote_planos, n_total = n_total
+      }, logical(1L))
     )
   }
   .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
@@ -16926,51 +16920,46 @@
   )$convertidas) > 0L
 }
 
-# La media y el desvio de un decimal por la tabla completa, en el decimal. El
-# motor los calculaba en doble: SQL Server con `AVG(CAST(x AS FLOAT))`, MySQL y
-# MariaDB con `AVG(x * 1e0)`, y el desvio, centrado en esa media, tambien en
-# doble. Con valores que se cancelan la media no era ni la de los dobles:
-# `999999999999999.99`, `-999999999999999.98`, `0.01`, `0.02`, `0.03` y
-# `-0.04` daban 0,00333 por 0,005. Y aun sin cancelar, la media y el desvio
-# quedaban a un ulp del doble mas cercano en los cinco motores con decimales
-# (0,0000000000000001 a 0,0000000000000004; 1,10, 2,20 y 3,30; escala 30). Las
-# sumas exactas de `.sumas_exactas_decimales_dbi()` -por lotes de columnas- dan
-# los dos: la media es el doble mas cercano de la suma dividida por la cuenta, y
-# el desvio, el doble mas cercano del exacto.
+# La media y el desvio de un decimal, en el decimal, por la tabla completa y
+# bajo la muestra del motor. El motor los calculaba en doble: SQL Server con
+# `AVG(CAST(x AS FLOAT))`, MySQL y MariaDB con `AVG(x * 1e0)`, y el desvio,
+# centrado en esa media, tambien en doble. Con valores que se cancelan la media
+# no era ni la de los dobles: `999999999999999.99`, `-999999999999999.98`,
+# `0.01`, `0.02`, `0.03` y `-0.04` daban 0,00333 por 0,005. Y aun sin cancelar,
+# la media y el desvio quedaban a un ulp del doble mas cercano en los cinco
+# motores con decimales. Las sumas exactas -la cuenta, la suma y la de los
+# cuadrados, como texto- van en el mismo lote que los agregados
+# (`.piezas_sumas_sin_centro_dbi()`, ver `.agregados_lote_con_biseccion_dbi()`):
+# la media es el doble mas cercano de la suma dividida por la cuenta, y el
+# desvio, el doble mas cercano del exacto. Aca se reemplazan los del motor, con
+# cualquier `metricas`, con `incluir_valores = FALSE` y con valores de 2^53 o
+# mas, cuya media y desvio de los dobles no se publican; la fila queda con el
+# metodo `sumas_exactas_decimal`, que la guarda del decimal ancho respeta.
 #
-# Entran todas las columnas decimales que el plan cuenta, por su tipo, con
-# cualquier `metricas` y con `incluir_valores = FALSE`: lo que ya leyo el
-# resumen -la cuenta, la media, los extremos- elige las expresiones y contrasta
-# el resultado cuando esta, pero no hace falta. Un decimal de escala 0 tambien
-# entra: sus dobles son los valores, pero el motor promediaba y restaba en
-# doble, y su desvio quedaba a un ulp. Y uno con valores de 2^53 o mas, cuya
-# media y desvio de los dobles no se publican: los exactos si.
-#
-# Si la consulta no corre -el presupuesto, o el motor la rechaza aun sola-, la
-# del motor queda solo si su error cabe en la tolerancia de los dobles, la de
-# una parte en mil millones (`.TOLERANCIA_DESVIO_DOBLE_DBI`): el desvio, con la
-# guarda de `.desvio_mal_condicionado_dbi()`, y la media, si `n` veces el
-# redondeo del mayor valor no pasa de esa parte de la media. PostgreSQL
-# promedia en `numeric`, sin redondear cada valor. Si no, `no_disponible` con
-# el motivo de la consulta.
-.decimales_exactos_tabla_dbi <- function(conexion, tabla_sql, campos,
-                                         resultados, metricas, tipo_de,
-                                         tipo_regla, sql_de, agregados,
-                                         presupuesto = NULL,
-                                         incluir_valores = TRUE,
-                                         es_numerico = NULL,
-                                         tamano_lote = .TAMANO_LOTE_PLANOS_DBI,
-                                         n_total = NA_real_) {
+# Si el lote no devolvio las sumas -el presupuesto, o el motor lo rechazo y la
+# columna se pidio sola-, por la tabla completa la del motor queda solo si su
+# error cabe en la tolerancia de los dobles, la de una parte en mil millones
+# (`.TOLERANCIA_DESVIO_DOBLE_DBI`): el desvio, con la guarda de
+# `.desvio_mal_condicionado_dbi()` y sin riesgo de cancelacion, y la media, si
+# `n` veces el redondeo del mayor valor no pasa de esa parte de la media.
+# PostgreSQL promedia en `numeric`, sin redondear cada valor. Si no,
+# `no_disponible`. Bajo la muestra del motor quedan la del motor y sus guardas,
+# como antes.
+.decimales_exactos_tabla_dbi <- function(conexion, campos, resultados, metricas,
+                                         tipo_de, tipo_regla, agregados,
+                                         universo = "tabla_completa",
+                                         es_numerico = NULL) {
   if (!any(c("basicos", "desvio") %in% metricas)) return(resultados)
   senas <- .senas_conexion_dbi(conexion)
-  columnas <- list()
+  postgres <- .postgresql_dbi(senas)
+  muestra <- identical(universo, "muestra_motor")
+  estado_exacto <- if (muestra) "estimado" else "calculado"
   for (i in seq_along(campos)) {
     campo <- campos[[i]]
     if (!is.null(es_numerico) && !isTRUE(es_numerico[[i]])) next
     if (!.mediana_decimal_por_centrales_dbi(senas, tipo_regla(i))) next
+    exacto <- agregados$exactos[[campo]]
     fila <- resultados[[i]]$fila
-    n <- suppressWarnings(as.numeric(.numero_dbi(fila$n_validos)))
-    if (length(n) != 1L) n <- NA_real_
     datos <- agregados$basicos[[campo]]$datos
     extremos <- if (is.data.frame(datos) && nrow(datos)) {
       suppressWarnings(as.numeric(c(
@@ -16978,74 +16967,43 @@
         .valor_campo_dbi(datos, "maximo")$valor
       )))
     } else NA_real_
-    finitos <- extremos[is.finite(extremos)]
-    media <- suppressWarnings(as.numeric(fila$media))
-    if (length(media) != 1L) media <- NA_real_
-    # La media del motor suma en doble: dista de la exacta a lo sumo unas `n`
-    # veces el redondeo del mayor valor. Sin ella, la del medio del rango, que
-    # dista de la exacta a lo sumo medio rango.
-    cota <- NA_real_
-    if (length(finitos) == 2L && is.finite(n)) {
-      if (is.finite(media)) {
-        cota <- max(abs(finitos)) * (n + 2) * 2^-50
-      } else {
-        media <- finitos[[1L]] / 2 + finitos[[2L]] / 2
-        cota <- (finitos[[2L]] - finitos[[1L]]) / 2 +
-          max(abs(finitos)) * (n + 2) * 2^-50
-      }
-    } else if (!is.finite(n)) {
-      media <- NA_real_
-    }
-    columnas[[campo]] <- list(
-      columna_sql = sql_de(campo), tipo = tipo_de(i), n = n,
-      filas = if (is.finite(n)) n else n_total, media = media,
-      cota = cota, extremos = extremos,
-      media_motor = suppressWarnings(as.numeric(fila$media)),
-      n_distintos = suppressWarnings(as.numeric(fila$n_distintos)),
-      media_pedida = "basicos" %in% metricas,
-      desvio_pedido = "desvio" %in% metricas
-    )
-  }
-  if (!length(columnas)) return(resultados)
-  sumas <- .sumas_exactas_decimales_dbi(
-    conexion, tabla_sql, columnas, presupuesto = presupuesto,
-    prefijo_motivo = "", incluir_valores = incluir_valores,
-    tamano_lote = tamano_lote
-  )
-  postgres <- .postgresql_dbi(senas)
-  for (campo in names(sumas$columnas)) {
-    i <- match(campo, campos)
-    columna <- columnas[[campo]]
-    for (metrica in names(sumas$columnas[[campo]])) {
-      decision <- sumas$columnas[[campo]][[metrica]]
+    extremos <- extremos[is.finite(extremos)]
+    n <- suppressWarnings(as.numeric(.numero_dbi(fila$n_validos)))
+    if (length(n) != 1L) n <- NA_real_
+    for (metrica in c("media", "desvio")) {
+      if (identical(metrica, "media") && !"basicos" %in% metricas) next
+      if (identical(metrica, "desvio") && !"desvio" %in% metricas) next
       sql <- resultados[[i]]$sql
       filas <- as.character(sql$metrica) == metrica
-      if (isTRUE(decision$ok)) {
-        resultados[[i]]$fila[[metrica]] <- decision$valor
-        sql$estado[filas] <- "calculado"
+      if (!any(filas)) next
+      valor_exacto <- suppressWarnings(as.numeric(exacto[[metrica]]))
+      if (length(valor_exacto) == 1L && is.finite(valor_exacto)) {
+        resultados[[i]]$fila[[metrica]] <- valor_exacto
+        sql$estado[filas] <- estado_exacto
         sql$motivo[filas] <- NA_character_
-        sql$sql[filas] <- decision$sql
+        sql$sql[filas] <- exacto$sql
+        if ("metodo" %in% names(sql)) sql$metodo[filas] <- "sumas_exactas_decimal"
         resultados[[i]]$sql <- sql
         next
       }
-      publicado <- any(filas) &&
-        all(as.character(sql$estado[filas]) %in% c("calculado", "estimado"))
+      # Sin las sumas: el respaldo, solo por la tabla completa y solo si el
+      # tipo las admitia (un decimal sin escala sigue con la del motor).
+      if (muestra || !.sumas_exactas_posibles_dbi(senas, tipo_de(i))) next
+      publicado <- all(as.character(sql$estado[filas]) %in%
+                         c("calculado", "estimado"))
       if (!publicado) next
-      valor <- suppressWarnings(as.numeric(resultados[[i]]$fila[[metrica]]))
-      extremos <- columna$extremos[is.finite(columna$extremos)]
-      # Un desvio 0 con valores distintos -o con riesgo de cancelacion- es el
-      # del motor que perdio las cifras: el centrado que lo corregia no corre
-      # para un decimal con sumas exactas.
+      valor <- suppressWarnings(as.numeric(fila[[metrica]]))
+      media_motor <- suppressWarnings(as.numeric(fila$media))
       tolerado <- length(valor) == 1L && is.finite(valor) &&
         length(extremos) > 0L && if (identical(metrica, "desvio")) {
-          !.desvio_mal_condicionado_dbi(valor, extremos, tipo = columna$tipo) &&
+          !.desvio_mal_condicionado_dbi(valor, extremos, tipo = tipo_de(i)) &&
             !isTRUE(.riesgo_cancelacion_desvio_dbi(
-              columna$media_motor, valor, min(extremos), max(extremos),
-              columna$n_distintos
+              media_motor, valor, min(extremos), max(extremos),
+              suppressWarnings(as.numeric(fila$n_distintos))
             ))
         } else {
-          postgres || (is.finite(columna$n) && valor != 0 &&
-            max(abs(extremos)) * (columna$n + 2) * 2^-53 / abs(valor) <=
+          postgres || (is.finite(n) && valor != 0 &&
+            max(abs(extremos)) * (n + 2) * 2^-53 / abs(valor) <=
               .TOLERANCIA_DESVIO_DOBLE_DBI)
         }
       if (tolerado) next
@@ -17053,9 +17011,9 @@
       sql$estado[filas] <- "no_disponible"
       sql$motivo[filas] <- paste(
         "La media y el desv\u00edo de un decimal salen de las sumas exactas",
-        "en el motor, y la consulta no se pudo hacer:", decision$motivo,
-        "Los del motor, que suman en doble, pueden diferir del exacto en m\u00e1s",
-        "de una parte en mil millones."
+        "en el motor, que no llegaron: la consulta de los agregados no corri\u00f3",
+        "o el motor la rechaz\u00f3. Los del motor, que suman en doble, pueden",
+        "diferir del exacto en m\u00e1s de una parte en mil millones."
       )
       resultados[[i]]$sql <- sql
     }
@@ -17064,6 +17022,33 @@
 }
 
 # ---- Plan previo ---------------------------------------------------------
+
+# Si una columna numerica pide la sonda de magnitud (`MIN`/`MAX` sueltos): sin
+# `basicos`, cuando el desvio o la mediana necesitan saber la magnitud -un
+# entero chico va directo-, y un decimal sin valores, que la necesita para la
+# guarda de 2^53. La misma regla deciden la corrida
+# (`.resumen_columna_dbi()`) y el plan: el plan las contaba para todas las
+# numericas y la corrida no las pedia para los enteros chicos.
+.necesita_sonda_magnitud_dbi <- function(pedidas_numericas, tipo_operacion,
+                                         tipo_declarado, incluir_valores,
+                                         mediana_conservada = TRUE) {
+  tipo_sonda_desvio <- .minusculas_ascii(as.character(tipo_operacion))
+  desvio_directo_sin_magnitud <- "desvio" %in% pedidas_numericas &&
+    !("basicos" %in% pedidas_numericas) &&
+    !("mediana" %in% pedidas_numericas) &&
+    !.tipo_declarado_decimal_dbi(tipo_operacion) &&
+    length(tipo_sonda_desvio) == 1L && !is.na(tipo_sonda_desvio) &&
+    grepl(
+      "^(smallint|int2|integer|int|int4|tinyint|mediumint)$",
+      tipo_sonda_desvio, perl = TRUE
+    )
+  !("basicos" %in% pedidas_numericas) &&
+    ("desvio" %in% pedidas_numericas ||
+       ("mediana" %in% pedidas_numericas &&
+          isTRUE(incluir_valores) && isTRUE(mediana_conservada))) &&
+    !desvio_directo_sin_magnitud ||
+    (.tipo_declarado_decimal_dbi(tipo_declarado) && !isTRUE(incluir_valores))
+}
 
 # Cuantas consultas de prueba de la CTE de ventanas correra la muestra sin que
 # la preparacion las haya corrido (ver `plan_perfilado_dbi()`): dos por
@@ -17121,7 +17106,8 @@
                                   reintento_muestreo = FALSE,
                                   consultas_decimales = 0L,
                                   consultas_decimales_max =
-                                    consultas_decimales) {
+                                    consultas_decimales,
+                                  n_sondas_magnitud = NULL) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -17218,11 +17204,13 @@
       "total exacto (COUNT)", 1, "escanea la tabla completa"
     )
   }
-  n_sondas_magnitud <- if (
-    !("basicos" %in% metricas) &&
-      ("desvio" %in% metricas ||
-        ("mediana" %in% metricas && con_valores))
-  ) n_numericas else 0
+  if (is.null(n_sondas_magnitud)) {
+    n_sondas_magnitud <- if (
+      !("basicos" %in% metricas) &&
+        ("desvio" %in% metricas ||
+          ("mediana" %in% metricas && con_valores))
+    ) n_numericas else 0
+  }
   if (n_sondas_magnitud > 0) {
     clases[[length(clases) + 1L]] <- c(
       "sonda de magnitud (MIN)", n_metricas(n_sondas_magnitud),
@@ -17407,34 +17395,28 @@
   }, logical(1L))
   muestra_sql <- identical(preparacion$universo, "muestra_motor") &&
     !.solicita_muestra_dbi(preparacion$bloque_muestra)
-  # La media y el desvio exactos de los decimales de la tabla completa, por
-  # lotes de columnas (ver `.decimales_exactos_tabla_dbi()`): los mismos que
-  # arma la corrida, por el tipo de cada columna.
+  # La media y el desvio exactos de los decimales van en los lotes de
+  # agregados, sin consultas de mas (ver `.decimales_exactos_tabla_dbi()`).
   lotes_decimales <- list()
-  if (identical(preparacion$universo, "tabla_completa") &&
-      any(c("basicos", "desvio") %in% preparacion$metricas_ejecucion)) {
-    tipos_motor <- preparacion$esquema$tipos_motor
-    elegidas <- character()
-    for (i in seq_along(preparacion$campos)) {
-      tipo <- if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
-        NA_character_
-      if (!isTRUE(es_numerico[[i]]) ||
-          !.mediana_decimal_por_centrales_dbi(senas, tipo)) {
-        next
-      }
-      motor <- if (!is.null(tipos_motor) && i <= length(tipos_motor)) {
-        tipos_motor[[i]]
-      } else NA_character_
-      if (length(motor) != 1L || is.na(motor) || !nzchar(as.character(motor))) {
-        motor <- tipo
-      }
-      elegidas <- c(elegidas, as.character(motor))
-    }
-    lotes_decimales <- .lotes_decimales_dbi(
-      senas, elegidas,
-      preparacion$tamano_lote_planos %||% .TAMANO_LOTE_PLANOS_DBI
-    )
-  }
+  # Las sondas de magnitud, con la regla de la corrida, columna por columna.
+  tipos_motor_plan <- preparacion$esquema$tipos_motor
+  pedidas_plan <- intersect(preparacion$metricas_ejecucion,
+                            .METRICAS_NUMERICAS_DBI)
+  n_sondas_magnitud <- sum(vapply(seq_along(preparacion$campos), function(i) {
+    if (!isTRUE(es_numerico[[i]])) return(FALSE)
+    declarado <- if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+      NA_character_
+    motor <- if (!is.null(tipos_motor_plan) && i <= length(tipos_motor_plan)) {
+      tipos_motor_plan[[i]]
+    } else NA_character_
+    operacion <- if (length(motor) == 1L && !is.na(motor) &&
+                     nzchar(as.character(motor))) motor else declarado
+    conservada <- is.null(columnas_mediana_plan) ||
+      preparacion$campos[[i]] %in% columnas_mediana_plan
+    isTRUE(.necesita_sonda_magnitud_dbi(
+      pedidas_plan, operacion, declarado, incluir_valores, conservada
+    ))
+  }, logical(1L)))
   .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
@@ -17469,6 +17451,7 @@
       "tablesample"
     ),
     consultas_decimales = length(lotes_decimales),
+    n_sondas_magnitud = n_sondas_magnitud,
     consultas_decimales_max = .consultas_maximas_lotes_decimales_dbi(
       lotes_decimales
     )
@@ -21842,13 +21825,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
   }
   # La media y el desvio de un decimal que salieron de las sumas exactas del
-  # motor (`.sumas_exactas_decimales_dbi()`, la consulta de los alias
-  # `lupa_suma_`) no dependen de esos dobles: tampoco se tapan.
+  # motor (metodo `sumas_exactas_decimal`) no dependen de esos dobles: tampoco
+  # se tapan.
   exactas <- if (is.data.frame(sql) && nrow(sql) &&
-                 all(c("columna", "metrica", "estado", "sql") %in% names(sql))) {
+                 all(c("columna", "metrica", "estado", "metodo") %in% names(sql))) {
     as.character(sql$metrica) %in% c("media", "desvio") &
       as.character(sql$estado) %in% c("calculado", "estimado") &
-      grepl("lupa_suma_", as.character(sql$sql), fixed = TRUE, useBytes = TRUE)
+      as.character(sql$metodo) %in% "sumas_exactas_decimal"
   } else logical()
   if (length(columnas_decimal)) {
     if (is.data.frame(resumen$columnas)) {
@@ -23373,21 +23356,25 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   de dos `DECIMAL(15,0)` desbordaba en 64—; y donde nada de eso entra, en
 #'   trozos de nueve cifras. R divide y saca la raíz con aritmética entera, sin
 #'   cancelación. La muestra leída en R hace lo mismo con el texto de cada
-#'   valor. Las columnas van en lotes de hasta `tamano_lote_planos`, con las
-#'   expresiones que acepta el motor (1.664 en PostgreSQL); un lote que el
-#'   motor rechaza se parte hasta aislar la columna, y las demás siguen. Entran
-#'   con cualquier `metricas`, con `incluir_valores = FALSE` —la media es un
-#'   literal que sale de los datos, y el SQL publicado la lleva tapada— y con
-#'   valores de 2^53 o más; en PostgreSQL, `NaN` e `Infinity` quedan fuera,
-#'   como en la media de la tabla completa. Bajo la muestra del motor las sumas
-#'   van en la misma sentencia que los demás agregados, sobre las mismas filas.
-#'   Por la tabla completa reemplazan la media y el desvío del motor, que los
+#'   valor. Por la tabla completa y bajo la muestra del motor las sumas van en
+#'   la misma consulta que los demás agregados, sin consultas de más y, bajo la
+#'   muestra, sobre las mismas filas; por bloques, en lotes de hasta
+#'   `tamano_lote_planos` columnas, con las expresiones que acepta el motor
+#'   (1.664 en PostgreSQL). Un lote que el motor rechaza se parte hasta aislar
+#'   la columna, y las demás siguen. Entran con cualquier `metricas`, con
+#'   `incluir_valores = FALSE` —la media es un literal que sale de los datos, y
+#'   el SQL publicado la lleva tapada— y con valores de 2^53 o más; en
+#'   PostgreSQL, `NaN` e `Infinity` quedan fuera, como en la media de la tabla
+#'   completa. En duckdb la media y el desvío del motor de esas columnas se
+#'   piden sobre el doble: `x * 1.0` de un `DECIMAL(38,30)` desborda. Las
+#'   sumas reemplazan la media y el desvío del motor, que los
 #'   calculaba en doble: en MySQL, MariaDB y SQL Server promediaba el doble de
 #'   cada valor, y con valores que se cancelan la media salía lejos
 #'   (`999999999999999.99`, `-999999999999999.98`, `0.01`, `0.02`, `0.03` y
 #'   `-0.04` daban 0,00333 por 0,005); el desvío, y la media con escala 30,
-#'   quedaban a un ulp. Si la consulta no corre —el presupuesto, o el motor la
-#'   rechaza aun sola—, por la tabla completa la del motor queda sólo si su
+#'   quedaban a un ulp. Si las sumas no llegan —el presupuesto, o el motor
+#'   rechaza el lote aun con la columna sola—, por la tabla completa la del
+#'   motor queda sólo si su
 #'   error cabe en una parte en mil millones (el desvío, con la guarda de los
 #'   dobles; la media, si `n` redondeos del mayor valor no pasan de esa parte de
 #'   la media), y si no queda `no_disponible` con el motivo; por bloques, la

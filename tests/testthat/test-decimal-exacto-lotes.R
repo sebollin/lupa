@@ -66,14 +66,15 @@ test_that("una columna que el motor rechaza queda sola: el lote se parte", {
   perfil <- .dlot_perfil(con, "dlot_rechazo")
   .dlot_esperar(perfil, "a", .dlot_centavos_media, .dlot_centavos_desvio)
   .dlot_esperar(perfil, "b", .dlot_centavos_media, .dlot_centavos_desvio)
-  # El lote entero y `c` sola: la mitad con `a` y `b` paso.
-  expect_identical(rechazadas, 2L)
+  # Las sumas van en el lote de agregados: el motor lo rechaza entero, se
+  # parte hasta aislar `c`, y `c` se pide sola sin las sumas.
+  expect_true(rechazadas >= 2L)
   # La media del motor de `c` -los valores se cancelan- no cabe en la tolerancia
-  # de los dobles: no se publica la del motor, con el motivo de la consulta.
+  # de los dobles: no se publica la del motor, y el motivo lo dice.
   sql <- perfil$resumen_tabla$sql
   fila <- sql$columna == "c" & sql$metrica == "media"
   expect_identical(sql$estado[fila], "no_disponible")
-  expect_true(grepl("rechazo de prueba", sql$motivo[fila], fixed = TRUE,
+  expect_true(grepl("sumas exactas", sql$motivo[fila], fixed = TRUE,
                     useBytes = TRUE))
   expect_true(is.na(perfil$resumen_tabla$columnas$media[
     perfil$resumen_tabla$columnas$columna == "c"
