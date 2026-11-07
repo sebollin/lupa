@@ -422,17 +422,32 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
   if (nrow(datos) > 0L && limite > 0L) {
     for (tamano in seq_len(limite)) {
+      # Una combinacion que contiene una clave simple no es minima, y no se
+      # prueba: se arma sin esas columnas en vez de armarla entera y
+      # descartarla. Con 100 copias de un identificador se armaban 161.700
+      # ternas, cada una comparada contra las 100 claves -36 s-, y con 1.000
+      # copias `combn()` no entraba en memoria. Las combinaciones que quedan
+      # salen en el mismo orden relativo, asi que la salida es la misma.
+      simples_encontradas <- unlist(
+        encontradas[lengths(encontradas) == 1L], use.names = FALSE
+      )
+      candidatas <- if (tamano == 1L) analizables else {
+        setdiff(analizables, simples_encontradas)
+      }
+      compuestas <- encontradas[lengths(encontradas) > 1L]
       # `combn()` sobre un solo numero `k` combina `seq_len(k)`: con una sola
       # columna analizable en la posicion 3, probaba como clave las columnas 1 y
       # 2, que el filtro habia excluido -un importe con decimales, una lista-, y
       # la respuesta dependia del orden de las columnas.
-      combinaciones <- if (length(analizables) == 1L) {
-        list(analizables)
+      combinaciones <- if (length(candidatas) < tamano) {
+        list()
+      } else if (length(candidatas) == 1L) {
+        list(candidatas)
       } else {
-        utils::combn(analizables, tamano, simplify = FALSE)
+        utils::combn(candidatas, tamano, simplify = FALSE)
       }
       for (combinacion in combinaciones) {
-        contiene_clave <- any(vapply(encontradas, function(clave) {
+        contiene_clave <- any(vapply(compuestas, function(clave) {
           all(clave %in% combinacion)
         }, logical(1L)))
         if (!contiene_clave && .es_clave(datos, combinacion)) {
@@ -464,6 +479,24 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
   indices_simples <- unlist(encontradas[lengths(encontradas) == 1L], use.names = FALSE)
   redundantes <- .pares_redundantes(datos, indices_simples, nombres)
+  # Las equivalentes de cada clave simple, buscadas una vez: con k copias hay
+  # k (k - 1) / 2 pares, y normalizarlos y recorrerlos para cada clave costaba
+  # del orden de k^3. Las filas de cada extremo quedan en el orden de los pares.
+  clave_par_1 <- .nombres_para_operar(redundantes$columna_1)
+  clave_par_2 <- .nombres_para_operar(redundantes$columna_2)
+  unicas_par_1 <- unique(clave_par_1)
+  unicas_par_2 <- unique(clave_par_2)
+  filas_par_1 <- split(seq_along(clave_par_1), match(clave_par_1, unicas_par_1))
+  filas_par_2 <- split(seq_along(clave_par_2), match(clave_par_2, unicas_par_2))
+  equivalentes_de <- function(nombre) {
+    clave <- .nombres_para_operar(nombre)
+    j1 <- match(clave, unicas_par_1)
+    j2 <- match(clave, unicas_par_2)
+    c(
+      if (!is.na(j1)) redundantes$columna_2[filas_par_1[[j1]]],
+      if (!is.na(j2)) redundantes$columna_1[filas_par_2[[j2]]]
+    )
+  }
   entradas <- c(
     lapply(encontradas, function(indices) {
       list(indices = indices, casi_clave = FALSE, resumen = NULL)
@@ -495,16 +528,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       nombres_clave <- nombres[indices]
       relacionadas <- character()
       if (!es_casi_clave && length(indices) == 1L && nrow(redundantes)) {
-      relacionadas <- c(
-          redundantes$columna_2[
-            .nombres_para_operar(redundantes$columna_1) %in%
-              .nombres_para_operar(nombres_clave)
-          ],
-          redundantes$columna_1[
-            .nombres_para_operar(redundantes$columna_2) %in%
-              .nombres_para_operar(nombres_clave)
-          ]
-        )
+        relacionadas <- as.character(equivalentes_de(nombres_clave))
       }
       # Una casi-clave se mide sin sus faltantes disfrazados, y la unicidad
       # normalizada de la misma fila tambien: contada sobre la columna entera

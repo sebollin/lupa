@@ -807,10 +807,22 @@ tolerancia relativa reconoce y la cota no se descarta y se cuenta en
 \code{meta$aritmetica_columnas$identidades_descartadas_cuanto}. En una suma la
 tolerancia se mide también sobre los sumandos —\verb{max(1, |observado|, |esperado|, |sumandos|)}—, porque el error de sumar en doble es relativo a
 ellos; si el total queda por debajo de esa tolerancia, la identidad se
-publica sólo si es exacta. Una tolerancia declarada no se acota, y las
-proporcionalidades usan siempre la relativa. \code{meta$aritmetica_columnas} se
-publica cuando hay una relación, un recorte o una identidad descartada —por
-escala o por la cota del cuanto—.}
+publica sólo si es exacta. Una tolerancia declarada no se acota. En una
+proporcionalidad, con el valor por omisión, una columna con decimales fijos
+cuyo redondeo la tolerancia relativa supera en alguna fila se lee como la
+respuesta redondeada: la mitad de su cuanto, inclusiva, es la tolerancia de
+todas las filas, y \code{k} es la constante con menos cifras que deja casi tantas
+filas dentro de ella como la que más. Si las dos columnas admiten esa
+lectura se usa la de la constante claramente más corta (\code{1.22} y no
+\verb{0.8196...}) y, entre dos constantes cortas, la de la resolución más fina. La
+que la tolerancia relativa reconoce y esa resolución no se descarta y se
+cuenta en \code{meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto}.
+Una columna que varía menos que la tolerancia relativa de su magnitud se
+evalúa con la cota del cuanto cuando la identidad la admite; si no, una fila
+de \code{cobertura_diagnosticos} por columna dice qué relación reconocía la
+tolerancia y por qué no se publicó. \code{meta$aritmetica_columnas} se publica
+cuando hay una relación, un recorte o una relación descartada —por escala o
+por la cota del cuanto—.}
 
 \item{max_columnas_aritmetica}{Máximo de columnas numéricas que intervienen
 en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
@@ -1424,7 +1436,10 @@ evidencia. Una columna \code{integer} se suma en doble: que dos enteros pasen
 \code{.Machine$integer.max} no apaga la relación. Para cada terna se prueban las tres orientaciones de una identidad
 aditiva; esto cubre sumas y sus restas equivalentes sin informar tres veces
 la misma igualdad. En pares proporcionales, \code{k} es la mediana de los cocientes
-finitos cuya base no es cero, pero el cumplimiento se evalúa después también
+finitos cuya base no es cero —salvo cuando la resolución de una columna con
+decimales fijos hace de tolerancia (ver \code{tolerancia_aritmetica}): ahí es la
+constante con menos cifras que deja casi tantas filas dentro de esa
+resolución como la que más—, pero el cumplimiento se evalúa después también
 en las filas con base cero. Si una identidad aditiva ya relaciona una terna,
 se omiten las proporcionalidades redundantes entre su total y sus sumandos;
 se conserva la proporcionalidad entre los dos sumandos. Una regularidad

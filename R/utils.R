@@ -1588,6 +1588,37 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   )
 }
 
+# Una muestra de filas que no se alinea con una periodicidad de los datos. La
+# sistematica de `.muestrear_vector()` toma filas a paso fijo, y un paso que cae
+# justo en el periodo de un panel toma siempre los mismos meses: con 599.995
+# filas y 1e5 de muestra, solo los meses 1 y 7 de cada doce. Aca la tabla se
+# parte en `limite` tramos consecutivos -los de la sistematica- y de cada uno
+# se toma una fila en una posicion que sale de un hash del numero de tramo: el
+# mismo hash entero biyectivo y determinista de las firmas MinHash
+# (`.hash_lsh()`), que no usa el generador de numeros aleatorios de R ni su
+# estado. Conserva lo que la sistematica tenia -una fila por tramo, repartida
+# en toda la tabla, la misma muestra en cada corrida- y la fase de cada fila
+# dentro del periodo queda repartida en vez de fija. Cuesta lo que la muestra,
+# no lo que la tabla.
+.muestrear_filas_dispersas <- function(total, muestra) {
+  limite <- min(total, .validar_muestra(muestra))
+  if (total <= limite) {
+    return(list(
+      valores = seq_len(total), total = total, analizados = total,
+      muestreado = FALSE
+    ))
+  }
+  tramo <- seq_len(limite) - 1
+  inicio <- floor(tramo * total / limite)
+  ancho <- floor((tramo + 1) * total / limite) - inicio
+  desplazamiento <- floor(.hash_lsh(tramo, 1L) / .D32_LSH * ancho)
+  indices <- as.integer(inicio + desplazamiento + 1)
+  list(
+    valores = indices, total = total, analizados = length(indices),
+    muestreado = TRUE
+  )
+}
+
 .es_numerico_pelado <- function(x) {
   # Un numero pelado es un `integer` o un `double` SIN clase declarada. El
   # paquete ya se escribio esta leccion dos veces -en `.n_subnormales()` y aca

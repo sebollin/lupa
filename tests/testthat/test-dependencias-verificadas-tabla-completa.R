@@ -1,6 +1,8 @@
-# La muestra sistematica se alinea con un panel cuando su paso cae justo en el
-# periodo: toma siempre los mismos meses y una relacion que la tabla contradice
-# sale exacta. Lo que la muestra encuentra se recalcula sobre la tabla.
+# Una muestra solo ve las filas que toma: si las que contradicen una relacion
+# caen todas fuera de ella, la muestra la ve exacta. Lo que la muestra
+# encuentra se recalcula sobre la tabla. (Una muestra a paso fijo lo hacia con
+# datos naturales: sobre un panel mensual cuyo tamano hacia caer el paso en el
+# periodo tomaba siempre los mismos meses.)
 
 panel_alineado <- function() {
   set.seed(2582)
@@ -9,20 +11,26 @@ panel_alineado <- function() {
   entidad <- rep(sprintf("E%04d", seq_len(entidades)), each = meses)
   mes <- rep(seq_len(meses), entidades)
   categoria <- rep(sample(c("A", "B", "C", "D"), entidades, TRUE), each = meses)
-  # Una correccion en los meses 3 y 4 de 25 entidades.
-  corregidas <- rep(seq_len(entidades) %in% sample(entidades, 25L), each = meses)
-  categoria[corregidas & mes %in% 3:4] <- "Z"
   d <- data.frame(entidad = entidad, categoria = categoria,
                   stringsAsFactors = FALSE)
-  # Una fila mas: 6001 filas y una muestra de 1001 dan un paso de 6 exacto.
-  rbind(d, data.frame(entidad = "E0501", categoria = "A"))
+  d <- rbind(d, data.frame(entidad = "E0501", categoria = "A"))
+  # Una correccion en 50 filas que la muestra de 1001 no toma, de 25 entidades.
+  fuera <- setdiff(seq_len(nrow(d) - 1L),
+                   lupa:::.muestrear_filas_dispersas(nrow(d), 1001)$valores)
+  corregidas <- sample(unique(d$entidad[fuera]), 25L)
+  for (e in corregidas) {
+    filas <- utils::head(intersect(which(d$entidad == e), fuera), 2L)
+    d$categoria[filas] <- "Z"
+  }
+  d
 }
 
 test_that("una dependencia que la tabla contradice no sale exacta por la muestra", {
   d <- panel_alineado()
-  # La premisa: la muestra toma solo los meses 1 y 7.
-  indices <- unique(as.integer(round(seq.int(1, nrow(d), length.out = 1001))))
-  expect_setequal(unique((indices - 1L) %% 12L + 1L), c(1L, 7L))
+  # La premisa: la muestra no toma ninguna de las filas que la contradicen.
+  indices <- lupa:::.muestrear_filas_dispersas(nrow(d), 1001)$valores
+  expect_false(any(d$categoria[indices] == "Z"))
+  expect_equal(sum(d$categoria == "Z"), 50L)
   dep <- detectar_dependencias(d, muestra = 1001)
   expect_true(attr(dep, "muestreado"))
   # A mano: 50 filas contradicen la categoria de su entidad, 0,9917 < 0,995.

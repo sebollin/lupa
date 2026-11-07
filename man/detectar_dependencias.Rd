@@ -116,16 +116,20 @@ toman como determinantes ni dependientes: no son valores escalares por fila.
 
 El costo crece aproximadamente como \code{columnas^2 * filas}. \code{max_columnas}
 conserva las primeras columnas analizables, \code{max_comparaciones} limita el
-número de pares columna a columna y \code{muestra} aplica una única muestra
-sistemática a toda la tabla, de modo que las relaciones entre filas no se
-rompen. \code{max_trabajo} acota el producto entre pares posibles y filas
+número de pares columna a columna y \code{muestra} aplica una única muestra de
+filas enteras a toda la tabla, de modo que las relaciones entre filas no se
+rompen. La muestra parte la tabla en tantos tramos consecutivos como filas
+pide y toma una de cada tramo, en una posición que sale de un hash
+determinista del número de tramo: es la misma en cada corrida, no usa el
+generador de números aleatorios ni su estado, y no se alinea con datos
+periódicos. \code{max_trabajo} acota el producto entre pares posibles y filas
 analizadas. Es un presupuesto estimado, no una medición de segundos: permite
 que el tope efectivo de pares baje cuando la tabla tiene muchas filas. Los
 atributos del resultado declaran todos los recortes.
 
 Una muestra conserva cada fila entera, pero no la cantidad de filas por
-valor: sobre datos agrupados en filas consecutivas, la muestra sistemática
-toma una fila de cada grupo y el determinante parece una clave. Por eso los
+valor: sobre datos agrupados en filas consecutivas, la muestra toma a lo
+sumo una fila de cada tramo y el determinante parece una clave. Por eso los
 descartes por casi-clave y casi-constante se verifican sobre la columna
 completa; si sólo la muestra los produjo, el motivo es
 \code{casi_clave_solo_en_muestra} o \code{casi_constante_solo_en_muestra}, la columna
@@ -135,10 +139,10 @@ evidencia— y \code{\link[=perfilar]{perfilar()}} lo declara en \code{cobertura
 Lo que la muestra encuentra se recalcula sobre la tabla completa: cada
 dependencia publicada sale con el cumplimiento, los grupos, las violaciones
 y la evidencia de todas las filas, y la que ya no alcanza el criterio no se
-publica. Una muestra sistemática puede alinearse con datos periódicos —un
-panel mensual cuyo tamaño hace que el paso caiga justo en el período toma
-siempre los mismos meses— y publicar exacta una relación que la tabla
-contradice. El recálculo cuesta una pasada por dependencia publicada y entra
+publica. Una muestra puede mostrar exacta una relación que la tabla
+contradice —una muestra sistemática, a paso fijo, se alineaba con un panel
+mensual cuyo tamaño hacía que el paso cayera justo en el período, y tomaba
+siempre los mismos meses—. El recálculo cuesta una pasada por dependencia publicada y entra
 en \code{max_trabajo}; las que no entran conservan las cifras de la muestra, y
 \code{\link[=perfilar]{perfilar()}} lo declara.
 }

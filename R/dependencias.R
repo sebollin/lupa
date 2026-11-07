@@ -195,16 +195,20 @@
 #'
 #' El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
 #' conserva las primeras columnas analizables, `max_comparaciones` limita el
-#' número de pares columna a columna y `muestra` aplica una única muestra
-#' sistemática a toda la tabla, de modo que las relaciones entre filas no se
-#' rompen. `max_trabajo` acota el producto entre pares posibles y filas
+#' número de pares columna a columna y `muestra` aplica una única muestra de
+#' filas enteras a toda la tabla, de modo que las relaciones entre filas no se
+#' rompen. La muestra parte la tabla en tantos tramos consecutivos como filas
+#' pide y toma una de cada tramo, en una posición que sale de un hash
+#' determinista del número de tramo: es la misma en cada corrida, no usa el
+#' generador de números aleatorios ni su estado, y no se alinea con datos
+#' periódicos. `max_trabajo` acota el producto entre pares posibles y filas
 #' analizadas. Es un presupuesto estimado, no una medición de segundos: permite
 #' que el tope efectivo de pares baje cuando la tabla tiene muchas filas. Los
 #' atributos del resultado declaran todos los recortes.
 #'
 #' Una muestra conserva cada fila entera, pero no la cantidad de filas por
-#' valor: sobre datos agrupados en filas consecutivas, la muestra sistemática
-#' toma una fila de cada grupo y el determinante parece una clave. Por eso los
+#' valor: sobre datos agrupados en filas consecutivas, la muestra toma a lo
+#' sumo una fila de cada tramo y el determinante parece una clave. Por eso los
 #' descartes por casi-clave y casi-constante se verifican sobre la columna
 #' completa; si sólo la muestra los produjo, el motivo es
 #' `casi_clave_solo_en_muestra` o `casi_constante_solo_en_muestra`, la columna
@@ -214,10 +218,10 @@
 #' Lo que la muestra encuentra se recalcula sobre la tabla completa: cada
 #' dependencia publicada sale con el cumplimiento, los grupos, las violaciones
 #' y la evidencia de todas las filas, y la que ya no alcanza el criterio no se
-#' publica. Una muestra sistemática puede alinearse con datos periódicos —un
-#' panel mensual cuyo tamaño hace que el paso caiga justo en el período toma
-#' siempre los mismos meses— y publicar exacta una relación que la tabla
-#' contradice. El recálculo cuesta una pasada por dependencia publicada y entra
+#' publica. Una muestra puede mostrar exacta una relación que la tabla
+#' contradice —una muestra sistemática, a paso fijo, se alineaba con un panel
+#' mensual cuyo tamaño hacía que el paso cayera justo en el período, y tomaba
+#' siempre los mismos meses—. El recálculo cuesta una pasada por dependencia publicada y entra
 #' en `max_trabajo`; las que no entran conservan las cifras de la muestra, y
 #' [perfilar()] lo declara.
 #'
@@ -364,7 +368,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # La desambiguacion es para nombres de trabajo, no para la salida: un sufijo
   # que no existe en `names(datos)` rompe la correspondencia del diagnostico.
   nombres <- names(datos)
-  muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
+  # Una muestra que no se alinea con datos periodicos: ver
+  # `.muestrear_filas_dispersas()`.
+  muestreo <- .muestrear_filas_dispersas(nrow(datos), limite)
   # `as.data.frame()` antes de recortar: sobre un objeto `sf`, seleccionar
   # columnas vuelve a pegar la geometria que `seleccion` habia excluido, y
   # entonces `muestra_datos` queda con mas columnas que `seleccion`. Ademas de
@@ -405,9 +411,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   }, character(1L))
   # Los motivos se deciden sobre la MUESTRA, y ni la tasa de distintos ni la
   # proporcion modal sobreviven al submuestreo. Sobre datos agrupados en
-  # corridas consecutivas -`1,1,2,2,...`- la muestra sistematica toma una fila
-  # por grupo y el determinante parece una clave; sobre `a,b,a,b` toma solo `a`
-  # y la columna parece constante. El descarte se publicaba con el motivo de la
+  # corridas consecutivas -`1,1,2,2,...`- una muestra de una fila por tramo
+  # toma a lo sumo una por grupo y el determinante parece una clave; sobre
+  # `a,b,a,b` una muestra a paso fijo tomaba solo `a` y la columna parecia
+  # constante. El descarte se publicaba con el motivo de la
   # TABLA, y la tabla de dependencias vacia se leia como "no hay dependencias"
   # cuando la tabla completa si la tenia. Evaluar el par sobre esa muestra no
   # arreglaria nada -cada grupo tendria una sola fila y la dependencia saldria
@@ -618,8 +625,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
 
 # **Lo que la muestra publica se verifica sobre la tabla.** Los descartes por
 # casi-clave y casi-constante ya se verificaban sobre la columna completa; el
-# cumplimiento de lo que se publicaba, no. Y la muestra sistematica se alinea con
-# los datos periodicos cuando el paso cae justo en el periodo: medido, un panel
+# cumplimiento de lo que se publicaba, no. Y una muestra puede mostrar lo que la
+# tabla contradice: la sistematica, a paso fijo, que se usaba antes de
+# `.muestrear_filas_dispersas()`, se alineaba con los datos periodicos cuando el
+# paso caia justo en el periodo. Medido entonces, un panel
 # mensual de 50.000 entidades al que le faltan sus ultimas 5 filas -599.995, paso
 # 6 exacto- toma solo los meses 1 y 7, y publicaba `entidad -> categoria` exacta
 # con las 5.000 filas de los meses 3 y 4 que la contradicen (cumplimiento real
@@ -798,8 +807,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     soluciones <- c(soluciones, paste0(
       "Perfilar con `muestra = Inf` -o llamar a `detectar_dependencias()` con ",
       "`muestra = Inf`- si la tabla lo permite. Pasa cuando los datos vienen ",
-      "agrupados en filas consecutivas y la muestra, que es sistem\u00e1tica, toma ",
-      "una fila de cada grupo."
+      "agrupados en filas consecutivas y la muestra, que toma una fila de cada ",
+      "tramo de la tabla, toma una sola de cada grupo."
     ))
   }
   if (sin_verificar) {

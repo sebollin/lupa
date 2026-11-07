@@ -54,6 +54,15 @@
     tolerancia * max(1, abs(extremos))
 }
 
+# Una columna que tiene valores distintos pero varia menos que la tolerancia
+# relativa de su magnitud: con tres valores o mas, y sin ser constante. Es la
+# que `.varia_columna_aritmetica()` toma por constante sin serlo, y la que
+# tiene que decir por que no entro.
+.varia_bajo_tolerancia_aritmetica <- function(x) {
+  x <- as.double(x[is.finite(x)])
+  length(x) >= 3L && diff(range(x)) > 0
+}
+
 .cumple_criterio_aritmetica <- function(proporcion, umbral) {
   is.finite(proporcion) && proporcion >= umbral
 }
@@ -159,9 +168,18 @@
   cabeza <- utils::head(x, 64L)
   # Por una potencia de diez exacta: con decimales negativos se divide, porque
   # `0.1` no es exacto en doble y `v * 0.1` correria el resultado.
+  # El error admitido es el de la magnitud de la COLUMNA y no el de cada valor:
+  # un total calculado en R como `x + y`, con sumandos de cientos que se
+  # cancelan, queda cerca de cero con el error de redondeo de los cientos
+  # -`0.30 - 0.29` da `0.010000000000000009`-, y medido contra su propia
+  # magnitud no era un multiplo del centavo. Sin cuanto la relativa mandaba, y
+  # entre 1e6 y 1e10 los centavos rotos de esa suma salian `ok`.
+  escala <- function(decimales) {
+    if (decimales >= 0L) magnitud * 10^decimales else magnitud / 10^(-decimales)
+  }
   en_reticula <- function(v, decimales) {
     w <- if (decimales >= 0L) v * 10^decimales else v / 10^(-decimales)
-    all(abs(w - round(w)) <= 8 * .Machine$double.eps * pmax(1, abs(w)))
+    all(abs(w - round(w)) <= 8 * .Machine$double.eps * max(1, escala(decimales)))
   }
   for (decimales in seq.int(-floor(log10(magnitud)), 15L)) {
     cuanto <- 10^-decimales
@@ -265,6 +283,9 @@
     # Las que la tolerancia relativa reconocia y la cota del cuanto no: ver
     # `.hallazgo_identidad_aditiva()`.
     identidades_descartadas_cuanto = 0,
+    # Las proporcionalidades que la tolerancia relativa reconocia y la
+    # resolucion de sus columnas no: ver `.lectura_proporcional_aritmetica()`.
+    proporcionalidades_descartadas_cuanto = 0,
     resolucion_exacta = .resolucion_exacta_aritmetica(),
     clases_excluidas = clases_excluidas,
     columnas_excluidas_por_clase = excluidas_por_clase
@@ -360,6 +381,62 @@
   })
 }
 
+# Lo que devuelve una candidata que no es un hallazgo: `NA` para un hallazgo o
+# `NULL`, y si no el motivo -`descartada_escala`, `descartada_cuanto`,
+# `sin_variacion`- sin los atributos que lo acompanan.
+.marca_aritmetica <- function(x) {
+  if (is.character(x)) as.vector(x)[[1L]] else NA_character_
+}
+
+# Una fila por columna que varia menos que la tolerancia relativa de su
+# magnitud y dejo sin publicar una relacion que esa tolerancia reconocia: una
+# relacion que no se evalua dice por que. Por columna y no por relacion: un par
+# que se cancela -`1e11 + x` y `-1e11 + y`- "completa" con cualquier columna
+# chica, y una fila por terna seria una por cada columna de la tabla.
+.cobertura_sin_variacion_aritmetica <- function(registro, nombres,
+                                                nombres_texto, tolerancia) {
+  tolerancia_texto <- .texto_tolerancia_aritmetica(tolerancia)
+  do.call(rbind, lapply(registro, function(r) {
+    magnitud <- signif(max(1, r$magnitud), 3)
+    total <- r$identidades + r$pares
+    cuantas <- c(
+      if (r$identidades) {
+        paste0(r$identidades, if (r$identidades == 1) " identidad aditiva" else
+          " identidades aditivas")
+      },
+      if (r$pares) {
+        paste0(r$pares, if (r$pares == 1) " proporcionalidad" else
+          " proporcionalidades")
+      }
+    )
+    .nuevo_diagnostico_no_evaluado(
+      "relacion_aritmetica_columnas", nombres[[r$columna]],
+      paste0(
+        "La tolerancia relativa reconoc\u00eda ", paste(cuantas, collapse = " y "),
+        " con la columna `", nombres_texto[[r$columna]], "` (",
+        if (total > 1) "por ejemplo ", r$ejemplo, "), y ",
+        if (total == 1) "no se public\u00f3" else "no se publicaron",
+        ": entre las filas comparables la columna var\u00eda ",
+        .formatear_numero_publicado(signif(r$rango, 3)),
+        " sobre valores de hasta ", .formatear_numero_publicado(magnitud),
+        ", menos que esa tolerancia (", tolerancia_texto, " * ",
+        .formatear_numero_publicado(magnitud), " = ",
+        .formatear_numero_publicado(signif(tolerancia * magnitud, 3)),
+        "). Frente a ella la columna es constante, y la relaci\u00f3n se ",
+        "cumplir\u00eda igual con un valor fijo en su lugar."
+      ),
+      paste0(
+        "Si esas diferencias son del dato, declarar una ",
+        "`tolerancia_aritmetica` menor que ",
+        .texto_tolerancia_aritmetica(signif(r$rango / magnitud, 2)),
+        ". Con la tolerancia por omisi\u00f3n, una identidad aditiva cuyas tres ",
+        "columnas guardan decimales fijos de menos de 15 cifras significativas ",
+        "se eval\u00faa con la mitad de su cuanto."
+      )
+    )
+  }))
+}
+
 .evidencia_filas_aritmetica <- function(datos, indices, columnas, esperado,
                                          etiqueta_esperado,
                                          nombres_texto = names(datos)) {
@@ -396,10 +473,15 @@
   z <- as.double(datos[[total]])
   comparables <- is.finite(x) & is.finite(y) & is.finite(z)
   n_evaluados <- sum(comparables)
-  if (n_evaluados < min_filas ||
-      !all(vapply(list(x[comparables], y[comparables], z[comparables]),
-                  .varia_columna_aritmetica, logical(1L),
-                  tolerancia = tolerancia))) {
+  if (n_evaluados < min_filas) return(NULL)
+  columnas_terna <- list(x[comparables], y[comparables], z[comparables])
+  varian <- vapply(columnas_terna, .varia_columna_aritmetica, logical(1L),
+                   tolerancia = tolerancia)
+  # Una columna constante de verdad -o con menos de tres valores- sale como
+  # siempre, sin rastro: el perfil ya dice que es constante.
+  if (!all(varian) &&
+      !all(vapply(columnas_terna[!varian], .varia_bajo_tolerancia_aritmetica,
+                  logical(1L)))) {
     return(NULL)
   }
   esperado <- x[comparables] + y[comparables]
@@ -411,11 +493,34 @@
   )
   tolerancia_relativa <- tolerancia *
     pmax(1, abs(z[comparables]), abs(esperado), escala)
+  cuanto <- .cota_cuanto_aritmetica(cuantos)
+  # **Una columna que varia menos que la tolerancia relativa de su magnitud.**
+  # Con `a = 1e11 + x` y `b = -1e11 + y` -una suma con cancelacion- cada
+  # sumando varia unos cientos sobre 1e11, y frente a la tolerancia de 1e3
+  # unidades es constante: la identidad se cumpliria igual con un valor fijo
+  # en su lugar, y antes se descartaba sin rastro. Si la tolerancia relativa no
+  # la reconoce, no hay relacion y no hay nada que declarar. Si la reconoce y
+  # las tres columnas guardan decimales fijos, se evalua con la cota del cuanto,
+  # donde una diferencia de medio cuanto ya es del dato; si no, se devuelve el
+  # motivo para la cobertura.
+  sin_variacion <- NULL
+  if (!all(varian)) {
+    if (!.cumple_criterio_aritmetica(mean(cumple), umbral)) return(NULL)
+    sin_variacion <- structure(
+      "sin_variacion",
+      columnas = c(sumandos, total)[!varian],
+      valores = columnas_terna[!varian],
+      expresion = paste0(
+        nombres_texto[[sumandos[[1L]]]], " + ", nombres_texto[[sumandos[[2L]]]],
+        " ~= ", nombres_texto[[total]]
+      )
+    )
+    if (!is.finite(cuanto$cota)) return(sin_variacion)
+  }
   # La cota del cuanto, con las tres condiciones de
   # `.TOLERANCIA_ARITMETICA_OMISION`. Solo se usa si achica la tolerancia en
   # alguna fila: si no, el criterio aplicado es el relativo de siempre y la
   # evidencia lo dice igual que antes.
-  cuanto <- .cota_cuanto_aritmetica(cuantos)
   cota <- Inf
   mayoria_exacta <- FALSE
   if (is.finite(cuanto$cota) && any(cumple) &&
@@ -432,13 +537,18 @@
       )
       # La tolerancia relativa la reconocia y la cota no: la regularidad se
       # sostenia solo porque a esa escala la tolerancia traga el cuanto. Se
-      # descarta y se cuenta, como las de un sumando absorbido.
+      # descarta y se cuenta, como las de un sumando absorbido. Con una columna
+      # sin variacion frente a la tolerancia, en cambio, la relativa no decia
+      # nada: la cota es la unica evaluacion, y si no la alcanza no hay
+      # relacion.
       if (reconocida_sin_cota &&
           !.cumple_criterio_aritmetica(mean(cumple), umbral)) {
+        if (!is.null(sin_variacion)) return(NULL)
         return("descartada_cuanto")
       }
     }
   }
+  if (!is.null(sin_variacion) && !is.finite(cota)) return(sin_variacion)
   proporcion <- mean(cumple)
   if (!.cumple_criterio_aritmetica(proporcion, umbral)) return(NULL)
   absorbidos <- .sumandos_absorbidos(
@@ -578,8 +688,146 @@
   hallazgo
 }
 
+# **La proporcionalidad con la respuesta redondeada en importes grandes.** Con
+# `iva = round(neto * 0.22, 2)` y la tolerancia relativa, 30 de 300 filas
+# corridas uno o treinta centavos salian `ok` con 0 discrepancias sobre netos
+# de 1e9 a 1e12 (la tolerancia vale de 2 a 2.000 unidades), y sobre netos de
+# 1e7 -donde la tolerancia de los valores chicos queda por debajo del redondeo
+# a centavos- un producto sano acusaba 8 filas. La idea de la cota de las
+# identidades, llevada a un producto: una columna con decimales fijos -todos
+# sus valores son multiplos de un cuanto `q`, tambien los mas grandes- difiere
+# del valor exacto en su redondeo, menos de `q / 2`, y una diferencia mayor
+# esta en el dato. Tres diferencias con la identidad, todas medidas:
+#   - el esperado `base * k` no cae en la reticula, asi que la cota es la
+#     tolerancia de todas las filas y no un tope: si no, los valores chicos,
+#     con la relativa por debajo del redondeo, se acusan;
+#   - `k` no puede ser la mediana de los cocientes: difiere de 0,22 en 4,5e-12
+#     sobre 1e8, y por la base eso corre medio cuanto (ver
+#     `.constante_por_intervalos_aritmetica()`);
+#   - la columna redondeada puede ser cualquiera de las dos, y se lee como
+#     respuesta. Con `|k| <= 1`, `pesos = round(dolares * 39.8734, 2)` deja la
+#     redondeada como base, y medido en la otra columna su redondeo es
+#     `|k| * q / 2`: la cota de la respuesta, cuarenta veces mas ancha, dejaba
+#     pasar todas las filas corridas. Por eso se prueban las dos lecturas,
+#     cada una con su respuesta, su cota y su `k`.
+#   - de las lecturas que alcanzan el criterio, la de la constante con menos
+#     cifras: es la del dominio (`1.22`, no `0.8196721311...`), y su columna
+#     es la que se calculo y redondeo. Leer `pesos = round(dolares * 1.22)`
+#     al reves media su redondeo con `|1 / 1.22| * 0.5`, calculado con la
+#     mediana, y una fila sana cuyo redondeo cae justo en la mitad -`4075 *
+#     1.22 = 4971.5`, que `round()` lleva a `4972`- quedaba afuera por el
+#     recorte de la constante: con enteros y `k = 1.22`, una a dos filas sanas
+#     acusadas por tabla. Entre dos constantes igual de largas, la cota mas
+#     fina medida en la misma columna.
+# La cota es inclusiva: un redondeo a la mitad difiere del producto en `q / 2`
+# exacto, y el margen cubre la representacion en doble de los valores, de `k`
+# y del producto (ver `.constante_por_intervalos_aritmetica()`).
+# Decimales fijos quiere decir que la mitad superior de la columna tiene el
+# mismo cuanto que la columna entera: una respuesta redondeada a nueve u once
+# cifras significativas sobre dos decadas es multiplo del cuanto de sus valores
+# chicos, pero los grandes difieren del producto en unidades de su ultima
+# cifra, y con la cota la relacion sana se descartaba.
+.lectura_proporcional_aritmetica <- function(base, respuesta, comparables,
+                                             cuanto, tolerancia, umbral,
+                                             min_filas, reconocida) {
+  no_aplica <- list(aplica = FALSE, alcanza = FALSE)
+  no_alcanza <- list(aplica = TRUE, alcanza = FALSE)
+  if (is.null(cuanto) || !isTRUE(cuanto$fijo)) return(no_aplica)
+  utilizables <- is.finite(base) & is.finite(respuesta) & base != 0
+  if (sum(utilizables) < min_filas) return(no_aplica)
+  mediana <- stats::median(respuesta[utilizables] / base[utilizables])
+  if (!is.finite(mediana) || mediana == 0) return(no_aplica)
+  cota <- cuanto$cuanto / 2
+  r <- respuesta[comparables]
+  b <- base[comparables]
+  esperado_mediana <- b * mediana
+  # Solo donde la relativa supera al redondeo: por debajo, la tolerancia de
+  # siempre manda y un producto redondeado no se reconoce, como antes.
+  if (!any(tolerancia * pmax(1, abs(r), abs(esperado_mediana)) > cota)) {
+    return(no_aplica)
+  }
+  # El barrido ordena dos extremos por fila. Si la relativa no reconocia la
+  # relacion, se ordena solo si con la mediana -cuyo error corre el esperado
+  # en proporcion a la base- ya hay suficientes filas cerca: dos columnas sin
+  # relacion no pagan un orden por par.
+  if (!reconocida) {
+    magnitud <- abs(b)
+    relativa_base <- pmax(1, magnitud / max(stats::median(magnitud),
+                                            .Machine$double.xmin))
+    if (!.cumple_criterio_aritmetica(mean(
+      abs(r - esperado_mediana) <= 2 * cota * relativa_base
+    ), umbral)) {
+      return(no_alcanza)
+    }
+  }
+  constante <- .constante_por_intervalos_aritmetica(
+    as.double(base[utilizables]), as.double(respuesta[utilizables]), cota,
+    mediana
+  )
+  esperado <- b * constante
+  # El margen del doble va sobre el de los intervalos: una fila que el barrido
+  # conto adentro no queda afuera por el redondeo de `k` ni del producto.
+  cumple <- abs(r - esperado) <= cota +
+    8 * .Machine$double.eps * pmax(1, abs(r), abs(esperado))
+  if (!.cumple_criterio_aritmetica(mean(cumple), umbral)) return(no_alcanza)
+  list(
+    aplica = TRUE, alcanza = TRUE,
+    constante = as.vector(constante),
+    cifras = attr(constante, "cifras", exact = TRUE),
+    mediana = mediana, esperado = esperado, cumple = cumple, cota = cota,
+    cuanto = cuanto$cuanto, utilizables = utilizables,
+    relativa_maxima = max(tolerancia * pmax(1, abs(r), abs(esperado_mediana)))
+  )
+}
+
+# La constante corta que deja casi tantas filas como la que mas a menos de
+# `semiancho` de la respuesta. Cada fila admite las `k` de un intervalo,
+# `[(r - s) / b, (r + s) / b]`, y un barrido sobre sus extremos cuenta cuantos
+# intervalos cubren cada tramo. De los tramos que cubren tantas filas como el
+# mejor, o a lo sumo un 1 % menos, el que contiene el decimal con menos cifras;
+# entre esos, el que mas cubre, y despues el mas cercano a `referencia` -la
+# mediana-. El tramo de cobertura maxima no alcanza: una fila sana cuyo redondeo
+# cae justo en la mitad toca el borde de su intervalo en la constante
+# verdadera, y correrse un poco la pierde y gana una fila rota que estaba cerca
+# del otro lado; los dos tramos cubren lo mismo, y elegir el que no contiene a
+# `0.105` acusaba la sana y callaba la rota (medido con enteros sobre 1e11). La
+# constante del dominio es corta y explica las filas sanas; una constante mas
+# corta lejos de ella no cubre casi ninguna. El atributo `cifras` dice cuantas
+# tiene la elegida.
+.constante_por_intervalos_aritmetica <- function(base, respuesta, semiancho,
+                                                 referencia) {
+  holgura <- semiancho + 4 * .Machine$double.eps *
+    pmax(1, abs(respuesta), abs(base * referencia))
+  a <- (respuesta - holgura) / base
+  b <- (respuesta + holgura) / base
+  puntos <- c(pmin(a, b), pmax(a, b))
+  pasos <- rep(c(1L, -1L), each = length(base))
+  # Con el mismo extremo, la apertura antes que el cierre: intervalos cerrados.
+  orden <- .orden_por_bytes(puntos, -pasos)
+  puntos <- puntos[orden]
+  conteo <- cumsum(pasos[orden])
+  tramos <- which(conteo >= max(conteo) - max(1, ceiling(0.01 * length(base))) &
+                    conteo > 0L)
+  tramos <- tramos[tramos < length(puntos)]
+  inferior <- puntos[tramos]
+  superior <- puntos[tramos + 1L]
+  centro <- (inferior + superior) / 2
+  cifras <- rep(17L, length(tramos))
+  for (k in 15:1) {
+    corta <- signif(centro, k)
+    cifras[corta >= inferior & corta <= superior] <- k
+  }
+  distancia <- pmax(0, inferior - referencia, referencia - superior)
+  elegido <- .orden_por_bytes(cifras, -conteo[tramos], distancia)[[1L]]
+  constante <- if (cifras[[elegido]] <= 15L) {
+    signif(centro[[elegido]], cifras[[elegido]])
+  } else centro[[elegido]]
+  structure(constante, cifras = cifras[[elegido]])
+}
+
 .hallazgo_proporcional <- function(datos, par, umbral, min_filas,
-                                    tolerancia, nombres_texto = names(datos)) {
+                                    tolerancia, nombres_texto = names(datos),
+                                    cuanto_de = NULL) {
   # Sin `as.double()`, a diferencia de la identidad aditiva: aca no hay suma de
   # enteros -el cociente y `base * constante` ya salen en doble- y no hay nada
   # que desborde.
@@ -602,20 +850,116 @@
     if (sum(utilizables) < min_filas) return(NULL)
     constante <- stats::median(respuesta[utilizables] / base[utilizables])
   }
-  if (!is.finite(constante) ||
-      abs(abs(constante) - 1) <= tolerancia ||
-      !.varia_columna_aritmetica(base[utilizables], tolerancia) ||
-      !.varia_columna_aritmetica(respuesta[utilizables], tolerancia)) {
+  if (!is.finite(constante) || abs(abs(constante) - 1) <= tolerancia) {
+    return(NULL)
+  }
+  varian <- c(
+    .varia_columna_aritmetica(base[utilizables], tolerancia),
+    .varia_columna_aritmetica(respuesta[utilizables], tolerancia)
+  )
+  # Una columna constante de verdad sale sin rastro, como siempre; una que
+  # varia menos que la tolerancia relativa, solo si la relativa tampoco
+  # reconoce la relacion (ver `.hallazgo_identidad_aditiva()`).
+  valores_par <- list(base[utilizables], respuesta[utilizables])
+  if (!all(varian) &&
+      !all(vapply(valores_par[!varian], .varia_bajo_tolerancia_aritmetica,
+                  logical(1L)))) {
     return(NULL)
   }
   comparables <- is.finite(base) & is.finite(respuesta)
   n_evaluados <- sum(comparables)
   if (n_evaluados < min_filas) return(NULL)
+  mediana <- constante
   esperado <- base[comparables] * constante
   cumple <- .dentro_tolerancia_aritmetica(
     respuesta[comparables], esperado, tolerancia
   )
   proporcion <- mean(cumple)
+  if (!all(varian)) {
+    if (!.cumple_criterio_aritmetica(proporcion, umbral)) return(NULL)
+    return(structure(
+      "sin_variacion",
+      columnas = c(indice_base, indice_respuesta)[!varian],
+      valores = valores_par[!varian],
+      expresion = paste0(
+        nombres_texto[[indice_respuesta]], " ~= ", nombres_texto[[indice_base]],
+        " * k"
+      )
+    ))
+  }
+  # La cota de una columna con decimales fijos, en las dos lecturas: ver
+  # `.lectura_proporcional_aritmetica()`.
+  cota <- Inf
+  cota_elegida <- NULL
+  relativa_maxima <- max(tolerancia * pmax(
+    1, abs(respuesta[comparables]), abs(esperado)
+  ))
+  if (is.function(cuanto_de)) {
+    reconocida_sin_cota <- .cumple_criterio_aritmetica(proporcion, umbral)
+    lectura_directa <- .lectura_proporcional_aritmetica(
+      base, respuesta, comparables, cuanto_de(indice_respuesta), tolerancia,
+      umbral, min_filas, reconocida_sin_cota
+    )
+    lectura_inversa <- .lectura_proporcional_aritmetica(
+      respuesta, base, comparables, cuanto_de(indice_base), tolerancia,
+      umbral, min_filas, reconocida_sin_cota
+    )
+    # Medidas en la misma columna -la respuesta de la lectura directa- para
+    # desempatar dos constantes igual de largas.
+    cota_comun <- function(lectura, invertida) {
+      if (invertida) lectura$cota * abs(constante) else lectura$cota
+    }
+    # Si las dos alcanzan el criterio: la de la constante claramente mas
+    # corta -tres cifras o mas de diferencia, la reciproca de un decimal corto
+    # que no termina pide todas las que da el tramo-; si no, la de la cota mas
+    # fina. Con `k = 2.5` las dos son cortas (`2.5` y `0.4`), y la mas fina
+    # -medio entero de la respuesta, `0.2` de la base- es la que distingue un
+    # entero corrido; con `k = 0.95` la reciproca alcanza el criterio con 95 %
+    # de las filas y su cota es mas fina, pero es larga y acusaria el 5 % sano.
+    elegida <- NULL
+    invertir <- FALSE
+    if (lectura_directa$alcanza) elegida <- lectura_directa
+    if (lectura_inversa$alcanza) {
+      if (is.null(elegida)) {
+        invertir <- TRUE
+      } else if (abs(lectura_inversa$cifras - elegida$cifras) >= 3L) {
+        invertir <- lectura_inversa$cifras < elegida$cifras
+      } else {
+        invertir <- cota_comun(lectura_inversa, TRUE) <
+          cota_comun(elegida, FALSE)
+      }
+      if (invertir) elegida <- lectura_inversa
+    }
+    if (is.null(elegida)) {
+      # Una lectura posible -una columna con decimales fijos y la relativa
+      # por encima de su redondeo- que no alcanza el criterio: la relativa la
+      # reconocia y la resolucion de las columnas no. Se descarta y se cuenta,
+      # como la identidad con la cota del cuanto. Sin lectura posible, la
+      # relativa de siempre.
+      if (lectura_directa$aplica || lectura_inversa$aplica) {
+        if (reconocida_sin_cota) return("descartada_cuanto")
+        return(NULL)
+      }
+    } else {
+      if (invertir) {
+        intercambio <- base
+        base <- respuesta
+        respuesta <- intercambio
+        intercambio <- indice_base
+        indice_base <- indice_respuesta
+        indice_respuesta <- intercambio
+      }
+      utilizables <- elegida$utilizables
+      mediana <- elegida$mediana
+      constante <- elegida$constante
+      esperado <- elegida$esperado
+      cumple <- elegida$cumple
+      proporcion <- mean(cumple)
+      cota <- elegida$cota
+      cota_elegida <- list(cuanto = elegida$cuanto)
+      relativa_maxima <- elegida$relativa_maxima
+    }
+  }
   if (!.cumple_criterio_aritmetica(proporcion, umbral)) return(NULL)
   filas_comparables <- which(comparables)
   indices_incumplen <- filas_comparables[!cumple]
@@ -657,12 +1001,41 @@
         " filas con valores finitos en ambas columnas). ",
       .texto_criterio_aritmetica(umbral, min_filas),
       "Constante observada k=", constante_texto,
-      " (mediana de respuesta/base en ", sum(utilizables),
-      if (sum(utilizables) == 1L) " fila finita con base distinta de cero); forma equivalente: " else
-        " filas finitas con base distinta de cero); forma equivalente: ",
+      if (is.finite(cota)) {
+        paste0(
+          " (la de menos cifras entre las que dejan m\u00e1s filas dentro del ",
+          "criterio de abajo, sobre ", sum(utilizables),
+          if (sum(utilizables) == 1L) " fila finita" else " filas finitas",
+          " con base distinta de cero; la mediana de respuesta/base es ",
+          format(mediana, scientific = FALSE, trim = TRUE, digits = 15L),
+          "); forma equivalente: "
+        )
+      } else {
+        paste0(
+          " (mediana de respuesta/base en ", sum(utilizables),
+          if (sum(utilizables) == 1L) " fila finita con base distinta de cero); forma equivalente: " else
+            " filas finitas con base distinta de cero); forma equivalente: "
+        )
+      },
       inversa, ". Tolerancia declarada: ", tolerancia_texto,
-      "; criterio |observado - esperado| <= ", tolerancia_texto,
-      " * max(1, |observado|, |esperado|). ", ejemplos
+      "; criterio |observado - esperado| <= ",
+      if (is.finite(cota)) {
+        paste0(
+          .formatear_numero_publicado(cota),
+          ": la mitad del cuanto decimal de `", nombres_texto[[indice_respuesta]],
+          "` (", .formatear_numero_publicado(cota_elegida$cuanto), "), porque ",
+          "una respuesta con decimales fijos difiere del producto en su ",
+          "redondeo, a lo sumo medio cuanto, y la tolerancia relativa llegaba a ",
+          .formatear_numero_publicado(signif(relativa_maxima, 3)),
+          " en estas filas. "
+        )
+      } else {
+        paste0(tolerancia_texto, " * max(1, |observado|, |esperado|). ",
+               .texto_limite_proporcional_aritmetica(
+                 respuesta[comparables], esperado, tolerancia
+               ))
+      },
+      ejemplos
     ),
     paste0(
       "Evaluar si la proporcionalidad observada corresponde a una regla del ",
@@ -679,7 +1052,30 @@
   )
   hallazgo$trazabilidad[[1L]]$columnas <-
     nombres[c(indice_base, indice_respuesta)]
+  attr(hallazgo, "cota_proporcional") <- is.finite(cota)
   hallazgo
+}
+
+# Sin cota y sobre una respuesta donde un decimal de dos cifras ya tiene 15
+# cifras significativas, la tolerancia relativa traga diferencias del dato: la
+# evidencia lo dice con su valor, como en la identidad aditiva.
+.texto_limite_proporcional_aritmetica <- function(respuesta, esperado,
+                                                  tolerancia) {
+  magnitud <- max(abs(respuesta))
+  if (!identical(as.double(tolerancia), .TOLERANCIA_ARITMETICA_OMISION) ||
+      magnitud < .CIFRAS_MAXIMAS_CUANTO * 0.01) {
+    return("")
+  }
+  paste0(
+    "No se acota por un cuanto decimal: con valores de ",
+    .formatear_numero_publicado(signif(magnitud, 3)),
+    " un decimal de dos cifras ya tiene 15 cifras significativas, las de un ",
+    "texto exportado, y no se distingue de su redondeo; la tolerancia llega ",
+    "a ", .formatear_numero_publicado(signif(max(
+      tolerancia * pmax(1, abs(respuesta), abs(esperado))
+    ), 3)),
+    " en estas filas, y una diferencia menor no se cuenta como discrepancia. "
+  )
 }
 
 .detectar_aritmetica_columnas <- function(datos, umbral = 0.9,
@@ -720,16 +1116,41 @@
   hallazgos_aditivos <- list()
   objetivos_aditivos <- list()
   usa_cota_cuanto <- FALSE
-  if (length(seleccion) >= 3L && nrow(datos)) {
-    # El cuanto de cada columna se mide una vez, y solo con la tolerancia por
-    # omision: una declarada no se acota (ver `.TOLERANCIA_ARITMETICA_OMISION`).
-    cuantos <- rep(NA_real_, length(datos))
-    if (identical(as.double(tolerancia), .TOLERANCIA_ARITMETICA_OMISION)) {
-      cuantos[seleccion] <- vapply(
-        seleccion, function(i) .cuanto_decimal_aritmetica(datos[[i]]),
-        numeric(1L)
-      )
+  # Las columnas que varian menos que la tolerancia relativa y dejaron sin
+  # evaluar una relacion que la relativa reconocia: ver
+  # `.cobertura_sin_variacion_aritmetica()`.
+  sin_variacion <- list()
+  registrar_sin_variacion <- function(marca, tipo) {
+    columnas <- attr(marca, "columnas", exact = TRUE)
+    valores <- attr(marca, "valores", exact = TRUE)
+    for (j in seq_along(columnas)) {
+      clave <- as.character(columnas[[j]])
+      previo <- sin_variacion[[clave]]
+      if (is.null(previo)) {
+        previo <- list(columna = columnas[[j]], identidades = 0, pares = 0,
+                       ejemplo = attr(marca, "expresion", exact = TRUE),
+                       rango = 0, magnitud = 0)
+      }
+      previo[[tipo]] <- previo[[tipo]] + 1
+      rango <- diff(range(valores[[j]]))
+      if (rango > previo$rango) {
+        previo$rango <- rango
+        previo$magnitud <- max(abs(valores[[j]]))
+      }
+      sin_variacion[[clave]] <<- previo
     }
+  }
+  # El cuanto de cada columna se mide una vez, y solo con la tolerancia por
+  # omision: una declarada no se acota (ver `.TOLERANCIA_ARITMETICA_OMISION`).
+  cuantos <- rep(NA_real_, length(datos))
+  if (length(seleccion) >= 2L && nrow(datos) &&
+      identical(as.double(tolerancia), .TOLERANCIA_ARITMETICA_OMISION)) {
+    cuantos[seleccion] <- vapply(
+      seleccion, function(i) .cuanto_decimal_aritmetica(datos[[i]]),
+      numeric(1L)
+    )
+  }
+  if (length(seleccion) >= 3L && nrow(datos)) {
     ternas <- utils::combn(seleccion, 3L, simplify = FALSE)
     for (terna in ternas) {
       candidatos <- lapply(seq_len(3L), function(objetivo) {
@@ -739,15 +1160,21 @@
           cuantos = cuantos[c(terna[-objetivo], terna[[objetivo]])]
         )
       })
-      descartadas <- vapply(candidatos, is.character, logical(1L))
-      por_cuanto <- vapply(candidatos, identical, logical(1L),
-                           "descartada_cuanto")
+      marcas <- vapply(candidatos, .marca_aritmetica, character(1L))
+      sin_var <- marcas %in% "sin_variacion"
+      descartadas <- !is.na(marcas) & !sin_var
+      por_cuanto <- marcas %in% "descartada_cuanto"
       alcance$identidades_descartadas_escala <-
         alcance$identidades_descartadas_escala + sum(descartadas & !por_cuanto)
       alcance$identidades_descartadas_cuanto <-
         alcance$identidades_descartadas_cuanto + sum(por_cuanto)
-      candidatos <- candidatos[!descartadas]
-      candidatos <- Filter(Negate(is.null), candidatos)
+      publicables <- Filter(Negate(is.null), candidatos[is.na(marcas)])
+      # Una terna se declara sin evaluar una sola vez, y solo si ninguna de sus
+      # tres orientaciones se publico.
+      if (!length(publicables) && any(sin_var)) {
+        registrar_sin_variacion(candidatos[[which(sin_var)[[1L]]]], "identidades")
+      }
+      candidatos <- publicables
       if (!length(candidatos)) next
       afectados <- vapply(candidatos, function(x) x$n_afectados[[1L]], numeric(1L))
       elegido <- candidatos[[which.min(afectados)]]
@@ -771,6 +1198,25 @@
   }
 
   hallazgos_proporcionales <- list()
+  usa_cota_proporcional <- FALSE
+  # El cuanto de la respuesta y si es de decimales fijos, una vez por columna
+  # y solo cuando una proporcionalidad lo pide.
+  fijos <- new.env(parent = emptyenv())
+  cuanto_de <- function(i) {
+    if (is.na(cuantos[[i]])) return(NULL)
+    clave <- as.character(i)
+    if (is.null(fijos[[clave]])) {
+      x <- as.double(datos[[i]])
+      x <- abs(x[is.finite(x)])
+      superior <- .cuanto_decimal_aritmetica(x[x >= stats::median(x)])
+      fijos[[clave]] <- list(
+        cuanto = cuantos[[i]],
+        fijo = is.finite(superior) &&
+          abs(superior / cuantos[[i]] - 1) < 1e-9
+      )
+    }
+    fijos[[clave]]
+  }
   if (length(seleccion) >= 2L && nrow(datos)) {
     pares <- utils::combn(seleccion, 2L, simplify = FALSE)
     for (par in pares) {
@@ -782,13 +1228,39 @@
       }, logical(1L)))
       if (redundante) next
       hallazgo <- .hallazgo_proporcional(
-        datos, par, umbral, min_filas, tolerancia, nombres_texto
+        datos, par, umbral, min_filas, tolerancia, nombres_texto,
+        cuanto_de = cuanto_de
       )
+      marca <- .marca_aritmetica(hallazgo)
+      if (identical(marca, "descartada_cuanto")) {
+        alcance$proporcionalidades_descartadas_cuanto <-
+          alcance$proporcionalidades_descartadas_cuanto + 1
+        next
+      }
+      if (identical(marca, "sin_variacion")) {
+        registrar_sin_variacion(hallazgo, "pares")
+        next
+      }
       if (!is.null(hallazgo)) {
+        usa_cota_proporcional <- usa_cota_proporcional ||
+          isTRUE(attr(hallazgo, "cota_proporcional", exact = TRUE))
+        attr(hallazgo, "cota_proporcional") <- NULL
         hallazgos_proporcionales[[length(hallazgos_proporcionales) + 1L]] <-
           hallazgo
       }
     }
+  }
+  if (usa_cota_proporcional) {
+    alcance$criterio_tolerancia <- paste0(
+      alcance$criterio_tolerancia, "; en las proporcionalidades con la ",
+      "tolerancia por omisi\u00f3n y una respuesta con decimales fijos, la mitad ",
+      "del cuanto decimal de la respuesta"
+    )
+  }
+  if (length(sin_variacion)) {
+    cobertura <- rbind(cobertura, .cobertura_sin_variacion_aritmetica(
+      sin_variacion, names(datos), nombres_texto, tolerancia
+    ))
   }
   list(
     hallazgos = c(hallazgos_aditivos, hallazgos_proporcionales),

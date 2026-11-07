@@ -205,8 +205,47 @@ Primera versión publicada.
   se publica como sana: se descarta y se cuenta en
   `meta$aritmetica_columnas$identidades_descartadas_cuanto`. En una suma, la
   tolerancia se mide también sobre los sumandos: `a = 1e9 + x`, `b = -1e9 + y`,
-  `c = x + y` acusaba 16 de 300 filas sanas. La evidencia declara la cota, y las
-  proporcionalidades siguen con la tolerancia relativa.
+  `c = x + y` acusaba 16 de 300 filas sanas. La evidencia declara la cota. Una
+  columna que varía menos que la tolerancia relativa de su magnitud —los
+  sumandos de `1e11 + x` y `-1e11 + y`— se evalúa con la cota del cuanto si sus
+  tres columnas guardan decimales fijos; si no, `cobertura_diagnosticos` dice qué
+  relación reconocía la tolerancia y por qué no se publicó (antes se descartaba
+  sin rastro desde 1e11). Una suma con un total calculado en R cuyos sumandos se
+  cancelan (`0.30 - 0.29` no es el doble de `0.01`) conserva sus centavos: sobre
+  importes de 1e6 a 1e10 sus filas corridas un centavo salían `ok`.
+- Las proporcionalidades entre importes con decimales fijos cuentan los
+  centavos: `iva = round(neto * 0.22, 2)` con 30 filas corridas uno o treinta
+  centavos salía `ok` con 0 filas desde netos de 1e9, y sobre netos de 1e7 un
+  producto sano acusaba 8 filas. Con la tolerancia por omisión, si la tolerancia
+  relativa supera la mitad del cuanto de la columna redondeada, esa mitad,
+  inclusiva, es la tolerancia de todas las filas, y `k` es la constante con
+  menos cifras que deja casi tantas filas dentro de ella como la que más (la
+  evidencia publica también la mediana). La columna redondeada se lee como
+  respuesta: `pesos = round(dolares * 39.8734, 2)` se publica
+  `pesos ~= dolares * 39.8734`, y `resp ~= base * 1.22` no se lee al revés con
+  `0.8196...`; entre dos constantes cortas, la de la resolución más fina. Con
+  centavos llega a importes de 1e12, como la identidad. Un neto y un iva
+  redondeados por separado cuentan como discrepantes las filas donde el iva no es
+  el redondeo del neto guardado. La que la tolerancia relativa reconoce y esa
+  resolución no se descarta y se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto`.
+- Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
+  `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
+  la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna
+  `raw`), y su motivo cerraba con «se conserva como acción destructiva no
+  recomendada» también sobre una acción `bloqueada` o no destructiva. Ahora
+  termina con el estado: bloqueada, o lista sin activar hasta configurarla.
+- Toda acción del plan sobre una columna que no está en los datos, y las de
+  `columnas_duplicadas` cuando una columna del grupo no está en el perfil, quedan
+  `bloqueada` con el motivo: con un perfil de otra versión de la tabla salían
+  recomendadas y `aplicar()` las registraba `fallida`.
+- `detectar_claves()` con muchas copias de un identificador ya no arma las
+  combinaciones que contienen una clave simple: con 100 copias tardaba 36 s y con
+  1.000 `combn()` no entraba en memoria; ahora 0,2 s y 6 s, con la misma salida.
+- `detectar_dependencias()` toma la muestra de una fila por tramo de la tabla,
+  en una posición que sale de un hash determinista del tramo, y no a paso fijo:
+  el paso fijo se alineaba con un panel mensual y tomaba sólo dos meses de cada
+  doce. Sigue siendo la misma en cada corrida, sin azar.
 - `desviacion_benford` dice si la desviación la producen los faltantes
   disfrazados que no se declararon, con la prueba sin ellos: 200 valores `999`
   entre 4.000 importes daban p = 1e-45, y sin ellos p = 0,22.

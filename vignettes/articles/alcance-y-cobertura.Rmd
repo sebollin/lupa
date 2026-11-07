@@ -83,8 +83,10 @@ Una muestra acota sólo los pasos que necesitan mirar los valores uno por uno.
 | `perfilar_dbi()` | `muestra` | `r defecto(perfilar_dbi, "muestra")` | las filas que se traen a R para el perfil por fila; los agregados SQL usan el universo elegido |
 
 `Inf` en `muestra` o en `muestra_validadores` vuelve completo ese paso. La
-muestra que `perfilar()` toma por su cuenta es sistemática y sin azar. Por eso el
-perfil se rehace igual sobre los mismos datos.
+muestra que `perfilar()` toma por su cuenta es determinista y sin azar: a paso fijo
+para patrones, tipos y formatos, y para las dependencias una fila por tramo de la
+tabla, en una posición fijada por un hash, que no se alinea con datos periódicos.
+Por eso el perfil se rehace igual sobre los mismos datos.
 
 `perfilar_dbi()` tiene otro punto de partida: el universo por omisión es
 `r defecto(perfilar_dbi, "universo")` y `muestra` vale

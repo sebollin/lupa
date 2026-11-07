@@ -175,6 +175,83 @@
   plan
 }
 
+# Por que se bloquean las acciones de un grupo de columnas iguales que no se
+# puede comprobar entero. Vacio si el grupo esta completo.
+.motivo_grupo_duplicadas_incompleto <- function(miembros, faltan_perfil) {
+  nombrar <- function(columnas) paste0("`", columnas, "`", collapse = ", ")
+  donde <- function(columnas, lugar) {
+    paste0(
+      if (length(columnas) == 1L) " La columna " else " Las columnas ",
+      nombrar(columnas), " del grupo no ",
+      if (length(columnas) == 1L) "est\u00e1" else "est\u00e1n", " en ", lugar
+    )
+  }
+  if (is.null(miembros)) {
+    return(paste0(
+      " El perfil no guarda el grupo de columnas iguales de este hallazgo, y ",
+      "la acci\u00f3n no sabe sobre qu\u00e9 columnas actuar\u00eda: volver a ",
+      "perfilar los datos que se van a limpiar."
+    ))
+  }
+  if (length(faltan_perfil)) {
+    return(paste0(
+      donde(faltan_perfil, "el perfil"), ": el hallazgo no corresponde a las ",
+      "columnas que el perfil describe, y la acci\u00f3n queda bloqueada. ",
+      "Volver a perfilar los datos que se van a limpiar."
+    ))
+  }
+  ""
+}
+
+# **Una accion sobre una columna que no esta en los datos no sale `lista`.**
+# Con un perfil de otra version de la tabla -una columna renombrada o
+# quitada-, el plan proponia y activaba acciones sobre ella, y `aplicar()` las
+# registraba `fallida` ("requiere una unica columna llamada 'x'; se
+# encontraron 0"). El plan tenia los datos y podia saberlo, como sabe que una
+# columna de marca ya existe (`.bloquear_marcas_existentes()`). Es la misma
+# regla para toda accion: la columna de la accion y las que nombran sus
+# parametros -los miembros de un grupo de columnas iguales, la clave, el
+# determinante y el dependiente-. Una informativa no se ejecuta y queda como
+# esta. Sin datos no se sabe, y no se afirma.
+.parametros_columna_existente <- c(
+  "columna_1", "columna_2", "eliminar", "clave", "determinante", "dependiente"
+)
+
+.bloquear_columnas_ausentes <- function(plan, datos) {
+  if (is.null(datos) || !nrow(plan)) return(plan)
+  existentes <- .nombres_para_operar(names(datos))
+  for (j in seq_len(nrow(plan))) {
+    if (identical(as.character(plan$estado[[j]]), "informativa")) next
+    parametros <- plan$parametros[[j]]
+    referidas <- c(
+      as.character(plan$columna[[j]]),
+      if (is.list(parametros)) {
+        as.character(unlist(
+          parametros[intersect(names(parametros), .parametros_columna_existente)],
+          use.names = FALSE
+        ))
+      }
+    )
+    referidas <- .identificadores_unicos(referidas[!is.na(referidas) &
+                                                     nzchar(referidas)])
+    faltan <- referidas[!.nombres_para_operar(referidas) %in% existentes]
+    if (!length(faltan)) next
+    plan$estado[[j]] <- "bloqueada"
+    plan$aplicar[[j]] <- FALSE
+    plan$recomendada[[j]] <- FALSE
+    plan$justificacion[[j]] <- paste0(
+      plan$justificacion[[j]],
+      if (length(faltan) == 1L) " La columna " else " Las columnas ",
+      paste0("`", faltan, "`", collapse = ", "),
+      if (length(faltan) == 1L) " no est\u00e1" else " no est\u00e1n",
+      " en los datos: el perfil es de otra versi\u00f3n de la tabla, y la ",
+      "acci\u00f3n queda bloqueada. Volver a perfilar los datos que se van a ",
+      "limpiar."
+    )
+  }
+  plan
+}
+
 # Si algun miembro de un grupo de columnas iguales se llama como otra columna
 # de la tabla: entonces ninguna accion sobre el grupo puede decir sobre cual
 # actua. `claves_columnas` son los nombres del perfil ya normalizados.
@@ -452,13 +529,35 @@
     if (is.list(valor) && !is.null(valor$valor)) valor$valor else valor
   }, error = function(e) e)
   if (inherits(convertido, "error")) {
+    # Lo que no se ejecuta igual dice cuanto no se lee: el perfil ya lo cuenta
+    # -"convertir dejaria 1 de 10 valores en NA"- y el plan publicaba
+    # `n_no_reversibles = 0` al lado. La frase que sigue la pone quien decide
+    # el estado (ver `.frase_conversion_no_ejecutable()`): aca se decia "se
+    # conserva como accion destructiva no recomendada" tambien sobre una accion
+    # `bloqueada` y sin marca de destructiva.
+    no_leidos <- .valores_no_convertibles(x, estrategia, parametros)
+    presentes <- sum(!is.na(x))
     return(list(
       verificable = TRUE, ejecutable = FALSE, reversible = FALSE,
-      n_no_reversibles = 0L,
+      n_no_reversibles = as.integer(no_leidos),
       justificacion = paste0(
         "La conversi\u00f3n no es ejecutable sobre los datos completos: ",
-        conditionMessage(convertido),
-        " Se conserva como acci\u00f3n destructiva no recomendada."
+        conditionMessage(convertido), " ",
+        if (no_leidos == 0L && identical(estrategia, "convertir_numero_regional") &&
+            identical(parametros$convencion, "ambigua")) {
+          "Con la configuraci\u00f3n que la resuelve, se leen todos los valores presentes."
+        } else if (no_leidos == 0L) {
+          paste0(
+            "Cada valor presente se lee por separado: lo que impide la ",
+            "conversi\u00f3n es la columna entera."
+          )
+        } else {
+          paste0(
+            no_leidos, " de ", presentes,
+            if (presentes == 1L) " valor presente" else " valores presentes",
+            if (no_leidos == 1L) " no se lee." else " no se leen."
+          )
+        }
       ), error = conditionMessage(convertido)
     ))
   }
@@ -511,6 +610,75 @@
     n_no_reversibles = evaluacion$n_no_reversibles,
     justificacion = justificacion, error = NULL
   )
+}
+
+# Cuantos valores presentes no convierte el conversor de la accion, con su
+# multiplicidad. El conversor decide sobre la columna entera y aborta al primer
+# valor que no lee, asi que se le pregunta por partes: se divide el conjunto de
+# valores distintos hasta aislar los que fallan, y cuesta del orden del numero de
+# fallas por el logaritmo de los distintos, no una llamada por valor. Una
+# conversion regional ambigua que solo espera configuracion se cuenta con la
+# configuracion que menos deja afuera: son los valores que ninguna lee.
+.valores_no_convertibles <- function(x, estrategia, parametros) {
+  convertir <- switch(
+    estrategia,
+    convertir_tipo = function(v, p) .convertir_tipo(v, p),
+    convertir_numero_regional = function(v, p) .convertir_numero_regional(v, p),
+    convertir_fecha_confirmada = function(v, p) .convertir_fecha(v, p),
+    return(NA_integer_)
+  )
+  configuraciones <- list(parametros)
+  if (identical(estrategia, "convertir_numero_regional") &&
+      identical(parametros$convencion, "ambigua")) {
+    configuraciones <- list()
+    for (punto in c("miles", "decimal")) {
+      for (coma in c("miles", "decimal")) {
+        configurados <- parametros
+        configurados$punto_sin_coma <- punto
+        configurados$coma_sin_punto <- coma
+        configuraciones[[length(configuraciones) + 1L]] <- configurados
+      }
+    }
+  }
+  distintos <- unique(x)
+  falla <- function(v, p) {
+    inherits(tryCatch(convertir(v, p), error = function(e) e), "error")
+  }
+  aislar <- function(indices, p) {
+    if (!length(indices) || !falla(distintos[indices], p)) return(integer())
+    if (length(indices) == 1L) return(indices)
+    mitad <- length(indices) %/% 2L
+    c(aislar(indices[seq_len(mitad)], p),
+      aislar(indices[-seq_len(mitad)], p))
+  }
+  conteos <- vapply(configuraciones, function(p) {
+    fallan <- aislar(seq_along(distintos), p)
+    if (!length(fallan)) return(0)
+    as.numeric(sum(x %in% distintos[fallan]))
+  }, numeric(1L))
+  as.integer(min(conteos))
+}
+
+# La frase final de una conversion que no se ejecuta, segun el estado con que
+# queda en el plan: `bloqueada` no se puede activar, y `lista` -una regional
+# ambigua- se ejecuta una vez configurada. No es "destructiva no recomendada":
+# no se ejecuta, y su marca de destructiva lo decia al reves.
+.frase_conversion_no_ejecutable <- function(comprobacion, estado) {
+  if (!isTRUE(comprobacion$verificable) || isTRUE(comprobacion$ejecutable)) {
+    return("")
+  }
+  if (identical(estado, "bloqueada")) {
+    return(paste0(
+      " La acci\u00f3n queda bloqueada: no se puede activar sobre estos datos ",
+      "hasta resolver esos valores."
+    ))
+  }
+  if (identical(estado, "lista")) {
+    return(paste0(
+      " La acci\u00f3n queda lista sin activar: se ejecuta una vez configurada."
+    ))
+  }
+  ""
 }
 
 .evaluar_conversion <- function(original, convertido, estrategia, parametros) {
@@ -1674,6 +1842,26 @@ planificar_limpieza <- function(perfil, datos = NULL,
       )
       conversion_numero_segura <- seguro &&
         isTRUE(comprobacion_numero$reversible)
+      # Una conversion que el plan sabe que no se puede ejecutar sobre estos
+      # datos no sale `lista`: sobre una columna que no es texto su propio
+      # `motivo_no_reversible` decia "requiere una columna de texto", el
+      # estado invitaba a activarla y `aplicar()` la registraba `fallida`
+      # (medido sobre una columna `raw`). Ninguna
+      # configuracion la cambia. Una conversion que solo espera que se
+      # resuelva una ambiguedad -`punto_sin_coma`, `coma_sin_punto`- sigue
+      # `lista`: se configura y se ejecuta. La pregunta es una, y se le hace
+      # al conversor: ver `.regional_no_ejecutable_plan()`.
+      estado_numero <- if (.regional_no_ejecutable_plan(
+        datos, columna, parametros_numero, comprobacion_numero
+      )) {
+        "bloqueada"
+      } else if (seguro && comprobacion_numero$verificable) {
+        estado_columna
+      } else if (seguro) "bloqueada" else estado_columna
+      motivo_numero <- paste0(
+        comprobacion_numero$justificacion,
+        .frase_conversion_no_ejecutable(comprobacion_numero, estado_numero)
+      )
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "convertir_numero_regional", conversion_numero_segura,
         if (conversion_numero_segura) {
@@ -1684,7 +1872,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
             .nota_unidad_numero(parametros_numero)
           )
         } else if (seguro) {
-          comprobacion_numero$justificacion
+          motivo_numero
         } else {
           .motivo_numero_no_seguro(fila)
         },
@@ -1693,28 +1881,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # separadores, y el plan prometia 11 donde la conversion cambiaba los
         # 20 -una columna cambia de tipo entera, tambien el "7"-.
         fila$n[[1L]] - fila$n_faltantes[[1L]], comprobacion_numero$reversible,
-        # Una conversion que el plan sabe que no se puede ejecutar sobre estos
-        # datos no sale `lista`: sobre una columna que no es texto su propio
-        # `motivo_no_reversible` decia "requiere una columna de texto", el
-        # estado invitaba a activarla y `aplicar()` la registraba `fallida`
-        # (medido sobre una columna `raw`). Ninguna
-        # configuracion la cambia. Una conversion que solo espera que se
-        # resuelva una ambiguedad -`punto_sin_coma`, `coma_sin_punto`- sigue
-        # `lista`: se configura y se ejecuta. La pregunta es una, y se le hace
-        # al conversor: ver `.regional_no_ejecutable_plan()`.
-        estado = if (.regional_no_ejecutable_plan(
-          datos, columna, parametros_numero, comprobacion_numero
-        )) {
-          "bloqueada"
-        } else if (seguro && comprobacion_numero$verificable) {
-          estado_columna
-        } else if (seguro) "bloqueada" else estado_columna,
+        estado = estado_numero,
         aplicar = conversion_numero_segura &&
           identical(estado_columna, "lista"),
         parametros = c(parametros_numero, list(
           reversibilidad_comprobada = comprobacion_numero$verificable,
           n_no_reversibles = comprobacion_numero$n_no_reversibles,
-          motivo_no_reversible = comprobacion_numero$justificacion
+          motivo_no_reversible = motivo_numero
         )),
         unidad_conteo = "valor",
         destructiva = (seguro && !conversion_numero_segura) ||
@@ -1772,18 +1945,22 @@ planificar_limpieza <- function(perfil, datos = NULL,
       )
       conversion_fecha_segura <- seguro &&
         isTRUE(comprobacion_fecha$reversible)
+      estado_fecha <- if (conversion_fecha_segura) estado else "bloqueada"
+      motivo_fecha <- paste0(
+        comprobacion_fecha$justificacion,
+        .frase_conversion_no_ejecutable(comprobacion_fecha, estado_fecha)
+      )
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "convertir_fecha_confirmada", conversion_fecha_segura,
-        if (conversion_fecha_segura) justificacion else {
-          comprobacion_fecha$justificacion
-        }, fila$n[[1L]] - fila$n_faltantes[[1L]],
+        if (conversion_fecha_segura) justificacion else motivo_fecha,
+        fila$n[[1L]] - fila$n_faltantes[[1L]],
         comprobacion_fecha$reversible,
-        estado = if (conversion_fecha_segura) estado else "bloqueada",
+        estado = estado_fecha,
         aplicar = conversion_fecha_segura && identical(estado, "lista"),
         parametros = c(parametros_fecha, list(
           reversibilidad_comprobada = comprobacion_fecha$verificable,
           n_no_reversibles = comprobacion_fecha$n_no_reversibles,
-          motivo_no_reversible = comprobacion_fecha$justificacion
+          motivo_no_reversible = motivo_fecha
         )),
         # Cuenta valores presentes, no columnas ni filas: se declara aca en
         # vez de heredar la unidad del hallazgo, que habla de otra cosa.
@@ -1819,13 +1996,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
       recomendar <- base_tipo_seguro &&
         isTRUE(comprobacion_tipo$reversible)
       estado <- if (recomendar) estado_columna else "bloqueada"
+      motivo_tipo <- paste0(
+        comprobacion_tipo$justificacion,
+        .frase_conversion_no_ejecutable(comprobacion_tipo, estado)
+      )
       justificacion <- if (recomendar) {
         paste0(
           "Todos los valores presentes son compatibles con el tipo inferido y ",
           "la conversi\u00f3n es ejecutable e inyectiva."
         )
       } else if (base_tipo_seguro) {
-        comprobacion_tipo$justificacion
+        motivo_tipo
       } else {
         paste0(
           "La conversi\u00f3n requiere compatibilidad total, un tipo con conversi\u00f3n ",
@@ -1839,7 +2020,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         parametros = c(parametros_tipo, list(
           reversibilidad_comprobada = comprobacion_tipo$verificable,
           n_no_reversibles = comprobacion_tipo$n_no_reversibles,
-          motivo_no_reversible = comprobacion_tipo$justificacion
+          motivo_no_reversible = motivo_tipo
         )), orden = 310L, unidad_conteo = "valor",
         grupo = grupo_hallazgo,
         decision_grupo = if (recomendar) "recomendada" else "pendiente",
@@ -2071,12 +2252,23 @@ planificar_limpieza <- function(perfil, datos = NULL,
       # se propone, y el hallazgo queda en
       # `hallazgos_sin_accion_por_columna_ambigua`, con el remedio.
       if (.grupo_con_nombre_repetido(miembros, claves_columnas_perfil)) next
+      # Un miembro del grupo que no esta en el perfil -un hallazgo que no
+      # corresponde a sus columnas-: la accion salia `bloqueada` sin decir por
+      # que. La decision sobre el grupo no se toma con una parte del grupo: se
+      # bloquea y se dice cual falta. Un miembro que falta en los DATOS es la
+      # regla de todas las acciones: ver `.bloquear_columnas_ausentes()`.
+      faltan_perfil <- if (is.null(miembros)) character() else {
+        miembros[!.nombres_para_operar(miembros) %in% claves_columnas_perfil]
+      }
       estado_par <- if (
         is.null(miembros) || !all(tabulate(
           match(claves_columnas_perfil, .nombres_para_operar(miembros)),
           length(miembros)
         ) == 1L)
       ) "bloqueada" else "lista"
+      motivo_bloqueo_par <- .motivo_grupo_duplicadas_incompleto(
+        miembros, faltan_perfil
+      )
       parametros_par <- if (is.null(miembros)) list() else list(
         columna_1 = miembros[[1L]], columna_2 = miembros[-1L],
         eliminar = miembros[-1L]
@@ -2084,11 +2276,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
       n_repetidas <- if (is.null(miembros)) 1 else length(miembros) - 1L
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "marcar_columnas_duplicadas", TRUE,
-        if (n_repetidas == 1L) {
+        paste0(if (n_repetidas == 1L) {
           "La anotaci\u00f3n conserva ambas columnas y registra expl\u00edcitamente la redundancia."
         } else {
           "La anotaci\u00f3n conserva todas las columnas y registra expl\u00edcitamente la redundancia."
-        }, n_repetidas, TRUE, estado = estado_par,
+        }, motivo_bloqueo_par), n_repetidas, TRUE, estado = estado_par,
         aplicar = identical(estado_par, "lista"),
         parametros = parametros_par, orden = 700L,
         grupo = grupo_hallazgo, decision_grupo = "recomendada",
@@ -2096,7 +2288,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       ))
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "eliminar_columna_duplicada", FALSE,
-        if (n_repetidas == 1L) {
+        paste0(if (n_repetidas == 1L) {
           paste0(
             "Eliminar una columna puede romper consumidores que dependan de su ",
             "nombre aunque el contenido sea redundante."
@@ -2108,7 +2300,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
             "romper consumidores que dependan de sus nombres aunque el ",
             "contenido sea redundante."
           )
-        }, n_repetidas, FALSE, estado = estado_par, aplicar = FALSE,
+        }, motivo_bloqueo_par), n_repetidas, FALSE, estado = estado_par, aplicar = FALSE,
         parametros = parametros_par, orden = 705L,
         grupo = grupo_hallazgo, decision_grupo = "recomendada",
         recomendacion_grupo = "marcar_columnas_duplicadas",
@@ -2303,6 +2495,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )
   resultado <- .aplicabilidad_en_plan(resultado, perfil)
   resultado <- .bloquear_marcas_existentes(resultado, nombres_tabla)
+  resultado <- .bloquear_columnas_ausentes(resultado, datos)
   class(resultado) <- c("plan_limpieza", "data.frame")
   # El plan se arma desde `perfil$hallazgos`, asi que por construccion no puede
   # tener una accion para un diagnostico que no se evaluo. Quien trabaja desde

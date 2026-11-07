@@ -1108,7 +1108,10 @@
 #' `.Machine$integer.max` no apaga la relación. Para cada terna se prueban las tres orientaciones de una identidad
 #' aditiva; esto cubre sumas y sus restas equivalentes sin informar tres veces
 #' la misma igualdad. En pares proporcionales, `k` es la mediana de los cocientes
-#' finitos cuya base no es cero, pero el cumplimiento se evalúa después también
+#' finitos cuya base no es cero —salvo cuando la resolución de una columna con
+#' decimales fijos hace de tolerancia (ver `tolerancia_aritmetica`): ahí es la
+#' constante con menos cifras que deja casi tantas filas dentro de esa
+#' resolución como la que más—, pero el cumplimiento se evalúa después también
 #' en las filas con base cero. Si una identidad aditiva ya relaciona una terna,
 #' se omiten las proporcionalidades redundantes entre su total y sus sumandos;
 #' se conserva la proporcionalidad entre los dos sumandos. Una regularidad
@@ -2530,10 +2533,22 @@
 #'   tolerancia se mide también sobre los sumandos —`max(1, |observado|,
 #'   |esperado|, |sumandos|)`—, porque el error de sumar en doble es relativo a
 #'   ellos; si el total queda por debajo de esa tolerancia, la identidad se
-#'   publica sólo si es exacta. Una tolerancia declarada no se acota, y las
-#'   proporcionalidades usan siempre la relativa. `meta$aritmetica_columnas` se
-#'   publica cuando hay una relación, un recorte o una identidad descartada —por
-#'   escala o por la cota del cuanto—.
+#'   publica sólo si es exacta. Una tolerancia declarada no se acota. En una
+#'   proporcionalidad, con el valor por omisión, una columna con decimales fijos
+#'   cuyo redondeo la tolerancia relativa supera en alguna fila se lee como la
+#'   respuesta redondeada: la mitad de su cuanto, inclusiva, es la tolerancia de
+#'   todas las filas, y `k` es la constante con menos cifras que deja casi tantas
+#'   filas dentro de ella como la que más. Si las dos columnas admiten esa
+#'   lectura se usa la de la constante claramente más corta (`1.22` y no
+#'   `0.8196...`) y, entre dos constantes cortas, la de la resolución más fina. La
+#'   que la tolerancia relativa reconoce y esa resolución no se descarta y se
+#'   cuenta en `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto`.
+#'   Una columna que varía menos que la tolerancia relativa de su magnitud se
+#'   evalúa con la cota del cuanto cuando la identidad la admite; si no, una fila
+#'   de `cobertura_diagnosticos` por columna dice qué relación reconocía la
+#'   tolerancia y por qué no se publicó. `meta$aritmetica_columnas` se publica
+#'   cuando hay una relación, un recorte o una relación descartada —por escala o
+#'   por la cota del cuanto—.
 #' @param max_columnas_aritmetica Máximo de columnas numéricas que intervienen
 #'   en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
 #'   `20`. Si se omiten columnas, `cobertura_diagnosticos` declara el recorte y
@@ -3604,14 +3619,15 @@ perfilar <- function(datos,
   if (!is.null(benford$meta)) {
     meta$benford <- benford$meta
   }
-  # Tambien cuando se descarto una identidad, por escala o por la cota del
+  # Tambien cuando se descarto una relacion, por escala o por la cota del
   # cuanto: la ayuda promete el conteo en `identidades_descartadas_escala`, y si
   # la unica candidata era esa el campo no existia y "no habia candidatas" no se
-  # distinguia de "habia una y se descarto".
+  # distinguia de "habia una y se descarto". Lo mismo con una proporcionalidad.
   if (length(relaciones_aritmeticas$hallazgos) ||
       isTRUE(relaciones_aritmeticas$alcance$truncado) ||
       isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_escala > 0) ||
-      isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_cuanto > 0)) {
+      isTRUE(relaciones_aritmeticas$alcance$identidades_descartadas_cuanto > 0) ||
+      isTRUE(relaciones_aritmeticas$alcance$proporcionalidades_descartadas_cuanto > 0)) {
     meta$aritmetica_columnas <- relaciones_aritmeticas$alcance
   }
   cobertura_diagnosticos <- .anotar_columnas_cobertura(
