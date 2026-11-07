@@ -157,6 +157,15 @@ Primera versión publicada.
 
 ## Correcciones
 
+- `planificar_limpieza()` no convierte un número escrito como texto que el
+  perfil no lee: un teléfono como `099.123.456` entre importes con coma decimal,
+  que el perfil deja fuera del resumen, hacía que el plan propusiera la
+  conversión y `aplicar()` escribiera 99123456. Ahora la conversión queda
+  `bloqueada`, como con cualquier valor que no responde al formato, hasta que se
+  decida qué hacer con él. Con columnas iguales en las que algún nombre se
+  repite en la tabla, el plan no propone acción —proponía dos `bloqueada` sin
+  saber sobre cuál columna actuar— y el hallazgo queda en
+  `hallazgos_sin_accion_por_columna_ambigua`, con el remedio.
 - `inferir_tipo()` y `perfilar()` leen como número un importe con los miles
   agrupados (`1.234,56`, `1,234.56`, `12.500.000`) con la convención de la
   columna: quedaba `texto` y sin resumen, aunque la fila publicaba la

@@ -175,7 +175,17 @@
   plan
 }
 
-.hallazgos_sin_accion_por_columna_ambigua <- function(perfil) {
+# Si algun miembro de un grupo de columnas iguales se llama como otra columna
+# de la tabla: entonces ninguna accion sobre el grupo puede decir sobre cual
+# actua. `claves_columnas` son los nombres del perfil ya normalizados.
+.grupo_con_nombre_repetido <- function(miembros, claves_columnas) {
+  if (!length(miembros)) return(FALSE)
+  any(tabulate(
+    match(claves_columnas, .nombres_para_operar(miembros)), length(miembros)
+  ) > 1L)
+}
+
+.hallazgos_sin_accion_por_columna_ambigua <- function(perfil, grupos = NULL) {
   # El plan se arma desde `perfil$hallazgos`, y una columna cuyo nombre aparece
   # mas de una vez no se puede identificar: `.fila_perfil()` devuelve NULL y
   # NINGUNA rama del planificador llega a proponer su accion. Medido sobre una
@@ -209,7 +219,22 @@
     match(.nombres_para_operar(hallazgos$columna[candidatos]), distintos)
   ]
   veces[is.na(veces)] <- 0L
-  ambiguos <- candidatos[veces != 1L]
+  ambiguo <- veces != 1L
+  # Un grupo de columnas iguales puede nombrarse por una columna unica y tener
+  # otra repetida (`Y, X, X`): el plan tampoco propone su accion (ver
+  # `.grupo_con_nombre_repetido()`), y el motivo es el mismo.
+  duplicadas <- as.character(hallazgos$tipo_hallazgo[candidatos]) ==
+    "columnas_duplicadas"
+  if (any(duplicadas & !ambiguo) && is.list(grupos) &&
+      length(grupos$grupos)) {
+    repetido <- vapply(grupos$grupos, .grupo_con_nombre_repetido, logical(1L),
+                       claves_columnas = nombres)
+    g <- grupos$grupo[match(
+      .nombres_para_operar(hallazgos$columna[candidatos]), grupos$claves
+    )]
+    ambiguo <- ambiguo | (duplicadas & !is.na(g) & repetido[g] %in% TRUE)
+  }
+  ambiguos <- candidatos[ambiguo]
   if (!length(ambiguos)) return(vacio)
   data.frame(
     hallazgo = as.character(hallazgos$tipo_hallazgo[ambiguos]),
@@ -552,39 +577,17 @@
       },
       error = function(e) NULL
     )
+    # La regla es la de `.cifras_que_redondea_un_doble()` (en `R/tipos.R`), con
+    # la que el perfil declara las mismas perdidas: un entero se compara contra
+    # su valor exacto -por encima de 2^53 el `double` guarda otro entero-, y un
+    # decimal a la precision con que VINO ESCRITO -a su propia precision todo
+    # decimal de hasta 15 cifras vuelve exacto, y `33.333333333333333333%`, de
+    # 20 cifras, no-. Escrita una sola vez, el plan y el perfil no pueden
+    # contar distinto.
     if (!is.null(texto) && length(texto) == length(antes)) {
-      valores <- suppressWarnings(as.numeric(texto))
-      finitos <- presentes & !is.na(valores) & is.finite(valores)
-      # Los digitos que cuentan son los de la mantisa: el exponente solo
-      # corre la coma. Sin ceros en ninguno de los dos bordes.
-      significativos <- function(x) {
-        x <- gsub("[^0-9]", "", sub("[eE].*$", "", x))
-        sub("0+$", "", sub("^0+", "", x))
-      }
-      # Un entero se compara contra su valor exacto: por encima de 2^53 el
-      # `double` guarda otro entero.
-      enteros <- which(finitos & valores == floor(valores))
-      if (length(enteros)) {
-        antes_sig <- significativos(texto[enteros])
-        despues_sig <- significativos(sprintf("%.0f", abs(valores[enteros])))
-        redondeados[enteros] <- nzchar(antes_sig) & antes_sig != despues_sig
-      }
-      # Un decimal se compara con la precision con que VINO ESCRITO. Esta guarda
-      # miraba solo enteros, porque compararlos contra la expansion binaria
-      # -`1234.56` es `1234.5599999999999...`- acusaria a toda columna con
-      # decimales. Pero a su propia precision todo decimal de hasta 15 cifras
-      # significativas vuelve exacto, y lo que no vuelve es perdida real:
-      # `33.333333333333333333%` -20 cifras- se publicaba reversible y el
-      # `double` solo guarda 17.
-      decimales <- which(finitos & valores != floor(valores))
-      if (length(decimales)) {
-        antes_sig <- significativos(texto[decimales])
-        cifras <- pmax(1L, nchar(antes_sig))
-        despues_sig <- significativos(
-          sprintf("%.*g", cifras, abs(valores[decimales]))
-        )
-        redondeados[decimales] <- nzchar(antes_sig) & antes_sig != despues_sig
-      }
+      redondeados <- presentes & .cifras_que_redondea_un_doble(
+        texto, suppressWarnings(as.numeric(texto))
+      )
     }
   }
   riesgos <- colisionados | ceros | redondeados
@@ -1171,8 +1174,11 @@
 #' matrices, `data.frame` anidados o `POSIXlt`; una tabla con columnas de lista
 #' deja las acciones bloqueadas. Las de columnas duplicadas comparan el
 #' contenido como el perfil: un factor con nivel `NA` y el mismo factor sin ese
-#' nivel, o un `POSIXlt` y su `POSIXct`, son la misma columna también al
-#' aplicar. Hay una decisión por grupo de columnas iguales, no por par:
+#' nivel, un `POSIXlt` y su `POSIXct`, o dos factores sin orden con los mismos
+#' niveles en otro orden, son la misma columna también al aplicar. Si alguna
+#' columna del grupo se llama como otra de la tabla, no se propone acción: el
+#' hallazgo queda en `hallazgos_sin_accion_por_columna_ambigua`, con el
+#' remedio. Hay una decisión por grupo de columnas iguales, no por par:
 #' marcarlo, o eliminar las repetidas y conservar la primera del grupo.
 #' `columna_1` nombra la que se conserva, y `columna_2` y `eliminar`, todas las
 #' repetidas; el atributo `columnas_duplicadas_marcadas` lleva una fila por
@@ -2059,6 +2065,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
       # `fallida`.
       g <- grupo_de_hallazgo[[i]]
       miembros <- if (is.na(g)) NULL else grupos_duplicadas$grupos[[g]]
+      # Con un nombre que se repite en la tabla, la accion no puede decir sobre
+      # cual de las columnas que se llaman igual actua: con `X, X` proponia dos
+      # acciones `bloqueada` con `columna_2` vacia. Como en las demas ramas, no
+      # se propone, y el hallazgo queda en
+      # `hallazgos_sin_accion_por_columna_ambigua`, con el remedio.
+      if (.grupo_con_nombre_repetido(miembros, claves_columnas_perfil)) next
       estado_par <- if (
         is.null(miembros) || !all(tabulate(
           match(claves_columnas_perfil, .nombres_para_operar(miembros)),
@@ -2305,7 +2317,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
   } else {
     .cobertura_diagnosticos_vacia()
   }
-  ambiguos <- .hallazgos_sin_accion_por_columna_ambigua(perfil)
+  ambiguos <- .hallazgos_sin_accion_por_columna_ambigua(
+    perfil, grupos = grupos_duplicadas
+  )
   attr(resultado, "hallazgos_sin_accion_por_columna_ambigua") <- ambiguos
   attr(resultado, "hallazgos_sin_accion") <-
     .hallazgos_sin_accion_declarados(perfil, resultado, ambiguos)
@@ -3331,6 +3345,40 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     }
   } else if (!identical(convencion, "sin_separadores")) {
     .detener("La convenci\u00f3n num\u00e9rica no est\u00e1 confirmada.", call. = FALSE)
+  }
+  # Lo que el lector del resumen no lee como numero tampoco lo convierte el
+  # plan (ver `.leer_numeros_texto()`). `099.123.456` junto a importes con coma
+  # decimal es un telefono: el perfil lo deja fuera del resumen y dice que
+  # convertir lo dejaria en `NA`, y aca se le quitaban los puntos y `aplicar()`
+  # escribia 99123456. Se trata como cualquier valor que no responde al
+  # formato, igual que `0x1A`: la conversion no se ejecuta. Con una convencion
+  # decimal la pregunta se le hace al lector; con la ambigua, que el lector no
+  # decide, se le aplican sus dos reglas: la forma de numero, y los miles
+  # agrupados de a tres sin cero adelante cuando el separador se lee como miles.
+  candidatos <- which(presentes & partes$compatible)
+  if (length(candidatos)) {
+    cuerpo <- trimws(as.character(partes$cuerpo[candidatos]))
+    sin_lectura <- if (length(convencion) == 1L &&
+                       convencion %in% c("decimal_coma", "decimal_punto")) {
+      leidos <- .leer_numeros_texto(cuerpo, convencion)
+      is.na(leidos) & !is.nan(leidos)
+    } else {
+      fuera <- !.formas_numero_texto(cuerpo)
+      if (identical(convencion, "ambigua")) {
+        miles_punto <- partes$punto_tres[candidatos] %in% TRUE &
+          identical(parametros$punto_sin_coma, "miles")
+        miles_coma <- partes$coma_tres[candidatos] %in% TRUE &
+          identical(parametros$coma_sin_punto, "miles")
+        fuera <- fuera |
+          (miles_punto & !grepl(.patron_miles_coma, cuerpo, perl = TRUE)) |
+          (miles_coma & !grepl(.patron_miles_punto, cuerpo, perl = TRUE))
+      }
+      fuera
+    }
+    if (any(sin_lectura)) {
+      .detener("Hay valores presentes que no responden al formato num\u00e9rico regional.",
+           call. = FALSE)
+    }
   }
   list(texto = texto, presentes = presentes, partes = partes)
 }

@@ -338,8 +338,11 @@ con la misma igualdad que el perfil, también con columnas \code{integer64},
 matrices, \code{data.frame} anidados o \code{POSIXlt}; una tabla con columnas de lista
 deja las acciones bloqueadas. Las de columnas duplicadas comparan el
 contenido como el perfil: un factor con nivel \code{NA} y el mismo factor sin ese
-nivel, o un \code{POSIXlt} y su \code{POSIXct}, son la misma columna también al
-aplicar. Hay una decisión por grupo de columnas iguales, no por par:
+nivel, un \code{POSIXlt} y su \code{POSIXct}, o dos factores sin orden con los mismos
+niveles en otro orden, son la misma columna también al aplicar. Si alguna
+columna del grupo se llama como otra de la tabla, no se propone acción: el
+hallazgo queda en \code{hallazgos_sin_accion_por_columna_ambigua}, con el
+remedio. Hay una decisión por grupo de columnas iguales, no por par:
 marcarlo, o eliminar las repetidas y conservar la primera del grupo.
 \code{columna_1} nombra la que se conserva, y \code{columna_2} y \code{eliminar}, todas las
 repetidas; el atributo \code{columnas_duplicadas_marcadas} lleva una fila por
