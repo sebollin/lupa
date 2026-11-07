@@ -539,6 +539,23 @@ Primera versión publicada.
   («Se identificaron M pares cercanos…») es la de los grupos que cuenta:
   sumaba también los de los grupos ya publicados y los de las cadenas
   que el tope de asimetría o el límite del vocabulario dejan afuera.
+- En
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  cada par cercano del vocabulario se declara una sola vez también
+  cuando el grupo de formas cercanas toca, por otra de sus formas, un
+  grupo que `casi_duplicados_vocabulario` publica. Con `Montevideo`
+  (100), `Montevido` (50) y `Montividoo` (50) se publicaba \[Montevideo
+  / Montevido\] y la fila de cobertura decía a la vez «1 grupo de formas
+  cercanas no se formó… Se identificaron 2 pares», contando esa misma
+  pareja; con `variantes_equifrecuentes_vocabulario = TRUE` la pareja
+  salía otra vez dentro de \[Montevideo / Montevido / Montividoo\].
+  Ahora la fila cuenta 1 par y el grupo equifrecuente es \[Montevido /
+  Montividoo\]: la forma que comparten se nombra en los dos grupos y
+  cada uno declara sus pares. Un par que quedaba sin declarar porque la
+  pareja publicada llevaba la asimetría del grupo por encima de
+  `max_asimetria_equifrecuente_vocabulario` ahora se cuenta, y dos
+  grupos que sólo se tocaban por una pareja publicada salen separados.
+  Los grupos de `casi_duplicados_vocabulario` no cambian.
 - La mediana de una columna entera o decimal con valores de 2^53 o más
   se decide por su valor y no por la columna, con la misma regla en los
   siete motores: con una cantidad impar se publica si la central queda

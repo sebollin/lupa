@@ -1001,13 +1001,18 @@ parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
 que con quinientas, y en una tabla chica ese reparto sale por casualidad
 más seguido. Es aditivo: encenderlo no cambia ni pierde ninguna
 detección de <code>casi_duplicados_vocabulario</code>. El límite que deja de cubrir se
-declara igual, encendido o apagado, en <code>n_grupos_sin_variante_rara</code>. Una
-pareja que <code>casi_duplicados_vocabulario</code> ya publicó entera no se cuenta
-ahí ni se publica otra vez como equifrecuente: pasa con una clase exacta
-de normalización unida por distancia a su vecina, y cuando la asimetría
-llega a <code>min_asimetria_vocabulario</code> sin pasar
-<code>max_asimetria_equifrecuente_vocabulario</code>. Lo que el piso de asimetría deja
-afuera sí se cuenta.</p></dd>
+declara igual, encendido o apagado, en <code>n_grupos_sin_variante_rara</code>. Cada
+par cercano se declara una sola vez: si <code>casi_duplicados_vocabulario</code> ya
+publicó sus dos formas en un mismo grupo, el par no se cuenta ahí ni se
+publica otra vez como equifrecuente, aunque otra forma cercana cuelgue de
+ese grupo. Pasa con una clase exacta de normalización unida por distancia
+a su vecina, y cuando la asimetría llega a <code>min_asimetria_vocabulario</code> sin
+pasar <code>max_asimetria_equifrecuente_vocabulario</code>. La forma que comparten se
+nombra en los dos grupos y cada uno declara sus pares: con <code>Montevideo</code>
+(100), <code>Montevido</code> (50) y <code>Montividoo</code> (50), <code>casi_duplicados_vocabulario</code>
+publica <code>Montevideo</code> y <code>Montevido</code>, y el grupo equifrecuente, <code>Montevido</code>
+y <code>Montividoo</code>, con un solo par. Lo que el piso de asimetría deja afuera sí
+se cuenta.</p></dd>
 
 
 <dt id="arg-max-asimetria-equifrecuente-vocabulario">max_asimetria_equifrecuente_vocabulario<a class="anchor" aria-label="anchor" href="#arg-max-asimetria-equifrecuente-vocabulario"></a></dt>

@@ -574,7 +574,7 @@ writeLines(strwrap(paste0(recorte$columna, ": ", recorte$motivo), 88))
 #> orden alfabético. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de
 #> caracter. Quedaron 1 forma y 4 pares sin comparar por max_trabajo. 1 grupo de formas
 #> cercanas no se formó porque sus frecuencias fueron parecidas: el criterio de variante
-#> rara no pudo distinguir una forma correcta de otra. Se identificaron 1 par cercano con
+#> rara no pudo distinguir una forma correcta de otra. Se identificó 1 par cercano con
 #> asimetría <= 2.0.
 ```
 
