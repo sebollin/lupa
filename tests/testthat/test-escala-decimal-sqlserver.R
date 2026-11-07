@@ -4,10 +4,10 @@
 # decimal leido como doble (`.desvio_mal_condicionado_dbi()`) no sabia que un
 # `decimal(18,0)` guarda enteros: por bloques y por la muestra del motor negaba
 # el desvio de 5e14 + k, cuyos dobles son los valores. PostgreSQL, MySQL y
-# MariaDB ya lo publicaban. Un decimal con escala sigue negado por la muestra
-# del motor: ahi los dobles no son los valores. Por bloques, el de un decimal
-# con escala sale de la suma exacta de los cuadrados en el motor, y es el doble
-# mas cercano del exacto: la varianza de 5e14 + k + 0,25 es la de k, 10, y el
+# MariaDB ya lo publicaban. Por bloques y por la muestra del motor, el de un
+# decimal con escala sale de la suma exacta de los cuadrados en el motor -la
+# muestra la pide en la misma sentencia que los agregados- y es el doble mas
+# cercano del exacto: la varianza de 5e14 + k + 0,25 es la de k, 10, y el
 # desvio, `sqrt(10)`.
 testthat::skip_on_cran()
 skip_if_not_installed("DBI")
@@ -75,17 +75,14 @@ test_that("SQL Server publica decimal(p,s) y la guarda deja pasar la escala 0", 
     }
     for (columna in c("centavos", "m")) {
       estado <- sql$estado[sql$columna == columna & sql$metrica == "desvio"]
-      if (via == "bloques") {
-        expect_identical(utils::tail(estado, 1L), "calculado",
-                         info = paste(via, columna))
-        expect_identical(
-          as.numeric(columnas$desvio[columnas$columna == columna]), sqrt(10),
-          info = paste(via, columna)
-        )
-      } else {
-        expect_identical(utils::tail(estado, 1L), "no_disponible",
-                         info = paste(via, columna))
-      }
+      # Por bloques y por la muestra del motor, de las sumas exactas en el
+      # motor: `calculado` y `estimado`.
+      expect_true(utils::tail(estado, 1L) %in% c("calculado", "estimado"),
+                  info = paste(via, columna))
+      expect_identical(
+        as.numeric(columnas$desvio[columnas$columna == columna]), sqrt(10),
+        info = paste(via, columna)
+      )
     }
   }
 })

@@ -608,8 +608,8 @@ Primera versión publicada.
   media escrita en su escala, y R saca el desvío exacto: es el doble más
   cercano. Con la muestra leída en R sale del texto de cada valor, que la
   muestra ya traía. Por la muestra del
-  motor con `bloque_muestra = "solo_agregados"`, en SQL Server, MySQL, MariaDB y
-  DuckDB, que centran en doble, queda `no_disponible`. Un decimal de escala 0
+  motor con `bloque_muestra = "solo_agregados"` sale de las mismas sumas,
+  pedidas en la sentencia de los agregados. Un decimal de escala 0
   con valores por debajo de 2^53 se publica en todas las vías: ahí los dobles
   son los valores, y la escala la dicen los catálogos de PostgreSQL, MySQL,
   MariaDB, DuckDB y SQL Server, que ahora publica la precisión y la escala de un
@@ -630,14 +630,40 @@ Primera versión publicada.
   cada valor, y con valores que se cancelan la media salía lejos:
   `999999999999999.99`, `-999999999999999.98`, `0.01`, `0.02`, `0.03` y
   `-0.04` daban 0,00333 por 0,005; y el desvío de los cinco motores con
-  decimales, y la media con escala 30, quedaban a un ulp. Una consulta más,
-  para todos los decimales de la tabla, pide al motor la suma de la columna y
-  la de los cuadrados de sus diferencias con la media, en su tipo y como texto,
-  y R divide y saca la raíz con aritmética entera. Por bloques, el desvío de un
-  decimal sale de la misma consulta, sin consultas de más: el de
-  500000000000006.60 y sus vecinos quedaba a un ulp, y el de `1.10`, `2.20` y
-  `3.30`, también. Con `incluir_valores = FALSE`, el SQL publicado de esa
-  consulta lleva la media tapada.
+  decimales, y la media con escala 30, quedaban a un ulp. Una consulta más por
+  lote de decimales pide al motor la suma de la columna y la de los cuadrados
+  de sus diferencias con la media, en su tipo y como texto, y R divide y saca
+  la raíz con aritmética entera. Por bloques, el desvío de un decimal sale de
+  la misma consulta, sin consultas de más: el de 500000000000006.60 y sus
+  vecinos quedaba a un ulp, y el de `1.10`, `2.20` y `3.30`, también. Con
+  `incluir_valores = FALSE`, el SQL publicado de esa consulta lleva la media
+  tapada.
+- Las sumas exactas de los decimales van por lotes de `tamano_lote_planos`
+  columnas, con las expresiones que acepta cada motor, y cada expresión se elige
+  para que no desborde ni redondee con las cifras del tipo y las filas. Con una
+  sola consulta para toda la tabla, 600 columnas `numeric(18,2)` pasaban el
+  límite de 1.664 expresiones de PostgreSQL y por bloques no quedaba ninguna
+  media; en DuckDB el cuadrado de un `DECIMAL(15,0)` desbordaba en 64 bits y
+  todas las columnas de la tabla quedaban con la media y el desvío del motor; y
+  un `decimal(38,30)` de SQL Server con valores de -1e8 a 1e8 no tenía cuadrado
+  exacto y quedaba el `STDEV` del motor, a uno o dos ulps. Un lote que el motor rechaza
+  se parte hasta aislar la columna, y el plan cuenta los lotes y, como máximo,
+  los reintentos. La consulta corre ahora con cualquier `metricas` (con
+  `c("basicos", "desvio")` o sólo `"desvio"` la tabla completa publicaba la del
+  motor: en PostgreSQL 9.3, 1,63 por 0,1425), con `incluir_valores = FALSE`, con
+  un `max_consultas` igual al total del plan, con valores de 2^53 o más —cuya
+  media y desvío quedaban `no_disponible`— y bajo la muestra del motor con
+  `bloque_muestra = "solo_agregados"`, en la misma sentencia que los demás
+  agregados (la media de un `DECIMAL(18,2)` cambiaba con el orden de las filas).
+  Por bloques, `NaN` e `Infinity` de PostgreSQL quedan fuera de las sumas, como
+  en la tabla completa. Si la consulta no corre, la media y el desvío del motor
+  por la tabla completa quedan sólo si su error cabe en una parte en mil
+  millones; si no, `no_disponible`. La escala de un decimal de una tabla
+  temporal la leen el catálogo de `tempdb` en SQL Server y `SHOW COLUMNS` en
+  MySQL y MariaDB: sin ella, el desvío quedaba a un ulp o `no_disponible`.
+- Con `incluir_valores = FALSE`, el SQL publicado del desvío centrado de un
+  entero o un doble lleva la media tapada: publicaba la media como literal
+  (`STDDEV_SAMP((b - 731946280004.333) * 1.0)`), en los siete motores.
 - `plan_perfilado_dbi()` cuenta la consulta de prueba de la CTE de ventanas, y
   su control negativo, que la muestra del motor corre cuando una columna
   decimal, o un `float8` de PostgreSQL, deja la mediana consolidada: dos

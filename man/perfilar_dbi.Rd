@@ -1078,27 +1078,41 @@ diferir entre motores y con la de R. La media y el desvío de R
 cercanos de la media y el desvío exactos de los dobles que leyó. La media
 y el desvío de un decimal que el controlador entrega como doble son los
 del decimal, los dobles más cercanos de los exactos, por la tabla
-completa, por \code{bloque_filas} y en el resumen de la muestra con
-\code{bloque_muestra = "con_muestra"}. Por la tabla completa y por bloques, una
-consulta para todos los decimales de la tabla pide al motor, en el tipo de
-la columna y como texto, la suma de la columna —en SQL Server y duckdb, la
-parte entera y la fracción por separado, porque la suma de un
-\code{decimal(38,30)} desborda— y la de los cuadrados de sus diferencias con la
-media escrita en la escala de la columna —donde el cuadrado no entra en el
-tipo, en trozos de nueve cifras—; R divide y saca la raíz con aritmética
-entera, sin cancelación. Esa media es un literal que sale de los datos: con
-\code{incluir_valores = FALSE} el SQL publicado la lleva tapada. La muestra hace
-lo mismo con el texto de cada valor. Por la
-tabla completa esa consulta reemplaza la media y el desvío del motor, que
-los calculaba en doble: en MySQL, MariaDB y SQL Server promediaba el doble
-de cada valor, y con valores que se cancelan la media salía lejos
+completa, por \code{bloque_filas} y por la muestra del motor, con
+\code{bloque_muestra = "con_muestra"} y con \code{"solo_agregados"}. El motor suma en
+el tipo de la columna, y devuelve como texto, la columna y los cuadrados de
+sus diferencias con la media escrita en su escala —o de los valores, donde
+no hay media o las diferencias pasan de 38 cifras—, con expresiones
+elegidas para que no desborden ni redondeen con las cifras del tipo, las de
+los extremos y las filas: en SQL Server y duckdb la parte entera y la
+fracción por separado, porque la suma de un \code{decimal(38,30)} desborda; en
+duckdb el cuadrado con un factor de 19 cifras, que lo lleva a 128 bits —el
+de dos \code{DECIMAL(15,0)} desbordaba en 64—; y donde nada de eso entra, en
+trozos de nueve cifras. R divide y saca la raíz con aritmética entera, sin
+cancelación. La muestra leída en R hace lo mismo con el texto de cada
+valor. Las columnas van en lotes de hasta \code{tamano_lote_planos}, con las
+expresiones que acepta el motor (1.664 en PostgreSQL); un lote que el
+motor rechaza se parte hasta aislar la columna, y las demás siguen. Entran
+con cualquier \code{metricas}, con \code{incluir_valores = FALSE} —la media es un
+literal que sale de los datos, y el SQL publicado la lleva tapada— y con
+valores de 2^53 o más; en PostgreSQL, \code{NaN} e \code{Infinity} quedan fuera,
+como en la media de la tabla completa. Bajo la muestra del motor las sumas
+van en la misma sentencia que los demás agregados, sobre las mismas filas.
+Por la tabla completa reemplazan la media y el desvío del motor, que los
+calculaba en doble: en MySQL, MariaDB y SQL Server promediaba el doble de
+cada valor, y con valores que se cancelan la media salía lejos
 (\code{999999999999999.99}, \code{-999999999999999.98}, \code{0.01}, \code{0.02}, \code{0.03} y
 \code{-0.04} daban 0,00333 por 0,005); el desvío, y la media con escala 30,
-quedaban a un ulp. Si la consulta falla, por la tabla completa queda la
-del motor, y por bloques la media y el desvío quedan \code{no_disponible}, como
-si la suma del motor no es la de lo que leyeron los bloques. Sin escala
-declarada (SQL Server, MySQL, MariaDB) el desvío por bloques sale de los
-dobles, con su guarda. La media y el desvío de una columna de coma flotante
+quedaban a un ulp. Si la consulta no corre —el presupuesto, o el motor la
+rechaza aun sola—, por la tabla completa la del motor queda sólo si su
+error cabe en una parte en mil millones (el desvío, con la guarda de los
+dobles; la media, si \code{n} redondeos del mayor valor no pasan de esa parte de
+la media), y si no queda \code{no_disponible} con el motivo; por bloques, la
+media y el desvío quedan \code{no_disponible}, como si la suma del motor no es
+la de lo que leyeron los bloques. Sin escala declarada —un decimal que el
+catálogo no describe— el desvío por bloques sale de los dobles, con su
+guarda; la de una tabla temporal la leen el catálogo de \code{tempdb} en SQL
+Server y \verb{SHOW COLUMNS} en MySQL y MariaDB. La media y el desvío de una columna de coma flotante
 o entera que calcula el motor salen de su aritmética y no son, en general,
 el doble más cercano del
 exacto: medido sobre columnas de cuatro a nueve valores en los siete
@@ -1148,7 +1162,8 @@ valor a doble puede moverlo más de una parte en mil millones
 declare escala 0 —\code{numeric(18,0)}, \code{decimal(38,0)}— y los valores queden
 por debajo de 2^53: ahí los dobles son los valores. La escala la publican
 PostgreSQL, MySQL, MariaDB, DuckDB y el
-catálogo de SQL Server. Bajo \code{muestra_motor}, la media y el desvío
+catálogo de SQL Server, también la de una tabla temporal. Bajo
+\code{muestra_motor}, la media y el desvío
 se piden en la misma consulta, sobre las mismas filas de una sola
 evaluación de la muestra: una relación derivada calcula la media de esas
 filas con una ventana (\verb{AVG(x) OVER ()}) y el desvío se pide centrado en
@@ -1156,8 +1171,9 @@ ella; esa misma evaluación da las filas obtenidas y decide el reintento. En
 SQLite, que suma los cuadrados en la consulta, se resta además
 \code{n * (media - centro)^2} (las dos pasadas corregidas), porque la media de
 la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb esa media y la resta son
-dobles: el desvío de un decimal queda \code{no_disponible} con la misma regla que
-con \code{bloque_filas} sin la consulta. Con \code{bloque_muestra = "con_muestra"} el
+dobles; la media y el desvío de un decimal salen de sus sumas exactas,
+pedidas en la misma consulta (ver «La media en coma flotante»). Con
+\code{bloque_muestra = "con_muestra"} el
 resumen de un decimal sale del texto que la muestra trae de cada valor: el
 desvío es el doble más cercano del exacto, de las sumas sin redondeo de
 las diferencias con una de sus centrales y de sus cuadrados. El de

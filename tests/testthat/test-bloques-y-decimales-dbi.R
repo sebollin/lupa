@@ -176,9 +176,27 @@ test_that("la guarda decimal conserva su motivo con privacidad", {
         incluir_valores = FALSE, proteger_datos_personales = FALSE
       )))
       sql <- resultado$resumen_tabla$sql
+      columnas <- resultado$resumen_tabla$columnas
+      # La media y el desvio salen de las sumas exactas en el motor y se
+      # publican; los ceros y los negativos, que salen de los dobles, siguen
+      # negados, con el motivo del decimal y no el de la privacidad.
+      exactos <- list(ancho = c(media = 0x1p+53, desvio = 0x1.6a09e667f3bcdp-1),
+                      borde = c(media = 0x1p+52, desvio = 0x1.6a09e667f3bccp+52))
       for (campo in c("ancho", "borde")) {
+        for (metrica in c("media", "desvio")) {
+          expect_identical(
+            sql$estado[sql$columna == campo & sql$metrica == metrica],
+            "calculado", info = paste(campo, metrica)
+          )
+          expect_identical(
+            as.numeric(columnas[[metrica]][columnas$columna == campo]),
+            exactos[[campo]][[metrica]], info = paste(campo, metrica)
+          )
+        }
         filas <- sql[sql$columna == campo &
-                       sql$metrica %in% c("media", "desvio"), , drop = FALSE]
+                       sql$metrica %in% c("n_ceros", "n_negativos"), ,
+                     drop = FALSE]
+        expect_true(nrow(filas) > 0L, info = campo)
         expect_true(all(filas$estado == "no_disponible"), info = campo)
         expect_true(all(grepl(
           "decimal entregado como doble", filas$motivo, fixed = TRUE

@@ -1,8 +1,8 @@
 # El catalogo de MySQL y MariaDB publica la escala de un decimal
 # (`COLUMN_TYPE`): con escala 0 y valores por debajo de 2^53, los dobles son los
 # valores y el desvio por bloques y por la muestra del motor se publica. Con
-# decimales, por bloques lo calcula el motor restando en el decimal, y por la
-# muestra la guarda sigue (ver `test-desvio-decimal-escala-dbi.R`).
+# decimales, por bloques y por la muestra lo dan las sumas exactas en el motor
+# (ver `test-desvio-decimal-escala-dbi.R`).
 #
 # Usa RMySQL y RMariaDB, que el paquete no declara: ver `test-local-mysql.R`.
 
@@ -66,15 +66,16 @@
     expect_true(estado("entero") %in% c("calculado", "estimado"), info = info)
     desvio <- columnas$desvio[columnas$columna == "entero"]
     expect_lt(abs(desvio - stats::sd(k)) / stats::sd(k), 1e-12)
-    # 500000000000000.35 no es un doble. Por bloques el motor resta en el
-    # decimal y lo publica; la muestra centra en doble y la guarda sigue.
-    if (identical(names(via), "bloque_filas")) {
-      expect_identical(estado("centavos"), "calculado", info = info)
-      centavos <- columnas$desvio[columnas$columna == "centavos"]
-      expect_lt(abs(centavos - stats::sd(k)) / stats::sd(k), 1e-12)
-    } else {
-      expect_identical(estado("centavos"), "no_disponible", info = info)
-    }
+    # 500000000000000.35 no es un doble. Por bloques y por la muestra del motor
+    # el desvio sale de las sumas exactas en el motor -la muestra las pide en la
+    # misma sentencia que los agregados- y es el doble mas cercano del exacto:
+    # la varianza es la de k, 10.
+    expect_true(estado("centavos") %in% c("calculado", "estimado"),
+                info = info)
+    expect_identical(
+      as.numeric(columnas$desvio[columnas$columna == "centavos"]), sqrt(10),
+      info = info
+    )
   }
 }
 

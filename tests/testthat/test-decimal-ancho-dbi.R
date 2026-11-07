@@ -53,17 +53,29 @@
     ))
     columnas <- resultado$resumen_tabla$columnas
     sql <- resultado$resumen_tabla$sql
+    # La media y el desvio salen de las sumas exactas en el motor, no de los
+    # dobles: se publican, y son los dobles mas cercanos de los exactos.
+    exactos <- list(dec38 = c(media = 0x1.027e72f1f1281p+93, desvio = 0),
+                    d20 = c(media = 0x1.56a95319d63e1p+63,
+                            desvio = 0x1.6a09e667f3bcdp-1))
     for (columna in c("dec38", "d20")) {
       fila <- columnas[columnas$columna == columna, , drop = FALSE]
-      expect_true(all(is.na(c(fila$minimo, fila$maximo, fila$media,
-                              fila$desvio))))
+      expect_true(all(is.na(c(fila$minimo, fila$maximo))))
       magnitud <- sql[sql$columna == columna &
-                        sql$metrica %in% c("minimo", "maximo", "media",
-                                           "desvio"), , drop = FALSE]
-      expect_true(nrow(magnitud) >= 4L)
+                        sql$metrica %in% c("minimo", "maximo"), , drop = FALSE]
+      expect_true(nrow(magnitud) >= 2L)
       expect_true(all(magnitud$estado == "no_disponible"))
       expect_true(all(grepl("2^53", magnitud$motivo, fixed = TRUE)))
       expect_false(any(grepl("no se pidio", magnitud$motivo, fixed = TRUE)))
+      for (metrica in c("media", "desvio")) {
+        expect_identical(
+          sql$estado[sql$columna == columna & sql$metrica == metrica],
+          "calculado", info = paste(columna, metrica)
+        )
+        expect_identical(as.numeric(fila[[metrica]]),
+                         exactos[[columna]][[metrica]],
+                         info = paste(columna, metrica))
+      }
     }
     if (!is.null(metricas)) {
       mediana <- sql[sql$columna == "dec38" & sql$metrica == "mediana", ,

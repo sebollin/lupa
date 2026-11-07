@@ -26,11 +26,18 @@ test_that("DuckDB publica la moda decimal con texto exacto", {
   expect_equal(as.numeric(fila$frecuencia_moda), 2)
   sql <- resultado$resumen_tabla$sql
   magnitudes <- sql[
-    sql$columna == "d" & sql$metrica %in%
-      c("minimo", "maximo", "mediana", "media", "desvio"),
+    sql$columna == "d" & sql$metrica %in% c("minimo", "maximo", "mediana"),
     , drop = FALSE
   ]
   expect_true(all(magnitudes$estado == "no_disponible"))
   expect_false(any(magnitudes$estado == "calculado"))
   expect_true(all(grepl("2^53", magnitudes$motivo, fixed = TRUE)))
+  # La media y el desvio no salen de esos dobles sino de las sumas exactas en
+  # el motor: se publican, y son los dobles mas cercanos de los exactos.
+  for (metrica in c("media", "desvio")) {
+    expect_identical(sql$estado[sql$columna == "d" & sql$metrica == metrica],
+                     "calculado", info = metrica)
+  }
+  expect_identical(as.numeric(fila$media), 0x1.c90c6ecd1da82p+62)
+  expect_identical(as.numeric(fila$desvio), 0x1.8b61f5bd8bf7dp+62)
 })

@@ -173,14 +173,58 @@ test_that("B3: un desvio 0 sobre valores distintos se vuelve a pedir centrado au
   p <- suppressWarnings(perfilar_dbi(
     con, "t", proteger_datos_personales = FALSE, analizar_dependencias = FALSE
   ))
+  # El desvio de un decimal sale de las sumas exactas en el motor: el doble mas
+  # cercano del exacto, `sqrt(305) * 1e-17` (fracciones, puntos medios).
+  fila <- .desvio_sql_O164(p, "v")
+  expect_identical(fila$estado, "calculado")
+  expect_identical(p$resumen_tabla$columnas$desvio, 0x1.92b2bb37a79e4p-53)
+  expect_true(lupa:::.riesgo_cancelacion_desvio_dbi(1000, 0, 1000, 1000, 60))
+  expect_false(lupa:::.riesgo_cancelacion_desvio_dbi(1000, 0, 1000, 1000, 1))
+  # Donde el tipo no admite las sumas exactas -un decimal sin escala-, el motor
+  # sigue respondiendo 0 y el desvio se vuelve a pedir centrado, con el motivo.
+  testthat::local_mocked_bindings(
+    .escala_suma_decimal_dbi = function(senas, tipo) NA_integer_,
+    .package = "lupa"
+  )
+  p <- suppressWarnings(perfilar_dbi(
+    con, "t", proteger_datos_personales = FALSE, analizar_dependencias = FALSE
+  ))
   # A mano: el desvio de 1..60 por 1e-17.
   esperado <- stats::sd(1:60) * 1e-17
   fila <- .desvio_sql_O164(p, "v")
   expect_identical(fila$estado, "calculado")
   expect_lt(abs(p$resumen_tabla$columnas$desvio - esperado) / esperado, 1e-12)
   expect_match(fila$motivo, "respondi\u00f3 0 sobre una columna", fixed = TRUE)
-  expect_true(lupa:::.riesgo_cancelacion_desvio_dbi(1000, 0, 1000, 1000, 60))
-  expect_false(lupa:::.riesgo_cancelacion_desvio_dbi(1000, 0, 1000, 1000, 1))
+  expect_false(grepl("lupa_suma_", fila$sql, fixed = TRUE, useBytes = TRUE))
+})
+
+test_that("B3: si la consulta exacta no corre, el desvio 0 del motor no se publica", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("duckdb")
+  con <- DBI::dbConnect(duckdb::duckdb())
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  DBI::dbExecute(con, paste(
+    "CREATE TABLE t AS SELECT CAST('1000.' || lpad(CAST(g AS VARCHAR), 17, '0')",
+    "AS DECIMAL(38, 20)) AS v FROM range(1, 61) r(g)"
+  ))
+  real <- lupa:::.consultar_dbi
+  testthat::local_mocked_bindings(
+    .consultar_dbi = function(conexion, sql, ...) {
+      if (grepl("lupa_suma_", sql, fixed = TRUE, useBytes = TRUE)) {
+        return(list(ok = FALSE, datos = NULL, motivo = "rechazo de prueba"))
+      }
+      real(conexion, sql, ...)
+    },
+    .package = "lupa"
+  )
+  p <- suppressWarnings(perfilar_dbi(
+    con, "t", proteger_datos_personales = FALSE, analizar_dependencias = FALSE
+  ))
+  # La red del desvio 0 sobre valores distintos lo niega antes que el
+  # respaldo: queda `no_disponible`, no el 0 del motor.
+  fila <- .desvio_sql_O164(p, "v")
+  expect_identical(fila$estado, "no_disponible")
+  expect_true(is.na(p$resumen_tabla$columnas$desvio))
 })
 
 test_that("M3: un decimal desde 2^53 retiene sus metricas de magnitud aunque el controlador no publique la precision", {
@@ -222,13 +266,22 @@ test_that("M3: un decimal desde 2^53 retiene sus metricas de magnitud aunque el 
   sql <- p$resumen_tabla$sql
   magnitud <- c("minimo", "maximo", "media", "n_ceros", "n_negativos",
                 "mediana", "desvio")
-  for (metrica in magnitud) {
+  for (metrica in setdiff(magnitud, c("media", "desvio"))) {
     expect_true(is.na(rc[[metrica]]), info = metrica)
     fila <- sql[sql$columna == "d" & sql$metrica == metrica, , drop = FALSE]
     expect_identical(fila$estado, "no_disponible", info = metrica)
     expect_match(fila$motivo, "decimal entregado como doble con un valor de valor absoluto de al menos 2^53",
                  fixed = TRUE, info = metrica)
   }
+  # La media y el desvio no salen de esos dobles sino de las sumas exactas en
+  # el motor: se publican, y son los dobles mas cercanos de los exactos
+  # (90071992547409030,5 y `sqrt(305)`).
+  for (metrica in c("media", "desvio")) {
+    fila <- sql[sql$columna == "d" & sql$metrica == metrica, , drop = FALSE]
+    expect_identical(fila$estado, "calculado", info = metrica)
+  }
+  expect_identical(as.numeric(rc$media), 0x1.3ffffffffffc8p+56)
+  expect_identical(as.numeric(rc$desvio), 0x1.176d9090c79a8p+4)
   # Lo que el motor cuenta sobre el valor exacto se publica.
   expect_identical(as.numeric(rc$n_distintos), 60)
   # La corroboracion no acusa las magnitudes que el resumen retuvo, y si la

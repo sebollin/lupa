@@ -264,15 +264,28 @@ test_that("un DECIMAL de 2^53 o mas se declara por precision y no como no pedido
         expect_equal(as.numeric(fila$n_validos), 2)
         # Un doble no distingue esos valores: lo que se publicaria seria otro
         # numero (12345678901234567168 en lugar de 12345678901234567890).
-        expect_true(all(is.na(c(fila$minimo, fila$maximo, fila$media,
-                                fila$desvio))))
+        expect_true(all(is.na(c(fila$minimo, fila$maximo))))
         magnitud <- sql[sql$columna == columna &
-                          sql$metrica %in% c("minimo", "maximo", "media",
-                                             "desvio"), , drop = FALSE]
-        expect_true(nrow(magnitud) >= 4L)
+                          sql$metrica %in% c("minimo", "maximo"), ,
+                        drop = FALSE]
+        expect_true(nrow(magnitud) >= 2L)
         expect_true(all(magnitud$estado == "no_disponible"))
         expect_true(all(grepl("2^53", magnitud$motivo, fixed = TRUE)))
         expect_false(any(grepl("no se pidio", magnitud$motivo, fixed = TRUE)))
+        # La media y el desvio salen de las sumas exactas en el motor, no de los
+        # dobles: se publican, y son los dobles mas cercanos de los exactos.
+        exactos <- list(dec38 = c(media = 0x1.027e72f1f1281p+93, desvio = 0),
+                        d20 = c(media = 0x1.56a95319d63e1p+63,
+                                desvio = 0x1.6a09e667f3bcdp-1))
+        for (metrica in c("media", "desvio")) {
+          expect_identical(
+            sql$estado[sql$columna == columna & sql$metrica == metrica],
+            "calculado", info = paste(columna, metrica)
+          )
+          expect_identical(as.numeric(fila[[metrica]]),
+                           exactos[[columna]][[metrica]],
+                           info = paste(columna, metrica))
+        }
       }
       expect_equal(as.numeric(columnas$n_distintos[columnas$columna == "dec38"]), 1)
       expect_equal(as.numeric(columnas$n_distintos[columnas$columna == "d20"]), 2)
@@ -543,9 +556,27 @@ test_that("MySQL y MariaDB guardan el motivo de precision decimal", {
       incluir_valores = FALSE, proteger_datos_personales = FALSE
     )))
     sql <- resultado$resumen_tabla$sql
+    columnas <- resultado$resumen_tabla$columnas
+    # La media y el desvio salen de las sumas exactas en el motor y se publican;
+    # los ceros y los negativos, que salen de los dobles, siguen negados, con el
+    # motivo del decimal y no el de la privacidad.
+    exactos <- list(ancho = c(media = 0x1p+53, desvio = 0x1.6a09e667f3bcdp-1),
+                    borde = c(media = 0x1p+52, desvio = 0x1.6a09e667f3bccp+52))
     for (campo in c("ancho", "borde")) {
+      for (metrica in c("media", "desvio")) {
+        expect_identical(
+          sql$estado[sql$columna == campo & sql$metrica == metrica],
+          "calculado", info = paste(campo, metrica)
+        )
+        expect_identical(
+          as.numeric(columnas[[metrica]][columnas$columna == campo]),
+          exactos[[campo]][[metrica]], info = paste(campo, metrica)
+        )
+      }
       filas <- sql[sql$columna == campo &
-                     sql$metrica %in% c("media", "desvio"), , drop = FALSE]
+                     sql$metrica %in% c("n_ceros", "n_negativos"), ,
+                   drop = FALSE]
+      expect_true(nrow(filas) > 0L, info = campo)
       expect_true(all(filas$estado == "no_disponible"), info = campo)
       expect_true(all(grepl(
         "decimal entregado como doble", filas$motivo, fixed = TRUE

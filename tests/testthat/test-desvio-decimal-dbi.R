@@ -149,7 +149,7 @@ test_that("SQLite por la muestra del motor centra el desvio sin perder las cifra
   expect_equal(b$valor, stats::sd(c(1, 7, 3, 9)), tolerance = 1e-12)
 })
 
-test_that("la muestra del motor de SQL Server no publica el desvio que centro en doble", {
+test_that("la muestra del motor de SQL Server publica el desvio exacto, no el que centro en doble", {
   con <- .ddd_mssql()
   on.exit({
     try(DBI::dbExecute(con, "DROP TABLE IF EXISTS ddd_muestra_ancho"),
@@ -166,8 +166,10 @@ test_that("la muestra del motor de SQL Server no publica el desvio que centro en
   muestra <- .ddd_desvio(.ddd_perfil(
     con, "ddd_muestra_ancho", universo = "muestra_motor", muestra_motor = 100L
   ), "v")
-  expect_identical(muestra$estado, "no_disponible")
-  expect_match(muestra$motivo, "doble de cada valor", fixed = TRUE)
+  # El que centraba en doble no se publicaba; el de las sumas exactas, pedidas
+  # en la misma sentencia que los agregados de la muestra, si: el exacto.
+  expect_identical(muestra$estado, "estimado")
+  expect_identical(muestra$valor, 0x1.456fce117a4e8p+1)
   # Por la tabla completa la resta se hace en `decimal` y se publica.
   centavos <- c(660, 290, 422, 700, 458, 9)
   completa <- .ddd_desvio(.ddd_perfil(con, "ddd_muestra_ancho"), "v")
