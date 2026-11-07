@@ -11072,17 +11072,65 @@
   .adjuntar_medicion_dbi(mediana, resultado)
 }
 
+# La regla de la mediana de un decimal, en un solo predicado: la usan la
+# consulta (`.promedio_mediana_sql_dbi()`), su lectura (`ejecutar_mediana()`),
+# la seleccion de la consolidada y el plan. Vale en T-SQL, MySQL, MariaDB,
+# PostgreSQL y DuckDB. En SQL Server desde la compatibilidad 110, PostgreSQL
+# desde la 9.4 y DuckDB la mediana de un decimal salia de la consolidada
+# (`PERCENTILE_CONT`), que interpola en doble: quedaba a un ulp del doble mas
+# cercano en 20 de 24 pares medidos, y en DuckDB, ademas, sobre la conversion
+# de cada valor de mas de 18 cifras, que no es la mas cercana. Por la suma de
+# las centrales cuesta una consulta por columna decimal: el perfil por omision
+# de un millon de filas con tres decimales tardo 2,0 % mas en PostgreSQL 16,
+# 3,3 % mas en SQL Server y lo mismo en DuckDB. SQLite guarda un decimal como
+# REAL: su suma es la de dos dobles, que es lo que ya promedia. `money` de SQL
+# Server entra con su codigo ODBC (`3`) o con su nombre; el de PostgreSQL no,
+# que RPostgres lee como `0` y se lee convertido.
+.mediana_decimal_por_centrales_dbi <- function(senas, tipo) {
+  if (.es_transact_sql_dbi(senas) && .moneda_sqlserver_dbi(tipo)) return(TRUE)
+  if (!.tipo_declarado_decimal_dbi(tipo)) return(FALSE)
+  .es_transact_sql_dbi(senas) || .es_mysql_dbi(senas) ||
+    (length(senas) == 1L && !is.na(senas) &&
+       grepl("postgres|pqconnection|duckdb", senas, useBytes = TRUE))
+}
+
+# `money` o `smallmoney` de SQL Server: el controlador da el codigo ODBC `3`
+# (`SQL_DECIMAL`; `decimal` y `numeric` dan `2` o, por el catalogo, su nombre
+# con precision y escala), o el nombre.
+.moneda_sqlserver_dbi <- function(tipo) {
+  if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
+  .minusculas_ascii(trimws(as.character(tipo[[1L]]))) %in%
+    c("3", "money", "smallmoney")
+}
+
 .promedio_mediana_sql_dbi <- function(conexion, valor, tipo = NA_character_,
                                       doble_exacto = FALSE) {
   senas <- .senas_conexion_dbi(conexion)
-  if ((.es_transact_sql_dbi(senas) || .es_mysql_dbi(senas)) &&
-      .tipo_declarado_decimal_dbi(tipo)) {
+  if (.mediana_decimal_por_centrales_dbi(senas, tipo)) {
+    suma <- paste0("SUM(", valor, ")")
+    # La suma de dos `DECIMAL` de DuckDB es un `DECIMAL(38, s)`, y el
+    # controlador lo convierte a un doble que no es el mas cercano (medido con
+    # duckdb 2.0: 85 de 300 sumas de `DECIMAL(38,20)`, 30 de 300 de
+    # `DECIMAL(18,2)`); su conversion de texto a doble si lo es (2.700 de
+    # 2.700). PostgreSQL y SQL Server entregan la suma como el doble mas cercano
+    # (1.600 de 1.600 en cada uno, hasta `(38,30)`).
+    if (grepl("duckdb", senas, useBytes = TRUE)) {
+      suma <- paste0("CAST(CAST(", suma, " AS VARCHAR) AS DOUBLE)")
+    }
+    # La suma de dos `money` es `money` y desborda cerca de su tope (dos
+    # centrales de 8e14: "Arithmetic overflow error converting expression to
+    # data type money"), y odbc la lee a un doble que no es el mas cercano (25
+    # de 300 sumas). En `decimal(38,4)`, que guarda las cuatro cifras, ni una
+    # cosa ni la otra (300 de 300).
+    if (.es_transact_sql_dbi(senas) && .moneda_sqlserver_dbi(tipo)) {
+      suma <- paste0("SUM(CAST(", valor, " AS DECIMAL(38,4)))")
+    }
     # Quien llama agrega ` AS <alias>`: la suma sale con el alias de la mediana
     # y la cuenta con el suyo (ver `.CAMPO_CENTRALES_N_DBI`).
     return(paste0(
       "COUNT(", valor, ") AS ",
       .citar_identificador_dbi(conexion, .CAMPO_CENTRALES_N_DBI),
-      ", SUM(", valor, ")"
+      ", ", suma
     ))
   }
   if (isTRUE(doble_exacto) &&
@@ -13846,10 +13894,9 @@
     # Un decimal en T-SQL, MySQL y MariaDB devuelve la suma de sus centrales y
     # cuantas son (ver `.promedio_mediana_sql_dbi()`); lo demas, el valor del
     # motor.
-    senas_mediana <- .senas_conexion_dbi(conexion)
-    normal <- if ((.es_transact_sql_dbi(senas_mediana) ||
-                   .es_mysql_dbi(senas_mediana)) &&
-                  .tipo_declarado_decimal_dbi(tipo_declarado)) {
+    normal <- if (.mediana_decimal_por_centrales_dbi(
+      .senas_conexion_dbi(conexion), tipo_declarado
+    )) {
       .escalar_mediana_dbi(conexion, sql_normal, presupuesto, etapa = "mediana")
     } else {
       .escalar_dbi(
@@ -15789,6 +15836,25 @@
   columnas_medianas_consolidadas <- setdiff(
     columnas_medianas, columnas_float8_numeric
   )
+  # Un decimal no entra en la consolidada, que interpola en doble: su mediana es
+  # la suma de sus centrales (ver `.mediana_decimal_por_centrales_dbi()`) y cae
+  # a la via por columna -dos consultas, o la CTE de la muestra-, con el mismo
+  # tipo que alli decide la consulta.
+  if (length(columnas_medianas_consolidadas)) {
+    senas_consolidada <- .senas_conexion_dbi(conexion)
+    por_centrales <- vapply(columnas_medianas_consolidadas, function(campo) {
+      i <- .indice_nombre(campo, campos)
+      .mediana_decimal_por_centrales_dbi(
+        senas_consolidada,
+        if (is.na(i) || is.null(tipos_declarados) ||
+            i > length(tipos_declarados)) NA_character_ else
+          tipos_declarados[[i]]
+      )
+    }, logical(1L))
+    columnas_medianas_consolidadas <- columnas_medianas_consolidadas[
+      !por_centrales
+    ]
+  }
   if (length(columnas_medianas_consolidadas) &&
       !is.null(mediana_consolidada)) {
     requiere_repliegue <- vapply(columnas_medianas_consolidadas, function(campo) {
@@ -16652,6 +16718,7 @@
                                   columnas_moda_max = NULL,
                                   columnas_mediana = NULL,
                                   columnas_mediana_max = NULL,
+                                  columnas_mediana_centrales = character(),
                                   consultas_muestra = 1L,
                                   desvio_en_lotes = FALSE) {
   n_columnas <- length(campos)
@@ -16690,6 +16757,20 @@
   n_mediana_max <- if (is.null(columnas_mediana_max)) n_mediana else {
     length(columnas_mediana_max)
   }
+  # Las medianas de decimales no entran en la consolidada: una consulta cada
+  # una (ver `.mediana_decimal_por_centrales_dbi()`).
+  centrales_de <- function(columnas) {
+    length(intersect(
+      columnas_mediana_centrales,
+      if (is.null(columnas)) campos[es_numerico] else columnas
+    ))
+  }
+  n_mediana_centrales <- centrales_de(columnas_mediana)
+  n_mediana_centrales_max <- centrales_de(
+    if (is.null(columnas_mediana_max)) columnas_mediana else {
+      columnas_mediana_max
+    }
+  )
   alcance_agregado <- if (identical(universo, "muestra_motor")) {
     "lee una muestra del motor"
   } else {
@@ -16747,7 +16828,9 @@
         "mediana (orden total + limite/salto)",
         if ("mediana" %in% metricas && con_valores && acota_con_salto) {
           if (isTRUE(mediana_consolidada)) {
-            n_metricas(n_lotes(n_mediana, tamano_lote_planos))
+            n_metricas(n_lotes(
+              n_mediana - n_mediana_centrales, tamano_lote_planos
+            ) + n_mediana_centrales)
           } else {
             n_metricas(n_mediana)
           }
@@ -16756,7 +16839,9 @@
           "ordena la tabla completa",
         if ("mediana" %in% metricas && con_valores && acota_con_salto) {
           if (isTRUE(mediana_consolidada)) {
-            n_metricas(n_lotes(n_mediana_max, tamano_lote_planos))
+            n_metricas(n_lotes(
+              n_mediana_max - n_mediana_centrales_max, tamano_lote_planos
+            ) + n_mediana_centrales_max)
           } else {
             n_metricas(n_mediana_max)
           }
@@ -17647,6 +17732,15 @@ plan_perfilado_dbi <- function(conexion, tabla,
     columnas_moda_max = columnas_moda_max,
     columnas_mediana = columnas_mediana_plan,
     columnas_mediana_max = columnas_mediana_max,
+    columnas_mediana_centrales = preparacion$campos[vapply(
+      seq_along(preparacion$campos), function(i) {
+        .mediana_decimal_por_centrales_dbi(
+          .senas_conexion_dbi(conexion),
+          if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
+            NA_character_
+        )
+      }, logical(1L)
+    )],
     consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
                             isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
     desvio_en_lotes = identical(preparacion$universo, "tabla_completa") &&
@@ -22032,7 +22126,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' cualquier otra columna. En una columna que no pasa de 2^53, la mediana de una cantidad par
 #' tampoco se publica en PostgreSQL si sus extremos distan más de 2^53:
 #' `PERCENTILE_CONT` interpola `bajo + (alto - bajo) * 0.5` en doble y esa resta
-#' redondea. Lo que el motor cuenta con exactitud -`n_distintos`, la moda- se
+#' redondea. La de un `numeric` no pasa por ahí: es la suma de sus centrales.
+#' Lo que el motor cuenta con exactitud -`n_distintos`, la moda- se
 #' sigue publicando. La moda de un entero ancho que llego como `numeric` se pide al
 #' motor como texto exacto cuando la magnitud cruza 2^53; un `BIGINT` con
 #' valores chicos conserva la moda numerica de siempre. Lo decide el valor: un
@@ -22426,20 +22521,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' como MySQL. En ese caso el mensaje del motor queda en
 #' `meta$mediana_consolidada$motivo` —sin sus literales con la protección
 #' activa, entero sin ella, como todo mensaje del motor: ver «Datos
-#' personales»—, y se conserva la mediana por columna. En DuckDB,
-#' `PERCENTILE_CONT` de un `DECIMAL` interpola en el `DECIMAL` de la columna y
-#' trunca a su escala —la mediana de 1,00 y 1,01 en `DECIMAL(10,2)` salía
-#' 1,00—: se pide sobre el doble de cada valor, que es la mediana de R sobre lo
-#' que lee el controlador.
-#' La mediana por columna de un decimal en MySQL, MariaDB y SQL Server suma en el
-#' tipo de la columna sus una o dos filas centrales, y R divide esa suma por
-#' cuántas son: es el doble más cercano de la mediana exacta. `AVG(x * 1.0)`
+#' personales»—, y se conserva la mediana por columna.
+#' La mediana de un decimal no entra en la consolidada: en MySQL, MariaDB, SQL
+#' Server, PostgreSQL y DuckDB se piden, en el tipo de la columna, la suma de
+#' sus una o dos filas centrales y cuántas son, y R divide: es el doble más
+#' cercano de la mediana exacta, por la tabla completa y por la muestra del
+#' motor. Cuesta una consulta por columna decimal, que el plan cuenta.
+#' `PERCENTILE_CONT` interpola en doble, y la de un decimal quedaba a un ulp
+#' del doble más cercano (la de 0,10 y 0,20 daba 0,15000000000000002, el
+#' promedio de los dobles); en DuckDB, además, interpola un `DECIMAL` en su
+#' propia escala y trunca, y convierte a doble un decimal de más de 18 cifras
+#' sin dar el más cercano: ahí la suma se lee por su texto. `AVG(x * 1.0)`
 #' necesita una cifra de escala más que la columna y en la escala máxima del
 #' motor —30 en MySQL, 38 en MariaDB— se recortaba (la mediana de 1e-30 y 2e-30
-#' salía 2e-30); promediar en R los dobles de las dos centrales, como se hacía en
-#' SQL Server, no es exacto (la de 0,10 y 0,20 daba 0,15000000000000002). La
-#' mediana consolidada (`PERCENTILE_CONT`) interpola en doble y puede quedar a
-#' una unidad de la última cifra del doble más cercano.
+#' salía 2e-30). La
+#' mediana consolidada de las demás columnas numéricas interpola en doble y
+#' puede quedar a una unidad de la última cifra del doble más cercano.
 #'
 #' @section Lo que el motor guarda distinto que R:
 #' El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
@@ -22567,9 +22664,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   cubre. Las columnas de magnitud común no cambian de consulta ni de cifra.
 #' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
-#'   diferir entre motores y con la de R, y ninguna es la exacta. La
-#'   corroboración cruzada lo declara cuando compara las dos. La media y el
-#'   desvío se le piden al motor como doble donde su aritmética decimal los
+#'   diferir entre motores y con la de R. La de R —[perfilar()],
+#'   `perfil_muestra` y `bloque_filas`— es el doble más cercano de la media
+#'   exacta de los dobles que leyó. La media y el desvío que calcula el motor
+#'   salen de su aritmética y no son, en general, el doble más cercano del
+#'   exacto: medido sobre columnas de cuatro a nueve valores en los siete
+#'   motores, por la tabla completa, la media quedó a uno o dos ulps en hasta 19
+#'   de 112 columnas (SQL Server) y el desvío a un ulp en 6 a 11 de cada 21 a
+#'   112; con más filas la diferencia puede crecer. La corroboración cruzada la
+#'   tolera hasta `1e-10` relativa y la declara cuando pasa de ahí. La media y
+#'   el desvío se le piden al motor como doble donde su aritmética decimal los
 #'   recortaría: en SQL Server `AVG(CAST(x AS FLOAT))`, porque `AVG` de un
 #'   `numeric` devuelve seis decimales, y en PostgreSQL
 #'   `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))`, porque sobre magnitudes

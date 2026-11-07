@@ -482,6 +482,25 @@ Primera versión publicada.
   `meta$consultas$fallas`, la muestra ni los bloques: pasa por el mismo piso
   que con la protección pedida. PostgreSQL, SQL Server y DuckDB lo publicaban
   entero.
+- La media de `perfilar()`, de `perfil_muestra`, de `bloque_filas` y de la
+  muestra del motor es el doble más cercano de la media exacta. Se acumulaba
+  en doble, centrada en la media del primer bloque, y se equivocaba sin aviso
+  cuando los valores se cancelan: `c(-2^51, 1, 2, 2^51)` daba 0,6875 por 0,75;
+  quince mil valores de 2^51, quince mil de -2^51 y `1:3`, una media de signo
+  cambiado; y en `perfil_muestra` la corroboración lo contaba como divergencia
+  contra el `AVG` del motor. También sin cancelación: `rnorm(2e6)` quedaba a 19
+  ulps, y cuarenta enteros chicos por `bloque_filas = 7`, a ocho. Cada bloque se
+  suma ahora sin redondeo, sin depender del `long double` de `sum()`, con el
+  mismo costo. El desvío no cambia: puede quedar a unos ulps del exacto.
+- La mediana de un decimal en SQL Server (compatibilidad 110 o más),
+  PostgreSQL 9.4 o más y DuckDB es el doble más cercano de la exacta, por la
+  tabla completa y por la muestra del motor: el motor suma sus una o dos
+  centrales, como ya en MySQL, MariaDB y SQL Server con compatibilidad 100, en
+  lugar de `PERCENTILE_CONT`, que interpola en doble y la dejaba a un ulp. En
+  DuckDB la suma se lee por su texto (el controlador convierte un decimal de
+  más de 18 cifras a un doble que no es el más cercano), y en SQL Server el
+  `money` se suma como `decimal(38,4)`, que no desborda. Cuesta una consulta por
+  columna decimal, que `plan_perfilado_dbi()` cuenta.
 - En SQL Server, la muestra del motor lee el texto de un decimal de más de 30
   cifras (`CAST(... AS VARCHAR)` es `VARCHAR(30)`, y la lectura de toda la
   muestra abortaba) y `money` con sus cuatro decimales: 0,0001 se leía 0, y el

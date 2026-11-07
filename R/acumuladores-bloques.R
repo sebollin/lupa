@@ -126,8 +126,9 @@
     ),
     cuantitativos = list(
       n = 0, media = 0, media_abs = 0, suma = 0,
-      suma_compensacion = 0, m2 = 0, centro = NA_real_, minimo = Inf,
-      maximo = -Inf,
+      suma_compensacion = 0, partes_suma = numeric(), exponente_partes = 0,
+      m2 = 0,
+      centro = NA_real_, minimo = Inf, maximo = -Inf,
       desplazamiento = if (length(configuracion$configuracion$desplazamiento) == 1L &&
                            is.finite(configuracion$configuracion$desplazamiento)) {
         as.numeric(configuracion$configuracion$desplazamiento)
@@ -609,6 +610,204 @@
   acumulador
 }
 
+# La media que se publica es el doble mas cercano de la media exacta, y para
+# eso hace falta la suma exacta de la columna. Acumulada en doble -centrada en
+# la media del primer bloque, y con Welford entre bloques- se equivocaba sin
+# ruido: sobre `c(-2^51, 1, 2, 2^51)` publicaba 0,6875 por 0,75, porque al
+# restarle el centro 0,75 a 2^51 se pierde la fraccion; sobre quince mil
+# valores de 2^51, quince mil de -2^51 y `1:3` le cambiaba el signo, y sobre
+# `rnorm(2e6)`, sin cancelacion, quedaba a 19 ulps. `sum()` de R tampoco es la
+# salida: acumula en `long double` donde lo hay, y en macOS ARM64 es un doble.
+#
+# Cada bloque se parte en sumandos que se suman sin redondeo (la extraccion de
+# Rump, Ogita y Oishi, "Accurate floating-point summation", 2008): con `sigma`
+# una potencia de dos de al menos `2 * m * max(abs(x))`, `(sigma + x) - sigma`
+# cae en la grilla de `sigma * 2^-53`, su suma es exacta en cualquier orden y
+# con cualquier acumulador, y `x - q` es exacto y queda por debajo de la grilla;
+# el resto se vuelve a partir hasta que es cero. Son operaciones vectoriales:
+# dos pasos por bloque en datos comunes, uno en enteros. Lo que se guarda es
+# una lista corta de dobles cuya suma exacta es la de la columna. `NULL` dice
+# que no se pudo (un `sigma` que desborda; con `.exponente_partes_bloques()` no
+# llega).
+.partes_suma_exacta_bloques <- function(x, maximo = NULL) {
+  m <- length(x)
+  if (!m) return(numeric())
+  # La holgura crece con el largo y cada paso saca `53 - log2(2 m)` cifras:
+  # un vector de mas de 2^20 valores se parte en trozos.
+  if (m > 1048576) {
+    partes <- lapply(
+      split(x, ceiling(seq_len(m) / 1048576)), .partes_suma_exacta_bloques
+    )
+    if (any(vapply(partes, is.null, logical(1)))) return(NULL)
+    return(.partes_suma_exacta_bloques(unlist(partes, use.names = FALSE)))
+  }
+  holgura <- 2^(ceiling(log2(m)) + 1)
+  if (is.null(maximo)) maximo <- max(-min(x), max(x))
+  partes <- numeric()
+  while (maximo > 0) {
+    exponente <- ceiling(log2(maximo))
+    if (2^exponente < maximo) exponente <- exponente + 1
+    sigma <- 2^exponente * holgura
+    if (!is.finite(sigma)) return(NULL)
+    q <- (sigma + x) - sigma
+    partes[length(partes) + 1L] <- sum(q)
+    x <- x - q
+    maximo <- max(-min(x), max(x))
+  }
+  partes
+}
+
+# Las partes se guardan en la unidad `x / 2^exponente_partes`. El exponente es
+# 0 mientras los valores no pasan de 2^900, y si pasan, el justo para que ni
+# `sigma` ni la suma de 2^53 valores desborden. Asi solo pierden cifras los
+# valores por debajo de `2^(exponente - 1022)` en una columna que pasa de
+# 2^900: con 2^1000 en la columna, los menores que 2^-922 (medido: a 1 ulp con
+# valores de 2^-921 por `rnorm()`, y 0 con valores de 2^-1000).
+.exponente_partes_necesario_bloques <- function(maximo_abs) {
+  if (!is.finite(maximo_abs) || maximo_abs <= 2^900) return(0)
+  ceiling(log2(maximo_abs)) - 900
+}
+
+.exponente_partes_bloques <- function(estado) {
+  exponente <- estado$exponente_partes
+  if (length(exponente) != 1L || !is.finite(exponente)) 0 else exponente
+}
+
+# Las partes de muchos bloques se vuelven a partir cuando la lista crece: la
+# suma exacta no cambia y el estado queda chico.
+.agregar_partes_suma_bloques <- function(partes, nuevas) {
+  if (is.null(partes) || is.null(nuevas)) return(NULL)
+  partes <- c(partes, nuevas)
+  if (length(partes) > 32L) partes <- .partes_suma_exacta_bloques(partes)
+  partes
+}
+
+# La misma suma como expansion no solapada (Shewchuk, "Adaptive precision
+# floating-point arithmetic", 1997): componentes de magnitud creciente en los
+# que cada uno es mayor que la suma de los anteriores, de modo que el signo de
+# la suma es el del ultimo. Solo se usa al publicar, sobre unas pocas partes.
+.expansion_no_solapada_bloques <- function(valores) {
+  expansion <- numeric()
+  for (b in valores) {
+    if (b == 0) next
+    q <- b
+    h <- numeric()
+    for (componente in expansion) {
+      s <- q + componente
+      parte_b <- s - q
+      error <- (q - (s - parte_b)) + (componente - parte_b)
+      if (error != 0) h[length(h) + 1L] <- error
+      q <- s
+    }
+    expansion <- if (q != 0) c(h, q) else h
+  }
+  expansion
+}
+
+.signo_expansion_bloques <- function(expansion) {
+  if (length(expansion)) sign(expansion[[length(expansion)]]) else 0
+}
+
+# `a * b` exacto como dos dobles (Dekker): cada producto parcial entra en 53
+# bits. Cada operacion de R es una llamada aparte, asi que no hay `fma` que
+# cambie un redondeo.
+.producto_exacto_bloques <- function(a, b) {
+  p <- a * b
+  t <- 134217729 * a
+  a_alto <- t - (t - a)
+  a_bajo <- a - a_alto
+  t <- 134217729 * b
+  b_alto <- t - (t - b)
+  b_bajo <- b - b_alto
+  c(p, ((a_alto * b_alto - p) + a_alto * b_bajo + a_bajo * b_alto) +
+      a_bajo * b_bajo)
+}
+
+# Distancia de un doble normal a su vecino hacia el cero o alejandose de el:
+# son distintas en una potencia de dos.
+.espaciado_doble_bloques <- function(x, hacia_cero) {
+  a <- abs(x)
+  exponente <- floor(log2(a))
+  if (2^exponente > a) exponente <- exponente - 1
+  if (2^(exponente + 1) <= a) exponente <- exponente + 1
+  if (exponente < -1022) return(2^-1074)
+  ulp <- 2^(exponente - 52)
+  if (hacia_cero && a == 2^exponente && exponente > -1022) ulp / 2 else ulp
+}
+
+# El doble mas cercano de `sum(partes) * 2^exponente / n`, con empate a par,
+# comparando restos exactos: el candidato `c` es el bueno cuando
+# `sum(partes) - c * n` queda dentro de medio espaciado por `n` a cada lado. Las
+# partes estan en la unidad en que se opero (`x / 2^exponente`), y el espaciado
+# es el de los dobles de la unidad publicada: el de `c`, o `2^-1074` llevado a
+# esa unidad cuando la media publicada es subnormal. Asi `c * 2^exponente` es
+# exacto y la media subnormal tambien es la mas cercana. Una suma diminuta se
+# lleva a los dobles normales por otra potencia de dos, que pasa al exponente.
+.cociente_mas_cercano_bloques <- function(partes, n, exponente = 0) {
+  s <- .expansion_no_solapada_bloques(partes)
+  publicar <- function(x) {
+    # En dos factores: `2^exponente` solo puede no ser representable.
+    mitad <- exponente %/% 2
+    x * 2^mitad * 2^(exponente - mitad)
+  }
+  if (!length(s)) return(0)
+  tope <- abs(s[[length(s)]])
+  if (!is.finite(tope)) return(publicar(sum(partes) / n))
+  if (tope < 2^-900) {
+    return(.cociente_mas_cercano_bloques(s * 2^600, n, exponente - 600))
+  }
+  # El espaciado de un doble subnormal publicado, en la unidad de las partes;
+  # con `exponente > 0` es mas fino que el de cualquier doble de esta unidad.
+  grilla <- if (exponente <= 0) 2^(-1074 - exponente) else 0
+  espaciado <- function(x, hacia_cero) {
+    max(.espaciado_doble_bloques(x, hacia_cero), grilla)
+  }
+  aproximada <- 0
+  for (componente in s) aproximada <- aproximada + componente
+  candidato <- aproximada / n
+  if (!is.finite(candidato) || tope > 2^960 || abs(candidato) < 2^-1000) {
+    return(publicar(candidato))
+  }
+  if (grilla > 0 && abs(candidato) < grilla * 2^52) {
+    candidato <- round(candidato / grilla) * grilla
+  }
+  for (intento in seq_len(16L)) {
+    resto <- .expansion_no_solapada_bloques(
+      c(s, -.producto_exacto_bloques(candidato, n))
+    )
+    signo <- .signo_expansion_bloques(resto)
+    if (signo == 0) return(publicar(candidato))
+    if (signo > 0) {
+      paso <- espaciado(candidato, hacia_cero = candidato < 0)
+      lado <- .signo_expansion_bloques(
+        .expansion_no_solapada_bloques(c(resto, -n * paso / 2))
+      )
+      vecino <- candidato + paso
+    } else {
+      paso <- espaciado(candidato, hacia_cero = candidato > 0)
+      lado <- -.signo_expansion_bloques(
+        .expansion_no_solapada_bloques(c(resto, n * paso / 2))
+      )
+      vecino <- candidato - paso
+    }
+    if (lado < 0) return(publicar(candidato))
+    if (lado == 0) {
+      mantisa <- abs(candidato) / espaciado(candidato, hacia_cero = FALSE)
+      return(publicar(if (mantisa %% 2 == 0) candidato else vecino))
+    }
+    candidato <- if (intento <= 2L) vecino else {
+      correccion <- 0
+      for (componente in resto) correccion <- correccion + componente
+      siguiente <- candidato + correccion / n
+      if (grilla > 0 && abs(siguiente) < grilla * 2^52) {
+        siguiente <- round(siguiente / grilla) * grilla
+      }
+      siguiente
+    }
+  }
+  publicar(candidato)
+}
+
 .absorber_cuantitativos <- function(acumulador, bloque) {
   valores <- bloque$valores
   aplicable <- bloque$aplicable
@@ -634,12 +833,19 @@
     return(.marcar_fallo_acumulador(acumulador, como_doble$motivo))
   }
   valores <- como_doble$valores
-  estado$n_nan <- estado$n_nan + sum(is.nan(valores))
-  estado$n_infinito_positivo <- estado$n_infinito_positivo +
-    sum(is.infinite(valores) & valores > 0, na.rm = TRUE)
-  estado$n_infinito_negativo <- estado$n_infinito_negativo +
-    sum(is.infinite(valores) & valores < 0, na.rm = TRUE)
-  finitos <- valores[is.finite(valores)]
+  # Un bloque sin `NaN` ni infinitos -el caso comun- no los cuenta: son seis
+  # pasadas por el vector que pagan la suma exacta de abajo.
+  finito <- is.finite(valores)
+  if (all(finito) && is.null(attributes(valores))) {
+    finitos <- valores
+  } else {
+    estado$n_nan <- estado$n_nan + sum(is.nan(valores))
+    estado$n_infinito_positivo <- estado$n_infinito_positivo +
+      sum(is.infinite(valores) & valores > 0, na.rm = TRUE)
+    estado$n_infinito_negativo <- estado$n_infinito_negativo +
+      sum(is.infinite(valores) & valores < 0, na.rm = TRUE)
+    finitos <- valores[finito]
+  }
   if (!length(finitos)) {
     acumulador$estado_familia <- estado
     return(acumulador)
@@ -690,14 +896,39 @@
   valores_operacion <- if (escalado) {
     (finitos - desplazamiento) / escala
   } else finitos
-  # La media de Welford es excelente para los momentos, pero no para una
-  # cancelacion entre bloques como `c(1e200, 1, 1, -1e200)` leida de a una fila:
-  # la contribucion de los unos desaparece al sumar en la unidad escalada.
-  # Neumaier la conserva al juntar las sumas de los bloques. Cada bloque se suma
-  # con `sum()`, vectorial: compensar valor por valor, con un bucle de R, hacia
-  # nueve veces mas lento el resumen de una columna comun de dos millones de
-  # filas. Dentro de un mismo bloque queda la limitacion declarada de la media en
-  # coma flotante.
+  minimo_bloque <- min(finitos)
+  maximo_bloque <- max(finitos)
+  # La media de Welford es buena para los momentos, no para publicar la media:
+  # la media sale de la suma exacta (`.partes_suma_exacta_bloques()`), sobre los
+  # valores y no sobre los de los momentos. Con `rnorm(n) * 2^-1000` la escala
+  # va por la dispersion y el desplazamiento es el minimo: restarlo no es exacto
+  # entre valores diminutos de magnitudes distintas, y `media * escala +
+  # desplazamiento` cancelaba (35 ulps). Y dividir por la escala de la magnitud
+  # extrema dejaba bajo el menor doble a los valores 2^1023 veces menores que el
+  # mayor: con 2^1000, -2^1000 y valores de 2^-100 la media salia 0. Las partes
+  # se dividen solo por la potencia de dos que evita el desborde
+  # (`.exponente_partes_bloques()`), y el desplazamiento queda para los momentos
+  # del desvio. `suma` y su compensacion de Neumaier quedan para un estado
+  # guardado sin partes.
+  maximo_abs_bloque <- max(-minimo_bloque, maximo_bloque)
+  exponente_partes <- .exponente_partes_bloques(estado)
+  necesario <- .exponente_partes_necesario_bloques(maximo_abs_bloque)
+  if (necesario > exponente_partes) {
+    if (!is.null(estado$partes_suma)) {
+      estado$partes_suma <- .agregar_partes_suma_bloques(
+        estado$partes_suma * 2^(exponente_partes - necesario), numeric()
+      )
+    }
+    exponente_partes <- necesario
+    estado$exponente_partes <- necesario
+  }
+  estado$partes_suma <- .agregar_partes_suma_bloques(
+    estado$partes_suma,
+    .partes_suma_exacta_bloques(
+      if (exponente_partes > 0) finitos * 2^-exponente_partes else finitos,
+      if (exponente_partes > 0) NULL else maximo_abs_bloque
+    )
+  )
   suma_bloque <- sum(valores_operacion)
   total_suma <- estado$suma + suma_bloque
   correccion <- if (abs(estado$suma) >= abs(suma_bloque)) {
@@ -742,8 +973,8 @@
     }
     estado$n <- total
   }
-  estado$minimo <- min(estado$minimo, min(finitos))
-  estado$maximo <- max(estado$maximo, max(finitos))
+  estado$minimo <- min(estado$minimo, minimo_bloque)
+  estado$maximo <- max(estado$maximo, maximo_bloque)
   if (isTRUE(estado$contar_signos)) {
     estado$n_ceros <- estado$n_ceros + sum(finitos == 0)
     estado$n_negativos <- estado$n_negativos + sum(finitos < 0)
@@ -1584,6 +1815,8 @@
   estado$media <- media * factor
   estado$media_abs <- media_abs * factor
   estado$suma <- estado$suma * factor + corrimiento * estado$n
+  # Las partes de la suma exacta no estan en la unidad de los momentos (ver
+  # `.absorber_cuantitativos()`): no cambian.
   estado$suma_compensacion <- estado$suma_compensacion * factor
   estado$m2 <- estado$m2 * factor * factor
   estado$escala <- escala_nueva
@@ -1621,6 +1854,19 @@
     correccion <- (suma_b - total_suma) + suma_a
   }
   a$suma <- total_suma
+  # Las partes de cada estado, llevadas al mayor de los dos exponentes.
+  exponente_a <- .exponente_partes_bloques(a)
+  exponente_b <- .exponente_partes_bloques(b)
+  exponente_ab <- max(exponente_a, exponente_b)
+  a$partes_suma <- if (is.null(a$partes_suma) || is.null(b$partes_suma)) {
+    NULL
+  } else {
+    .agregar_partes_suma_bloques(
+      a$partes_suma * 2^(exponente_a - exponente_ab),
+      b$partes_suma * 2^(exponente_b - exponente_ab)
+    )
+  }
+  a$exponente_partes <- exponente_ab
   a$suma_compensacion <- a$suma_compensacion +
     b$suma_compensacion * factor_b + correccion
   # Cada estado acumula centrado en su propia constante: la media de `b` se
@@ -2028,7 +2274,15 @@
                               is.finite(estado$desplazamiento)) {
           estado$desplazamiento
         } else 0
-        media <- if (identical(estado$escala, 1)) {
+        # El doble mas cercano de la media exacta de lo absorbido. Un estado
+        # sin partes -guardado antes de que existieran- conserva la cuenta
+        # anterior.
+        exacta <- !is.null(estado$partes_suma)
+        media <- if (exacta) {
+          .cociente_mas_cercano_bloques(
+            estado$partes_suma, estado$n, .exponente_partes_bloques(estado)
+          )
+        } else if (identical(estado$escala, 1)) {
           .centro_estado_bloques(estado) + estado$media
         } else {
           (estado$suma + estado$suma_compensacion) / estado$n
@@ -2037,9 +2291,10 @@
           sqrt(estado$m2 / (estado$n - 1))
         } else NA_real_
         if (!identical(escala, 1)) {
-          # Con escala por dispersion los valores se sumaron desplazados por el
-          # minimo (ver `.resumen_cuantitativo_bloques()`).
-          media <- media * escala + desplazamiento
+          # Con escala por dispersion los momentos se acumularon desplazados
+          # por el minimo (ver `.resumen_cuantitativo_bloques()`); la media
+          # exacta ya esta en la unidad publicada.
+          if (!exacta) media <- media * escala + desplazamiento
           desvio <- desvio * escala
         }
         list(

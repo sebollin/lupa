@@ -110,15 +110,14 @@ test_that("DuckDB no trunca la mediana de un DECIMAL a su escala", {
     "INSERT INTO mpv_decimal VALUES (1.00, 1), (1.01, 2), (1.01, 3), (1.00, 4)"
   ))
   perfil <- .mpv_perfil(conexion, "mpv_decimal")
-  leidos <- DBI::dbGetQuery(conexion, "SELECT d, e FROM mpv_decimal")
-  # La mediana de R sobre lo que lee el controlador, como en T-SQL.
-  for (columna in c("d", "e")) {
+  # La mediana exacta -la suma de las centrales, como en T-SQL- redondeada al
+  # doble mas cercano, calculada fuera de R: 1,005 y 2,5.
+  esperadas <- c(d = 0x1.0147ae147ae14p+0, e = 2.5)
+  for (columna in names(esperadas)) {
     mediana <- .mpv_mediana(perfil, columna)
     expect_identical(mediana$estado, "calculado", info = columna)
-    expect_identical(mediana$valor, stats::median(as.numeric(leidos[[columna]])),
-                     info = columna)
+    expect_identical(mediana$valor, esperadas[[columna]], info = columna)
   }
-  expect_identical(.mpv_mediana(perfil, "e")$valor, 2.5)
 })
 
 test_that("PostgreSQL no publica la mediana que su interpolacion redondea", {

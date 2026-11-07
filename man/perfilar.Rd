@@ -1142,14 +1142,23 @@ del segundo caso son los centinelas que se llevan todos los valores. La
 presencia se define igual que en \code{n_faltantes}, que cuenta el \code{NaN} como
 ausente: una columna de treinta \code{NaN} es \code{"sin_valores"}.
 
-\strong{La \code{media} se acumula por bloques y puede diferir de \code{mean()} en los últimos
-bits; la \code{mediana} es exacta.} El paquete no promete exactitud bit a bit para
-la media —sí para la mediana, que se calcula con \code{median()} sobre el vector
-entero y no como el cuantil 0,5—. Medido: sobre veinte mil
-valores de \code{1e12} y veinte mil de \code{1e-6} la diferencia es de \verb{6,1e-05}, y sobre
-treinta mil valores con signo del orden de \code{1e9} es de \verb{2,3e-10}; con valores de
-magnitud parecida no hay diferencia en ningún bit. Quien rehaga \code{mean()} sobre
-una columna grande y vea otro último dígito está viendo esto y no un error.
+\strong{La \code{media} es el doble más cercano de la media exacta; la \code{mediana} es
+exacta.} La media se acumula por bloques con una suma exacta —cada bloque se
+parte en sumandos que se suman sin redondeo—, así que no depende de cómo se
+agrupen las filas, de que los valores se cancelen ni de la precisión con que
+la plataforma acumula \code{sum()}; también es la más cercana cuando es subnormal.
+La única excepción medida: en una columna con valores de más de 2^900
+(8,5e270), para que la suma no desborde los valores se dividen por
+\code{2^(e - 900)}, con \code{e} el exponente del mayor, y los menores que
+\code{2^(e - 1922)} pierden cifras (con 2^1000, -2^1000 y valores de 2^-1000 la
+media sale 0). La mediana se calcula con \code{median()} sobre el
+vector entero y no como el cuantil 0,5. \code{mean()} no es la referencia: puede
+quedar a varios ulps. Medido sobre \code{rnorm(2e6)} con \code{set.seed(1)}: \code{mean()} a
+208 ulps de la media exacta y la \code{media} en la exacta; sobre
+\code{c(-2^51, 1, 2, 2^51)}, \code{0.75}. El \code{desvio} se acumula en doble y puede
+diferir del exacto en los últimos bits: medido, hasta tres ulps en columnas
+comunes de dos millones de filas. Quien rehaga \code{mean()} o \code{sd()} sobre una
+columna grande y vea otro último dígito está viendo esto y no un error.
 }
 \section{La unidad viaja al lado de la cifra}{
 
