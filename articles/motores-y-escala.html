@@ -701,7 +701,10 @@ una tabla chica</td>
 </tr>
 <tr class="odd">
 <td align="right">3</td>
-<td><code>TABLESAMPLE BERNOULLI (p)</code></td>
+<td>
+<code>TABLESAMPLE BERNOULLI (p)</code> (en DuckDB,
+<code>(p PERCENT)</code>: ahí un número sin unidad es una cantidad de
+filas)</td>
 <td>PostgreSQL, DuckDB</td>
 <td>fila por fila: varía poco alrededor de lo pedido, a cambio de
 recorrer la tabla</td>
@@ -1220,7 +1223,9 @@ entrar.</p>
 <p><strong><code>incluir_valores = FALSE</code></strong> no emite las
 consultas de moda, extremos y mediana. Además limpia los valores de
 celda del resumen, la muestra, los bloques, la cobertura y los motivos.
-Los conteos y proporciones se siguen publicando.</p>
+El mensaje de un error del motor, que cita la celda que lo provocó, se
+publica sin sus literales, como con la protección. Los conteos y
+proporciones se siguen publicando.</p>
 </div>
 <div class="section level2">
 <h2 id="lotes">Consultas por lote<a class="anchor" aria-label="anchor" href="#lotes"></a>
@@ -2257,7 +2262,11 @@ también con la muestra leída en R, el desvío queda
 <code>no_disponible</code> si el redondeo de cada valor puede moverlo
 más de una parte en mil millones, salvo que el catálogo declare escala 0
 y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB,
-DuckDB); por la tabla completa se resta en el tipo de la columna</td>
+DuckDB y SQL Server); por la tabla completa se resta en el tipo de la
+columna. El desvío de <code>perfil_muestra</code> sigue la misma regla
+en todas las vías, también por la tabla completa: no se publica, queda
+en <code>perfil_muestra$meta$desvio_decimal_doble</code>, y la
+corroboración no lo compara (causa <code>decimal_doble</code>)</td>
 </tr>
 <tr class="odd">
 <td>MySQL, MariaDB, SQL Server</td>

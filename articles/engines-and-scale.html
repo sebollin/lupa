@@ -709,7 +709,9 @@ small table</td>
 </tr>
 <tr class="odd">
 <td align="right">3</td>
-<td><code>TABLESAMPLE BERNOULLI (p)</code></td>
+<td>
+<code>TABLESAMPLE BERNOULLI (p)</code> (in DuckDB,
+<code>(p PERCENT)</code>: there a bare number is a row count)</td>
 <td>PostgreSQL, DuckDB</td>
 <td>row by row: it varies little around the request, at the price of
 going through the table</td>
@@ -1240,8 +1242,9 @@ entry.</p>
 <p><strong><code>incluir_valores = FALSE</code></strong> (<em>include
 values</em>) does not emit the queries of mode, extremes and median. It
 also clears the cell values of the summary, the sample, the blocks, the
-coverage and the reasons. Counts and proportions are still
-published.</p>
+coverage and the reasons. An engine error message, which quotes the cell
+that caused it, is published without its literals, as with protection
+on. Counts and proportions are still published.</p>
 </div>
 <div class="section level2">
 <h2 id="batches">Batched queries<a class="anchor" aria-label="anchor" href="#batches"></a>
@@ -2288,8 +2291,12 @@ double</td>
 also with the sample read into R, the standard deviation stays
 <code>no_disponible</code> when rounding each value can move it by more
 than one part in a billion, unless the catalog declares scale 0 and the
-values stay below 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB); on the full
-table the subtraction is done in the column’s type</td>
+values stay below 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB and SQL
+Server); on the full table the subtraction is done in the column’s type.
+The <code>perfil_muestra</code> standard deviation follows the same rule
+on every path, the full table included: it is not published, it is
+listed in <code>perfil_muestra$meta$desvio_decimal_doble</code>, and the
+cross-check does not compare it (cause <code>decimal_doble</code>)</td>
 </tr>
 <tr class="odd">
 <td>MySQL, MariaDB, SQL Server</td>

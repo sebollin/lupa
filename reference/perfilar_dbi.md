@@ -216,9 +216,12 @@ perfilar_dbi(
   moda, extremos y mediana, y se limpian esos campos en el resumen, la
   muestra, los bloques, la cobertura y los motivos; también se retiran
   ejemplos de patrones, familias de acumuladores y cualquier muestra
-  cruda. Los conteos, proporciones y agregados que no son valores de
-  celda pueden seguir publicándose. La elección queda en
-  `resumen_tabla$meta$incluir_valores` y `perfil_muestra$meta`.
+  cruda. El mensaje de un error del motor, que cita la celda que lo
+  provocó, se publica sin sus literales, como con
+  `proteger_datos_personales = TRUE`. Los conteos, proporciones y
+  agregados que no son valores de celda pueden seguir publicándose. La
+  elección queda en `resumen_tabla$meta$incluir_valores` y
+  `perfil_muestra$meta`.
 
 - tamano_lote:
 
@@ -1216,24 +1219,28 @@ eso no es lo mismo que la tabla en R:
   `no_disponible`, salvo que el tipo declare escala 0 —`numeric(18,0)`,
   `decimal(38,0)`— y los valores queden por debajo de 2^53: ahí los
   dobles son los valores. La escala la publican PostgreSQL, MySQL,
-  MariaDB y DuckDB; en SQL Server el tipo no la dice y la guarda sigue.
-  Bajo `muestra_motor`, la media y el desvío se piden en la misma
-  consulta, sobre las mismas filas de una sola evaluación de la muestra:
-  una relación derivada calcula la media de esas filas con una ventana
-  (`AVG(x) OVER ()`) y el desvío se pide centrado en ella; esa misma
-  evaluación da las filas obtenidas y decide el reintento. En SQLite,
-  que suma los cuadrados en la consulta, se resta además
-  `n * (media - centro)^2` (las dos pasadas corregidas), porque la media
-  de la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb
-  esa media y la resta son dobles: el desvío de un decimal queda
-  `no_disponible` con la misma regla que con `bloque_filas`. Con
-  `bloque_muestra = "con_muestra"` el desvío lo calcula
+  MariaDB, DuckDB y el catálogo de SQL Server. Bajo `muestra_motor`, la
+  media y el desvío se piden en la misma consulta, sobre las mismas
+  filas de una sola evaluación de la muestra: una relación derivada
+  calcula la media de esas filas con una ventana (`AVG(x) OVER ()`) y el
+  desvío se pide centrado en ella; esa misma evaluación da las filas
+  obtenidas y decide el reintento. En SQLite, que suma los cuadrados en
+  la consulta, se resta además `n * (media - centro)^2` (las dos pasadas
+  corregidas), porque la media de la ventana no es la exacta. En SQL
+  Server, MySQL, MariaDB y duckdb esa media y la resta son dobles: el
+  desvío de un decimal queda `no_disponible` con la misma regla que con
+  `bloque_filas`. Con `bloque_muestra = "con_muestra"` el desvío lo
+  calcula
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre lo leído, que para un decimal es el doble de su texto, y rige la
-  misma regla. No se fija una semilla ni se toca el generador de números
-  aleatorios de R. Como red en todas las vías, un desvío `0` sobre una
-  columna con dos valores distintos —un mínimo menor que el máximo— es
-  imposible y queda `no_disponible` con su motivo.
+  misma regla. Lo mismo vale para el desvío de `perfil_muestra` en todas
+  las vías, también por la tabla completa, donde el de `resumen_tabla`
+  es el exacto: no se publica (queda `NA`) y la columna queda en
+  `perfil_muestra$meta$desvio_decimal_doble`. No se fija una semilla ni
+  se toca el generador de números aleatorios de R. Como red en todas las
+  vías, un desvío `0` sobre una columna con dos valores distintos —un
+  mínimo menor que el máximo— es imposible y queda `no_disponible` con
+  su motivo.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
@@ -1291,17 +1298,20 @@ eso no es lo mismo que la tabla en R:
   sobre su universo —y todas las métricas de la columna con
   `aplicabilidad` si la muestra dejó afuera valores presentes—; las
   métricas de magnitud de una columna de la que la muestra excluyó los
-  `sentinelas_numericos` declarados; y las de un entero ancho desde
-  2^53, que el resumen no publica. Tampoco lo que un bloque no calculó:
-  una métrica que `resumen_tabla$sql` declara `no_disponible` —el motor
-  rechazó la consulta sobre el tipo (`json`, `xml` o `point` de
-  PostgreSQL; `text`, `ntext`, `image` o `geography` de SQL Server), una
-  guarda la retuvo—, la moda que la muestra no pudo contar —una columna
-  de blobs— y las métricas de una columna compuesta, que la muestra no
-  analiza: su motivo ya está publicado, y una relectura daría lo mismo.
-  Un `NaN` o un infinito sí se compara, y un valor guardado como texto
-  en una columna numérica también: es la diferencia del motor que la
-  corroboración existe para declarar. Lo que no se comparó queda en
+  `sentinelas_numericos` declarados; las de un entero ancho desde 2^53,
+  que el resumen no publica; y el `desvio` de un decimal que la muestra
+  leyó como doble y no publicó (causa `decimal_doble`, ver
+  `perfil_muestra$meta$desvio_decimal_doble`). Tampoco lo que un bloque
+  no calculó: una métrica que `resumen_tabla$sql` declara
+  `no_disponible` —el motor rechazó la consulta sobre el tipo (`json`,
+  `xml` o `point` de PostgreSQL; `text`, `ntext`, `image` o `geography`
+  de SQL Server), una guarda la retuvo—, la moda que la muestra no pudo
+  contar —una columna de blobs— y las métricas de una columna compuesta,
+  que la muestra no analiza: su motivo ya está publicado, y una
+  relectura daría lo mismo. Un `NaN` o un infinito sí se compara, y un
+  valor guardado como texto en una columna numérica también: es la
+  diferencia del motor que la corroboración existe para declarar. Lo que
+  no se comparó queda en
   `resumen_tabla$meta$corroboracion_bloques$no_comparadas`, una fila por
   columna y métrica con su causa. La tolerancia está en
   `meta$corroboracion_bloques$tolerancia`: `1e-10` absoluta más `64`

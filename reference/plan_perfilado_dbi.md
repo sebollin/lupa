@@ -228,9 +228,12 @@ plan_perfilado_dbi(
   moda, extremos y mediana, y se limpian esos campos en el resumen, la
   muestra, los bloques, la cobertura y los motivos; también se retiran
   ejemplos de patrones, familias de acumuladores y cualquier muestra
-  cruda. Los conteos, proporciones y agregados que no son valores de
-  celda pueden seguir publicándose. La elección queda en
-  `resumen_tabla$meta$incluir_valores` y `perfil_muestra$meta`.
+  cruda. El mensaje de un error del motor, que cita la celda que lo
+  provocó, se publica sin sus literales, como con
+  `proteger_datos_personales = TRUE`. Los conteos, proporciones y
+  agregados que no son valores de celda pueden seguir publicándose. La
+  elección queda en `resumen_tabla$meta$incluir_valores` y
+  `perfil_muestra$meta`.
 
 - tamano_lote:
 
