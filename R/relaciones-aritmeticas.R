@@ -235,7 +235,7 @@
 .multiplos_resolucion <- c(2, 4, 5, 8, 20, 25, 40, 50, 125, 200, 250, 500)
 
 .resolucion_columna_aritmetica <- function(x, fraccion = .FRACCION_RESOLUCION,
-                                           fuera = NULL) {
+                                           fuera = NULL, filas = NULL) {
   # El cero esta en toda reticula y no dice nada de la resolucion: con 60 % de
   # netos en cero, la mitad chica de un iva a centavos era toda ceros, su
   # "resolucion" salia gruesa y la columna no pasaba por de decimales fijos; dos
@@ -254,10 +254,20 @@
   # repetidos tres rotas de 30 filas eran tres de 27 valores, mas de uno de cada
   # diez, y la resolucion de casi todos no salia. `fuera` fija cuantos valores
   # distintos pueden quedar afuera (ver `.decimales_fijos_aritmetica()`).
-  filas <- sum(is.finite(x) & x != 0)
-  x <- unique(abs(as.double(x[is.finite(x) & x != 0])))
+  # La cota de azar, en cambio, cuenta cuantas filas tiene cada valor: quien
+  # llama le pasa una fila por registro distinto de la tabla, asi que las 34
+  # copias de un mismo par son una, pero cien importes distintos que el
+  # redondeo a 5 junta en cinco valores son cien. Contados como cinco, la
+  # reticula de 5 "se explicaba por azar" y la relacion se descartaba.
+  # `filas` es el total de filas de la columna, con las repetidas: el permiso
+  # de `1 - fraccion` es de filas, como el criterio.
+  valores <- abs(as.double(x[is.finite(x) & x != 0]))
+  registros <- length(valores)
+  if (is.null(filas)) filas <- registros
+  x <- unique(valores)
   n <- length(x)
   if (!n) return(NA_real_)
+  peso <- tabulate(match(valores, x), nbins = n)
   magnitud <- max(1, abs(x))
   if (is.null(fuera)) fuera <- floor((1 - fraccion) * filas + 1e-9)
   minimo <- max(1, n - fuera)
@@ -273,7 +283,8 @@
     # Todos en la reticula es la regla de siempre del cuanto; casi todos, solo
     # si no se explica por azar.
     if (sum(dentro) < minimo ||
-        (sum(dentro) < n && !.reticula_no_es_azar(n, sum(dentro), 10))) {
+        (sum(dentro) < n &&
+           !.reticula_no_es_azar(registros, sum(peso[dentro]), 10))) {
       next
     }
     enteros <- abs(entero[dentro])
@@ -284,7 +295,8 @@
       if (candidato <= veces) next
       en_candidato <- dentro & (abs(entero) %% candidato == 0)
       if (sum(en_candidato) >= minimo &&
-          .reticula_no_es_azar(n, sum(en_candidato), candidato)) {
+          .reticula_no_es_azar(registros, sum(peso[en_candidato]),
+                               candidato)) {
         veces <- candidato
       }
     }
@@ -319,16 +331,18 @@
 # La respuesta no pasaba por de decimales fijos, su lectura (`y ~= x * 0.18`)
 # no se intentaba y quedaba la reciproca, `x ~= y * 5.55556`, con una fila
 # sana acusada.
-.decimales_fijos_aritmetica <- function(x, resolucion, fraccion) {
+.decimales_fijos_aritmetica <- function(x, resolucion, fraccion,
+                                        filas = NULL) {
   # Las mitades, de los valores distintos: ver `.resolucion_columna_aritmetica()`.
   # Cada mitad puede dejar afuera las filas que la columna deja afuera, no un
   # decimo de las suyas: con las tres rotas entre las filas grandes, la mitad
   # grande quedaba con tres de 15 valores fuera de la reticula, salia en
   # 0,0003 contra 0,36 de la chica, y la respuesta no pasaba por de decimales
   # fijos; quedaba la lectura gruesa de la base, que se traga las rotas.
-  filas <- sum(is.finite(x) & x != 0)
+  valores <- abs(x[is.finite(x) & x != 0])
+  if (is.null(filas)) filas <- length(valores)
   fuera <- floor((1 - fraccion) * filas + 1e-9)
-  x <- unique(abs(x[is.finite(x) & x != 0]))
+  x <- unique(valores)
   if (length(x) < 2L || max(x) / min(x) < 10) return(TRUE)
   # El permiso es para filas rotas, que caen entre las sanas. Si las que quedan
   # fuera de la reticula son la mayoria de los valores hasta la mas grande de
@@ -342,8 +356,10 @@
   }
   mediana <- stats::median(x)
   mitades <- c(
-    .resolucion_columna_aritmetica(x[x >= mediana], fraccion, fuera = fuera),
-    .resolucion_columna_aritmetica(x[x <= mediana], fraccion, fuera = fuera)
+    .resolucion_columna_aritmetica(valores[valores >= mediana], fraccion,
+                                   fuera = fuera),
+    .resolucion_columna_aritmetica(valores[valores <= mediana], fraccion,
+                                   fuera = fuera)
   )
   all(is.finite(mitades)) &&
     all(.exponente_decimal_aritmetica(mitades) ==
@@ -1106,6 +1122,41 @@
   preferencia <- .orden_por_bytes(-puntaje, -conteo[tramos], cifras, distancia)
   constantes <- ifelse(cifras <= 15L, signif(centro, cifras), centro)
   elegido <- preferencia[[1L]]
+  # **El empate se lo lleva la mas larga solo si sus filas de mas son las de
+  # mayor magnitud.** Una constante truncada falla primero las filas de mayor
+  # `|base|`, porque su error crece con la magnitud: `5.555556` explica la fila
+  # grande que `5.55556` deja afuera, y con un tipo de cambio largo y un solo
+  # importe grande pasa lo mismo. Una rota suelta en el medio no compra
+  # cifras: con `pesos = 100 * cant` y la fila 5 corrida 51, `0.0099` explicaba
+  # las 20 filas contra 19 de `0.01`, una cifra por una fila, y se publicaba
+  # sin filas acusadas. Tampoco la compra la rota de la fila mas grande si la
+  # corta explica exactas todas las demas: un truncado no deja residuos cero.
+  empate <- which(puntaje == puntaje[[elegido]])
+  if (length(empate) > 1L) {
+    corta <- empate[.orden_por_bytes(cifras[empate], distancia[empate])[[1L]]]
+    desvio_corta <- abs(respuesta - base * constantes[[corta]])
+    cubre_corta <- desvio_corta <= holgura
+    exacta <- all(desvio_corta[cubre_corta] <= 8 * .Machine$double.eps *
+                    pmax(1, abs(respuesta[cubre_corta]),
+                         abs(base[cubre_corta] * constantes[[corta]])))
+    # Las de mayor magnitud: todas en el cuarto de magnitudes mas altas de las
+    # que explica la larga. No necesariamente la mas grande: con una constante
+    # truncada, cual de las filas grandes cae justo afuera depende de su
+    # residuo, y `0.01235` dejaba afuera la tercera de 27 que `0.012347`
+    # explica. La fila 5 de 20, o la 25 de 50, quedan en el medio.
+    paga <- function(j) {
+      if (j == corta || exacta) return(FALSE)
+      cubre <- abs(respuesta - base * constantes[[j]]) <= holgura
+      gana <- cubre & !cubre_corta
+      if (!any(gana)) return(FALSE)
+      min(abs(base[gana])) >=
+        stats::quantile(abs(base[cubre]), 0.75, names = FALSE, type = 1)
+    }
+    largas <- empate[vapply(empate, paga, logical(1L))]
+    elegido <- if (length(largas)) {
+      largas[[which.min(match(largas, preferencia))]]
+    } else corta
+  }
   # Salvo que otra explique casi todas las filas que la elegida deja lejos -a
   # mas de dos medios cuantos, fuera de su ventana por otra ventana entera-:
   # todas salvo `1 - umbral`, y al menos dos. Un truncado deja lejos todas las
@@ -1135,7 +1186,56 @@
     if (!length(candidatos)) break
     elegido <- candidatos[[which.min(match(candidatos, preferencia))]]
   }
-  structure(constantes[[elegido]], cifras = cifras[[elegido]])
+  # El centro del tramo lo fijan las filas de los extremos; los minimos
+  # cuadrados de las filas que explica, todas.
+  cubre <- abs(respuesta - base * constantes[[elegido]]) <= holgura
+  centrada <- sum(respuesta[cubre] * base[cubre]) / sum(base[cubre]^2)
+  if (!is.finite(centrada)) centrada <- constantes[[elegido]]
+  structure(
+    .decimal_centrado_aritmetica(
+      inferior[[elegido]], superior[[elegido]], cifras[[elegido]], centrada,
+      constantes[[elegido]], base[cubre], respuesta[cubre], semiancho
+    ),
+    cifras = cifras[[elegido]]
+  )
+}
+
+# Entre los decimales de `cifras` cifras de un tramo -todos explican las
+# mismas filas, el tramo es eso-: primero el que deja mas filas justo en la
+# mitad del cuanto, y despues el mas cercano a la constante de minimos
+# cuadrados de esas filas. El redondeo del centro del tramo, que fijan las
+# filas de los extremos, elegia `0.0724` en `round(cant * 0.0725, 2)`, cuyo
+# tramo contiene a los dos: con `0.0725` cinco filas caen exactas en el empate
+# del redondeo, como cae un producto decimal verdadero; con `0.0724`, ninguna.
+# Sin empates, los minimos cuadrados dejan los residuos centrados (`0.012345` y
+# no `0.012344`). `referencia` es la que devuelve sin candidatos.
+.decimal_centrado_aritmetica <- function(inferior, superior, cifras, centrada,
+                                         referencia, base, respuesta,
+                                         semiancho) {
+  if (cifras > 15L || !is.finite(referencia) || referencia == 0) {
+    return(referencia)
+  }
+  e <- cifras - 1L - floor(log10(abs(referencia)))
+  if (e < 0L || e > 15L) return(referencia)
+  escala <- 10^e
+  desde <- ceiling(min(inferior, superior) * escala - 1e-9)
+  hasta <- floor(max(inferior, superior) * escala + 1e-9)
+  if (!is.finite(desde) || !is.finite(hasta) || hasta < desde ||
+      hasta - desde > 1000) {
+    return(referencia)
+  }
+  valor <- seq(desde, hasta) / escala
+  # Sin salirse del tramo por el redondeo de la division.
+  valor <- valor[valor != 0 & valor >= min(inferior, superior) &
+                   valor <= max(inferior, superior)]
+  if (!length(valor)) return(referencia)
+  if (length(valor) == 1L) return(valor)
+  empates <- vapply(valor, function(k) {
+    esperado <- base * k
+    sum(abs(abs(respuesta - esperado) - semiancho) <= 16 * .Machine$double.eps *
+          pmax(1, abs(respuesta), abs(esperado)))
+  }, numeric(1L))
+  valor[[.orden_por_bytes(-empates, abs(valor - centrada))[[1L]]]]
 }
 
 # **El soporte de una proporcionalidad son las filas que distinguen `k`.** Una
@@ -1704,21 +1804,30 @@
   # leia al reves con `k = 0.8196...` y un centavo corrido en `y` salia `ok`. Se
   # prueba primero la de todos -medio centavo-, y la de casi todos solo si la
   # fina no alcanza el criterio.
+  # Una fila por registro distinto de las columnas numericas: un registro
+  # repetido es un solo punto de la reticula (ver
+  # `.resolucion_columna_aritmetica()`).
+  registro_distinto <- if (por_omision && length(seleccion) && nrow(datos)) {
+    !duplicated(as.data.frame(datos)[seleccion])
+  }
   cuanto_de <- function(i) {
     if (!por_omision) return(NULL)
     clave <- as.character(i)
     if (is.null(fijos[[clave]])) {
-      x <- as.double(datos[[i]])
+      todas <- as.double(datos[[i]])
+      filas <- sum(is.finite(todas) & todas != 0)
+      x <- todas[registro_distinto]
       x <- abs(x[is.finite(x)])
       opciones <- list()
       for (fraccion in c(1, .FRACCION_RESOLUCION)) {
-        resolucion <- .resolucion_columna_aritmetica(x, fraccion)
+        resolucion <- .resolucion_columna_aritmetica(x, fraccion, filas = filas)
         if (!is.finite(resolucion)) next
         if (length(opciones) &&
             abs(opciones[[length(opciones)]]$cuanto / resolucion - 1) < 1e-9) next
         opciones[[length(opciones) + 1L]] <- list(
           cuanto = resolucion,
-          fijo = .decimales_fijos_aritmetica(x, resolucion, fraccion)
+          fijo = .decimales_fijos_aritmetica(x, resolucion, fraccion,
+                                             filas = filas)
         )
       }
       fijos[[clave]] <- opciones
@@ -1735,12 +1844,16 @@
       redundante <- any(vapply(objetivos_aditivos, function(x) {
         x$total %in% par && any(x$sumandos %in% par)
       }, logical(1L)))
-      if (redundante) next
       hallazgo <- .hallazgo_proporcional(
         datos, par, umbral, min_filas, tolerancia, nombres_texto,
         cuanto_de = cuanto_de
       )
       marca <- .marca_aritmetica(hallazgo)
+      # La redundante no se publica, pero si alcanzaba el criterio sin soporte
+      # se cuenta igual: con una identidad entre tres columnas con 180 ceros,
+      # las dos proporcionalidades que incluyen su total se omitian sin
+      # evaluarse y `proporcionalidades_descartadas_soporte` quedaba en 0.
+      if (redundante && !identical(marca, "descartada_soporte")) next
       if (identical(marca, "descartada_cuanto")) {
         alcance$proporcionalidades_descartadas_cuanto <-
           alcance$proporcionalidades_descartadas_cuanto + 1

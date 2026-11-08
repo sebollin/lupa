@@ -344,6 +344,9 @@
     t <- if (is.null(traza)) NULL else traza[[j]]
     is.list(t) && length(t$columnas) > 1L
   }, logical(1L))
+  # Un hallazgo de varias columnas con una sin nombre (`NA` en su
+  # trazabilidad) tampoco se puede identificar: el plan no puede nombrarla.
+  falta_nombre <- logical(length(candidatos))
   for (j in which(veces == 0L | de_varias)) {
     i <- candidatos[[j]]
     miembros <- .miembros_hallazgo_varias_columnas(
@@ -351,7 +354,10 @@
       if (!is.null(traza)) traza[[j]],
       perfil$columnas$columna
     )
-    if (length(miembros) > 1L) {
+    if (length(miembros) > 1L && anyNA(miembros)) {
+      ambiguo[[j]] <- TRUE
+      falta_nombre[[j]] <- TRUE
+    } else if (length(miembros) > 1L) {
       repeticiones <- conteo[match(.nombres_para_operar(miembros), distintos)]
       repeticiones[is.na(repeticiones)] <- 0L
       ambiguo[[j]] <- any(repeticiones != 1L)
@@ -379,7 +385,10 @@
   # Por fila del perfil, para que la lista salga en su orden, como los demas
   # atributos del plan.
   razon <- rep(NA_character_, nrow(hallazgos))
-  razon[candidatos[ambiguo]] <- ifelse(ausente[ambiguo], "ausente", "repetida")
+  razon[candidatos[ambiguo]] <- ifelse(
+    falta_nombre[ambiguo], "sin_nombre_varias",
+    ifelse(ausente[ambiguo], "ausente", "repetida")
+  )
   razon[sin_nombre] <- "sin_nombre"
   ambiguos <- which(!is.na(razon))
   if (!length(ambiguos)) return(vacio)
@@ -395,7 +404,12 @@
       "saber sobre cu\u00e1l de ellas act\u00faa la limpieza: el plan no propone acci\u00f3n ",
       "para este hallazgo."
     ),
-    sin_nombre = motivo_sin_nombre
+    sin_nombre = motivo_sin_nombre,
+    sin_nombre_varias = paste0(
+      "Una de las columnas del hallazgo no tiene nombre, as\u00ed que el plan ",
+      "no puede nombrarla para actuar sobre ella: no propone acci\u00f3n para ",
+      "este hallazgo."
+    )
   )
   data.frame(
     hallazgo = as.character(hallazgos$tipo_hallazgo[ambiguos]),
@@ -1332,7 +1346,8 @@
 #' que no produjeron acción porque su columna no se puede identificar: comparte
 #' nombre con otra y no hay forma de saber sobre cuál actuaría la limpieza —el
 #' remedio es normalizar los nombres y volver a perfilar—, o no está entre las
-#' columnas del perfil, o no tiene nombre —una columna llamada `NA`—; el
+#' columnas del perfil, o no tiene nombre —su nombre es `NA`; una columna
+#' llamada con el texto `"NA"` sí lo tiene, y el plan actúa sobre ella—; el
 #' `motivo` dice cuál. Un hallazgo de varias columnas —una relación aritmética en
 #' `neto,iva,total`, una de orden— no es una columna ambigua: lo es sólo si
 #' alguna de sus columnas lo es. Sus columnas se leen de la trazabilidad del
@@ -4717,6 +4732,19 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .motivo_parametros_accion <- function(accion) {
   parametros <- accion$parametros[[1L]]
   if (!length(parametros)) return(NULL)
+  # Los parametros de una accion son una lista con nombres. Un plan editado con
+  # `parametros[[i]] <- c(-9999)` fallaba con el mensaje interno de R, "$
+  # operator is invalid for atomic vectors".
+  if (!is.list(parametros) || is.null(names(parametros))) {
+    return(paste0(
+      "Los par\u00e1metros de la acci\u00f3n `", accion$estrategia[[1L]],
+      "` no tienen la forma que la acci\u00f3n espera: una lista con nombres, ",
+      "como la que propone el plan; recibi\u00f3 ",
+      if (is.list(parametros)) "una lista sin nombres" else
+        paste0("un vector de clase `", class(parametros)[[1L]], "`"),
+      "."
+    ))
+  }
   nombres <- intersect(names(parametros), .parametros_nombre_de_columna)
   for (nombre in nombres) {
     valor <- parametros[[nombre]]

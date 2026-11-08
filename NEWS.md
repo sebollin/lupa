@@ -222,8 +222,12 @@ Primera versión publicada.
   inclusiva, es la tolerancia de todas las filas, y en `k` cada cifra de más
   tiene que explicar al menos una fila más: una constante larga no se traga las
   filas rotas de los importes grandes, y un tipo de cambio largo no se trunca
-  para acusar los importes grandes sanos (la evidencia publica también la
-  mediana). La columna redondeada se lee como respuesta:
+  para acusar los importes grandes sanos; una fila rota suelta no paga una
+  cifra —en un empate, la más larga gana sólo si las filas que agrega son de
+  las de mayor magnitud—, y entre dos del mismo largo gana la que deja más
+  filas justo en el empate del redondeo (`0.0725` y no `0.0724` en
+  `round(cant * 0.0725, 2)`). La evidencia publica también la mediana. La
+  columna redondeada se lee como respuesta:
   `pesos = round(dolares * 39.8734, 2)` se publica
   `pesos ~= dolares * 39.8734`, y `resp ~= base * 1.22` no se lee al revés con
   `0.8196...`; si las dos lecturas caben y la tolerancia de una es el doble o
@@ -244,8 +248,10 @@ Primera versión publicada.
   se descartaba porque la cota quedaba en medio centavo, y con 0,25, 0,5, 5 o 25
   no se publicaba nunca. La resolución se mide sobre los valores distintos y sin
   el cero: primero la de todos y, si con ella no alcanza el criterio, la de al
-  menos el 90 % de las filas, y sólo si esa retícula no se explica por azar:
-  unas filas rotas fuera de ella no la hacen caer —tampoco cuando son las únicas
+  menos el 90 % de las filas, y sólo si esa retícula no se explica por azar
+  —contado en registros distintos: un registro repetido cuenta una vez, y cien
+  importes que el redondeo junta en cinco valores cuentan cien—: unas filas
+  rotas fuera de ella no la hacen caer —tampoco cuando son las únicas
   con más decimales que las demás—, y un valor que no es múltiplo de la
   resolución cuenta como discrepante aunque su residuo quede debajo de medio
   cuanto. Las identidades
@@ -269,7 +275,8 @@ Primera versión publicada.
   muchos ceros, como un iva sobre netos en cero, se sigue publicando, y una con
   más de una fila de cada diez rota entre las que no son cero no se publica. La
   que alcanza el criterio sin ese soporte se cuenta en
-  `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`.
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`, también
+  cuando una identidad entre las mismas columnas la vuelve redundante.
 - Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
   `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
   la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna
@@ -282,8 +289,11 @@ Primera versión publicada.
   falla; y el plan, con los datos, la bloquea antes. Una columna de nombre vacío
   que falta en los datos bloquea su grupo de columnas iguales. El lector de las
   columnas de un hallazgo usa la trazabilidad antes que el texto: una relación
-  entre `a` y `b` ya no se confunde con una columna llamada `a,b`; y un hallazgo
-  de una columna sin nombre ya no se llama «de la tabla».
+  entre `a` y `b` ya no se confunde con una columna llamada `a,b`; un hallazgo
+  de una columna sin nombre ya no se llama «de la tabla», y uno de varias
+  columnas con una sin nombre va a la lista de columnas no identificables. Una
+  acción cuyos parámetros no tienen la forma que espera queda `fallida` con ese
+  motivo, no con un error de R.
 - Toda acción del plan sobre una columna que no está en los datos, y las de
   `columnas_duplicadas` cuando una columna del grupo no está en el perfil, quedan
   `bloqueada` con el motivo: con un perfil de otra versión de la tabla salían

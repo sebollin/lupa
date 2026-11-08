@@ -2546,15 +2546,24 @@
 #'   como 0,05, 0,25 o 5, y no la potencia de diez de sus decimales: primero la
 #'   de todos sus valores y, si con esa no alcanza el criterio, la de al
 #'   menos el 90 % de las filas, medidas sobre los valores distintos y sin el
-#'   cero; un valor fuera de ella cuenta como discrepante, y unas pocas filas
-#'   con más decimales que las demás no la hacen pasar por cifras
+#'   cero —con la cota de azar contada en registros distintos: un registro
+#'   repetido es uno, y cien importes que el redondeo junta en cinco valores
+#'   son cien—; un valor fuera de ella cuenta como discrepante, y unas pocas
+#'   filas con más decimales que las demás no la hacen pasar por cifras
 #'   significativas—, inclusiva, es la tolerancia de
 #'   todas las filas, y `k` es la constante en la que cada cifra explica al menos
 #'   una fila más: la de más filas dentro menos cifras —cinco cifras más que
 #'   solo se tragan dos filas rotas de importes grandes no se pagan, y una que
 #'   explica una fila sana sí—, entre las que explican al menos `umbral` de las
-#'   filas de la mejor y con al menos una fila por cifra. Gana otra más larga si
-#'   explica casi todas las filas que esa deja a más de dos medios cuantos
+#'   filas de la mejor y con al menos una fila por cifra. En un empate gana la
+#'   más larga solo si las filas que agrega están en el cuarto de mayor
+#'   magnitud de las que explica y la corta no explica exactas las suyas: un
+#'   truncado falla primero las filas grandes, y una fila rota en el medio no
+#'   compra una cifra. Entre los
+#'   decimales del mismo largo, el que deja más filas justo en el empate del
+#'   redondeo y después el más cercano a la constante de mínimos cuadrados
+#'   (`0.0725` y no `0.0724` en `round(cant * 0.0725, 2)`). Gana otra más larga
+#'   si explica casi todas las filas que esa deja a más de dos medios cuantos
 #'   —todas salvo `1 - umbral`, y al menos dos— sin perder ninguna de las que
 #'   esa explica, como un tipo de cambio largo contra su truncado. Si las dos
 #'   columnas admiten esa lectura, con soporte las dos y la tolerancia de una el
@@ -2580,7 +2589,8 @@
 #'   cada diez rota entre las demás no se publica. Una que alcanza el criterio
 #'   sin ese soporte no deja fila de cobertura —en una tabla rala serían una por
 #'   par de columnas— y se cuenta en
-#'   `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`.
+#'   `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`, también
+#'   cuando una identidad entre las mismas columnas la vuelve redundante.
 #'   Una columna que varía menos que la tolerancia relativa de su magnitud se
 #'   evalúa con la cota del cuanto cuando la identidad la admite; si no, una fila
 #'   de `cobertura_diagnosticos` por columna dice qué relación reconocía la

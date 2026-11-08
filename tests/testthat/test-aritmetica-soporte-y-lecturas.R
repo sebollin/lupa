@@ -480,3 +480,97 @@ test_that("unas pocas rotas no tumban los decimales fijos de la respuesta", {
                      info = cs$k)
   }
 })
+
+test_that("una rota suelta no paga la cifra de mas", {
+  # pesos = 100 * cant con una fila corrida 51: `0.0099` explicaba las 20 filas
+  # contra 19 de `0.01` -una cifra por una fila, empate- y se publicaba sin
+  # filas acusadas. Una constante truncada falla primero las filas de mayor
+  # magnitud; una rota suelta en el medio no compra cifras.
+  for (caso in list(c(20, 5), c(50, 25), c(20, 1))) {
+    cant <- seq_len(caso[[1L]])
+    pesos <- 100 * cant
+    pesos[caso[[2L]]] <- pesos[caso[[2L]]] + 51
+    r <- prop_de(data.frame(cant = cant, pesos = pesos))
+    expect_length(r$h, 1L)
+    expect_match(r$h[[1L]]$descripcion, "cant ~= pesos * 0.01 ", fixed = TRUE)
+    expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, as.integer(caso[[2L]]))
+  }
+  # Con la rota en la fila de mayor magnitud tambien se acusa: la corta explica
+  # exactas todas las demas, y un truncado no deja residuos cero.
+  cant <- 1:20
+  pesos <- 100 * cant
+  pesos[20] <- pesos[20] + 51
+  r <- prop_de(data.frame(cant = cant, pesos = pesos))
+  expect_length(r$h, 1L)
+  expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, 20L)
+  # Y el empate sigue siendo de la larga cuando sus filas de mas son las mayores
+  # y la corta no es exacta: la lectura reciproca de `y = round(0.18 * x, 2)`
+  # con x en medios explica la fila mas grande con `5.555555` y no con `5.55556`.
+  j <- c(75369, 77223, 2853, 241, 3775, 594146, 27051, 77, 31233, 1924, 2749,
+         155791, 72, 36043, 475983, 2420, 5734, 114651, 713, 136, 325, 126114,
+         10505, 399, 202279, 2708, 65611, 152284, 8378, 926625)
+  x_cent <- 50 * j
+  y_cent <- (18 * x_cent + 50) %/% 100
+  expect_true(all(abs(100 * y_cent - 18 * x_cent) <= 50))
+  k <- lupa:::.constante_por_intervalos_aritmetica(y_cent / 100, x_cent / 100,
+                                                    0.25, 1 / 0.18)
+  expect_identical(attr(k, "cifras"), 7L)
+  expect_true(all(abs(x_cent / 100 - (y_cent / 100) * as.vector(k)) <= 0.25))
+})
+
+test_that("una grilla de 5 sobre importes grandes se lee aunque junte pocos valores", {
+  # y = round(x * 0.22 / 5) * 5 sobre x = 1e9 + 1:100: cinco valores distintos de
+  # y, y contados como cinco la reticula de 5 "se explicaba por azar". Son cien
+  # registros distintos; las 34 copias de un mismo par siguen contando una.
+  x <- 1e9 + 1:100
+  y_q <- (22 * x + 250) %/% 500
+  y <- 5 * y_q
+  expect_true(all(abs(100 * y - 22 * x) <= 250))
+  expect_length(unique(y), 5L)
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x * 0.22 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+})
+
+test_that("entre los decimales del mismo largo, el del producto decimal", {
+  # resp = round(cant * 0.0725, 2): el tramo contiene a `0.0724` y a `0.0725`, y
+  # el redondeo de su centro elegia `0.0724`. Con `0.0725` cinco filas caen
+  # justo en el empate del redondeo, como cae un producto decimal verdadero.
+  cant <- 1:20
+  resp_cent <- c(7, 14, 22, 29, 36, 43, 51, 58, 65, 72, 80, 87, 94, 101, 109,
+                 116, 123, 130, 138, 145)
+  expect_true(all(abs(4 * resp_cent - 29 * cant) <= 2))
+  r <- prop_de(data.frame(cant = cant, resp = resp_cent / 100))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "resp ~= cant * 0.0725 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+})
+
+test_that("las proporcionalidades redundantes sin soporte se cuentan", {
+  # Una identidad y + z ~= x con 180 ceros: las dos proporcionalidades que
+  # incluyen su total se omitian sin evaluarse y el contador quedaba en 0.
+  x <- c(rep(0, 180), 1:20)
+  y <- c(rep(0, 180), 2 * (1:20) + rep(c(0, 3), 10))
+  p <- perfilar(data.frame(x = x, y = y, z = 2 * y), analizar_dependencias = FALSE,
+                fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  expect_equal(p$meta$aritmetica_columnas$proporcionalidades_descartadas_soporte, 2)
+})
+
+test_that("el empate paga una fila grande aunque no sea la mayor", {
+  # y = round(0.012345 * x, 2) con x en medios, casi todas chicas, y las tres
+  # mayores rotas. `0.01235` empataba con `0.012347` dejando afuera la tercera
+  # fila mas grande de las que esta explica: un truncado no siempre deja afuera
+  # la mayor, depende de su residuo. Con la regla de la fila mas grande la
+  # relacion no alcanzaba el criterio y se callaban las tres rotas.
+  x_cent <- c(4800, 1000, 4400, 1300, 2150, 1250, 69828450, 3900, 8250, 9650,
+              8800, 1450, 2800, 4600, 41236900, 6150, 300, 7750, 3700, 8300,
+              5200, 3200, 5950, 3400, 1400, 4600, 8750, 1350, 450, 1750)
+  y_cent <- c(59, 12, 54, 16, 27, 15, 862029, 48, 102, 122, 109, 18, 35, 57,
+              509073, 76, 4, 96, 46, 102, 64, 40, 73, 42, 17, 57, 108, 17, 6, 22)
+  rotas <- which(abs(200000 * y_cent - 2469 * x_cent) > 100000)
+  expect_identical(rotas, c(7L, 10L, 15L))
+  r <- prop_de(data.frame(x = x_cent / 100, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rotas)
+})

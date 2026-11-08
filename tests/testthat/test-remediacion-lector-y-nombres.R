@@ -92,3 +92,46 @@ test_that("los tipos de hallazgo de la tabla son los que se publican con columna
   }
   expect_setequal(unique(tipos), lupa:::.TIPOS_HALLAZGO_DE_LA_TABLA)
 })
+
+test_that("un hallazgo de varias columnas con una sin nombre no se puede identificar", {
+  d <- data.frame(u = 1:20, v = 2 * (1:20), w = 4)
+  names(d) <- c("u", NA, "w")
+  d[[2L]][20L] <- 999
+  p <- perfilar(d, analizar_dependencias = FALSE,
+                fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  expect_true(any(p$hallazgos$tipo_hallazgo == "relacion_aritmetica_columnas"))
+  pl <- planificar_limpieza(p, datos = d)
+  ambiguas <- attr(pl, "hallazgos_sin_accion_por_columna_ambigua")
+  fila <- ambiguas[ambiguas$hallazgo == "relacion_aritmetica_columnas", , drop = FALSE]
+  expect_identical(nrow(fila), 1L)
+  expect_match(fila$motivo, "Una de las columnas del hallazgo no tiene nombre",
+               fixed = TRUE)
+  sin_accion <- attr(pl, "hallazgos_sin_accion")
+  expect_false(any(sin_accion$hallazgo == "relacion_aritmetica_columnas"))
+  # Una columna llamada con el texto "NA" tiene nombre, y el plan actua sobre ella.
+  d2 <- data.frame(u = 1:20, x = 7)
+  names(d2) <- c("u", "NA")
+  p2 <- perfilar(d2, analizar_dependencias = FALSE,
+                 fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  pl2 <- planificar_limpieza(p2, datos = d2)
+  expect_true(any(pl2$columna %in% "NA"))
+  expect_false(any(attr(pl2, "hallazgos_sin_accion_por_columna_ambigua")$columna %in% "NA"))
+})
+
+test_that("unos parametros que no son una lista fallan con un motivo del dominio", {
+  d <- data.frame(x = c(1:19, -999), y = 1:20)
+  p <- perfilar(d, analizar_dependencias = FALSE,
+                fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  pl <- planificar_limpieza(p, datos = d)
+  i <- which(pl$estrategia == "convertir_sentinelas_numericos")[[1L]]
+  pl$parametros[[i]] <- c(-9999)
+  pl$aplicar[i] <- TRUE
+  r <- aplicar(pl, d)
+  registro <- as.data.frame(r$registro)
+  expect_identical(registro$estado[registro$estrategia == "convertir_sentinelas_numericos"],
+                   "fallida")
+  error <- registro$error[registro$estrategia == "convertir_sentinelas_numericos"]
+  expect_match(error, "no tienen la forma que la acci", fixed = TRUE)
+  expect_false(grepl("operator", error, fixed = TRUE))
+  expect_identical(r$datos$x, d$x)
+})

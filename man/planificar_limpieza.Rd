@@ -173,7 +173,8 @@ bien". \code{hallazgos_sin_accion_por_columna_ambigua} trae los hallazgos medido
 que no produjeron acción porque su columna no se puede identificar: comparte
 nombre con otra y no hay forma de saber sobre cuál actuaría la limpieza —el
 remedio es normalizar los nombres y volver a perfilar—, o no está entre las
-columnas del perfil, o no tiene nombre —una columna llamada \code{NA}—; el
+columnas del perfil, o no tiene nombre —su nombre es \code{NA}; una columna
+llamada con el texto \code{"NA"} sí lo tiene, y el plan actúa sobre ella—; el
 \code{motivo} dice cuál. Un hallazgo de varias columnas —una relación aritmética en
 \verb{neto,iva,total}, una de orden— no es una columna ambigua: lo es sólo si
 alguna de sus columnas lo es. Sus columnas se leen de la trazabilidad del
