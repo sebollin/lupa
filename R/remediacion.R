@@ -232,9 +232,26 @@
         ))
       }
     )
-    referidas <- .identificadores_unicos(referidas[!is.na(referidas) &
-                                                     nzchar(referidas)])
+    # Tambien el nombre vacio: una columna `""` del perfil que no esta en los
+    # datos dejaba `lista` las acciones de su grupo de columnas iguales.
+    referidas <- .identificadores_unicos(referidas[!is.na(referidas)])
     faltan <- referidas[!.nombres_para_operar(referidas) %in% existentes]
+    # Una accion de nombres renombra por posicion los nombres que el perfil
+    # vio: con otros nombres en los datos no se puede aplicar, y el plan lo
+    # sabe.
+    if (!length(faltan) &&
+        !is.null(.motivo_nombres_distintos(plan[j, , drop = FALSE], names(datos)))) {
+      plan$estado[[j]] <- "bloqueada"
+      plan$aplicar[[j]] <- FALSE
+      plan$recomendada[[j]] <- FALSE
+      plan$justificacion[[j]] <- paste0(
+        plan$justificacion[[j]],
+        " Los nombres de los datos no son los que el perfil vio: el perfil es de ",
+        "otra versi\u00f3n de la tabla, y la acci\u00f3n queda bloqueada. Volver a ",
+        "perfilar los datos que se van a limpiar."
+      )
+      next
+    }
     if (!length(faltan)) next
     plan$estado[[j]] <- "bloqueada"
     plan$aplicar[[j]] <- FALSE
@@ -290,6 +307,12 @@
   # `.nombres_para_operar()` es elemento a elemento, asi que normalizar el
   # vector entero da las mismas claves que normalizar cada nombre.
   # Un hallazgo `ok` no espera accion, como en `.hallazgos_sin_accion_declarados()`.
+  # Uno con `columna` `NA` es de la tabla, salvo que su tipo sea de una columna:
+  # entonces es de una columna sin nombre (ver `.TIPOS_HALLAZGO_DE_LA_TABLA`).
+  sin_nombre <- which(is.na(hallazgos$columna) &
+                        as.character(hallazgos$severidad) != "ok" &
+                        !as.character(hallazgos$tipo_hallazgo) %in%
+                          .TIPOS_HALLAZGO_DE_LA_TABLA)
   candidatos <- which(!is.na(hallazgos$columna) &
                         as.character(hallazgos$severidad) != "ok")
   nombres <- .nombres_para_operar(perfil$columnas$columna)
@@ -311,11 +334,21 @@
   # perfil.
   ambiguo <- veces != 1L
   ausente <- veces == 0L
-  for (j in which(veces == 0L)) {
+  # La trazabilidad manda sobre el texto: una relacion entre `a` y `b` se
+  # publica con `columna = "a,b"`, y si la tabla tiene ademas una columna
+  # llamada literalmente `a,b`, el texto la nombraba a ella -"sobre la misma
+  # columna si propone recortar_espacios"- o, con dos asi, la declaraba
+  # repetida.
+  traza <- if ("trazabilidad" %in% names(hallazgos)) hallazgos$trazabilidad[candidatos]
+  de_varias <- vapply(seq_along(candidatos), function(j) {
+    t <- if (is.null(traza)) NULL else traza[[j]]
+    is.list(t) && length(t$columnas) > 1L
+  }, logical(1L))
+  for (j in which(veces == 0L | de_varias)) {
     i <- candidatos[[j]]
     miembros <- .miembros_hallazgo_varias_columnas(
       hallazgos$columna[[i]],
-      if ("trazabilidad" %in% names(hallazgos)) hallazgos$trazabilidad[[i]],
+      if (!is.null(traza)) traza[[j]],
       perfil$columnas$columna
     )
     if (length(miembros) > 1L) {
@@ -325,6 +358,10 @@
       ausente[[j]] <- any(repeticiones == 0L) && !any(repeticiones > 1L)
     }
   }
+  motivo_sin_nombre <- paste0(
+    "La columna del hallazgo no tiene nombre, as\u00ed que el plan no puede ",
+    "nombrarla para actuar sobre ella: no propone acci\u00f3n para este hallazgo."
+  )
   # Un grupo de columnas iguales puede nombrarse por una columna unica y tener
   # otra repetida (`Y, X, X`): el plan tampoco propone su accion (ver
   # `.grupo_con_nombre_repetido()`), y el motivo es el mismo.
@@ -339,24 +376,31 @@
     )]
     ambiguo <- ambiguo | (duplicadas & !is.na(g) & repetido[g] %in% TRUE)
   }
-  ambiguos <- candidatos[ambiguo]
+  # Por fila del perfil, para que la lista salga en su orden, como los demas
+  # atributos del plan.
+  razon <- rep(NA_character_, nrow(hallazgos))
+  razon[candidatos[ambiguo]] <- ifelse(ausente[ambiguo], "ausente", "repetida")
+  razon[sin_nombre] <- "sin_nombre"
+  ambiguos <- which(!is.na(razon))
   if (!length(ambiguos)) return(vacio)
+  razon <- razon[ambiguos]
+  motivos <- c(
+    ausente = paste0(
+      "La columna del hallazgo no est\u00e1 entre las del perfil: el hallazgo no ",
+      "corresponde a las columnas que el perfil describe, y el plan no propone ",
+      "acci\u00f3n para \u00e9l."
+    ),
+    repetida = paste0(
+      "El nombre de columna se repite en la tabla, as\u00ed que no hay forma de ",
+      "saber sobre cu\u00e1l de ellas act\u00faa la limpieza: el plan no propone acci\u00f3n ",
+      "para este hallazgo."
+    ),
+    sin_nombre = motivo_sin_nombre
+  )
   data.frame(
     hallazgo = as.character(hallazgos$tipo_hallazgo[ambiguos]),
     columna = as.character(hallazgos$columna[ambiguos]),
-    motivo = ifelse(
-      ausente[ambiguo],
-      paste0(
-        "La columna del hallazgo no est\u00e1 entre las del perfil: el hallazgo no ",
-        "corresponde a las columnas que el perfil describe, y el plan no propone ",
-        "acci\u00f3n para \u00e9l."
-      ),
-      paste0(
-        "El nombre de columna se repite en la tabla, as\u00ed que no hay forma de ",
-        "saber sobre cu\u00e1l de ellas act\u00faa la limpieza: el plan no propone acci\u00f3n ",
-        "para este hallazgo."
-      )
-    ),
+    motivo = unname(motivos[razon]),
     como_resolverlo = paste0(
       "Aplicar `normalizar_nombres` -o renombrar las columnas a mano- y volver ",
       "a perfilar: con nombres distintos el plan propone las acciones de este ",
@@ -391,11 +435,24 @@
                                        claves_perfil) {
   columna <- as.character(hallazgos$columna[[i]])
   if (is.na(columna)) return(character())
-  if (.nombres_para_operar(columna) %in% claves_perfil) return(columna)
   traza <- if ("trazabilidad" %in% names(hallazgos)) hallazgos$trazabilidad[[i]]
+  # La trazabilidad primero: ver `.hallazgos_sin_accion_por_columna_ambigua()`.
+  if (is.list(traza) && length(traza$columnas) > 1L) {
+    return(as.character(traza$columnas))
+  }
+  if (.nombres_para_operar(columna) %in% claves_perfil) return(columna)
   miembros <- .miembros_hallazgo_varias_columnas(columna, traza, nombres_perfil)
   if (length(miembros)) miembros else columna
 }
+
+# Los tipos de hallazgo de la tabla y no de una columna: los unicos que se
+# publican con `columna = NA` (`.nuevo_hallazgo(NA_character_, ...)` en
+# `R/hallazgos.R`; una prueba recorre el codigo y los compara con esta lista).
+# Cualquier otro con `columna` `NA` es de una columna sin nombre.
+.TIPOS_HALLAZGO_DE_LA_TABLA <- c(
+  "clave_con_ausentes", "clave_no_unica", "filas_duplicadas",
+  "nombres_columnas_problematicos", "fecha_partida_columnas"
+)
 
 .hallazgos_sin_accion_declarados <- function(perfil, plan, ambiguos) {
   # El plan promete declarar lo que no cubre, y declaraba dos huecos: el
@@ -1275,9 +1332,12 @@
 #' que no produjeron acción porque su columna no se puede identificar: comparte
 #' nombre con otra y no hay forma de saber sobre cuál actuaría la limpieza —el
 #' remedio es normalizar los nombres y volver a perfilar—, o no está entre las
-#' columnas del perfil; el `motivo` dice cuál de los dos. Un hallazgo de varias
-#' columnas —una relación aritmética en `neto,iva,total`, una de orden— no es una
-#' columna ambigua: lo es sólo si alguna de sus columnas lo es. `hallazgos_sin_accion`
+#' columnas del perfil, o no tiene nombre —una columna llamada `NA`—; el
+#' `motivo` dice cuál. Un hallazgo de varias columnas —una relación aritmética en
+#' `neto,iva,total`, una de orden— no es una columna ambigua: lo es sólo si
+#' alguna de sus columnas lo es. Sus columnas se leen de la trazabilidad del
+#' hallazgo y no del texto de `columna`: una columna llamada `a,b` no se confunde
+#' con la relación entre `a` y `b`. `hallazgos_sin_accion`
 #' trae el resto: los hallazgos que el perfil midió, de una columna
 #' identificada, de varias o de la tabla, y que ninguna acción del plan atiende
 #' —porque el plan no tiene una estrategia para ese tipo, o porque la que tiene
@@ -1340,7 +1400,10 @@
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
 #' modificar la copia y enumera las filas problemáticas. Una acción que sí está
 #' lista pero falla se registra con su error y no impide aplicar las siguientes:
-#' cada una conserva atomicidad sobre su propia columna o tabla. Las acciones
+#' cada una conserva atomicidad sobre su propia columna o tabla. Una acción de
+#' nombres preparada para otros nombres —un perfil de otra versión de la tabla,
+#' con dos `x` donde los datos tienen una— es una de esas: queda `fallida` con el
+#' motivo, y en un plan armado con `datos` ya sale `bloqueada`. Las acciones
 #' que efectivamente eliminan filas o columnas requieren además
 #' `permitir_eliminacion = TRUE`; una conversión `destructiva` requiere selección
 #' explícita y deja la pérdida cuantificada. Por defecto, el resultado conserva
@@ -4143,18 +4206,20 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   .columnas_identicas(x, y)
 }
 
-.validar_nombres_iniciales <- function(plan, datos) {
-  indices <- which(
-    plan$aplicar & plan$estrategia %in%
-      c("normalizar_nombres", "normalizar_nombres_snake_case")
-  )
-  if (!length(indices)) return(invisible(TRUE))
-  esperados <- plan$parametros[[indices[[1L]]]]$nombres_esperados
-  if (!identical(.nombres_para_operar(names(datos)),
-                 .nombres_para_operar(esperados))) {
-    .detener("Los nombres de los datos no coinciden con los usados por el perfil.", call. = FALSE)
+# Si una accion de nombres no puede aplicarse a estos datos: renombra por el mapa
+# `nombres_esperados` -> `nombres_propuestos`, y los nombres de los datos tienen
+# que ser los esperados. `NULL` si puede; si no, el motivo.
+.motivo_nombres_distintos <- function(accion, nombres) {
+  if (!accion$estrategia[[1L]] %in%
+      c("normalizar_nombres", "normalizar_nombres_snake_case")) {
+    return(NULL)
   }
-  invisible(TRUE)
+  esperados <- accion$parametros[[1L]]$nombres_esperados
+  if (is.null(esperados) ||
+      identical(.nombres_para_operar(nombres), .nombres_para_operar(esperados))) {
+    return(NULL)
+  }
+  "Los nombres de los datos no coinciden con los usados por el perfil."
 }
 
 .agregar_marca <- function(datos, nombre, valor) {
@@ -4809,7 +4874,11 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       call. = FALSE
     )
   }
-  .validar_nombres_iniciales(plan, datos)
+  # Una accion de nombres que no corresponde a estos datos -un perfil con dos
+  # `x` y datos con una- se registra `fallida` y las demas siguen, como toda
+  # accion `lista` que falla. Antes `aplicar()` abortaba entero, y con el se
+  # perdian las acciones validas del mismo plan.
+  nombres_iniciales <- names(datos)
   salida <- .copiar_datos(datos)
   registros <- vector("list", length(seleccion))
   eliminados <- list(filas = list(), columnas = list())
@@ -4826,6 +4895,9 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     # Cada acción trabaja sobre una copia del estado anterior. Si falla, la
     # columna (o tabla) queda intacta y el resto del plan puede continuar.
     motivo_parametros <- .motivo_parametros_accion(accion)
+    if (is.null(motivo_parametros)) {
+      motivo_parametros <- .motivo_nombres_distintos(accion, nombres_iniciales)
+    }
     ejecutada <- if (!is.null(motivo_parametros)) {
       list(error = motivo_parametros, n = 0, n_no_reversibles = 0)
     } else {

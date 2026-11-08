@@ -306,7 +306,15 @@ test_that("la aplicación rechaza deriva de esquema y planes inválidos", {
 
   renombrados <- datos
   names(renombrados) <- "y"
-  expect_error(aplicar(plan, renombrados), "columna llamada|no coinciden")
+  # Con otros nombres cada accion seleccionada se registra fallida con su error
+  # y los datos quedan como estaban: es el contrato de una accion `lista` que
+  # falla, y ninguna aborta las demas.
+  deriva <- aplicar(plan, renombrados)
+  expect_true(nrow(deriva$registro) > 0L)
+  expect_true(all(deriva$registro$estado == "fallida"))
+  expect_true(any(grepl("columna llamada|no coinciden", deriva$registro$error)))
+  expect_identical(names(deriva$datos), "y")
+  expect_identical(deriva$datos$y, renombrados$y)
 })
 
 test_that("las precondiciones impiden conversiones parciales y marcas pisadas", {
@@ -462,7 +470,11 @@ test_that("se rechazan una estrategia desconocida y la deriva de nombres", {
   nombres <- plan[plan$estrategia == "normalizar_nombres", , drop = FALSE]
   datos_renombrados <- datos
   names(datos_renombrados) <- "y"
-  expect_error(aplicar(nombres, datos_renombrados), "no coinciden")
+  # La deriva de nombres se registra en la accion, no aborta el plan.
+  deriva <- aplicar(nombres, datos_renombrados)
+  expect_equal(deriva$registro$estado, "fallida")
+  expect_match(deriva$registro$error, "no coinciden", fixed = TRUE)
+  expect_identical(names(deriva$datos), "y")
 })
 
 

@@ -202,8 +202,9 @@ Primera versión publicada.
   encima de ese límite un decimal guardado no se distingue del redondeo de un
   texto de 15 cifras: la tolerancia relativa manda y la evidencia dice cuánto
   tolera. Con más de la mitad de las filas rotas por un cuanto la identidad no
-  se publica como sana: se descarta y se cuenta en
-  `meta$aritmetica_columnas$identidades_descartadas_cuanto`. En una suma, la
+  se publica como sana: se descarta, se cuenta en
+  `meta$aritmetica_columnas$identidades_descartadas_cuanto` y deja una fila en
+  `cobertura_diagnosticos` con la relación y el motivo. En una suma, la
   tolerancia se mide también sobre los sumandos: `a = 1e9 + x`, `b = -1e9 + y`,
   `c = x + y` acusaba 16 de 300 filas sanas. La evidencia declara la cota. Una
   columna que varía menos que la tolerancia relativa de su magnitud —los
@@ -218,25 +219,34 @@ Primera versión publicada.
   centavos salía `ok` con 0 filas desde netos de 1e9, y sobre netos de 1e7 un
   producto sano acusaba 8 filas. Con la tolerancia por omisión, si la tolerancia
   relativa supera la mitad del cuanto de la columna redondeada, esa mitad,
-  inclusiva, es la tolerancia de todas las filas, y `k` es la constante con
-  menos cifras que deja casi tantas filas dentro de ella como la que más (la
-  evidencia publica también la mediana). La columna redondeada se lee como
-  respuesta: `pesos = round(dolares * 39.8734, 2)` se publica
+  inclusiva, es la tolerancia de todas las filas, y en `k` cada cifra de más
+  tiene que explicar al menos una fila más: una constante larga no se traga las
+  filas rotas de los importes grandes, y un tipo de cambio largo no se trunca
+  para acusar los importes grandes sanos (la evidencia publica también la
+  mediana). La columna redondeada se lee como respuesta:
+  `pesos = round(dolares * 39.8734, 2)` se publica
   `pesos ~= dolares * 39.8734`, y `resp ~= base * 1.22` no se lee al revés con
-  `0.8196...`; entre dos constantes cortas, la de la resolución más fina. Con
+  `0.8196...`; si las dos lecturas caben y la tolerancia de una es el doble o
+  más que la de la otra, se comparan con la fina, y una fila que sólo cae
+  adentro con la gruesa no cuenta. Con
   centavos llega a importes de 1e12, como la identidad. Un neto y un iva
   redondeados por separado cuentan como discrepantes las filas donde el iva no es
-  el redondeo del neto guardado. La que la tolerancia relativa reconoce y esa
-  resolución no se descarta y se cuenta en
-  `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto`.
+  el redondeo del neto guardado. La que la tolerancia relativa reconoce y
+  ninguna resolución explica se descarta, se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto` y deja una
+  fila en `cobertura_diagnosticos`; si la resolución de alguna de las dos
+  columnas es compatible con la relación, se publica con la tolerancia
+  relativa.
 - El cuanto de una proporcionalidad es la resolución del redondeo que la
   columna muestra, no la potencia de diez de sus decimales: una respuesta
   redondeada a múltiplos de 0,05 —100 filas sanas con residuo de hasta 0,024—
   se descartaba porque la cota quedaba en medio centavo, y con 0,25, 0,5, 5 o 25
-  no se publicaba nunca. La resolución es la de al menos el 90 % de los valores,
-  y sólo si esa retícula no se explica por azar: unas filas rotas fuera de ella
-  no la hacen caer, y un valor que no es múltiplo de la resolución cuenta como
-  discrepante aunque su residuo quede debajo de medio cuanto. Las identidades
+  no se publicaba nunca. La resolución se mide sobre los valores distintos y sin
+  el cero: primero la de todos y, si con ella no alcanza el criterio, la de al
+  menos el 90 %, y sólo si esa retícula no se explica por azar: unas filas
+  rotas fuera de ella no la hacen caer, y un valor que no es múltiplo de la
+  resolución cuenta como discrepante aunque su residuo quede debajo de medio
+  cuanto. Las identidades
   siguen con la potencia de diez de sus decimales, que entre valores de una
   misma retícula separa igual lo sano de lo roto.
 - Un producto redondeado con respuestas chicas frente a su cuanto —un iva a
@@ -248,12 +258,30 @@ Primera versión publicada.
   «era» la mitad de una columna casi siempre 1; una base estrecha «explicaba» la
   moda de la respuesta); con ellas, en las tablas de `datasets` y las del paquete
   no aparece ninguna relación nueva.
+- Una proporcionalidad se sostiene en las filas que distinguen la constante:
+  con `x` e `y` en cero en 180 de 200 filas y sin relación en las otras 20 se
+  publicaba `x ~= y * 0.095` `sospechoso`, con las 20 filas que podían decir
+  algo todas en contra; lo mismo con 180 filas en un mismo par de valores. Ahora
+  tiene que alcanzar el criterio en las filas con base distinta de cero, donde
+  el par más repetido pesa a lo sumo una de cada diez; una relación real con
+  muchos ceros, como un iva sobre netos en cero, se sigue publicando, y una con
+  más de una fila de cada diez rota entre las que no son cero no se publica. La
+  que alcanza el criterio sin ese soporte se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`.
 - Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
   `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
   la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna
   `raw`), y su motivo cerraba con «se conserva como acción destructiva no
   recomendada» también sobre una acción `bloqueada` o no destructiva. Ahora
   termina con el estado: bloqueada, o lista sin activar hasta configurarla.
+- `aplicar()` ya no aborta el plan entero cuando una acción de nombres no
+  corresponde a los datos (un perfil con dos `x` y datos con una): la registra
+  `fallida` con su motivo y sigue con las demás, como toda acción `lista` que
+  falla; y el plan, con los datos, la bloquea antes. Una columna de nombre vacío
+  que falta en los datos bloquea su grupo de columnas iguales. El lector de las
+  columnas de un hallazgo usa la trazabilidad antes que el texto: una relación
+  entre `a` y `b` ya no se confunde con una columna llamada `a,b`; y un hallazgo
+  de una columna sin nombre ya no se llama «de la tabla».
 - Toda acción del plan sobre una columna que no está en los datos, y las de
   `columnas_duplicadas` cuando una columna del grupo no está en el perfil, quedan
   `bloqueada` con el motivo: con un perfil de otra versión de la tabla salían

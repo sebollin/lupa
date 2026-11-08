@@ -817,21 +817,48 @@ respuestas distintas y la relación explica más filas que la moda de la
 respuesta: entre columnas independientes chicas, sin esas dos condiciones,
 la mitad del cuanto publicaba proporcionalidades espurias. En la lectura, la
 mitad de su cuanto —la resolución de su redondeo,
-como 0,05, 0,25 o 5, y no la potencia de diez de sus decimales; la de al
-menos el 90 \% de sus valores, y un valor fuera de ella cuenta como
-discrepante—, inclusiva, es la tolerancia de
-todas las filas, y \code{k} es la constante con menos cifras que deja casi tantas
-filas dentro de ella como la que más. Si las dos columnas admiten esa
-lectura se usa la de la constante claramente más corta (\code{1.22} y no
-\verb{0.8196...}) y, entre dos constantes cortas, la de la resolución más fina. La
-que la tolerancia relativa reconoce y esa resolución no se descarta y se
-cuenta en \code{meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto}.
+como 0,05, 0,25 o 5, y no la potencia de diez de sus decimales: primero la
+de todos sus valores y, si con esa no alcanza el criterio, la de al
+menos el 90 \%, medidas sobre los valores distintos y sin el cero; un valor
+fuera de ella cuenta como discrepante—, inclusiva, es la tolerancia de
+todas las filas, y \code{k} es la constante en la que cada cifra explica al menos
+una fila más: la de más filas dentro menos cifras —cinco cifras más que
+solo se tragan dos filas rotas de importes grandes no se pagan, y una que
+explica una fila sana sí—, entre las que explican al menos \code{umbral} de las
+filas de la mejor y con al menos una fila por cifra. Gana otra más larga si
+explica casi todas las filas que esa deja a más de dos medios cuantos
+—todas salvo \code{1 - umbral}, y al menos dos— sin perder ninguna de las que
+esa explica, como un tipo de cambio largo contra su truncado. Si las dos
+columnas admiten esa lectura, con soporte las dos y la tolerancia de una el
+doble o más que la de la otra en la misma columna, se comparan con la fina
+—una fila que solo cae adentro con la gruesa no cuenta— y la gruesa gana
+solo si explica más filas y paga sus cifras; si no, la de la constante
+claramente más corta (\code{1.22} y no \verb{0.8196...}), la que tiene soporte, la que
+explica más filas con la tolerancia fina y la de la resolución más fina,
+en ese orden. La
+que la tolerancia relativa reconoce y ninguna resolución explica se descarta,
+se cuenta en \code{meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto}
+y deja una fila en \code{cobertura_diagnosticos} con la relación y el motivo; si
+la resolución de alguna de las dos columnas es compatible con la relación,
+se publica con la tolerancia relativa. Lo mismo vale para una identidad
+descartada por la cota del cuanto. En cualquier camino, una proporcionalidad
+se sostiene en las filas que distinguen \code{k}: tiene que alcanzar el criterio
+en las filas con la base distinta de cero, donde el par de valores más
+repetido pesa a lo sumo \code{1 - umbral_aritmetica} de ellas, y con al menos
+\code{min_filas_aritmetica} filas fuera de ese par cumpliendo —180 filas en cero,
+o en un mismo par, no hacen una relación con las otras 20—. Las filas en
+cero y las del par más repetido no cuentan como cumplimiento más allá de ese
+tope, así que una relación real con muchas de ellas y más de una fila de
+cada diez rota entre las demás no se publica. Una que alcanza el criterio
+sin ese soporte no deja fila de cobertura —en una tabla rala serían una por
+par de columnas— y se cuenta en
+\code{meta$aritmetica_columnas$proporcionalidades_descartadas_soporte}.
 Una columna que varía menos que la tolerancia relativa de su magnitud se
 evalúa con la cota del cuanto cuando la identidad la admite; si no, una fila
 de \code{cobertura_diagnosticos} por columna dice qué relación reconocía la
 tolerancia y por qué no se publicó. \code{meta$aritmetica_columnas} se publica
-cuando hay una relación, un recorte o una relación descartada —por escala o
-por la cota del cuanto—.}
+cuando hay una relación, un recorte o una relación descartada —por escala,
+por la cota del cuanto o por falta de soporte—.}
 
 \item{max_columnas_aritmetica}{Máximo de columnas numéricas que intervienen
 en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es

@@ -173,9 +173,12 @@ bien". \code{hallazgos_sin_accion_por_columna_ambigua} trae los hallazgos medido
 que no produjeron acción porque su columna no se puede identificar: comparte
 nombre con otra y no hay forma de saber sobre cuál actuaría la limpieza —el
 remedio es normalizar los nombres y volver a perfilar—, o no está entre las
-columnas del perfil; el \code{motivo} dice cuál de los dos. Un hallazgo de varias
-columnas —una relación aritmética en \verb{neto,iva,total}, una de orden— no es una
-columna ambigua: lo es sólo si alguna de sus columnas lo es. \code{hallazgos_sin_accion}
+columnas del perfil, o no tiene nombre —una columna llamada \code{NA}—; el
+\code{motivo} dice cuál. Un hallazgo de varias columnas —una relación aritmética en
+\verb{neto,iva,total}, una de orden— no es una columna ambigua: lo es sólo si
+alguna de sus columnas lo es. Sus columnas se leen de la trazabilidad del
+hallazgo y no del texto de \code{columna}: una columna llamada \verb{a,b} no se confunde
+con la relación entre \code{a} y \code{b}. \code{hallazgos_sin_accion}
 trae el resto: los hallazgos que el perfil midió, de una columna
 identificada, de varias o de la tabla, y que ninguna acción del plan atiende
 —porque el plan no tiene una estrategia para ese tipo, o porque la que tiene
@@ -238,7 +241,10 @@ cambiadas y haría mentir a \code{n_cambiadas} por el otro lado.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
 modificar la copia y enumera las filas problemáticas. Una acción que sí está
 lista pero falla se registra con su error y no impide aplicar las siguientes:
-cada una conserva atomicidad sobre su propia columna o tabla. Las acciones
+cada una conserva atomicidad sobre su propia columna o tabla. Una acción de
+nombres preparada para otros nombres —un perfil de otra versión de la tabla,
+con dos \code{x} donde los datos tienen una— es una de esas: queda \code{fallida} con el
+motivo, y en un plan armado con \code{datos} ya sale \code{bloqueada}. Las acciones
 que efectivamente eliminan filas o columnas requieren además
 \code{permitir_eliminacion = TRUE}; una conversión \code{destructiva} requiere selección
 explícita y deja la pérdida cuantificada. Por defecto, el resultado conserva

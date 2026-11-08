@@ -28,11 +28,16 @@
 
 test_that("la columna ambigua se decide igual que por hallazgo", {
   perfil <- .cal_perfil(60L)
-  esperado <- which(!is.na(perfil$hallazgos$columna) & vapply(
+  # Un hallazgo de un tipo de columna con `columna` `NA` es de una columna sin
+  # nombre, y tampoco se puede identificar: va a la misma lista.
+  sin_nombre <- is.na(perfil$hallazgos$columna) &
+    !as.character(perfil$hallazgos$tipo_hallazgo) %in%
+      lupa:::.TIPOS_HALLAZGO_DE_LA_TABLA
+  esperado <- which(sin_nombre | (!is.na(perfil$hallazgos$columna) & vapply(
     perfil$hallazgos$columna,
     function(columna) lupa:::.accion_columna_ambigua(perfil, columna),
     logical(1L)
-  ))
+  )))
   obtenido <- lupa:::.hallazgos_sin_accion_por_columna_ambigua(perfil)
   expect_identical(
     obtenido$columna, as.character(perfil$hallazgos$columna[esperado])
@@ -40,7 +45,7 @@ test_that("la columna ambigua se decide igual que por hallazgo", {
   expect_identical(
     obtenido$hallazgo, as.character(perfil$hallazgos$tipo_hallazgo[esperado])
   )
-  expect_setequal(unique(obtenido$columna), c("a", "no_esta"))
+  expect_setequal(unique(obtenido$columna), c("a", "no_esta", NA))
 })
 
 test_that("los nombres del perfil se normalizan una vez y no por hallazgo", {
