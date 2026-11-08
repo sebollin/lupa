@@ -10176,9 +10176,15 @@
     paste0(columna_sql, " <> ", infinitos[[2L]])
   )
   predicado_finito <- paste(predicados, collapse = " AND ")
+  # La reconstruccion exacta escribe la columna decenas de veces y el resumen de
+  # la relacion finita la vuelve a escribir en cada referencia. Si PostgreSQL
+  # funde las subconsultas, la expresion se multiplica: con un `real`, que ya
+  # llega envuelto en su lectura, el planificador tardaba minutos sobre tres
+  # filas, y `statement_timeout` no lo cortaba. `OFFSET 0` deja la subconsulta
+  # sin fundir.
   tabla_finita <- paste0(
     "(SELECT ", valor_finito, " AS ", columna_alias, " FROM ", tabla_sql,
-    " WHERE ", predicado_finito,
+    " WHERE ", predicado_finito, if (convertir_finitos) " OFFSET 0",
     ")", dialecto$alias_tabla("lupa_finitos")
   )
   interno <- .resumen_columna_dbi(
@@ -11592,6 +11598,18 @@
   resultado
 }
 
+.MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI <- paste(
+  "La magnitud de la columna pide la media escalada, que se calcula en otra",
+  "consulta; bajo la muestra del motor esa consulta sortear\u00eda otra",
+  "muestra, y la media no se publica."
+)
+
+.MOTIVO_DESVIO_ESCALADO_MUESTRA_DBI <- paste(
+  "La magnitud de la columna pide el desv\u00edo escalado, que se calcula en",
+  "otra consulta; bajo la muestra del motor esa consulta sortear\u00eda otra",
+  "muestra, y el desv\u00edo no se publica."
+)
+
 .MOTIVO_MEDIA_DESBORDADA_DBI <- paste(
   "El motor desbord\u00f3 al promediar la columna: la media no se publica como",
   "calculada. M\u00ednimo, m\u00e1ximo y conteos se pidieron en una consulta sin",
@@ -11610,36 +11628,60 @@
   # Y `MIN` en la misma consulta: un `-Inf` queda al PRINCIPIO del orden, y
   # sin el la mediana se calculaba contandolo -ver `.es_infinito_motor_dbi()`-.
   sql <- paste0(
-    "SELECT MAX(", columna_sql, ") AS ", alias("magnitud"),
-    ", MIN(", columna_sql, ") AS ", alias("magnitud_minima"),
-    ", MAX(", .abs_sql_seguro_dbi(conexion, columna_sql), ") AS ",
-    alias("magnitud_maxima_abs"),
-    ", MIN(", .abs_sql_seguro_dbi(conexion, columna_sql), ") AS ",
-    alias("magnitud_minima_abs"),
-    ", COUNT(", columna_sql, ") AS ", alias("magnitud_n_validos"),
+    "SELECT ", paste(
+      .expresiones_sonda_magnitud_dbi(conexion, columna_sql, "magnitud", alias),
+      collapse = ", "
+    ),
     " FROM ", tabla_sql
   )
   consulta <- .consultar_dbi(
     conexion, sql, presupuesto, etapa = "sonda_magnitud"
   )
-  if (!consulta$ok) {
-    resultado <- .adjuntar_medicion_dbi(
-      list(ok = FALSE, valor = NULL, motivo = consulta$motivo), consulta
-    )
-  } else {
-    resultado <- .adjuntar_medicion_dbi(
-      .valor_campo_dbi(consulta$datos, "magnitud"), consulta
-    )
-    minima <- .valor_campo_dbi(consulta$datos, "magnitud_minima")
-    resultado$minimo <- if (isTRUE(minima$ok)) minima$valor else NULL
-    max_abs <- .valor_campo_dbi(consulta$datos, "magnitud_maxima_abs")
-    min_abs <- .valor_campo_dbi(consulta$datos, "magnitud_minima_abs")
-    n_validos <- .valor_campo_dbi(consulta$datos, "magnitud_n_validos")
-    resultado$maximo_abs <- if (isTRUE(max_abs$ok)) max_abs$valor else NULL
-    resultado$minimo_abs <- if (isTRUE(min_abs$ok)) min_abs$valor else NULL
-    resultado$n_validos <- if (isTRUE(n_validos$ok)) n_validos$valor else NULL
-  }
+  resultado <- .leer_sonda_magnitud_dbi(consulta, "magnitud")
   resultado$sql <- sql
+  resultado
+}
+
+# Las expresiones de la sonda de magnitud, con alias `<base>`,
+# `<base>_minima`, `<base>_maxima_abs`, `<base>_minima_abs` y
+# `<base>_n_validos`: la sentencia propia de la sonda y, bajo la muestra del
+# motor, el lote de agregados (ver `.agregados_lote_con_biseccion_dbi()`), que
+# las lleva para que la magnitud y la cuenta salgan de la misma muestra que el
+# desvio.
+.expresiones_sonda_magnitud_dbi <- function(conexion, columna_sql, base,
+                                            alias) {
+  c(
+    paste0("MAX(", columna_sql, ") AS ", alias(base)),
+    paste0("MIN(", columna_sql, ") AS ", alias(paste0(base, "_minima"))),
+    paste0(
+      "MAX(", .abs_sql_seguro_dbi(conexion, columna_sql), ") AS ",
+      alias(paste0(base, "_maxima_abs"))
+    ),
+    paste0(
+      "MIN(", .abs_sql_seguro_dbi(conexion, columna_sql), ") AS ",
+      alias(paste0(base, "_minima_abs"))
+    ),
+    paste0("COUNT(", columna_sql, ") AS ", alias(paste0(base, "_n_validos")))
+  )
+}
+
+.leer_sonda_magnitud_dbi <- function(consulta, base) {
+  if (!isTRUE(consulta$ok)) {
+    return(.adjuntar_medicion_dbi(
+      list(ok = FALSE, valor = NULL, motivo = consulta$motivo), consulta
+    ))
+  }
+  resultado <- .adjuntar_medicion_dbi(
+    .valor_campo_dbi(consulta$datos, base), consulta
+  )
+  minima <- .valor_campo_dbi(consulta$datos, paste0(base, "_minima"))
+  resultado$minimo <- if (isTRUE(minima$ok)) minima$valor else NULL
+  max_abs <- .valor_campo_dbi(consulta$datos, paste0(base, "_maxima_abs"))
+  min_abs <- .valor_campo_dbi(consulta$datos, paste0(base, "_minima_abs"))
+  n_validos <- .valor_campo_dbi(consulta$datos, paste0(base, "_n_validos"))
+  resultado$maximo_abs <- if (isTRUE(max_abs$ok)) max_abs$valor else NULL
+  resultado$minimo_abs <- if (isTRUE(min_abs$ok)) min_abs$valor else NULL
+  resultado$n_validos <- if (isTRUE(n_validos$ok)) n_validos$valor else NULL
   resultado
 }
 
@@ -12572,7 +12614,8 @@
     tabla_total_sql = tabla_sql, columnas_float8_numeric = character(),
     infinitos_como_numeric = FALSE, centros_desvio = NULL,
     tipos_declarados = NULL, ventana_desvio = FALSE,
-    decimales_exactos = NULL, incluir_cuenta = FALSE) {
+    decimales_exactos = NULL, incluir_cuenta = FALSE,
+    incluir_magnitud = FALSE) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -12655,6 +12698,20 @@
       )
     }
   }
+  # Bajo la muestra del motor, la sonda de magnitud viaja aca: su propia
+  # sentencia sorteaba otra muestra, y la cuenta y la magnitud que deciden el
+  # desvio salian de filas que el desvio no habia visto -en SQL Server, con
+  # `metricas = "desvio"`, una sonda vacia publicaba el desvio `no_aplica` con
+  # un lote de 100 valores-. La lee `.resumen_columna_dbi()` en lugar de la
+  # sonda. Con `basicos` no hace falta: los extremos ya vienen en el lote.
+  if (isTRUE(incluir_magnitud) && !"basicos" %in% metricas) {
+    for (i in seq_along(lote)) {
+      if (!isTRUE(es_numerico[[i]])) next
+      alias_por_columna[[i]]$magnitud <- paste0(
+        "lupa_l", numero, "_c", i, "_magnitud"
+      )
+    }
+  }
   # Con esas sumas la media y el desvio del motor no se publican, pero tienen
   # que poder calcularse: en DuckDB `x * 1.0` de un `DECIMAL(38,30)` de 9e7
   # desborda ("Overflow in multiplication of DECIMAL(38)") y tumbaba la
@@ -12711,6 +12768,9 @@
       ),
       if (!is.null(aliases$cuenta)) paste0(
         .contar_no_nulos_sql_dbi(nombres_sql[[campo]], senas), " AS ", aliases$cuenta
+      ),
+      if (!is.null(aliases$magnitud)) .expresiones_sonda_magnitud_dbi(
+        conexion, nombres_sql[[campo]], aliases$magnitud, alias
       ),
       if ("basicos" %in% metricas && es_numerico[[i]]) c(
         if (incluir_valores) paste0(
@@ -12935,6 +12995,12 @@
             .conteo_dbi(celda_total$valor)
           } else NA_real_
         )
+      }
+      base_magnitud <- alias_por_columna[[grupo[[i]]]]$magnitud
+      if (!is.null(base_magnitud) && isTRUE(entrada$consulta$ok)) {
+        magnitud <- .leer_sonda_magnitud_dbi(entrada$consulta, base_magnitud)
+        magnitud$sql <- entrada$sql
+        valores[[i]]$magnitud_lote <- magnitud
       }
       resultado[[campo]] <- valores[[i]]
     }
@@ -13492,7 +13558,8 @@
         tipos_declarados = tipos_por_nombre,
         ventana_desvio = ventana_desvio,
         decimales_exactos = decimales_exactos,
-        incluir_cuenta = TRUE
+        incluir_cuenta = TRUE,
+        incluir_magnitud = identical(universo, "muestra_motor")
       )
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
@@ -13534,8 +13601,12 @@
             (mysql && (length(desvio_consolidado) != 1L ||
                        !is.finite(desvio_consolidado)))
         )
+        # Bajo la muestra del motor la repeticion sortearia otra muestra: el
+        # desvio queda el del lote, y la cuenta del lote dice si faltaban
+        # valores (`.valores_ausentes_por_cuenta_dbi()`).
         if ("desvio" %in% metricas_consulta && desvio_no_utilizable &&
-            isTRUE(resultado$consolidada)) {
+            isTRUE(resultado$consolidada) &&
+            !identical(universo, "muestra_motor")) {
           # El desvio se repite solo, pero las filas que vio la muestra las
           # conto el lote: sin ese denominador, una muestra sin filas no se
           # distingue de una con valores nulos.
@@ -13583,6 +13654,9 @@
         }
         if (!is.null(resultado$cuenta_valores)) {
           agregados$cuentas[[campo]] <- resultado$cuenta_valores
+        }
+        if (!is.null(resultado$magnitud_lote)) {
+          agregados$magnitudes[[campo]] <- resultado$magnitud_lote
         }
         if ("desvio" %in% metricas_planas && !is.null(resultado$desvio)) {
           agregados$desvio[[campo]] <- resultado$desvio
@@ -14796,9 +14870,16 @@
   )
 
   if (necesita_sonda_magnitud) {
-    sondeo <- .sonda_magnitud_columna_dbi(
-      conexion, tabla_sql, columna_sql, alias, presupuesto
-    )
+    # Bajo la muestra del motor, la del lote de agregados: la misma sentencia
+    # que el desvio, la misma muestra. Una sonda propia sorteaba otra.
+    sondeo <- if (es_muestreado && !is.null(agregados) &&
+                  !is.null(agregados$magnitudes[[columna]])) {
+      agregados$magnitudes[[columna]]
+    } else {
+      .sonda_magnitud_columna_dbi(
+        conexion, tabla_sql, columna_sql, alias, presupuesto
+      )
+    }
     if (isTRUE(sondeo$ok)) {
       convertido <- .escalar_finito_dbi(sondeo$valor)
       sonda_nan <- any(vapply(
@@ -14915,7 +14996,15 @@
            (motor_sqlserver && !is.finite(fila$media))) &&
           is.finite(max_abs_previo)) {
         escala_media <- .escala_desvio_dbi(max_abs_previo)
-        if (!is.null(escala_media)) {
+        if (!is.null(escala_media) && es_muestreado) {
+          # El repliegue es otra sentencia, que bajo la muestra del motor
+          # sortearia otra muestra (como el desvio escalado).
+          media_escalada <- list(
+            ok = FALSE, valor = NULL,
+            motivo = .MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI
+          )
+          basicos$datos[["media"]][[1L]] <- NA
+        } else if (!is.null(escala_media)) {
           media_escalada <- .media_columna_escalada_dbi(
             conexion, tabla_sql, columna_sql, alias, escala_media, presupuesto
           )
@@ -15126,7 +15215,13 @@
         escala_media <- .escala_desvio_dbi(
           max_abs_basicos, forzar = !is.finite(fila$media)
         )
-        if (!is.null(escala_media)) {
+        if (!is.null(escala_media) && es_muestreado) {
+          media_escalada <- list(
+            ok = FALSE, valor = NULL,
+            motivo = .MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI
+          )
+          fila$media <- NA_real_
+        } else if (!is.null(escala_media)) {
           media_escalada <- .media_columna_escalada_dbi(
             conexion, tabla_sql, columna_sql, alias, escala_media, presupuesto
           )
@@ -15194,7 +15289,7 @@
       ]
       return(list(
         fila = fila, sql = rbind(previos, finitas$sql),
-        literales = c(literales, finitas$literales)
+        literales = c(literales, finitas$literales), cuenta_no_decide = TRUE
       ))
     }
   }
@@ -15509,12 +15604,21 @@
       # Si los agregados basicos de SQL Server no pudieron representar la
       # magnitud de un FLOAT, tambien se fuerza el repliegue; no hace falta
       # esperar a que una STDEV de una pasada fabrique ruido.
+      # Sin `basicos` no hay extremos ni media que hayan fallado: bajo la
+      # muestra del motor la magnitud es la del lote, y forzar el repliegue
+      # porque faltaban sorteaba otra muestra.
+      extremos_centro <- if (es_muestreado &&
+                             !"basicos" %in% pedidas_numericas) {
+        c(minimo_sondeado, maximo_sondeado)
+      } else {
+        c(fila$minimo, fila$maximo, fila$media)
+      }
       centro_extremo_fallido <- grepl(
         "sql server|microsoft sql|sqlserver|mssql", senas_desvio,
         perl = TRUE, useBytes = TRUE
-      ) && tipo_flotante && any(!is.finite(suppressWarnings(as.numeric(c(
-        fila$minimo, fila$maximo, fila$media
-      )))))
+      ) && tipo_flotante && any(!is.finite(suppressWarnings(as.numeric(
+        extremos_centro
+      ))))
       rango_extremo <- suppressWarnings(as.numeric(fila$maximo)) -
         suppressWarnings(as.numeric(fila$minimo))
       riesgo_extremo_pg <- grepl(
@@ -15545,7 +15649,17 @@
       # `.formas_desvio_dbi()`.
       consolidado <- !is.null(agregados) &&
         !is.null(agregados$desvio[[columna]]) && !forzar_escalado
-      desvio <- if (consolidado) {
+      # El repliegue escalado es otra sentencia: bajo la muestra del motor
+      # sortearia otra muestra -y su escala, otra mas-, y publicaba el desvio
+      # de filas que la corrida no publica, o `no_disponible` si le tocaba una
+      # vacia. Sin el no hay desvio de esta magnitud que publicar.
+      repliegue_otra_muestra <- es_muestreado && forzar_escalado
+      desvio <- if (repliegue_otra_muestra) {
+        list(
+          ok = FALSE, valor = NULL,
+          motivo = .MOTIVO_DESVIO_ESCALADO_MUESTRA_DBI
+        )
+      } else if (consolidado) {
         agregados$desvio[[columna]]
       } else {
         .desvio_columna_dbi(
@@ -15723,7 +15837,16 @@
     )))
   }
 
-  list(fila = fila, sql = do.call(rbind, registros), literales = literales)
+  # La cuenta de los no nulos del lote solo dice cuantos valores usa la metrica
+  # si la magnitud de la columna quedo establecida y es finita. Con `NaN` o
+  # infinitos las magnitudes se decidieron sobre los finitos (o se retuvieron
+  # bajo la muestra); si la sonda fallo o la magnitud quedo desmentida, ya estan
+  # declaradas con su motivo. En esos casos la cuenta no decide
+  # (`.valores_ausentes_por_cuenta_dbi()`): en PostgreSQL 9.3 un `real` con
+  # `Infinity` hace fallar la sonda, y `COUNT(x) = 1` publicaba `no_aplica`.
+  list(fila = fila, sql = do.call(rbind, registros), literales = literales,
+       cuenta_no_decide = isTRUE(infinitos_motor) || isTRUE(nan_motor) ||
+         !isTRUE(magnitud_sondeada) || isTRUE(magnitud_desmentida))
 }
 
 .columnas_dbi_vacias <- function() {
@@ -17083,6 +17206,12 @@
       cuenta <- list(n = exacto$finitos, total = exacto$total)
     }
     if (is.null(cuenta)) next
+    # La cuenta tiene que ser de los valores que usa la metrica, los finitos:
+    # `COUNT(x)` cuenta un `NaN` o un infinito, y con `(NaN, NULL)` publicaba el
+    # desvio `no_aplica` donde no hay ningun valor finito. Esas columnas ya las
+    # decidio la via de los finitos, y las de magnitud sin establecer ya dicen
+    # por que.
+    if (isTRUE(resultados[[i]]$cuenta_no_decide)) next
     sql <- resultados[[i]]$sql
     if (!is.data.frame(sql) || !nrow(sql)) next
     for (metrica in c("minimo", "maximo", "media", "desvio")) {
@@ -17164,9 +17293,13 @@
       valor_exacto <- suppressWarnings(as.numeric(exacto[[metrica]]))
       # Las sumas llegaron y no hay valor porque no alcanzan los valores: lo
       # dice la cuenta de las sumas (`.estado_por_cuenta_dbi()`).
-      decidido <- .estado_por_cuenta_dbi(
-        sql, filas, metrica, exacto$finitos, muestra, exacto$total
-      )
+      # Con `NaN` o infinitos decide la via de los finitos, con su motivo: la
+      # de las sumas diria "no nulos" de una columna que los tiene.
+      decidido <- if (isTRUE(resultados[[i]]$cuenta_no_decide)) NULL else {
+        .estado_por_cuenta_dbi(
+          sql, filas, metrica, exacto$finitos, muestra, exacto$total
+        )
+      }
       if (!is.null(decidido)) {
         resultados[[i]]$fila[[metrica]] <- NA_real_
         resultados[[i]]$sql <- decidido
@@ -17309,7 +17442,8 @@
                                   consultas_decimales = 0L,
                                   consultas_decimales_max =
                                     consultas_decimales,
-                                  n_sondas_magnitud = NULL) {
+                                  n_sondas_magnitud = NULL,
+                                  n_sondas_magnitud_max = n_sondas_magnitud) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -17413,10 +17547,11 @@
           ("mediana" %in% metricas && con_valores))
     ) n_numericas else 0
   }
-  if (n_sondas_magnitud > 0) {
+  if (is.null(n_sondas_magnitud_max)) n_sondas_magnitud_max <- n_sondas_magnitud
+  if (n_sondas_magnitud > 0 || n_sondas_magnitud_max > 0) {
     clases[[length(clases) + 1L]] <- c(
       "sonda de magnitud (MIN)", n_metricas(n_sondas_magnitud),
-      alcance_agregado
+      alcance_agregado, n_metricas(n_sondas_magnitud_max)
     )
   }
   if ("distintos" %in% metricas && n_distintos > 0) {
@@ -17619,6 +17754,14 @@
       pedidas_plan, operacion, declarado, incluir_valores, conservada
     ))
   }, logical(1L)))
+  # Bajo la muestra del motor, con lote de agregados, la sonda viaja en el lote
+  # (ver `.agregados_lote_con_biseccion_dbi()`) y no es una consulta; solo si el
+  # lote no la trae y la columna se pide sola.
+  n_sondas_magnitud_max <- n_sondas_magnitud
+  if (muestra_sql && any(c("validos", "basicos", "desvio") %in%
+                         preparacion$metricas_ejecucion)) {
+    n_sondas_magnitud <- 0
+  }
   .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
@@ -17654,6 +17797,7 @@
     ),
     consultas_decimales = length(lotes_decimales),
     n_sondas_magnitud = n_sondas_magnitud,
+    n_sondas_magnitud_max = n_sondas_magnitud_max,
     consultas_decimales_max = .consultas_maximas_lotes_decimales_dbi(
       lotes_decimales
     )
@@ -23265,6 +23409,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' válidos usa `muestra_inestable:sin_valores_validos`; una capacidad no aceptada
 #' usa `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla completa.
 #'
+#' Con `bloque_muestra = "solo_agregados"` cada sentencia sobre la muestra del
+#' motor sortea la suya. Lo que decide los agregados de una columna -la cuenta
+#' de sus valores, su magnitud, la media y el desvío- sale del lote de
+#' agregados, una sola sentencia: si la magnitud pide la media o el desvío
+#' escalados (valores de más de `1e150` o de menos de `1e-150` en valor
+#' absoluto), no se recalculan en otra consulta, que sortearía otra muestra, y
+#' quedan `no_disponible` con su motivo. La moda, la mediana y los distintos se
+#' calculan cada uno en su sentencia, sobre su propia muestra; las cotas de la
+#' moda y de los distintos se comprueban dentro de esa sentencia (ver el
+#' `consulta_id`). Con `"con_muestra"` todo sale de la única muestra
+#' materializada en el spool.
+#'
 #' Un estado que afirma un valor (`calculado`, `estimado`, `observado_muestra`)
 #' nunca se publica con el valor ausente. Si el valor falta, el registro dice
 #' por qué: `sin_valores` cuando la columna no tiene valores no nulos en la
@@ -23771,7 +23927,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' etapa `sonda_magnitud`. Si la sonda no entra en `max_consultas`, las métricas
 #' dependientes quedan `no_disponible` con el motivo del presupuesto. Cuando
 #' `incluir_valores = FALSE`, el motivo no publica el valor que devolvió el
-#' motor.
+#' motor. Bajo `universo = "muestra_motor"` con `bloque_muestra =
+#' "solo_agregados"`, si se pide también `validos` o `desvio`, la sonda no es
+#' una consulta aparte: va en el lote de agregados, la misma sentencia y la
+#' misma muestra que el desvío, y su fila `sonda_magnitud` comparte el
+#' `consulta_id` del lote.
 #' La proyección temporal no usa esos agregados planos: si hay más de un lote y
 #' `instrumentar = TRUE`, se mide el primer lote de distintos y, después de
 #' ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso

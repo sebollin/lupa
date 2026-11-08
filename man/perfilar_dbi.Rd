@@ -792,6 +792,18 @@ cero ni se dispara la cascada \code{sin_valores}. Una muestra no vacía sin valo
 válidos usa \code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada
 usa \code{capacidad_no_aceptada:...}. \code{n} conserva el conteo de la tabla completa.
 
+Con \code{bloque_muestra = "solo_agregados"} cada sentencia sobre la muestra del
+motor sortea la suya. Lo que decide los agregados de una columna -la cuenta
+de sus valores, su magnitud, la media y el desvío- sale del lote de
+agregados, una sola sentencia: si la magnitud pide la media o el desvío
+escalados (valores de más de \code{1e150} o de menos de \code{1e-150} en valor
+absoluto), no se recalculan en otra consulta, que sortearía otra muestra, y
+quedan \code{no_disponible} con su motivo. La moda, la mediana y los distintos se
+calculan cada uno en su sentencia, sobre su propia muestra; las cotas de la
+moda y de los distintos se comprueban dentro de esa sentencia (ver el
+\code{consulta_id}). Con \code{"con_muestra"} todo sale de la única muestra
+materializada en el spool.
+
 Un estado que afirma un valor (\code{calculado}, \code{estimado}, \code{observado_muestra})
 nunca se publica con el valor ausente. Si el valor falta, el registro dice
 por qué: \code{sin_valores} cuando la columna no tiene valores no nulos en la
@@ -1306,7 +1318,10 @@ esquema expone como numérica paga además una sonda propia de magnitud. Usa
 etapa \code{sonda_magnitud}. Si la sonda no entra en \code{max_consultas}, las métricas
 dependientes quedan \code{no_disponible} con el motivo del presupuesto. Cuando
 \code{incluir_valores = FALSE}, el motivo no publica el valor que devolvió el
-motor.
+motor. Bajo \code{universo = "muestra_motor"} con \code{bloque_muestra = "solo_agregados"}, si se pide también \code{validos} o \code{desvio}, la sonda no es
+una consulta aparte: va en el lote de agregados, la misma sentencia y la
+misma muestra que el desvío, y su fila \code{sonda_magnitud} comparte el
+\code{consulta_id} del lote.
 La proyección temporal no usa esos agregados planos: si hay más de un lote y
 \code{instrumentar = TRUE}, se mide el primer lote de distintos y, después de
 ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso

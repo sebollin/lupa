@@ -744,6 +744,30 @@ Primera versión publicada.
   tabla sin filas publicaba `n_validos`, `n_faltantes` y `n_distintos` en cero
   como `observado_muestra`; ahora, como una muestra vacía de una tabla con
   filas, `no_disponible` con `muestra_vacia:<método>`.
+- La cuenta que decide si hay valores es la de los valores finitos, los que usan
+  las métricas de magnitud. Sin `validos` en `metricas`, una columna de
+  PostgreSQL con `(NaN, NULL)` publicaba el desvío `no_aplica` mientras el
+  mínimo, el máximo y la media decían `sin_valores`, y un `numeric` sólo `NaN`
+  decía «La columna no contiene valores no nulos», que es falso. Ahora la
+  columna que mostró `NaN` o infinitos la decide la vía de los valores finitos,
+  con su motivo, y si la magnitud no se pudo establecer queda declarada con ese
+  motivo.
+- Una columna `real` de PostgreSQL con `NaN` o infinitos ya no deja una sentencia
+  girando: la expresión exacta de los valores finitos se multiplicaba al fundirse
+  las subconsultas, y el planificador tardaba minutos aun sobre tres filas, sin
+  atender a `statement_timeout`.
+- Con `universo = "muestra_motor"` y `bloque_muestra = "solo_agregados"`, cada
+  sentencia sortea su muestra, y lo que decidía los agregados de una columna
+  podía salir de otra. La sonda de magnitud era una consulta propia: si le tocaba
+  una muestra vacía, el desvío se publicaba `no_aplica` con un lote de cien
+  valores. En SQL Server, con `metricas = "desvio"`, cada columna de coma
+  flotante forzaba un repliegue que sorteaba otra muestra: publicaba el desvío de
+  filas que la corrida no publica, o `no_disponible`. Ahora la magnitud viaja en
+  el lote de agregados, la misma sentencia que el desvío, y
+  `plan_perfilado_dbi()` ya no la cuenta aparte. Bajo la muestra no hay repliegue
+  escalado de la media ni del desvío: una columna con valores de más de 1e150 o
+  de menos de 1e-150 en valor absoluto queda `no_disponible` con su motivo, en
+  lugar de publicar el valor de otra muestra.
 - En MySQL y MariaDB, con `metricas = "desvio"`, una tabla sin filas por la
   muestra del motor publicaba el desvío `no_aplica` («requiere al menos dos
   valores»): al pedirse el desvío solo, la consulta perdía el total del lote.
