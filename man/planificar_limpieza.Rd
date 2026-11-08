@@ -19,7 +19,9 @@ plan. El objeto recibido no se modifica.}
 concordantes por valor determinante para proponer una imputación.}
 
 \item{plan}{Objeto de clase \code{plan_limpieza} o data frame con el mismo
-contrato. Puede filtrarse y editarse antes de aplicarlo.}
+contrato. Puede filtrarse y editarse antes de aplicarlo; una acción cuyos
+parámetros no son la lista con nombres que propone el plan —un vector,
+\code{NULL}— queda \code{fallida} con ese motivo.}
 
 \item{permitir_eliminacion}{Segundo consentimiento obligatorio para ejecutar
 acciones que eliminan filas o columnas. Sin él, una acción eliminatoria

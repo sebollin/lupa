@@ -135,3 +135,20 @@ test_that("unos parametros que no son una lista fallan con un motivo del dominio
   expect_false(grepl("operator", error, fixed = TRUE))
   expect_identical(r$datos$x, d$x)
 })
+
+test_that("unos parametros borrados fallan con el motivo del dominio", {
+  d <- data.frame(x = c(1:19, 100))
+  p <- perfilar(d, analizar_dependencias = FALSE,
+                fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  pl <- planificar_limpieza(p, datos = d)
+  i <- which(pl$estrategia == "marcar_outliers")[[1L]]
+  pl$parametros[i] <- list(NULL)
+  pl$aplicar[i] <- TRUE
+  r <- aplicar(pl, d)
+  registro <- as.data.frame(r$registro)
+  error <- registro$error[registro$estrategia == "marcar_outliers"]
+  expect_identical(registro$estado[registro$estrategia == "marcar_outliers"], "fallida")
+  expect_match(error, "no tienen la forma que la acci", fixed = TRUE)
+  expect_false(grepl("longitud cero", error, fixed = TRUE))
+  expect_identical(r$datos$x, d$x)
+})

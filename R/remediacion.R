@@ -1587,7 +1587,9 @@
 #' @param soporte_minimo_dependencia Cantidad mínima de observaciones
 #'   concordantes por valor determinante para proponer una imputación.
 #' @param plan Objeto de clase `plan_limpieza` o data frame con el mismo
-#'   contrato. Puede filtrarse y editarse antes de aplicarlo.
+#'   contrato. Puede filtrarse y editarse antes de aplicarlo; una acción cuyos
+#'   parámetros no son la lista con nombres que propone el plan —un vector,
+#'   `NULL`— queda `fallida` con ese motivo.
 #' @param datos `data.frame`, `tibble` o `data.table` sobre el que se ejecuta el
 #'   plan. El objeto recibido no se modifica.
 #'
@@ -4731,6 +4733,16 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .motivo_parametros_accion <- function(accion) {
   parametros <- accion$parametros[[1L]]
+  # Un plan con `parametros[i] <- list(NULL)` dejaba en el registro el error
+  # interno de R, "argumento tiene longitud cero". Una lista vacia, en cambio,
+  # es legitima: es la de las acciones que no llevan parametros.
+  if (is.null(parametros)) {
+    return(paste0(
+      "Los par\u00e1metros de la acci\u00f3n `", accion$estrategia[[1L]],
+      "` no tienen la forma que la acci\u00f3n espera: una lista con nombres, ",
+      "como la que propone el plan; recibi\u00f3 `NULL`."
+    ))
+  }
   if (!length(parametros)) return(NULL)
   # Los parametros de una accion son una lista con nombres. Un plan editado con
   # `parametros[[i]] <- c(-9999)` fallaba con el mensaje interno de R, "$

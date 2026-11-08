@@ -503,9 +503,8 @@ test_that("una rota suelta no paga la cifra de mas", {
   r <- prop_de(data.frame(cant = cant, pesos = pesos))
   expect_length(r$h, 1L)
   expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, 20L)
-  # Y el empate sigue siendo de la larga cuando sus filas de mas son las mayores
-  # y la corta no es exacta: la lectura reciproca de `y = round(0.18 * x, 2)`
-  # con x en medios explica la fila mas grande con `5.555555` y no con `5.55556`.
+  # Y la lectura reciproca de `y = round(0.18 * x, 2)` con x en medios explica
+  # todas las filas, la mas grande tambien, con `1/0.18`, la forma corta.
   j <- c(75369, 77223, 2853, 241, 3775, 594146, 27051, 77, 31233, 1924, 2749,
          155791, 72, 36043, 475983, 2420, 5734, 114651, 713, 136, 325, 126114,
          10505, 399, 202279, 2708, 65611, 152284, 8378, 926625)
@@ -514,7 +513,7 @@ test_that("una rota suelta no paga la cifra de mas", {
   expect_true(all(abs(100 * y_cent - 18 * x_cent) <= 50))
   k <- lupa:::.constante_por_intervalos_aritmetica(y_cent / 100, x_cent / 100,
                                                     0.25, 1 / 0.18)
-  expect_identical(attr(k, "cifras"), 7L)
+  expect_identical(attr(k, "reciproca"), 0.18)
   expect_true(all(abs(x_cent / 100 - (y_cent / 100) * as.vector(k)) <= 0.25))
 })
 
@@ -572,5 +571,150 @@ test_that("el empate paga una fila grande aunque no sea la mayor", {
   expect_identical(rotas, c(7L, 10L, 15L))
   r <- prop_de(data.frame(x = x_cent / 100, y = y_cent / 100))
   expect_length(r$h, 1L)
+  expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rotas)
+})
+
+test_that("la reciproca corta y exacta gana al decimal truncado", {
+  # y = round(x / 7, 2) con x = 1:20: `1/7` explica las 20 filas con medio
+  # centavo y `0.143` -tres cifras- dejaba afuera la 12 y la 19, sanas. En
+  # centavos, |7 * y_cent - 100 * x| <= 3.5 es |y - x / 7| <= 0.005.
+  x <- 1:20
+  y_cent <- (100 * x + 3) %/% 7
+  y_cent <- ifelse(abs(7 * (y_cent + 1) - 100 * x) < abs(7 * y_cent - 100 * x),
+                   y_cent + 1, y_cent)
+  expect_true(all(abs(7 * y_cent - 100 * x) <= 3.5))
+  r <- prop_de(data.frame(x = x, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x / 7 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+  # Un tercio con una sola fila grande: `1/3` y no `0.3334`, que acusaba la
+  # grande sana; y con la grande corrida, se la acusa.
+  x <- c(1:19, 1e6)
+  y_cent <- (100 * x + 1) %/% 3
+  expect_true(all(abs(3 * y_cent - 100 * x) <= 1.5))
+  r <- prop_de(data.frame(x = x, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x / 3 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+  y_cent[20] <- 33340000
+  r <- prop_de(data.frame(x = x, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, 20L)
+})
+
+test_that("un redondeo al par en el medio cuanto no se acusa", {
+  # y = round(0.9 * x) en enteros: R redondea al par, y las filas 5, 15, 25,
+  # 35 y 45 quedan a 0,5 exacto de 0.9 * x, en el borde inclusivo. La lectura
+  # de x, apenas mas fina, las dejaba a 0,56 y `x ~= y * 1.11` las acusaba.
+  x <- 1:50
+  y <- round(0.9 * x)
+  expect_true(all(abs(10 * y - 9 * x) <= 5))
+  expect_identical(which(abs(10 * y - 9 * x) == 5), c(5L, 15L, 25L, 35L, 45L))
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x * 0.9 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+})
+
+test_that("una reciproca corta que no alcanza el criterio no compite", {
+  # y = round(0.012345 * x, 2) con x de 100 a 1000 y tres rotas: `1/81` -dos
+  # cifras y la division- explicaba 25 de 30 y le ganaba por cifras a
+  # `0.012345`, que explica las 27 sanas, y la relacion se callaba.
+  x_cent <- c(68140, 40056, 70453, 41450, 40984, 16081, 20666, 20036, 93120,
+              88706, 21520, 14035, 52223, 11182, 98709, 88285, 59523, 89797,
+              28458, 43822, 73222, 61617, 36627, 74087, 97931, 40595, 58702,
+              23566, 63492, 12749)
+  y_cent <- c(841, 494, 870, 512, 506, 199, 255, 247, 1150, 1095, 266, 173, 645,
+              141, 1219, 1090, 735, 1109, 351, 541, 904, 764, 452, 915, 1212,
+              501, 725, 291, 784, 157)
+  rotas <- which(abs(200000 * y_cent - 2469 * x_cent) > 100000)
+  expect_identical(rotas, c(14L, 22L, 25L))
+  r <- prop_de(data.frame(x = x_cent / 100, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rotas)
+})
+
+test_that("con la redondeada en la lectura gruesa, la banda no se acusa", {
+  # y = round(x / 1.105) en enteros: la tolerancia de `y` -0,5- es un 10 % mas
+  # ancha que la de `x` llevada a `y`, y uno de cada diez residuos cae entre
+  # las dos. Contadas con la de `x`, `x ~= y * 1.105` acusaba las cinco filas
+  # sanas de esa banda. En enteros: |221 * y - 200 * x| <= 110,5, y la banda
+  # es |221 * y - 200 * x| > 100.
+  x <- c(834, 1899, 697, 207, 715, 889, 1833, 1749, 1246, 1095, 1527, 1427,
+         387, 1830, 826, 943, 821, 844, 1552, 1946, 997, 128, 1563, 457, 982,
+         732, 1866, 1109, 1146, 474, 1843, 1649, 950, 1208, 92, 269, 1487, 1431,
+         235, 1078, 942, 146, 1488, 1216, 665, 394, 810, 512, 628, 248)
+  y <- (400 * x + 221) %/% 442
+  expect_true(all(2 * abs(221 * y - 200 * x) <= 221))
+  expect_identical(which(abs(221 * y - 200 * x) > 100),
+                   c(6L, 15L, 19L, 23L, 41L))
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x / 1.105 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+  # Lo mismo con 1,22 y la base de 11 a casi un millon: la banda es
+  # |61 * y - 50 * x| > 25, y `x ~= y * 1.22` la acusaba.
+  x <- c(8070, 191, 245708, 257936, 864318, 32, 12413, 33394, 55, 284481, 65,
+         41, 772297, 13663, 12, 139901, 987160, 219017, 965, 479964, 421,
+         728178, 6501, 7882, 132878, 98, 12444, 133, 13, 60607, 15516, 19,
+         23388, 28690, 53229, 42, 57, 77, 11, 14755, 731, 245, 73, 104, 129,
+         185, 71, 405867, 533, 27)
+  y <- (100 * x + 61) %/% 122
+  expect_true(all(2 * abs(61 * y - 50 * x) <= 61))
+  expect_identical(which(abs(61 * y - 50 * x) > 25), c(2L, 17L, 32L, 33L, 36L))
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x / 1.22 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+  # Y con 1,18 y `x` de 1 a 100: la lectura de `x` leia `1/0.8466`, una cifra
+  # mas que `1/1.18`, y con esa constante la banda parecia de filas rotas.
+  x <- c(63, 84, 65, 52, 64, 94, 33, 1, 36, 1, 48, 67, 26, 100, 85, 49,
+         50, 45, 10, 53, 72, 28, 24, 56, 71, 83, 49, 5, 12, 19, 65, 84,
+         48, 85, 37, 5, 56, 98, 8, 22, 47, 19, 5, 90, 57, 73, 55, 7,
+         82, 34)
+  y <- (100 * x + 59) %/% 118
+  expect_true(all(2 * abs(59 * y - 50 * x) <= 59))
+  expect_identical(which(abs(59 * y - 50 * x) > 25),
+                   c(9L, 16L, 19L, 24L, 27L, 37L, 49L))
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x / 1.18 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+})
+
+test_that("una banda rala sin rotas cerca es redondeo y no se acusa", {
+  # y = round(x / 1.09) sobre 300 enteros de 10 a un millon. La banda
+  # -|109 * y - 100 * x| > 50- junta 10 filas contra unas 25 esperadas, y
+  # ninguna fila cae justo afuera de la ventana de `y`: son residuos del
+  # redondeo, no rotas. Pedir la mitad de las esperadas acusaba las 10.
+  set.seed(161)
+  x <- round(exp(stats::runif(300, log(10), log(1e6))))
+  y <- (200 * x + 109) %/% 218
+  expect_true(all(2 * abs(109 * y - 100 * x) <= 109))
+  expect_identical(sum(abs(109 * y - 100 * x) > 50), 10L)
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x / 1.09 ", fixed = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+})
+
+test_that("una corta exacta no la gana una reciproca que traga rotas", {
+  # x en medios e y = 0.18 * x exacto a centavos, con las tres mayores corridas
+  # 3 centavos. `1/5.555` -cuatro cifras- se tragaba las tres y le ganaba por
+  # un punto a `0.18`, que las acusa: una corta exacta no es un truncado.
+  x_cent <- c(99950, 54950, 76850, 69250, 24300, 44800, 76500, 69750, 27600,
+              19350, 65750, 73400, 51950, 84500, 62950, 18800, 92550, 43750,
+              42700, 63650, 43600, 81050, 71850, 73100, 44100, 45850, 60900,
+              61800, 10450, 30450)
+  y_cent <- c(17994, 9891, 13833, 12465, 4374, 8064, 13770, 12555, 4968, 3483,
+              11835, 13212, 9351, 15213, 11331, 3384, 16662, 7875, 7686, 11457,
+              7848, 14589, 12933, 13158, 7938, 8253, 10962, 11124, 1881, 5481)
+  expect_true(all(x_cent %% 50 == 0))
+  rotas <- which(100 * y_cent != 18 * x_cent)
+  expect_identical(rotas, c(1L, 14L, 17L))
+  expect_identical(sort(order(-x_cent)[1:3]), rotas)
+  r <- prop_de(data.frame(x = x_cent / 100, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x * 0.18 ", fixed = TRUE)
   expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rotas)
 })

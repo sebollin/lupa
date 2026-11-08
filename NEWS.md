@@ -277,6 +277,18 @@ Primera versión publicada.
   que alcanza el criterio sin ese soporte se cuenta en
   `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`, también
   cuando una identidad entre las mismas columnas la vuelve redundante.
+- Una relación cuya constante es la inversa de un número corto se lee con la
+  división: `y = round(x / 7, 2)` se publica `y ~= x / 7` y no `y ~= x * 0.143`,
+  que acusaba dos filas sanas, y `y = round(x / 3, 2)` con una sola fila grande,
+  `y ~= x / 3` y no `0.3334`, que acusaba la grande sana o callaba la rota. La
+  recíproca cuesta las cifras de su forma corta. Con las tolerancias de las dos
+  lecturas parecidas, `y = round(x / 1.105)` en enteros se lee `y ~= x / 1.105`
+  y no `x ~= y * 1.105`, que acusaba las filas sanas cuyo residuo cae entre las
+  dos tolerancias (lo mismo con 1,09, 1,18 y 1,22), y `y = round(0.9 * x)` en
+  enteros, `y ~= x * 0.9`: las filas que R redondea al par quedan en el medio
+  cuanto y no se acusan. En magnitudes angostas los datos pueden no distinguir
+  una constante larga de una recíproca corta (`0.012345` de `1/81`): gana la
+  corta y puede acusar una fila sana.
 - Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
   `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
   la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna
@@ -292,8 +304,8 @@ Primera versión publicada.
   entre `a` y `b` ya no se confunde con una columna llamada `a,b`; un hallazgo
   de una columna sin nombre ya no se llama «de la tabla», y uno de varias
   columnas con una sin nombre va a la lista de columnas no identificables. Una
-  acción cuyos parámetros no tienen la forma que espera queda `fallida` con ese
-  motivo, no con un error de R.
+  acción cuyos parámetros no tienen la forma que espera —un vector, `NULL`—
+  queda `fallida` con ese motivo, no con un error de R.
 - Toda acción del plan sobre una columna que no está en los datos, y las de
   `columnas_duplicadas` cuando una columna del grupo no está en el perfil, quedan
   `bloqueada` con el motivo: con un perfil de otra versión de la tabla salían

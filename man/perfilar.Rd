@@ -829,11 +829,20 @@ todas las filas, y \code{k} es la constante en la que cada cifra explica al meno
 una fila más: la de más filas dentro menos cifras —cinco cifras más que
 solo se tragan dos filas rotas de importes grandes no se pagan, y una que
 explica una fila sana sí—, entre las que explican al menos \code{umbral} de las
-filas de la mejor y con al menos una fila por cifra. En un empate gana la
+filas de la mejor y con al menos una fila por cifra. La recíproca corta
+también es una constante corta: \verb{y ~= x / 7} cuesta la cifra del 7, como
+\code{k} cuesta las suyas, y le gana a \code{0.143}, que dejaba afuera filas sanas;
+con costos iguales gana la forma directa, y una recíproca que termina se
+escribe como ese decimal (\code{1/0.4} es \code{2.5}). En un empate gana la
 más larga solo si las filas que agrega están en el cuarto de mayor
-magnitud de las que explica y la corta no explica exactas las suyas: un
+magnitud de las que explica, no pierde ninguna de las de la corta, y la
+corta no explica exactas las suyas: un
 truncado falla primero las filas grandes, y una fila rota en el medio no
-compra una cifra. Entre los
+compra una cifra. Una que explica más filas que otra igual de corta o más
+y pierde algunas de las de esa paga dos veces cada fila que pierde. Y una
+corta que explica exactas todas sus filas no la gana ninguna más larga que
+las contiene: con \code{y = 0.18 * x} exacto, \code{1/5.555} se tragaba tres rotas
+grandes. Entre los
 decimales del mismo largo, el que deja más filas justo en el empate del
 redondeo y después el más cercano a la constante de mínimos cuadrados
 (\code{0.0725} y no \code{0.0724} en \code{round(cant * 0.0725, 2)}). Gana otra más larga
@@ -843,10 +852,24 @@ esa explica, como un tipo de cambio largo contra su truncado. Si las dos
 columnas admiten esa lectura, con soporte las dos y la tolerancia de una el
 doble o más que la de la otra en la misma columna, se comparan con la fina
 —una fila que solo cae adentro con la gruesa no cuenta— y la gruesa gana
-solo si explica más filas y paga sus cifras, contadas en la fina; si no, la
-de la constante claramente más corta (\code{1.22} y no \verb{0.8196...}), la que tiene
-soporte, la que explica más filas con la tolerancia fina pagando sus
-cifras, y la de la resolución más fina, en ese orden. La
+solo si explica más filas y paga sus cifras, contadas en la fina —las de
+su forma corta, directa o recíproca—; si no, la de la constante claramente
+más corta (\code{1.22} y no \verb{0.8196...}), la que tiene soporte —con cotas
+parecidas, contado en las filas que la gruesa explica con la fina—, la que
+explica más filas pagando sus cifras y la de la resolución más fina, en ese
+orden. Con cotas
+parecidas, cada una cuenta las filas que explica con su propia tolerancia,
+salvo la franja entre las dos: ahí la gruesa cuenta sólo si su redondeo la
+explica mejor que las rotas que caen justo afuera de su ventana, medidas
+con la constante de más cifras de las dos —en
+\code{y = round(x / 1.105)} en enteros la franja es redondeo de \code{y}, uno de cada
+diez residuos, y \verb{x ~= y * 1.105} la acusaba; en \code{y = round(1.22 * x)} con
+rotas por una unidad, la fila de la franja es una rota más—; las filas
+fuera de la retícula de alguna de las dos no cuentan para ninguna, y en la
+gruesa cuentan como explicadas las que caen justo en su medio cuanto, un
+empate del redondeo: \code{y = round(0.9 * x)} se lee \verb{y ~= x * 0.9} sin acusar
+las filas que R redondea al par. Con todo igual, la de menos cifras, la que
+acusa más y la directa (\verb{y ~= x * 3.75} y no \verb{x ~= y / 3.75}). La
 que la tolerancia relativa reconoce y ninguna resolución explica se descarta,
 se cuenta en \code{meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto}
 y deja una fila en \code{cobertura_diagnosticos} con la relación y el motivo; si

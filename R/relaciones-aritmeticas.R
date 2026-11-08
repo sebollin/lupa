@@ -1062,6 +1062,7 @@
     aplica = TRUE, alcanza = TRUE,
     constante = as.vector(constante),
     cifras = attr(constante, "cifras", exact = TRUE),
+    reciproca = attr(constante, "reciproca", exact = TRUE),
     mediana = mediana, esperado = esperado, cumple = cumple, cota = cota,
     cuanto = cuanto$cuanto, utilizables = utilizables,
     relativa_maxima = max(tolerancia * pmax(1, abs(r), abs(esperado_mediana)))
@@ -1106,8 +1107,15 @@
   # Un tramo con 17 filas menos que el mejor no le gana con ninguna cifra, y
   # uno que no explica `umbral` de las filas del mejor no es la constante de la
   # relacion: con cuatro filas, una sola con `k = 5` "ganaba" por cifras.
-  tramos <- which(conteo >= max(max(conteo) - 16L, umbral * max(conteo)) &
-                    conteo > 0L)
+  # Y si alguno alcanza el criterio en las filas del barrido, solo compiten los
+  # que lo alcanzan: con `y = round(x * 0.012345, 2)` sobre x de 100 a 1000,
+  # `1/81` -dos cifras y la division- explicaba 25 de 30 y le ganaba por
+  # cifras a `0.012345`, que explicaba las 27 sanas, y la relacion se callaba.
+  piso <- max(max(conteo) - 16L, umbral * max(conteo))
+  if (max(conteo) >= umbral * length(base)) {
+    piso <- max(piso, umbral * length(base) - 1e-9)
+  }
+  tramos <- which(conteo >= piso & conteo > 0L)
   tramos <- tramos[tramos < length(puntos)]
   inferior <- puntos[tramos]
   superior <- puntos[tramos + 1L]
@@ -1117,10 +1125,27 @@
     corta <- signif(centro, k)
     cifras[corta >= inferior & corta <= superior] <- k
   }
+  # **La reciproca corta tambien es una constante corta.** `y = round(x / 7, 2)`
+  # cabe en `0.142857...`, que en decimal tiene seis cifras, y `0.143` -tres,
+  # dos sanas afuera- le ganaba; `1/3` perdia contra `0.3334`, que acusaba la
+  # fila grande sana. Cada tramo ofrece tambien el decimal mas corto `c` con
+  # `1/c` adentro, y cuesta las cifras de `c`, como `k` cuesta las suyas; con
+  # costos iguales gana la forma directa.
+  cifras_reciproca <- rep(17L, length(tramos))
+  for (k in 15:1) {
+    corta <- signif(1 / centro, k)
+    recuperada <- 1 / corta
+    cifras_reciproca[is.finite(recuperada) & recuperada >= inferior &
+                       recuperada <= superior] <- k
+  }
+  reciproca <- cifras_reciproca < cifras
+  forma_reciproca <- signif(1 / centro, pmin(cifras_reciproca, 15L))
+  cifras <- pmin(cifras, cifras_reciproca)
   distancia <- pmax(0, inferior - referencia, referencia - superior)
   puntaje <- conteo[tramos] - cifras
   preferencia <- .orden_por_bytes(-puntaje, -conteo[tramos], cifras, distancia)
-  constantes <- ifelse(cifras <= 15L, signif(centro, cifras), centro)
+  constantes <- ifelse(reciproca, 1 / forma_reciproca,
+                       ifelse(cifras <= 15L, signif(centro, cifras), centro))
   elegido <- preferencia[[1L]]
   # **El empate se lo lleva la mas larga solo si sus filas de mas son las de
   # mayor magnitud.** Una constante truncada falla primero las filas de mayor
@@ -1144,11 +1169,14 @@
     # truncada, cual de las filas grandes cae justo afuera depende de su
     # residuo, y `0.01235` dejaba afuera la tercera de 27 que `0.012347`
     # explica. La fila 5 de 20, o la 25 de 50, quedan en el medio.
+    # Y sin perder ninguna de las que explica la corta: la constante entera
+    # explica todo lo que explica su truncado. `1/81.004` explicaba dos rotas
+    # grandes mas que `0.012345` y perdia una sana.
     paga <- function(j) {
       if (j == corta || exacta) return(FALSE)
       cubre <- abs(respuesta - base * constantes[[j]]) <= holgura
       gana <- cubre & !cubre_corta
-      if (!any(gana)) return(FALSE)
+      if (!any(gana) || any(cubre_corta & !cubre)) return(FALSE)
       min(abs(base[gana])) >=
         stats::quantile(abs(base[cubre]), 0.75, names = FALSE, type = 1)
     }
@@ -1156,6 +1184,25 @@
     elegido <- if (length(largas)) {
       largas[[which.min(match(largas, preferencia))]]
     } else corta
+  }
+  # **Una que explica mas filas que otra igual de corta o mas, y pierde algunas
+  # de las de esa, paga dos veces cada fila que pierde.** Una constante que se
+  # corre para tragarse filas rotas deja afuera sanas que la verdadera explica;
+  # la entera de un truncado no pierde ninguna. `1/81.004` explicaba dos rotas
+  # grandes mas que `0.012345` y perdia una sana: le ganaba por una fila, con
+  # las mismas cinco cifras.
+  repeat {
+    cubre_elegida <- abs(respuesta - base * constantes[[elegido]]) <= holgura
+    rivales <- which(cifras <= cifras[[elegido]] &
+                       conteo[tramos] < conteo[tramos][[elegido]])
+    gana_rival <- vapply(rivales, function(j) {
+      pierde <- sum(abs(respuesta - base * constantes[[j]]) <= holgura &
+                      !cubre_elegida)
+      pierde > 0 && puntaje[[elegido]] - puntaje[[j]] <= pierde
+    }, logical(1L))
+    if (!any(gana_rival)) break
+    rivales <- rivales[gana_rival]
+    elegido <- rivales[[which.min(match(rivales, preferencia))]]
   }
   # Salvo que otra explique casi todas las filas que la elegida deja lejos -a
   # mas de dos medios cuantos, fuera de su ventana por otra ventana entera-:
@@ -1186,8 +1233,42 @@
     if (!length(candidatos)) break
     elegido <- candidatos[[which.min(match(candidatos, preferencia))]]
   }
+  # **Una corta que explica exactas todas sus filas no la gana una mas larga
+  # que las contiene**, ni por puntaje ni por las lejanas: un truncado no deja
+  # residuos cero, y lo que la larga agrega son rotas. Con x en medios e
+  # `y = 0.18 * x` exacto a centavos, `1/5.555` -cuatro cifras- se tragaba las
+  # tres rotas grandes y le ganaba por un punto a `0.18`, que las acusa.
+  cubre_elegida <- abs(respuesta - base * constantes[[elegido]]) <= holgura
+  exacta_contenida <- vapply(seq_along(tramos), function(j) {
+    if (cifras[[j]] >= cifras[[elegido]]) return(FALSE)
+    desvio_j <- abs(respuesta - base * constantes[[j]])
+    cubre_j <- desvio_j <= holgura
+    any(cubre_j) && !any(cubre_j & !cubre_elegida) &&
+      all(desvio_j[cubre_j] <= 8 * .Machine$double.eps *
+            pmax(1, abs(respuesta[cubre_j]),
+                 abs(base[cubre_j] * constantes[[j]])))
+  }, logical(1L))
+  if (any(exacta_contenida)) {
+    exactas <- which(exacta_contenida)
+    elegido <- exactas[[which.min(match(exactas, preferencia))]]
+  }
   # El centro del tramo lo fijan las filas de los extremos; los minimos
   # cuadrados de las filas que explica, todas.
+  if (reciproca[[elegido]]) {
+    # Salvo que la reciproca termine: `1/0.4` es `2.5`, y `resp ~= base / 0.4`
+    # dice lo mismo que `resp ~= base * 2.5` con una division de mas. Hasta
+    # doce cifras, y que su reciproca devuelva `0.4`: con quince, `1/1.22`
+    # coincide por azar con su redondeo.
+    valor <- constantes[[elegido]]
+    termina <- which(signif(valor, 1:12) == valor &
+                       1 / signif(valor, 1:12) == forma_reciproca[[elegido]])
+    if (length(termina)) {
+      return(structure(signif(valor, termina[[1L]]),
+                       cifras = cifras[[elegido]]))
+    }
+    return(structure(constantes[[elegido]], cifras = cifras[[elegido]],
+                     reciproca = forma_reciproca[[elegido]]))
+  }
   cubre <- abs(respuesta - base * constantes[[elegido]]) <= holgura
   centrada <- sum(respuesta[cubre] * base[cubre]) / sum(base[cubre]^2)
   if (!is.finite(centrada)) centrada <- constantes[[elegido]]
@@ -1232,8 +1313,9 @@
   if (length(valor) == 1L) return(valor)
   empates <- vapply(valor, function(k) {
     esperado <- base * k
-    sum(abs(abs(respuesta - esperado) - semiancho) <= 16 * .Machine$double.eps *
-          pmax(1, abs(respuesta), abs(esperado)))
+    margen <- 16 * .Machine$double.eps * pmax(1, abs(respuesta), abs(esperado))
+    sum(margen <= 1e-6 * semiancho &
+          abs(abs(respuesta - esperado) - semiancho) <= margen)
   }, numeric(1L))
   valor[[.orden_por_bytes(-empates, abs(valor - centrada))[[1L]]]]
 }
@@ -1358,6 +1440,7 @@
   # `.lectura_proporcional_aritmetica()`.
   cota <- Inf
   cota_elegida <- NULL
+  reciproca_elegida <- NULL
   relativa_maxima <- max(tolerancia * pmax(
     1, abs(respuesta[comparables]), abs(esperado)
   ))
@@ -1416,10 +1499,10 @@
     # los netos sobre el iva "alcanzaba" con `k = 4.545...` y era la fina; y
     # con cinco rotas entre 35 filas, la del iva no tiene soporte y la de los
     # netos lo tiene porque su constante larga se traga dos rotas.
-    con_soporte <- function(lectura, invertida) {
+    con_soporte <- function(lectura, invertida, cumple = lectura$cumple) {
       b <- if (invertida) respuesta else base
       r <- if (invertida) base else respuesta
-      .soporte_proporcional_aritmetica(b, r, comparables, lectura$cumple,
+      .soporte_proporcional_aritmetica(b, r, comparables, cumple,
                                        umbral, min_filas)
     }
     con_la_fina <- function(gruesa, invertida, fina) {
@@ -1428,26 +1511,50 @@
       # Con la cota y la reticula de la fina: un valor fuera de su reticula no
       # es un redondeo a su resolucion (ver `.lectura_proporcional_aritmetica()`).
       en_reticula_f <- .en_resolucion_aritmetica(r_f, fina$cuanto)
-      cuenta <- function(esperado_f) {
-        sum(abs(r_f - esperado_f) <= fina$cota +
-              8 * .Machine$double.eps * pmax(1, abs(r_f), abs(esperado_f)) &
-              en_reticula_f)
+      # Una fila que en la gruesa cae justo en su medio cuanto es un empate del
+      # redondeo, y cuenta como explicada: con `y = round(0.9 * x)` en enteros,
+      # R redondea al par y cinco filas de 50 quedan a 0,5 exacto de `0.9 * x`;
+      # en la lectura de `x` quedaban a 0,56, y `x ~= y * 1.11` las acusaba.
+      # Solo donde el doble distingue el empate: con importes de 1e10 el error
+      # de la resta es mil veces el que separa un empate de un redondeo comun,
+      # y filas cualquiera pasaban por empates.
+      r_g <- if (invertida) respuesta[comparables] else base[comparables]
+      margen_g <- 16 * .Machine$double.eps *
+        pmax(1, abs(r_g), abs(gruesa$esperado))
+      empate_g <- gruesa$cumple & margen_g <= 1e-6 * gruesa$cota &
+        abs(abs(r_g - gruesa$esperado) - gruesa$cota) <= margen_g
+      explica <- function(esperado_f) {
+        (abs(r_f - esperado_f) <= fina$cota +
+           8 * .Machine$double.eps * pmax(1, abs(r_f), abs(esperado_f)) &
+           en_reticula_f) | empate_g
       }
-      filas <- cuenta(b_f / gruesa$constante)
-      # Y sus cifras, contadas en la fina: las del decimal mas corto que, como
-      # constante de la fina, explica esas mismas filas. `81.004` tiene cinco
-      # cifras, pero en la lectura de `y` es `0.01234507`, siete: con cinco se
-      # empataba con `0.012345`, ganaba por una fila -una rota grande que se
-      # tragaba- y acusaba una sana.
+      cuenta <- function(esperado_f) sum(explica(esperado_f))
+      # La de la gruesa en la fina: su reciproca, y si la gruesa es ya una
+      # reciproca `1/c`, `c` tal cual -dividir por `1/c` corre el ultimo bit y,
+      # con importes de 1e11, una fila del borde-.
+      explicadas <- explica(if (!is.null(gruesa$reciproca)) {
+        b_f * gruesa$reciproca
+      } else b_f / gruesa$constante)
+      filas <- sum(explicadas)
+      # Y sus cifras, las de su forma corta en la fina: la de la reciproca
+      # -`7` de la lectura de `x` es `1/7` en la de `y`, una cifra- o la del
+      # decimal mas corto que, como constante de la fina, explica esas mismas
+      # filas. `81.004` es `1/81.004` en la lectura de `y`, cinco cifras, como
+      # `0.012345`; la fila que pierde la decide la regla de las filas perdidas.
+      if (!is.null(gruesa$reciproca)) {
+        return(list(filas = filas, cifras = gruesa$cifras,
+                    explicadas = explicadas, en_reticula = en_reticula_f))
+      }
       reciproca <- 1 / gruesa$constante
-      cifras <- 17L
-      for (d in 1:15) {
+      cifras <- gruesa$cifras
+      for (d in seq_len(min(15L, cifras - 1L))) {
         if (cuenta(b_f * signif(reciproca, d)) >= filas) {
           cifras <- d
           break
         }
       }
-      list(filas = filas, cifras = cifras)
+      list(filas = filas, cifras = cifras, explicadas = explicadas,
+           en_reticula = en_reticula_f)
     }
     if (lectura_directa$alcanza) elegida <- lectura_directa
     if (lectura_inversa$alcanza) {
@@ -1458,6 +1565,81 @@
       fina_inversa <- !is.null(elegida) && cota_i < cota_d
       fina <- if (fina_inversa) lectura_inversa else lectura_directa
       gruesa <- if (fina_inversa) lectura_directa else lectura_inversa
+      # Con cotas parecidas, el soporte de la apenas mas gruesa se cuenta con
+      # las filas que explica con la fina, mas sus empates: con 15 filas en
+      # (1000, 1105) y cinco rotas, la lectura de `x` -una tolerancia 10 % mas
+      # ancha en la columna de `y`- se tragaba una rota, solo con ella tenia
+      # soporte, y le ganaba a `1.105` por tenerlo.
+      #
+      # Salvo que la gruesa sea la redondeada. **Si la columna redondeada es la
+      # de la gruesa, sus residuos llenan su ventana**, y una fraccion
+      # `1 - fina / gruesa` de sus filas cae entre las dos tolerancias -la
+      # banda-; si la redondeada es la de la fina, en la banda solo caen filas
+      # rotas. Con `y = round(x / 1.105)` en enteros, `y` es la redondeada,
+      # 0,5 su tolerancia contra 0,45 de la de `x` llevada a `y`, y uno de cada
+      # diez residuos cae en la banda: contadas sin ella, las filas de `y`
+      # perdian contra `x ~= y * 1.105`, que acusaba esas filas sanas. Salvo que
+      # la banda se lea como rotas (abajo), la gruesa cuenta sus filas enteras.
+      cuentan_gruesa <- NULL
+      cuentan_fina <- NULL
+      en_la_fina <- NULL
+      if (!is.null(elegida) && max(cota_d, cota_i) < 2 * min(cota_d, cota_i)) {
+        en_la_fina <- con_la_fina(gruesa, fina_inversa, fina)
+        # Una fila fuera de la reticula de cualquiera de las dos respuestas no
+        # es un redondeo y no cuenta para ninguna: con `x` en medios y
+        # `k = 0.22` las dos cotas valen 0,055, y las tres rotas fuera de la
+        # reticula de `y` las explicaba la lectura de `x`.
+        r_g <- if (fina_inversa) respuesta[comparables] else base[comparables]
+        en_reticula_g <- .en_resolucion_aritmetica(r_g, gruesa$cuanto)
+        # La banda es redondeo de la gruesa o son rotas que cayeron ahi: si la
+        # redondeada es la de la gruesa, cae en la banda una fraccion
+        # `1 - fina / gruesa` de sus filas; si es la de la fina, solo rotas, y
+        # tantas como caen justo afuera de la ventana gruesa -hasta un cuanto
+        # mas lejos- en un ancho igual al de la banda. Gana la explicacion mas
+        # verosimil, con conteos de Poisson, y sin rotas cerca del borde la
+        # banda es redondeo. Con `y = round(x / 1.09)` sobre 300 enteros caian
+        # 10 filas en la banda contra 25 esperadas y ninguna justo afuera, y
+        # pedir la mitad de las esperadas acusaba las 10 sanas; con
+        # `y = round(1.22 * x)` y cinco rotas por una unidad, una cae en la
+        # banda y cuatro justo afuera: es una rota.
+        #
+        # Los residuos, con la constante mas precisa de las dos -la de mas
+        # cifras; con las mismas, la de la gruesa-: la deriva de un truncado
+        # corre filas sanas hacia la banda. Con la base y la respuesta en pasos
+        # de 25 hasta 1e5, `0.905` -el truncado de `1/1.105`- llenaba la banda
+        # de sanas corridas, y la gruesa se tragaba una rota. Una reciproca de
+        # la fina no cuenta como mas precisa: `1/0.8466` se acomoda a las filas
+        # que explica, y con ella la banda de `y = round(x / 1.18)` parecia de
+        # rotas.
+        angosta <- 1 - min(cota_d, cota_i) / max(cota_d, cota_i)
+        en_ambas <- en_reticula_g & en_la_fina$en_reticula
+        if (fina$cifras > gruesa$cifras && is.null(fina$reciproca)) {
+          b_g <- if (fina_inversa) base[comparables] else respuesta[comparables]
+          segun_fina <- if (!is.null(fina$reciproca)) {
+            b_g * fina$reciproca
+          } else b_g / fina$constante
+          desvio_g <- abs(r_g - segun_fina) / gruesa$cota
+          banda <- sum(!fina$cumple & desvio_g <= 1 & en_ambas)
+          esperada <- sum(desvio_g <= 1 & en_ambas) * angosta
+        } else {
+          desvio_g <- abs(r_g - gruesa$esperado) / gruesa$cota
+          banda <- sum(gruesa$cumple & !en_la_fina$explicadas & en_ambas)
+          esperada <- sum(gruesa$cumple) * angosta
+        }
+        rotas_cerca <- angosta / 2 *
+          sum(desvio_g > 1 & desvio_g <= 3 & en_ambas)
+        excluir_banda <- banda > 0 && rotas_cerca > 0 &&
+          banda * log(rotas_cerca / esperada) + esperada - rotas_cerca > 0
+        cuentan_gruesa <- gruesa$cumple & en_la_fina$en_reticula &
+          (en_la_fina$explicadas | !excluir_banda)
+        cuentan_fina <- fina$cumple & en_reticula_g
+        soporte_gruesa <- con_soporte(gruesa, !fina_inversa, cuentan_gruesa)
+        if (fina_inversa) {
+          soporte_d <- soporte_gruesa
+        } else {
+          soporte_i <- soporte_gruesa
+        }
+      }
       if (is.null(elegida)) {
         invertir <- TRUE
       } else if (soporte_d && soporte_i &&
@@ -1480,11 +1662,27 @@
         # filas grandes que `y ~= x * 3.75` explica, y con la misma cota ganaba
         # por ser la directa. Con la cota de cada una, la apenas mas gruesa
         # explicaba una rota mas y ganaba; y sin pagar las cifras, `0.904977`
-        # se tragaba una rota que `1.105` acusa.
-        filas_fina <- sum(fina$cumple)
-        en_la_fina <- con_la_fina(gruesa, fina_inversa, fina)
-        gana_gruesa <- en_la_fina$filas > filas_fina &&
-          en_la_fina$filas - en_la_fina$cifras > filas_fina - fina$cifras
+        # se tragaba una rota que `1.105` acusa. Con cotas parecidas no hace
+        # falta que la gruesa explique mas filas: basta con que pague mejor sus
+        # cifras, y en un empate gana la de menos. La lectura de `x` de
+        # `y = round(1.22 * x / 0.05) * 0.05` es un 2 % mas fina, leia `1/1.22`
+        # y dejaba afuera una fila sana que `1.22` explica en la de `y`.
+        # Y con su propia tolerancia, salvo la banda cuando no parece de la
+        # redondeada (arriba): con `y = round(x / 1.105)` en enteros la de `y`
+        # explica todas las filas, y contada sin la banda perdia contra
+        # `x ~= y * 1.105`, que acusaba las sanas de la banda. En un empate,
+        # la de menos cifras, y despues la que acusa mas: con la misma
+        # evidencia, se acusa en vez de callar.
+        # Y con todo igual, la directa: `y ~= x * 3.75` y no `x ~= y / 3.75`.
+        clave <- function(lectura, cuentan, cifras_pagadas) {
+          c(-(sum(cuentan) - cifras_pagadas), lectura$cifras,
+            sum(lectura$cumple), !is.null(lectura$reciproca))
+        }
+        clave_gruesa <- clave(gruesa, cuentan_gruesa, en_la_fina$cifras)
+        clave_fina <- clave(fina, cuentan_fina, fina$cifras)
+        distinta <- which(clave_gruesa != clave_fina)
+        gana_gruesa <- length(distinta) > 0L &&
+          clave_gruesa[[distinta[[1L]]]] < clave_fina[[distinta[[1L]]]]
         invertir <- if (gana_gruesa) !fina_inversa else fina_inversa
       } else {
         invertir <- fina_inversa
@@ -1531,6 +1729,7 @@
       utilizables <- elegida$utilizables
       mediana <- elegida$mediana
       constante <- elegida$constante
+      reciproca_elegida <- elegida$reciproca
       esperado <- elegida$esperado
       cumple <- elegida$cumple
       proporcion <- mean(cumple)
@@ -1552,13 +1751,24 @@
   constante_texto <- format(
     constante, scientific = FALSE, trim = TRUE, digits = 15L
   )
+  # Con la reciproca corta, la relacion se escribe con la division: `y ~= x / 7`
+  # y no `y ~= x * 0.142857142857143`.
+  operador <- c(" * ", " / ")
+  factor_texto <- constante_texto
+  if (!is.null(reciproca_elegida)) {
+    operador <- rev(operador)
+    factor_texto <- format(
+      reciproca_elegida, scientific = FALSE, trim = TRUE, digits = 15L
+    )
+    constante_texto <- paste0("1/", factor_texto)
+  }
   expresion <- paste0(
-    nombres_texto[[indice_respuesta]], " ~= ", nombres_texto[[indice_base]], " * ",
-    constante_texto
+    nombres_texto[[indice_respuesta]], " ~= ", nombres_texto[[indice_base]],
+    operador[[1L]], factor_texto
   )
   inversa <- paste0(
-    nombres_texto[[indice_base]], " ~= ", nombres_texto[[indice_respuesta]], " / ",
-    constante_texto
+    nombres_texto[[indice_base]], " ~= ", nombres_texto[[indice_respuesta]],
+    operador[[2L]], factor_texto
   )
   tolerancia_texto <- .texto_tolerancia_aritmetica(tolerancia)
   ejemplos <- .evidencia_filas_aritmetica(
