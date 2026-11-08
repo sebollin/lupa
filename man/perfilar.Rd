@@ -819,8 +819,10 @@ la mitad del cuanto publicaba proporcionalidades espurias. En la lectura, la
 mitad de su cuanto —la resolución de su redondeo,
 como 0,05, 0,25 o 5, y no la potencia de diez de sus decimales: primero la
 de todos sus valores y, si con esa no alcanza el criterio, la de al
-menos el 90 \%, medidas sobre los valores distintos y sin el cero; un valor
-fuera de ella cuenta como discrepante—, inclusiva, es la tolerancia de
+menos el 90 \% de las filas, medidas sobre los valores distintos y sin el
+cero; un valor fuera de ella cuenta como discrepante, y unas pocas filas
+con más decimales que las demás no la hacen pasar por cifras
+significativas—, inclusiva, es la tolerancia de
 todas las filas, y \code{k} es la constante en la que cada cifra explica al menos
 una fila más: la de más filas dentro menos cifras —cinco cifras más que
 solo se tragan dos filas rotas de importes grandes no se pagan, y una que
@@ -832,10 +834,10 @@ esa explica, como un tipo de cambio largo contra su truncado. Si las dos
 columnas admiten esa lectura, con soporte las dos y la tolerancia de una el
 doble o más que la de la otra en la misma columna, se comparan con la fina
 —una fila que solo cae adentro con la gruesa no cuenta— y la gruesa gana
-solo si explica más filas y paga sus cifras; si no, la de la constante
-claramente más corta (\code{1.22} y no \verb{0.8196...}), la que tiene soporte, la que
-explica más filas con la tolerancia fina y la de la resolución más fina,
-en ese orden. La
+solo si explica más filas y paga sus cifras, contadas en la fina; si no, la
+de la constante claramente más corta (\code{1.22} y no \verb{0.8196...}), la que tiene
+soporte, la que explica más filas con la tolerancia fina pagando sus
+cifras, y la de la resolución más fina, en ese orden. La
 que la tolerancia relativa reconoce y ninguna resolución explica se descarta,
 se cuenta en \code{meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto}
 y deja una fila en \code{cobertura_diagnosticos} con la relación y el motivo; si

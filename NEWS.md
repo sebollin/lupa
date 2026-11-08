@@ -227,8 +227,9 @@ Primera versión publicada.
   `pesos = round(dolares * 39.8734, 2)` se publica
   `pesos ~= dolares * 39.8734`, y `resp ~= base * 1.22` no se lee al revés con
   `0.8196...`; si las dos lecturas caben y la tolerancia de una es el doble o
-  más que la de la otra, se comparan con la fina, y una fila que sólo cae
-  adentro con la gruesa no cuenta. Con
+  más que la de la otra, se comparan con la fina —una fila que sólo cae
+  adentro con la gruesa no cuenta, y las cifras de la constante se cuentan en
+  la fina—. Con
   centavos llega a importes de 1e12, como la identidad. Un neto y un iva
   redondeados por separado cuentan como discrepantes las filas donde el iva no es
   el redondeo del neto guardado. La que la tolerancia relativa reconoce y
@@ -243,8 +244,9 @@ Primera versión publicada.
   se descartaba porque la cota quedaba en medio centavo, y con 0,25, 0,5, 5 o 25
   no se publicaba nunca. La resolución se mide sobre los valores distintos y sin
   el cero: primero la de todos y, si con ella no alcanza el criterio, la de al
-  menos el 90 %, y sólo si esa retícula no se explica por azar: unas filas
-  rotas fuera de ella no la hacen caer, y un valor que no es múltiplo de la
+  menos el 90 % de las filas, y sólo si esa retícula no se explica por azar:
+  unas filas rotas fuera de ella no la hacen caer —tampoco cuando son las únicas
+  con más decimales que las demás—, y un valor que no es múltiplo de la
   resolución cuenta como discrepante aunque su residuo quede debajo de medio
   cuanto. Las identidades
   siguen con la potencia de diez de sus decimales, que entre valores de una

@@ -234,7 +234,8 @@
 
 .multiplos_resolucion <- c(2, 4, 5, 8, 20, 25, 40, 50, 125, 200, 250, 500)
 
-.resolucion_columna_aritmetica <- function(x, fraccion = .FRACCION_RESOLUCION) {
+.resolucion_columna_aritmetica <- function(x, fraccion = .FRACCION_RESOLUCION,
+                                           fuera = NULL) {
   # El cero esta en toda reticula y no dice nada de la resolucion: con 60 % de
   # netos en cero, la mitad chica de un iva a centavos era toda ceros, su
   # "resolucion" salia gruesa y la columna no pasaba por de decimales fijos; dos
@@ -248,11 +249,18 @@
   # no se intentaba y la relacion se leia al reves, `x ~= y * 0.90497737`, con
   # una fila sana acusada. Contadas como 34 observaciones, ademas, las copias
   # pasaban la cota de azar que con una sola no pasan.
+  # Pero los que quedan fuera de la reticula se cuentan por fila: la de casi
+  # todos deja fuera hasta `1 - fraccion` de las filas, y con valores chicos
+  # repetidos tres rotas de 30 filas eran tres de 27 valores, mas de uno de cada
+  # diez, y la resolucion de casi todos no salia. `fuera` fija cuantos valores
+  # distintos pueden quedar afuera (ver `.decimales_fijos_aritmetica()`).
+  filas <- sum(is.finite(x) & x != 0)
   x <- unique(abs(as.double(x[is.finite(x) & x != 0])))
   n <- length(x)
   if (!n) return(NA_real_)
   magnitud <- max(1, abs(x))
-  minimo <- ceiling(fraccion * n)
+  if (is.null(fuera)) fuera <- floor((1 - fraccion) * filas + 1e-9)
+  minimo <- max(1, n - fuera)
   for (decimales in seq.int(-floor(log10(magnitud)), 15L)) {
     potencia <- 10^-decimales
     if (magnitud / potencia >= .CIFRAS_MAXIMAS_CUANTO) return(NA_real_)
@@ -313,11 +321,30 @@
 # sana acusada.
 .decimales_fijos_aritmetica <- function(x, resolucion, fraccion) {
   # Las mitades, de los valores distintos: ver `.resolucion_columna_aritmetica()`.
+  # Cada mitad puede dejar afuera las filas que la columna deja afuera, no un
+  # decimo de las suyas: con las tres rotas entre las filas grandes, la mitad
+  # grande quedaba con tres de 15 valores fuera de la reticula, salia en
+  # 0,0003 contra 0,36 de la chica, y la respuesta no pasaba por de decimales
+  # fijos; quedaba la lectura gruesa de la base, que se traga las rotas.
+  filas <- sum(is.finite(x) & x != 0)
+  fuera <- floor((1 - fraccion) * filas + 1e-9)
   x <- unique(abs(x[is.finite(x) & x != 0]))
   if (length(x) < 2L || max(x) / min(x) < 10) return(TRUE)
+  # El permiso es para filas rotas, que caen entre las sanas. Si las que quedan
+  # fuera de la reticula son la mayoria de los valores hasta la mas grande de
+  # ellas, es la firma de las cifras significativas -la decada baja con un
+  # decimal mas, salvo los que terminan en cero- y no hay permiso: con once
+  # cifras sobre dos decadas son una de cada diez filas, y con el permiso la
+  # base pasaba por de decimales fijos.
+  afuera <- !.en_resolucion_aritmetica(x, resolucion)
+  if (fuera > 0 && any(afuera) && mean(afuera[x <= max(x[afuera])]) >= 0.5) {
+    fuera <- 0
+  }
   mediana <- stats::median(x)
-  mitades <- c(.resolucion_columna_aritmetica(x[x >= mediana], fraccion),
-               .resolucion_columna_aritmetica(x[x <= mediana], fraccion))
+  mitades <- c(
+    .resolucion_columna_aritmetica(x[x >= mediana], fraccion, fuera = fuera),
+    .resolucion_columna_aritmetica(x[x <= mediana], fraccion, fuera = fuera)
+  )
   all(is.finite(mitades)) &&
     all(.exponente_decimal_aritmetica(mitades) ==
           .exponente_decimal_aritmetica(resolucion))
@@ -1298,12 +1325,29 @@
     con_la_fina <- function(gruesa, invertida, fina) {
       r_f <- if (invertida) base[comparables] else respuesta[comparables]
       b_f <- if (invertida) respuesta[comparables] else base[comparables]
-      esperado_f <- b_f / gruesa$constante
       # Con la cota y la reticula de la fina: un valor fuera de su reticula no
       # es un redondeo a su resolucion (ver `.lectura_proporcional_aritmetica()`).
-      sum(abs(r_f - esperado_f) <= fina$cota +
-            8 * .Machine$double.eps * pmax(1, abs(r_f), abs(esperado_f)) &
-            .en_resolucion_aritmetica(r_f, fina$cuanto))
+      en_reticula_f <- .en_resolucion_aritmetica(r_f, fina$cuanto)
+      cuenta <- function(esperado_f) {
+        sum(abs(r_f - esperado_f) <= fina$cota +
+              8 * .Machine$double.eps * pmax(1, abs(r_f), abs(esperado_f)) &
+              en_reticula_f)
+      }
+      filas <- cuenta(b_f / gruesa$constante)
+      # Y sus cifras, contadas en la fina: las del decimal mas corto que, como
+      # constante de la fina, explica esas mismas filas. `81.004` tiene cinco
+      # cifras, pero en la lectura de `y` es `0.01234507`, siete: con cinco se
+      # empataba con `0.012345`, ganaba por una fila -una rota grande que se
+      # tragaba- y acusaba una sana.
+      reciproca <- 1 / gruesa$constante
+      cifras <- 17L
+      for (d in 1:15) {
+        if (cuenta(b_f * signif(reciproca, d)) >= filas) {
+          cifras <- d
+          break
+        }
+      }
+      list(filas = filas, cifras = cifras)
     }
     if (lectura_directa$alcanza) elegida <- lectura_directa
     if (lectura_inversa$alcanza) {
@@ -1319,9 +1363,9 @@
       } else if (soporte_d && soporte_i &&
                  max(cota_d, cota_i) >= 2 * min(cota_d, cota_i)) {
         filas_fina <- sum(fina$cumple)
-        filas_gruesa <- con_la_fina(gruesa, fina_inversa, fina)
-        gana_gruesa <- filas_gruesa > filas_fina &&
-          filas_gruesa - gruesa$cifras > filas_fina - fina$cifras
+        en_la_fina <- con_la_fina(gruesa, fina_inversa, fina)
+        gana_gruesa <- en_la_fina$filas > filas_fina &&
+          en_la_fina$filas - en_la_fina$cifras > filas_fina - fina$cifras
         invertir <- if (gana_gruesa) !fina_inversa else fina_inversa
       } else if (abs(lectura_inversa$cifras - elegida$cifras) >= 3L) {
         invertir <- lectura_inversa$cifras < elegida$cifras
@@ -1338,9 +1382,9 @@
         # explicaba una rota mas y ganaba; y sin pagar las cifras, `0.904977`
         # se tragaba una rota que `1.105` acusa.
         filas_fina <- sum(fina$cumple)
-        filas_gruesa <- con_la_fina(gruesa, fina_inversa, fina)
-        gana_gruesa <- filas_gruesa > filas_fina &&
-          filas_gruesa - gruesa$cifras > filas_fina - fina$cifras
+        en_la_fina <- con_la_fina(gruesa, fina_inversa, fina)
+        gana_gruesa <- en_la_fina$filas > filas_fina &&
+          en_la_fina$filas - en_la_fina$cifras > filas_fina - fina$cifras
         invertir <- if (gana_gruesa) !fina_inversa else fina_inversa
       } else {
         invertir <- fina_inversa

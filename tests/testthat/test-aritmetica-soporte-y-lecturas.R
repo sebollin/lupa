@@ -409,3 +409,74 @@ test_that("con cotas parecidas gana la lectura que explica mas filas", {
   expect_match(r$h[[1L]]$descripcion, "y ~= x * 3.75 ", fixed = TRUE)
   expect_equal(r$h[[1L]]$n_afectados, 0)
 })
+
+test_that("las cifras de la lectura gruesa se cuentan en la fina", {
+  # x entero, y = round(0.012345 * x, 2) y las tres mayores rotas por 3
+  # centavos. La lectura de x, con medio entero de tolerancia, leia `81.004`:
+  # cinco cifras, como `0.012345`, pero en la lectura de y es `0.01234507`,
+  # siete. Contada con cinco ganaba por una fila -una rota grande que se
+  # tragaba- y acusaba una sana. `x` va en centavos e `y` en unidades de su
+  # ultimo decimal; la sanidad, en enteros.
+  casos <- list(
+    # log, x entero, las 3 mayores.
+    list(k = "0.012345", num = 2469, den = 200000, dy = 2L, rotas = c(10L, 20L, 27L),
+         x = c(1811800, 11200, 2282400, 2300, 3873200, 404400, 171600, 50100,
+        193800, 22037300, 118800, 317800, 2700, 174800, 2769300, 399800,
+        4400, 20607600, 460000, 33586500, 29300, 64000, 3200, 10900, 16000,
+        290300, 40260700, 2400, 67100, 2372800),
+         y = c(22367, 138, 28176, 28, 47815, 4992, 2118, 618, 2392, 272047, 1467,
+        3923, 33, 2158, 34187, 4936, 54, 254401, 5679, 414628, 362, 790,
+        40, 135, 198, 3584, 497021, 30, 828, 29292))
+  )
+  for (cs in casos) {
+    desvio <- abs(cs$y * cs$den * 100 - cs$num * cs$x * 10^cs$dy)
+    expect_identical(which(desvio > cs$den * 50), cs$rotas, info = cs$k)
+    r <- prop_de(data.frame(x = cs$x / 100, y = cs$y / 10^cs$dy))
+    expect_length(r$h, 1L)
+    expect_match(r$h[[1L]]$descripcion, paste0("y ~= x * ", cs$k, " "), fixed = TRUE,
+                 info = cs$k)
+    expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), cs$rotas,
+                     info = cs$k)
+  }
+})
+
+test_that("unas pocas rotas no tumban los decimales fijos de la respuesta", {
+  # y a cuatro decimales cuyos valores sanos usan dos -x en medios o entero-, y
+  # tres rotas por 3 diezmilesimos: las unicas filas con cuatro decimales. La
+  # mitad con las rotas salia en 0,0003 o 0,0001 contra 0,36 o 0,11 de la otra,
+  # y la resolucion de casi todos contaba tres de 27 valores distintos. La
+  # respuesta no pasaba por de decimales fijos y quedaba la lectura gruesa de
+  # x, que se tragaba las rotas o acusaba una sana.
+  casos <- list(
+    # sesgada, x en medios, 3 al azar.
+    list(k = "0.22", num = 11, den = 50, dy = 4L, rotas = c(1L, 11L, 21L),
+         x = c(2700, 4100, 5400, 5250, 2250, 8300, 6200, 64140700, 6100, 5750,
+        3250, 8600, 5950, 4500, 5500, 9650, 9350, 5400, 250, 950, 4350,
+        4400, 9800, 4500, 2350, 7350, 7000, 5250, 5000, 6850),
+         y = c(59403, 90200, 118800, 115500, 49500, 182600, 136400, 1411095400,
+        134200, 126500, 71497, 189200, 130900, 99000, 121000, 212300,
+        205700, 118800, 5500, 20900, 95703, 96800, 215600, 99000, 51700,
+        161700, 154000, 115500, 110000, 150700)),
+    # x entero, las 3 mayores.
+    list(k = "0.36", num = 9, den = 25, dy = 4L, rotas = c(4L, 5L, 9L),
+         x = c(29000, 2800, 334500, 50398200, 79677300, 1100, 5560800, 92800,
+        7416000, 1555600, 5870200, 4781700, 875700, 27500, 12000, 569800,
+        6600, 6835300, 99100, 8100, 1558800, 235100, 432800, 2304200,
+        48100, 8400, 6174700, 44100, 6400, 110700),
+         y = c(1044000, 100800, 12042000, 1814335203, 2868382803, 39600,
+        200188800, 3340800, 266975997, 56001600, 211327200, 172141200,
+        31525200, 990000, 432000, 20512800, 237600, 246070800, 3567600,
+        291600, 56116800, 8463600, 15580800, 82951200, 1731600, 302400,
+        222289200, 1587600, 230400, 3985200))
+  )
+  for (cs in casos) {
+    desvio <- abs(cs$y * cs$den * 100 - cs$num * cs$x * 10^cs$dy)
+    expect_identical(which(desvio > cs$den * 50), cs$rotas, info = cs$k)
+    r <- prop_de(data.frame(x = cs$x / 100, y = cs$y / 10^cs$dy))
+    expect_length(r$h, 1L)
+    expect_match(r$h[[1L]]$descripcion, paste0("y ~= x * ", cs$k, " "), fixed = TRUE,
+                 info = cs$k)
+    expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), cs$rotas,
+                     info = cs$k)
+  }
+})
