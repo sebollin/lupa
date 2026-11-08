@@ -706,9 +706,17 @@ Primera versión publicada.
   Por bloques, `NaN` e `Infinity` de PostgreSQL quedan fuera de las sumas, como
   en la tabla completa. Si las sumas no llegan, la media y el desvío del motor
   por la tabla completa quedan sólo si su error cabe en una parte en mil
-  millones; si no, `no_disponible`. La escala de un decimal de una tabla
+  millones; si no, `no_disponible`, con el motivo de por qué no llegaron: el
+  motor rechazó la consulta con las sumas, con su mensaje, o no hubo
+  presupuesto. Si llegan sin valores, el estado sale de la cuenta: una columna
+  toda `NULL` queda `sin_valores` y el desvío de una sola fila, `no_aplica`. La escala de un decimal de una tabla
   temporal la leen el catálogo de `tempdb` en SQL Server y `SHOW COLUMNS` en
   MySQL y MariaDB: sin ella, el desvío quedaba a un ulp o `no_disponible`.
+- En MySQL y MariaDB, con `metricas = "desvio"`, una tabla sin filas por la
+  muestra del motor publicaba el desvío `no_aplica` («requiere al menos dos
+  valores»): al pedirse el desvío solo, la consulta perdía el total del lote.
+  Ahora queda `no_disponible` con `muestra_vacia:<método>`, como en los demás
+  motores, y `meta$filas_obtenidas_muestra` dice 0.
 - Con `incluir_valores = FALSE`, el SQL publicado del desvío centrado de un
   entero o un doble lleva la media tapada: publicaba la media como literal
   (`STDDEV_SAMP((b - 731946280004.333) * 1.0)`), en los siete motores.

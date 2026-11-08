@@ -12891,8 +12891,13 @@
         )
         # Lo del motor queda como esta, con sus guardas: el resumen lo
         # reemplaza al final (`.decimales_exactos_tabla_dbi()`).
+        total_lote <- suppressWarnings(as.numeric(.numero_dbi(
+          entrada$consulta$datos[["n_total_consulta"]]
+        )))
         valores[[i]]$exacto_decimal <- list(
-          media = exacto$media, desvio = exacto$desvio, sql = entrada$sql
+          media = exacto$media, desvio = exacto$desvio, sql = entrada$sql,
+          finitos = exacto$finitos,
+          total = if (length(total_lote) == 1L) total_lote else NA_real_
         )
       }
       resultado[[campo]] <- valores[[i]]
@@ -12979,6 +12984,41 @@
       }
       resultado[[campo]] <- individual
     }
+  }
+  # Una columna con sumas que no llegaron dice por que: el motor rechazo la
+  # consulta con las sumas aun con la columna sola (con su mensaje), o no hubo
+  # presupuesto para aislarla. Lo lee `.decimales_exactos_tabla_dbi()`.
+  for (i in c(culpables, pendientes)) {
+    campo <- lote[[i]]
+    if (is.null(piezas_exactas[[campo]]) || is.null(resultado[[campo]])) next
+    motivo_exacto <- if (i %in% pendientes) {
+      if (!is.null(presupuesto) && .saldo_dbi(presupuesto) < 1) {
+        .motivo_presupuesto_dbi(presupuesto)
+      } else {
+        paste(
+          "el motor rechaz\u00f3 el lote de agregados con las sumas y no se",
+          "pudo aislar la columna dentro del presupuesto de sondas."
+        )
+      }
+    } else {
+      sola <- cache[startsWith(names(cache), paste0(i, "|"))]
+      mensajes <- vapply(sola, function(entrada) {
+        m <- entrada$consulta$motivo
+        if (isTRUE(entrada$ok) || is.null(m) || !length(m) || is.na(m[[1L]])) {
+          NA_character_
+        } else as.character(m[[1L]])
+      }, character(1L))
+      mensajes <- mensajes[!is.na(mensajes)]
+      paste0(
+        "el motor rechaz\u00f3 la consulta de los agregados con las sumas aun con la ",
+        "columna sola",
+        if (length(mensajes)) paste0(": ", mensajes[[1L]]) else "."
+      )
+    }
+    resultado[[campo]]$exacto_decimal <- list(
+      media = NA_real_, desvio = NA_real_, sql = NA_character_,
+      finitos = NA_real_, motivo = motivo_exacto
+    )
   }
   if (!is.null(presupuesto) &&
       length(presupuesto$fallas_lotes) > fallas_lote_inicio) {
@@ -13459,6 +13499,17 @@
         )
         if ("desvio" %in% metricas_consulta && desvio_no_utilizable &&
             isTRUE(resultado$consolidada)) {
+          # El desvio se repite solo, pero las filas que vio la muestra las
+          # conto el lote: sin ese denominador, una muestra sin filas no se
+          # distingue de una con valores nulos.
+          denominador_lote <- resultado$desvio$metadatos[c(
+            "n_total_consulta", "consulta_id_denominador"
+          )]
+          if (!isTRUE(is.finite(.numero_dbi(
+            denominador_lote$n_total_consulta
+          )))) {
+            denominador_lote <- NULL
+          }
           resultado$desvio <- .desvio_columna_dbi(
             conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
             presupuesto, .metadatos_lote_dbi(numero, campo),
@@ -13469,6 +13520,14 @@
               campo %in% columnas_float8_numeric ||
               .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
           )
+          if (!is.null(denominador_lote) && !is.null(resultado$desvio) &&
+              !is.finite(.numero_dbi(
+                resultado$desvio$metadatos$n_total_consulta
+              ))) {
+            resultado$desvio$metadatos <- .mezclar_metadatos_dbi(
+              resultado$desvio$metadatos, denominador_lote
+            )
+          }
         }
         if ("validos" %in% metricas) {
           base_conteos <- agregados$conteos[[campo]]
@@ -16977,6 +17036,35 @@
       filas <- as.character(sql$metrica) == metrica
       if (!any(filas)) next
       valor_exacto <- suppressWarnings(as.numeric(exacto[[metrica]]))
+      # Las sumas llegaron y no hay valor porque no alcanzan los valores: lo
+      # dice la cuenta, como en la ayuda. Sin valores no nulos, `sin_valores`
+      # por la tabla completa y `muestra_inestable:sin_valores_validos` en la
+      # muestra; el desvio con uno solo, `no_aplica`.
+      finitos <- suppressWarnings(as.numeric(exacto$finitos))
+      # Una muestra sin filas no permite concluir que la columna este vacia:
+      # queda lo que dijo la muestra (`muestra_vacia:<metodo>`).
+      motivos <- as.character(sql$motivo[filas])
+      motivos[is.na(motivos)] <- ""
+      vacia_muestra <- muestra && (
+        any(startsWith(motivos, "muestra_vacia:")) || isTRUE(exacto$total == 0)
+      )
+      if (length(finitos) == 1L && is.finite(finitos) && !vacia_muestra &&
+          (finitos < 1 || (identical(metrica, "desvio") && finitos < 2))) {
+        resultados[[i]]$fila[[metrica]] <- NA_real_
+        if (finitos < 1 && muestra) {
+          sql$estado[filas] <- "no_disponible"
+          sql$motivo[filas] <- "muestra_inestable:sin_valores_validos"
+        } else if (finitos < 1) {
+          sql$estado[filas] <- "sin_valores"
+          sql$motivo[filas] <- "La columna no contiene valores no nulos."
+        } else {
+          sql$estado[filas] <- "no_aplica"
+          sql$motivo[filas] <-
+            "El desv\u00edo muestral requiere al menos dos valores no nulos."
+        }
+        resultados[[i]]$sql <- sql
+        next
+      }
       if (length(valor_exacto) == 1L && is.finite(valor_exacto)) {
         resultados[[i]]$fila[[metrica]] <- valor_exacto
         sql$estado[filas] <- estado_exacto
@@ -17009,11 +17097,18 @@
       if (tolerado) next
       resultados[[i]]$fila[[metrica]] <- NA_real_
       sql$estado[filas] <- "no_disponible"
+      causa <- exacto$motivo
+      if (is.null(causa) || !length(causa) || is.na(causa[[1L]])) {
+        causa <- paste(
+          "la consulta de los agregados no las devolvi\u00f3 (ver",
+          "`meta$consultas$fallas`)."
+        )
+      }
       sql$motivo[filas] <- paste(
         "La media y el desv\u00edo de un decimal salen de las sumas exactas",
-        "en el motor, que no llegaron: la consulta de los agregados no corri\u00f3",
-        "o el motor la rechaz\u00f3. Los del motor, que suman en doble, pueden",
-        "diferir del exacto en m\u00e1s de una parte en mil millones."
+        "en el motor, que no llegaron:", causa[[1L]], "Los del motor, que suman",
+        "en doble, pueden diferir del exacto en m\u00e1s de una parte en mil",
+        "millones."
       )
       resultados[[i]]$sql <- sql
     }
