@@ -1799,6 +1799,21 @@
     } else as.character(publico$metodo)
     motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
   }
+  # Una tabla sin filas se perfila igual -el perfil de la muestra lleva las
+  # columnas y sus tipos-, pero la muestra no tiene filas, y el resumen dice lo
+  # que dice una muestra vacia de una tabla con filas y la via de solo
+  # agregados: `muestra_vacia:<metodo>`, sin ceros ni estados observados. Antes
+  # publicaba `n_validos`, `n_faltantes` y `n_distintos` en cero como
+  # `observado_muestra`, y lo demas con `muestra_inestable:sin_valores_validos`.
+  motivo_muestra_sin_filas <- NULL
+  if (isTRUE(leido$ok) && is.null(motivo) && !is.null(perfil) &&
+      NROW(datos_completos) == 0L) {
+    metodo_vacio <- if (is.null(publico$metodo) ||
+                        is.na(publico$metodo) || !nzchar(publico$metodo)) {
+      "muestreo_sin_metodo"
+    } else as.character(publico$metodo)
+    motivo_muestra_sin_filas <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
+  }
   recorte_topes <- recorte_celdas || recorte_bytes || recorte_procesamiento
   tope_que_mando <- if (recorte_procesamiento) {
     "procesamiento"
@@ -1981,6 +1996,11 @@
     }
     columnas$n <- .conteo_dbi(n_total)
   }
+  if (!is.null(motivo_muestra_sin_filas)) {
+    for (nombre in setdiff(names(columnas), c("columna", "n"))) {
+      columnas[[nombre]][] <- NA
+    }
+  }
   metricas <- preparacion$metricas_ejecucion
   # Si no hubo muestra, `metricas_ejecucion` puede quedar vacio porque la
   # capacidad de muestreo se rechazo durante la preparacion. Igual hay que
@@ -2029,6 +2049,12 @@
     }, character(1L))
   } else {
     rep_len(motivo_metricas, length(campos_metricas_publicas))
+  }
+  if (!is.null(motivo_muestra_sin_filas)) {
+    estado_metricas <- "no_disponible"
+    motivos_metricas_publicas <- rep_len(
+      motivo_muestra_sin_filas, length(campos_metricas_publicas)
+    )
   }
   registros <- list(.registro_sql_dbi(
     campos, rep("n", length(campos)), estado_n, motivo_n,

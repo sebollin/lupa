@@ -12572,7 +12572,7 @@
     tabla_total_sql = tabla_sql, columnas_float8_numeric = character(),
     infinitos_como_numeric = FALSE, centros_desvio = NULL,
     tipos_declarados = NULL, ventana_desvio = FALSE,
-    decimales_exactos = NULL) {
+    decimales_exactos = NULL, incluir_cuenta = FALSE) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -12637,6 +12637,24 @@
       if (!is.null(piezas)) piezas_exactas[[campo]] <- piezas
     }
   }
+  # Sin `validos`, la media, el desvio y los extremos no saben cuantos valores
+  # vieron: una columna toda `NULL` y una de un solo valor daban motivos
+  # genericos donde la ayuda promete `sin_valores` y `no_aplica`. La cuenta va
+  # en la misma sentencia -bajo la muestra del motor, otra veria otra muestra-
+  # y no se publica como `n_validos`, que no se pidio: la lee
+  # `.valores_ausentes_por_cuenta_dbi()`. Un decimal con sumas exactas ya la
+  # trae en ellas.
+  if (isTRUE(incluir_cuenta) && !"validos" %in% metricas &&
+      any(c("basicos", "desvio") %in% metricas)) {
+    for (i in seq_along(lote)) {
+      if (!isTRUE(es_numerico[[i]]) || !is.null(piezas_exactas[[lote[[i]]]])) {
+        next
+      }
+      alias_por_columna[[i]]$cuenta <- .alias_agregado_dbi(
+        alias, numero, i, "n_cuenta"
+      )
+    }
+  }
   # Con esas sumas la media y el desvio del motor no se publican, pero tienen
   # que poder calcularse: en DuckDB `x * 1.0` de un `DECIMAL(38,30)` de 9e7
   # desborda ("Overflow in multiplication of DECIMAL(38)") y tumbaba la
@@ -12690,6 +12708,9 @@
     c(
       if ("validos" %in% metricas) paste0(
         .contar_no_nulos_sql_dbi(nombres_sql[[campo]], senas), " AS ", aliases$validos
+      ),
+      if (!is.null(aliases$cuenta)) paste0(
+        .contar_no_nulos_sql_dbi(nombres_sql[[campo]], senas), " AS ", aliases$cuenta
       ),
       if ("basicos" %in% metricas && es_numerico[[i]]) c(
         if (incluir_valores) paste0(
@@ -12898,6 +12919,21 @@
           media = exacto$media, desvio = exacto$desvio, sql = entrada$sql,
           finitos = exacto$finitos,
           total = if (length(total_lote) == 1L) total_lote else NA_real_
+        )
+      }
+      alias_cuenta <- alias_por_columna[[grupo[[i]]]]$cuenta
+      if (!is.null(alias_cuenta) && isTRUE(entrada$consulta$ok)) {
+        celda <- .valor_campo_dbi(
+          entrada$consulta$datos, .nombre_alias_dbi(alias_cuenta)
+        )
+        celda_total <- .valor_campo_dbi(
+          entrada$consulta$datos, .nombre_alias_dbi(total_alias)
+        )
+        valores[[i]]$cuenta_valores <- list(
+          n = if (isTRUE(celda$ok)) .conteo_dbi(celda$valor) else NA_real_,
+          total = if (isTRUE(celda_total$ok)) {
+            .conteo_dbi(celda_total$valor)
+          } else NA_real_
         )
       }
       resultado[[campo]] <- valores[[i]]
@@ -13455,7 +13491,8 @@
         infinitos_como_numeric = infinitos_como_numeric,
         tipos_declarados = tipos_por_nombre,
         ventana_desvio = ventana_desvio,
-        decimales_exactos = decimales_exactos
+        decimales_exactos = decimales_exactos,
+        incluir_cuenta = TRUE
       )
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
@@ -13543,6 +13580,9 @@
           agregados$exactos[[campo]] <- resultado$exacto_decimal %||% list(
             media = NA_real_, desvio = NA_real_, sql = NA_character_
           )
+        }
+        if (!is.null(resultado$cuenta_valores)) {
+          agregados$cuentas[[campo]] <- resultado$cuenta_valores
         }
         if ("desvio" %in% metricas_planas && !is.null(resultado$desvio)) {
           agregados$desvio[[campo]] <- resultado$desvio
@@ -16215,6 +16255,9 @@
       }, logical(1L))
     )
   }
+  resultados <- .valores_ausentes_por_cuenta_dbi(
+    campos, resultados, metricas, agregados, universo = universo
+  )
   .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
   columnas <- if (length(resultados)) {
     filas <- lapply(
@@ -16979,6 +17022,89 @@
   )$convertidas) > 0L
 }
 
+# Lo que promete la ayuda cuando una metrica no tiene valor porque no alcanzan
+# los valores, y la cuenta de los no nulos llego en la misma sentencia que la
+# metrica: sin valores, `sin_valores` y "La columna no contiene valores no
+# nulos." por la tabla completa, y en la muestra `no_disponible` con
+# `muestra_inestable:sin_valores_validos`; el desvio con uno solo, `no_aplica`.
+# Una muestra sin filas no permite concluir que la columna este vacia: queda lo
+# que dijo la muestra (`muestra_vacia:<metodo>`), como cualquier otra
+# declaracion de la muestra entera (`muestra_inestable:...`). Devuelve el `sql`
+# con las filas de la metrica reescritas, o `NULL` si la cuenta no decide.
+.estado_por_cuenta_dbi <- function(sql, filas, metrica, cuenta, muestra,
+                                   total = NA_real_) {
+  cuenta <- suppressWarnings(as.numeric(.numero_dbi(cuenta)))
+  if (!is.finite(cuenta) || !any(filas)) return(NULL)
+  if (!(cuenta < 1 || (identical(metrica, "desvio") && cuenta < 2))) {
+    return(NULL)
+  }
+  motivos <- as.character(sql$motivo[filas])
+  motivos[is.na(motivos)] <- ""
+  if (muestra && (
+    any(startsWith(motivos, "muestra_vacia:") |
+          startsWith(motivos, "muestra_inestable:")) ||
+      isTRUE(.numero_dbi(total) == 0)
+  )) {
+    return(NULL)
+  }
+  if (cuenta < 1 && muestra) {
+    sql$estado[filas] <- "no_disponible"
+    sql$motivo[filas] <- "muestra_inestable:sin_valores_validos"
+  } else if (cuenta < 1) {
+    sql$estado[filas] <- "sin_valores"
+    sql$motivo[filas] <- "La columna no contiene valores no nulos."
+  } else {
+    sql$estado[filas] <- "no_aplica"
+    sql$motivo[filas] <-
+      "El desv\u00edo muestral requiere al menos dos valores no nulos."
+  }
+  sql
+}
+
+# Las columnas numericas sin sumas exactas -dobles, enteros, decimales que no
+# las admiten- deciden con la cuenta que el lote de agregados trajo cuando no
+# se pidio `validos` (ver `.agregados_lote_con_biseccion_dbi()`), y un decimal
+# con sumas, con la de ellas. Solo las metricas de esa misma sentencia: los
+# extremos, la media y el desvio. Con `validos` pedido decide
+# `.declarar_afirmados_sin_valor_dbi()` con `n_validos`.
+.valores_ausentes_por_cuenta_dbi <- function(campos, resultados, metricas,
+                                             agregados,
+                                             universo = "tabla_completa") {
+  if (!length(agregados$cuentas) && !length(agregados$exactos)) {
+    return(resultados)
+  }
+  muestra <- identical(universo, "muestra_motor")
+  for (i in seq_along(campos)) {
+    cuenta <- agregados$cuentas[[campos[[i]]]]
+    # Un decimal con sumas exactas trae la cuenta en ellas: decide tambien sus
+    # extremos, que salen de la misma sentencia.
+    exacto <- agregados$exactos[[campos[[i]]]]
+    if (is.null(cuenta) && !is.null(exacto)) {
+      cuenta <- list(n = exacto$finitos, total = exacto$total)
+    }
+    if (is.null(cuenta)) next
+    sql <- resultados[[i]]$sql
+    if (!is.data.frame(sql) || !nrow(sql)) next
+    for (metrica in c("minimo", "maximo", "media", "desvio")) {
+      pedida <- if (identical(metrica, "desvio")) {
+        "desvio" %in% metricas
+      } else "basicos" %in% metricas
+      if (!pedida) next
+      filas <- as.character(sql$metrica) == metrica
+      decidido <- .estado_por_cuenta_dbi(
+        sql, filas, metrica, cuenta$n, muestra, cuenta$total
+      )
+      if (is.null(decidido)) next
+      sql <- decidido
+      if (metrica %in% names(resultados[[i]]$fila)) {
+        resultados[[i]]$fila[[metrica]] <- NA_real_
+      }
+    }
+    resultados[[i]]$sql <- sql
+  }
+  resultados
+}
+
 # La media y el desvio de un decimal, en el decimal, por la tabla completa y
 # bajo la muestra del motor. El motor los calculaba en doble: SQL Server con
 # `AVG(CAST(x AS FLOAT))`, MySQL y MariaDB con `AVG(x * 1e0)`, y el desvio,
@@ -17037,32 +17163,13 @@
       if (!any(filas)) next
       valor_exacto <- suppressWarnings(as.numeric(exacto[[metrica]]))
       # Las sumas llegaron y no hay valor porque no alcanzan los valores: lo
-      # dice la cuenta, como en la ayuda. Sin valores no nulos, `sin_valores`
-      # por la tabla completa y `muestra_inestable:sin_valores_validos` en la
-      # muestra; el desvio con uno solo, `no_aplica`.
-      finitos <- suppressWarnings(as.numeric(exacto$finitos))
-      # Una muestra sin filas no permite concluir que la columna este vacia:
-      # queda lo que dijo la muestra (`muestra_vacia:<metodo>`).
-      motivos <- as.character(sql$motivo[filas])
-      motivos[is.na(motivos)] <- ""
-      vacia_muestra <- muestra && (
-        any(startsWith(motivos, "muestra_vacia:")) || isTRUE(exacto$total == 0)
+      # dice la cuenta de las sumas (`.estado_por_cuenta_dbi()`).
+      decidido <- .estado_por_cuenta_dbi(
+        sql, filas, metrica, exacto$finitos, muestra, exacto$total
       )
-      if (length(finitos) == 1L && is.finite(finitos) && !vacia_muestra &&
-          (finitos < 1 || (identical(metrica, "desvio") && finitos < 2))) {
+      if (!is.null(decidido)) {
         resultados[[i]]$fila[[metrica]] <- NA_real_
-        if (finitos < 1 && muestra) {
-          sql$estado[filas] <- "no_disponible"
-          sql$motivo[filas] <- "muestra_inestable:sin_valores_validos"
-        } else if (finitos < 1) {
-          sql$estado[filas] <- "sin_valores"
-          sql$motivo[filas] <- "La columna no contiene valores no nulos."
-        } else {
-          sql$estado[filas] <- "no_aplica"
-          sql$motivo[filas] <-
-            "El desv\u00edo muestral requiere al menos dos valores no nulos."
-        }
-        resultados[[i]]$sql <- sql
+        resultados[[i]]$sql <- decidido
         next
       }
       if (length(valor_exacto) == 1L && is.finite(valor_exacto)) {

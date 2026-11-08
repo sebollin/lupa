@@ -722,6 +722,16 @@ Primera versión publicada.
   toda `NULL` queda `sin_valores` y el desvío de una sola fila, `no_aplica`. La escala de un decimal de una tabla
   temporal la leen el catálogo de `tempdb` en SQL Server y `SHOW COLUMNS` en
   MySQL y MariaDB: sin ella, el desvío quedaba a un ulp o `no_disponible`.
+- Sin `validos` en `metricas`, el mínimo, el máximo, la media y el desvío de un
+  doble o un entero no sabían cuántos valores vieron: una columna toda `NULL`
+  daba la media `no_disponible` con «La consulta terminó sin un valor para la
+  métrica» y el desvío `no_aplica`, y el desvío de una sola fila
+  `no_disponible`, donde la ayuda promete `sin_valores` y `no_aplica`. La cuenta
+  de los no nulos va ahora en la misma consulta de los agregados, sin consulta
+  nueva, y decide como la de las sumas exactas de un decimal. Por el spool, una
+  tabla sin filas publicaba `n_validos`, `n_faltantes` y `n_distintos` en cero
+  como `observado_muestra`; ahora, como una muestra vacía de una tabla con
+  filas, `no_disponible` con `muestra_vacia:<método>`.
 - En MySQL y MariaDB, con `metricas = "desvio"`, una tabla sin filas por la
   muestra del motor publicaba el desvío `no_aplica` («requiere al menos dos
   valores»): al pedirse el desvío solo, la consulta perdía el total del lote.
