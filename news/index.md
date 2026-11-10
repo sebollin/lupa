@@ -1063,7 +1063,11 @@ Primera versión publicada.
   diminutos (con 2^1000, -2^1000 y valores de 2^-1000 salía 0). Y la
   rama de texto de un entero que pasa de 2^53 saca los centinelas
   declarados como `integer64` —no entraban en los extremos exactos, los
-  conteos ni la mediana— y lee `"-0"` como el cero.
+  conteos ni la mediana— y lee `"-0"` como el cero. Un centinela así
+  escrito se reconoce por sus cifras también donde R lee ese texto a un
+  ulp del valor (macOS sobre arm64, cuyo `long double` es un doble):
+  `"1152921504606846976"` con `2^60` declarado quedaba en el resumen y
+  la media salía 2,9e17.
 - La mediana de un decimal en SQL Server (compatibilidad 110 o más),
   PostgreSQL 9.4 o más y DuckDB es el doble más cercano de la exacta,
   por la tabla completa y por la muestra del motor: el motor suma sus
