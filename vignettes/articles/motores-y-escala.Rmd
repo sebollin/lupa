@@ -54,6 +54,20 @@ if (!length(archivos_codigos)) stop("No encuentro el CSV de medir_topes_valores_
 codigos_ancho <- utils::read.csv(archivos_codigos[[1L]], stringsAsFactors = FALSE)
 codigos_ancho <- codigos_ancho[codigos_ancho$escenario == "tabla_ancha", , drop = FALSE]
 codigos_minima <- min(codigos_ancho$celdas_por_segundo)
+# La muestra del motor sobre valores muy largos, de benchmark/medir_tope_muestra.R.
+archivos_tope <- sort(
+  list.files(datos_banco, pattern = "^medir-tope-muestra-.*[.]csv$", full.names = TRUE),
+  decreasing = TRUE
+)
+if (!length(archivos_tope)) stop("No encuentro el CSV de medir_tope_muestra.R.")
+tope_muestra <- utils::read.csv(archivos_tope[[1L]], stringsAsFactors = FALSE)
+stopifnot(all(tope_muestra$estado == "medido"))
+tope_de <- function(motor, escenario, campo) {
+  tope_muestra[[campo]][tope_muestra$motor == motor &
+                          tope_muestra$escenario == escenario]
+}
+kb_spool <- range(tope_muestra$bytes_spool[
+  tope_muestra$escenario == "valores_largos"]) / 1e3
 dependencias <- function(campo) {
   x <- utils::packageDescription("lupa")[[campo]]
   x <- trimws(strsplit(x, ",")[[1]])
@@ -467,11 +481,19 @@ Lo que cada forma implica queda publicado:
   se cruza con el presupuesto del spool. En los motores que lo permiten usa el
   catálogo. En los demás, comienza con un bloque pequeño y adapta `dbFetch(n)`.
   La muestra no se trae entera para recortarla en R. Medido en PostgreSQL 16 y
-  SQL Server: 200 filas con un texto de un millón de caracteres y un binario de
-  250 KB (250 y 300 MB) llegan al spool en 27 KB, cada valor largo como su largo
-  y su MD5; con `max_bytes_muestra = 1e6` sobre 2.000 textos de 9.000
-  caracteres se leen 109 filas, 0,99 MB, y `meta$materializacion$tope_que_mando`
-  es `"bytes"`.
+  SQL Server (`benchmark/medir_tope_muestra.R`, corrida del
+  `r substr(tope_muestra$fecha[[1L]], 1L, 10L)`):
+  `r tope_de("PostgreSQL 16", "valores_largos", "filas_tabla")` filas con un
+  texto de un millón de caracteres y un binario de 250 KB
+  (`r numero(tope_de("PostgreSQL 16", "valores_largos", "bytes_tabla") / 1e6)` MB)
+  llegan al spool en `r numero(kb_spool[[1L]])` a `r numero(kb_spool[[2L]])` KB,
+  cada valor largo como su largo y su MD5; con `max_bytes_muestra = 1e6` sobre
+  `r numero(tope_de("PostgreSQL 16", "tope_bytes", "filas_tabla"))` textos de
+  8.992 caracteres se leen
+  `r tope_de("PostgreSQL 16", "tope_bytes", "filas_leidas")` filas,
+  `r numero(tope_de("PostgreSQL 16", "tope_bytes", "bytes_spool") / 1e6, 2)` MB,
+  y `meta$materializacion$tope_que_mando` es `"bytes"`. El CSV, en
+  `benchmark/datos/`, conserva la fecha, el entorno y la huella del código.
 
 Si `muestra = n` y un tope es más estricto, manda el menor. La cobertura de
 diagnósticos de `perfil_muestra` declara las celdas o bytes observados, el
