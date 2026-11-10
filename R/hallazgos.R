@@ -3594,7 +3594,8 @@
   }
   trazabilidad_precalculada <- hallazgo$trazabilidad[[1L]]
   if (tipo %in% c(
-      "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
+      "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario",
+      "fecha_nacimiento_fuera_rango", "fecha_fallecimiento_fuera_rango"
     ) &&
       is.list(trazabilidad_precalculada) &&
       !identical(trazabilidad_precalculada$estado, "no_disponible")) {

@@ -121,8 +121,8 @@
   pierde ningún valor» cuando pierde algo: nombra el cero inicial de un código
   (`007`), la precisión, la convención sin decidir o las fechas de lectura
   ambigua, las mismas razones por las que el plan no convierte.
-  `fecha_nacimiento_fuera_rango` cuenta las filas fuera de rango, que publicaba
-  como `NA`.
+  `fecha_nacimiento_fuera_rango` y `fecha_fallecimiento_fuera_rango` cuentan las
+  filas fuera de rango, que publicaban como `NA`, y su traza las nombra.
 - `detectar_formatos_fecha()` reconoce la `t` y la `z` minúsculas de RFC 3339
   y cuenta la fecha civil distinta en UTC de un `POSIXlt` como la de su
   `POSIXct` (daba 0).

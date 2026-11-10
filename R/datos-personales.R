@@ -1878,10 +1878,10 @@
 # el `NA` dice "no se puede saber", y se podia. Sin la columna o su resultado no
 # se puede, y sigue `NA`; tambien si la cuenta no ve ninguna fecha afuera, que
 # contradiria al minimo o al maximo que disparo el hallazgo.
-.n_fechas_fuera_de_rango_personal <- function(x, resultado, limite_inferior,
-                                              limite_superior) {
+.filas_fechas_fuera_de_rango_personal <- function(x, resultado, limite_inferior,
+                                                  limite_superior) {
   if (is.null(x) || !is.list(resultado) || is.null(resultado$inferencia)) {
-    return(NA_real_)
+    return(NULL)
   }
   valores <- .texto_analizable(x)$valores
   aplicable <- resultado$aplicable
@@ -1897,14 +1897,16 @@
   )
   if (is.null(cuantitativos) ||
       !isTRUE(cuantitativos$clase %in% c("fecha", "fecha-hora"))) {
-    return(NA_real_)
+    return(NULL)
   }
   segundos <- as.numeric(cuantitativos$valores)
+  # Sin un valor por fila no hay posiciones que dar, y contar sin poder nombrar
+  # las filas es la incoherencia que la guarda de trazabilidad acusa.
+  if (length(segundos) != length(valores)) return(NULL)
   # El dia civil en UTC, que es el de `minimo_fecha` y `maximo_fecha`.
-  dias <- floor(segundos[is.finite(segundos)] / 86400)
-  n <- sum(dias < as.numeric(limite_inferior) |
-             dias > as.numeric(limite_superior))
-  if (n > 0) as.numeric(n) else NA_real_
+  dias <- floor(segundos / 86400)
+  which(is.finite(segundos) & (dias < as.numeric(limite_inferior) |
+                                 dias > as.numeric(limite_superior)))
 }
 
 # `datos` y `resultados` -la tabla y los resultados por columna de
@@ -1943,14 +1945,18 @@
       if (anterior) "al menos una fecha anterior a 1900",
       if (futura) "al menos una fecha posterior a la fecha del perfil"
     )
-    n_afectados <- if (is.data.frame(datos) && is.list(resultados) &&
-                         indice <= ncol(datos) && indice <= length(resultados)) {
-      .n_fechas_fuera_de_rango_personal(
+    # La cuenta y la traza salen de las mismas filas: el hallazgo contaba y
+    # no nombraba ninguna, y la guarda de trazabilidad avisaba de un problema
+    # del paquete en cada columna de nacimiento con una fecha fuera de rango.
+    filas <- if (is.data.frame(datos) && is.list(resultados) &&
+                   indice <= ncol(datos) && indice <= length(resultados)) {
+      .filas_fechas_fuera_de_rango_personal(
         datos[[indice]], resultados[[indice]], limite_inferior,
         limite_superior
       )
-    } else NA_real_
-    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+    }
+    n_afectados <- if (length(filas)) as.numeric(length(filas)) else NA_real_
+    hallazgo <- .nuevo_hallazgo(
       nombre, configuracion$hallazgo,
       if (futura) "error" else "sospechoso",
       paste0(
@@ -1965,6 +1971,12 @@
       "Revisar los registros se\u00f1alados contra la fuente antes de corregirlos.",
       columnas$n[[indice]], n_afectados, "fila"
     )
+    if (length(filas)) {
+      hallazgo$trazabilidad <- I(list(
+        .trazabilidad_indices(filas, "completo", limite = Inf)
+      ))
+    }
+    hallazgos[[length(hallazgos) + 1L]] <- hallazgo
   }
   hallazgos
 }

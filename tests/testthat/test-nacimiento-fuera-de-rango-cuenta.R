@@ -64,3 +64,24 @@ test_that("sin fechas fuera de rango no hay hallazgo", {
   )
   expect_identical(nrow(h), 0L)
 })
+
+test_that("el hallazgo nombra las filas que cuenta, sin avisar de una incoherencia", {
+  # La cuenta llego antes que la traza: el hallazgo decia dos filas y no
+  # nombraba ninguna, y cada perfil con una fecha fuera de rango avisaba que la
+  # trazabilidad de lupa estaba rota.
+  x <- as.Date(c("1899-12-31", "1900-01-01", "2000-01-01", "2999-12-31"))
+  datos <- data.frame(fecha_nacimiento = x)
+  expect_no_warning(p <- perfilar(datos, fecha = .fecha_rango_personal))
+  h <- as.data.frame(p$hallazgos)
+  h <- h[h$tipo_hallazgo == "fecha_nacimiento_fuera_rango", , drop = FALSE]
+  expect_identical(h$n_afectados, 2)
+  expect_identical(as.integer(h$trazabilidad[[1L]]$indices_fila), c(1L, 4L))
+  muertes <- data.frame(fecha_fallecimiento = as.Date(
+    c("2010-05-05", "1890-01-01", "2100-01-01")
+  ))
+  expect_no_warning(p <- perfilar(muertes, fecha = .fecha_rango_personal))
+  h <- as.data.frame(p$hallazgos)
+  h <- h[h$tipo_hallazgo == "fecha_fallecimiento_fuera_rango", , drop = FALSE]
+  expect_identical(as.integer(h$trazabilidad[[1L]]$indices_fila), c(2L, 3L))
+})
+
