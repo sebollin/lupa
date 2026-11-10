@@ -691,6 +691,10 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #' @param max_pares Máximo de asociaciones devueltas después de ordenar.
 #' @param metodo_numerico Medida entre columnas numéricas: `"pearson"` por
 #'   omisión, o `"spearman"` para asociación monótona sobre los rangos.
+#' @param sentinelas_numericos Vector de valores declarados como ausencia. La
+#'   fila de un par que contiene un valor declarado no se usa para medirlo,
+#'   igual que una fila con `NA`; por eso `n_pares` cuenta sólo las filas
+#'   completas restantes. La lista por omisión no se considera una declaración.
 #'
 #' @return Data frame S3 `asociaciones_columnas`. Sus atributos declaran filas,
 #'   columnas y pares examinados, omisiones por dependencia y truncamiento.
@@ -708,10 +712,15 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
                                   muestra = 1e4, max_columnas = 50L,
                                   max_niveles = 50L, max_pares = 500L,
-                                  metodo_numerico = c("pearson", "spearman")) {
+                                  metodo_numerico = c("pearson", "spearman"),
+                                  sentinelas_numericos = NULL) {
   metodo_numerico <- .elegir_opcion(metodo_numerico)
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
+  .validar_sentinelas_numericos(sentinelas_numericos, permitir_nulo = TRUE)
+  datos <- .enmascarar_sentinelas_relacion(
+    datos, sentinelas_numericos
+  )
   if (!is.null(dependencias) && !inherits(dependencias, "data.frame")) {
     .detener("`dependencias` debe ser NULL o un data frame.", call. = FALSE)
   }

@@ -207,25 +207,27 @@
   list(digitos = digitos, negativos = negativos, identidad = identidad)
 }
 
-# Un entero escrito como texto que es, cifra por cifra, un centinela declarado
-# vale el centinela, y no lo que `as.numeric()` lea de el. `R_strtod()` acumula
-# las cifras en `long double`, y donde ese tipo es un doble -macOS sobre arm64-
-# un entero de mas de 2^53 llega a otro doble: "1152921504606846976", que es
-# 2^60, se leia 2^60 - 128, y el resumen, que compara el centinela por valor, no
-# lo encontraba y publicaba una media de 2,9e17. La rama de texto de los enteros
-# grandes y la de `integer64` lo reconocen por su texto; los valores leidos
-# quedan de acuerdo con ellas.
+# Un texto numerico que identifica un centinela declarado conserva ese valor y
+# no el doble que resulte de leerlo. `R_strtod()` acumula las cifras en
+# `long double`, y donde ese tipo es un doble -macOS sobre arm64- un entero de
+# mas de 2^53 llega a otro doble: "1152921504606846976", que es 2^60, se leia
+# 2^60 - 128. La identidad comun tambien cubre las formas regionales y la
+# escritura corta de fracciones.
 .centinelas_enteros_por_texto <- function(texto, valores,
-                                          sentinelas_numericos) {
+                                          sentinelas_numericos,
+                                          convencion = NULL,
+                                          identidades = NULL) {
   if (!length(sentinelas_numericos) || length(texto) != length(valores)) {
     return(valores)
   }
-  enteros <- which(!is.na(texto) & grepl("^[+-]?[0-9]+$", texto, perl = TRUE))
-  if (!length(enteros)) return(valores)
-  identidad <- .partes_entero_texto(texto[enteros])$identidad
-  posicion <- match(identidad, .texto_identidad(sentinelas_numericos))
+  posicion <- identidades
+  if (is.null(posicion)) {
+    posicion <- .identidades_sentinelas_texto(
+      texto, sentinelas_numericos, convencion, valores_leidos = valores
+    )
+  }
   cuales <- !is.na(posicion)
-  valores[enteros[cuales]] <- as.double(sentinelas_numericos[posicion[cuales]])
+  valores[cuales] <- as.double(sentinelas_numericos[posicion[cuales]])
   valores
 }
 
@@ -263,7 +265,9 @@
   digitos <- partes$digitos
   n_sentinelas <- 0L
   if (length(sentinelas_numericos)) {
-    centinela <- partes$identidad %in% .texto_identidad(sentinelas_numericos)
+    centinela <- !is.na(.identidades_sentinelas_texto(
+      presentes, sentinelas_numericos
+    ))
     n_sentinelas <- as.integer(sum(centinela))
     negativos <- negativos[!centinela]
     digitos <- digitos[!centinela]
@@ -380,11 +384,23 @@
       # Con la convencion decimal que el perfil publica para la columna, no con
       # un `sub(",", ".")` propio: ver `.leer_numeros_texto()`. Lo que esa
       # convencion no puede leer se cuenta abajo como excluido.
-      valores <- .centinelas_enteros_por_texto(
-        texto,
-        .leer_numeros_texto(texto, inferencia[["convencion_numero_texto"]]),
-        sentinelas_numericos
+      valores <- .leer_numeros_texto(
+        texto, inferencia[["convencion_numero_texto"]]
       )
+      identidades_sentinelas <- .identidades_sentinelas_texto(
+        texto, sentinelas_numericos,
+        inferencia[["convencion_numero_texto"]], valores_leidos = valores
+      )
+      valores <- .centinelas_enteros_por_texto(
+        texto, valores, sentinelas_numericos,
+        inferencia[["convencion_numero_texto"]], identidades_sentinelas
+      )
+      mascara_sentinelas_texto <- !is.na(identidades_sentinelas)
+      if (any(mascara_sentinelas_texto)) {
+        valores[mascara_sentinelas_texto] <- as.double(
+          sentinelas_numericos[identidades_sentinelas[mascara_sentinelas_texto]]
+        )
+      }
       # Los textos presentes que no llegan a numero no son NA de origen y no
       # pueden desaparecer sin dejar alcance.
       #
@@ -415,6 +431,7 @@
                   n_fechas_resumidas = NA_integer_,
                   n_fechas_excluidas_granularidad = NA_integer_,
                   n_valores_excluidos_resumen = n_excluidas,
+                  mascara_sentinelas_texto = mascara_sentinelas_texto,
                   fuera_de_precision =
                     .extremos_enteros_texto_fuera_de_precision(
                       texto, inferencia$tipo, sentinelas_numericos
@@ -1369,7 +1386,9 @@
   # declara los cinco en `n_presentes_fuera_de_aplicabilidad`. No es una
   # contradiccion, y un estado como `sin_valores_utilizables` seria lo falso.
   n_presentes_resumen <- as.integer(sum(!is.na(valores_originales)))
-  mascara_sentinelas <- if (identical(cuantitativos$clase, "numero")) {
+  mascara_sentinelas <- if (!is.null(cuantitativos$mascara_sentinelas_texto)) {
+    cuantitativos$mascara_sentinelas_texto
+  } else if (identical(cuantitativos$clase, "numero")) {
     .mascara_sentinelas_resumen(
       valores_originales, sentinelas_declarados
     )
@@ -1474,10 +1493,16 @@
     return(vacio)
   }
 
+  valores_basicos <- if (!is.null(cuantitativos$mascara_sentinelas_texto)) {
+    valores_originales[!mascara_sentinelas]
+  } else {
+    valores_originales
+  }
   basicos <- .resumen_cuantitativo_bloques(
-    valores_originales,
+    valores_basicos,
     contar_signos = identical(cuantitativos$clase, "numero"),
-    excluir = if (identical(cuantitativos$clase, "numero")) {
+    excluir = if (is.null(cuantitativos$mascara_sentinelas_texto) &&
+                 identical(cuantitativos$clase, "numero")) {
       sentinelas_declarados
     } else {
       numeric()
@@ -1845,11 +1870,11 @@
 # (`n_valores_excluidos_resumen`), como cualquier texto que no llega a numero.
 # `NaN` e `Inf` escritos siguen siendo `NaN` e `Inf`: el resumen los cuenta en
 # sus propios campos y no en el maximo.
-.leer_numeros_texto <- function(texto, convencion = NULL) {
+.normalizar_numeros_texto <- function(texto, convencion = NULL) {
   texto <- trimws(as.character(texto))
   con_separador <- !is.na(texto) & grepl("[.,]", texto, perl = TRUE)
   if (!any(con_separador)) {
-    return(.solo_formas_numero(suppressWarnings(as.numeric(texto)), texto))
+    return(texto)
   }
   if (is.null(convencion)) {
     convencion <- .analizar_numeros_texto(texto)$convencion
@@ -1892,6 +1917,12 @@
   } else {
     normalizado <- sub(",", ".", texto, fixed = TRUE)
   }
+  normalizado
+}
+
+.leer_numeros_texto <- function(texto, convencion = NULL) {
+  texto <- trimws(as.character(texto))
+  normalizado <- .normalizar_numeros_texto(texto, convencion)
   .solo_formas_numero(suppressWarnings(as.numeric(normalizado)), texto)
 }
 

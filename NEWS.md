@@ -818,6 +818,27 @@
   grandes (`{2^53 - 2, 2^53 - 1}` daba 1 por 0,7071).
 - `requisitos_motor()` declara PostgreSQL «9.3 y 16», las dos versiones que se
   miden.
+- Un centinela declarado en `sentinelas_numericos` cuenta como ausencia
+  también en las dependencias funcionales de `perfilar()` y en las asociaciones
+  de `analizar()`: la fila que lo tiene no se evalúa en el par, como con un `NA`,
+  y `n_evaluados` y `n_pares` lo dicen. Con un `-999` declarado en una columna de
+  palabras, el perfil perdía `x -> y`, porque el centinela era un tercer valor;
+  con un `-999` en una columna numérica, la media salía sin él y `analizar()` no
+  publicaba una asociación de 0,92. `detectar_dependencias()` y
+  `detectar_asociaciones()` reciben el mismo argumento. La lista por omisión
+  sigue sin sacar nada de ningún cálculo.
+- En una columna de texto, un centinela declarado se reconoce por el número que
+  escribe la celda: `"-999"`, `"-999.0"`, `"-9.99e2"` o, con coma decimal,
+  `"-999,0"` son el mismo `-999`. El resumen, el detector de faltantes
+  disfrazados y la conversión de `planificar_limpieza()` usan esa misma regla.
+  Antes el resumen reconocía por sus cifras sólo la forma entera, y el detector
+  y el plan comparaban el doble leído: en macOS sobre arm64, donde R lee
+  `"1152921504606846976"` como 2^60 − 128, `2^60` declarado y escrito con `.0`
+  quedaba en la media, el perfil no lo contaba como disfrazado y `aplicar()`
+  registraba la conversión `fallida`. Un texto con más cifras de las que
+  distingue un doble es el centinela sólo si lo escribe exacto: en Linux,
+  `"1152921504606846976.4"` caía en el doble de `2^60` y se sacaba como si lo
+  fuera.
 
 # lupa 0.1.0
 

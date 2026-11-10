@@ -157,7 +157,10 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
     numericos <- .leer_numeros_texto_centinela(normalizados, convencion)
     mascara_numerica <- detectar_sentinelas_numericos &
-      !is.na(normalizados) & !is.na(numericos) & numericos %in% numeros_na
+      !is.na(normalizados) & !is.na(numericos) &
+      !is.na(.identidades_sentinelas_texto(
+        normalizados, numeros_na, convencion, valores_leidos = numericos
+      ))
     mascara <- mascara_textual | mascara_numerica
     etiquetas <- textos[mascara]
     etiquetas[trimws(etiquetas) == ""] <- "<blanco>"

@@ -17,7 +17,8 @@ detectar_dependencias(
   max_comparaciones = 200000L,
   max_trabajo = 1e+08,
   proteger_datos_personales = FALSE,
-  columnas_personales = character()
+  columnas_personales = character(),
+  sentinelas_numericos = NULL
 )
 }
 \arguments{
@@ -65,6 +66,12 @@ con nombre donde el nombre es la columna y el valor es el tipo. Sin ella,
 una columna que el léxico no reconoce —un legajo interno— publica sus
 valores en \code{evidencia}. Sólo tiene efecto con
 \code{proteger_datos_personales = TRUE}.}
+
+\item{sentinelas_numericos}{Vector de valores declarados como ausencia. Las
+celdas que contienen un valor declarado no participan en la dependencia,
+igual que una celda \code{NA}; por eso \code{n_evaluados} cuenta sólo las filas con
+ambas columnas presentes. La lista por omisión no se considera una
+declaración.}
 }
 \value{
 Data frame de clase \code{dependencias_funcionales}, ordenado por

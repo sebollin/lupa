@@ -414,8 +414,10 @@ El paquete separa lo que se declara de lo que sospecha:
   `minimo`, `maximo` y `desvio`. `n_valores_excluidos_resumen` dice cuántos
   quedaron afuera, igual que los `NA` y las filas que `aplicabilidad` deja fuera
   del universo. También salen de la ley de Benford, de las relaciones
-  aritméticas y de `valor_concentrado`. La misma celda no puede ser ausencia en el resumen y valor en un
-  diagnóstico. `moda` y `n_distintos` siguen describiendo lo que está guardado.
+  aritméticas y de `valor_concentrado`, y las dependencias funcionales y las
+  asociaciones no evalúan la fila que los tiene. La misma celda no puede ser
+  ausencia en el resumen y valor en un diagnóstico. En una columna de texto,
+  `"-999"`, `"-999.0"` y `"-9.99e2"` son el mismo centinela `-999`. `moda` y `n_distintos` siguen describiendo lo que está guardado.
 - **`posible_centinela_numerico`** informa un valor que reúne 3 rasgos: queda
   fuera de los límites, se repite y tiene forma de dígito repetido. No lo cuenta
   como ausencia: eso lo decide quien conoce la columna, y lo agrega a la lista.

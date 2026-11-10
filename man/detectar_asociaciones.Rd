@@ -12,7 +12,8 @@ detectar_asociaciones(
   max_columnas = 50L,
   max_niveles = 50L,
   max_pares = 500L,
-  metodo_numerico = c("pearson", "spearman")
+  metodo_numerico = c("pearson", "spearman"),
+  sentinelas_numericos = NULL
 )
 }
 \arguments{
@@ -32,6 +33,11 @@ detectar_asociaciones(
 
 \item{metodo_numerico}{Medida entre columnas numéricas: \code{"pearson"} por
 omisión, o \code{"spearman"} para asociación monótona sobre los rangos.}
+
+\item{sentinelas_numericos}{Vector de valores declarados como ausencia. La
+fila de un par que contiene un valor declarado no se usa para medirlo,
+igual que una fila con \code{NA}; por eso \code{n_pares} cuenta sólo las filas
+completas restantes. La lista por omisión no se considera una declaración.}
 }
 \value{
 Data frame S3 \code{asociaciones_columnas}. Sus atributos declaran filas,

@@ -49,7 +49,9 @@ el orden temporal: la hora de la corrida no dice nada sobre las entregas.}
 \item{argumentos_perfil}{Lista de argumentos adicionales para \code{\link[=perfilar]{perfilar()}}.
 Los nombres se completan como los completa \code{perfilar()} —\code{aplic} es
 \code{aplicabilidad}— antes de leerlos, así que un nombre abreviado gobierna el
-perfil y la medición por igual.}
+perfil y la medición por igual. \code{sentinelas_numericos} también gobierna
+las dependencias del perfil y las asociaciones: las filas que contienen
+un valor declarado no se evalúan en esos pares.}
 
 \item{metadatos_variables}{Declaraciones para \code{\link[=clasificar_variables]{clasificar_variables()}}.}
 

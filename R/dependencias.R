@@ -41,6 +41,88 @@
   )
 }
 
+# La ausencia declarada tiene que quitarse antes de agrupar, no despues de
+# publicar la dependencia: una misma fila invalida los dos sentidos del par.
+# La decision sobre la identidad la toma la mascara del resumen. Para texto que
+# el resumen reconoce como numero se usa su conversion, y para texto categorico
+# se conserva la identidad textual que la relacion puede comparar.
+.mascara_sentinelas_relacion <- function(x, sentinelas_numericos = NULL) {
+  declarados <- .sentinelas_numericos_declarados(sentinelas_numericos)
+  if (!length(declarados) || !length(x) || is.raw(x) ||
+      is.list(x) || .es_columna_compuesta(x) || inherits(x, c("Date", "POSIXt"))) {
+    return(rep(FALSE, length(x)))
+  }
+  valores <- if (inherits(x, "integer64")) {
+    # El resumen de integer64 compara por su identidad decimal exacta, no por un
+    # doble que podria haber perdido las cifras bajas.
+    .texto_identidad(x)
+  } else if (is.numeric(x)) {
+    as.numeric(x)
+  } else if (inherits(x, "difftime")) {
+    as.numeric(x)
+  } else if (is.character(x) || is.factor(x)) {
+    texto <- .texto_analizable(x)$valores
+    inferencia <- tryCatch(
+      .inferir_tipo_interno(texto, muestra = Inf, conservar_cache = TRUE),
+      error = function(e) NULL
+    )
+    cuantitativos <- if (!is.null(inferencia) &&
+                         as.character(inferencia$tipo) %in% c("entero", "doble")) {
+      tryCatch(
+        .valores_cuantitativos(
+          texto, inferencia, inferencia$formatos_fecha,
+          sentinelas_numericos = declarados
+        ),
+        error = function(e) NULL
+      )
+    } else NULL
+    if (is.list(cuantitativos) && cuantitativos$clase %in% c("numero", "integer64")) {
+      cuantitativos$valores
+    } else {
+      texto
+    }
+  } else {
+    return(rep(FALSE, length(x)))
+  }
+  .mascara_sentinelas_resumen(valores, declarados)
+}
+
+# Una sola validacion para las tres puertas que reciben la declaracion: el
+# perfil, las dependencias y las asociaciones. Las dos ultimas aceptan `NULL`,
+# que es no declarar nada.
+.validar_sentinelas_numericos <- function(sentinelas_numericos,
+                                          permitir_nulo = FALSE) {
+  if (permitir_nulo && is.null(sentinelas_numericos)) {
+    return(invisible(NULL))
+  }
+  if (!is.numeric(sentinelas_numericos) ||
+      any(!is.na(sentinelas_numericos) &
+          !is.finite(sentinelas_numericos))) {
+    .detener(
+      "`sentinelas_numericos` debe ser un vector num\u00e9rico finito; se permiten NA.",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+.enmascarar_sentinelas_relacion <- function(datos, sentinelas_numericos = NULL) {
+  if (!length(.sentinelas_numericos_declarados(sentinelas_numericos))) {
+    return(datos)
+  }
+  for (i in seq_along(datos)) {
+    mascara <- .mascara_sentinelas_relacion(
+      datos[[i]], sentinelas_numericos
+    )
+    if (any(mascara)) {
+      valores <- datos[[i]]
+      valores[mascara] <- NA
+      datos[[i]] <- valores
+    }
+  }
+  datos
+}
+
 .resumen_dependencia <- function(x, y, particion = NULL) {
   if (is.null(particion)) particion <- .particion_dependencia(x, y)
   n <- particion$n
@@ -257,6 +339,11 @@
 #'   una columna que el léxico no reconoce —un legajo interno— publica sus
 #'   valores en `evidencia`. Sólo tiene efecto con
 #'   `proteger_datos_personales = TRUE`.
+#' @param sentinelas_numericos Vector de valores declarados como ausencia. Las
+#'   celdas que contienen un valor declarado no participan en la dependencia,
+#'   igual que una celda `NA`; por eso `n_evaluados` cuenta sólo las filas con
+#'   ambas columnas presentes. La lista por omisión no se considera una
+#'   declaración.
 #'
 #' @return Data frame de clase `dependencias_funcionales`, ordenado por
 #'   cumplimiento y soporte. `evidencia` cita contradicciones concretas, y **no
@@ -300,13 +387,18 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                    max_comparaciones = 200000L,
                                    max_trabajo = 100000000,
                                    proteger_datos_personales = FALSE,
-                                   columnas_personales = character()) {
+                                   columnas_personales = character(),
+                                   sentinelas_numericos = NULL) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   # La misma entrada que el perfil: un nivel `NA` de un factor es un faltante
   # -la dependencia lo contaba entre los pares presentes- y un `POSIXlt` es el
   # instante de un `POSIXct`. Ver `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
+  .validar_sentinelas_numericos(sentinelas_numericos, permitir_nulo = TRUE)
+  datos <- .enmascarar_sentinelas_relacion(
+    datos, sentinelas_numericos
+  )
   .validar_bandera_proteccion(proteger_datos_personales)
   columnas_personales <- .normalizar_columnas_personales(
     columnas_personales, names(datos)

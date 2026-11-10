@@ -2161,6 +2161,191 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   salida
 }
 
+# La representacion decimal exacta de un doble, como piezas de signo, cifras y
+# escala. Las cifras son enteras en texto; no se usa un doble para comparar dos
+# decimales que pueden diferir despues de la lectura.
+.piezas_decimal <- function(signo, digitos, escala) {
+  digitos <- sub("^0+", "", digitos, perl = TRUE)
+  if (!nzchar(digitos)) {
+    return(list(signo = 0L, digitos = "0", escala = 0L))
+  }
+  escala <- as.integer(escala)
+  if (escala < 0L) {
+    digitos <- paste0(digitos, strrep("0", -escala))
+    escala <- 0L
+  }
+  while (escala > 0L && substr(digitos, nchar(digitos), nchar(digitos)) == "0") {
+    digitos <- substr(digitos, 1L, nchar(digitos) - 1L)
+    escala <- escala - 1L
+  }
+  list(signo = if (signo < 0) -1L else 1L,
+       digitos = digitos, escala = escala)
+}
+
+.piezas_decimal_texto <- function(texto) {
+  if (length(texto) != 1L || is.na(texto)) return(NULL)
+  texto <- as.character(texto)
+  if (!grepl("^[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$",
+             texto, perl = TRUE)) {
+    return(NULL)
+  }
+  signo <- if (startsWith(texto, "-")) -1L else 1L
+  cuerpo <- sub("^[+-]", "", texto)
+  exponente <- 0L
+  if (grepl("[eE]", cuerpo, perl = TRUE)) {
+    exponente_texto <- sub("^.*[eE]", "", cuerpo, perl = TRUE)
+    exponente <- suppressWarnings(as.integer(exponente_texto))
+    if (is.na(exponente)) return(NULL)
+    cuerpo <- sub("[eE].*$", "", cuerpo, perl = TRUE)
+  }
+  antes <- sub("\\..*$", "", cuerpo, perl = TRUE)
+  despues <- if (grepl("\\.", cuerpo, perl = TRUE)) {
+    sub("^.*\\.", "", cuerpo, perl = TRUE)
+  } else ""
+  .piezas_decimal(signo, paste0(antes, despues),
+                  nchar(despues, type = "bytes") - exponente)
+}
+
+.multiplicar_entero_decimal <- function(digitos, multiplicador) {
+  cifras <- as.integer(strsplit(digitos, "", fixed = TRUE)[[1L]])
+  salida <- integer(length(cifras))
+  acarreo <- 0L
+  for (i in rev(seq_along(cifras))) {
+    producto <- cifras[[i]] * multiplicador + acarreo
+    salida[[i]] <- producto %% 10L
+    acarreo <- producto %/% 10L
+  }
+  while (acarreo > 0L) {
+    salida <- c(acarreo %% 10L, salida)
+    acarreo <- acarreo %/% 10L
+  }
+  paste0(salida, collapse = "")
+}
+
+.hexadecimal_a_decimal <- function(digitos) {
+  mapa <- c(as.character(0:9), letters[1:6], LETTERS[1:6])
+  salida <- "0"
+  caracteres <- strsplit(digitos, "", fixed = TRUE)[[1L]]
+  for (caracter in caracteres) {
+    salida <- .multiplicar_entero_decimal(salida, 16L)
+    valor <- match(caracter, mapa) - 1L
+    if (valor >= 16L && valor <= 21L) valor <- valor - 6L
+    if (valor > 0L) salida <- .sumar_entero_decimal(salida, valor)
+  }
+  salida
+}
+
+.sumar_entero_decimal <- function(digitos, sumando) {
+  cifras <- as.integer(strsplit(digitos, "", fixed = TRUE)[[1L]])
+  salida <- integer(length(cifras))
+  acarreo <- as.integer(sumando)
+  for (i in rev(seq_along(cifras))) {
+    suma <- cifras[[i]] + acarreo
+    salida[[i]] <- suma %% 10L
+    acarreo <- suma %/% 10L
+  }
+  while (acarreo > 0L) {
+    salida <- c(acarreo %% 10L, salida)
+    acarreo <- acarreo %/% 10L
+  }
+  paste0(salida, collapse = "")
+}
+
+.piezas_decimal_doble <- function(valor) {
+  if (length(valor) != 1L || is.na(valor) || !is.finite(valor)) {
+    return(NULL)
+  }
+  if (valor == 0) return(.piezas_decimal(1L, "0", 0L))
+  if (isTRUE(valor == trunc(valor)) && abs(valor) < 2^63) {
+    return(.piezas_decimal(if (valor < 0) -1L else 1L,
+                           sub("^-", "", .texto_identidad(valor)), 0L))
+  }
+  hexadecimal <- sprintf("%a", valor)
+  signo <- if (startsWith(hexadecimal, "-")) -1L else 1L
+  hexadecimal <- sub("^[+-]", "", hexadecimal)
+  partes <- strsplit(hexadecimal, "p", fixed = TRUE)[[1L]]
+  mantisa <- sub("^0x", "", partes[[1L]])
+  exponente <- suppressWarnings(as.integer(partes[[2L]]))
+  antes <- sub("\\..*$", "", mantisa)
+  despues <- if (grepl("\\.", mantisa, perl = TRUE)) {
+    sub("^.*\\.", "", mantisa, perl = TRUE)
+  } else ""
+  digitos <- .hexadecimal_a_decimal(paste0(antes, despues))
+  desplazamiento <- exponente - 4L * nchar(despues, type = "bytes")
+  if (desplazamiento >= 0L) {
+    for (i in seq_len(desplazamiento)) {
+      digitos <- .multiplicar_entero_decimal(digitos, 2L)
+    }
+    escala <- 0L
+  } else {
+    escala <- -desplazamiento
+    for (i in seq_len(escala)) {
+      digitos <- .multiplicar_entero_decimal(digitos, 5L)
+    }
+  }
+  .piezas_decimal(signo, digitos, escala)
+}
+
+.mismos_decimales <- function(a, b) {
+  !is.null(a) && !is.null(b) && identical(a$signo, b$signo) &&
+    identical(a$digitos, b$digitos) && identical(a$escala, b$escala)
+}
+
+.cifras_significativas_decimal <- function(texto) {
+  base <- sub("[eE].*$", "", texto, perl = TRUE)
+  base <- sub("^[+-]", "", base)
+  digitos <- gsub("[^0-9]", "", base, perl = TRUE)
+  digitos <- sub("^0+", "", digitos, perl = TRUE)
+  if (!nzchar(digitos)) 1L else nchar(digitos, type = "bytes")
+}
+
+# Identifica por la escritura de la celda, no por el doble que quedo despues de
+# leerla. La primera regla compara el decimal con la fraccion exacta del doble;
+# la segunda conserva los literales cortos cuya lectura de R coincide. El
+# resultado es la posicion del centinela declarado, o NA si no coincide.
+.identidades_sentinelas_texto <- function(texto, sentinelas_numericos,
+                                          convencion = NULL,
+                                          valores_leidos = NULL) {
+  texto <- trimws(as.character(texto))
+  salida <- rep(NA_integer_, length(texto))
+  if (!length(texto) || !length(sentinelas_numericos)) return(salida)
+  if (is.null(valores_leidos)) {
+    valores_leidos <- .leer_numeros_texto(texto, convencion)
+  }
+  if (length(valores_leidos) != length(texto)) return(salida)
+  candidatos <- rep(FALSE, length(texto))
+  finitos <- !is.na(valores_leidos) & is.finite(valores_leidos)
+  if (!any(finitos)) return(salida)
+  for (centinela in sentinelas_numericos) {
+    if (is.na(centinela) || !is.finite(centinela)) next
+    diferencia <- abs(valores_leidos - centinela)
+    tolerancia <- 4 * .Machine$double.eps * max(1, abs(centinela))
+    candidatos <- candidatos | (finitos & is.finite(diferencia) &
+                                  diferencia <= tolerancia)
+  }
+  indices <- which(candidatos)
+  if (!length(indices)) return(salida)
+  normalizados <- .normalizar_numeros_texto(texto, convencion)
+  piezas_texto <- lapply(normalizados[indices], .piezas_decimal_texto)
+  piezas_sentinelas <- lapply(sentinelas_numericos, .piezas_decimal_doble)
+  for (j in seq_along(sentinelas_numericos)) {
+    centinela <- sentinelas_numericos[[j]]
+    if (is.na(centinela) || !is.finite(centinela)) next
+    exactos <- vapply(piezas_texto, .mismos_decimales,
+                      logical(1L), b = piezas_sentinelas[[j]])
+    cortos <- vapply(normalizados[indices], function(valor) {
+      !is.null(.piezas_decimal_texto(valor)) &&
+        .cifras_significativas_decimal(valor) <= 17L
+    }, logical(1L))
+    leidos <- !is.na(valores_leidos[indices]) &
+      valores_leidos[indices] == centinela
+    cuales <- exactos | (cortos & leidos)
+    nuevos <- indices[cuales & is.na(salida[indices])]
+    salida[nuevos] <- as.integer(j)
+  }
+  salida
+}
+
 # Que nombres de columna aparecen mas de una vez, comparados por contenido como en
 # el resto del paquete. Marca TODAS las apariciones, no solo las segundas: ninguna
 # de las dos columnas se puede nombrar sin ambiguedad.

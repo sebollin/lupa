@@ -3119,7 +3119,9 @@
       valores,
       list(tipo = tipo,
            convencion_numero_texto = .convencion_numero_texto_fila(fila)),
-      resultado$formatos
+      resultado$formatos,
+      sentinelas_numericos =
+        resultado$sentinelas_numericos_declarados %||% numeric()
     ),
     error = function(e) NULL
   )
@@ -3136,7 +3138,11 @@
   # vez de recortar, para que los indices sigan alineados con la tabla.
   sentinelas <- resultado$sentinelas_numericos_declarados %||% numeric()
   if (length(sentinelas) && identical(cuantitativos$clase, "numero")) {
-    mascara <- .mascara_sentinelas_resumen(cuantitativos$valores, sentinelas)
+    mascara <- if (!is.null(cuantitativos$mascara_sentinelas_texto)) {
+      cuantitativos$mascara_sentinelas_texto
+    } else {
+      .mascara_sentinelas_resumen(cuantitativos$valores, sentinelas)
+    }
     cuantitativos$valores[mascara] <- NA_real_
   } else if (length(sentinelas) &&
              identical(cuantitativos$clase, "integer64")) {
@@ -3268,6 +3274,15 @@
   if (identical(tipo, "posible_centinela_numerico")) {
     valor <- suppressWarnings(as.numeric(fila$centinela_valor))
     if (!length(valor) || !isTRUE(is.finite(valor))) return(NULL)
+    if (is.character(x) || is.factor(x)) {
+      texto <- .texto_analizable(x)$valores
+      convencion <- .convencion_numero_texto_fila(fila)
+      numeros <- .leer_numeros_texto(texto, convencion)
+      identidad <- .identidades_sentinelas_texto(
+        texto, valor, convencion, valores_leidos = numeros
+      )
+      return(which(!is.na(identidad)))
+    }
     numeros <- .numerico_trazable(
       .valores_cuantitativos_hallazgo(x, fila, resultado)
     )

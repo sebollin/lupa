@@ -264,7 +264,17 @@ propios valores —o pide \link{sentinelas_naniar}, que es optar por una
 heurística más ancha—, se cuentan todos, incluida la aparición única. Ésa
 es también la forma de recuperar el caso que la reserva calla: declarar el
 valor lo vuelve a contar y además lo saca de los estadísticos del resumen,
-de la ley de Benford y de las relaciones aritméticas.}
+de la ley de Benford, de las relaciones aritméticas, de las dependencias
+funcionales y de las asociaciones que se calculen con \code{\link[=analizar]{analizar()}}. En
+estas relaciones la fila que contiene el valor declarado no se evalúa.
+
+En una columna de texto, una celda es el centinela si el número que
+escribe, leído con la convención de la columna (signo, ceros a la
+izquierda, miles, marca decimal, exponente), es exactamente el valor
+declarado, o si tiene a lo sumo 17 cifras significativas y R lo lee como
+ese valor: \code{"-999"}, \code{"-999.0"} y \code{"-9.99e2"} son el mismo centinela en toda
+plataforma. Un texto con más cifras de las que distingue un doble sólo es el
+centinela si lo escribe exacto.}
 
 \item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
 además de la lista incorporada. Lo declarado atraviesa la guarda del
@@ -1396,8 +1406,9 @@ de \code{media}, \code{mediana}, \code{minimo}, \code{maximo}, \code{desvio} y \
 salen los \code{NA} y las filas que \code{aplicabilidad} deja fuera del universo;
 \code{n_valores_excluidos_resumen} y \code{estado_resumen_cuantitativo} declaran ese
 alcance. Salen también de la ley de Benford y de las relaciones aritméticas,
-que leen la columna como magnitud: la misma celda no puede ser ausencia en
-el resumen y valor en un diagnóstico. La lista por omisión —\code{-9}, \code{-99},
+que leen la columna como magnitud, y las dependencias funcionales y las
+asociaciones no evalúan la fila que los tiene: la misma celda no puede ser
+ausencia en el resumen y valor en un diagnóstico. La lista por omisión —\code{-9}, \code{-99},
 \code{-999}, \code{-9999} y \code{999}— es en cambio una conjetura del paquete: se
 informa como \code{faltantes_disfrazados}
 pero \strong{no} se retira de los resúmenes, porque \code{999} también puede ser un

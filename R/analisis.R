@@ -193,7 +193,9 @@
 #' @param argumentos_perfil Lista de argumentos adicionales para [perfilar()].
 #'   Los nombres se completan como los completa `perfilar()` —`aplic` es
 #'   `aplicabilidad`— antes de leerlos, así que un nombre abreviado gobierna el
-#'   perfil y la medición por igual.
+#'   perfil y la medición por igual. `sentinelas_numericos` también gobierna
+#'   las dependencias del perfil y las asociaciones: las filas que contienen
+#'   un valor declarado no se evalúan en esos pares.
 #' @param metadatos_variables Declaraciones para [clasificar_variables()].
 #' @param modelo_confirmado Modelo creado por [modelo()] o `NULL`.
 #' @param propuesta_confirmada Propuesta editada por el usuario o `NULL`.
@@ -448,7 +450,8 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   asociaciones <- detectar_asociaciones(
     datos_asociaciones, perfil$dependencias, umbral_asociacion, muestra_asociacion,
     max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
-    metodo_numerico = metodo_asociacion_numerica
+    metodo_numerico = metodo_asociacion_numerica,
+    sentinelas_numericos = perfil$meta[["sentinelas_numericos"]]
   )
   cobertura_asociaciones <- attr(
     asociaciones, "cobertura_diagnosticos", exact = TRUE

@@ -2967,9 +2967,15 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (is.character(x) || is.factor(x)) {
     # Con la convencion decimal que el plan registro, la lectura del detector:
     # ver `.leer_numeros_texto_centinela()`.
+    texto <- trimws(as.character(x))
     numeros <- .leer_numeros_texto_centinela(
-      trimws(as.character(x)), parametros$convencion
+      texto, parametros$convencion
     )
+    identidad <- .identidades_sentinelas_texto(
+      texto, .valores_sentinelas_accion(x, parametros), parametros$convencion,
+      valores_leidos = numeros
+    )
+    return(!is.na(x) & !is.na(identidad))
   } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
     numeros <- as.numeric(x)
   } else {
@@ -5157,8 +5163,15 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     colision <- duplicated(base) | duplicated(base, fromLast = TRUE)
     valores <- unicos[colision]
   } else if (identical(tipo, "faltantes_disfrazados")) {
-    numericos <- suppressWarnings(as.numeric(trimws(as.character(x))))
-    valores <- x[!is.na(numericos) & numericos %in% parametros$valores]
+    texto <- trimws(as.character(x))
+    numericos <- .leer_numeros_texto_centinela(
+      texto, parametros$convencion
+    )
+    identidad <- .identidades_sentinelas_texto(
+      texto, parametros$valores, parametros$convencion,
+      valores_leidos = numericos
+    )
+    valores <- x[!is.na(identidad)]
   } else if (identical(tipo, "outliers")) {
     valores <- x[.marca_outliers(x)]
   } else if (identical(tipo, "faltantes")) {

@@ -991,8 +991,9 @@
 #' salen los `NA` y las filas que `aplicabilidad` deja fuera del universo;
 #' `n_valores_excluidos_resumen` y `estado_resumen_cuantitativo` declaran ese
 #' alcance. Salen también de la ley de Benford y de las relaciones aritméticas,
-#' que leen la columna como magnitud: la misma celda no puede ser ausencia en
-#' el resumen y valor en un diagnóstico. La lista por omisión —`-9`, `-99`,
+#' que leen la columna como magnitud, y las dependencias funcionales y las
+#' asociaciones no evalúan la fila que los tiene: la misma celda no puede ser
+#' ausencia en el resumen y valor en un diagnóstico. La lista por omisión —`-9`, `-99`,
 #' `-999`, `-9999` y `999`— es en cambio una conjetura del paquete: se
 #' informa como `faltantes_disfrazados`
 #' pero **no** se retira de los resúmenes, porque `999` también puede ser un
@@ -1990,7 +1991,17 @@
 #'   heurística más ancha—, se cuentan todos, incluida la aparición única. Ésa
 #'   es también la forma de recuperar el caso que la reserva calla: declarar el
 #'   valor lo vuelve a contar y además lo saca de los estadísticos del resumen,
-#'   de la ley de Benford y de las relaciones aritméticas.
+#'   de la ley de Benford, de las relaciones aritméticas, de las dependencias
+#'   funcionales y de las asociaciones que se calculen con [analizar()]. En
+#'   estas relaciones la fila que contiene el valor declarado no se evalúa.
+#'
+#'   En una columna de texto, una celda es el centinela si el número que
+#'   escribe, leído con la convención de la columna (signo, ceros a la
+#'   izquierda, miles, marca decimal, exponente), es exactamente el valor
+#'   declarado, o si tiene a lo sumo 17 cifras significativas y R lo lee como
+#'   ese valor: `"-999"`, `"-999.0"` y `"-9.99e2"` son el mismo centinela en toda
+#'   plataforma. Un texto con más cifras de las que distingue un doble sólo es el
+#'   centinela si lo escribe exacto.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
 #'   pares de columnas. Se aplica una sola muestra común a toda la tabla.
 #' @param umbral_dependencia Cumplimiento mínimo para informar una dependencia.
@@ -2926,11 +2937,7 @@ perfilar <- function(datos,
     # separado y se sigue sin romper el perfil.
     .advertir_clave_declarada(evaluacion_clave)
   }
-  if (!is.numeric(sentinelas_numericos) ||
-      any(!is.na(sentinelas_numericos) &
-          !is.finite(sentinelas_numericos))) {
-    .detener("`sentinelas_numericos` debe ser un vector num\u00e9rico finito; se permiten NA.", call. = FALSE)
-  }
+  .validar_sentinelas_numericos(sentinelas_numericos)
   if (!is.null(cadenas_ausencia) &&
       (!is.character(cadenas_ausencia) || anyNA(cadenas_ausencia) ||
        any(!nzchar(trimws(cadenas_ausencia))))) {
@@ -3213,6 +3220,7 @@ perfilar <- function(datos,
         umbral_casi_clave = umbral_casi_clave_dependencia,
         max_comparaciones = max_comparaciones_dependencias,
         max_trabajo = max_trabajo_dependencias,
+        sentinelas_numericos = sentinelas_numericos,
         # El perfil se protege entero despues, con la declaracion del usuario.
         proteger_datos_personales = FALSE
       )
@@ -3225,6 +3233,7 @@ perfilar <- function(datos,
         as.data.frame(datos)[0, 0, drop = FALSE], umbral = umbral_dependencia,
         max_columnas = 1L,
         umbral_casi_clave = umbral_casi_clave_dependencia,
+        sentinelas_numericos = sentinelas_numericos,
         proteger_datos_personales = FALSE
       )
     },
