@@ -25,3 +25,4 @@
 ^man/figures/banco-.*\.png$
 ^man/figures/perfil-console\.png$
 ^tests/testthat/test-local-.*\.R$
+^CITATION\.cff$

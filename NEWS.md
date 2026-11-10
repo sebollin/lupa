@@ -1,28 +1,7 @@
-# lupa 0.1.0
-
-Primera versión publicada.
+# lupa (development version)
 
 ## Perfilado
 
-- `perfilar()` describe cada columna de un `data.frame`: el tipo implícito, los
-  faltantes reales y los disfrazados (códigos y centinelas), los patrones de
-  formato, los formatos de fecha mixtos, los valores extremos, las filas
-  duplicadas, las dependencias funcionales y las claves. Lo que no puede medir lo
-  declara, con su motivo, en vez de dejarlo en cero.
-- `perfilar_dbi()` hace el perfil dentro del motor, por DBI, con una consulta por
-  lote y no una por columna, muestras del motor y presupuestos de trabajo
-  declarados. Está probado contra PostgreSQL (16 y 9.3), SQL Server 2022, MySQL
-  8.4, MariaDB 11.8, SQLite y DuckDB. `perfilar_coleccion()` y
-  `relaciones_coleccion()` perfilan varias tablas y proponen las relaciones entre
-  ellas, y `estimar_costo()` anticipa lo que va a costar una corrida.
-- `analizar()` hace el recorrido completo: el perfil, las distribuciones, las
-  asociaciones, el análisis temporal, la clasificación de las variables y una
-  propuesta de modelo de medición.
-- Cada diagnóstico también se puede pedir por separado:
-  `detectar_duplicados_aproximados()`, `detectar_claves()`,
-  `detectar_relaciones()`, `detectar_dependencias()`,
-  `detectar_formatos_fecha()`, `descubrir_patrones()`, `inferir_tipo()` y
-  `distribucion_valores()`.
 - `columnas_duplicadas` publica un hallazgo por **grupo** de columnas con el
   mismo contenido, no uno por par: `columna` es la primera del grupo en el orden
   de los datos, la evidencia las nombra a todas (`A = B = C; comparadas sobre 5
@@ -46,38 +25,8 @@ Primera versión publicada.
   5 minutos y ahora tardan 2, 3 y 22 s, y `print()` del perfil pasa de 37 s a
   0,6 s.
 
-## Medición de la calidad
-
-- Marcos de calidad con dimensiones y factores que declara el usuario
-  (`marco_calidad()`), y los de ISO/IEC 25012, CEPAL y AGESIC listos para usar.
-- Métricas reutilizables con su granularidad explícita (`metrica()`,
-  `metricas_nucleo()`), modelos de medición (`modelo()`, `especializar()`,
-  `instanciar()`), mediciones (`medir()`), agregación tipada (`agregar()`) y
-  perfiles de evaluación (`perfil_evaluacion()`, `evaluar()`).
-- Validadores de formato: la cédula y el RUT de Uruguay, el correo, la URL, ISO
-  3166, ISO 4217, Luhn y mod 97.
-- Históricos versionados (`acumular_historico()`, `guardar_historico()`), la
-  comparación de dos perfiles (`comparar_perfiles()`) y la detección de deriva
-  (`detectar_deriva_calidad()`).
-
-## Limpieza
-
-- `planificar_limpieza()` propone un plan editable de acciones, cada una con su
-  justificación y la severidad de lo que la motivó. `aplicar()` lo ejecuta sobre
-  una copia y deja el registro de lo que cambió, y `guiar_limpieza()` muestra
-  ejemplos para decidir. `lupa` nunca modifica los datos que recibe.
-
-## Informes
-
-- `reportar()` escribe un informe HTML autocontenido, sin depender de software
-  externo para generarlo.
-
 ## Documentación
 
-- El paquete trae las guías 1 a 6, el camino básico: de la primera tabla al plan
-  de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos,
-  colecciones y escala) y los 4 artículos de referencia están en el sitio,
-  <https://sebollin.github.io/lupa/>.
 - Los guiones de `benchmark/` que publican cifras dejan su CSV en
   `benchmark/datos/` con fecha, entorno y huella del código; el de Raha agrega el
   SHA-256 de cada insumo, y el del tope de largo mide Jaro-Winkler con el mismo
@@ -109,10 +58,6 @@ Primera versión publicada.
 
 ## Rendimiento
 
-- La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en
-  cada columna; el enmascarado de datos personales pasa a pedirse (ver abajo); y
-  en los caminos que más se repiten se evitan las llamadas a expresiones regulares
-  PCRE, que en Windows cuestan unos 47 µs cada una aunque el vector sea corto.
 - Las tablas chicas se arman sin el costo por columna de `data.frame()`, la
   detección de fechas no prueba los formatos que no pueden casar con ningún
   valor, y `analizar()` clasifica una sola vez los datos personales de la tabla
@@ -147,13 +92,6 @@ Primera versión publicada.
   bit64 4.0.5 en R 4.2.0, y una prueba falla si alguna función de base que
   compara por debajo (`merge()`, `factor()`, `setdiff()`, `order()`…) recibe
   del paquete una columna `integer64`.
-
-## Datos personales
-
-- La clasificación de posibles datos personales (documentos, nombres, fechas de
-  nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete
-  publica es un complemento que se pide con `proteger_datos_personales = TRUE`:
-  publicar o no los valores de una base es decisión de quien la usa.
 
 ## Correcciones
 
@@ -880,3 +818,85 @@ Primera versión publicada.
   grandes (`{2^53 - 2, 2^53 - 1}` daba 1 por 0,7071).
 - `requisitos_motor()` declara PostgreSQL «9.3 y 16», las dos versiones que se
   miden.
+
+# lupa 0.1.0
+
+Primera versión publicada.
+
+## Perfilado
+
+- `perfilar()` describe cada columna de un `data.frame`: el tipo implícito, los
+  faltantes reales y los disfrazados (códigos y centinelas), los patrones de
+  formato, los formatos de fecha mixtos, los valores extremos, las filas
+  duplicadas, las dependencias funcionales y las claves. Lo que no puede medir lo
+  declara, con su motivo, en vez de dejarlo en cero.
+- `perfilar_dbi()` hace el perfil dentro del motor, por DBI, con una consulta por
+  lote y no una por columna, muestras del motor y presupuestos de trabajo
+  declarados. Está probado contra PostgreSQL (16 y 9.3), SQL Server 2022, MySQL
+  8.4, MariaDB 11.8, SQLite y DuckDB. `perfilar_coleccion()` y
+  `relaciones_coleccion()` perfilan varias tablas y proponen las relaciones entre
+  ellas, y `estimar_costo()` anticipa lo que va a costar una corrida.
+- `analizar()` hace el recorrido completo: el perfil, las distribuciones, las
+  asociaciones, el análisis temporal, la clasificación de las variables y una
+  propuesta de modelo de medición.
+- Cada diagnóstico también se puede pedir por separado:
+  `detectar_duplicados_aproximados()`, `detectar_claves()`,
+  `detectar_relaciones()`, `detectar_dependencias()`,
+  `detectar_formatos_fecha()`, `descubrir_patrones()`, `inferir_tipo()` y
+  `distribucion_valores()`.
+
+## Medición de la calidad
+
+- Marcos de calidad con dimensiones y factores que declara el usuario
+  (`marco_calidad()`), y los de ISO/IEC 25012, CEPAL y AGESIC listos para usar.
+- Métricas reutilizables con su granularidad explícita (`metrica()`,
+  `metricas_nucleo()`), modelos de medición (`modelo()`, `especializar()`,
+  `instanciar()`), mediciones (`medir()`), agregación tipada (`agregar()`) y
+  perfiles de evaluación (`perfil_evaluacion()`, `evaluar()`).
+- Validadores de formato: la cédula y el RUT de Uruguay, el correo, la URL, ISO
+  3166, ISO 4217, Luhn y mod 97.
+- Históricos versionados (`acumular_historico()`, `guardar_historico()`), la
+  comparación de dos perfiles (`comparar_perfiles()`) y la detección de deriva
+  (`detectar_deriva_calidad()`).
+
+## Limpieza
+
+- `planificar_limpieza()` propone un plan editable de acciones, cada una con su
+  justificación y la severidad de lo que la motivó. `aplicar()` lo ejecuta sobre
+  una copia y deja el registro de lo que cambió, y `guiar_limpieza()` muestra
+  ejemplos para decidir. `lupa` nunca modifica los datos que recibe.
+
+## Informes
+
+- `reportar()` escribe un informe HTML autocontenido, sin depender de software
+  externo para generarlo.
+
+## Documentación
+
+- El paquete trae las guías 1 a 6, el camino básico: de la primera tabla al plan
+  de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos,
+  colecciones y escala) y los 4 artículos de referencia están en el sitio,
+  <https://sebollin.github.io/lupa/>.
+
+## Rendimiento
+
+- La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en
+  cada columna; el enmascarado de datos personales pasa a pedirse (ver abajo); y
+  en los caminos que más se repiten se evitan las llamadas a expresiones regulares
+  PCRE, que en Windows cuestan unos 47 µs cada una aunque el vector sea corto.
+  Sobre la tabla de ejemplo de 13 filas, `perfilar()` bajó de 0,63 s a 0,16 s
+  (0,26 s con la protección pedida) y `analizar()` de 1,36 s a 0,33 s.
+
+## Requisitos
+
+- R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64 4.6.0 o
+  posterior: con versiones anteriores, `match()` de R iguala entre sí todos los
+  valores negativos, y `lupa` se niega con la condición `lupa_error_integer64`
+  en lugar de publicar distintos, modas y medianas equivocados.
+
+## Datos personales
+
+- La clasificación de posibles datos personales (documentos, nombres, fechas de
+  nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete
+  publica es un complemento que se pide con `proteger_datos_personales = TRUE`:
+  publicar o no los valores de una base es decisión de quien la usa.

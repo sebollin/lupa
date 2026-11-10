@@ -1,6 +1,6 @@
 Package: lupa
 Title: Data Profiling and Quality Measurement
-Version: 0.1.0
+Version: 0.1.0.9000
 Authors@R:
     c(
       person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre", "cph"),
