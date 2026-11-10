@@ -1,6 +1,13 @@
 # El sello de un log lo ata al tarball que se midio: un log sellado sobre otro
 # tarball se rechaza. Usa una herramienta de desarrollo que no viaja con el
 # paquete; sin ella, la prueba se saltea.
+#
+# En el check la herramienta no esta y la prueba ya se salteaba sola. Sin
+# `NOT_CRAN` se saltea tambien en el arbol de desarrollo: la medicion de la suite
+# en la configuracion de la granja (`revalidar.sh`) contaba sus 41 s, que alla no
+# corren, y con ellos el techo estimaba casi el doble de lo que tarda win-builder.
+testthat::skip_on_cran()
+
 test_that("el sello ata el log al tarball medido y rechaza otro", {
   script_disponible <- testthat::test_path(
     "..", "..", "..", "notas-desarrollo", "sellar-log.sh"
