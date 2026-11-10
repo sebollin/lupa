@@ -60,10 +60,12 @@ test_that("la evidencia nombra lo que la conversion perderia", {
   expect_match(r$evidencia, "5 valores escritos de formas distintas", fixed = TRUE)
   r <- .evidencia_y_plan(c("01/02/2020", "03/04/2020", "05/06/2020"))
   expect_match(r$evidencia, "lectura de fecha", fixed = TRUE)
-  # A mano: `as.numeric("0.123456789012345678")` a 18 cifras es
-  # 0.123456789012345677, y el otro tambien cambia la ultima.
-  expect_identical(sprintf("%.18f", as.numeric("0.123456789012345678")),
-                   "0.123456789012345677")
+  # A mano: `as.numeric("0.123456789012345678")` a 18 cifras no es el texto:
+  # 0.123456789012345677 donde R lee el decimal mas cercano, y
+  # 0.123456789012345691 en macOS sobre arm64, donde la lectura acumula en un
+  # doble. El otro tambien cambia la ultima.
+  expect_false(identical(sprintf("%.18f", as.numeric("0.123456789012345678")),
+                         "0.123456789012345678"))
   r <- .evidencia_y_plan(c("0,123456789012345678", "0,987654321098765432"))
   expect_match(r$evidencia, "2 valores tienen m\u00e1s cifras", fixed = TRUE)
 })

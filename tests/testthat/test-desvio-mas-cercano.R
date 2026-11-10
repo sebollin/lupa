@@ -12,6 +12,14 @@
 # Los vectores se arman con operaciones de base correctamente redondeadas, sin
 # generador aleatorio ni funciones de `libm`, para que sean los mismos en toda
 # plataforma.
+#
+# Tampoco con literales decimales de exponente grande: R los lee con
+# `R_strtod()`, que acumula en `long double`, y en macOS sobre arm64 -donde ese
+# tipo es un doble- `1e200` llega a tres ulps del mas cercano. El desvio de
+# `d * 1e200` salia ahi otro, el exacto de esos otros valores. Las dos
+# constantes van en hexadecimal, que se lee exacto en toda plataforma.
+.dmc_1e200 <- 0x1.4e718d7d7625ap+664
+.dmc_1e_menos_301 <- 0x1.124e63593f5e1p-1000
 
 .dmc_columna <- function(perfil, campo) {
   as.numeric(perfil$columnas[[campo]][perfil$columnas$columna == "v"])
@@ -48,9 +56,9 @@ test_that("el desvio de los bordes es el doble mas cercano", {
     list(v = (1:50 %% 9) * 1.01 + 0.07, desvio = 0x1.47863d86a0311p+1),
     list(v = 2^52 + c(1, 5, 9, 13, 2, 7), desvio = 0x1.1f6823d085e6bp+2),
     # El cuadrado de 1e200 desborda.
-    list(v = d * 1e200, desvio = 0x1.f811717a5a6aap+662),
+    list(v = d * .dmc_1e200, desvio = 0x1.f811717a5a6aap+662),
     list(v = g * 2^500, desvio = 0x1.9ad5813c45737p+497),
-    list(v = d * 1e-301, desvio = 0x1.9d6e17385709bp-1002),
+    list(v = d * .dmc_1e_menos_301, desvio = 0x1.9d6e17385709bp-1002),
     # Subnormales: 2 y 23 veces 2^-1074.
     list(v = c(3, 5, 7) * 2^-1074, desvio = 2 * 2^-1074),
     list(v = (1:11 %% 5) * 2^-1070, desvio = 23 * 2^-1074)
@@ -71,7 +79,7 @@ test_that("el desvio por bloque_filas es el doble mas cercano", {
     list(v = ((1:25) %% 11 - 5) * 0.3, desvio = 0x1.eb851eb851eb8p-1),
     list(v = ((1:200) %% 7 - 3) * 0.1 + 1000, desvio = 0x1.980c5694878e0p-3),
     list(v = ((1:25) %% 7 - 3) * 0.1, desvio = 0x1.8c3da5be1fe27p-3),
-    list(v = d * 1e200, desvio = 0x1.f811717a5a6aap+662),
+    list(v = d * .dmc_1e200, desvio = 0x1.f811717a5a6aap+662),
     list(v = c(3, 5, 7) * 2^-1074, desvio = 2 * 2^-1074)
   )
   for (caso in casos) {
@@ -120,10 +128,10 @@ test_that("la manera rapida y la exacta publican lo mismo", {
   expect_false(lupa:::.desvio_mas_cercano_bloques(estado)$decidido)
   # Un bloque fuera del rango de la manera rapida (1e200) va por la exacta.
   d <- ((1:9) %% 4 - 1.5) / 3
-  rapida <- ejecutar(d * 1e200, "rapido")
+  rapida <- ejecutar(d * .dmc_1e200, "rapido")
   expect_false(isTRUE(rapida$acumulador$estado_familia$desvio_valido))
   expect_identical(
-    lupa:::.resumen_cuantitativo_bloques(d * 1e200)$desvio,
+    lupa:::.resumen_cuantitativo_bloques(d * .dmc_1e200)$desvio,
     0x1.f811717a5a6aap+662
   )
   # Una columna constante decide 0 por la rapida, sin recorrerse otra vez.
