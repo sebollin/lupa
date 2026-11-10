@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use lupa, please cite it as below."
+type: software
+title: "lupa: Data Profiling and Quality Measurement"
+abstract: >-
+  Profiles tabular data and measures its quality. Discovers structural
+  patterns, implicit types, mixed date formats and reusable findings about
+  potential data issues; defines quality frameworks with user-declared
+  dimensions, reusable metrics with explicit granularity and typed
+  aggregation; keeps versioned histories and detects structural drift; writes
+  self-contained HTML reports; and produces editable cleaning plans that apply
+  only the actions the user selects, with an audit log. It profiles data
+  frames in memory and tables inside a database through DBI.
+authors:
+  - family-names: Lucas
+    given-names: Sebastián
+    orcid: "https://orcid.org/0009-0009-9068-0276"
+version: 0.1.0
+date-released: 2026-11-10
+license: GPL-3.0-only
+repository-code: "https://github.com/sebollin/lupa"
+repository-artifact: "https://CRAN.R-project.org/package=lupa"
+url: "https://sebollin.github.io/lupa/"
+keywords:
+  - R
+  - R package
+  - data quality
+  - data profiling
+  - data cleaning
+  - data validation
+  - databases
