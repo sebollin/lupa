@@ -72,7 +72,7 @@ lectura de catálogo ya disponible.'><meta property="og:image" content="https://
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -340,8 +340,11 @@ motor, la preparación que la corrida repite para publicar su plan—, la
 misma cuenta de <code>plan_perfilado_dbi()</code> y de
 <code>resumen_tabla$meta$consultas$emitidas</code>. No cuentan las sentencias de la
 guarda de transacción (<code>SAVEPOINT</code> y, en SQL Server, la pregunta por la
-transacción abierta antes de cada consulta) ni las lecturas de
-<code>pg_stat_statements</code> de <code>instrumentar</code>. La preparación y el recorrido por
+transacción abierta antes de cada consulta), ni las lecturas de
+<code>pg_stat_statements</code> de <code>instrumentar</code>, ni las que algunos controladores
+mandan para contestar <code><a href="https://dbi.r-dbi.org/reference/dbGetInfo.html" class="external-link">DBI::dbGetInfo()</a></code> o <code><a href="https://dbi.r-dbi.org/reference/dbIsValid.html" class="external-link">DBI::dbIsValid()</a></code>: duckdb 1.1
+pregunta su versión y manda <code>SELECT 1</code>, una o dos veces por corrida. La
+preparación y el recorrido por
 bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 <code>max_consultas = attr(plan, "total_maximo")</code> ninguna métrica queda afuera
 por el presupuesto.</p></dd>
@@ -519,8 +522,10 @@ forma <code>TABLESAMPLE</code>, el reintento del resumen cuando la muestra vuelv
 menos de la mitad de lo pedido, que depende de las páginas que sortee el
 motor. La cuenta es la de <code>max_consultas</code> y la de
 <code>resumen_tabla$meta$consultas$emitidas</code>: toda sentencia que el perfilado
-manda al motor, salvo las de la guarda de transacción y las lecturas de
-<code>pg_stat_statements</code> de <code>instrumentar</code>. Con <code>max_consultas</code> igual a
+manda al motor, salvo las de la guarda de transacción, las lecturas de
+<code>pg_stat_statements</code> de <code>instrumentar</code> y las que algunos controladores
+mandan para contestar <code><a href="https://dbi.r-dbi.org/reference/dbGetInfo.html" class="external-link">DBI::dbGetInfo()</a></code> o <code><a href="https://dbi.r-dbi.org/reference/dbIsValid.html" class="external-link">DBI::dbIsValid()</a></code> (duckdb 1.1,
+una o dos por corrida). Con <code>max_consultas</code> igual a
 <code>total_maximo</code> ninguna métrica queda afuera por el presupuesto; con
 <code>total</code>, sólo las consultas que piden los datos pueden quedar afuera.</p>
 <p>Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas

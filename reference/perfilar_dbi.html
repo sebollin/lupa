@@ -24,7 +24,7 @@ perfil_muestra, pero no vuelve a seleccionar filas.'><meta property="og:image" c
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -280,8 +280,11 @@ motor, la preparación que la corrida repite para publicar su plan—, la
 misma cuenta de <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> y de
 <code>resumen_tabla$meta$consultas$emitidas</code>. No cuentan las sentencias de la
 guarda de transacción (<code>SAVEPOINT</code> y, en SQL Server, la pregunta por la
-transacción abierta antes de cada consulta) ni las lecturas de
-<code>pg_stat_statements</code> de <code>instrumentar</code>. La preparación y el recorrido por
+transacción abierta antes de cada consulta), ni las lecturas de
+<code>pg_stat_statements</code> de <code>instrumentar</code>, ni las que algunos controladores
+mandan para contestar <code><a href="https://dbi.r-dbi.org/reference/dbGetInfo.html" class="external-link">DBI::dbGetInfo()</a></code> o <code><a href="https://dbi.r-dbi.org/reference/dbIsValid.html" class="external-link">DBI::dbIsValid()</a></code>: duckdb 1.1
+pregunta su versión y manda <code>SELECT 1</code>, una o dos veces por corrida. La
+preparación y el recorrido por
 bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 <code>max_consultas = attr(plan, "total_maximo")</code> ninguna métrica queda afuera
 por el presupuesto.</p></dd>

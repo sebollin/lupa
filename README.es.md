@@ -14,6 +14,7 @@ CRAN](https://cranlogs.r-pkg.org/badges/grand-total/lupa)](https://CRAN.R-projec
 mes](https://cranlogs.r-pkg.org/badges/lupa)](https://CRAN.R-project.org/package=lupa)
 [![Dependencias](https://tinyverse.netlify.app/badge/lupa)](https://CRAN.R-project.org/package=lupa)
 [![r-universe](https://sebollin.r-universe.dev/lupa/badges/version)](https://sebollin.r-universe.dev/lupa)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.24117753-1682D4.svg)](https://doi.org/10.5281/zenodo.24117753)
 [![R \>=
 4.2.0](https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg)](https://cran.r-project.org/)
 [![Ciclo de vida:
@@ -513,6 +514,11 @@ rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.ht
 
 citation("lupa")
 ```
+
+Cada versión queda archivada en Zenodo:
+[10.5281/zenodo.24117753](https://doi.org/10.5281/zenodo.24117753)
+resuelve siempre a la última, y cada versión tiene allí su propio DOI
+para citar una versión exacta.
 
 Las referencias conceptuales son [Batini y Scannapieco
 (2016)](https://doi.org/10.1007/978-3-319-24106-7), el [Marco de trabajo

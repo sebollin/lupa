@@ -222,9 +222,14 @@ plan_perfilado_dbi(
   su plan—, la misma cuenta de `plan_perfilado_dbi()` y de
   `resumen_tabla$meta$consultas$emitidas`. No cuentan las sentencias de
   la guarda de transacción (`SAVEPOINT` y, en SQL Server, la pregunta
-  por la transacción abierta antes de cada consulta) ni las lecturas de
-  `pg_stat_statements` de `instrumentar`. La preparación y el recorrido
-  por bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
+  por la transacción abierta antes de cada consulta), ni las lecturas de
+  `pg_stat_statements` de `instrumentar`, ni las que algunos
+  controladores mandan para contestar
+  [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
+  [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html):
+  duckdb 1.1 pregunta su versión y manda `SELECT 1`, una o dos veces por
+  corrida. La preparación y el recorrido por bloques se cuentan pero no
+  se omiten: sin ellos no hay perfil. Con
   `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda
   afuera por el presupuesto.
 
@@ -405,10 +410,13 @@ reintento del resumen cuando la muestra vuelve con menos de la mitad de
 lo pedido, que depende de las páginas que sortee el motor. La cuenta es
 la de `max_consultas` y la de `resumen_tabla$meta$consultas$emitidas`:
 toda sentencia que el perfilado manda al motor, salvo las de la guarda
-de transacción y las lecturas de `pg_stat_statements` de `instrumentar`.
-Con `max_consultas` igual a `total_maximo` ninguna métrica queda afuera
-por el presupuesto; con `total`, sólo las consultas que piden los datos
-pueden quedar afuera.
+de transacción, las lecturas de `pg_stat_statements` de `instrumentar` y
+las que algunos controladores mandan para contestar
+[`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
+[`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html)
+(duckdb 1.1, una o dos por corrida). Con `max_consultas` igual a
+`total_maximo` ninguna métrica queda afuera por el presupuesto; con
+`total`, sólo las consultas que piden los datos pueden quedar afuera.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

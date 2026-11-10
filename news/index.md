@@ -1,6 +1,6 @@
 # Changelog
 
-## lupa (development version)
+## lupa 0.1.1
 
 ### Perfilado
 
@@ -163,8 +163,9 @@
   «no pierde ningún valor» cuando pierde algo: nombra el cero inicial de
   un código (`007`), la precisión, la convención sin decidir o las
   fechas de lectura ambigua, las mismas razones por las que el plan no
-  convierte. `fecha_nacimiento_fuera_rango` cuenta las filas fuera de
-  rango, que publicaba como `NA`.
+  convierte. `fecha_nacimiento_fuera_rango` y
+  `fecha_fallecimiento_fuera_rango` cuentan las filas fuera de rango,
+  que publicaban como `NA`, y su traza las nombra.
 - [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
   reconoce la `t` y la `z` minúsculas de RFC 3339 y cuenta la fecha
   civil distinta en UTC de un `POSIXlt` como la de su `POSIXct` (daba
@@ -1030,8 +1031,22 @@
   distingue un doble es el centinela sólo si lo escribe exacto: en
   Linux, `"1152921504606846976.4"` caía en el doble de `2^60` y se
   sacaba como si lo fuera.
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  leen las señas de la conexión una vez por corrida. Las consultaban al
+  armar cada sentencia, 184 veces sobre una tabla de tres columnas, y en
+  duckdb 1.1 cada lectura manda `pragma_version()` al motor: 176
+  sentencias que el plan no anunciaba y `max_consultas` no contaba. La
+  ayuda declara fuera de la cuenta las que un controlador manda para
+  contestar
+  [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
+  [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html),
+  una o dos por corrida.
 
 ## lupa 0.1.0
+
+CRAN release: 2026-11-10
 
 Primera versión publicada.
 

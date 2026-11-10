@@ -211,11 +211,16 @@ perfilar_dbi(
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   y de `resumen_tabla$meta$consultas$emitidas`. No cuentan las
   sentencias de la guarda de transacción (`SAVEPOINT` y, en SQL Server,
-  la pregunta por la transacción abierta antes de cada consulta) ni las
-  lecturas de `pg_stat_statements` de `instrumentar`. La preparación y
-  el recorrido por bloques se cuentan pero no se omiten: sin ellos no
-  hay perfil. Con `max_consultas = attr(plan, "total_maximo")` ninguna
-  métrica queda afuera por el presupuesto.
+  la pregunta por la transacción abierta antes de cada consulta), ni las
+  lecturas de `pg_stat_statements` de `instrumentar`, ni las que algunos
+  controladores mandan para contestar
+  [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
+  [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html):
+  duckdb 1.1 pregunta su versión y manda `SELECT 1`, una o dos veces por
+  corrida. La preparación y el recorrido por bloques se cuentan pero no
+  se omiten: sin ellos no hay perfil. Con
+  `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda
+  afuera por el presupuesto.
 
 - dialecto:
 
