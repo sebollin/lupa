@@ -192,6 +192,43 @@
   .resumen_longitudes_bloques(x)
 }
 
+# Un entero escrito sin nada mas, partido como lo compara el paquete: sus cifras
+# sin `+` ni ceros a la izquierda, si es negativo, y el texto que lo identifica,
+# el de `.texto_identidad()` y de `integer64`. "-0" es el cero: no es negativo,
+# y el extremo que lo tiene es "0". Contado como negativo, la columna
+# `c("-0", "5", "9007199254740993")` publicaba `minimo_exacto = "-0"` y
+# `n_negativos = 1`.
+.partes_entero_texto <- function(texto) {
+  sin_mas <- sub("^\\+", "", texto)
+  digitos <- sub("^0+(?=[0-9])", "", sub("^-", "", sin_mas), perl = TRUE)
+  negativos <- startsWith(sin_mas, "-") & digitos != "0"
+  identidad <- digitos
+  identidad[negativos] <- paste0("-", digitos[negativos])
+  list(digitos = digitos, negativos = negativos, identidad = identidad)
+}
+
+# Un entero escrito como texto que es, cifra por cifra, un centinela declarado
+# vale el centinela, y no lo que `as.numeric()` lea de el. `R_strtod()` acumula
+# las cifras en `long double`, y donde ese tipo es un doble -macOS sobre arm64-
+# un entero de mas de 2^53 llega a otro doble: "1152921504606846976", que es
+# 2^60, se leia 2^60 - 128, y el resumen, que compara el centinela por valor, no
+# lo encontraba y publicaba una media de 2,9e17. La rama de texto de los enteros
+# grandes y la de `integer64` lo reconocen por su texto; los valores leidos
+# quedan de acuerdo con ellas.
+.centinelas_enteros_por_texto <- function(texto, valores,
+                                          sentinelas_numericos) {
+  if (!length(sentinelas_numericos) || length(texto) != length(valores)) {
+    return(valores)
+  }
+  enteros <- which(!is.na(texto) & grepl("^[+-]?[0-9]+$", texto, perl = TRUE))
+  if (!length(enteros)) return(valores)
+  identidad <- .partes_entero_texto(texto[enteros])$identidad
+  posicion <- match(identidad, .texto_identidad(sentinelas_numericos))
+  cuales <- !is.na(posicion)
+  valores[enteros[cuales]] <- as.double(sentinelas_numericos[posicion[cuales]])
+  valores
+}
+
 # Un entero escrito como TEXTO por encima de 2^53 no sobrevive al doble, y el
 # resumen publicaba el redondeo como si fuera el dato: sobre la columna
 # `c("9007199254740993", "9007199254740994", "9007199254740995")` -tres impares-
@@ -221,20 +258,12 @@
   # Solo enteros escritos sin nada mas: si la columna trae decimales, notacion
   # cientifica o separadores, no es este caso y no se toca.
   if (!all(grepl("^[+-]?[0-9]+$", presentes))) return(NULL)
-  sin_mas <- sub("^\\+", "", presentes)
-  negativos <- startsWith(sin_mas, "-")
-  digitos <- sub("^-", "", sin_mas)
-  digitos <- sub("^0+(?=[0-9])", "", digitos, perl = TRUE)
-  # "-0" es el cero, como en `.texto_identidad()` y en `integer64`: no es
-  # negativo, y el extremo que lo tiene es "0". Contado como negativo, la
-  # columna `c("-0", "5", "9007199254740993")` publicaba `minimo_exacto = "-0"`
-  # y `n_negativos = 1`.
-  negativos <- negativos & digitos != "0"
+  partes <- .partes_entero_texto(presentes)
+  negativos <- partes$negativos
+  digitos <- partes$digitos
   n_sentinelas <- 0L
   if (length(sentinelas_numericos)) {
-    identidad <- digitos
-    identidad[negativos] <- paste0("-", digitos[negativos])
-    centinela <- identidad %in% .texto_identidad(sentinelas_numericos)
+    centinela <- partes$identidad %in% .texto_identidad(sentinelas_numericos)
     n_sentinelas <- as.integer(sum(centinela))
     negativos <- negativos[!centinela]
     digitos <- digitos[!centinela]
@@ -351,8 +380,10 @@
       # Con la convencion decimal que el perfil publica para la columna, no con
       # un `sub(",", ".")` propio: ver `.leer_numeros_texto()`. Lo que esa
       # convencion no puede leer se cuenta abajo como excluido.
-      valores <- .leer_numeros_texto(
-        texto, inferencia[["convencion_numero_texto"]]
+      valores <- .centinelas_enteros_por_texto(
+        texto,
+        .leer_numeros_texto(texto, inferencia[["convencion_numero_texto"]]),
+        sentinelas_numericos
       )
       # Los textos presentes que no llegan a numero no son NA de origen y no
       # pueden desaparecer sin dejar alcance.

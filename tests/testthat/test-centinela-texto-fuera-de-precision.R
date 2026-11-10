@@ -84,3 +84,25 @@ test_that("el texto publica lo mismo que integer64 con los mismos centinelas", {
     }
   }
 })
+
+test_that("el centinela escrito como texto se reconoce aunque la lectura no sea exacta", {
+  # En macOS sobre arm64 `as.numeric("1152921504606846976")` da 2^60 - 128: R
+  # acumula las cifras en un `long double` que alli es un doble. La lectura se
+  # imita corriendo un ulp hacia abajo los valores de mas de 2^53, y el
+  # centinela tiene que salir igual que donde la lectura es exacta.
+  original <- lupa:::.leer_numeros_texto
+  local_mocked_bindings(.leer_numeros_texto = function(texto, convencion = NULL) {
+    valores <- original(texto, convencion)
+    grandes <- !is.na(valores) & abs(valores) > 2^53
+    valores[grandes] <- valores[grandes] * (1 - 2^-53)
+    valores
+  })
+  fila <- .ctf_fila(c("5", "7", "3", "1152921504606846976"), 2^60)
+  expect_identical(fila$estado_resumen_cuantitativo, "calculados_sobre_valores")
+  expect_identical(as.numeric(fila$media), 5)
+  expect_identical(as.numeric(fila$desvio), 2)
+  expect_identical(as.integer(fila$n_valores_excluidos_resumen), 1L)
+  todos <- .ctf_fila(c("1152921504606846976", "+01152921504606846976"), 2^60)
+  expect_identical(todos$estado_resumen_cuantitativo, "sin_valores_utilizables")
+  expect_identical(as.integer(todos$n_valores_excluidos_resumen), 2L)
+})
