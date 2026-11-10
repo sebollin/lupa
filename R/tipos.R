@@ -391,12 +391,22 @@ print.inferencia_tipo <- function(x, ...) {
   presentes <- !is.na(antes) & nzchar(.recortar_bytes(antes)) &
     !is.na(despues)
   if (any(presentes)) {
-    claves <- .nombres_para_operar(antes)
-    pares <- unique(data.frame(
-      original = claves[presentes], convertido = despues[presentes],
-      stringsAsFactors = FALSE
-    ))
-    repetidos <- pares$convertido[duplicated(pares$convertido)]
+    claves <- .nombres_para_operar(antes)[presentes]
+    convertidos <- despues[presentes]
+    # Los pares distintos por la posicion de cada lado, sin `unique()` sobre un
+    # `data.frame`, que arma una lista por fila. La clave es un entero exacto
+    # mientras el producto quepa en la mantisa; un complejo no sirve: su hash
+    # combina las dos partes y, con las dos iguales, todas las claves chocan.
+    n_pares <- length(claves)
+    lado_a <- match(claves, claves)
+    lado_b <- match(convertidos, convertidos)
+    par <- if (n_pares <= 2^26) {
+      lado_a + (lado_b - 1) * n_pares
+    } else {
+      paste(lado_a, lado_b)
+    }
+    convertidos <- convertidos[!duplicated(par)]
+    repetidos <- convertidos[duplicated(convertidos)]
     chocan <- presentes & despues %in% repetidos
     if (any(chocan)) {
       riesgos <- c(riesgos, plural(
@@ -420,9 +430,11 @@ print.inferencia_tipo <- function(x, ...) {
   redondeados <- rep(FALSE, length(valores))
   if (length(texto) != length(valores)) return(redondeados)
   finitos <- !is.na(texto) & !is.na(valores) & is.finite(valores)
+  # Corre sobre cada valor de la columna: con TRE y tres pasadas eran 0,3 s por
+  # columna de cien mil filas.
   significativos <- function(x) {
-    x <- gsub("[^0-9]", "", sub("[eE].*$", "", x))
-    sub("0+$", "", sub("^0+", "", x))
+    x <- gsub("[^0-9]", "", sub("[eE].*$", "", x, perl = TRUE), perl = TRUE)
+    gsub("^0+|0+$", "", x, perl = TRUE)
   }
   enteros <- which(finitos & valores == floor(valores))
   if (length(enteros)) {
