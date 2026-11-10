@@ -12,6 +12,7 @@ CRAN](https://www.r-pkg.org/badges/version/lupa)](https://CRAN.R-project.org/pac
 CRAN](https://cranlogs.r-pkg.org/badges/grand-total/lupa)](https://CRAN.R-project.org/package=lupa)
 [![Descargas de CRAN por
 mes](https://cranlogs.r-pkg.org/badges/lupa)](https://CRAN.R-project.org/package=lupa)
+[![Dependencias](https://tinyverse.netlify.app/badge/lupa)](https://CRAN.R-project.org/package=lupa)
 [![r-universe](https://sebollin.r-universe.dev/lupa/badges/version)](https://sebollin.r-universe.dev/lupa)
 [![R \>=
 4.2.0](https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg)](https://cran.r-project.org/)
