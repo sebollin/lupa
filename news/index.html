@@ -8,7 +8,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -59,41 +59,15 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
-<p>Primera versión publicada.</p>
+<h2 class="pkg-version" data-toc-text="development version" id="lupa-development-version">lupa (development version)<a class="anchor" aria-label="anchor" href="#lupa-development-version"></a></h2>
 <div class="section level3">
-<h3 id="perfilado-0-1-0">Perfilado<a class="anchor" aria-label="anchor" href="#perfilado-0-1-0"></a></h3>
+<h3 id="perfilado-development-version">Perfilado<a class="anchor" aria-label="anchor" href="#perfilado-development-version"></a></h3>
 <ul><li>
-<code><a href="../reference/perfilar.html">perfilar()</a></code> describe cada columna de un <code>data.frame</code>: el tipo implícito, los faltantes reales y los disfrazados (códigos y centinelas), los patrones de formato, los formatos de fecha mixtos, los valores extremos, las filas duplicadas, las dependencias funcionales y las claves. Lo que no puede medir lo declara, con su motivo, en vez de dejarlo en cero.</li>
-<li>
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> hace el perfil dentro del motor, por DBI, con una consulta por lote y no una por columna, muestras del motor y presupuestos de trabajo declarados. Está probado contra PostgreSQL (16 y 9.3), SQL Server 2022, MySQL 8.4, MariaDB 11.8, SQLite y DuckDB. <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> perfilan varias tablas y proponen las relaciones entre ellas, y <code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> anticipa lo que va a costar una corrida.</li>
-<li>
-<code><a href="../reference/analizar.html">analizar()</a></code> hace el recorrido completo: el perfil, las distribuciones, las asociaciones, el análisis temporal, la clasificación de las variables y una propuesta de modelo de medición.</li>
-<li>Cada diagnóstico también se puede pedir por separado: <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code><a href="../reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code>, <code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="../reference/detectar_formatos_fecha.html">detectar_formatos_fecha()</a></code>, <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code>, <code><a href="../reference/inferir_tipo.html">inferir_tipo()</a></code> y <code><a href="../reference/distribucion_valores.html">distribucion_valores()</a></code>.</li>
-<li>
 <code>columnas_duplicadas</code> publica un hallazgo por <strong>grupo</strong> de columnas con el mismo contenido, no uno por par: <code>columna</code> es la primera del grupo en el orden de los datos, la evidencia las nombra a todas (<code>A = B = C; comparadas sobre 5 filas</code>) y <code>n_afectados</code> las cuenta a todas, como <code>filas_duplicadas</code> con sus filas. Con dos columnas el hallazgo es el de siempre. Si un nombre no se puede leer suelto —vacío, repetido, con espacios al borde o con <code>=</code>, <code>;</code>, <code>,</code> o comillas—, la evidencia cita todos los del grupo y el repetido lleva su posición (<code>"X" (columna 1) = "X" (columna 2)</code>). Dos columnas son iguales en lo que el perfil lee como contenido: dos factores sin orden con los mismos niveles en otro orden son la misma columna, y un entero y un doble no. Sin filas no se compara: no hay hallazgo, y <code>general$columnas_duplicadas</code>, que tiene una fila por columna repetida junto a la primera de su grupo, queda vacía. <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> propone una decisión por grupo —marcarlo, o eliminar las repetidas y conservar la primera— y <code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> compara los grupos por las igualdades que afirman: si C deja de ser igual a <code>A = B</code>, publica un resuelto y no dos; si un grupo se separa sólo porque una columna cambió de tipo declarado, publica <code>no_evaluado</code>, porque el diagnóstico no volvió a compararlas; y un perfil guardado con la forma por pares se compara sin deriva falsa. Con 1.000 columnas iguales eran 499.500 hallazgos: <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code>, <code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> y <code><a href="../reference/analizar.html">analizar()</a></code> no terminaban en 5 minutos y ahora tardan 2, 3 y 22 s, y <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> del perfil pasa de 37 s a 0,6 s.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="medición-de-la-calidad-0-1-0">Medición de la calidad<a class="anchor" aria-label="anchor" href="#medici%C3%B3n-de-la-calidad-0-1-0"></a></h3>
-<ul><li>Marcos de calidad con dimensiones y factores que declara el usuario (<code><a href="../reference/marco_calidad.html">marco_calidad()</a></code>), y los de ISO/IEC 25012, CEPAL y AGESIC listos para usar.</li>
-<li>Métricas reutilizables con su granularidad explícita (<code><a href="../reference/modelo_calidad.html">metrica()</a></code>, <code><a href="../reference/modelo_calidad.html">metricas_nucleo()</a></code>), modelos de medición (<code><a href="../reference/modelo_calidad.html">modelo()</a></code>, <code><a href="../reference/modelo_calidad.html">especializar()</a></code>, <code><a href="../reference/modelo_calidad.html">instanciar()</a></code>), mediciones (<code><a href="../reference/medir.html">medir()</a></code>), agregación tipada (<code><a href="../reference/agregar.html">agregar()</a></code>) y perfiles de evaluación (<code><a href="../reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="../reference/evaluar.html">evaluar()</a></code>).</li>
-<li>Validadores de formato: la cédula y el RUT de Uruguay, el correo, la URL, ISO 3166, ISO 4217, Luhn y mod 97.</li>
-<li>Históricos versionados (<code><a href="../reference/historico_calidad.html">acumular_historico()</a></code>, <code><a href="../reference/guardar_historico.html">guardar_historico()</a></code>), la comparación de dos perfiles (<code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code>) y la detección de deriva (<code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>).</li>
-</ul></div>
-<div class="section level3">
-<h3 id="limpieza-0-1-0">Limpieza<a class="anchor" aria-label="anchor" href="#limpieza-0-1-0"></a></h3>
-<ul><li>
-<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> propone un plan editable de acciones, cada una con su justificación y la severidad de lo que la motivó. <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> lo ejecuta sobre una copia y deja el registro de lo que cambió, y <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> muestra ejemplos para decidir. <code>lupa</code> nunca modifica los datos que recibe.</li>
-</ul></div>
-<div class="section level3">
-<h3 id="informes-0-1-0">Informes<a class="anchor" aria-label="anchor" href="#informes-0-1-0"></a></h3>
-<ul><li>
-<code><a href="../reference/reportar.html">reportar()</a></code> escribe un informe HTML autocontenido, sin depender de software externo para generarlo.</li>
-</ul></div>
-<div class="section level3">
-<h3 id="documentación-0-1-0">Documentación<a class="anchor" aria-label="anchor" href="#documentaci%C3%B3n-0-1-0"></a></h3>
-<ul><li>El paquete trae las guías 1 a 6, el camino básico: de la primera tabla al plan de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos, colecciones y escala) y los 4 artículos de referencia están en el sitio, <a href="https://sebollin.github.io/lupa/" class="uri">https://sebollin.github.io/lupa/</a>.</li>
-<li>Los guiones de <code>benchmark/</code> que publican cifras dejan su CSV en <code>benchmark/datos/</code> con fecha, entorno y huella del código; el de Raha agrega el SHA-256 de cada insumo, y el del tope de largo mide Jaro-Winkler con el mismo <code>p</code> que el paquete (el margen publicado para <code>max_largo_valor = 10000</code> era mayor que el real).</li>
+<h3 id="documentación-development-version">Documentación<a class="anchor" aria-label="anchor" href="#documentaci%C3%B3n-development-version"></a></h3>
+<ul><li>Los guiones de <code>benchmark/</code> que publican cifras dejan su CSV en <code>benchmark/datos/</code> con fecha, entorno y huella del código; el de Raha agrega el SHA-256 de cada insumo, y el del tope de largo mide Jaro-Winkler con el mismo <code>p</code> que el paquete (el margen publicado para <code>max_largo_valor = 10000</code> era mayor que el real).</li>
 <li>El README muestra una captura del informe HTML de <code><a href="../reference/reportar.html">reportar()</a></code>, rehecha con <code>scripts/capturar-informe-html.R</code>. «El vacío por diseño» y «Marcos y modelos de calidad» empiezan por el ejemplo y dejan la explicación para después.</li>
 <li>La guía «Escala y duplicados aproximados» termina en los lotes sin pérdida y resume cada tope en una línea. El detalle de los topes y del aviso de tabla ancha pasa a «Motores y escala», y el de los hilos a «Evidencia y rendimiento».</li>
 <li>Las 6 guías que trae el paquete y los 10 artículos del sitio tienen frases más cortas, cifras en dígitos y listas donde había enumeraciones, con la misma información y el mismo código. Los artículos van en impersonal. <code>CONTRIBUTING.md</code> reúne las reglas de redacción de la documentación.</li>
@@ -102,22 +76,17 @@
 <li>El logo y los íconos del sitio usan el hexágono regular: lados iguales y bordes a 30°. El anterior era más alto que ancho de la cuenta.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="rendimiento-0-1-0">Rendimiento<a class="anchor" aria-label="anchor" href="#rendimiento-0-1-0"></a></h3>
-<ul><li>La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en cada columna; el enmascarado de datos personales pasa a pedirse (ver abajo); y en los caminos que más se repiten se evitan las llamadas a expresiones regulares PCRE, que en Windows cuestan unos 47 µs cada una aunque el vector sea corto.</li>
-<li>Las tablas chicas se arman sin el costo por columna de <code><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame()</a></code>, la detección de fechas no prueba los formatos que no pueden casar con ningún valor, y <code><a href="../reference/analizar.html">analizar()</a></code> clasifica una sola vez los datos personales de la tabla que mide. Con la protección pedida, el barrido que decide qué campos guardan nombres de columna no intenta partir un valor sin coma, y la fila de una columna del perfil se arma sin pasar por <code>[.data.frame</code>. El pliegue con que la protección compara los valores protegidos con el texto publicado ya no arma su tabla de tres mil caracteres en cada llamada: un texto ASCII sólo baja la caja, y uno corto usa la parte del mapa que trae. Sobre la tabla de ejemplo de 13 filas, <code><a href="../reference/perfilar.html">perfilar()</a></code> tarda 0,11 s y <code><a href="../reference/analizar.html">analizar()</a></code> 0,21 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera llamada de una sesión nueva. Con la protección pedida, <code><a href="../reference/perfilar.html">perfilar()</a></code> tarda 0,23 s y 0,37 s, y <code><a href="../reference/analizar.html">analizar()</a></code> 0,60 s y 0,78 s. Las cifras son de <code>benchmark/medir_costo_fijo.R</code> y quedan en <code>benchmark/datos/medir-costo-fijo.csv</code>.</li>
+<h3 id="rendimiento-development-version">Rendimiento<a class="anchor" aria-label="anchor" href="#rendimiento-development-version"></a></h3>
+<ul><li>Las tablas chicas se arman sin el costo por columna de <code><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame()</a></code>, la detección de fechas no prueba los formatos que no pueden casar con ningún valor, y <code><a href="../reference/analizar.html">analizar()</a></code> clasifica una sola vez los datos personales de la tabla que mide. Con la protección pedida, el barrido que decide qué campos guardan nombres de columna no intenta partir un valor sin coma, y la fila de una columna del perfil se arma sin pasar por <code>[.data.frame</code>. El pliegue con que la protección compara los valores protegidos con el texto publicado ya no arma su tabla de tres mil caracteres en cada llamada: un texto ASCII sólo baja la caja, y uno corto usa la parte del mapa que trae. Sobre la tabla de ejemplo de 13 filas, <code><a href="../reference/perfilar.html">perfilar()</a></code> tarda 0,11 s y <code><a href="../reference/analizar.html">analizar()</a></code> 0,21 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera llamada de una sesión nueva. Con la protección pedida, <code><a href="../reference/perfilar.html">perfilar()</a></code> tarda 0,23 s y 0,37 s, y <code><a href="../reference/analizar.html">analizar()</a></code> 0,60 s y 0,78 s. Las cifras son de <code>benchmark/medir_costo_fijo.R</code> y quedan en <code>benchmark/datos/medir-costo-fijo.csv</code>.</li>
 <li>
 <code><a href="../reference/perfilar.html">perfilar()</a></code> sobre tablas anchas con muchas columnas iguales o de códigos de texto es varias veces más rápido. La búsqueda de casi duplicados del vocabulario no calcula la mitad de la matriz de distancias que no lee, y <code>columnas_duplicadas</code> publica un hallazgo por grupo (ver «Perfilado»). Las columnas iguales se buscan agrupándolas por una huella y comparando cada una con un representante, no par por par. Con 500 filas y 1.000 columnas iguales, de 379 a 387 s pasa a 28 a 30 s (los 2 CSV fechados de <code>benchmark/medir_topes_valores_ancho.R</code> en <code>benchmark/datos/</code>).</li>
 </ul></div>
 <div class="section level3">
-<h3 id="requisitos-0-1-0">Requisitos<a class="anchor" aria-label="anchor" href="#requisitos-0-1-0"></a></h3>
+<h3 id="requisitos-development-version">Requisitos<a class="anchor" aria-label="anchor" href="#requisitos-development-version"></a></h3>
 <ul><li>R 4.2.0 o posterior. Las columnas <code>integer64</code> necesitan además bit64, desde la 4.0.5. Con bit64 anterior a 4.6.0, <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> de R iguala entre sí todos los valores negativos: <code>lupa</code> empareja esos valores por su texto, con su propio <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> y su <code>%in%</code>, y da el mismo perfil que con bit64 nuevo. Sin bit64 se niega con la condición <code>lupa_error_integer64</code> en lugar de publicar distintos, modas y medianas equivocados. Las pruebas de <code>integer64</code> corren todas con bit64 4.0.5 en R 4.2.0, y una prueba falla si alguna función de base que compara por debajo (<code><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge()</a></code>, <code><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor()</a></code>, <code><a href="https://rdrr.io/r/base/sets.html" class="external-link">setdiff()</a></code>, <code><a href="https://rdrr.io/r/base/order.html" class="external-link">order()</a></code>…) recibe del paquete una columna <code>integer64</code>.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="datos-personales-0-1-0">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales-0-1-0"></a></h3>
-<ul><li>La clasificación de posibles datos personales (documentos, nombres, fechas de nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete publica es un complemento que se pide con <code>proteger_datos_personales = TRUE</code>: publicar o no los valores de una base es decisión de quien la usa.</li>
-</ul></div>
-<div class="section level3">
-<h3 id="correcciones-0-1-0">Correcciones<a class="anchor" aria-label="anchor" href="#correcciones-0-1-0"></a></h3>
+<h3 id="correcciones-development-version">Correcciones<a class="anchor" aria-label="anchor" href="#correcciones-development-version"></a></h3>
 <ul><li>
 <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> no convierte un número escrito como texto que el perfil no lee: un teléfono como <code>099.123.456</code> entre importes con coma decimal, que el perfil deja fuera del resumen, hacía que el plan propusiera la conversión y <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> escribiera 99123456. Ahora la conversión queda <code>bloqueada</code>, como con cualquier valor que no responde al formato, hasta que se decida qué hacer con él. Con columnas iguales en las que algún nombre se repite en la tabla, el plan no propone acción —proponía dos <code>bloqueada</code> sin saber sobre cuál columna actuar— y el hallazgo queda en <code>hallazgos_sin_accion_por_columna_ambigua</code>, con el remedio.</li>
 <li>
@@ -241,6 +210,53 @@
 <li>En SQLite, el desvío de la muestra del motor ya no pierde cifras con valores grandes (<code>{2^53 - 2, 2^53 - 1}</code> daba 1 por 0,7071).</li>
 <li>
 <code><a href="../reference/requisitos_motor.html">requisitos_motor()</a></code> declara PostgreSQL «9.3 y 16», las dos versiones que se miden.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
+<p>Primera versión publicada.</p>
+<div class="section level3">
+<h3 id="perfilado-0-1-0">Perfilado<a class="anchor" aria-label="anchor" href="#perfilado-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> describe cada columna de un <code>data.frame</code>: el tipo implícito, los faltantes reales y los disfrazados (códigos y centinelas), los patrones de formato, los formatos de fecha mixtos, los valores extremos, las filas duplicadas, las dependencias funcionales y las claves. Lo que no puede medir lo declara, con su motivo, en vez de dejarlo en cero.</li>
+<li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> hace el perfil dentro del motor, por DBI, con una consulta por lote y no una por columna, muestras del motor y presupuestos de trabajo declarados. Está probado contra PostgreSQL (16 y 9.3), SQL Server 2022, MySQL 8.4, MariaDB 11.8, SQLite y DuckDB. <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> perfilan varias tablas y proponen las relaciones entre ellas, y <code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> anticipa lo que va a costar una corrida.</li>
+<li>
+<code><a href="../reference/analizar.html">analizar()</a></code> hace el recorrido completo: el perfil, las distribuciones, las asociaciones, el análisis temporal, la clasificación de las variables y una propuesta de modelo de medición.</li>
+<li>Cada diagnóstico también se puede pedir por separado: <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code><a href="../reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code>, <code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="../reference/detectar_formatos_fecha.html">detectar_formatos_fecha()</a></code>, <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code>, <code><a href="../reference/inferir_tipo.html">inferir_tipo()</a></code> y <code><a href="../reference/distribucion_valores.html">distribucion_valores()</a></code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="medición-de-la-calidad-0-1-0">Medición de la calidad<a class="anchor" aria-label="anchor" href="#medici%C3%B3n-de-la-calidad-0-1-0"></a></h3>
+<ul><li>Marcos de calidad con dimensiones y factores que declara el usuario (<code><a href="../reference/marco_calidad.html">marco_calidad()</a></code>), y los de ISO/IEC 25012, CEPAL y AGESIC listos para usar.</li>
+<li>Métricas reutilizables con su granularidad explícita (<code><a href="../reference/modelo_calidad.html">metrica()</a></code>, <code><a href="../reference/modelo_calidad.html">metricas_nucleo()</a></code>), modelos de medición (<code><a href="../reference/modelo_calidad.html">modelo()</a></code>, <code><a href="../reference/modelo_calidad.html">especializar()</a></code>, <code><a href="../reference/modelo_calidad.html">instanciar()</a></code>), mediciones (<code><a href="../reference/medir.html">medir()</a></code>), agregación tipada (<code><a href="../reference/agregar.html">agregar()</a></code>) y perfiles de evaluación (<code><a href="../reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="../reference/evaluar.html">evaluar()</a></code>).</li>
+<li>Validadores de formato: la cédula y el RUT de Uruguay, el correo, la URL, ISO 3166, ISO 4217, Luhn y mod 97.</li>
+<li>Históricos versionados (<code><a href="../reference/historico_calidad.html">acumular_historico()</a></code>, <code><a href="../reference/guardar_historico.html">guardar_historico()</a></code>), la comparación de dos perfiles (<code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code>) y la detección de deriva (<code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="limpieza-0-1-0">Limpieza<a class="anchor" aria-label="anchor" href="#limpieza-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> propone un plan editable de acciones, cada una con su justificación y la severidad de lo que la motivó. <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> lo ejecuta sobre una copia y deja el registro de lo que cambió, y <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> muestra ejemplos para decidir. <code>lupa</code> nunca modifica los datos que recibe.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="informes-0-1-0">Informes<a class="anchor" aria-label="anchor" href="#informes-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/reportar.html">reportar()</a></code> escribe un informe HTML autocontenido, sin depender de software externo para generarlo.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="documentación-0-1-0">Documentación<a class="anchor" aria-label="anchor" href="#documentaci%C3%B3n-0-1-0"></a></h3>
+<ul><li>El paquete trae las guías 1 a 6, el camino básico: de la primera tabla al plan de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos, colecciones y escala) y los 4 artículos de referencia están en el sitio, <a href="https://sebollin.github.io/lupa/" class="uri">https://sebollin.github.io/lupa/</a>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="rendimiento-0-1-0">Rendimiento<a class="anchor" aria-label="anchor" href="#rendimiento-0-1-0"></a></h3>
+<ul><li>La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en cada columna; el enmascarado de datos personales pasa a pedirse (ver abajo); y en los caminos que más se repiten se evitan las llamadas a expresiones regulares PCRE, que en Windows cuestan unos 47 µs cada una aunque el vector sea corto. Sobre la tabla de ejemplo de 13 filas, <code><a href="../reference/perfilar.html">perfilar()</a></code> bajó de 0,63 s a 0,16 s (0,26 s con la protección pedida) y <code><a href="../reference/analizar.html">analizar()</a></code> de 1,36 s a 0,33 s.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="requisitos-0-1-0">Requisitos<a class="anchor" aria-label="anchor" href="#requisitos-0-1-0"></a></h3>
+<ul><li>R 4.2.0 o posterior. Las columnas <code>integer64</code> necesitan además bit64 4.6.0 o posterior: con versiones anteriores, <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> de R iguala entre sí todos los valores negativos, y <code>lupa</code> se niega con la condición <code>lupa_error_integer64</code> en lugar de publicar distintos, modas y medianas equivocados.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="datos-personales-0-1-0">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales-0-1-0"></a></h3>
+<ul><li>La clasificación de posibles datos personales (documentos, nombres, fechas de nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete publica es un complemento que se pide con <code>proteger_datos_personales = TRUE</code>: publicar o no los valores de una base es decisión de quien la usa.</li>
 </ul></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
