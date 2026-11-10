@@ -286,9 +286,14 @@ Primera versión publicada.
   y no `x ~= y * 1.105`, que acusaba las filas sanas cuyo residuo cae entre las
   dos tolerancias (lo mismo con 1,09, 1,18 y 1,22), y `y = round(0.9 * x)` en
   enteros, `y ~= x * 0.9`: las filas que R redondea al par quedan en el medio
-  cuanto y no se acusan. En magnitudes angostas los datos pueden no distinguir
-  una constante larga de una recíproca corta (`0.012345` de `1/81`): gana la
-  corta y puede acusar una fila sana.
+  cuanto y no se acusan. Una constante truncada que deja afuera filas sanas por
+  un pelo ya no gana el empate a la entera: `y = round(x / 1.609344)` se lee con
+  `0.62137` y no con `0.6214`, que acusaba dos sanas y callaba la rota, y
+  `round(x / 0.9144, 2)` con `0.9144`. Con una tolerancia el doble de la otra,
+  una fila corrida un cuanto ya no pasa por empate del redondeo: `y = x / 10` con
+  tres filas corridas cinco centavos las acusa. En magnitudes angostas los datos
+  pueden no distinguir una constante larga de una recíproca corta (`0.012345` de
+  `1/81`, `0.393701` de `1/2.54`): gana la corta y puede acusar una fila sana.
 - Una conversión que el plan no puede ejecutar dice cuántos valores no se leen:
   `n_no_reversibles` publicaba 0 al lado de un perfil que contaba los valores que
   la conversión dejaría en `NA` (un teléfono entre importes, `0x1A`, una columna

@@ -718,3 +718,81 @@ test_that("una corta exacta no la gana una reciproca que traga rotas", {
   expect_match(r$h[[1L]]$descripcion, "y ~= x * 0.18 ", fixed = TRUE)
   expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rotas)
 })
+
+test_that("una rota por un cuanto de la fina no pasa por empate de la gruesa", {
+  # y = x / 10 a cinco centavos, con tres filas corridas cinco centavos. La
+  # lectura de x tiene el doble de tolerancia: a esas filas les queda justo su
+  # medio cuanto, y contadas como empates del redondeo `x ~= y * 10` las
+  # explicaba y no acusaba ninguna.
+  x <- c(86, 82, 7, 53, 55, 95, 50, 73, 6, 21, 26, 85, 47, 78, 84, 72, 80, 68,
+         50, 65, 16, 14, 14, 78, 7, 66, 8, 87, 41, 97)
+  y_cent <- 10 * x
+  rotas <- c(10L, 24L, 25L)
+  y_cent[rotas] <- y_cent[rotas] + 5
+  r <- prop_de(data.frame(x = x, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x * 0.1 ", fixed = TRUE)
+  expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rotas)
+})
+
+test_that("un truncado que deja afuera sanas por un pelo paga el empate", {
+  # y = round(x / 1.105): `1/1.105` -cuatro cifras, las 20 filas- empata con
+  # `0.905` -tres, 19-. La fila que gana esta a un pelo de la ventana de la
+  # corta y no entre las mayores, y un truncado la deja afuera asi.
+  x <- c(3642, 5228, 15, 9028, 4631, 3923, 8812, 1478, 3869, 120, 6212, 8302,
+         7838, 852, 8989, 9009, 4528, 1804, 4073, 3184)
+  y <- c(3296, 4731, 14, 8170, 4191, 3550, 7975, 1338, 3501, 109, 5622, 7513,
+         7093, 771, 8135, 8153, 4098, 1633, 3686, 2881)
+  expect_true(all(2 * abs(221 * y - 200 * x) <= 221))
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+  # Con una rota que la truncada se traga: `0.6214` la explica y deja afuera
+  # dos sanas que `0.62137`, la entera, explica; la entera deja la rota a mas
+  # de un cuanto, y esa no cuenta como fila perdida.
+  x <- c(468, 37719, 6566, 2586, 28267, 636, 1489, 14347, 6554, 435, 1683,
+         10615, 294, 347, 1812, 251, 661, 568, 1356, 1320, 911, 2742, 1542)
+  y <- c(291, 23439, 4080, 1607, 17564, 395, 925, 8915, 4072, 270, 1046, 6596,
+         183, 216, 1126, 156, 411, 353, 843, 820, 566, 1704, 958)
+  rota <- which(2 * abs(1609344 * y - 1e6 * x) > 1609344)
+  expect_identical(rota, 2L)
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, rota)
+  # Y una grande y una chica juntas: `0.9` deja afuera dos grandes, lejos, y una
+  # chica por un pelo; con las dos rotas entre las mayores, `1/1.105` empata.
+  x <- c(50, 93, 51, 17, 42, 20, 72, 27, 23, 585640, 57, 90, 35, 72, 53, 27, 4,
+         71, 450593, 11, 62, 17, 27, 81, 43, 31, 42, 2, 82, 79, 79, 91, 94, 54,
+         9, 13, 52, 28, 52, 100, 1, 75, 3, 70, 633630, 90, 718227, 35, 42, 34)
+  y <- (400 * x + 221) %/% 442
+  rota <- c(45L, 47L)
+  y[rota] <- y[rota] + c(3, -3)
+  expect_identical(which(2 * abs(221 * y - 200 * x) > 221), rota)
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_identical(sort(r$h[[1L]]$trazabilidad[[1L]]$indices_fila), rota)
+})
+
+test_that("la rival que traga una rota y pierde sanas no gana el cambio", {
+  # y = round(x / 0.9144, 2): `0.9143` explica la rota 14, que `0.9144` deja a
+  # mas de un cuanto, y deja afuera dos sanas a un pelo de su ventana.
+  x_cent <- c(1539, 380, 786, 314, 3460, 1323, 1344, 1292, 775, 303, 202, 1005,
+              5514, 10027, 6900, 74, 173, 3950, 2208, 117)
+  y_cent <- c(1683, 416, 860, 343, 3784, 1447, 1470, 1413, 848, 331, 221, 1099,
+              6030, 10967, 7546, 81, 189, 4320, 2415, 128)
+  rota <- which(2 * abs(9144 * y_cent - 10000 * x_cent) > 9144)
+  expect_identical(rota, 14L)
+  r <- prop_de(data.frame(x = x_cent / 100, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, rota)
+  # Y con 300 filas la cadena de cambios no baja de la verdadera a un truncado.
+  set.seed(6)
+  x <- round(exp(stats::runif(300, log(25), log(120000))))
+  y <- (2e6 * x + 1609344) %/% (2 * 1609344)
+  rota <- sample(300L, 1L)
+  y[rota] <- y[rota] + 3
+  expect_identical(which(2 * abs(1609344 * y - 1e6 * x) > 1609344), rota)
+  r <- prop_de(data.frame(x = x, y = y))
+  expect_length(r$h, 1L)
+  expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, rota)
+})

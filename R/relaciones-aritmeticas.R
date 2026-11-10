@@ -1164,21 +1164,32 @@
     exacta <- all(desvio_corta[cubre_corta] <= 8 * .Machine$double.eps *
                     pmax(1, abs(respuesta[cubre_corta]),
                          abs(base[cubre_corta] * constantes[[corta]])))
-    # Las de mayor magnitud: todas en el cuarto de magnitudes mas altas de las
-    # que explica la larga. No necesariamente la mas grande: con una constante
-    # truncada, cual de las filas grandes cae justo afuera depende de su
-    # residuo, y `0.01235` dejaba afuera la tercera de 27 que `0.012347`
+    # Cada una de las que gana tiene que ser de las de mayor magnitud o quedar
+    # cerca de la corta. De las mayores: en el cuarto de magnitudes mas altas
+    # de las que explica la larga. No necesariamente la mas grande: con una
+    # constante truncada, cual de las filas grandes cae justo afuera depende de
+    # su residuo, y `0.01235` dejaba afuera la tercera de 27 que `0.012347`
     # explica. La fila 5 de 20, o la 25 de 50, quedan en el medio.
-    # Y sin perder ninguna de las que explica la corta: la constante entera
-    # explica todo lo que explica su truncado. `1/81.004` explicaba dos rotas
-    # grandes mas que `0.012345` y perdia una sana.
+    # Cerca: a menos de dos medios cuantos de la corta. Una fila lejos es una
+    # rota, y una que la corta deja afuera por un pelo es la huella de un
+    # truncado. `0.905` dejaba afuera, entre 20 filas sanas, una que `1/1.105`
+    # explica y que no era de las mayores; con magnitudes sesgadas `0.9` dejaba
+    # afuera dos grandes, lejos, y una chica por un pelo, las tres sanas.
+    # Y sin perder ninguna de las que explica la corta, salvo las que le
+    # quedan lejos a la larga: la constante entera explica todo lo que explica
+    # su truncado, y lo que el truncado explica de mas son rotas. `1/81.004`
+    # explicaba dos rotas grandes mas que `0.012345` y perdia una sana; `0.6214`
+    # explicaba una rota que `0.62137`, la entera, deja a mas de un cuanto.
     paga <- function(j) {
       if (j == corta || exacta) return(FALSE)
-      cubre <- abs(respuesta - base * constantes[[j]]) <= holgura
+      desvio_larga <- abs(respuesta - base * constantes[[j]])
+      cubre <- desvio_larga <= holgura
       gana <- cubre & !cubre_corta
-      if (!any(gana) || any(cubre_corta & !cubre)) return(FALSE)
-      min(abs(base[gana])) >=
-        stats::quantile(abs(base[cubre]), 0.75, names = FALSE, type = 1)
+      pierde <- cubre_corta & !cubre & desvio_larga <= semiancho + holgura
+      if (!any(gana) || any(pierde)) return(FALSE)
+      all(desvio_corta[gana] <= semiancho + holgura[gana] |
+            abs(base[gana]) >=
+              stats::quantile(abs(base[cubre]), 0.75, names = FALSE, type = 1))
     }
     largas <- empate[vapply(empate, paga, logical(1L))]
     elegido <- if (length(largas)) {
@@ -1190,15 +1201,21 @@
   # corre para tragarse filas rotas deja afuera sanas que la verdadera explica;
   # la entera de un truncado no pierde ninguna. `1/81.004` explicaba dos rotas
   # grandes mas que `0.012345` y perdia una sana: le ganaba por una fila, con
-  # las mismas cinco cifras.
+  # las mismas cinco cifras. Salvo que alguna de las que solo explica la
+  # elegida le quede cerca a la rival: entonces se corrio la rival, que deja
+  # afuera sanas por un pelo y se traga una rota. `0.9143` explicaba una rota
+  # que `0.9144`, la verdadera, deja a mas de un cuanto, y perdia dos sanas.
   repeat {
     cubre_elegida <- abs(respuesta - base * constantes[[elegido]]) <= holgura
     rivales <- which(cifras <= cifras[[elegido]] &
                        conteo[tramos] < conteo[tramos][[elegido]])
     gana_rival <- vapply(rivales, function(j) {
-      pierde <- sum(abs(respuesta - base * constantes[[j]]) <= holgura &
-                      !cubre_elegida)
-      pierde > 0 && puntaje[[elegido]] - puntaje[[j]] <= pierde
+      desvio_rival <- abs(respuesta - base * constantes[[j]])
+      cubre_rival <- desvio_rival <= holgura
+      pierde <- sum(cubre_rival & !cubre_elegida)
+      solo_elegida <- cubre_elegida & !cubre_rival
+      pierde > 0 && puntaje[[elegido]] - puntaje[[j]] <= pierde &&
+        !any(desvio_rival[solo_elegida] <= semiancho + holgura[solo_elegida])
     }, logical(1L))
     if (!any(gana_rival)) break
     rivales <- rivales[gana_rival]
@@ -1517,11 +1534,15 @@
       # en la lectura de `x` quedaban a 0,56, y `x ~= y * 1.11` las acusaba.
       # Solo donde el doble distingue el empate: con importes de 1e10 el error
       # de la resta es mil veces el que separa un empate de un redondeo comun,
-      # y filas cualquiera pasaban por empates.
+      # y filas cualquiera pasaban por empates. Y solo con cotas parecidas: con
+      # una el doble de la otra, una rota por un cuanto de la fina cae justo en
+      # el medio cuanto de la gruesa. Con `y = x / 10` y tres filas corridas
+      # cinco centavos, `x ~= y * 10` las contaba como empates y las callaba.
       r_g <- if (invertida) respuesta[comparables] else base[comparables]
       margen_g <- 16 * .Machine$double.eps *
         pmax(1, abs(r_g), abs(gruesa$esperado))
-      empate_g <- gruesa$cumple & margen_g <= 1e-6 * gruesa$cota &
+      empate_g <- max(cota_d, cota_i) < 2 * min(cota_d, cota_i) &
+        gruesa$cumple & margen_g <= 1e-6 * gruesa$cota &
         abs(abs(r_g - gruesa$esperado) - gruesa$cota) <= margen_g
       explica <- function(esperado_f) {
         (abs(r_f - esperado_f) <= fina$cota +

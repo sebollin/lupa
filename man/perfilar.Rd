@@ -834,12 +834,15 @@ también es una constante corta: \verb{y ~= x / 7} cuesta la cifra del 7, como
 \code{k} cuesta las suyas, y le gana a \code{0.143}, que dejaba afuera filas sanas;
 con costos iguales gana la forma directa, y una recíproca que termina se
 escribe como ese decimal (\code{1/0.4} es \code{2.5}). En un empate gana la
-más larga solo si las filas que agrega están en el cuarto de mayor
-magnitud de las que explica, no pierde ninguna de las de la corta, y la
-corta no explica exactas las suyas: un
-truncado falla primero las filas grandes, y una fila rota en el medio no
+más larga solo si cada fila que agrega está en el cuarto de mayor
+magnitud de las que explica o a menos de dos medios cuantos de la corta, no
+pierde ninguna de las de la corta que le quede a menos de esa distancia,
+y la corta no explica exactas las suyas: un
+truncado falla primero las filas grandes y deja afuera otras por un pelo,
+y una fila rota en el medio no
 compra una cifra. Una que explica más filas que otra igual de corta o más
-y pierde algunas de las de esa paga dos veces cada fila que pierde. Y una
+y pierde algunas de las de esa paga dos veces cada fila que pierde, salvo
+que alguna de las que solo explica ella le quede cerca a la otra. Y una
 corta que explica exactas todas sus filas no la gana ninguna más larga que
 las contiene: con \code{y = 0.18 * x} exacto, \code{1/5.555} se tragaba tres rotas
 grandes. Entre los
@@ -868,7 +871,9 @@ rotas por una unidad, la fila de la franja es una rota más—; las filas
 fuera de la retícula de alguna de las dos no cuentan para ninguna, y en la
 gruesa cuentan como explicadas las que caen justo en su medio cuanto, un
 empate del redondeo: \code{y = round(0.9 * x)} se lee \verb{y ~= x * 0.9} sin acusar
-las filas que R redondea al par. Con todo igual, la de menos cifras, la que
+las filas que R redondea al par; con una tolerancia el doble de la otra
+esos empates no cuentan, porque ahí cae una fila corrida un cuanto. Con
+todo igual, la de menos cifras, la que
 acusa más y la directa (\verb{y ~= x * 3.75} y no \verb{x ~= y / 3.75}). La
 que la tolerancia relativa reconoce y ninguna resolución explica se descarta,
 se cuenta en \code{meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto}
