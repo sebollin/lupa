@@ -24,7 +24,11 @@ año entre 1800 y 2100 para evitar que identificadores de ocho dígitos se
 clasifiquen parcialmente como fechas. Una hora con segundo 60 no se
 acepta: R la leería como el minuto siguiente. Tampoco la hora `24:00`: R
 la leería como la medianoche del día siguiente, y el perfil publicaría
-una fecha que nadie escribió.
+una fecha que nadie escribió. El separador `T` y la zona `Z` de una
+fecha-hora se reconocen también en minúscula (`2020-01-31t23:30:00z`),
+como lo admite RFC 3339 (sección 5.6). Un `POSIXlt` se lee como el
+`POSIXct` del mismo instante: el atributo
+`n_filas_fecha_civil_distinta_utc` cuenta igual en las dos clases.
 
 ## Usage
 

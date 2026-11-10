@@ -36,7 +36,9 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 - plan:
 
   Objeto de clase `plan_limpieza` o data frame con el mismo contrato.
-  Puede filtrarse y editarse antes de aplicarlo.
+  Puede filtrarse y editarse antes de aplicarlo; una acción cuyos
+  parámetros no son la lista con nombres que propone el plan —un vector,
+  `NULL`— queda `fallida` con ese motivo.
 
 - permitir_eliminacion:
 
@@ -187,15 +189,25 @@ Tres atributos del plan declaran lo que el plan no cubre.
 `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
 evaluar, para que leer tres acciones no se confunda con "lo demás está
 bien". `hallazgos_sin_accion_por_columna_ambigua` trae los hallazgos
-medidos que no produjeron acción porque su columna comparte nombre con
-otra y no hay forma de saber sobre cuál actuaría la limpieza; el remedio
-es normalizar los nombres y volver a perfilar. `hallazgos_sin_accion`
-trae el resto: los hallazgos que el perfil midió, con su columna
-identificada, y que ninguna acción del plan atiende —porque el plan no
+medidos que no produjeron acción porque su columna no se puede
+identificar: comparte nombre con otra y no hay forma de saber sobre cuál
+actuaría la limpieza —el remedio es normalizar los nombres y volver a
+perfilar—, o no está entre las columnas del perfil, o no tiene nombre
+—su nombre es `NA`; una columna llamada con el texto `"NA"` sí lo tiene,
+y el plan actúa sobre ella—; el `motivo` dice cuál. Un hallazgo de
+varias columnas —una relación aritmética en `neto,iva,total`, una de
+orden— no es una columna ambigua: lo es sólo si alguna de sus columnas
+lo es. Sus columnas se leen de la trazabilidad del hallazgo y no del
+texto de `columna`: una columna llamada `a,b` no se confunde con la
+relación entre `a` y `b`. `hallazgos_sin_accion` trae el resto: los
+hallazgos que el perfil midió, de una columna identificada, de varias o
+de la tabla, y que ninguna acción del plan atiende —porque el plan no
 tiene una estrategia para ese tipo, o porque la que tiene necesitaba una
-condición que no se cumplió—. Su `motivo` dice si la misma columna
-recibió otras acciones, sin afirmar que alguna cubra el hallazgo: eso es
-una decisión del dominio. Los tres se imprimen con el plan.
+condición que no se cumplió—. Su `motivo` dice si la misma columna (o
+esas columnas) recibió otras acciones, sin afirmar que alguna cubra el
+hallazgo: eso es una decisión del dominio. Un hallazgo `ok` no espera
+acción y no entra a ninguno de los dos. Los tres se imprimen con el
+plan.
 
 `convertir_numero_regional` sólo se recomienda si todos los valores
 presentes comparten convención decimal, unidad y moneda. Un valor con
@@ -253,12 +265,16 @@ haría mentir a `n_cambiadas` por el otro lado. Si se marca una acción
 que no está `lista`, `aplicar()` aborta antes de modificar la copia y
 enumera las filas problemáticas. Una acción que sí está lista pero falla
 se registra con su error y no impide aplicar las siguientes: cada una
-conserva atomicidad sobre su propia columna o tabla. Las acciones que
-efectivamente eliminan filas o columnas requieren además
-`permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
-selección explícita y deja la pérdida cuantificada. Por defecto, el
-resultado conserva lo retirado en `eliminados`; use
-`conservar_eliminados = FALSE` para evitar ese costo de memoria.
+conserva atomicidad sobre su propia columna o tabla. Una acción de
+nombres preparada para otros nombres —un perfil de otra versión de la
+tabla, con dos `x` donde los datos tienen una— es una de esas: queda
+`fallida` con el motivo, y en un plan armado con `datos` ya sale
+`bloqueada`. Las acciones que efectivamente eliminan filas o columnas
+requieren además `permitir_eliminacion = TRUE`; una conversión
+`destructiva` requiere selección explícita y deja la pérdida
+cuantificada. Por defecto, el resultado conserva lo retirado en
+`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
+de memoria.
 
 Los hallazgos `controles_invisibles`, `entidades_html` y
 `separadores_en_campo` tienen acciones separadas. La detección de
@@ -363,10 +379,18 @@ acciones de duplicados comparan las filas con la misma igualdad que el
 perfil, también con columnas `integer64`, matrices, `data.frame`
 anidados o `POSIXlt`; una tabla con columnas de lista deja las acciones
 bloqueadas. Las de columnas duplicadas comparan el contenido como el
-perfil: un factor con nivel `NA` y el mismo factor sin ese nivel, o un
-`POSIXlt` y su `POSIXct`, son la misma columna también al aplicar.
-Marcar no elimina filas. Con las dos columnas incluidas, las marcas
-distinguen la primera aparición de las repetidas, pero no a las
+perfil: un factor con nivel `NA` y el mismo factor sin ese nivel, un
+`POSIXlt` y su `POSIXct`, o dos factores sin orden con los mismos
+niveles en otro orden, son la misma columna también al aplicar. Si
+alguna columna del grupo se llama como otra de la tabla, no se propone
+acción: el hallazgo queda en `hallazgos_sin_accion_por_columna_ambigua`,
+con el remedio. Hay una decisión por grupo de columnas iguales, no por
+par: marcarlo, o eliminar las repetidas y conservar la primera del
+grupo. `columna_1` nombra la que se conserva, y `columna_2` y
+`eliminar`, todas las repetidas; el atributo
+`columnas_duplicadas_marcadas` lleva una fila por repetida, junto a la
+primera. Marcar no elimina filas. Con las dos columnas incluidas, las
+marcas distinguen la primera aparición de las repetidas, pero no a las
 repetidas entre sí: en un grupo de tres o más filas un perfil posterior
 sigue contando duplicadas. Para saber si los duplicados siguen en la
 tabla hay que quitar las columnas de marca antes de perfilarla.

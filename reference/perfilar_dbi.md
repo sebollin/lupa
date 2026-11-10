@@ -203,7 +203,19 @@ perfilar_dbi(
 - max_consultas:
 
   Presupuesto declarado de consultas. Al agotarse, las métricas
-  restantes quedan en `no_disponible` con ese motivo.
+  restantes quedan en `no_disponible` con ese motivo. Cuenta toda
+  sentencia que el perfilado manda al motor —la preparación, las
+  lecturas de catálogo, el recorrido por bloques y, por el spool de la
+  muestra del motor, la preparación que la corrida repite para publicar
+  su plan—, la misma cuenta de
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  y de `resumen_tabla$meta$consultas$emitidas`. No cuentan las
+  sentencias de la guarda de transacción (`SAVEPOINT` y, en SQL Server,
+  la pregunta por la transacción abierta antes de cada consulta) ni las
+  lecturas de `pg_stat_statements` de `instrumentar`. La preparación y
+  el recorrido por bloques se cuentan pero no se omiten: sin ellos no
+  hay perfil. Con `max_consultas = attr(plan, "total_maximo")` ninguna
+  métrica queda afuera por el presupuesto.
 
 - dialecto:
 
@@ -898,6 +910,18 @@ muestra no vacía sin valores válidos usa
 `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla
 completa.
 
+Con `bloque_muestra = "solo_agregados"` cada sentencia sobre la muestra
+del motor sortea la suya. Lo que decide los agregados de una columna -la
+cuenta de sus valores, su magnitud, la media y el desvío- sale del lote
+de agregados, una sola sentencia: si la magnitud pide la media o el
+desvío escalados (valores de más de `1e150` o de menos de `1e-150` en
+valor absoluto), no se recalculan en otra consulta, que sortearía otra
+muestra, y quedan `no_disponible` con su motivo. La moda, la mediana y
+los distintos se calculan cada uno en su sentencia, sobre su propia
+muestra; las cotas de la moda y de los distintos se comprueban dentro de
+esa sentencia (ver el `consulta_id`). Con `"con_muestra"` todo sale de
+la única muestra materializada en el spool.
+
 Un estado que afirma un valor (`calculado`, `estimado`,
 `observado_muestra`) nunca se publica con el valor ausente. Si el valor
 falta, el registro dice por qué: `sin_valores` cuando la columna no
@@ -957,16 +981,21 @@ la demuestra. La cobertura agrega una entrada concreta solo si
 `n_validos` y `n_distintos` son exactos, incoherentes y provienen de
 grupos distintos; su motivo conserva ambas sentencias. La mediana
 muestral que no tiene una forma consolidada o escalar, y la de cada
-columna que no puede usar la consolidada (un `float8` de PostgreSQL o
-una columna con extremos), usa una sola CTE con `COUNT(*) OVER ()`,
-`ROW_NUMBER() OVER` y el promedio de las posiciones centrales, elegidas
-sin dividir; con extremos, el promedio no desborda y sigue en la misma
-sentencia. La sonda barata repite esa construccion sobre
-`SELECT 1.0 UNION ALL ... SELECT 4.0`, exige `2.5` y un control negativo
-que falle; no se sondea la tabla de produccion. Si esa capacidad falla,
-la mediana se publica como `no_disponible` con
+columna que no puede usar la consolidada (un decimal, un `float8` de
+PostgreSQL o una columna con extremos), usa una sola CTE con
+`COUNT(*) OVER ()`, `ROW_NUMBER() OVER` y el promedio de las posiciones
+centrales, elegidas sin dividir; con extremos, el promedio no desborda y
+sigue en la misma sentencia. La sonda barata repite esa construccion
+sobre `SELECT 1.0 UNION ALL ... SELECT 4.0`, exige `2.5` y un control
+negativo que falle; no se sondea la tabla de produccion. Si esa
+capacidad falla, la mediana se publica como `no_disponible` con
 `capacidad_no_aceptada:sonda_mediana_cte_ventana`, nunca como
-`dos_consultas` bajo `muestra_motor`.
+`dos_consultas` bajo `muestra_motor`. Si la preparación no la probó
+—porque hay mediana consolidada— y una columna decimal o un `float8` de
+PostgreSQL la van a necesitar,
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+cuenta esa prueba y su control negativo entre los portones; la que deja
+la consolidada por sus extremos depende de los datos y no se anticipa.
 
 Las cotas de error no documentadas de una aproximacion nativa quedan
 como `"desconocido"`. Una aproximacion solo se consolida cuando entrega
@@ -1028,17 +1057,27 @@ decimal no entra en la consolidada: en MySQL, MariaDB, SQL Server,
 PostgreSQL y DuckDB se piden, en el tipo de la columna, la suma de sus
 una o dos filas centrales y cuántas son, y R divide: es el doble más
 cercano de la mediana exacta, por la tabla completa y por la muestra del
-motor. Cuesta una consulta por columna decimal, que el plan cuenta.
-`PERCENTILE_CONT` interpola en doble, y la de un decimal quedaba a un
-ulp del doble más cercano (la de 0,10 y 0,20 daba 0,15000000000000002,
-el promedio de los dobles); en DuckDB, además, interpola un `DECIMAL` en
-su propia escala y trunca, y convierte a doble un decimal de más de 18
-cifras sin dar el más cercano: ahí la suma se lee por su texto.
-`AVG(x * 1.0)` necesita una cifra de escala más que la columna y en la
-escala máxima del motor —30 en MySQL, 38 en MariaDB— se recortaba (la
-mediana de 1e-30 y 2e-30 salía 2e-30). La mediana consolidada de las
-demás columnas numéricas interpola en doble y puede quedar a una unidad
-de la última cifra del doble más cercano.
+motor. Cuesta una consulta por columna decimal, que el plan cuenta. Con
+`bloque_filas` y en el resumen de la muestra del motor con
+`bloque_muestra = "con_muestra"` (el spool), la mediana de un decimal
+que el controlador entrega como doble también es la del decimal: por
+bloques, con una cantidad impar la central es un valor y su doble es el
+más cercano, y con dos centrales que caen en el mismo doble la mediana
+cae en él; con dos centrales distintas se le piden al motor como texto,
+con el mismo salto que la vía de dos consultas —una consulta ordenada
+por columna—, y R las suma. `money` de SQL Server se pide siempre,
+porque odbc no lo lee al doble más cercano. El spool ya trae cada
+decimal como texto y la calcula de ahí. `PERCENTILE_CONT` interpola en
+doble, y la de un decimal quedaba a un ulp del doble más cercano (la de
+0,10 y 0,20 daba 0,15000000000000002, el promedio de los dobles); en
+DuckDB, además, interpola un `DECIMAL` en su propia escala y trunca, y
+convierte a doble un decimal de más de 18 cifras sin dar el más cercano:
+ahí la suma se lee por su texto. `AVG(x * 1.0)` necesita una cifra de
+escala más que la columna y en la escala máxima del motor —30 en MySQL,
+38 en MariaDB— se recortaba (la mediana de 1e-30 y 2e-30 salía 2e-30).
+La mediana consolidada de las demás columnas numéricas interpola en
+doble y puede quedar a una unidad de la última cifra del doble más
+cercano.
 
 ## Lo que el motor guarda distinto que R
 
@@ -1174,26 +1213,72 @@ eso no es lo mismo que la tabla en R:
   queda `no_disponible` con su falla en `meta$consultas$fallas` y el
   aviso: no se publica `Inf` ni un `0` sobre valores distintos.
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  y `perfilar_dbi(..., bloque_filas = n)` escalan igual al acumular por
-  bloques; en el recorrido por bloques, que no conoce la magnitud antes
-  del primer bloque, el estado acumulado se reescala por una potencia de
-  dos cuando llega un bloque que la escala vigente no cubre. Las
-  columnas de magnitud común no cambian de consulta ni de cifra.
+  y `perfilar_dbi(..., bloque_filas = n)` suman los cuadrados sin error
+  en una unidad que es potencia de dos —la que deja el mayor valor en
+  2^400— y que sube cuando llega un bloque que no cubre: el desvío es el
+  doble más cercano también en esas magnitudes. Las columnas de magnitud
+  común no cambian de consulta ni de cifra.
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
-  medias pueden diferir entre motores y con la de R. La de R
+  medias pueden diferir entre motores y con la de R. La media y el
+  desvío de R
   —[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
-  `perfil_muestra` y `bloque_filas`— es el doble más cercano de la media
-  exacta de los dobles que leyó. La media y el desvío que calcula el
+  `perfil_muestra` y `bloque_filas`— son los dobles más cercanos de la
+  media y el desvío exactos de los dobles que leyó. La media y el desvío
+  de un decimal que el controlador entrega como doble son los del
+  decimal, los dobles más cercanos de los exactos, por la tabla
+  completa, por `bloque_filas` y por la muestra del motor, con
+  `bloque_muestra = "con_muestra"` y con `"solo_agregados"`. El motor
+  suma en el tipo de la columna, y devuelve como texto, la columna y los
+  cuadrados de sus diferencias con la media escrita en su escala —o de
+  los valores, donde no hay media o las diferencias pasan de 38 cifras—,
+  con expresiones elegidas para que no desborden ni redondeen con las
+  cifras del tipo, las de los extremos y las filas: en SQL Server y
+  duckdb la parte entera y la fracción por separado, porque la suma de
+  un `decimal(38,30)` desborda; en duckdb el cuadrado con un factor de
+  19 cifras, que lo lleva a 128 bits —el de dos `DECIMAL(15,0)`
+  desbordaba en 64—; y donde nada de eso entra, en trozos de nueve
+  cifras. R divide y saca la raíz con aritmética entera, sin
+  cancelación. La muestra leída en R hace lo mismo con el texto de cada
+  valor. Por la tabla completa y bajo la muestra del motor las sumas van
+  en la misma consulta que los demás agregados, sin consultas de más y,
+  bajo la muestra, sobre las mismas filas; por bloques, en lotes de
+  hasta `tamano_lote_planos` columnas, con las expresiones que acepta el
+  motor (1.664 en PostgreSQL). Un lote que el motor rechaza se parte
+  hasta aislar la columna, y las demás siguen. Entran con cualquier
+  `metricas`, con `incluir_valores = FALSE` —la media es un literal que
+  sale de los datos, y el SQL publicado la lleva tapada— y con valores
+  de 2^53 o más; en PostgreSQL, `NaN` e `Infinity` quedan fuera, como en
+  la media de la tabla completa. En duckdb la media y el desvío del
+  motor de esas columnas se piden sobre el doble: `x * 1.0` de un
+  `DECIMAL(38,30)` desborda. Las sumas reemplazan la media y el desvío
+  del motor, que los calculaba en doble: en MySQL, MariaDB y SQL Server
+  promediaba el doble de cada valor, y con valores que se cancelan la
+  media salía lejos (`999999999999999.99`, `-999999999999999.98`,
+  `0.01`, `0.02`, `0.03` y `-0.04` daban 0,00333 por 0,005); el desvío,
+  y la media con escala 30, quedaban a un ulp. Si las sumas no llegan
+  —el presupuesto, o el motor rechaza el lote aun con la columna sola—,
+  por la tabla completa la del motor queda sólo si su error cabe en una
+  parte en mil millones (el desvío, con la guarda de los dobles; la
+  media, si `n` redondeos del mayor valor no pasan de esa parte de la
+  media), y si no queda `no_disponible` con el motivo; por bloques, la
+  media y el desvío quedan `no_disponible`, como si la suma del motor no
+  es la de lo que leyeron los bloques. Sin escala declarada —un decimal
+  que el catálogo no describe— el desvío por bloques sale de los dobles,
+  con su guarda; la de una tabla temporal la leen el catálogo de
+  `tempdb` en SQL Server y `SHOW COLUMNS` en MySQL y MariaDB. La media y
+  el desvío de una columna de coma flotante o entera que calcula el
   motor salen de su aritmética y no son, en general, el doble más
   cercano del exacto: medido sobre columnas de cuatro a nueve valores en
   los siete motores, por la tabla completa, la media quedó a uno o dos
   ulps en hasta 19 de 112 columnas (SQL Server) y el desvío a un ulp en
-  6 a 11 de cada 21 a 112; con más filas la diferencia puede crecer. La
-  corroboración cruzada la tolera hasta `1e-10` relativa y la declara
-  cuando pasa de ahí. La media y el desvío se le piden al motor como
-  doble donde su aritmética decimal los recortaría: en SQL Server
+  6 a 11 de cada 21 a 112; con más filas la diferencia puede crecer, y
+  con valores que se cancelan, más: `1e20`, `1`, `-1e20` y `2` dan 0,5
+  por 0,75 en MySQL, MariaDB, SQL Server y duckdb. La corroboración
+  cruzada la tolera hasta `1e-10` relativa y la declara cuando pasa de
+  ahí. La media y el desvío se le piden al motor como doble donde su
+  aritmética decimal los recortaría: en SQL Server
   `AVG(CAST(x AS FLOAT))`, porque `AVG` de un `numeric` devuelve seis
   decimales, y en PostgreSQL `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))`,
   porque sobre magnitudes grandes el desvío de un `numeric` sale con
@@ -1223,34 +1308,42 @@ eso no es lo mismo que la tabla en R:
   redondea, y un empate se redondearía hacia lados distintos según el
   signo, así que el centro de un decimal nunca termina en 5. Con
   `bloque_filas` los momentos se acumulan centrados, sobre los dobles
-  que entrega el controlador: el desvío de un decimal tan grande frente
-  a su desvío que el redondeo de cada valor a doble puede moverlo más de
+  que entrega el controlador. El desvío de un decimal sale de las sumas
+  exactas del motor (ver «La media en coma flotante»): la resta con la
+  media escrita en la escala de la columna es exacta (medido en SQL
+  Server, con compatibilidad 160 y 100, y en MySQL hasta
+  `decimal(38,30)` y `DECIMAL(65,30)`). Sin escala declarada en SQL
+  Server, MySQL y MariaDB, el de los dobles: si es tan grande frente a
+  su desvío que el redondeo de cada valor a doble puede moverlo más de
   una parte en mil millones (`max |x| / desvio * 2^-53`) queda
   `no_disponible`, salvo que el tipo declare escala 0 —`numeric(18,0)`,
   `decimal(38,0)`— y los valores queden por debajo de 2^53: ahí los
   dobles son los valores. La escala la publican PostgreSQL, MySQL,
-  MariaDB, DuckDB y el catálogo de SQL Server. Bajo `muestra_motor`, la
-  media y el desvío se piden en la misma consulta, sobre las mismas
-  filas de una sola evaluación de la muestra: una relación derivada
-  calcula la media de esas filas con una ventana (`AVG(x) OVER ()`) y el
-  desvío se pide centrado en ella; esa misma evaluación da las filas
-  obtenidas y decide el reintento. En SQLite, que suma los cuadrados en
-  la consulta, se resta además `n * (media - centro)^2` (las dos pasadas
-  corregidas), porque la media de la ventana no es la exacta. En SQL
-  Server, MySQL, MariaDB y duckdb esa media y la resta son dobles: el
-  desvío de un decimal queda `no_disponible` con la misma regla que con
-  `bloque_filas`. Con `bloque_muestra = "con_muestra"` el desvío lo
-  calcula
+  MariaDB, DuckDB y el catálogo de SQL Server, también la de una tabla
+  temporal. Bajo `muestra_motor`, la media y el desvío se piden en la
+  misma consulta, sobre las mismas filas de una sola evaluación de la
+  muestra: una relación derivada calcula la media de esas filas con una
+  ventana (`AVG(x) OVER ()`) y el desvío se pide centrado en ella; esa
+  misma evaluación da las filas obtenidas y decide el reintento. En
+  SQLite, que suma los cuadrados en la consulta, se resta además
+  `n * (media - centro)^2` (las dos pasadas corregidas), porque la media
+  de la ventana no es la exacta. En SQL Server, MySQL, MariaDB y duckdb
+  esa media y la resta son dobles; la media y el desvío de un decimal
+  salen de sus sumas exactas, pedidas en la misma consulta (ver «La
+  media en coma flotante»). Con `bloque_muestra = "con_muestra"` el
+  resumen de un decimal sale del texto que la muestra trae de cada
+  valor: el desvío es el doble más cercano del exacto, de las sumas sin
+  redondeo de las diferencias con una de sus centrales y de sus
+  cuadrados. El de `perfil_muestra` lo calcula
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre lo leído, que para un decimal es el doble de su texto, y rige la
-  misma regla. Lo mismo vale para el desvío de `perfil_muestra` en todas
-  las vías, también por la tabla completa, donde el de `resumen_tabla`
-  es el exacto: no se publica (queda `NA`) y la columna queda en
-  `perfil_muestra$meta$desvio_decimal_doble`. No se fija una semilla ni
-  se toca el generador de números aleatorios de R. Como red en todas las
-  vías, un desvío `0` sobre una columna con dos valores distintos —un
-  mínimo menor que el máximo— es imposible y queda `no_disponible` con
-  su motivo.
+  regla de los dobles en todas las vías, también por la tabla completa,
+  donde el de `resumen_tabla` es el exacto: no se publica (queda `NA`) y
+  la columna queda en `perfil_muestra$meta$desvio_decimal_doble`. No se
+  fija una semilla ni se toca el generador de números aleatorios de R.
+  Como red en todas las vías, un desvío `0` sobre una columna con dos
+  valores distintos —un mínimo menor que el máximo— es imposible y queda
+  `no_disponible` con su motivo.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
@@ -1376,30 +1469,35 @@ declarada en `resumen_tabla$sql`, con su estado y la etapa
 `sonda_magnitud`. Si la sonda no entra en `max_consultas`, las métricas
 dependientes quedan `no_disponible` con el motivo del presupuesto.
 Cuando `incluir_valores = FALSE`, el motivo no publica el valor que
-devolvió el motor. La proyección temporal no usa esos agregados planos:
-si hay más de un lote y `instrumentar = TRUE`, se mide el primer lote de
-distintos y, después de ejecutarlo, se multiplica su mediana por la
-cantidad total de lotes. El aviso llega antes del segundo lote, en la
-unidad que se va a evitar; con un solo lote no hay nada que proyectar.
-Si la duración no se pudo medir, el resultado declara la proyección como
-no disponible. La moda tiene otro canal: después de cada moda medida se
-obtiene una tasa en ms por distinto y se usa para proyectar las modas
-pendientes. La cardinalidad se toma del agregado de la corrida, de una
-clave garantizada o de la estimación de catálogo que esté disponible; si
-falta, `meta$costo_moda` lo declara y no inventa un número. El aviso
-llega antes de la siguiente moda. La mediana se proyecta en ms por fila.
-La primera mediana medida en esta corrida sirve para proyectar las
-restantes y el aviso precede a ese trabajo. Si no existe una primera
-medición local para una mediana total, usa la referencia declarada de
-otra corrida de 68 ms por millón de filas. Si la consulta inicial que
-obtuvo las filas fue medida y resulta una cota mayor, se publica también
-esa cota de lectura —no como medición de mediana— para no subestimar una
-tabla grande recién cargada. Las dos proyecciones quedan separadas en
-`meta$costo_moda` y `meta$costo_mediana`; apagar el aviso no apaga su
-medición ni su metadata. Antes de la primera consulta exacta se estima,
-cuando PostgreSQL expone `pg_stats`, el tamaño de los hashes con
-`n_distinct`, `avg_width` y `pg_class.reltuples`; `SHOW work_mem` y,
-desde PostgreSQL 13, `SHOW hash_mem_multiplier` dan el límite efectivo.
+devolvió el motor. Bajo `universo = "muestra_motor"` con
+`bloque_muestra = "solo_agregados"`, si se pide también `validos` o
+`desvio`, la sonda no es una consulta aparte: va en el lote de
+agregados, la misma sentencia y la misma muestra que el desvío, y su
+fila `sonda_magnitud` comparte el `consulta_id` del lote. La proyección
+temporal no usa esos agregados planos: si hay más de un lote y
+`instrumentar = TRUE`, se mide el primer lote de distintos y, después de
+ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El
+aviso llega antes del segundo lote, en la unidad que se va a evitar; con
+un solo lote no hay nada que proyectar. Si la duración no se pudo medir,
+el resultado declara la proyección como no disponible. La moda tiene
+otro canal: después de cada moda medida se obtiene una tasa en ms por
+distinto y se usa para proyectar las modas pendientes. La cardinalidad
+se toma del agregado de la corrida, de una clave garantizada o de la
+estimación de catálogo que esté disponible; si falta, `meta$costo_moda`
+lo declara y no inventa un número. El aviso llega antes de la siguiente
+moda. La mediana se proyecta en ms por fila. La primera mediana medida
+en esta corrida sirve para proyectar las restantes y el aviso precede a
+ese trabajo. Si no existe una primera medición local para una mediana
+total, usa la referencia declarada de otra corrida de 68 ms por millón
+de filas. Si la consulta inicial que obtuvo las filas fue medida y
+resulta una cota mayor, se publica también esa cota de lectura —no como
+medición de mediana— para no subestimar una tabla grande recién cargada.
+Las dos proyecciones quedan separadas en `meta$costo_moda` y
+`meta$costo_mediana`; apagar el aviso no apaga su medición ni su
+metadata. Antes de la primera consulta exacta se estima, cuando
+PostgreSQL expone `pg_stats`, el tamaño de los hashes con `n_distinct`,
+`avg_width` y `pg_class.reltuples`; `SHOW work_mem` y, desde PostgreSQL
+13, `SHOW hash_mem_multiplier` dan el límite efectivo.
 `meta$estimacion_derrame` y `attr(meta$plan, "estimacion_derrame")`
 conservan el diagnóstico, siempre rotulado como estimación y nunca como
 derrame medido. Si supera el límite se avisa antes de pagar

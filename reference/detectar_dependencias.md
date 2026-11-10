@@ -116,48 +116,70 @@ alcance efectivo. `n_pares_posibles`, `n_pares_comparados`,
 `n_pares_sin_comparar` y `max_comparaciones` documentan el presupuesto
 de comparaciones. `trabajo_estimado`, `trabajo_comparado`,
 `trabajo_sin_comparar`, `unidad_trabajo` y `max_trabajo` documentan el
-presupuesto por filas. `columnas_descartadas` es un data frame que
-explica por qué una columna no se usó como determinante. Una columna
-cuyo nombre se repite en la tabla no entra en ninguna dependencia, de
-ningún lado, y se descarta con el motivo `nombre_repetido`: la fila
-diría `k -> k` sin decir cuál columna es cuál.
+presupuesto por filas. Con muestra, `verificadas_tabla_completa` dice,
+fila por fila, si las cifras se recalcularon sobre la tabla completa, y
+`n_descartadas_tabla_completa` cuenta las que la muestra mostraba y la
+tabla no sostiene. `columnas_descartadas` es un data frame que explica
+por qué una columna no se usó como determinante. Una columna cuyo nombre
+se repite en la tabla no entra en ninguna dependencia, de ningún lado, y
+se descarta con el motivo `nombre_repetido`: la fila diría `k -> k` sin
+decir cuál columna es cuál.
 
 ## Details
 
 Para evitar resultados vacíos o triviales, se omiten por defecto las
 claves únicas, los determinantes cuya tasa de valores distintos alcanza
 `umbral_casi_clave`, los determinantes cuya moda alcanza
-`umbral_casi_constante` y los dependientes constantes. El valor
-predeterminado de `umbral = 0.995` exige que como máximo 5 de cada 1.000
-filas contradigan la relación. Los ausentes de cualquiera de las dos
-columnas no integran el cálculo. El descarte ocurre antes de construir
-agrupaciones. El valor predeterminado `umbral_casi_clave = 0.8` excluye
-determinantes con menos de 1,25 filas por valor distinto en promedio:
-aun si cumplen, suelen describir una casi-clave y no una regla
-reutilizable. Las columnas compuestas —matrices o arreglos de más de una
-dimensión— no se toman como determinantes ni dependientes: no son
-valores escalares por fila.
+`umbral_casi_constante` y los dependientes constantes. Tampoco se
+informa un par cuyo determinante no acierta más filas que la moda del
+dependiente sin agrupar: con un dependiente casi constante —un `estado`
+que vale `"ACTIVO"` en el 99,7 % de las filas— cualquier columna
+alcanzaría el umbral sin aportar nada. El valor predeterminado de
+`umbral = 0.995` exige que como máximo 5 de cada 1.000 filas contradigan
+la relación. Los ausentes de cualquiera de las dos columnas no integran
+el cálculo. El descarte ocurre antes de construir agrupaciones. El valor
+predeterminado `umbral_casi_clave = 0.8` excluye determinantes con menos
+de 1,25 filas por valor distinto en promedio: aun si cumplen, suelen
+describir una casi-clave y no una regla reutilizable. Las columnas
+compuestas —matrices o arreglos de más de una dimensión— no se toman
+como determinantes ni dependientes: no son valores escalares por fila.
 
 El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
 conserva las primeras columnas analizables, `max_comparaciones` limita
 el número de pares columna a columna y `muestra` aplica una única
-muestra sistemática a toda la tabla, de modo que las relaciones entre
-filas no se rompen. `max_trabajo` acota el producto entre pares posibles
-y filas analizadas. Es un presupuesto estimado, no una medición de
-segundos: permite que el tope efectivo de pares baje cuando la tabla
-tiene muchas filas. Los atributos del resultado declaran todos los
-recortes.
+muestra de filas enteras a toda la tabla, de modo que las relaciones
+entre filas no se rompen. La muestra parte la tabla en tantos tramos
+consecutivos como filas pide y toma una de cada tramo, en una posición
+que sale de un hash determinista del número de tramo: es la misma en
+cada corrida, no usa el generador de números aleatorios ni su estado, y
+no se alinea con datos periódicos. `max_trabajo` acota el producto entre
+pares posibles y filas analizadas. Es un presupuesto estimado, no una
+medición de segundos: permite que el tope efectivo de pares baje cuando
+la tabla tiene muchas filas. Los atributos del resultado declaran todos
+los recortes.
 
 Una muestra conserva cada fila entera, pero no la cantidad de filas por
-valor: sobre datos agrupados en filas consecutivas, la muestra
-sistemática toma una fila de cada grupo y el determinante parece una
-clave. Por eso los descartes por casi-clave y casi-constante se
-verifican sobre la columna completa; si sólo la muestra los produjo, el
-motivo es `casi_clave_solo_en_muestra` o
-`casi_constante_solo_en_muestra`, la columna sigue fuera —evaluarla
-sobre esa muestra daría dependencias exactas sin evidencia— y
+valor: sobre datos agrupados en filas consecutivas, la muestra toma a lo
+sumo una fila de cada tramo y el determinante parece una clave. Por eso
+los descartes por casi-clave y casi-constante se verifican sobre la
+columna completa; si sólo la muestra los produjo, el motivo es
+`casi_clave_solo_en_muestra` o `casi_constante_solo_en_muestra`, la
+columna sigue fuera —evaluarla sobre esa muestra daría dependencias
+exactas sin evidencia— y
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
 declara en `cobertura_diagnosticos`.
+
+Lo que la muestra encuentra se recalcula sobre la tabla completa: cada
+dependencia publicada sale con el cumplimiento, los grupos, las
+violaciones y la evidencia de todas las filas, y la que ya no alcanza el
+criterio no se publica. Una muestra puede mostrar exacta una relación
+que la tabla contradice —una muestra sistemática, a paso fijo, se
+alineaba con un panel mensual cuyo tamaño hacía que el paso cayera justo
+en el período, y tomaba siempre los mismos meses—. El recálculo cuesta
+una pasada por dependencia publicada y entra en `max_trabajo`; las que
+no entran conservan las cifras de la muestra, y
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
+declara.
 
 ## See also
 

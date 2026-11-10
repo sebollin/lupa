@@ -107,7 +107,13 @@ número fraccionario o negativo devuelve <code>FALSE</code> —no se le quita la
 ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
 como cualquier otra escritura del mismo documento, y por sus dígitos: el
 doble <code>12000000</code> es la cédula <code>"12000000"</code> aunque <code>scipen</code> lo imprima en
-notación científica. <code>NaN</code> es ausente y devuelve <code>NA</code>.</p>
+notación científica. Un número no guarda ceros iniciales, así que en
+<code>validar_ci_uy()</code> sus dígitos se completan con ceros hasta ocho: el número
+<code>1236</code> es la cédula <code>"00001236"</code>. El texto, que sí los guarda, sigue
+exigiendo siete u ocho dígitos: <code>"1236"</code> devuelve <code>FALSE</code>. El cuerpo
+<code>0000000</code> no es una cédula —su dígito cuadra, pero la numeración empieza en
+1—, así que <code>0</code> y <code>"00000000"</code> devuelven <code>FALSE</code>, como el RUT de secuencia
+<code>000000</code>. <code>NaN</code> es ausente y devuelve <code>NA</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

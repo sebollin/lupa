@@ -11,7 +11,13 @@ lógica. Los literales se reconocen sin distinguir mayúsculas —SÍ es sí—
 con el pliegue de caja de normalizacion(), que no depende del locale.
 Un separador seguido de exactamente tres dígitos (1.500, 1,500) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
-decimal, con punto o con coma por igual."><meta property="og:description" content="Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
+decimal, con punto o con coma por igual. Un número con los miles agrupados
+—1.234,56, 1,234.56, 12.500.000— cuenta como número si agrupa los miles
+de a tres con la convención de la columna o, cuando la columna aporta
+evidencia de las dos, con la que trae el propio valor (1.234,56 sólo admite
+la coma decimal): es como lo lee el resumen de perfilar(). Sin evidencia de
+convención no cuenta, y un primer grupo de miles que empieza con cero
+(099.123.456, la forma de un teléfono) no es un número en ninguna."><meta property="og:description" content="Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
 fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 la proporción de valores compatibles, siempre en la escala [0, 1].
 Los textos compuestos únicamente por 0 y 1 se consideran enteros; para
@@ -23,7 +29,13 @@ lógica. Los literales se reconocen sin distinguir mayúsculas —SÍ es sí—
 con el pliegue de caja de normalizacion(), que no depende del locale.
 Un separador seguido de exactamente tres dígitos (1.500, 1,500) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
-decimal, con punto o con coma por igual."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+decimal, con punto o con coma por igual. Un número con los miles agrupados
+—1.234,56, 1,234.56, 12.500.000— cuenta como número si agrupa los miles
+de a tres con la convención de la columna o, cuando la columna aporta
+evidencia de las dos, con la que trae el propio valor (1.234,56 sólo admite
+la coma decimal): es como lo lee el resumen de perfilar(). Sin evidencia de
+convención no cuenta, y un primer grupo de miles que empieza con cero
+(099.123.456, la forma de un teléfono) no es un número en ninguna."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -96,7 +108,13 @@ lógica. Los literales se reconocen sin distinguir mayúsculas —<code>SÍ</cod
 con el pliegue de caja de <code><a href="normalizacion.html">normalizacion()</a></code>, que no depende del locale.
 Un separador seguido de exactamente tres dígitos (<code>1.500</code>, <code>1,500</code>) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
-decimal, con punto o con coma por igual.</p>
+decimal, con punto o con coma por igual. Un número con los miles agrupados
+—<code>1.234,56</code>, <code>1,234.56</code>, <code>12.500.000</code>— cuenta como número si agrupa los miles
+de a tres con la convención de la columna o, cuando la columna aporta
+evidencia de las dos, con la que trae el propio valor (<code>1.234,56</code> sólo admite
+la coma decimal): es como lo lee el resumen de <code><a href="perfilar.html">perfilar()</a></code>. Sin evidencia de
+convención no cuenta, y un primer grupo de miles que empieza con cero
+(<code>099.123.456</code>, la forma de un teléfono) no es un número en ninguna.</p>
     </div>
 
     <div class="section level2">

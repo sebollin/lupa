@@ -215,7 +215,18 @@ plan_perfilado_dbi(
 - max_consultas:
 
   Presupuesto declarado de consultas. Al agotarse, las métricas
-  restantes quedan en `no_disponible` con ese motivo.
+  restantes quedan en `no_disponible` con ese motivo. Cuenta toda
+  sentencia que el perfilado manda al motor —la preparación, las
+  lecturas de catálogo, el recorrido por bloques y, por el spool de la
+  muestra del motor, la preparación que la corrida repite para publicar
+  su plan—, la misma cuenta de `plan_perfilado_dbi()` y de
+  `resumen_tabla$meta$consultas$emitidas`. No cuentan las sentencias de
+  la guarda de transacción (`SAVEPOINT` y, en SQL Server, la pregunta
+  por la transacción abierta antes de cada consulta) ni las lecturas de
+  `pg_stat_statements` de `instrumentar`. La preparación y el recorrido
+  por bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
+  `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda
+  afuera por el presupuesto.
 
 - dialecto:
 
@@ -309,6 +320,12 @@ plan_perfilado_dbi(
   `dbFetch(n = bloque_filas)`) y se absorbe antes de liberar la entrada.
   `NULL` conserva el plan historico. El plan publica la proyeccion, el
   orden, los bloques previstos y el costo declarado sin leer las filas.
+  Cuenta la preparación, las pruebas de la fuente, el recorrido, la
+  segunda pasada del localizador, la moda exacta de binarios y decimales
+  anchos, la media de los decimales en el decimal y la lectura de
+  `perfil_muestra`; la mediana de un decimal cuyas centrales son dobles
+  distintos, su desvío centrado y la moda de un entero leído como doble
+  los piden los datos y van al extremo superior.
 
 - max_bytes_procesamiento:
 
@@ -382,7 +399,16 @@ entre los extremos cuando `universo` es `"tabla_completa"` o
 forma sólo se construyó localmente y el intervalo queda condicionado a
 que la sonda de la corrida la acepte. Si la forma muestreada no se puede
 construir, el plan declara ese caso, excluye sus métricas del rango y
-`attr(plan, "supuesto")` dice por qué.
+`attr(plan, "supuesto")` dice por qué. El extremo superior incluye
+además, con `universo = "muestra_motor"` y una forma `TABLESAMPLE`, el
+reintento del resumen cuando la muestra vuelve con menos de la mitad de
+lo pedido, que depende de las páginas que sortee el motor. La cuenta es
+la de `max_consultas` y la de `resumen_tabla$meta$consultas$emitidas`:
+toda sentencia que el perfilado manda al motor, salvo las de la guarda
+de transacción y las lecturas de `pg_stat_statements` de `instrumentar`.
+Con `max_consultas` igual a `total_maximo` ninguna métrica queda afuera
+por el presupuesto; con `total`, sólo las consultas que piden los datos
+pueden quedar afuera.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -487,7 +513,12 @@ spool. La referencia medida para justificar este costo es PostgreSQL 16,
 2 millones de filas: 10.000, 100.000 y 500.000 filas dieron
 0,448/1,684/5,598 s con spool frente a 0,814/2,178/3,265 s reordenando
 cada pasada; el cruce está entre 100.000 y 500.000, y la elección
-prioriza identidad.
+prioriza identidad. Con el bloque de filas, esa vía no corre los
+agregados SQL de la muestra: el plan cuenta la preparación, la
+estimación de bytes por fila del catálogo, el conteo del universo cuando
+la preparación no lo hace, la selección de la muestra —dos en el extremo
+superior, si un `TABLESAMPLE` corto se reintenta— y la preparación que
+la corrida repite para publicar su plan en `meta$plan`.
 
 ## See also
 

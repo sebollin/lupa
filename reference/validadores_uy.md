@@ -44,8 +44,14 @@ que un número fraccionario o negativo devuelve `FALSE` —no se le quita
 la fracción ni el signo para hacerlo pasar—. Un número entero no
 negativo sí se valida, como cualquier otra escritura del mismo
 documento, y por sus dígitos: el doble `12000000` es la cédula
-`"12000000"` aunque `scipen` lo imprima en notación científica. `NaN` es
-ausente y devuelve `NA`.
+`"12000000"` aunque `scipen` lo imprima en notación científica. Un
+número no guarda ceros iniciales, así que en `validar_ci_uy()` sus
+dígitos se completan con ceros hasta ocho: el número `1236` es la cédula
+`"00001236"`. El texto, que sí los guarda, sigue exigiendo siete u ocho
+dígitos: `"1236"` devuelve `FALSE`. El cuerpo `0000000` no es una cédula
+—su dígito cuadra, pero la numeración empieza en 1—, así que `0` y
+`"00000000"` devuelven `FALSE`, como el RUT de secuencia `000000`. `NaN`
+es ausente y devuelve `NA`.
 
 ## References
 

@@ -430,7 +430,15 @@ What each form implies is published:
 - `max_bytes_muestra` (512 MiB by default) is crossed with the budget of
   the spool. In the engines that allow it, it uses the catalog. In the
   others, it starts with a small block and adapts `dbFetch(n)`. The
-  sample is not brought in whole to be cut in R.
+  sample is not brought in whole to be cut in R. Measured in PostgreSQL
+  16 and SQL Server (`benchmark/medir_tope_muestra.R`, run of
+  2026-11-10): 200 rows with a text of a million characters and a 250 KB
+  binary (250 MB) reach the spool in 27 to 28 KB, each long value as its
+  length and its MD5; with `max_bytes_muestra = 1e6` on 2,000 texts of
+  8,992 characters, 109 rows are read, 0.99 MB, and
+  `meta$materializacion$tope_que_mando` is `"bytes"`. The CSV, in
+  `benchmark/datos/`, keeps the date, the environment and the
+  fingerprint of the code.
 
 If `muestra = n` and a cap is stricter, the smaller one rules. The
 coverage of diagnostics of `perfil_muestra` declares the cells or bytes
@@ -816,7 +824,13 @@ That is why the queries are grouped:
   deviation adds a second query per batch. That way it keeps the
   centered computation. Each query brings
   `COUNT(*) AS n_total_consulta`: completeness uses that local
-  denominator and not the total of another batch.
+  denominator and not the total of another batch. The mean and the
+  standard deviation of the decimal columns come from exact sums that
+  the engine computes in the column’s type —the sum and the sum of the
+  squares— and that travel in that same batch, with no extra query (with
+  blocks, in one query of sums per batch of up to `tamano_lote_planos`
+  columns). If the engine rejects a batch, it is split until the column
+  is isolated.
 - **Exact cardinalities** go in their own class, in batches of
   `tamano_lote_distintos` (*distinct batch size*; 2 by default). Each
   `COUNT(DISTINCT col)` travels with `COUNT(col) AS n_validos_guard`, a
@@ -833,10 +847,12 @@ That is why the queries are grouped:
   which have to come back identical. In SQL Server that requires
   compatibility level 110 or higher. Decimal columns do not go in that
   `SELECT`: their median is the sum of their middle values, one query
-  per column. MariaDB accepts the form, but returns the percentile with
-  10 decimals and a cap at 1e8: it uses the median per column, like
-  MySQL. The reason for a rejection stays in
-  `meta$mediana_consolidada$motivo`.
+  per column. With `bloque_filas`, the mean of the decimal columns is
+  one more query for all of them, and their median, when the two middle
+  values fall on different doubles, one sorted query per column. MariaDB
+  accepts the form, but returns the percentile with 10 decimals and a
+  cap at 1e8: it uses the median per column, like MySQL. The reason for
+  a rejection stays in `meta$mediana_consolidada$motivo`.
 - In the dialects with `LIMIT` that do not have `PERCENTILE_CONT`, like
   SQLite and PostgreSQL 9.3, the count of the median goes in a scalar
   subquery of the same statement. For that, the probe has to accept
@@ -1054,6 +1070,16 @@ metrics. In status `"no_sondeado"` (*not probed*), the form was only
 built locally. The range stays conditional on the probe of the run
 accepting it.
 
+The plan counts what `max_consultas` and `meta$consultas$emitidas`
+count: every statement the profile sends to the engine, except the
+transaction guard and the `pg_stat_statements` reads of `instrumentar`.
+With `bloque_filas` it counts the preparation, the scan and the queries
+that follow; those the data ask for —the median of a decimal whose
+central values are distinct doubles, its centred standard deviation, the
+retry of a short `TABLESAMPLE`— go to `total_maximo`. With
+`max_consultas = attr(plan, "total_maximo")` no metric is left out by
+the budget.
+
 The count follows the composition of the table, not the number of
 columns. With the wide table of the previous section and one of 158
 columns, all of them text:
@@ -1070,7 +1096,7 @@ c(
   solo_texto = attr(plan_perfilado_dbi(con, "ancha_texto"), "total")
 )
 #>                   ancha ancha_recorren_la_tabla              solo_texto 
-#>                     336                     327                     253
+#>                     336                     327                     255
 ```
 
 Of the 336 queries of the wide table, 327 scan, sort or group the whole
@@ -1218,9 +1244,9 @@ and numeric and categorical columns.
 It is a reference for the common case, not a bound.
 `benchmark/medir_topes_valores_ancho.R` measures equal columns of text
 codes (`"valor_1"`, `"valor_2"`…), with the near-duplicate search of the
-vocabulary turned off and a `columnas_duplicadas` finding for each pair
-of columns. Its slowest case is 9,619 cells per second, also above the
-reference.
+vocabulary turned off. As all the columns are equal, the profile
+publishes a single `columnas_duplicadas` finding that names them all.
+Its slowest case is 9,754 cells per second, also above the reference.
 
 The 2 CSV files, in `benchmark/datos/`, keep the date, the environment
 and the fingerprint of the code. The warning is turned off with
@@ -1391,14 +1417,24 @@ drew its own engine sample, so the rows were not exactly the same. The
 engine and the driver also take their share. The protection is a cost in
 the low double digits, not a null cost.
 
-The slowest parts of that run are solved in the code that is published:
+The slowest parts of that run were fixed afterwards. Each fix was
+measured on a local reproduction, not on those databases, and the run on
+them is still to be repeated:
 
 - the standard deviation in SQL Server, which went in one query per
-  column, each one on the whole table ([Batched queries](#batches));
-- the date columns in R before 4.6;
-- the very long texts;
-- the engine sample, which could bring into R more than its budget
-  ([Caps on the read into R](#caps)).
+  column, each one on the whole table, goes in batches ([Batched
+  queries](#batches)): on a million rows and 27 numeric columns it went
+  from 27 queries to 2, and from 1.42 million logical reads to 105
+  thousand, with the same figures;
+- the date columns in R before 4.6: 100,000 dates went from 171 s to 1.3
+  s in R 4.5.2;
+- the very long texts: 700 rows of four 14 KB columns went from 23 s to
+  5 s;
+- the engine sample, which could bring into R more than its budget: 200
+  rows of 1.25 MB of text and binary reach the spool in 27 KB ([Caps on
+  the read into R](#caps)).
+
+The first three figures are in the `NEWS.md` entry of each fix.
 
 The agreement of the figures with an SQL count written separately is in
 [Evidencia y
@@ -1579,7 +1615,7 @@ The known cases, with what the package publishes:
 | SQL Server | it does not admit `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` or `MIN`/`MAX` on `text`, `ntext`, `image`, `xml` and `geography` | those metrics stay `no_disponible` without sending the statement |
 | any | the collation of the column groups values that R tells apart (`COLLATE NOCASE`, non-deterministic ICU, trailing spaces in SQL Server) | `meta$criterio_comparacion` and `meta$criterio_moda` declare it; the corroboration leaves it `no_corroborada`, not `divergencia` |
 | any | 64-bit integers (or `HUGEINT` and `UHUGEINT` in DuckDB) or decimals that arrive as double from 2^53 | the magnitude metrics that depend on a value a double cannot represent stay `no_disponible` (`minimo`, `maximo`, `media`, `desvio`, `n_ceros` and `n_negativos`). The median is published when its value is exact: with an odd count, if the middle value is below 2^53; with an even count, if both middle values lie between -2^52 and 2^52, which costs one more query on the full table. `perfil_muestra`, the sample read into R and [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) decide it from its middle values, which they see: it is published when they fit in a double. The mode is requested from the engine as exact text; the sample reads those columns as text and, with [`bit64`](https://CRAN.R-project.org/package=bit64), as `integer64` |
-| any | a decimal with more digits than a double holds arrives as a double | with blocks and on the engine sample (except in PostgreSQL), and also with the sample read into R, the standard deviation stays `no_disponible` when rounding each value can move it by more than one part in a billion, unless the catalog declares scale 0 and the values stay below 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB and SQL Server); on the full table the subtraction is done in the column’s type. The `perfil_muestra` standard deviation follows the same rule on every path, the full table included: it is not published, it is listed in `perfil_muestra$meta$desvio_decimal_doble`, and the cross-check does not compare it (cause `decimal_doble`) |
+| any | a decimal with more digits than a double holds arrives as a double | on the full table and with blocks, the mean and the standard deviation come from the sum of the column and the sum of the squares of its differences from the mean, which the engine computes in the column’s type and returns as text; with the sample read into R, the mean, the median and the standard deviation come from each value’s text, and the block median from the middle values the engine returns as text; on the engine sample with `solo_agregados`, from the same sums, requested in the statement of the aggregates. The `perfil_muestra` standard deviation follows the rule of the doubles on every path: it is not published, it is listed in `perfil_muestra$meta$desvio_decimal_doble`, and the cross-check does not compare it (cause `decimal_doble`) |
 | MySQL, MariaDB, SQL Server, PostgreSQL, DuckDB | `AVG(x * 1.0)` of a decimal is cut at the engine’s maximum scale (30, 38), `PERCENTILE_CONT` interpolates in double, and averaging in R the doubles of two middle values is not exact | a decimal’s median sums its middle values in the engine and R divides by how many there are: one query per decimal column |
 | SQL Server | `CAST(x AS VARCHAR)` is `VARCHAR(30)`, and writes `money` with two decimals | the sample reads a decimal’s text as `VARCHAR(48)` and `money` with `CONVERT(..., 2)` |
 | DuckDB | `AVG(x * 1.0)` overflows with a `HUGEINT` from 10^37 or a `UHUGEINT` from 10^38 | the basics are requested again without the average; the mean stays `no_disponible` and the rest is judged as in any column |

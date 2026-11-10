@@ -45,8 +45,11 @@ uno.
 `Inf` en `muestra` o en `muestra_validadores` vuelve completo ese paso.
 La muestra que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-toma por su cuenta es sistemática y sin azar. Por eso el perfil se
-rehace igual sobre los mismos datos.
+toma por su cuenta es determinista y sin azar: a paso fijo para
+patrones, tipos y formatos, y para las dependencias una fila por tramo
+de la tabla, en una posición fijada por un hash, que no se alinea con
+datos periódicos. Por eso el perfil se rehace igual sobre los mismos
+datos.
 
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 tiene otro punto de partida: el universo por omisión es
@@ -305,6 +308,9 @@ que cuentan valores:
   queda en `cobertura_diagnosticos`, con la proporción observada.
 - `filas_duplicadas` cuenta todas las filas que participan en grupos
   duplicados; la evidencia informa aparte los excedentes.
+- `columnas_duplicadas` publica un hallazgo por grupo de columnas con el
+  mismo contenido: `columna` es la primera del grupo, la evidencia las
+  nombra a todas y `n_afectados` las cuenta a todas.
 
 Por eso una traza puede tener más filas que `n_afectados`. La traza usa
 la misma comparación que el conteo, en las 2 direcciones y también en
@@ -434,14 +440,17 @@ El paquete separa lo que se declara de lo que sospecha:
   (`c(-9, -99, -999, -9999, 999)`) informa y no toca los números. Sus
   valores aparecen como `faltantes_disfrazados`, pero siguen dentro de
   la media. Es una conjetura, y una conjetura no mueve un promedio.
+  Tampoco mueve la prueba de Benford, pero si sin esos valores la
+  columna no se desvía, `desviacion_benford` lo dice y publica la prueba
+  sin ellos.
 - **Una lista declarada** excluye. Sus valores salen de `media`,
   `mediana`, `minimo`, `maximo` y `desvio`.
   `n_valores_excluidos_resumen` dice cuántos quedaron afuera, igual que
   los `NA` y las filas que `aplicabilidad` deja fuera del universo.
-  También salen de la ley de Benford y de las relaciones aritméticas. La
-  misma celda no puede ser ausencia en el resumen y valor en un
-  diagnóstico. `moda` y `n_distintos` siguen describiendo lo que está
-  guardado.
+  También salen de la ley de Benford, de las relaciones aritméticas y de
+  `valor_concentrado`. La misma celda no puede ser ausencia en el
+  resumen y valor en un diagnóstico. `moda` y `n_distintos` siguen
+  describiendo lo que está guardado.
 - **`posible_centinela_numerico`** informa un valor que reúne 3 rasgos:
   queda fuera de los límites, se repite y tiene forma de dígito
   repetido. No lo cuenta como ausencia: eso lo decide quien conoce la

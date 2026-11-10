@@ -23,7 +23,11 @@ El formato compacto %Y%m%d exige un año entre 1800 y 2100 para evitar que
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
 Tampoco la hora 24:00: R la leería como la medianoche del día siguiente,
-y el perfil publicaría una fecha que nadie escribió.'><meta property="og:description" content='Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
+y el perfil publicaría una fecha que nadie escribió.
+El separador T y la zona Z de una fecha-hora se reconocen también en
+minúscula (2020-01-31t23:30:00z), como lo admite RFC 3339 (sección 5.6).
+Un POSIXlt se lee como el POSIXct del mismo instante: el atributo
+n_filas_fecha_civil_distinta_utc cuenta igual en las dos clases.'><meta property="og:description" content='Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
 día/mes y mes/día. Cuando todos los valores con barra, guion o punto son
 ambiguos, devuelve todas sus lecturas posibles con estado "candidato":
 día/mes y mes/día y, con guion y dos dígitos en cada parte (01-02-03),
@@ -47,7 +51,11 @@ El formato compacto %Y%m%d exige un año entre 1800 y 2100 para evitar que
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
 Tampoco la hora 24:00: R la leería como la medianoche del día siguiente,
-y el perfil publicaría una fecha que nadie escribió.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+y el perfil publicaría una fecha que nadie escribió.
+El separador T y la zona Z de una fecha-hora se reconocen también en
+minúscula (2020-01-31t23:30:00z), como lo admite RFC 3339 (sección 5.6).
+Un POSIXlt se lee como el POSIXct del mismo instante: el atributo
+n_filas_fecha_civil_distinta_utc cuenta igual en las dos clases.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -132,7 +140,11 @@ El formato compacto <code>%Y%m%d</code> exige un año entre 1800 y 2100 para evi
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
 Tampoco la hora <code>24:00</code>: R la leería como la medianoche del día siguiente,
-y el perfil publicaría una fecha que nadie escribió.</p>
+y el perfil publicaría una fecha que nadie escribió.
+El separador <code>T</code> y la zona <code>Z</code> de una fecha-hora se reconocen también en
+minúscula (<code>2020-01-31t23:30:00z</code>), como lo admite RFC 3339 (sección 5.6).
+Un <code>POSIXlt</code> se lee como el <code>POSIXct</code> del mismo instante: el atributo
+<code>n_filas_fecha_civil_distinta_utc</code> cuenta igual en las dos clases.</p>
     </div>
 
     <div class="section level2">

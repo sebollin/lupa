@@ -820,7 +820,15 @@ width of the schema.</li>
 the budget of the spool. In the engines that allow it, it uses the
 catalog. In the others, it starts with a small block and adapts
 <code>dbFetch(n)</code>. The sample is not brought in whole to be cut in
-R.</li>
+R. Measured in PostgreSQL 16 and SQL Server
+(<code>benchmark/medir_tope_muestra.R</code>, run of 2026-11-10): 200
+rows with a text of a million characters and a 250 KB binary (250 MB)
+reach the spool in 27 to 28 KB, each long value as its length and its
+MD5; with <code>max_bytes_muestra = 1e6</code> on 2,000 texts of 8,992
+characters, 109 rows are read, 0.99 MB, and
+<code>meta$materializacion$tope_que_mando</code> is
+<code>"bytes"</code>. The CSV, in <code>benchmark/datos/</code>, keeps
+the date, the environment and the fingerprint of the code.</li>
 </ul>
 <p>If <code>muestra = n</code> and a cap is stricter, the smaller one
 rules. The coverage of diagnostics of <code>perfil_muestra</code>
@@ -1260,7 +1268,13 @@ single query per batch of up to <code>tamano_lote_planos</code>
 for <code>float8</code> of PostgreSQL, the standard deviation adds a
 second query per batch. That way it keeps the centered computation. Each
 query brings <code>COUNT(*) AS n_total_consulta</code>: completeness
-uses that local denominator and not the total of another batch.</li>
+uses that local denominator and not the total of another batch. The mean
+and the standard deviation of the decimal columns come from exact sums
+that the engine computes in the column’s type —the sum and the sum of
+the squares— and that travel in that same batch, with no extra query
+(with blocks, in one query of sums per batch of up to
+<code>tamano_lote_planos</code> columns). If the engine rejects a batch,
+it is split until the column is isolated.</li>
 <li>
 <strong>Exact cardinalities</strong> go in their own class, in
 batches of <code>tamano_lote_distintos</code> (<em>distinct batch
@@ -1282,10 +1296,13 @@ the percentile returns its full digits, several travel in a single
 above 1e8 and another below 1e-10, which have to come back identical. In
 SQL Server that requires compatibility level 110 or higher. Decimal
 columns do not go in that <code>SELECT</code>: their median is the sum
-of their middle values, one query per column. MariaDB accepts the form,
-but returns the percentile with 10 decimals and a cap at 1e8: it uses
-the median per column, like MySQL. The reason for a rejection stays in
-<code>meta$mediana_consolidada$motivo</code>.</li>
+of their middle values, one query per column. With
+<code>bloque_filas</code>, the mean of the decimal columns is one more
+query for all of them, and their median, when the two middle values fall
+on different doubles, one sorted query per column. MariaDB accepts the
+form, but returns the percentile with 10 decimals and a cap at 1e8: it
+uses the median per column, like MySQL. The reason for a rejection stays
+in <code>meta$mediana_consolidada$motivo</code>.</li>
 <li>In the dialects with <code>LIMIT</code> that do not have
 <code>PERCENTILE_CONT</code>, like SQLite and PostgreSQL 9.3, the count
 of the median goes in a scalar subquery of the same statement. For that,
@@ -1540,6 +1557,17 @@ They are up to <code>2n − 1</code> per batch of <code>n</code> columns.
 those metrics. In status <code>"no_sondeado"</code> (<em>not
 probed</em>), the form was only built locally. The range stays
 conditional on the probe of the run accepting it.</p>
+<p>The plan counts what <code>max_consultas</code> and
+<code>meta$consultas$emitidas</code> count: every statement the profile
+sends to the engine, except the transaction guard and the
+<code>pg_stat_statements</code> reads of <code>instrumentar</code>. With
+<code>bloque_filas</code> it counts the preparation, the scan and the
+queries that follow; those the data ask for —the median of a decimal
+whose central values are distinct doubles, its centred standard
+deviation, the retry of a short <code>TABLESAMPLE</code>— go to
+<code>total_maximo</code>. With
+<code>max_consultas = attr(plan, "total_maximo")</code> no metric is
+left out by the budget.</p>
 <p>The count follows the composition of the table, not the number of
 columns. With the wide table of the previous section and one of 158
 columns, all of them text:</p>
@@ -1554,7 +1582,7 @@ columns, all of them text:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     336                     327                     253</span></span></code></pre></div>
+<span><span class="co">#&gt;                     336                     327                     255</span></span></code></pre></div>
 <p>Of the 336 queries of the wide table, 327 scan, sort or group the
 whole table. Text columns cost less, above all because the median —which
 sorts the table— is requested only on numeric columns.
@@ -1736,9 +1764,10 @@ session. The projection is always kept:</p>
 <p>It is a reference for the common case, not a bound.
 <code>benchmark/medir_topes_valores_ancho.R</code> measures equal
 columns of text codes (<code>"valor_1"</code>, <code>"valor_2"</code>…),
-with the near-duplicate search of the vocabulary turned off and a
-<code>columnas_duplicadas</code> finding for each pair of columns. Its
-slowest case is 9,619 cells per second, also above the reference.</p>
+with the near-duplicate search of the vocabulary turned off. As all the
+columns are equal, the profile publishes a single
+<code>columnas_duplicadas</code> finding that names them all. Its
+slowest case is 9,754 cells per second, also above the reference.</p>
 <p>The 2 CSV files, in <code>benchmark/datos/</code>, keep the date, the
 environment and the fingerprint of the code. The warning is turned off
 with <code>avisar_costo_tabla_ancha = FALSE</code>, and
@@ -1941,16 +1970,23 @@ and <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()<
 those calls drew its own engine sample, so the rows were not exactly the
 same. The engine and the driver also take their share. The protection is
 a cost in the low double digits, not a null cost.</p>
-<p>The slowest parts of that run are solved in the code that is
-published:</p>
+<p>The slowest parts of that run were fixed afterwards. Each fix was
+measured on a local reproduction, not on those databases, and the run on
+them is still to be repeated:</p>
 <ul>
 <li>the standard deviation in SQL Server, which went in one query per
-column, each one on the whole table (<a href="#batches">Batched
-queries</a>);</li>
-<li>the date columns in R before 4.6;</li>
-<li>the very long texts;</li>
-<li>the engine sample, which could bring into R more than its budget (<a href="#caps">Caps on the read into R</a>).</li>
+column, each one on the whole table, goes in batches (<a href="#batches">Batched queries</a>): on a million rows and 27 numeric
+columns it went from 27 queries to 2, and from 1.42 million logical
+reads to 105 thousand, with the same figures;</li>
+<li>the date columns in R before 4.6: 100,000 dates went from 171 s to
+1.3 s in R 4.5.2;</li>
+<li>the very long texts: 700 rows of four 14 KB columns went from 23 s
+to 5 s;</li>
+<li>the engine sample, which could bring into R more than its budget:
+200 rows of 1.25 MB of text and binary reach the spool in 27 KB (<a href="#caps">Caps on the read into R</a>).</li>
 </ul>
+<p>The first three figures are in the <code>NEWS.md</code> entry of each
+fix.</p>
 <p>The agreement of the figures with an SQL count written separately is
 in <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#contraste-contra-el-servidor">Evidencia
 y rendimiento</a> (<em>Evidence and performance</em>, in Spanish).</p>
@@ -2289,15 +2325,17 @@ as <code>integer64</code>
 <td>any</td>
 <td>a decimal with more digits than a double holds arrives as a
 double</td>
-<td>with blocks and on the engine sample (except in PostgreSQL), and
-also with the sample read into R, the standard deviation stays
-<code>no_disponible</code> when rounding each value can move it by more
-than one part in a billion, unless the catalog declares scale 0 and the
-values stay below 2^53 (PostgreSQL, MySQL, MariaDB, DuckDB and SQL
-Server); on the full table the subtraction is done in the column’s type.
-The <code>perfil_muestra</code> standard deviation follows the same rule
-on every path, the full table included: it is not published, it is
-listed in <code>perfil_muestra$meta$desvio_decimal_doble</code>, and the
+<td>on the full table and with blocks, the mean and the standard
+deviation come from the sum of the column and the sum of the squares of
+its differences from the mean, which the engine computes in the column’s
+type and returns as text; with the sample read into R, the mean, the
+median and the standard deviation come from each value’s text, and the
+block median from the middle values the engine returns as text; on the
+engine sample with <code>solo_agregados</code>, from the same sums,
+requested in the statement of the aggregates. The
+<code>perfil_muestra</code> standard deviation follows the rule of the
+doubles on every path: it is not published, it is listed in
+<code>perfil_muestra$meta$desvio_decimal_doble</code>, and the
 cross-check does not compare it (cause <code>decimal_doble</code>)</td>
 </tr>
 <tr class="odd">

@@ -930,7 +930,120 @@ perfilar(
   `umbral_aritmetica`; la evidencia lo dice, y las descartadas se
   cuentan en `meta$aritmetica_columnas$identidades_descartadas_escala`,
   junto a la resolución usada en `resolucion_exacta`. Es el mismo
-  criterio que el filtro de magnitud de las relaciones de orden.
+  criterio que el filtro de magnitud de las relaciones de orden. Con el
+  valor por omisión, una identidad aditiva cuyas tres columnas guardan
+  decimales fijos —todos sus valores son múltiplos de un mismo cuanto
+  decimal, como los centavos o los enteros— acota la tolerancia a la
+  mitad de ese cuanto: entre esos valores una diferencia es un múltiplo
+  del cuanto, y la tolerancia relativa tragaba centavos en los importes
+  grandes (un peso entero sobre 1e8). La cota se usa si el total guarda
+  exactamente los decimales de la suma o si la identidad se cumple
+  exacta, salvo el redondeo del tipo double, en la mayoría de las filas,
+  y sólo si los valores tienen menos de 15 cifras significativas en ese
+  cuanto —con centavos, hasta importes de 1e12; con enteros, hasta
+  1e14—; por encima la evidencia dice que la tolerancia no se acota y
+  cuánto vale. Una identidad que la tolerancia relativa reconoce y la
+  cota no se descarta y se cuenta en
+  `meta$aritmetica_columnas$identidades_descartadas_cuanto`. En una suma
+  la tolerancia se mide también sobre los sumandos
+  —`max(1, |observado|, |esperado|, |sumandos|)`—, porque el error de
+  sumar en doble es relativo a ellos; si el total queda por debajo de
+  esa tolerancia, la identidad se publica sólo si es exacta. Una
+  tolerancia declarada no se acota. En una proporcionalidad, con el
+  valor por omisión, una columna con decimales fijos cuyo redondeo la
+  tolerancia relativa supera en alguna fila —o cuya relación la relativa
+  ya reconoce acusando filas— se lee como la respuesta redondeada. Con
+  respuestas más chicas frente a su cuanto, donde la relativa no
+  reconoce la relación, se lee igual si hay al menos 20 bases y 20
+  respuestas distintas y la relación explica más filas que la moda de la
+  respuesta: entre columnas independientes chicas, sin esas dos
+  condiciones, la mitad del cuanto publicaba proporcionalidades
+  espurias. En la lectura, la mitad de su cuanto —la resolución de su
+  redondeo, como 0,05, 0,25 o 5, y no la potencia de diez de sus
+  decimales: primero la de todos sus valores y, si con esa no alcanza el
+  criterio, la de al menos el 90 % de las filas, medidas sobre los
+  valores distintos y sin el cero —con la cota de azar contada en
+  registros distintos: un registro repetido es uno, y cien importes que
+  el redondeo junta en cinco valores son cien—; un valor fuera de ella
+  cuenta como discrepante, y unas pocas filas con más decimales que las
+  demás no la hacen pasar por cifras significativas—, inclusiva, es la
+  tolerancia de todas las filas, y `k` es la constante en la que cada
+  cifra explica al menos una fila más: la de más filas dentro menos
+  cifras —cinco cifras más que solo se tragan dos filas rotas de
+  importes grandes no se pagan, y una que explica una fila sana sí—,
+  entre las que explican al menos `umbral` de las filas de la mejor y
+  con al menos una fila por cifra. La recíproca corta también es una
+  constante corta: `y ~= x / 7` cuesta la cifra del 7, como `k` cuesta
+  las suyas, y le gana a `0.143`, que dejaba afuera filas sanas; con
+  costos iguales gana la forma directa, y una recíproca que termina se
+  escribe como ese decimal (`1/0.4` es `2.5`). En un empate gana la más
+  larga solo si cada fila que agrega está en el cuarto de mayor magnitud
+  de las que explica o a menos de dos medios cuantos de la corta, no
+  pierde ninguna de las de la corta que le quede a menos de esa
+  distancia, y la corta no explica exactas las suyas: un truncado falla
+  primero las filas grandes y deja afuera otras por un pelo, y una fila
+  rota en el medio no compra una cifra. Una que explica más filas que
+  otra igual de corta o más y pierde algunas de las de esa paga dos
+  veces cada fila que pierde, salvo que alguna de las que solo explica
+  ella le quede cerca a la otra. Y una corta que explica exactas todas
+  sus filas no la gana ninguna más larga que las contiene: con
+  `y = 0.18 * x` exacto, `1/5.555` se tragaba tres rotas grandes. Entre
+  los decimales del mismo largo, el que deja más filas justo en el
+  empate del redondeo y después el más cercano a la constante de mínimos
+  cuadrados (`0.0725` y no `0.0724` en `round(cant * 0.0725, 2)`). Gana
+  otra más larga si explica casi todas las filas que esa deja a más de
+  dos medios cuantos —todas salvo `1 - umbral`, y al menos dos— sin
+  perder ninguna de las que esa explica, como un tipo de cambio largo
+  contra su truncado. Si las dos columnas admiten esa lectura, con
+  soporte las dos y la tolerancia de una el doble o más que la de la
+  otra en la misma columna, se comparan con la fina —una fila que solo
+  cae adentro con la gruesa no cuenta— y la gruesa gana solo si explica
+  más filas y paga sus cifras, contadas en la fina —las de su forma
+  corta, directa o recíproca—; si no, la de la constante claramente más
+  corta (`1.22` y no `0.8196...`), la que tiene soporte —con cotas
+  parecidas, contado en las filas que la gruesa explica con la fina—, la
+  que explica más filas pagando sus cifras y la de la resolución más
+  fina, en ese orden. Con cotas parecidas, cada una cuenta las filas que
+  explica con su propia tolerancia, salvo la franja entre las dos: ahí
+  la gruesa cuenta sólo si su redondeo la explica mejor que las rotas
+  que caen justo afuera de su ventana, medidas con la constante de más
+  cifras de las dos —en `y = round(x / 1.105)` en enteros la franja es
+  redondeo de `y`, uno de cada diez residuos, y `x ~= y * 1.105` la
+  acusaba; en `y = round(1.22 * x)` con rotas por una unidad, la fila de
+  la franja es una rota más—; las filas fuera de la retícula de alguna
+  de las dos no cuentan para ninguna, y en la gruesa cuentan como
+  explicadas las que caen justo en su medio cuanto, un empate del
+  redondeo: `y = round(0.9 * x)` se lee `y ~= x * 0.9` sin acusar las
+  filas que R redondea al par; con una tolerancia el doble de la otra
+  esos empates no cuentan, porque ahí cae una fila corrida un cuanto.
+  Con todo igual, la de menos cifras, la que acusa más y la directa
+  (`y ~= x * 3.75` y no `x ~= y / 3.75`). La que la tolerancia relativa
+  reconoce y ninguna resolución explica se descarta, se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto` y
+  deja una fila en `cobertura_diagnosticos` con la relación y el motivo;
+  si la resolución de alguna de las dos columnas es compatible con la
+  relación, se publica con la tolerancia relativa. Lo mismo vale para
+  una identidad descartada por la cota del cuanto. En cualquier camino,
+  una proporcionalidad se sostiene en las filas que distinguen `k`:
+  tiene que alcanzar el criterio en las filas con la base distinta de
+  cero, donde el par de valores más repetido pesa a lo sumo
+  `1 - umbral_aritmetica` de ellas, y con al menos
+  `min_filas_aritmetica` filas fuera de ese par cumpliendo —180 filas en
+  cero, o en un mismo par, no hacen una relación con las otras 20—. Las
+  filas en cero y las del par más repetido no cuentan como cumplimiento
+  más allá de ese tope, así que una relación real con muchas de ellas y
+  más de una fila de cada diez rota entre las demás no se publica. Una
+  que alcanza el criterio sin ese soporte no deja fila de cobertura —en
+  una tabla rala serían una por par de columnas— y se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`,
+  también cuando una identidad entre las mismas columnas la vuelve
+  redundante. Una columna que varía menos que la tolerancia relativa de
+  su magnitud se evalúa con la cota del cuanto cuando la identidad la
+  admite; si no, una fila de `cobertura_diagnosticos` por columna dice
+  qué relación reconocía la tolerancia y por qué no se publicó.
+  `meta$aritmetica_columnas` se publica cuando hay una relación, un
+  recorte o una relación descartada —por escala, por la cota del cuanto
+  o por falta de soporte—.
 
 - max_columnas_aritmetica:
 
@@ -1019,7 +1132,11 @@ perfilar(
   `5` contra `5` sí. Las grafías que la normalización junta cuentan
   juntas: `MONTEVIDEO` (10) y `Montevideo` (40) contra `Montevido` (50)
   es un empate, el grupo publica las tres formas con sus frecuencias y
-  su asimetría es 1.
+  su asimetría es 1. El tope es del grupo, no de cada par: `Montevideo`
+  (25), `Montevido` (20) y `Montividoo` (10) están a 1,25 y 2 de a
+  pares, pero a 2,5 de punta a punta, y no se agrupan. Sus pares se
+  declaran aparte en la misma fila de `cobertura_diagnosticos`, como
+  pares cercanos que forman cadenas sobre el tope.
 
 - max_comparaciones_dependencias:
 
@@ -1114,11 +1231,26 @@ una prueba de que cada fila deba corregirse; la evidencia declara
 cuantas filas mostradas pertenecen a las formas variantes y cuantas a
 las formas dominantes. En `filas_duplicadas`, el conteo y la traza
 incluyen todas las filas participantes de los grupos; el numero de
-excedentes queda en la evidencia. Cuando el camino no puede conocer un
-conteo, informa NA, nunca cero. La columna de lista `trazabilidad`
-distingue `disponible`, `truncada`, `no_aplica` y `no_disponible`;
-cuando corresponde conserva índices de fila acotados por
-`max_filas_hallazgo`, el total conocido y el alcance. En
+excedentes queda en la evidencia. `columnas_duplicadas` publica un
+hallazgo por grupo de columnas con el mismo contenido, no uno por par:
+`columna` es la primera del grupo en el orden de los datos, la evidencia
+nombra a todas (`A = B = C`) y `n_afectados` las cuenta a todas.
+`general$columnas_duplicadas` tiene una fila por cada columna repetida,
+con la primera de su grupo en `columna_1` y la repetida en `columna_2`.
+Dos columnas son iguales si lo son en lo que el perfil lee como
+contenido: un factor con nivel `NA` y el mismo sin ese nivel, un
+`POSIXlt` y su `POSIXct`, o dos factores sin orden con los mismos
+niveles en otro orden son la misma columna; un entero y un doble, que el
+perfil declara de tipos distintos, no. Si algún nombre del grupo no se
+puede leer suelto —vacío, repetido en la tabla, con espacios al borde o
+con `=`, `;`, `,` o comillas—, la evidencia cita todos los nombres entre
+comillas, y el que se repite lleva su posición:
+`"X" (columna 1) = "X" (columna 2)`. Sin filas no hay hallazgo ni filas
+en `general`: la cobertura declara que no se compararon. Cuando el
+camino no puede conocer un conteo, informa NA, nunca cero. La columna de
+lista `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
+`no_disponible`; cuando corresponde conserva índices de fila acotados
+por `max_filas_hallazgo`, el total conocido y el alcance. En
 `clave_con_ausentes`, cuenta las filas con al menos un componente
 ausente y su traza enumera esas filas. En `clave_no_unica`, cuenta las
 filas que participan en colisiones entre claves completas y su traza
@@ -1299,10 +1431,14 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 omisión: `23` puede ser 1923 o 2023, y elegir el siglo para calcular un
 rango sería inventarlo. El hallazgo `anio_de_dos_digitos` señala esas
 columnas, y el rango aparece una vez que el usuario resuelve la
-ambigüedad. Lo mismo vale para un valor que dos formatos confirmados de
-la misma columna leen distinto: en una columna que tiene `13/06/2020` y
-`06/30/2020`, el valor `01/12/2020` puede ser el 1 de diciembre o el 12
-de enero, y no se decide por la mayoría. Queda fuera del rango, y
+ambigüedad. Si sólo algunos valores traen el año con dos dígitos, la
+columna conserva su rango: esos valores quedan fuera, como cualquier
+valor con más de una lectura, y lo declaran
+`n_valores_excluidos_resumen` y `"calculados_sobre_valores"`. Lo mismo
+vale para un valor que dos formatos confirmados de la misma columna leen
+distinto: en una columna que tiene `13/06/2020` y `06/30/2020`, el valor
+`01/12/2020` puede ser el 1 de diciembre o el 12 de enero, y no se
+decide por la mayoría. Queda fuera del rango, y
 [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 bloquea la conversión de la columna mientras queden valores así. El
 resumen de fechas usa la misma regla de validez que la detección: un
@@ -1323,29 +1459,35 @@ los centinelas que se llevan todos los valores. La presencia se define
 igual que en `n_faltantes`, que cuenta el `NaN` como ausente: una
 columna de treinta `NaN` es `"sin_valores"`.
 
-**La `media` es el doble más cercano de la media exacta; la `mediana` es
-exacta.** La media se acumula por bloques con una suma exacta —cada
-bloque se parte en sumandos que se suman sin redondeo—, así que no
-depende de cómo se agrupen las filas, de que los valores se cancelen ni
-de la precisión con que la plataforma acumula
-[`sum()`](https://rdrr.io/r/base/sum.html); también es la más cercana
-cuando es subnormal. La única excepción medida: en una columna con
-valores de más de 2^900 (8,5e270), para que la suma no desborde los
-valores se dividen por `2^(e - 900)`, con `e` el exponente del mayor, y
-los menores que `2^(e - 1922)` pierden cifras (con 2^1000, -2^1000 y
-valores de 2^-1000 la media sale 0). La mediana se calcula con
-[`median()`](https://rdrr.io/r/stats/median.html) sobre el vector entero
-y no como el cuantil 0,5. [`mean()`](https://rdrr.io/r/base/mean.html)
-no es la referencia: puede quedar a varios ulps. Medido sobre
-`rnorm(2e6)` con `set.seed(1)`:
+**La `media` y el `desvio` son los dobles más cercanos de la media y del
+desvío exactos (el desvío con `n - 1`); la `mediana` es exacta.** La
+media se acumula por bloques con una suma exacta —cada bloque se parte
+en sumandos que se suman sin redondeo—, así que no depende de cómo se
+agrupen las filas, de que los valores se cancelen ni de la precisión con
+que la plataforma acumula [`sum()`](https://rdrr.io/r/base/sum.html);
+también es la más cercana cuando es subnormal y cuando la columna junta
+valores de más de 2^900 (8,5e270) con otros diminutos, que se suman
+aparte para que no se pierdan. El desvío sale de la suma de los
+cuadrados, exacta o con una cota de error demostrada, y se elige
+comparando con aritmética exacta contra los puntos medios entre dobles
+vecinos; si la cota no alcanza para decidir, la columna se recorre otra
+vez con la suma exacta. Vale con cuadrados que desbordan (1e200) o que
+caen en los subnormales. La única excepción: en una columna con un valor
+2^885 veces menor que el mayor, el cuadrado de ese valor entra con una
+cota, y el desvío puede quedar a un ulp sólo si el exacto cae a menos de
+2^-1700 relativos de un punto medio (un empate, en la práctica). La
+mediana se calcula con [`median()`](https://rdrr.io/r/stats/median.html)
+sobre el vector entero y no como el cuantil 0,5.
+[`mean()`](https://rdrr.io/r/base/mean.html) y
+[`sd()`](https://rdrr.io/r/stats/sd.html) no son la referencia: pueden
+quedar a varios ulps. Medido sobre `rnorm(2e6)` con `set.seed(1)`:
 [`mean()`](https://rdrr.io/r/base/mean.html) a 208 ulps de la media
-exacta y la `media` en la exacta; sobre `c(-2^51, 1, 2, 2^51)`, `0.75`.
-El `desvio` se acumula en doble y puede diferir del exacto en los
-últimos bits: medido, hasta tres ulps en columnas comunes de dos
-millones de filas. Quien rehaga
-[`mean()`](https://rdrr.io/r/base/mean.html) o
-[`sd()`](https://rdrr.io/r/stats/sd.html) sobre una columna grande y vea
-otro último dígito está viendo esto y no un error.
+exacta y la `media` en la exacta; sobre `c(-2^51, 1, 2, 2^51)`, `0.75`;
+sobre `((1:25) %% 7 - 3) * 0.3`,
+[`sd()`](https://rdrr.io/r/stats/sd.html) y el desvío en doble a un ulp
+del exacto. Quien rehaga [`mean()`](https://rdrr.io/r/base/mean.html) o
+[`sd()`](https://rdrr.io/r/stats/sd.html) sobre una columna y vea otro
+último dígito está viendo esto y no un error.
 
 ## La unidad viaja al lado de la cifra
 
@@ -1541,11 +1683,15 @@ declarada en `columnas_codigo`. Si falla alguna precondición no emite un
 hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
 `meta$benford$resultados` conserva la distribución observada y esperada
 por primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y
-el valor p; `meta$benford$umbrales` publica todos los cortes. Un valor p
-menor que `0.01` genera `desviacion_benford` como señal descriptiva para
-revisar, no como evidencia de fraude o manipulación. Topes
-administrativos, redondeos, precios psicológicos y subsidios de monto
-fijo son explicaciones posibles.
+el valor p; si entre los positivos hay valores que el perfil cuenta como
+faltantes disfrazados sin que estén declarados,
+`sin_faltantes_disfrazados` publica la misma prueba sin ellos, y el
+hallazgo dice si la desviación se mantiene o la producen ellos.
+`meta$benford$umbrales` publica todos los cortes. Un valor p menor que
+`0.01` genera `desviacion_benford` como señal descriptiva para revisar,
+no como evidencia de fraude o manipulación. Topes administrativos,
+redondeos, precios psicológicos y subsidios de monto fijo son
+explicaciones posibles.
 
 Las relaciones aritméticas se buscan sólo entre columnas numéricas **sin
 clase declarada** y con variación: una columna que declara una clase
@@ -1578,10 +1724,13 @@ Una columna `integer` se suma en doble: que dos enteros pasen
 las tres orientaciones de una identidad aditiva; esto cubre sumas y sus
 restas equivalentes sin informar tres veces la misma igualdad. En pares
 proporcionales, `k` es la mediana de los cocientes finitos cuya base no
-es cero, pero el cumplimiento se evalúa después también en las filas con
-base cero. Si una identidad aditiva ya relaciona una terna, se omiten
-las proporcionalidades redundantes entre su total y sus sumandos; se
-conserva la proporcionalidad entre los dos sumandos. Una regularidad
+es cero —salvo cuando la resolución de una columna con decimales fijos
+hace de tolerancia (ver `tolerancia_aritmetica`): ahí es la constante
+con menos cifras que deja casi tantas filas dentro de esa resolución
+como la que más—, pero el cumplimiento se evalúa después también en las
+filas con base cero. Si una identidad aditiva ya relaciona una terna, se
+omiten las proporcionalidades redundantes entre su total y sus sumandos;
+se conserva la proporcionalidad entre los dos sumandos. Una regularidad
 completa se informa con severidad `"ok"`; si alcanza el umbral pero
 tiene discrepancias, sigue el criterio de las relaciones de orden y es
 `"sospechoso"`. Todo esto describe evidencia observada: no declara una
@@ -2192,6 +2341,12 @@ aporta de las dos (`"mixta"`), ese valor no se lee como número, con
 punto o con coma por igual: una columna entera de esos valores queda
 `texto` y sin resumen, y si son pocos quedan fuera del resumen y lo
 declaran `n_valores_excluidos_resumen` y `"calculados_sobre_valores"`.
+El resumen lee sólo las formas que la inferencia cuenta como número,
+también en las filas que su muestra no miró: un primer grupo de miles
+con cero adelante —`099.123.456`, un teléfono—, un hexadecimal o un `5.`
+quedan afuera y se declaran igual. Un número con moneda o unidad
+(`USD 1,234.56`, `12 kg`) no se resume: es un número escrito como texto,
+y `numero_texto_moneda` y `numero_texto_unidad` publican lo que traía.
 Los prefijos de tres letras separados del número, incluso como sufijo,
 `U$S` y los símbolos monetarios se conservan como evidencia;
 `monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas

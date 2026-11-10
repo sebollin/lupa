@@ -15,7 +15,15 @@ caja de
 que no depende del locale. Un separador seguido de exactamente tres
 dígitos (`1.500`, `1,500`) cuenta como número sólo si la columna aporta
 evidencia de una sola convención decimal, con punto o con coma por
-igual.
+igual. Un número con los miles agrupados —`1.234,56`, `1,234.56`,
+`12.500.000`— cuenta como número si agrupa los miles de a tres con la
+convención de la columna o, cuando la columna aporta evidencia de las
+dos, con la que trae el propio valor (`1.234,56` sólo admite la coma
+decimal): es como lo lee el resumen de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+Sin evidencia de convención no cuenta, y un primer grupo de miles que
+empieza con cero (`099.123.456`, la forma de un teléfono) no es un
+número en ninguna.
 
 ## Usage
 

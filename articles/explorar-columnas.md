@@ -434,8 +434,10 @@ entorno, están en el artículo [Evidencia y
 rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 La muestra que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-toma por su cuenta es sistemática y sin azar: sobre los mismos datos, el
-mismo perfil se rehace igual.
+toma por su cuenta es determinista y sin azar —a paso fijo para
+patrones, tipos y formatos; para las dependencias, una fila por tramo de
+la tabla en una posición fijada por un hash, que no se alinea con datos
+periódicos—: sobre los mismos datos, el mismo perfil se rehace igual.
 
 ## 📄 Compartir el análisis
 

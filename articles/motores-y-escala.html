@@ -811,7 +811,15 @@ ancho del esquema.</li>
 presupuesto del spool. En los motores que lo permiten usa el catálogo.
 En los demás, comienza con un bloque pequeño y adapta
 <code>dbFetch(n)</code>. La muestra no se trae entera para recortarla en
-R.</li>
+R. Medido en PostgreSQL 16 y SQL Server
+(<code>benchmark/medir_tope_muestra.R</code>, corrida del 2026-11-10):
+200 filas con un texto de un millón de caracteres y un binario de 250 KB
+(250 MB) llegan al spool en 27 a 28 KB, cada valor largo como su largo y
+su MD5; con <code>max_bytes_muestra = 1e6</code> sobre 2.000 textos de
+8.992 caracteres se leen 109 filas, 0,99 MB, y
+<code>meta$materializacion$tope_que_mando</code> es
+<code>"bytes"</code>. El CSV, en <code>benchmark/datos/</code>, conserva
+la fecha, el entorno y la huella del código.</li>
 </ul>
 <p>Si <code>muestra = n</code> y un tope es más estricto, manda el
 menor. La cobertura de diagnósticos de <code>perfil_muestra</code>
@@ -1240,8 +1248,13 @@ por lote de hasta <code>tamano_lote_planos</code> columnas (20 por
 omisión). En SQL Server y para <code>float8</code> de PostgreSQL, el
 desvío suma una segunda consulta por lote. Así conserva el cálculo
 centrado. Cada consulta trae <code>COUNT(*) AS n_total_consulta</code>:
-la completitud usa ese denominador local y no el total de otro
-lote.</li>
+la completitud usa ese denominador local y no el total de otro lote. La
+media y el desvío de las columnas decimales salen de sumas exactas que
+el motor hace en el tipo de la columna —la suma y la de los cuadrados— y
+que viajan en ese mismo lote, sin consultas de más (por bloques, en una
+consulta de sumas por lote de hasta <code>tamano_lote_planos</code>
+columnas). Si el motor rechaza un lote, se parte hasta aislar la
+columna.</li>
 <li>
 <strong>Cardinalidades exactas</strong> van en su propia clase, por
 lotes de <code>tamano_lote_distintos</code> (2 por omisión). Cada
@@ -1263,9 +1276,12 @@ lote. La prueba pide una fila con un valor de más de 1e8 y otro de menos
 de 1e-10, que tienen que volver idénticos. En SQL Server eso requiere
 nivel de compatibilidad 110 o mayor. Las columnas decimales no entran en
 ese <code>SELECT</code>: su mediana es la suma de sus centrales, una
-consulta por columna. MariaDB acepta la forma, pero devuelve el
-percentil con 10 decimales y un tope en 1e8: usa la mediana por columna,
-como MySQL. El motivo de un rechazo queda en
+consulta por columna. Con <code>bloque_filas</code>, la media de las
+columnas decimales es una consulta más para todas, y su mediana, cuando
+las dos centrales caen en dobles distintos, una consulta ordenada por
+columna. MariaDB acepta la forma, pero devuelve el percentil con 10
+decimales y un tope en 1e8: usa la mediana por columna, como MySQL. El
+motivo de un rechazo queda en
 <code>meta$mediana_consolidada$motivo</code>.</li>
 <li>En los dialectos con <code>LIMIT</code> que no tienen
 <code>PERCENTILE_CONT</code>, como SQLite y PostgreSQL 9.3, el conteo de
@@ -1519,6 +1535,16 @@ construir, <code>attr(plan, "muestreo")</code> lo declara y el plan
 excluye esas métricas. En estado <code>"no_sondeado"</code>, la forma
 sólo se construyó localmente. El rango queda condicionado a que la sonda
 de la corrida la acepte.</p>
+<p>El plan cuenta lo mismo que <code>max_consultas</code> y que
+<code>meta$consultas$emitidas</code>: toda sentencia que el perfilado
+manda al motor, salvo la guarda de transacción y las lecturas de
+<code>pg_stat_statements</code> de <code>instrumentar</code>. Por
+<code>bloque_filas</code> cuenta la preparación, el recorrido y las
+consultas que siguen; las que piden los datos —la mediana de un decimal
+cuyas centrales son dobles distintos, su desvío centrado, el reintento
+de un <code>TABLESAMPLE</code> corto— van a <code>total_maximo</code>.
+Con <code>max_consultas = attr(plan, "total_maximo")</code> ninguna
+métrica queda afuera por el presupuesto.</p>
 <p>La cuenta sigue a la composición de la tabla, no a la cantidad de
 columnas. Con la tabla ancha de la sección anterior y una de 158
 columnas, todas de texto:</p>
@@ -1533,7 +1559,7 @@ columnas, todas de texto:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     336                     327                     253</span></span></code></pre></div>
+<span><span class="co">#&gt;                     336                     327                     255</span></span></code></pre></div>
 <p>De las 336 consultas de la tabla ancha, 327 escanean, ordenan o
 agrupan la tabla entera. Las columnas de texto cuestan menos, sobre todo
 porque la mediana —que ordena la tabla— se pide sólo sobre columnas
@@ -1713,9 +1739,10 @@ por segundo, con 500 filas y columnas numéricas y categóricas.</p>
 <p>Es una referencia para el caso común, no una cota.
 <code>benchmark/medir_topes_valores_ancho.R</code> mide columnas iguales
 de códigos de texto (<code>"valor_1"</code>, <code>"valor_2"</code>…),
-con la búsqueda de casi duplicados del vocabulario apagada y un hallazgo
-<code>columnas_duplicadas</code> por cada par de columnas. Su caso más
-lento son 9.619 celdas por segundo, también por encima de la
+con la búsqueda de casi duplicados del vocabulario apagada. Como todas
+las columnas son iguales, el perfil publica un solo hallazgo
+<code>columnas_duplicadas</code> que las nombra a todas. Su caso más
+lento son 9.754 celdas por segundo, también por encima de la
 referencia.</p>
 <p>Los 2 CSV, en <code>benchmark/datos/</code>, conservan la fecha, el
 entorno y la huella del código. El aviso se apaga con
@@ -1916,16 +1943,24 @@ esas llamadas sacó su propia muestra del motor, así que las filas no
 fueron exactamente las mismas. El motor y el controlador también cobran
 su parte. La protección es un costo de dos dígitos bajos, no un costo
 nulo.</p>
-<p>Lo más lento de esa corrida está resuelto en el código que se
-publica:</p>
+<p>Lo más lento de esa corrida se corrigió después. Cada arreglo se
+midió sobre una reproducción local, no sobre esas bases, y la corrida
+sobre ellas queda por repetirse:</p>
 <ul>
 <li>el desvío en SQL Server, que iba en una consulta por columna, cada
-una sobre la tabla entera (<a href="#lotes">Consultas por
-lote</a>);</li>
-<li>las columnas de fecha en R anterior a 4.6;</li>
-<li>los textos muy largos;</li>
-<li>la muestra del motor, que podía traer a R más que su presupuesto (<a href="#topes">Topes de la lectura a R</a>).</li>
+una sobre la tabla entera, va por lotes (<a href="#lotes">Consultas por
+lote</a>): sobre un millón de filas y 27 columnas numéricas pasó de 27
+consultas a 2, y de 1,42 millones de lecturas lógicas a 105 mil, con las
+mismas cifras;</li>
+<li>las columnas de fecha en R anterior a 4.6: 100.000 fechas pasaron de
+171 s a 1,3 s en R 4.5.2;</li>
+<li>los textos muy largos: 700 filas de cuatro columnas de 14 KB pasaron
+de 23 s a 5 s;</li>
+<li>la muestra del motor, que podía traer a R más que su presupuesto:
+200 filas de 1,25 MB entre texto y binario llegan al spool en 27 KB (<a href="#topes">Topes de la lectura a R</a>).</li>
 </ul>
+<p>Las tres primeras cifras están en la entrada de <code>NEWS.md</code>
+de cada arreglo.</p>
 <p>La coincidencia de las cifras con un conteo SQL escrito aparte está
 en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#contraste-contra-el-servidor">Evidencia
 y rendimiento</a>.</p>
@@ -2259,15 +2294,16 @@ como <code>integer64</code>
 <td>cualquiera</td>
 <td>un decimal con más cifras de las que guarda un doble llega como
 doble</td>
-<td>por bloques y por la muestra del motor (salvo en PostgreSQL), y
-también con la muestra leída en R, el desvío queda
-<code>no_disponible</code> si el redondeo de cada valor puede moverlo
-más de una parte en mil millones, salvo que el catálogo declare escala 0
-y los valores queden por debajo de 2^53 (PostgreSQL, MySQL, MariaDB,
-DuckDB y SQL Server); por la tabla completa se resta en el tipo de la
-columna. El desvío de <code>perfil_muestra</code> sigue la misma regla
-en todas las vías, también por la tabla completa: no se publica, queda
-en <code>perfil_muestra$meta$desvio_decimal_doble</code>, y la
+<td>por la tabla completa y por bloques, la media y el desvío salen de
+la suma de la columna y la de los cuadrados de sus diferencias con la
+media, que el motor calcula en el tipo de la columna y devuelve como
+texto; con la muestra leída en R, la media, la mediana y el desvío salen
+del texto de cada valor, y la mediana por bloques, de las centrales que
+el motor devuelve como texto; por la muestra del motor con
+<code>solo_agregados</code>, de las mismas sumas, pedidas en la
+sentencia de los agregados. El desvío de <code>perfil_muestra</code>
+sigue la regla de los dobles en todas las vías: no se publica, queda en
+<code>perfil_muestra$meta$desvio_decimal_doble</code>, y la
 corroboración no lo compara (causa <code>decimal_doble</code>)</td>
 </tr>
 <tr class="odd">

@@ -526,7 +526,11 @@ filas.</li>
 en tablas enteras de 4 de esas bases. Las tablas iban de 1 millón a
 decenas de millones de filas: casi 88 millones de valores, leídos en
 bloques de 100.000. En las 8 columnas da la misma cantidad de cédulas
-válidas que la misma regla escrita en SQL.</p>
+válidas que la misma regla escrita en SQL. Las dos coincidencias de
+<code><a href="../reference/validadores_uy.html">validar_ci_uy()</a></code> se midieron con la regla de esa versión: el
+cuerpo <code>0000000</code> —el <code>00000000</code> de relleno—
+contaba como cédula válida, y un número de menos de siete dígitos no se
+completaba con ceros.</p>
 <p>La coincidencia es exacta y no depende de la máquina. No se repite en
 otro entorno sin esos datos. Tampoco dice que no haya defectos de
 completitud: dice que, donde ambos cuentan lo mismo, cuentan igual. Los
@@ -670,11 +674,11 @@ tabla entera de las que no.</li>
 </ul>
 <p>El número depende de la composición tanto como de la cantidad de
 columnas: la mediana pide un orden por columna numérica.</p>
-<p>Corrida del 2026-10-24 sobre la revisión
-<code>0.1.0; R/ md5 08c0a1af7ccb</code>, con R 4.6.1: la tabla mixta de
+<p>Corrida del 2026-11-10 sobre la revisión
+<code>0.1.0; R/ md5 a69395a36fe5</code>, con R 4.6.2: la tabla mixta de
 158 columnas pide 336 consultas, de las que 327 escanean u ordenan la
 tabla entera; si se rechazaran todos los lotes, serían 881. Con las
-mismas 158 columnas, todas de texto, el plan baja a 253 consultas.</p>
+mismas 158 columnas, todas de texto, el plan baja a 255 consultas.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">resumen_plan</span></span>
 <span><span class="co">#&gt;              escenario                 medida valor</span></span>
@@ -684,9 +688,9 @@ mismas 158 columnas, todas de texto, el plan baja a 253 consultas.</p>
 <span><span class="co">#&gt; 4 ancha_tabla_completa      consultas_maximas   881</span></span>
 <span><span class="co">#&gt; 5 ancha_tabla_completa consultas_tabla_entera   327</span></span>
 <span><span class="co">#&gt; 6     ancha_solo_texto               columnas   158</span></span>
-<span><span class="co">#&gt; 7     ancha_solo_texto              consultas   253</span></span>
+<span><span class="co">#&gt; 7     ancha_solo_texto              consultas   255</span></span>
 <span><span class="co">#&gt; 8  ancha_muestra_motor          muestra_motor   100</span></span>
-<span><span class="co">#&gt; 9  ancha_muestra_motor              consultas   341</span></span></code></pre></div>
+<span><span class="co">#&gt; 9  ancha_muestra_motor              consultas    21</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="la-velocidad-que-supone-el-aviso-de-tabla-ancha">La velocidad que supone el aviso de tabla ancha<a class="anchor" aria-label="anchor" href="#la-velocidad-que-supone-el-aviso-de-tabla-ancha"></a>
@@ -712,10 +716,10 @@ referencia para el caso común y no una cota.</p>
 Repite una misma columna de códigos de texto (<code>"valor_1"</code>,
 <code>"valor_2"</code>…) en las mismas 3 anchuras, 3 veces cada una, con
 la búsqueda de casi duplicados del vocabulario apagada. Como todas las
-columnas son iguales, el perfil publica un hallazgo
-<code>columnas_duplicadas</code> por cada par: con 1.000 columnas,
-499.500. Deja
-<code>medir-topes-valores-ancho-20261106T132806Z.csv</code>, con su
+columnas son iguales, el perfil publica un solo hallazgo
+<code>columnas_duplicadas</code> que las nombra a todas, también con
+1.000 columnas. Deja
+<code>medir-topes-valores-ancho-20261110T015613Z.csv</code>, con su
 fecha, entorno y huella del código:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">codigos_ancho</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -723,16 +727,16 @@ fecha, entorno y huella del código:</p>
 <span>  <span class="st">"celdas_por_segundo"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;    n_filas n_columnas celdas repeticion segundos celdas_por_segundo</span></span>
-<span><span class="co">#&gt; 41     500         50  25000          1    2.599           9619.084</span></span>
-<span><span class="co">#&gt; 42     500         50  25000          2    2.489          10044.194</span></span>
-<span><span class="co">#&gt; 43     500         50  25000          3    1.350          18518.519</span></span>
-<span><span class="co">#&gt; 44     500        300 150000          1    8.185          18326.206</span></span>
-<span><span class="co">#&gt; 45     500        300 150000          2    8.188          18319.492</span></span>
-<span><span class="co">#&gt; 46     500        300 150000          3    8.102          18513.947</span></span>
-<span><span class="co">#&gt; 47     500       1000 500000          1   29.746          16808.983</span></span>
-<span><span class="co">#&gt; 48     500       1000 500000          2   28.477          17558.029</span></span>
-<span><span class="co">#&gt; 49     500       1000 500000          3   28.566          17503.326</span></span></code></pre></div>
-<p>Ahí el caso más lento son 9.619 celdas por segundo, también por
+<span><span class="co">#&gt; 41     500         50  25000          1    2.563           9754.194</span></span>
+<span><span class="co">#&gt; 42     500         50  25000          2    2.485          10060.362</span></span>
+<span><span class="co">#&gt; 43     500         50  25000          3    1.343          18615.041</span></span>
+<span><span class="co">#&gt; 44     500        300 150000          1    7.739          19382.349</span></span>
+<span><span class="co">#&gt; 45     500        300 150000          2    7.809          19208.605</span></span>
+<span><span class="co">#&gt; 46     500        300 150000          3    7.805          19218.450</span></span>
+<span><span class="co">#&gt; 47     500       1000 500000          1   26.370          18960.940</span></span>
+<span><span class="co">#&gt; 48     500       1000 500000          2   26.114          19146.818</span></span>
+<span><span class="co">#&gt; 49     500       1000 500000          3   25.294          19767.534</span></span></code></pre></div>
+<p>Ahí el caso más lento son 9.754 celdas por segundo, también por
 encima de la referencia del aviso.</p>
 </div>
 </div>

@@ -278,6 +278,11 @@ revisó las cédulas de 8 columnas en tablas enteras de 4 de esas bases.
 Las tablas iban de 1 millón a decenas de millones de filas: casi 88
 millones de valores, leídos en bloques de 100.000. En las 8 columnas da
 la misma cantidad de cédulas válidas que la misma regla escrita en SQL.
+Las dos coincidencias de
+[`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+se midieron con la regla de esa versión: el cuerpo `0000000` —el
+`00000000` de relleno— contaba como cédula válida, y un número de menos
+de siete dígitos no se completaba con ceros.
 
 La coincidencia es exacta y no depende de la máquina. No se repite en
 otro entorno sin esos datos. Tampoco dice que no haya defectos de
@@ -444,11 +449,11 @@ sin ejecutar ninguna. `benchmark/medir_plan_ancho.R`:
 El número depende de la composición tanto como de la cantidad de
 columnas: la mediana pide un orden por columna numérica.
 
-Corrida del 2026-10-24 sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`,
-con R 4.6.1: la tabla mixta de 158 columnas pide 336 consultas, de las
+Corrida del 2026-11-10 sobre la revisión `0.1.0; R/ md5 a69395a36fe5`,
+con R 4.6.2: la tabla mixta de 158 columnas pide 336 consultas, de las
 que 327 escanean u ordenan la tabla entera; si se rechazaran todos los
 lotes, serían 881. Con las mismas 158 columnas, todas de texto, el plan
-baja a 253 consultas.
+baja a 255 consultas.
 
 ``` r
 
@@ -460,9 +465,9 @@ resumen_plan
 #> 4 ancha_tabla_completa      consultas_maximas   881
 #> 5 ancha_tabla_completa consultas_tabla_entera   327
 #> 6     ancha_solo_texto               columnas   158
-#> 7     ancha_solo_texto              consultas   253
+#> 7     ancha_solo_texto              consultas   255
 #> 8  ancha_muestra_motor          muestra_motor   100
-#> 9  ancha_muestra_motor              consultas   341
+#> 9  ancha_muestra_motor              consultas    21
 ```
 
 ### La velocidad que supone el aviso de tabla ancha
@@ -493,9 +498,9 @@ referencia para el caso común y no una cota.
 columna de códigos de texto (`"valor_1"`, `"valor_2"`…) en las mismas 3
 anchuras, 3 veces cada una, con la búsqueda de casi duplicados del
 vocabulario apagada. Como todas las columnas son iguales, el perfil
-publica un hallazgo `columnas_duplicadas` por cada par: con 1.000
-columnas, 499.500. Deja
-`medir-topes-valores-ancho-20261106T132806Z.csv`, con su fecha, entorno
+publica un solo hallazgo `columnas_duplicadas` que las nombra a todas,
+también con 1.000 columnas. Deja
+`medir-topes-valores-ancho-20261110T015613Z.csv`, con su fecha, entorno
 y huella del código:
 
 ``` r
@@ -505,18 +510,18 @@ codigos_ancho[, c(
   "celdas_por_segundo"
 )]
 #>    n_filas n_columnas celdas repeticion segundos celdas_por_segundo
-#> 41     500         50  25000          1    2.599           9619.084
-#> 42     500         50  25000          2    2.489          10044.194
-#> 43     500         50  25000          3    1.350          18518.519
-#> 44     500        300 150000          1    8.185          18326.206
-#> 45     500        300 150000          2    8.188          18319.492
-#> 46     500        300 150000          3    8.102          18513.947
-#> 47     500       1000 500000          1   29.746          16808.983
-#> 48     500       1000 500000          2   28.477          17558.029
-#> 49     500       1000 500000          3   28.566          17503.326
+#> 41     500         50  25000          1    2.563           9754.194
+#> 42     500         50  25000          2    2.485          10060.362
+#> 43     500         50  25000          3    1.343          18615.041
+#> 44     500        300 150000          1    7.739          19382.349
+#> 45     500        300 150000          2    7.809          19208.605
+#> 46     500        300 150000          3    7.805          19218.450
+#> 47     500       1000 500000          1   26.370          18960.940
+#> 48     500       1000 500000          2   26.114          19146.818
+#> 49     500       1000 500000          3   25.294          19767.534
 ```
 
-Ahí el caso más lento son 9.619 celdas por segundo, también por encima
+Ahí el caso más lento son 9.754 celdas por segundo, también por encima
 de la referencia del aviso.
 
 ## ⚠️ Corridas sobre millones de filas

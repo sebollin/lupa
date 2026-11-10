@@ -187,8 +187,11 @@ SQL usan el universo elegido</td>
 </table>
 <p><code>Inf</code> en <code>muestra</code> o en
 <code>muestra_validadores</code> vuelve completo ese paso. La muestra
-que <code><a href="../reference/perfilar.html">perfilar()</a></code> toma por su cuenta es sistemática y sin
-azar. Por eso el perfil se rehace igual sobre los mismos datos.</p>
+que <code><a href="../reference/perfilar.html">perfilar()</a></code> toma por su cuenta es determinista y sin
+azar: a paso fijo para patrones, tipos y formatos, y para las
+dependencias una fila por tramo de la tabla, en una posición fijada por
+un hash, que no se alinea con datos periódicos. Por eso el perfil se
+rehace igual sobre los mismos datos.</p>
 <p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> tiene otro punto de partida: el universo
 por omisión es <code>"tabla_completa"</code> y <code>muestra</code> vale
 <code>Inf</code>. Los agregados SQL se calculan sobre toda la tabla. El
@@ -495,6 +498,11 @@ el hallazgo y la no medición queda en
 <li>
 <code>filas_duplicadas</code> cuenta todas las filas que participan
 en grupos duplicados; la evidencia informa aparte los excedentes.</li>
+<li>
+<code>columnas_duplicadas</code> publica un hallazgo por grupo de
+columnas con el mismo contenido: <code>columna</code> es la primera del
+grupo, la evidencia las nombra a todas y <code>n_afectados</code> las
+cuenta a todas.</li>
 </ul>
 <p>Por eso una traza puede tener más filas que <code>n_afectados</code>.
 La traza usa la misma comparación que el conteo, en las 2 direcciones y
@@ -627,17 +635,20 @@ hallazgo, <code>posible_centinela_numerico</code>.</p>
 (<code>c(-9, -99, -999, -9999, 999)</code>) informa y no toca los
 números. Sus valores aparecen como <code>faltantes_disfrazados</code>,
 pero siguen dentro de la media. Es una conjetura, y una conjetura no
-mueve un promedio.</li>
+mueve un promedio. Tampoco mueve la prueba de Benford, pero si sin esos
+valores la columna no se desvía, <code>desviacion_benford</code> lo dice
+y publica la prueba sin ellos.</li>
 <li>
 <strong>Una lista declarada</strong> excluye. Sus valores salen de
 <code>media</code>, <code>mediana</code>, <code>minimo</code>,
 <code>maximo</code> y <code>desvio</code>.
 <code>n_valores_excluidos_resumen</code> dice cuántos quedaron afuera,
 igual que los <code>NA</code> y las filas que <code>aplicabilidad</code>
-deja fuera del universo. También salen de la ley de Benford y de las
-relaciones aritméticas. La misma celda no puede ser ausencia en el
-resumen y valor en un diagnóstico. <code>moda</code> y
-<code>n_distintos</code> siguen describiendo lo que está guardado.</li>
+deja fuera del universo. También salen de la ley de Benford, de las
+relaciones aritméticas y de <code>valor_concentrado</code>. La misma
+celda no puede ser ausencia en el resumen y valor en un diagnóstico.
+<code>moda</code> y <code>n_distintos</code> siguen describiendo lo que
+está guardado.</li>
 <li>
 <strong><code>posible_centinela_numerico</code></strong> informa un
 valor que reúne 3 rasgos: queda fuera de los límites, se repite y tiene

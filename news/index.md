@@ -38,6 +38,37 @@ Primera versión publicada.
   [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
   y
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md).
+- `columnas_duplicadas` publica un hallazgo por **grupo** de columnas
+  con el mismo contenido, no uno por par: `columna` es la primera del
+  grupo en el orden de los datos, la evidencia las nombra a todas
+  (`A = B = C; comparadas sobre 5 filas`) y `n_afectados` las cuenta a
+  todas, como `filas_duplicadas` con sus filas. Con dos columnas el
+  hallazgo es el de siempre. Si un nombre no se puede leer suelto
+  —vacío, repetido, con espacios al borde o con `=`, `;`, `,` o
+  comillas—, la evidencia cita todos los del grupo y el repetido lleva
+  su posición (`"X" (columna 1) = "X" (columna 2)`). Dos columnas son
+  iguales en lo que el perfil lee como contenido: dos factores sin orden
+  con los mismos niveles en otro orden son la misma columna, y un entero
+  y un doble no. Sin filas no se compara: no hay hallazgo, y
+  `general$columnas_duplicadas`, que tiene una fila por columna repetida
+  junto a la primera de su grupo, queda vacía.
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  propone una decisión por grupo —marcarlo, o eliminar las repetidas y
+  conservar la primera— y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  compara los grupos por las igualdades que afirman: si C deja de ser
+  igual a `A = B`, publica un resuelto y no dos; si un grupo se separa
+  sólo porque una columna cambió de tipo declarado, publica
+  `no_evaluado`, porque el diagnóstico no volvió a compararlas; y un
+  perfil guardado con la forma por pares se compara sin deriva falsa.
+  Con 1.000 columnas iguales eran 499.500 hallazgos:
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  no terminaban en 5 minutos y ahora tardan 2, 3 y 22 s, y
+  [`print()`](https://rdrr.io/r/base/print.html) del perfil pasa de 37 s
+  a 0,6 s.
 
 ### Medición de la calidad
 
@@ -149,23 +180,23 @@ Primera versión publicada.
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   tarda 0,11 s y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  0,21 s en una sesión ya iniciada, y 0,20 s y 0,34 s en la primera
+  0,21 s en una sesión ya iniciada, y 0,19 s y 0,34 s en la primera
   llamada de una sesión nueva. Con la protección pedida,
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  tarda 0,25 s y 0,39 s, y
+  tarda 0,23 s y 0,37 s, y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  0,62 s y 0,79 s. Las cifras son de `benchmark/medir_costo_fijo.R` y
+  0,60 s y 0,78 s. Las cifras son de `benchmark/medir_costo_fijo.R` y
   quedan en `benchmark/datos/medir-costo-fijo.csv`.
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre tablas anchas con muchas columnas iguales o de códigos de texto
-  es varias veces más rápido, con la misma salida. Los hallazgos
-  `columnas_duplicadas` se arman, trazan y revisan de una vez y no par
-  por par, y la búsqueda de casi duplicados del vocabulario no calcula
-  la mitad de la matriz de distancias que no lee. Las columnas iguales
-  se buscan agrupándolas por una huella y comparando cada una con un
-  representante, no par por par. Con 500 filas y 1.000 columnas iguales,
-  de 379 a 387 s pasa a 28 a 30 s (los 2 CSV fechados de
-  `benchmark/medir_topes_valores_ancho.R` en `benchmark/datos/`).
+  es varias veces más rápido. La búsqueda de casi duplicados del
+  vocabulario no calcula la mitad de la matriz de distancias que no lee,
+  y `columnas_duplicadas` publica un hallazgo por grupo (ver
+  «Perfilado»). Las columnas iguales se buscan agrupándolas por una
+  huella y comparando cada una con un representante, no par por par. Con
+  500 filas y 1.000 columnas iguales, de 379 a 387 s pasa a 28 a 30 s
+  (los 2 CSV fechados de `benchmark/medir_topes_valores_ancho.R` en
+  `benchmark/datos/`).
 
 ### Requisitos
 
@@ -195,6 +226,229 @@ Primera versión publicada.
 
 ### Correcciones
 
+- [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  no convierte un número escrito como texto que el perfil no lee: un
+  teléfono como `099.123.456` entre importes con coma decimal, que el
+  perfil deja fuera del resumen, hacía que el plan propusiera la
+  conversión y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  escribiera 99123456. Ahora la conversión queda `bloqueada`, como con
+  cualquier valor que no responde al formato, hasta que se decida qué
+  hacer con él. Con columnas iguales en las que algún nombre se repite
+  en la tabla, el plan no propone acción —proponía dos `bloqueada` sin
+  saber sobre cuál columna actuar— y el hallazgo queda en
+  `hallazgos_sin_accion_por_columna_ambigua`, con el remedio.
+- [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  y
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  leen como número un importe con los miles agrupados (`1.234,56`,
+  `1,234.56`, `12.500.000`) con la convención de la columna: quedaba
+  `texto` y sin resumen, aunque la fila publicaba la convención, y la
+  misma columna sin los puntos de miles se resumía. Si la columna aporta
+  las dos convenciones, cada valor se lee con la que trae. Sin evidencia
+  de convención —una columna de `1.234.567`— sigue como texto, y un
+  primer grupo de miles que empieza con cero (`099.123.456`, la forma de
+  un teléfono) no se lee como número en ninguna. El resumen lee sólo lo
+  que la inferencia cuenta como número, también fuera de su muestra: lo
+  demás —un teléfono, `0x1A`, `5.`— queda afuera y lo declara
+  `n_valores_excluidos_resumen`. Un importe con moneda o unidad
+  (`USD 1,234.56`, `12 kg`) sigue siendo un número escrito como texto:
+  `numero_como_texto` lo señala y
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  lo convierte.
+- La evidencia de `tipo_declarado_distinto` ya no dice que la conversión
+  «no pierde ningún valor» cuando pierde algo: nombra el cero inicial de
+  un código (`007`), la precisión, la convención sin decidir o las
+  fechas de lectura ambigua, las mismas razones por las que el plan no
+  convierte. `fecha_nacimiento_fuera_rango` cuenta las filas fuera de
+  rango, que publicaba como `NA`.
+- [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
+  reconoce la `t` y la `z` minúsculas de RFC 3339 y cuenta la fecha
+  civil distinta en UTC de un `POSIXlt` como la de su `POSIXct` (daba
+  0).
+- [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+  completa con ceros la cédula guardada como número (`1236` es
+  `00001236`, y daba `FALSE`) y rechaza el cuerpo `0000000`, el relleno
+  de muchas planillas.
+  [`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  rechaza la contrabarra y los invisibles de formato (U+200B, U+FEFF,
+  U+200D, marcas de dirección): un escape de su clase de caracteres
+  dejaba pasar `https://ejemplo.com\@otro.com`.
+- Las relaciones aritméticas aditivas entre columnas con decimales fijos
+  cuentan como rota una diferencia de medio cuanto o más mientras los
+  valores tengan menos de 15 cifras significativas en ese cuanto: con
+  centavos, importes de hasta 1e12; con enteros, hasta 1e14. Con la
+  tolerancia relativa por omisión, `comision + neto = bruto` con 30
+  filas rotas por centavos salía `ok` con 0 filas sobre importes de 1e8,
+  y contaba 21 de 30 sobre importes de 1e6. Por encima de ese límite un
+  decimal guardado no se distingue del redondeo de un texto de 15
+  cifras: la tolerancia relativa manda y la evidencia dice cuánto
+  tolera. Con más de la mitad de las filas rotas por un cuanto la
+  identidad no se publica como sana: se descarta, se cuenta en
+  `meta$aritmetica_columnas$identidades_descartadas_cuanto` y deja una
+  fila en `cobertura_diagnosticos` con la relación y el motivo. En una
+  suma, la tolerancia se mide también sobre los sumandos: `a = 1e9 + x`,
+  `b = -1e9 + y`, `c = x + y` acusaba 16 de 300 filas sanas. La
+  evidencia declara la cota. Una columna que varía menos que la
+  tolerancia relativa de su magnitud —los sumandos de `1e11 + x` y
+  `-1e11 + y`— se evalúa con la cota del cuanto si sus tres columnas
+  guardan decimales fijos; si no, `cobertura_diagnosticos` dice qué
+  relación reconocía la tolerancia y por qué no se publicó (antes se
+  descartaba sin rastro desde 1e11). Una suma con un total calculado en
+  R cuyos sumandos se cancelan (`0.30 - 0.29` no es el doble de `0.01`)
+  conserva sus centavos: sobre importes de 1e6 a 1e10 sus filas corridas
+  un centavo salían `ok`.
+- Las proporcionalidades entre importes con decimales fijos cuentan los
+  centavos: `iva = round(neto * 0.22, 2)` con 30 filas corridas uno o
+  treinta centavos salía `ok` con 0 filas desde netos de 1e9, y sobre
+  netos de 1e7 un producto sano acusaba 8 filas. Con la tolerancia por
+  omisión, si la tolerancia relativa supera la mitad del cuanto de la
+  columna redondeada, esa mitad, inclusiva, es la tolerancia de todas
+  las filas, y en `k` cada cifra de más tiene que explicar al menos una
+  fila más: una constante larga no se traga las filas rotas de los
+  importes grandes, y un tipo de cambio largo no se trunca para acusar
+  los importes grandes sanos; una fila rota suelta no paga una cifra —en
+  un empate, la más larga gana sólo si las filas que agrega son de las
+  de mayor magnitud—, y entre dos del mismo largo gana la que deja más
+  filas justo en el empate del redondeo (`0.0725` y no `0.0724` en
+  `round(cant * 0.0725, 2)`). La evidencia publica también la mediana.
+  La columna redondeada se lee como respuesta:
+  `pesos = round(dolares * 39.8734, 2)` se publica
+  `pesos ~= dolares * 39.8734`, y `resp ~= base * 1.22` no se lee al
+  revés con `0.8196...`; si las dos lecturas caben y la tolerancia de
+  una es el doble o más que la de la otra, se comparan con la fina —una
+  fila que sólo cae adentro con la gruesa no cuenta, y las cifras de la
+  constante se cuentan en la fina—. Con centavos llega a importes de
+  1e12, como la identidad. Un neto y un iva redondeados por separado
+  cuentan como discrepantes las filas donde el iva no es el redondeo del
+  neto guardado. La que la tolerancia relativa reconoce y ninguna
+  resolución explica se descarta, se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto` y
+  deja una fila en `cobertura_diagnosticos`; si la resolución de alguna
+  de las dos columnas es compatible con la relación, se publica con la
+  tolerancia relativa.
+- El cuanto de una proporcionalidad es la resolución del redondeo que la
+  columna muestra, no la potencia de diez de sus decimales: una
+  respuesta redondeada a múltiplos de 0,05 —100 filas sanas con residuo
+  de hasta 0,024— se descartaba porque la cota quedaba en medio centavo,
+  y con 0,25, 0,5, 5 o 25 no se publicaba nunca. La resolución se mide
+  sobre los valores distintos y sin el cero: primero la de todos y, si
+  con ella no alcanza el criterio, la de al menos el 90 % de las filas,
+  y sólo si esa retícula no se explica por azar —contado en registros
+  distintos: un registro repetido cuenta una vez, y cien importes que el
+  redondeo junta en cinco valores cuentan cien—: unas filas rotas fuera
+  de ella no la hacen caer —tampoco cuando son las únicas con más
+  decimales que las demás—, y un valor que no es múltiplo de la
+  resolución cuenta como discrepante aunque su residuo quede debajo de
+  medio cuanto. Las identidades siguen con la potencia de diez de sus
+  decimales, que entre valores de una misma retícula separa igual lo
+  sano de lo roto.
+- Un producto redondeado con respuestas chicas frente a su cuanto —un
+  iva a centavos sobre netos de 10 a 1.000, o una respuesta a 0,05 de
+  unos miles—, que la tolerancia relativa no reconocía, se lee con la
+  mitad del cuanto si hay al menos 20 bases y 20 respuestas distintas y
+  la relación explica más filas que la moda de la respuesta. Sin esas
+  dos condiciones, entre columnas independientes con decimales fijos se
+  publicaban proporcionalidades espurias (una binaria «era» la mitad de
+  una columna casi siempre 1; una base estrecha «explicaba» la moda de
+  la respuesta); con ellas, en las tablas de `datasets` y las del
+  paquete no aparece ninguna relación nueva.
+- Una proporcionalidad se sostiene en las filas que distinguen la
+  constante: con `x` e `y` en cero en 180 de 200 filas y sin relación en
+  las otras 20 se publicaba `x ~= y * 0.095` `sospechoso`, con las 20
+  filas que podían decir algo todas en contra; lo mismo con 180 filas en
+  un mismo par de valores. Ahora tiene que alcanzar el criterio en las
+  filas con base distinta de cero, donde el par más repetido pesa a lo
+  sumo una de cada diez; una relación real con muchos ceros, como un iva
+  sobre netos en cero, se sigue publicando, y una con más de una fila de
+  cada diez rota entre las que no son cero no se publica. La que alcanza
+  el criterio sin ese soporte se cuenta en
+  `meta$aritmetica_columnas$proporcionalidades_descartadas_soporte`,
+  también cuando una identidad entre las mismas columnas la vuelve
+  redundante.
+- Una relación cuya constante es la inversa de un número corto se lee
+  con la división: `y = round(x / 7, 2)` se publica `y ~= x / 7` y no
+  `y ~= x * 0.143`, que acusaba dos filas sanas, y `y = round(x / 3, 2)`
+  con una sola fila grande, `y ~= x / 3` y no `0.3334`, que acusaba la
+  grande sana o callaba la rota. La recíproca cuesta las cifras de su
+  forma corta. Con las tolerancias de las dos lecturas parecidas,
+  `y = round(x / 1.105)` en enteros se lee `y ~= x / 1.105` y no
+  `x ~= y * 1.105`, que acusaba las filas sanas cuyo residuo cae entre
+  las dos tolerancias (lo mismo con 1,09, 1,18 y 1,22), y
+  `y = round(0.9 * x)` en enteros, `y ~= x * 0.9`: las filas que R
+  redondea al par quedan en el medio cuanto y no se acusan. Una
+  constante truncada que deja afuera filas sanas por un pelo ya no gana
+  el empate a la entera: `y = round(x / 1.609344)` se lee con `0.62137`
+  y no con `0.6214`, que acusaba dos sanas y callaba la rota, y
+  `round(x / 0.9144, 2)` con `0.9144`. Con una tolerancia el doble de la
+  otra, una fila corrida un cuanto ya no pasa por empate del redondeo:
+  `y = x / 10` con tres filas corridas cinco centavos las acusa. En
+  magnitudes angostas los datos pueden no distinguir una constante larga
+  de una recíproca corta (`0.012345` de `1/81`, `0.393701` de `1/2.54`):
+  gana la corta y puede acusar una fila sana.
+- Una conversión que el plan no puede ejecutar dice cuántos valores no
+  se leen: `n_no_reversibles` publicaba 0 al lado de un perfil que
+  contaba los valores que la conversión dejaría en `NA` (un teléfono
+  entre importes, `0x1A`, una columna `raw`), y su motivo cerraba con
+  «se conserva como acción destructiva no recomendada» también sobre una
+  acción `bloqueada` o no destructiva. Ahora termina con el estado:
+  bloqueada, o lista sin activar hasta configurarla.
+- [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  ya no aborta el plan entero cuando una acción de nombres no
+  corresponde a los datos (un perfil con dos `x` y datos con una): la
+  registra `fallida` con su motivo y sigue con las demás, como toda
+  acción `lista` que falla; y el plan, con los datos, la bloquea antes.
+  Una columna de nombre vacío que falta en los datos bloquea su grupo de
+  columnas iguales. El lector de las columnas de un hallazgo usa la
+  trazabilidad antes que el texto: una relación entre `a` y `b` ya no se
+  confunde con una columna llamada `a,b`; un hallazgo de una columna sin
+  nombre ya no se llama «de la tabla», y uno de varias columnas con una
+  sin nombre va a la lista de columnas no identificables. Una acción
+  cuyos parámetros no tienen la forma que espera —un vector, `NULL`—
+  queda `fallida` con ese motivo, no con un error de R.
+- Toda acción del plan sobre una columna que no está en los datos, y las
+  de `columnas_duplicadas` cuando una columna del grupo no está en el
+  perfil, quedan `bloqueada` con el motivo: con un perfil de otra
+  versión de la tabla salían recomendadas y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  las registraba `fallida`.
+- El plan ya no declara un hallazgo de varias columnas —una relación
+  aritmética en `neto,iva,total`, una de orden en `inicio,fin`— como de
+  «columna ambigua» con el motivo «el nombre de columna se repite en la
+  tabla», que era falso, también para las relaciones `ok`. Uno así va a
+  `hallazgos_sin_accion` con su razón, nombrando sus columnas; un `ok`
+  no entra a ninguna lista sin acción; uno de la tabla ya no habla de
+  «esta columna»; y una columna que no está en el perfil lo dice en vez
+  de decir que se repite.
+- [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  con muchas copias de un identificador ya no arma las combinaciones que
+  contienen una clave simple: con 100 copias tardaba 36 s y con 1.000
+  [`combn()`](https://rdrr.io/r/utils/combn.html) no entraba en memoria;
+  ahora 0,2 s y 6 s, con la misma salida.
+- [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  toma la muestra de una fila por tramo de la tabla, en una posición que
+  sale de un hash determinista del tramo, y no a paso fijo: el paso fijo
+  se alineaba con un panel mensual y tomaba sólo dos meses de cada doce.
+  Sigue siendo la misma en cada corrida, sin azar.
+- `desviacion_benford` dice si la desviación la producen los faltantes
+  disfrazados que no se declararon, con la prueba sin ellos: 200 valores
+  `999` entre 4.000 importes daban p = 1e-45, y sin ellos p = 0,22.
+- Con `sentinelas_numericos` declarado, `valor_concentrado` deja afuera
+  lo declarado, como el resumen: publicaba como moda el `-99` que el
+  resumen excluía.
+- [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  no publica un par cuyo determinante no acierta más filas que la moda
+  del dependiente (con un `estado` al 99,66 % salían cinco dependencias
+  que no decían nada), y lo que encuentra en la muestra lo recalcula
+  sobre la tabla completa: una muestra alineada con la estructura de los
+  datos publicaba 0,996 de cumplimiento donde la tabla da 0,899.
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  calcula las coberturas sobre las columnas completas (con una muestra
+  alineada publicaba 1 donde era 0,5) y `muestra` ya no recorta.
+  [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  cuenta `n_niveles_observados` sobre la columna entera también sin
+  perfil, y `meta$aritmetica_columnas` se publica también cuando la
+  única identidad candidata se descarta.
 - La identidad de filas ya no desborda en R anterior a 4.6. Con dos o
   más columnas de decenas de miles de valores distintos,
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
@@ -557,6 +811,14 @@ Primera versión publicada.
   `max_asimetria_equifrecuente_vocabulario` ahora se cuenta, y dos
   grupos que sólo se tocaban por una pareja publicada salen separados.
   Los grupos de `casi_duplicados_vocabulario` no cambian.
+- En la fila de cobertura de `proximidad_vocabulario`, los pares
+  cercanos que forman cadenas cuya asimetría de punta a punta supera
+  `max_asimetria_equifrecuente_vocabulario` se declaran aparte: con
+  `Montevideo` (25), `Montevido` (20) y `Montividoo` (10), a 1,25 y 2 de
+  a pares y a 2,5 de punta a punta, la fila dice «…2 pares cercanos, con
+  asimetría \<= 2.0 entre ellos, forman cadenas cuya asimetría de punta
+  a punta supera 2.0 y no se agrupan». Antes no se declaraban en ningún
+  lado. El tope por grupo no cambia.
 - La mediana de una columna entera o decimal con valores de 2^53 o más
   se decide por su valor y no por la columna, con la misma regla en los
   siete motores: con una cantidad impar se publica si la central queda
@@ -585,17 +847,170 @@ Primera versión publicada.
   `decimal(38, s)` ya no sale mal cuando la media termina en la mitad de
   la última unidad: `{1, 2, 3, 4}` en `decimal(38,0)` daba 1,8257 por
   1,2910.
-- Con `bloque_filas`, y por la muestra del motor en SQL Server, MySQL,
-  MariaDB y DuckDB, el desvío de un decimal que el doble no representa
-  queda `no_disponible` cuando ese redondeo puede moverlo: un
-  `numeric(18,2)` de 5e14 con desvío 3 daba 3,1115 por 3,1047. También
-  con la muestra leída en R (`bloque_muestra = "con_muestra"`), que lo
-  publicaba movido en una parte en
-  300. Un decimal de escala 0 con valores por debajo de 2^53 sí se
-       publica: ahí los dobles son los valores, y la escala la dicen los
-       catálogos de PostgreSQL, MySQL, MariaDB, DuckDB y SQL Server, que
-       ahora publica la precisión y la escala de un decimal
-       (`decimal(18,0)` y no `decimal`).
+- Con `bloque_filas`, y por la muestra del motor, el desvío de un
+  decimal que el doble no representa ya no sale de esos dobles: un
+  `numeric(18,2)` de 5e14 con desvío 3 daba 3,1115 por 3,1047, y con la
+  muestra leída en R (`bloque_muestra = "con_muestra"`) se publicaba
+  movido en una parte en 300. Por la tabla completa y por bloques, el
+  motor suma en el tipo de la columna, y devuelve como texto, la columna
+  y los cuadrados de sus diferencias con la media escrita en su escala,
+  y R saca el desvío exacto: es el doble más cercano. Con la muestra
+  leída en R sale del texto de cada valor, que la muestra ya traía. Por
+  la muestra del motor con `bloque_muestra = "solo_agregados"` sale de
+  las mismas sumas, pedidas en la sentencia de los agregados. Un decimal
+  de escala 0 con valores por debajo de 2^53 se publica en todas las
+  vías: ahí los dobles son los valores, y la escala la dicen los
+  catálogos de PostgreSQL, MySQL, MariaDB, DuckDB y SQL Server, que
+  ahora publica la precisión y la escala de un decimal (`decimal(18,0)`
+  y no `decimal`).
+- Con `bloque_filas` y con la muestra leída en R, la media y la mediana
+  de un decimal que el controlador entrega como doble son el doble más
+  cercano de las del decimal, y no las de esos dobles: la de 0,0001 y
+  0,0002 daba 0,00015000000000000001, a un ulp en 14 de 112 medias y 9
+  de 112 medianas de SQL Server y en 4 y 2 de 46 de PostgreSQL, MySQL,
+  MariaDB y DuckDB, y con valores de hasta 1e12 con seis decimales que
+  se cancelan, una media por bloques de `numeric(20,6)` en PostgreSQL
+  quedaba a 1.447 ulps. Por bloques el motor suma la columna en su tipo,
+  en una consulta para todas las columnas decimales, y devuelve como
+  texto las dos centrales cuando caen en dobles distintos (una consulta
+  ordenada por columna; `money` de SQL Server siempre, porque odbc no lo
+  lee al doble más cercano). La muestra leída en R ya traía cada decimal
+  como texto.
+- La media y el desvío de un decimal por la tabla completa son los
+  dobles más cercanos de los exactos. MySQL, MariaDB y SQL Server
+  promediaban el doble de cada valor, y con valores que se cancelan la
+  media salía lejos: `999999999999999.99`, `-999999999999999.98`,
+  `0.01`, `0.02`, `0.03` y `-0.04` daban 0,00333 por 0,005; y el desvío
+  de los cinco motores con decimales, y la media con escala 30, quedaban
+  a un ulp. El motor suma la columna y sus cuadrados en su tipo y los
+  devuelve como texto, en la misma consulta que los demás agregados, y R
+  divide y saca la raíz con aritmética entera. Por bloques, el desvío de
+  un decimal sale de una consulta de sumas, sin consultas de más: el de
+  500000000000006.60 y sus vecinos quedaba a un ulp, y el de `1.10`,
+  `2.20` y `3.30`, también. Con `incluir_valores = FALSE`, el SQL
+  publicado lleva la media tapada.
+- Las sumas exactas de los decimales van por lotes de
+  `tamano_lote_planos` columnas —por la tabla completa y la muestra del
+  motor, los de los agregados; por bloques, los suyos, con las
+  expresiones que acepta cada motor— y cada expresión se elige para que
+  no desborde ni redondee con las cifras del tipo y las filas. Con una
+  sola consulta para toda la tabla, 600 columnas `numeric(18,2)` pasaban
+  el límite de 1.664 expresiones de PostgreSQL y por bloques no quedaba
+  ninguna media; en DuckDB el cuadrado de un `DECIMAL(15,0)` desbordaba
+  en 64 bits y todas las columnas de la tabla quedaban con la media y el
+  desvío del motor; y un `decimal(38,30)` de SQL Server con valores de
+  -1e8 a 1e8 no tenía cuadrado exacto y quedaba el `STDEV` del motor, a
+  uno o dos ulps. Un lote que el motor rechaza se parte hasta aislar la
+  columna, y el plan cuenta los lotes y, como máximo, los reintentos.
+  Las sumas salen ahora con cualquier `metricas` (con
+  `c("basicos", "desvio")` o sólo `"desvio"` la tabla completa publicaba
+  la del motor: en PostgreSQL 9.3, 1,63 por 0,1425), con
+  `incluir_valores = FALSE`, con un `max_consultas` igual al total del
+  plan, con valores de 2^53 o más —cuya media y desvío quedaban
+  `no_disponible`— y bajo la muestra del motor con
+  `bloque_muestra = "solo_agregados"`, en la misma sentencia que los
+  demás agregados (la media de un `DECIMAL(18,2)` cambiaba con el orden
+  de las filas). En DuckDB la media y el desvío del motor de esas
+  columnas se piden sobre el doble: `x * 1.0` de un `DECIMAL(38,30)` de
+  9e7 desbordaba y tumbaba la consulta de los agregados, con las sumas
+  adentro. Por bloques, `NaN` e `Infinity` de PostgreSQL quedan fuera de
+  las sumas, como en la tabla completa. Si las sumas no llegan, la media
+  y el desvío del motor por la tabla completa quedan sólo si su error
+  cabe en una parte en mil millones; si no, `no_disponible`, con el
+  motivo de por qué no llegaron: el motor rechazó la consulta con las
+  sumas, con su mensaje, o no hubo presupuesto. Si llegan sin valores,
+  el estado sale de la cuenta: una columna toda `NULL` queda
+  `sin_valores` y el desvío de una sola fila, `no_aplica`. La escala de
+  un decimal de una tabla temporal la leen el catálogo de `tempdb` en
+  SQL Server y `SHOW COLUMNS` en MySQL y MariaDB: sin ella, el desvío
+  quedaba a un ulp o `no_disponible`.
+- Sin `validos` en `metricas`, el mínimo, el máximo, la media y el
+  desvío de un doble o un entero no sabían cuántos valores vieron: una
+  columna toda `NULL` daba la media `no_disponible` con «La consulta
+  terminó sin un valor para la métrica» y el desvío `no_aplica`, y el
+  desvío de una sola fila `no_disponible`, donde la ayuda promete
+  `sin_valores` y `no_aplica`. La cuenta de los no nulos va ahora en la
+  misma consulta de los agregados, sin consulta nueva, y decide como la
+  de las sumas exactas de un decimal. Por el spool, una tabla sin filas
+  publicaba `n_validos`, `n_faltantes` y `n_distintos` en cero como
+  `observado_muestra`; ahora, como una muestra vacía de una tabla con
+  filas, `no_disponible` con `muestra_vacia:<método>`.
+- La cuenta que decide si hay valores es la de los valores finitos, los
+  que usan las métricas de magnitud. Sin `validos` en `metricas`, una
+  columna de PostgreSQL con `(NaN, NULL)` publicaba el desvío
+  `no_aplica` mientras el mínimo, el máximo y la media decían
+  `sin_valores`, y un `numeric` sólo `NaN` decía «La columna no contiene
+  valores no nulos», que es falso. Ahora la columna que mostró `NaN` o
+  infinitos la decide la vía de los valores finitos, con su motivo, y si
+  la magnitud no se pudo establecer queda declarada con ese motivo.
+- Una columna `real` de PostgreSQL con `NaN` o infinitos ya no deja una
+  sentencia girando: la expresión exacta de los valores finitos se
+  multiplicaba al fundirse las subconsultas, y el planificador tardaba
+  minutos aun sobre tres filas, sin atender a `statement_timeout`.
+- Con `universo = "muestra_motor"` y
+  `bloque_muestra = "solo_agregados"`, cada sentencia sortea su muestra,
+  y lo que decidía los agregados de una columna podía salir de otra. La
+  sonda de magnitud era una consulta propia: si le tocaba una muestra
+  vacía, el desvío se publicaba `no_aplica` con un lote de cien valores.
+  En SQL Server, con `metricas = "desvio"`, cada columna de coma
+  flotante forzaba un repliegue que sorteaba otra muestra: publicaba el
+  desvío de filas que la corrida no publica, o `no_disponible`. Ahora la
+  magnitud viaja en el lote de agregados, la misma sentencia que el
+  desvío, y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  ya no la cuenta aparte. Bajo la muestra no hay repliegue escalado de
+  la media ni del desvío: una columna con valores de más de 1e150 o de
+  menos de 1e-150 en valor absoluto queda `no_disponible` con su motivo,
+  en lugar de publicar el valor de otra muestra.
+- En MySQL y MariaDB, con `metricas = "desvio"`, una tabla sin filas por
+  la muestra del motor publicaba el desvío `no_aplica` («requiere al
+  menos dos valores»): al pedirse el desvío solo, la consulta perdía el
+  total del lote. Ahora queda `no_disponible` con
+  `muestra_vacia:<método>`, como en los demás motores, y
+  `meta$filas_obtenidas_muestra` dice 0.
+- Con `incluir_valores = FALSE`, el SQL publicado del desvío centrado de
+  un entero o un doble lleva la media tapada: publicaba la media como
+  literal (`STDDEV_SAMP((b - 731946280004.333) * 1.0)`), en los siete
+  motores.
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  cuenta lo que la corrida emite también sin `validos`: los agregados
+  llevan el `COUNT(*)` del total, que se pedía aparte y el plan no
+  contaba (13 contra 14 consultas con
+  `metricas = c("basicos", "desvio")` en PostgreSQL), y las sondas de
+  magnitud se cuentan con la regla de la corrida, que no las pide para
+  un entero chico con sólo `desvio` (dos de más por tabla).
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  cuenta la consulta de prueba de la CTE de ventanas, y su control
+  negativo, que la muestra del motor corre cuando una columna decimal, o
+  un `float8` de PostgreSQL, deja la mediana consolidada: dos consultas
+  que el plan no anticipaba.
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  anuncia lo que
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  manda al motor en cada vía, contado sentencia por sentencia en los
+  siete motores. Por `bloque_filas` contaba sólo el recorrido —1
+  consulta donde se mandaban de 8 a 24— y ahora cuenta la preparación,
+  las consultas de prueba de la fuente, la segunda pasada del
+  localizador, la moda exacta, la media de los decimales y la muestra,
+  con la mediana por centrales y el desvío centrado de un decimal en
+  `total_maximo`, porque los piden los datos. Por la muestra del motor
+  sin bloque de filas contaba consultas del desvío que no se emiten, y
+  no la lectura de comprobación de la muestra; con el bloque de filas
+  contaba los agregados SQL, que el spool no corre. En PostgreSQL y SQL
+  Server la estimación de filas del catálogo del aviso de costo, y en
+  PostgreSQL `SHOW extra_float_digits`, se mandaban sin contarse.
+  `max_consultas` y `meta$consultas$emitidas` cuentan lo mismo que el
+  plan, y por bloques lo que el total anuncia tiene su lugar reservado:
+  con `max_consultas = attr(plan, "total")` la media de un decimal y
+  `perfil_muestra` ya no quedan afuera; con `total_maximo` no queda
+  afuera nada. Con un `max_consultas` más chico que el plan pueden
+  entrar menos métricas que antes: esas consultas ya llegaban al motor,
+  sin contarse.
+- [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  sobre un perfil guardado por una versión anterior, con un hallazgo por
+  par de columnas iguales, ya no compara cada hallazgo con todas las
+  columnas: con 1.000 columnas iguales (499.500 hallazgos), de 87 s a 4
+  s, con el mismo plan.
 - El desvío de un decimal que la muestra lee como doble (5e14 con
   centavos) ya no se publica en `perfil_muestra`, en ninguna vía, y la
   corroboración no lo cuenta como divergencia: queda en
@@ -631,8 +1046,24 @@ Primera versión publicada.
   `rnorm(2e6)` quedaba a 19 ulps, y cuarenta enteros chicos por
   `bloque_filas = 7`, a ocho. Cada bloque se suma ahora sin redondeo,
   sin depender del `long double` de
-  [`sum()`](https://rdrr.io/r/base/sum.html), con el mismo costo. El
-  desvío no cambia: puede quedar a unos ulps del exacto.
+  [`sum()`](https://rdrr.io/r/base/sum.html), con el mismo costo.
+- El desvío de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  de `perfil_muestra`, de `bloque_filas` y de la muestra del motor es el
+  doble más cercano del desvío exacto (con `n - 1`). Se acumulaba con
+  Welford en doble y quedaba a uno, dos o tres ulps:
+  `((1:25) %% 7 - 3) * 0.3` a uno en memoria (como
+  [`sd()`](https://rdrr.io/r/stats/sd.html)), y por `bloque_filas = 7` a
+  dos. Ahora la suma de los cuadrados es exacta o tiene una cota
+  demostrada, y el redondeo se decide comparando contra los puntos
+  medios con aritmética exacta, sin depender del `long double` de
+  [`sum()`](https://rdrr.io/r/base/sum.html); el resumen de una columna
+  común de 2 millones de filas no tarda más. La media también es la más
+  cercana en una columna con valores de más de 2^900 junto a otros
+  diminutos (con 2^1000, -2^1000 y valores de 2^-1000 salía 0). Y la
+  rama de texto de un entero que pasa de 2^53 saca los centinelas
+  declarados como `integer64` —no entraban en los extremos exactos, los
+  conteos ni la mediana— y lee `"-0"` como el cero.
 - La mediana de un decimal en SQL Server (compatibilidad 110 o más),
   PostgreSQL 9.4 o más y DuckDB es el doble más cercano de la exacta,
   por la tabla completa y por la muestra del motor: el motor suma sus

@@ -99,9 +99,8 @@ escoger la dirección PK/FK sin imponerla de antemano.</p>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
-<dd><p>Máximo de filas del lado verificado que se usan para estimar
-cada cobertura. El muestreo es sistemático y reproducible; el lado de
-referencia no se muestrea. Use <code>Inf</code> para calcular todo sin muestreo.</p></dd>
+<dd><p>Se conserva por compatibilidad y se valida como antes, pero ya
+no limita nada: las coberturas se calculan sobre todas las filas.</p></dd>
 
 
 <dt id="arg-columnas-candidatas">columnas_candidatas<a class="anchor" aria-label="anchor" href="#arg-columnas-candidatas"></a></dt>
@@ -148,7 +147,8 @@ comparacion del motor sin convertir todas las columnas de texto.</p></dd>
 <code>n_valores_comunes</code>,
 coberturas de integridad referencial en ambas direcciones y <code>motivo_poda</code>,
 que sólo tiene valor en los pares no comparados. Los atributos
-<code>filas_totales</code>, <code>filas_analizadas</code> y <code>muestreado</code> documentan el muestreo;
+<code>filas_totales</code>, <code>filas_analizadas</code> y <code>muestreado</code> documentan el alcance:
+<code>filas_analizadas</code> son todas las filas y <code>muestreado</code> vale <code>FALSE</code>;
 <code>podas</code>, <code>n_pares_totales</code>, <code>n_pares_comparados</code> y <code>n_pares_podados</code>
 documentan qué se comparó y qué no.</p>
     </div>
@@ -196,10 +196,10 @@ no es su valor. Sus pares salen <code>sin_comparar</code> con
 de las tres es; la función sigue con las demás columnas.</p>
 <p>Todas las podas, de las dos clases, quedan además en el atributo <code>podas</code> con
 su motivo y su detalle.</p>
-<p>Cuando una tabla supera <code>muestra</code>, la función estima cada cobertura con una
-muestra sistemática del lado que se verifica y conserva completo el conjunto
-de referencia. La cardinalidad y la cantidad de valores comunes siempre se
-calculan con ambas columnas completas.</p>
+<p>La cardinalidad, la cantidad de valores comunes y las dos coberturas se
+calculan con ambas columnas completas: la cobertura cuenta las filas de cada
+valor distinto, así que sale exacta por el costo de una pasada más por
+columna, sin una muestra que pueda alinearse con los datos.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
