@@ -36,7 +36,7 @@
 .capacidad_fuente_bloques_dbi <- function(conexion) {
   motor <- .motor_fuente_bloques_dbi(conexion)
   clase <- paste(class(conexion), collapse = " ")
-  info <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) list())
+  info <- tryCatch(.info_dbi_corrida(conexion), error = function(e) list())
   texto_info <- paste(unlist(info, use.names = FALSE), collapse = " ")
   if (identical(motor, "desconocido") &&
       grepl(.regex_sin_caja("duckdb"), paste(clase, texto_info))) {

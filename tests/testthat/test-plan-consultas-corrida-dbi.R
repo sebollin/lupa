@@ -14,6 +14,8 @@
   "dbRemoveTable"
 )
 
+.pcc_opacas <- c("dbGetInfo", "dbIsValid")
+
 # Solo cuenta la llamada de afuera: la `dbGetQuery()` por omision llama a
 # `dbSendQuery()`, y esa no es otra sentencia. Las de la guarda de transaccion
 # y las lecturas de `pg_stat_statements` de `instrumentar` quedan aparte: no
@@ -41,7 +43,23 @@
       )
     ))
   }
-  on.exit(for (generica in .pcc_genericas) {
+  # `dbGetInfo()` y `dbIsValid()` no son sentencias sobre la tabla, pero algunos
+  # controladores mandan una para contestarlas (duckdb 1.1 pregunta
+  # `pragma_version()` y manda `SELECT 1`), y la ayuda las declara fuera de la
+  # cuenta. Se trazan solo para que lo que mandan adentro no cuente como una
+  # llamada de afuera.
+  for (generica in .pcc_opacas) {
+    suppressMessages(trace(
+      generica, where = asNamespace("DBI"), print = FALSE,
+      tracer = bquote(assign(
+        "prof", get("prof", envir = .(estado)) + 1L, envir = .(estado)
+      )),
+      exit = bquote(assign(
+        "prof", get("prof", envir = .(estado)) - 1L, envir = .(estado)
+      ))
+    ))
+  }
+  on.exit(for (generica in c(.pcc_genericas, .pcc_opacas)) {
     suppressMessages(untrace(generica, where = asNamespace("DBI")))
   }, add = TRUE)
   valor <- force(codigo)

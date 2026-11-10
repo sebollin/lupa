@@ -157,8 +157,11 @@ motor, la preparación que la corrida repite para publicar su plan—, la
 misma cuenta de \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} y de
 \code{resumen_tabla$meta$consultas$emitidas}. No cuentan las sentencias de la
 guarda de transacción (\code{SAVEPOINT} y, en SQL Server, la pregunta por la
-transacción abierta antes de cada consulta) ni las lecturas de
-\code{pg_stat_statements} de \code{instrumentar}. La preparación y el recorrido por
+transacción abierta antes de cada consulta), ni las lecturas de
+\code{pg_stat_statements} de \code{instrumentar}, ni las que algunos controladores
+mandan para contestar \code{DBI::dbGetInfo()} o \code{DBI::dbIsValid()}: duckdb 1.1
+pregunta su versión y manda \verb{SELECT 1}, una o dos veces por corrida. La
+preparación y el recorrido por
 bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 \code{max_consultas = attr(plan, "total_maximo")} ninguna métrica queda afuera
 por el presupuesto.}
@@ -312,8 +315,10 @@ forma \code{TABLESAMPLE}, el reintento del resumen cuando la muestra vuelve con
 menos de la mitad de lo pedido, que depende de las páginas que sortee el
 motor. La cuenta es la de \code{max_consultas} y la de
 \code{resumen_tabla$meta$consultas$emitidas}: toda sentencia que el perfilado
-manda al motor, salvo las de la guarda de transacción y las lecturas de
-\code{pg_stat_statements} de \code{instrumentar}. Con \code{max_consultas} igual a
+manda al motor, salvo las de la guarda de transacción, las lecturas de
+\code{pg_stat_statements} de \code{instrumentar} y las que algunos controladores
+mandan para contestar \code{DBI::dbGetInfo()} o \code{DBI::dbIsValid()} (duckdb 1.1,
+una o dos por corrida). Con \code{max_consultas} igual a
 \code{total_maximo} ninguna métrica queda afuera por el presupuesto; con
 \code{total}, sólo las consultas que piden los datos pueden quedar afuera.
 

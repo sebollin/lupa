@@ -839,6 +839,12 @@
   distingue un doble es el centinela sólo si lo escribe exacto: en Linux,
   `"1152921504606846976.4"` caía en el doble de `2^60` y se sacaba como si lo
   fuera.
+- `perfilar_dbi()` y `plan_perfilado_dbi()` leen las señas de la conexión una
+  vez por corrida. Las consultaban al armar cada sentencia, 184 veces sobre una
+  tabla de tres columnas, y en duckdb 1.1 cada lectura manda `pragma_version()`
+  al motor: 176 sentencias que el plan no anunciaba y `max_consultas` no
+  contaba. La ayuda declara fuera de la cuenta las que un controlador manda para
+  contestar `DBI::dbGetInfo()` o `DBI::dbIsValid()`, una o dos por corrida.
 
 # lupa 0.1.0
 

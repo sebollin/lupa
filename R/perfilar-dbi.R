@@ -6554,8 +6554,47 @@
   )
 }
 
+# Las senas de la conexion se leen una vez por corrida. `.senas_conexion_dbi()`
+# se consulta al armar cada sentencia -175 veces sobre una tabla de cuatro
+# columnas-, y `DBI::dbGetInfo()` no siempre es gratis: en duckdb 1.1 cada
+# llamada manda `pragma_version()` al motor, que el plan no anuncia ni
+# `max_consultas` cuenta. Un estado de la llamada, como `.CONTEXTO_COPIAS`: lo
+# fijan `perfilar_dbi()` y `plan_perfilado_dbi()`, y se restaura al salir.
+.CONTEXTO_SENAS <- new.env(parent = emptyenv())
+.CONTEXTO_SENAS$conexion <- NULL
+.CONTEXTO_SENAS$info <- NULL
+
+.fijar_senas_conexion_dbi <- function(conexion, marco = parent.frame()) {
+  volver <- substitute({
+    .CONTEXTO_SENAS$conexion <- conexion_previa
+    .CONTEXTO_SENAS$info <- info_previa
+  }, list(conexion_previa = .CONTEXTO_SENAS$conexion,
+          info_previa = .CONTEXTO_SENAS$info))
+  # Una corrida anidada sobre la misma conexion -el plan dentro del perfil-
+  # usa la lectura que ya esta.
+  if (!is.null(.CONTEXTO_SENAS$conexion) &&
+      identical(conexion, .CONTEXTO_SENAS$conexion)) {
+    return(invisible(NULL))
+  }
+  # Solo se guarda una lectura que funciono: si falla, cada sitio sigue
+  # preguntando y recibe el error como antes.
+  info <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
+  .CONTEXTO_SENAS$conexion <- if (is.null(info)) NULL else conexion
+  .CONTEXTO_SENAS$info <- info
+  do.call(on.exit, list(volver, add = TRUE), envir = marco)
+  invisible(NULL)
+}
+
+.info_dbi_corrida <- function(conexion) {
+  if (!is.null(.CONTEXTO_SENAS$conexion) &&
+      identical(conexion, .CONTEXTO_SENAS$conexion)) {
+    return(.CONTEXTO_SENAS$info)
+  }
+  DBI::dbGetInfo(conexion)
+}
+
 .info_senas_conexion_dbi <- function(conexion) {
-  tryCatch(DBI::dbGetInfo(conexion), error = function(e) list())
+  tryCatch(.info_dbi_corrida(conexion), error = function(e) list())
 }
 
 .senas_conexion_dbi <- function(conexion) {
@@ -6616,7 +6655,7 @@
     "sql server|microsoft sql|sqlserver|mssql", senas,
     perl = TRUE, useBytes = TRUE
   )) return(NA_real_)
-  informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
+  informacion <- tryCatch(.info_dbi_corrida(conexion), error = function(e) NULL)
   if (!is.list(informacion)) return(NA_real_)
   nombres <- names(informacion)
   normalizar <- function(x) .minusculas_ascii(gsub("[^A-Za-z0-9]", "", x))
@@ -6710,7 +6749,7 @@
 }
 
 .info_conexion_dbi <- function(conexion) {
-  info <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) {
+  info <- tryCatch(.info_dbi_corrida(conexion), error = function(e) {
     list(no_disponible = .mensaje_motor(e))
   })
   list(
@@ -17033,7 +17072,7 @@
 # La version del servidor que publica libpq -`90325`, `160015`-, sin consultar
 # al motor. `NA` si el controlador no la da.
 .version_servidor_postgresql_dbi <- function(conexion) {
-  informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
+  informacion <- tryCatch(.info_dbi_corrida(conexion), error = function(e) NULL)
   version <- if (is.list(informacion)) informacion$server.version else NULL
   if (is.null(version) || !length(version) || is.na(version[[1L]])) {
     # Algunos controladores publican `db.version` como `16.0` en lugar del
@@ -18516,8 +18555,10 @@
 #'   menos de la mitad de lo pedido, que depende de las páginas que sortee el
 #'   motor. La cuenta es la de `max_consultas` y la de
 #'   `resumen_tabla$meta$consultas$emitidas`: toda sentencia que el perfilado
-#'   manda al motor, salvo las de la guarda de transacción y las lecturas de
-#'   `pg_stat_statements` de `instrumentar`. Con `max_consultas` igual a
+#'   manda al motor, salvo las de la guarda de transacción, las lecturas de
+#'   `pg_stat_statements` de `instrumentar` y las que algunos controladores
+#'   mandan para contestar `DBI::dbGetInfo()` o `DBI::dbIsValid()` (duckdb 1.1,
+#'   una o dos por corrida). Con `max_consultas` igual a
 #'   `total_maximo` ninguna métrica queda afuera por el presupuesto; con
 #'   `total`, sólo las consultas que piden los datos pueden quedar afuera.
 #'
@@ -18599,6 +18640,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
                                max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
+  .fijar_senas_conexion_dbi(conexion)
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
   # quien lo llama; `incluir_valores = FALSE` la suma, como en `perfilar_dbi()`
   # (ver `.protege_mensaje_motor()`): las consultas de prueba del dialecto
@@ -20050,7 +20092,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 .conexion_entrega_bigint_como_doble_dbi <- function(conexion) {
   bigint <- attr(conexion, "bigint", exact = TRUE)
   if (is.null(bigint) || !length(bigint) || is.na(bigint[[1L]])) {
-    informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
+    informacion <- tryCatch(.info_dbi_corrida(conexion), error = function(e) NULL)
     bigint <- if (is.null(informacion)) NULL else informacion$bigint
   }
   if (is.null(bigint) || !length(bigint) || is.na(bigint[[1L]])) {
@@ -24406,8 +24448,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   misma cuenta de [plan_perfilado_dbi()] y de
 #'   `resumen_tabla$meta$consultas$emitidas`. No cuentan las sentencias de la
 #'   guarda de transacción (`SAVEPOINT` y, en SQL Server, la pregunta por la
-#'   transacción abierta antes de cada consulta) ni las lecturas de
-#'   `pg_stat_statements` de `instrumentar`. La preparación y el recorrido por
+#'   transacción abierta antes de cada consulta), ni las lecturas de
+#'   `pg_stat_statements` de `instrumentar`, ni las que algunos controladores
+#'   mandan para contestar `DBI::dbGetInfo()` o `DBI::dbIsValid()`: duckdb 1.1
+#'   pregunta su versión y manda `SELECT 1`, una o dos veces por corrida. La
+#'   preparación y el recorrido por
 #'   bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 #'   `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda afuera
 #'   por el presupuesto.
@@ -24631,6 +24676,7 @@ perfilar_dbi <- function(conexion, tabla,
                          sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                          ...) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
+  .fijar_senas_conexion_dbi(conexion)
   # Lo que el controlador entrego en latin1 ANTES de esta tabla -otra tabla de
   # la misma coleccion-: se declara solo lo de esta. Ver
   # `.texto_del_controlador_dbi()`.

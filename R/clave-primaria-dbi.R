@@ -38,7 +38,7 @@
   }
   if (grepl("Odbc|ODBC", clase)) {
     motor <- tryCatch(
-      as.character(DBI::dbGetInfo(conexion)$dbms.name),
+      as.character(.info_dbi_corrida(conexion)$dbms.name),
       error = function(e) ""
     )
     if (length(motor) && grepl(.regex_sin_caja("oracle"), motor)) {

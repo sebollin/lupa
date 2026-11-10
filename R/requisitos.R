@@ -206,7 +206,7 @@
 
 .requisito_conexion_dbi <- function(conexion) {
   texto <- paste(class(conexion), collapse = " ")
-  informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
+  informacion <- tryCatch(.info_dbi_corrida(conexion), error = function(e) NULL)
   if (length(informacion)) {
     texto <- paste(texto, paste(unlist(informacion), collapse = " "))
   }
