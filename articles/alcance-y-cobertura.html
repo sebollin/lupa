@@ -645,10 +645,13 @@ y publica la prueba sin ellos.</li>
 <code>n_valores_excluidos_resumen</code> dice cuántos quedaron afuera,
 igual que los <code>NA</code> y las filas que <code>aplicabilidad</code>
 deja fuera del universo. También salen de la ley de Benford, de las
-relaciones aritméticas y de <code>valor_concentrado</code>. La misma
-celda no puede ser ausencia en el resumen y valor en un diagnóstico.
-<code>moda</code> y <code>n_distintos</code> siguen describiendo lo que
-está guardado.</li>
+relaciones aritméticas y de <code>valor_concentrado</code>, y las
+dependencias funcionales y las asociaciones no evalúan la fila que los
+tiene. La misma celda no puede ser ausencia en el resumen y valor en un
+diagnóstico. En una columna de texto, <code>"-999"</code>,
+<code>"-999.0"</code> y <code>"-9.99e2"</code> son el mismo centinela
+<code>-999</code>. <code>moda</code> y <code>n_distintos</code> siguen
+describiendo lo que está guardado.</li>
 <li>
 <strong><code>posible_centinela_numerico</code></strong> informa un
 valor que reúne 3 rasgos: queda fuera de los límites, se repite y tiene

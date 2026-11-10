@@ -333,8 +333,20 @@ perfilar(
   que es optar por una heurística más ancha—, se cuentan todos, incluida
   la aparición única. Ésa es también la forma de recuperar el caso que
   la reserva calla: declarar el valor lo vuelve a contar y además lo
-  saca de los estadísticos del resumen, de la ley de Benford y de las
-  relaciones aritméticas.
+  saca de los estadísticos del resumen, de la ley de Benford, de las
+  relaciones aritméticas, de las dependencias funcionales y de las
+  asociaciones que se calculen con
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md).
+  En estas relaciones la fila que contiene el valor declarado no se
+  evalúa.
+
+  En una columna de texto, una celda es el centinela si el número que
+  escribe, leído con la convención de la columna (signo, ceros a la
+  izquierda, miles, marca decimal, exponente), es exactamente el valor
+  declarado, o si tiene a lo sumo 17 cifras significativas y R lo lee
+  como ese valor: `"-999"`, `"-999.0"` y `"-9.99e2"` son el mismo
+  centinela en toda plataforma. Un texto con más cifras de las que
+  distingue un doble sólo es el centinela si lo escribe exacto.
 
 - cadenas_ausencia:
 
@@ -1596,12 +1608,13 @@ ausencia y salen de `media`, `mediana`, `minimo`, `maximo`, `desvio` y
 deja fuera del universo; `n_valores_excluidos_resumen` y
 `estado_resumen_cuantitativo` declaran ese alcance. Salen también de la
 ley de Benford y de las relaciones aritméticas, que leen la columna como
-magnitud: la misma celda no puede ser ausencia en el resumen y valor en
-un diagnóstico. La lista por omisión —`-9`, `-99`, `-999`, `-9999` y
-`999`— es en cambio una conjetura del paquete: se informa como
-`faltantes_disfrazados` pero **no** se retira de los resúmenes, porque
-`999` también puede ser un dato legítimo y actuar sobre una sospecha
-cambiaría números que nadie pidió cambiar.
+magnitud, y las dependencias funcionales y las asociaciones no evalúan
+la fila que los tiene: la misma celda no puede ser ausencia en el
+resumen y valor en un diagnóstico. La lista por omisión —`-9`, `-99`,
+`-999`, `-9999` y `999`— es en cambio una conjetura del paquete: se
+informa como `faltantes_disfrazados` pero **no** se retira de los
+resúmenes, porque `999` también puede ser un dato legítimo y actuar
+sobre una sospecha cambiaría números que nadie pidió cambiar.
 
 `moda`, `frecuencia_moda`, `n_distintos`, `tasa_distintos` y
 `longitud_*` describen la **representación almacenada** y siguen

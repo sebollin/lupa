@@ -87,7 +87,8 @@ directamente las filas minoritarias que pueden ser errores de carga.</p>
 <span>  max_comparaciones <span class="op">=</span> <span class="fl">200000L</span>,</span>
 <span>  max_trabajo <span class="op">=</span> <span class="fl">1e+08</span>,</span>
 <span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  sentinelas_numericos <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -164,6 +165,14 @@ con nombre donde el nombre es la columna y el valor es el tipo. Sin ella,
 una columna que el léxico no reconoce —un legajo interno— publica sus
 valores en <code>evidencia</code>. Sólo tiene efecto con
 <code>proteger_datos_personales = TRUE</code>.</p></dd>
+
+
+<dt id="arg-sentinelas-numericos">sentinelas_numericos<a class="anchor" aria-label="anchor" href="#arg-sentinelas-numericos"></a></dt>
+<dd><p>Vector de valores declarados como ausencia. Las
+celdas que contienen un valor declarado no participan en la dependencia,
+igual que una celda <code>NA</code>; por eso <code>n_evaluados</code> cuenta sólo las filas con
+ambas columnas presentes. La lista por omisión no se considera una
+declaración.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -22,7 +22,8 @@ detectar_dependencias(
   max_comparaciones = 200000L,
   max_trabajo = 1e+08,
   proteger_datos_personales = FALSE,
-  columnas_personales = character()
+  columnas_personales = character(),
+  sentinelas_numericos = NULL
 )
 ```
 
@@ -98,6 +99,14 @@ detectar_dependencias(
   columna y el valor es el tipo. Sin ella, una columna que el léxico no
   reconoce —un legajo interno— publica sus valores en `evidencia`. Sólo
   tiene efecto con `proteger_datos_personales = TRUE`.
+
+- sentinelas_numericos:
+
+  Vector de valores declarados como ausencia. Las celdas que contienen
+  un valor declarado no participan en la dependencia, igual que una
+  celda `NA`; por eso `n_evaluados` cuenta sólo las filas con ambas
+  columnas presentes. La lista por omisión no se considera una
+  declaración.
 
 ## Value
 

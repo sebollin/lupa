@@ -17,7 +17,8 @@ detectar_asociaciones(
   max_columnas = 50L,
   max_niveles = 50L,
   max_pares = 500L,
-  metodo_numerico = c("pearson", "spearman")
+  metodo_numerico = c("pearson", "spearman"),
+  sentinelas_numericos = NULL
 )
 ```
 
@@ -56,6 +57,13 @@ detectar_asociaciones(
 
   Medida entre columnas numéricas: `"pearson"` por omisión, o
   `"spearman"` para asociación monótona sobre los rangos.
+
+- sentinelas_numericos:
+
+  Vector de valores declarados como ausencia. La fila de un par que
+  contiene un valor declarado no se usa para medirlo, igual que una fila
+  con `NA`; por eso `n_pares` cuenta sólo las filas completas restantes.
+  La lista por omisión no se considera una declaración.
 
 ## Value
 

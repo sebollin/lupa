@@ -367,7 +367,16 @@ propios valores —o pide <a href="sentinelas_naniar.html">sentinelas_naniar</a>
 heurística más ancha—, se cuentan todos, incluida la aparición única. Ésa
 es también la forma de recuperar el caso que la reserva calla: declarar el
 valor lo vuelve a contar y además lo saca de los estadísticos del resumen,
-de la ley de Benford y de las relaciones aritméticas.</p></dd>
+de la ley de Benford, de las relaciones aritméticas, de las dependencias
+funcionales y de las asociaciones que se calculen con <code><a href="analizar.html">analizar()</a></code>. En
+estas relaciones la fila que contiene el valor declarado no se evalúa.</p>
+<p>En una columna de texto, una celda es el centinela si el número que
+escribe, leído con la convención de la columna (signo, ceros a la
+izquierda, miles, marca decimal, exponente), es exactamente el valor
+declarado, o si tiene a lo sumo 17 cifras significativas y R lo lee como
+ese valor: <code>"-999"</code>, <code>"-999.0"</code> y <code>"-9.99e2"</code> son el mismo centinela en toda
+plataforma. Un texto con más cifras de las que distingue un doble sólo es el
+centinela si lo escribe exacto.</p></dd>
 
 
 <dt id="arg-cadenas-ausencia">cadenas_ausencia<a class="anchor" aria-label="anchor" href="#arg-cadenas-ausencia"></a></dt>
@@ -1549,8 +1558,9 @@ de <code>media</code>, <code>mediana</code>, <code>minimo</code>, <code>maximo</
 salen los <code>NA</code> y las filas que <code>aplicabilidad</code> deja fuera del universo;
 <code>n_valores_excluidos_resumen</code> y <code>estado_resumen_cuantitativo</code> declaran ese
 alcance. Salen también de la ley de Benford y de las relaciones aritméticas,
-que leen la columna como magnitud: la misma celda no puede ser ausencia en
-el resumen y valor en un diagnóstico. La lista por omisión —<code>-9</code>, <code>-99</code>,
+que leen la columna como magnitud, y las dependencias funcionales y las
+asociaciones no evalúan la fila que los tiene: la misma celda no puede ser
+ausencia en el resumen y valor en un diagnóstico. La lista por omisión —<code>-9</code>, <code>-99</code>,
 <code>-999</code>, <code>-9999</code> y <code>999</code>— es en cambio una conjetura del paquete: se
 informa como <code>faltantes_disfrazados</code>
 pero <strong>no</strong> se retira de los resúmenes, porque <code>999</code> también puede ser un

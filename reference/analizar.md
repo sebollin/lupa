@@ -70,6 +70,9 @@ analizar(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   —`aplic` es `aplicabilidad`— antes de leerlos, así que un nombre
   abreviado gobierna el perfil y la medición por igual.
+  `sentinelas_numericos` también gobierna las dependencias del perfil y
+  las asociaciones: las filas que contienen un valor declarado no se
+  evalúan en esos pares.
 
 - metadatos_variables:
 
