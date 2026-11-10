@@ -1,4 +1,4 @@
-# lupa (development version)
+# lupa 0.1.1
 
 ## Perfilado
 
