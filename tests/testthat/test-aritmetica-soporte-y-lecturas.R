@@ -1,6 +1,10 @@
 # El soporte de una proporcionalidad, la resolucion de cada columna medida en
 # la respuesta, y las relaciones reales chicas que se descartaban sin decirlo.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 prop_de <- function(d) {
   r <- lupa:::.detectar_aritmetica_columnas(d)
   h <- Filter(function(x) grepl("proporcional", x$descripcion[[1L]], fixed = TRUE),

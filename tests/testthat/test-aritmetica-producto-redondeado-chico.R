@@ -4,6 +4,10 @@
 # la relacion explica mas filas que la moda de la respuesta; entre columnas
 # independientes chicas, esa lectura publicaba relaciones espurias.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 proporcionales_chicas <- function(d) {
   p <- perfilar(d, analizar_dependencias = FALSE,
                 fecha = as.POSIXct("2026-01-01", tz = "UTC"))

@@ -3,6 +3,10 @@
 # importe se publicaba como maximo 99123456, y un valor fuera de la muestra de la
 # inferencia entraba a la media sin declararse.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_forma <- as.POSIXct("2026-01-01", tz = "UTC")
 
 .fila_forma <- function(x, ...) {

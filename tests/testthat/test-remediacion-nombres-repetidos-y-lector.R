@@ -9,6 +9,10 @@
 # -lo deja fuera del resumen y dice que convertir lo dejaria en `NA`-, pero el
 # convertidor del plan le quitaba los puntos y `aplicar()` escribia 99123456.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .rnl_fecha <- as.POSIXct("2026-01-01", tz = "UTC")
 
 .rnl_plan <- function(d) {

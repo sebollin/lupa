@@ -4,6 +4,10 @@
 # decimales fijos en las tres columnas, una diferencia de medio cuanto o mas
 # esta en el dato y no en la representacion.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 importes_con_centavos_rotos <- function(escala, semilla = 7L) {
   set.seed(semilla)
   n <- 300L

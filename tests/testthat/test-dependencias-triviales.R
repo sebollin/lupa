@@ -2,6 +2,10 @@
 # el cumplimiento es la proporcion de su moda, agrupe lo que agrupe. Esos pares
 # no describen ninguna regla y no se publican.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 tabla_estado_casi_constante <- function() {
   set.seed(2582)
   n <- 5000L

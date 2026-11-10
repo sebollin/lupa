@@ -18,6 +18,11 @@
 # tipo es un doble- `1e200` llega a tres ulps del mas cercano. El desvio de
 # `d * 1e200` salia ahi otro, el exacto de esos otros valores. Las dos
 # constantes van en hexadecimal, que se lee exacto en toda plataforma.
+
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .dmc_1e200 <- 0x1.4e718d7d7625ap+664
 .dmc_1e_menos_301 <- 0x1.124e63593f5e1p-1000
 

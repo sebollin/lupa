@@ -5,6 +5,10 @@
 # mientras `integer64` y la rama numerica con los mismos valores los dejaban
 # afuera y los contaban. Ahora aplica la misma regla. Y un "-0" es el cero.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .ctf_fila <- function(v, sentinelas = NULL) {
   argumentos <- list(datos = data.frame(v = v, stringsAsFactors = FALSE))
   if (length(sentinelas)) argumentos$sentinelas_numericos <- sentinelas

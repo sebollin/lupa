@@ -3,6 +3,10 @@
 # "la tabla", y una accion de nombres que no corresponde a los datos no tira el
 # plan entero.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 fecha_lector <- as.POSIXct("2026-01-01", tz = "UTC")
 
 relacion_con_columna_literal <- function(literales) {

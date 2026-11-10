@@ -3,6 +3,10 @@
 # civil cambiada en UTC -`format()` de un `POSIXlt` ignora `tz`-, y una fecha
 # RFC 3339 con `t` o `z` minuscula, que la norma admite, no era una fecha.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_rfc <- as.POSIXct("2026-01-01", tz = "UTC")
 
 test_that("un POSIXlt cuenta la fecha civil distinta en UTC como su POSIXct", {

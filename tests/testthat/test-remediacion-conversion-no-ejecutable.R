@@ -2,6 +2,10 @@
 # y una frase que corresponde a su estado; y una accion sobre una columna que no
 # esta en el perfil o en los datos se bloquea diciendo cual falta.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 fecha_fija <- as.POSIXct("2026-01-01", tz = "UTC")
 
 plan_de <- function(d, datos = d) {

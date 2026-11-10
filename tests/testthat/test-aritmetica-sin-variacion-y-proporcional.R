@@ -4,6 +4,10 @@
 # los centavos; y lo que la cota de la proporcionalidad tiene que respetar: el
 # redondeo que cae justo en la mitad y la direccion de la constante.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 escrito <- function(v, decimales = 2L) {
   as.numeric(sprintf(paste0("%.", decimales, "f"), v))
 }

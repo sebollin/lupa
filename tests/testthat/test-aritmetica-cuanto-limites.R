@@ -2,6 +2,10 @@
 # que se publica cuando mas de la mitad de las filas estan rotas, la suma con
 # cancelacion y el conteo de lo que la cota descarta.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 suma_rota <- function(escala, cuanto, rotas, semilla = 42L) {
   set.seed(semilla)
   n <- 300L

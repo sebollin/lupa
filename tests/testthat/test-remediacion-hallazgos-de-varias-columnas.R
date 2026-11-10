@@ -3,6 +3,10 @@
 # `hallazgos_sin_accion_por_columna_ambigua` con el motivo "el nombre de columna
 # se repite en la tabla", aunque ninguna se repetia; tambien los `ok`.
 
+# Pesada para CRAN (mas de 0,2 s en la medicion sin red del 2026-11-10): corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 fecha_plan <- as.POSIXct("2026-01-01", tz = "UTC")
 
 sin_accion_de <- function(d, ...) {
