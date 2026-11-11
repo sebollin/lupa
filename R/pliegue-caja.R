@@ -102,6 +102,65 @@
   textos
 }
 
+# Convierte una cadena marcada `latin1` antes de entregarla a una primitiva de
+# texto. R usa Windows-1252 para `enc2utf8()`: eso es lo correcto para los
+# archivos que llegan de planillas, pero sus cinco bytes sin correspondencia
+# se vuelven el texto literal `<81>`, `<8D>`, `<8F>`, `<90>` o `<9D>`. En una
+# cadena declarada `latin1` esos bytes son los puntos C1 correspondientes, asi
+# que solo esos tramos se convierten por punto de codigo y el resto conserva la
+# traduccion Windows-1252 que ya usa el paquete.
+.latin1_a_utf8 <- function(textos, marcas = NULL) {
+  if (!is.character(textos) || !length(textos)) return(textos)
+  if (is.null(marcas)) marcas <- Encoding(textos)
+  indices <- which(!is.na(textos) & marcas == "latin1")
+  if (!length(indices)) return(textos)
+  indefinidos <- c(0x81L, 0x8dL, 0x8fL, 0x90L, 0x9dL)
+  salida <- textos
+  for (indice in indices) {
+    bytes <- as.integer(charToRaw(textos[[indice]]))
+    posiciones <- which(bytes %in% indefinidos)
+    if (!length(posiciones)) {
+      salida[[indice]] <- enc2utf8(textos[[indice]])
+      next
+    }
+    partes <- character()
+    inicio <- 1L
+    for (posicion in posiciones) {
+      if (posicion > inicio) {
+        tramo <- rawToChar(as.raw(bytes[inicio:(posicion - 1L)]))
+        Encoding(tramo) <- "latin1"
+        partes <- c(partes, enc2utf8(tramo))
+      }
+      partes <- c(partes, intToUtf8(bytes[[posicion]]))
+      inicio <- posicion + 1L
+    }
+    if (inicio <= length(bytes)) {
+      tramo <- rawToChar(as.raw(bytes[inicio:length(bytes)]))
+      Encoding(tramo) <- "latin1"
+      partes <- c(partes, enc2utf8(tramo))
+    }
+    salida[[indice]] <- paste0(partes, collapse = "")
+  }
+  salida
+}
+
+# Deja cada valor en una forma segura para `trimws()` y las expresiones
+# regulares. Las cadenas ilegibles sin marca quedan intactas: la accion que las
+# recibe decide no tocarlas, en vez de inventar una codificacion.
+.texto_para_operar <- function(textos, marcas = c("unknown", "bytes")) {
+  textos <- as.character(textos)
+  if (length(textos) == 1L && !is.na(textos)) {
+    marca <- Encoding(textos)
+    if (identical(marca, "latin1")) return(.latin1_a_utf8(textos))
+    if (marca %in% marcas && validUTF8(textos)) Encoding(textos) <- "UTF-8"
+    return(textos)
+  }
+  textos <- .declarar_utf8_valido(textos, marcas = marcas)
+  marcas_texto <- Encoding(textos)
+  if (!any(marcas_texto == "latin1")) return(textos)
+  .latin1_a_utf8(textos, marcas = marcas_texto)
+}
+
 # Mide caracteres sin pedirle a R que interprete una cadena que se declaro como
 # bytes o que trae una secuencia invalida. En esos casos no hay una cantidad de
 # caracteres que el paquete pueda afirmar: se devuelve NA, mientras el largo en
@@ -144,11 +203,7 @@
 # locale.
 .textos_para_plegar <- function(textos) {
   if (!length(textos)) return(textos)
-  textos <- .declarar_utf8_valido(as.character(textos))
-  en_latin1 <- !is.na(textos) & Encoding(textos) == "latin1"
-  if (any(en_latin1)) {
-    textos[en_latin1] <- iconv(textos[en_latin1], from = "latin1", to = "UTF-8")
-  }
+  textos <- .texto_para_operar(textos)
   sin_marca <- !is.na(textos) & Encoding(textos) %in% c("unknown", "bytes")
   if (!any(sin_marca)) return(textos)
   irreparables <- sin_marca

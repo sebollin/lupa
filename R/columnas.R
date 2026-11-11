@@ -1746,7 +1746,7 @@
 # numero en ninguna sesion- y recortado. La comparten la descomposicion del
 # numero regional y la conversion de tipo de `aplicar()`.
 .texto_legible_recortado <- function(x) {
-  texto <- .declarar_utf8_valido(as.character(x))
+  texto <- .texto_para_operar(as.character(x))
   invalidos <- !is.na(texto) & Encoding(texto) != "latin1" & !validUTF8(texto)
   texto[invalidos] <- NA_character_
   trimws(texto)
@@ -2461,6 +2461,8 @@
   patron <- .PATRON_ENTIDAD_HTML
   vapply(textos, function(texto) {
     if (is.na(texto)) return(FALSE)
+    texto <- .texto_para_operar(texto)
+    if (!validUTF8(texto)) return(FALSE)
     posiciones <- gregexpr(patron, texto, perl = TRUE)[[1L]]
     if (identical(posiciones[[1L]], -1L)) return(FALSE)
     encontrados <- regmatches(texto, list(posiciones))[[1L]]
@@ -2493,11 +2495,10 @@
   # podia saber que eran el mismo valor, que es exactamente lo que el hallazgo
   # le pide mirar antes de unificar.
   texto <- .texto_publicable(texto)
-  # `latin1` NO es `bytes`: ahi R conoce la codificacion y `enc2utf8()` la
-  # convierte sin perder nada. Va antes de mirar `validUTF8()`, porque los
-  # bytes de un texto latin1 no son UTF-8 validos y sin convertirlos primero
-  # se los tomaria por indescifrables.
-  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  # `latin1` NO es `bytes`: se convierte antes de mirar `validUTF8()`, porque
+  # sus bytes no son UTF-8 validos. La conversion comun conserva tambien los
+  # cinco puntos C1 que no tienen nombre en Windows-1252.
+  texto <- .latin1_a_utf8(texto)
   # Y lo que aun no decodifica no se puede describir como caracteres. Antes se
   # intentaba igual: `utf8ToInt()` devuelve `NA` -no vacio, no error- y ese
   # `NA` llegaba al `if` de mas abajo y ABORTABA la corrida. Una columna

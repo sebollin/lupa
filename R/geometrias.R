@@ -726,12 +726,15 @@
 .parece_wkt <- function(x) {
   if (!is.character(x)) return(FALSE)
   muestra <- .muestra_texto_geometria(x)
+  # Una celda latin1 con un byte de 0x80 a 0x9F aborta una regex PCRE.
+  muestra <- .texto_para_operar(muestra)
   .mayoria_geometria(grepl(.regex_sin_caja(.patron_wkt), muestra, perl = TRUE))
 }
 
 .parece_wkb_hexadecimal <- function(x) {
   if (!is.character(x)) return(FALSE)
   muestra <- .muestra_texto_geometria(x)
+  muestra <- .texto_para_operar(muestra)
   if (!length(muestra)) return(FALSE)
   largos <- nchar(muestra, type = "bytes")
   .mayoria_geometria(

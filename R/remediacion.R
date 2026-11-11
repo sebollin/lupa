@@ -2978,7 +2978,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (is.character(x) || is.factor(x)) {
     # Con la convencion decimal que el plan registro, la lectura del detector:
     # ver `.leer_numeros_texto_centinela()`.
-    texto <- trimws(as.character(x))
+    texto <- trimws(.texto_para_operar(x))
     numeros <- .leer_numeros_texto_centinela(
       texto, parametros$convencion
     )
@@ -3331,6 +3331,17 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 # Repara solamente las celdas que una accion ya sabe que va a tocar. La
 # deteccion vectorizada evita llamar al reparador sobre texto limpio.
+.ftfy_mascara_para_texto <- function(textos, trabajo = NULL) {
+  if (is.null(trabajo)) trabajo <- .texto_para_operar(textos)
+  candidatos <- .ftfy_mascara_candidatos(trabajo)
+  # Una cadena marcada `latin1` ya declara como se leen sus bytes. Despues de
+  # convertirla a UTF-8, sus secuencias `C2` y `C3` pueden parecer mojibake a
+  # ftfy aunque sean caracteres legitimos del dato; no se repara una marca que
+  # ya resolvio la codificacion.
+  candidatos[!is.na(textos) & Encoding(textos) == "latin1"] <- FALSE
+  candidatos
+}
+
 .reparar_textos_seleccionados <- function(textos, seleccion) {
   salida <- textos
   if (!length(textos) || length(seleccion) != length(textos) ||
@@ -3339,17 +3350,21 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   }
   indices <- which(!is.na(seleccion) & seleccion & !is.na(textos))
   if (!length(indices)) return(salida)
-  candidatos <- .ftfy_mascara_candidatos(textos[indices])
+  trabajo <- .texto_para_operar(textos)
+  candidatos <- .ftfy_mascara_para_texto(
+    textos[indices], trabajo = trabajo[indices]
+  )
   if (!any(candidatos)) return(salida)
   posiciones <- indices[candidatos]
-  reparados <- .analizar_codificacion(textos[posiciones])$reparados
+  reparados <- .analizar_codificacion(trabajo[posiciones])$reparados
   validos <- !is.na(reparados)
   if (any(validos)) salida[posiciones[validos]] <- reparados[validos]
   salida
 }
 
 .proteccion_texto_valores <- function(valores, codificacion = NULL) {
-  candidatos <- .ftfy_mascara_candidatos(valores)
+  trabajo <- .texto_para_operar(valores)
+  candidatos <- .ftfy_mascara_para_texto(valores, trabajo = trabajo)
   mascaras <- vector("list", length(valores))
   indices <- which(candidatos)
   if (length(indices)) {
@@ -3387,14 +3402,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
         !is.null(estados_cod) && !is.null(consumidas_cod)) {
       calculadas <- lapply(indices, function(i) {
         .ftfy_posiciones_consumidas(
-          valores[[i]], reparado = reparados_cod[[i]],
+          trabajo[[i]], reparado = reparados_cod[[i]],
           consumidas = consumidas_cod[[i]], estado = estados_cod[[i]]
         )
       })
     } else {
-      analisis <- .analizar_codificacion(valores[indices])
+      analisis <- .analizar_codificacion(trabajo[indices])
       calculadas <- .ftfy_posiciones_consumidas_vector(
-        valores[indices], codificacion = analisis
+        trabajo[indices], codificacion = analisis
       )
     }
     mascaras[indices] <- calculadas
@@ -3409,7 +3424,13 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!length(textos)) return(logical())
   candidatos <- switch(
     estrategia,
-    recortar_espacios = !is.na(textos) & textos != trimws(textos),
+    recortar_espacios = {
+      recortados <- .aplicar_por_marca(
+        textos, trimws,
+        function(z) trimws(z, whitespace = "[ \t\r\n]")
+      )
+      .celdas_cambiadas(textos, recortados)
+    },
     decodificar_entidades_html = .entidades_html_en_texto(textos),
     .detener("Estrategia de texto desconocida.", call. = FALSE)
   )
@@ -3470,19 +3491,22 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
                     length(proteccion$candidatos) == length(anterior)) {
     proteccion$candidatos[indices]
   } else {
-    .ftfy_mascara_candidatos(anterior[indices])
+    .ftfy_mascara_para_texto(anterior[indices])
   }
   nuevas <- logical(length(indices))
   indices_nuevas <- which(!candidatos)
+  indices_nuevas <- indices_nuevas[
+    Encoding(anterior[indices[indices_nuevas]]) != "latin1"
+  ]
   if (length(indices_nuevas) && identical(revisar_nuevas, "siempre")) {
-    nuevas[indices_nuevas] <- .ftfy_mascara_candidatos(
+    nuevas[indices_nuevas] <- .ftfy_mascara_para_texto(
       nuevo[indices[indices_nuevas]]
     )
   } else if (length(indices_nuevas) && identical(revisar_nuevas, "si_hay_A")) {
     posibles <- grepl("[\u00c2\u00c3]", nuevo[indices[indices_nuevas]], perl = TRUE)
     if (any(posibles)) {
       ubicaciones <- indices_nuevas[posibles]
-      nuevas[posibles] <- .ftfy_mascara_candidatos(nuevo[indices[ubicaciones]])
+      nuevas[posibles] <- .ftfy_mascara_para_texto(nuevo[indices[ubicaciones]])
     }
   }
   if (!any(candidatos | nuevas)) {
@@ -3494,7 +3518,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
                     length(proteccion$mascaras) == length(anterior)) {
     proteccion$mascaras
   } else {
-    .ftfy_posiciones_consumidas_vector(anterior, solo = tocar)
+    .ftfy_posiciones_consumidas_vector(
+      .texto_para_operar(anterior),
+      solo = tocar & Encoding(anterior) != "latin1"
+    )
   }
   protegido <- nuevo
   proteger_entera <- rep(FALSE, length(indices))
@@ -3890,7 +3917,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     # Declarado antes de la expresion regular, como en `.aplicar_por_marca()`:
     # bajo `LC_CTYPE=C` un `unknown` UTF-8 valido se leia como bytes de la
     # sesion. Lo `bytes` sigue como esta. Sin entidades, vuelve como llego.
-    texto <- .declarar_utf8_valido(original, marcas = "unknown")
+    texto <- .texto_para_operar(original)
+    if (!validUTF8(texto)) return(original)
     coincidencias <- gregexpr(patron, texto, perl = TRUE)[[1L]]
     if (identical(coincidencias[[1L]], -1L)) return(original)
     encontrados <- regmatches(texto, list(coincidencias))[[1L]]
@@ -4175,7 +4203,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # `lista` quedaba `fallida` segun el locale. La declaracion es la misma de la
 # normalizacion, `.declarar_utf8_valido()`.
 .texto_para_transformar <- function(x) {
-  .declarar_utf8_valido(as.character(x))
+  .texto_para_operar(as.character(x))
 }
 
 .transformar_capitalizacion <- function(x, estrategia, parametros) {

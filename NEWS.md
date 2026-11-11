@@ -886,6 +886,15 @@
   ya era así. Si se la reordenaba detrás de `convertir_mayusculas`, la
   conversión operaba sobre el mojibake: «María» mal leída quedaba «MARíA»,
   con la letra reparada en minúscula.
+- Las acciones de texto de `aplicar()` y los detectores de `perfilar()` leen
+  bien las celdas declaradas `latin1` que tienen un byte de 0x80 a 0x9F. R
+  traduce `latin1` como Windows-1252, que no define 0x81, 0x8D, 0x8F, 0x90 ni
+  0x9D: `recortar_espacios` fallaba con «input string is invalid UTF-8» y la
+  columna quedaba sin recortar, y otros detectores avisaban o leían esos bytes
+  como el texto `<81>`. Es lo que deja un CSV de Windows-1252 leído con
+  `encoding = "latin1"`, o uno en UTF-8 leído así: «ÁREA» (`C3 81`) ahora se
+  repara. Una celda que una acción cambia queda en UTF-8, como documenta
+  `aplicar()`.
 
 # lupa 0.1.0
 

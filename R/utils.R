@@ -2507,10 +2507,11 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   # declarar nada: informar como medido lo que se descarto, que es exactamente lo
   # que el paquete promete no hacer.
   #
-  # `Encoding()` dice `latin1` cuando R conoce la codificacion, y ahi `enc2utf8()`
-  # convierte sin perder nada. Lo que queda invalido despues de eso es texto cuya
-  # codificacion nadie declaro y no se puede adivinar; eso si se descarta, y se
-  # informa en `invalidos` y `posiciones`.
+  # `Encoding()` dice `latin1` cuando R conoce la codificacion. La conversion
+  # comun conserva sus caracteres, incluidos los cinco puntos C1 que no tienen
+  # correspondencia con nombre en Windows-1252. Lo que queda invalido despues
+  # de eso es texto cuya codificacion nadie declaro y no se puede adivinar; eso
+  # si se descarta, y se informa en `invalidos` y `posiciones`.
   # `bytes` no declara una codificacion: declara que R no debe traducir la
   # cadena. Eso es correcto para bytes arbitrarios, pero una cadena marcada asi
   # puede contener UTF-8 valido. En ese caso se puede tratar sin perdida:
@@ -2526,16 +2527,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   # identificadores. Es la declaracion compartida con la normalizacion y con las
   # acciones de texto, `.declarar_utf8_valido()`: marcar lo `unknown` antes de
   # convertir no cambia nada, porque `enc2utf8()` deja intacto lo que ya es UTF-8.
-  valores <- .declarar_utf8_valido(valores)
-  declarados <- Encoding(valores) %in% c("latin1", "UTF-8")
-  if (any(declarados)) {
-    convertidos <- suppressWarnings(
-      tryCatch(enc2utf8(valores[declarados]), error = function(e) NULL)
-    )
-    if (!is.null(convertidos) && length(convertidos) == sum(declarados)) {
-      valores[declarados] <- convertidos
-    }
-  }
+  valores <- .texto_para_operar(valores)
   invalidos <- !is.na(valores) & !validUTF8(valores)
   posiciones <- which(invalidos)
   if (length(posiciones)) valores[posiciones] <- NA_character_
@@ -2732,10 +2724,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   # (test-N87).
   declarados <- lapply(textos, function(x) !is.na(x) & Encoding(x) == "bytes")
   piezas <- lapply(textos, function(x) {
-    en_latin1 <- !is.na(x) & Encoding(x) == "latin1"
-    if (any(en_latin1)) {
-      x[en_latin1] <- iconv(x[en_latin1], from = "latin1", to = "UTF-8")
-    }
+    x <- .latin1_a_utf8(x)
     Encoding(x) <- "bytes"
     x
   })
@@ -3060,9 +3049,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 .comillas_sin_locale_uno <- function(texto, quote) {
   if (is.na(texto)) return("NA")
   if (Encoding(texto) == "bytes") return(encodeString(texto, quote = quote))
-  if (Encoding(texto) == "latin1") {
-    texto <- iconv(texto, from = "latin1", to = "UTF-8")
-  }
+  texto <- .latin1_a_utf8(texto)
   bytes <- as.integer(charToRaw(texto))
   comilla <- if (nzchar(quote)) utf8ToInt(quote) else -1L
   partes <- character()
@@ -3159,7 +3146,11 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # puede decidir es inventar un valor.
 .codigos_decodificables <- function(texto) {
   if (is.na(texto)) return(NULL)
-  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  if (Encoding(texto) == "latin1") {
+    texto <- .latin1_a_utf8(texto)
+  } else if (Encoding(texto) == "bytes" && validUTF8(texto)) {
+    Encoding(texto) <- "UTF-8"
+  }
   if (validUTF8(texto)) {
     if (Encoding(texto) == "bytes") Encoding(texto) <- "UTF-8"
   } else {
@@ -3240,7 +3231,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   # intacta no tiene por que cambiar de marca. La igualdad se mide en bytes, sin
   # traducir nada.
   como_texto <- function(v) {
-    declarado <- .declarar_utf8_valido(v, marcas = "unknown")
+    declarado <- .texto_para_operar(v, marcas = "unknown")
     nuevo <- en_texto(declarado)
     a <- nuevo
     b <- declarado

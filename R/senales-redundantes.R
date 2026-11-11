@@ -234,7 +234,7 @@ print.senal_redundante <- function(x, ...) {
 .texto_por_puntos_de_codigo <- function(texto) {
   if (length(texto) != 1L || is.na(texto)) return(.texto_valor(texto))
   if (Encoding(texto) == "bytes") return(.texto_valor(texto))
-  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  texto <- .latin1_a_utf8(texto)
   if (!isTRUE(validUTF8(texto))) return(.texto_valor(texto))
   codigos <- tryCatch(utf8ToInt(texto), error = function(e) NA_integer_)
   if (!length(codigos)) return("")
@@ -256,7 +256,7 @@ print.senal_redundante <- function(x, ...) {
   if (length(texto) != 1L || is.na(texto) || Encoding(texto) == "bytes") {
     return(.texto_valor(texto))
   }
-  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  texto <- .latin1_a_utf8(texto)
   if (!isTRUE(validUTF8(texto))) return(.texto_valor(texto))
   codigos <- tryCatch(utf8ToInt(texto), error = function(e) NA_integer_)
   if (anyNA(codigos)) return(.texto_valor(texto))
