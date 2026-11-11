@@ -78,10 +78,15 @@ test_that("N56: switch sobre factor da la misma respuesta en ambos locales", {
     resultados[[1L]]$resolver_sin_marca,
     resultados[[1L]]$resolver_marcado
   )
-  expect_identical(
+  # El remedio de Correctitud semantica sale del catalogo: nombra sus metricas
+  # implementadas, no el texto de ausencia.
+  expect_match(
     resultados[[1L]]$resolver_sin_marca,
-    "Crear referencial() e instanciar metricas_referencial()."
+    "metricas_referencial()$CorrectitudSemDebil", fixed = TRUE
   )
+  expect_false(grepl(
+    "Requiere un backend", resultados[[1L]]$resolver_sin_marca, fixed = TRUE
+  ))
 })
 
 test_that("N56: factor y split por valores de usuario conservan la identidad", {

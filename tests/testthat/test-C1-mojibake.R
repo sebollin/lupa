@@ -1,6 +1,21 @@
 # Propiedades de los invisibles que la reparacion de codificacion consume.
 testthat::skip_on_cran()
 
+# Un proceso hijo carga el mismo paquete que se prueba: el arbol fuente si la
+# prueba corre desde el (test_local), o el instalado si corre dentro de
+# R CMD check, donde la raiz de las pruebas no tiene DESCRIPTION.
+.c1_moji_carga_hijo <- function() {
+  ruta <- normalizePath(testthat::test_path("../.."), winslash = "/",
+                        mustWork = FALSE)
+  if (file.exists(file.path(ruta, "DESCRIPTION")) &&
+      dir.exists(file.path(ruta, "R"))) {
+    sprintf("suppressMessages(pkgload::load_all(%s, quiet = TRUE))",
+            deparse(ruta))
+  } else {
+    "suppressMessages(library(lupa))"
+  }
+}
+
 .c1_moji_latin1 <- function(x) {
   iconv(x, from = "latin1", to = "UTF-8")
 }
@@ -753,16 +768,13 @@ test_that("la regresion de la alineacion anterior falla en otro proceso", {
   referencia <- .c1_moji_lcs_referencia(entrada, salida)
   mascara_correcta <- rep(TRUE, length(entrada))
   mascara_correcta[referencia$entrada] <- FALSE
-  ruta <- normalizePath(testthat::test_path("../.."), winslash = "/")
   guion <- tempfile(fileext = ".R")
   on.exit(unlink(guion), add = TRUE)
   funcion <- paste(deparse(.c1_moji_alineacion_v4), collapse = "\n")
   dput_entrada <- paste(capture.output(dput(entrada)), collapse = "\n")
   dput_salida <- paste(capture.output(dput(salida)), collapse = "\n")
   dput_esperada <- paste(capture.output(dput(mascara_correcta)), collapse = "\n")
-  carga <- sprintf(
-    "suppressMessages(pkgload::load_all(%s, quiet = TRUE))", dQuote(ruta)
-  )
+  carga <- .c1_moji_carga_hijo()
   writeLines(c(
     carga,
     paste0("alineacion_anterior <- ", funcion),
@@ -952,14 +964,13 @@ test_that("las tablas generadas conservan la cuenta de cada accion de texto", {
   # El defecto de la novena parte se conserva como una prueba negativa en otro
   # proceso: sin recalcular la mascara despues de quitar un control, la primera
   # tabla deja la normalizacion sin efecto y la accion termina fallida.
-  ruta <- normalizePath(testthat::test_path("../.."), winslash = "/")
   rds <- tempfile(fileext = ".rds")
   guion <- tempfile(fileext = ".R")
   on.exit(unlink(c(rds, guion)), add = TRUE)
   saveRDS(tablas, rds)
   writeLines(c(
-    sprintf("suppressMessages(pkgload::load_all(%s, quiet = TRUE))", dQuote(ruta)),
-    sprintf("tablas <- readRDS(%s)", dQuote(rds)),
+    .c1_moji_carga_hijo(),
+    sprintf("tablas <- readRDS(%s)", deparse(rds)),
     "acciones_texto <- c('recortar_espacios', 'eliminar_controles_invisibles', 'normalizar_espacios_invisibles', 'reemplazar_separadores', 'decodificar_entidades_html', 'reparar_codificacion')",
     "assignInNamespace('.actualizar_proteccion_texto', function(protecciones, datos, columna) protecciones, ns = 'lupa')",
     paste0(
