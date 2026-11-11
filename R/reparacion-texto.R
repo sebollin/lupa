@@ -189,11 +189,18 @@ names(.ftfy_tablas_bytes) <- c(
 )
 .ftfy_mascara_candidatos <- function(x, usar_extensiones = TRUE) {
   salida <- rep(FALSE, length(x))
-  presentes <- !is.na(x)
-  rapidos <- presentes & grepl(
-    .ftfy_patron_candidatos_rapido, x, perl = TRUE
-  )
-  reemplazos <- presentes & grepl("\uFFFD", x, fixed = TRUE)
+  # Una celda sin marca que no es UTF-8 valido no se puede leer: el perfil la
+  # informa como `codificacion_invalida` y ninguna accion la toca. Pasarla por
+  # grepl() solo emitiria "input string is invalid UTF-8".
+  presentes <- !is.na(x) & (Encoding(x) == "latin1" | validUTF8(x))
+  rapidos <- rep(FALSE, length(x))
+  reemplazos <- rep(FALSE, length(x))
+  if (any(presentes)) {
+    rapidos[presentes] <- grepl(
+      .ftfy_patron_candidatos_rapido, x[presentes], perl = TRUE
+    )
+    reemplazos[presentes] <- grepl("\uFFFD", x[presentes], fixed = TRUE)
+  }
   indices <- which(rapidos)
   if (length(indices)) {
     salida[indices] <- .ftfy_mascara_mojibake(
