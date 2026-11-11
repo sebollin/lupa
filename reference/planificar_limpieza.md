@@ -111,32 +111,40 @@ representa una recomendación explícita de conservar los datos. Esto
 permite separar un grupo aún no revisado de una omisión deliberada.
 
 `estado` distingue acciones `lista`, `bloqueada` e `informativa`;
-`orden` fija la secuencia reproducible. Si dos acciones comparten el
-mismo `orden`, el empate lo resuelve `id_accion`, no la posición de la
-fila: reordenar el plan no cambia el resultado. Y un grupo marcado como
-`elegida` sin ninguna acción activa se rechaza, porque no es ni una
-elección ni una omisión. `n_afectadas` es la estimación del perfil sobre
-**lo que esta acción tocaría**, que puede ser menos que el conteo del
-hallazgo que la originó cuando la acción sólo cubre parte del caso: una
-columna con tres valores de codificación rota, de los cuales uno es
-reparable, produce un hallazgo con `n_afectados = 3` y una acción
-`reparar_codificacion` con `n_afectadas = 1`. Las dos cifras son ciertas
-y cuentan cosas distintas. `unidad_conteo` dice si cuenta filas,
-columnas o valores distintos —lo declara la acción cuando cuenta en una
-unidad propia, y sólo si no lo hace se hereda del hallazgo—. El registro
-informa `n_cambiadas` sobre los datos recibidos.
+`orden` fija la secuencia reproducible. La acción
+`reparar_codificacion`, cuando está seleccionada, tiene precedencia
+sobre las demás acciones de su misma columna: corre primero en esa
+columna para que las restantes reciban texto ya decodificado, aunque su
+`orden` editado sea mayor. No reordena acciones de otras columnas. Entre
+las acciones restantes, y entre empates, el desempate lo resuelve
+`id_accion`, no la posición de la fila: reordenar el plan no cambia el
+resultado. Y un grupo marcado como `elegida` sin ninguna acción activa
+se rechaza, porque no es ni una elección ni una omisión. `n_afectadas`
+es la estimación del perfil sobre **lo que esta acción tocaría**, que
+puede ser menos que el conteo del hallazgo que la originó cuando la
+acción sólo cubre parte del caso: una columna con tres valores de
+codificación rota, de los cuales uno es reparable, produce un hallazgo
+con `n_afectados = 3` y una acción `reparar_codificacion` con
+`n_afectadas = 1`. Las dos cifras son ciertas y cuentan cosas distintas.
+`unidad_conteo` dice si cuenta filas, columnas o valores distintos —lo
+declara la acción cuando cuenta en una unidad propia, y sólo si no lo
+hace se hereda del hallazgo—. El registro informa `n_cambiadas` sobre
+los datos recibidos.
 
 **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son
 ciertas.** La estimación se calcula sobre los datos que se perfilaron;
 el registro cuenta lo que pasó al aplicar. Si una acción anterior del
 mismo plan ya tocó esa columna, la posterior encuentra menos —o más— de
-lo estimado: con `convertir_sentinelas_numericos` (orden 110)
-convirtiendo tres `-999` en ausentes, `winsorizar_outliers` (orden 520)
-recorta dos valores donde el plan estimaba siete. No es un desvío que
-ocultar: `orden`, `n_afectadas` y `n_cambiadas` se publican los tres, y
-compararlos es la forma de ver el efecto de la composición. Sólo el caso
-extremo —la acción no produce **ningún** efecto —también cuando el plan
-no trae una estimación válida— se registra como `fallida` con su motivo.
+lo estimado. La única excepción de precedencia es
+`reparar_codificacion`, que se adelanta a las demás acciones de su
+columna para que ninguna opere sobre mojibake. Por ejemplo, con
+`convertir_sentinelas_numericos` (orden 110) convirtiendo tres `-999` en
+ausentes, `winsorizar_outliers` (orden 520) recorta dos valores donde el
+plan estimaba siete. No es un desvío que ocultar: `orden`, `n_afectadas`
+y `n_cambiadas` se publican los tres, y compararlos es la forma de ver
+el efecto de la composición. Sólo el caso extremo —la acción no produce
+**ningún** efecto —también cuando el plan no trae una estimación válida—
+se registra como `fallida` con su motivo.
 
 **Esa comparación sólo lee composición cuando las dos cifras cuentan en
 la misma unidad.** `n_afectadas` cuenta en la `unidad_conteo` que el
@@ -231,15 +239,19 @@ que un mojibake —por ejemplo, uno que cita literalmente la `Ã` seguida
 de `©`— no se distingue de uno roto: se acusa, la evidencia del plan lo
 muestra antes de aplicar, y si se aplica la acción se reescribe como la
 letra que esos bytes codifican. Si la columna contiene texto así, no
-active la acción. Unos mismos bytes pueden recibir dos diagnósticos:
-`c2 80` es a la vez un carácter de control C1 y la huella de un `€` de
-Windows-1252 leído como latin-1. Cuando el plan propone reparar la
-codificación y eliminar ese control, manda la reparación —corre primero
-y restituye el `€`—, y la eliminación queda sin nada que hacer. Es la
-lectura habitual en texto real; en el caso raro de un control C1
-genuino, la reparación lo convierte en `€`. Una celda cuyo texto no se
-puede leer —declarada `bytes` con bytes que no son UTF-8, o sin marca en
-una sesión UTF-8, que es lo que deja
+active la acción. Unos mismos bytes pueden parecer un control: el
+segundo byte de una «Á» mal leída es un C1, el de una «í» un guion
+blando, y `c2 80` es la huella de un euro de Windows-1252 leído como
+latin-1. Lo que la reparación reemplaza no cuenta como carácter
+invisible y ninguna otra acción del plan lo toca: aunque se desmarque
+`reparar_codificacion`, la secuencia queda entera y el perfil siguiente
+la sigue encontrando. Lo mismo si el motor no puede reparar la celda:
+sus letras rotas quedan como están. Los controles que la reparación deja
+como están, como un U+0081 suelto o un guion blando fuera de una letra
+rota, se diagnostican y se quitan, también en una celda con mojibake. El
+perfil cuenta un invisible sólo donde la acción puede quitarlo. Una
+celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
+son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja
 [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no
 la midió y la informa como `codificacion_invalida`, cuyo remedio es

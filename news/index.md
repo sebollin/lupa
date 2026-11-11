@@ -108,6 +108,11 @@
   500 filas y 1.000 columnas iguales, de 379 a 387 s pasa a 28 a 30 s
   (los 2 CSV fechados de `benchmark/medir_topes_valores_ancho.R` en
   `benchmark/datos/`).
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  repara una sola vez cada valor mal codificado: lo reparaban, por
+  separado, el diagnóstico de la codificación y el armado de los
+  hallazgos. En una columna de 100.000 valores distintos con mojibake
+  tarda una cuarta parte menos.
 
 ### Requisitos
 
@@ -1043,6 +1048,71 @@
   [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
   [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html),
   una o dos por corrida.
+- [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  y
+  [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  recomiendan para cada factor de AGESIC la vía que el paquete
+  implementa. Para «No-contradicción» decían «Requiere un backend o
+  referencial especializado que no integra esta versión.», aunque
+  `EntidadContradictoria` está implementada. La indicación
+  (`como_resolverlo`) sale ahora de las métricas que
+  [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md)
+  marca implementadas o por agregación: una receta por métrica, con la
+  cadena entera
+  ([`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+  [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)), el
+  contrato en la llamada que lo recibe y cada propiedad con el nombre
+  que el código acepta. Varias venían mal desde 0.1.0: mandaban a
+  instanciar una métrica sin especializarla, a escribir `método`,
+  «expresión», `Comprension` o `dominio`, a declarar
+  [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+  en las métricas de oportunidad por atributo, que no la aceptan, o a
+  crear `referencial(completo = TRUE)` sin `alcance`, que aborta. El
+  texto y la prueba que recorre cada receta hasta una medición salen de
+  los mismos pasos.
+- Un carácter que es un byte de una letra mal codificada ya no cuenta
+  como invisible, y ninguna acción del plan lo toca salvo la reparación.
+  El texto UTF-8 leído como latin-1 deja, en el segundo byte de muchas
+  letras, un control C1 («Á» queda `Ã` más U+0081), un guion blando
+  («í», U+00AD) o un espacio duro («à», U+00A0); y un C1 suelto puede
+  ser un carácter de Windows-1252 (U+0080 por `€`).
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  publicaba `controles_invisibles` además de `codificacion_rota` por un
+  solo defecto. Si en el plan se desmarcaba `reparar_codificacion`,
+  `eliminar_controles_invisibles` y `normalizar_espacios_invisibles`
+  borraban ese byte y dejaban «MarÃa» o «ÃREA», ya sin arreglo y sin
+  hallazgo. Con las dos acciones marcadas,
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  registraba `fallida` la eliminación, que no tenía nada que hacer.
+  Ahora las posiciones protegidas salen de la misma reparación, y
+  `recortar_espacios`, `reemplazar_separadores` y
+  `decodificar_entidades_html` también las respetan. Si el motor no
+  puede reparar una celda, sus letras rotas tampoco las toca ninguna
+  acción, y la celda sigue señalada. Un control que la reparación deja
+  como está, como un U+0081 suelto o un guion blando junto a una letra
+  rota, se sigue detectando y quitando. El perfil cuenta un invisible
+  sólo donde la acción puede quitarlo, así que el plan no ofrece una
+  acción que después termina `fallida`.
+- [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  corre `reparar_codificacion` antes que las demás acciones de su
+  columna, aunque el `orden` editado la ponga después. Con el orden por
+  omisión ya era así. Si se la reordenaba detrás de
+  `convertir_mayusculas`, la conversión operaba sobre el mojibake:
+  «María» mal leída quedaba «MARíA», con la letra reparada en minúscula.
+- Las acciones de texto de
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y los detectores de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  leen bien las celdas declaradas `latin1` que tienen un byte de 0x80 a
+  0x9F. R traduce `latin1` como Windows-1252, que no define 0x81, 0x8D,
+  0x8F, 0x90 ni 0x9D: `recortar_espacios` fallaba con «input string is
+  invalid UTF-8» y la columna quedaba sin recortar, y otros detectores
+  avisaban o leían esos bytes como el texto `<81>`. Es lo que deja un
+  CSV de Windows-1252 leído con `encoding = "latin1"`, o uno en UTF-8
+  leído así: «ÁREA» (`C3 81`) ahora se repara. Una celda que una acción
+  cambia queda en UTF-8, como documenta
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
 
 ## lupa 0.1.0
 

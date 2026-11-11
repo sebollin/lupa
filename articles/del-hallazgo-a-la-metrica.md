@@ -372,7 +372,7 @@ que el perfil examina por su cuenta. Lo que falta trae cómo resolverlo:
 
 sintaxis <- cobertura$factor == "Correctitud sintáctica"
 writeLines(cobertura$como_resolverlo[sintaxis])
-#> Especializar Formato con expresión, diccionario o validador.
+#> Aplicar `especializar()` a `metricas_nucleo()$Formato` con `expresion_regular`, o bien `diccionario`, o bien `validador`; luego `instanciar()` sobre un atributo; después `medir()`.
 ```
 
 ## Resumen
