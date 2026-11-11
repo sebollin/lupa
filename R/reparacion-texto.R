@@ -168,6 +168,315 @@ names(.ftfy_tablas_bytes) <- c(
   patron <- if (isTRUE(usar_extensiones)) .ftfy_badness_re else .ftfy_badness_re_ftfy
   grepl(patron, x, perl = TRUE)
 }
+.ftfy_mascara_mojibake <- function(x, usar_extensiones = TRUE) {
+  salida <- rep(FALSE, length(x))
+  presentes <- !is.na(x) & nzchar(x)
+  if (!any(presentes)) return(salida)
+  indices <- which(presentes)
+  no_ascii <- grepl(
+    "[^\\x00-\\x7f]", x[indices], perl = TRUE
+  )
+  if (!any(no_ascii)) return(salida)
+  indices <- indices[no_ascii]
+  patron <- if (isTRUE(usar_extensiones)) .ftfy_badness_re else .ftfy_badness_re_ftfy
+  salida[indices] <- grepl(patron, x[indices], perl = TRUE)
+  salida
+}
+.ftfy_patron_candidatos_rapido <- paste0(
+  "(?:[^\\x00-\\x7f][^\\x00-\\x7f]|",
+  paste0("[", paste0(intToUtf8(c(0xc2L, 0xc3L), multiple = TRUE), collapse = ""), "] "), "|[",
+  paste0(intToUtf8(0x80L:0x9fL, multiple = TRUE), collapse = ""), "])"
+)
+.ftfy_mascara_candidatos <- function(x, usar_extensiones = TRUE) {
+  salida <- rep(FALSE, length(x))
+  presentes <- !is.na(x)
+  rapidos <- presentes & grepl(
+    .ftfy_patron_candidatos_rapido, x, perl = TRUE
+  )
+  reemplazos <- presentes & grepl("\uFFFD", x, fixed = TRUE)
+  indices <- which(rapidos)
+  if (length(indices)) {
+    salida[indices] <- .ftfy_mascara_mojibake(
+      x[indices], usar_extensiones = usar_extensiones
+    )
+  }
+  salida | reemplazos
+}
+.ftfy_umbral_mascara_lcs <- 256L
+.ftfy_mascara_lcs <- function(entrada, salida) {
+  n <- length(entrada)
+  m <- length(salida)
+  if (!n) return(logical())
+  if (!m) return(rep(TRUE, n))
+  if (max(n, m) > .ftfy_umbral_mascara_lcs) return(rep(TRUE, n))
+
+  # La tabla contiene la longitud de la LCS de cada prefijo. El recorrido
+  # hacia atras solo marca un punto cuando ambos prefijos terminan en el mismo
+  # punto; por construccion, los pares quedan en orden y alcanzan la longitud
+  # maxima de una subsecuencia comun.
+  tabla <- matrix(0L, nrow = n + 1L, ncol = m + 1L)
+  for (i in seq_len(n)) {
+    for (j in seq_len(m)) {
+      if (identical(entrada[[i]], salida[[j]])) {
+        tabla[i + 1L, j + 1L] <- tabla[i, j] + 1L
+      } else {
+        tabla[i + 1L, j + 1L] <- max(tabla[i, j + 1L], tabla[i + 1L, j])
+      }
+    }
+  }
+  alineadas <- rep(FALSE, n)
+  x <- n
+  y <- m
+  while (x > 0L && y > 0L) {
+    if (identical(entrada[[x]], salida[[y]])) {
+      alineadas[[x]] <- TRUE
+      x <- x - 1L
+      y <- y - 1L
+    } else if (tabla[x, y + 1L] >= tabla[x + 1L, y]) {
+      x <- x - 1L
+    } else {
+      y <- y - 1L
+    }
+  }
+  !alineadas
+}
+.ftfy_mascara_mojibake_consumida <- function(entrada,
+                                             usar_extensiones = TRUE) {
+  n <- length(entrada)
+  if (!n) return(logical())
+  texto <- tryCatch(intToUtf8(entrada), error = function(e) NULL)
+  if (is.null(texto) || !validUTF8(texto)) return(rep(FALSE, n))
+  patron <- if (isTRUE(usar_extensiones)) .ftfy_badness_re else
+    .ftfy_badness_re_ftfy
+  posiciones <- gregexpr(patron, texto, perl = TRUE)[[1L]]
+  if (!length(posiciones) || identical(posiciones[[1L]], -1L)) {
+    return(rep(FALSE, n))
+  }
+  largos <- attr(posiciones, "match.length")
+  encontrados <- regmatches(texto, list(posiciones))[[1L]]
+  salida <- rep(FALSE, n)
+  # Las posiciones son de puntos de codigo, no de bytes. La alineacion local
+  # quita del match los controles que el reparador no consume, por ejemplo un
+  # guion blando genuino al final de un tramo largo.
+  for (i in seq_along(encontrados)) {
+    reparado <- .ftfy_reparar_uno(
+      encontrados[[i]], usar_extensiones_inicial = usar_extensiones
+    )
+    if (length(reparado$texto) != 1L || is.na(reparado$texto) ||
+        identical(reparado$texto, encontrados[[i]])) next
+    inicio <- posiciones[[i]]
+    fin <- min(n, inicio + largos[[i]] - 1L)
+    if (inicio < 1L || fin < inicio) next
+    entrada <- .codigos_decodificables(encontrados[[i]])
+    salida_local <- .codigos_decodificables(reparado$texto)
+    if (is.null(entrada) || is.null(salida_local)) next
+    local <- if (max(length(entrada), length(salida_local)) >
+                 .ftfy_umbral_mascara_lcs) {
+      .ftfy_mascara_continuaciones_utf8(entrada)
+    } else {
+      .ftfy_mascara_lcs(entrada, salida_local)
+    }
+    if (length(local) == fin - inicio + 1L) {
+      salida[inicio:fin] <- salida[inicio:fin] | local
+    }
+  }
+  salida
+}
+.ftfy_mascara_continuaciones_utf8 <- function(entrada) {
+  n <- length(entrada)
+  salida <- rep(FALSE, n)
+  if (!n) return(salida)
+  inicios <- which(entrada >= 0xC2L & entrada <= 0xF4L)
+  if (!length(inicios)) return(salida)
+  for (inicio in inicios) {
+    longitud <- if (entrada[[inicio]] <= 0xDFL) {
+      1L
+    } else if (entrada[[inicio]] <= 0xEFL) {
+      2L
+    } else {
+      3L
+    }
+    for (desplazamiento in seq_len(longitud)) {
+      posicion <- inicio + desplazamiento
+      if (posicion > n || !entrada[[posicion]] %in% 0x80L:0xBFL) break
+      salida[[posicion]] <- TRUE
+    }
+  }
+  salida
+}
+.ftfy_mascara_respaldo <- function(entrada, usar_extensiones = TRUE) {
+  .ftfy_mascara_mojibake_consumida(entrada, usar_extensiones) |
+    .ftfy_mascara_continuaciones_utf8(entrada)
+}
+.ftfy_mascara_no_alineada_tramo <- function(entrada, salida) {
+  n <- length(entrada)
+  if (!n) return(logical())
+  if (max(n, length(salida)) > .ftfy_umbral_mascara_lcs) {
+    # Sin una tabla acotada, las coincidencias del detector separan lo que el
+    # motor puede consumir de los controles genuinos que deja como estan.
+    return(.ftfy_mascara_respaldo(entrada))
+  }
+  .ftfy_mascara_lcs(entrada, salida)
+}
+.ftfy_mascara_no_alineada <- function(entrada, salida) {
+  n <- length(entrada)
+  m <- length(salida)
+  if (!n) return(logical())
+  ascii_entrada <- which(entrada <= 0x7fL)
+  ascii_salida <- which(salida <= 0x7fL)
+  # La reparacion puede consumir un espacio ASCII en `restore_byte_a0`, o un
+  # signo ASCII en una secuencia con perdida, y no crea ASCII nuevo. Si las
+  # dos secuencias ASCII coinciden, ninguna se consumio y cada una es un
+  # ancla exacta: la alineacion cara corre solo entre dos anclas, y el costo
+  # queda lineal en el largo de la celda aunque tenga muchas letras rotas.
+  # Sin anclas comunes, una celda corta usa la misma LCS acotada y una larga se
+  # protege entera: del lado seguro no se quita ninguna posicion que la
+  # reparacion pueda necesitar.
+  if (!length(ascii_entrada) || !length(ascii_salida) ||
+      length(ascii_entrada) != length(ascii_salida) ||
+      !identical(entrada[ascii_entrada], salida[ascii_salida])) {
+    return(.ftfy_mascara_no_alineada_tramo(entrada, salida))
+  }
+  protegidas <- rep(FALSE, n)
+  inicio_entrada <- 1L
+  inicio_salida <- 1L
+  for (i in seq_along(ascii_entrada)) {
+    fin_entrada <- ascii_entrada[[i]] - 1L
+    fin_salida <- ascii_salida[[i]] - 1L
+    if (inicio_entrada <= fin_entrada) {
+      tramo_salida <- if (inicio_salida <= fin_salida) {
+        salida[inicio_salida:fin_salida]
+      } else {
+        integer()
+      }
+      protegidas[inicio_entrada:fin_entrada] <-
+        .ftfy_mascara_no_alineada_tramo(
+          entrada[inicio_entrada:fin_entrada], tramo_salida
+        )
+    }
+    inicio_entrada <- ascii_entrada[[i]] + 1L
+    inicio_salida <- ascii_salida[[i]] + 1L
+  }
+  if (inicio_entrada <= n) {
+    tramo_salida <- if (inicio_salida <= m) salida[inicio_salida:m] else integer()
+    protegidas[inicio_entrada:n] <- .ftfy_mascara_no_alineada_tramo(
+      entrada[inicio_entrada:n], tramo_salida
+    )
+  }
+  protegidas
+}
+
+# La mascara sale de la salida del reparador, no de una copia de sus reglas.
+# Marca los puntos de la entrada que no pueden alinearse con la salida y que,
+# por tanto, la reparacion consumio o reemplazo. Solo se calcula cuando hay un
+# punto del rango que alguna accion de invisibles puede tocar.
+.ftfy_posiciones_consumidas <- function(texto, reparado = NULL,
+                                        consumidas = NULL,
+                                        estado = NULL,
+                                        max_iteraciones = 20L) {
+  entrada <- .codigos_decodificables(texto)
+  if (is.null(entrada)) return(logical())
+  if (!any(entrada %in% 0x80L:0xBFL) &&
+      (is.null(consumidas) || !any(consumidas))) {
+    return(rep(FALSE, length(entrada)))
+  }
+  if (is.null(reparado)) {
+    resultado <- .ftfy_reparar_uno(
+      texto, max_iteraciones = max_iteraciones
+    )
+    reparado <- resultado$texto
+    estado <- resultado$estado
+  }
+  if (length(reparado) != 1L || is.na(reparado)) {
+    return(rep(FALSE, length(entrada)))
+  }
+  if (identical(reparado, texto) || identical(estado, "reparado_parcialmente") ||
+      .ftfy_es_mojibake(reparado) ||
+      grepl("\uFFFD", reparado, fixed = TRUE)) {
+    mascara <- .ftfy_mascara_respaldo(entrada)
+    if (!is.null(consumidas) && length(consumidas) == length(mascara)) {
+      mascara <- mascara | consumidas
+    }
+    # Un C1 que la reparacion deja como esta (sin equivalente en
+    # Windows-1252, suelto) es un control genuino: se cuenta y se quita, como
+    # siempre. Quitarlo resuelve el defecto que el hallazgo de codificacion
+    # senalaba, asi que ese hallazgo puede no volver en el perfil siguiente.
+    return(mascara)
+  }
+  salida <- .codigos_decodificables(reparado)
+  if (is.null(salida)) return(rep(FALSE, length(entrada)))
+  mascara <- .ftfy_mascara_no_alineada(entrada, salida)
+  if (!is.null(consumidas) && length(consumidas) == length(mascara)) {
+    mascara <- mascara | consumidas
+  }
+  mascara
+}
+.ftfy_posiciones_consumidas_vector <- function(textos, codificacion = NULL,
+                                               max_iteraciones = 20L,
+                                               solo = NULL) {
+  n <- length(textos)
+  salida <- vector("list", n)
+  if (!n) return(salida)
+  if (is.null(solo)) {
+    solo <- rep(TRUE, n)
+  } else if (length(solo) != n) {
+    solo <- rep(FALSE, n)
+  } else {
+    solo <- !is.na(solo) & solo
+  }
+  if (!any(solo)) return(salida)
+  usa_subconjunto <- is.null(codificacion)
+  if (usa_subconjunto) {
+    codificacion <- .analizar_codificacion(
+      textos[solo], max_iteraciones = max_iteraciones
+    )
+    valores <- codificacion$valores
+    if (is.null(valores)) valores <- textos[solo]
+    candidatos <- codificacion$candidatos
+    reparados <- codificacion$reparados
+    estados <- codificacion$estados
+    consumidas_valores <- codificacion$consumidas
+    indices <- match(textos[solo], valores)
+    posiciones <- which(solo)
+  } else {
+    valores <- codificacion$valores
+    if (is.null(valores)) valores <- textos
+    candidatos <- codificacion$candidatos_valores
+    if (is.null(candidatos)) candidatos <- codificacion$candidatos
+    reparados <- codificacion$reparados_valores
+    if (is.null(reparados)) reparados <- codificacion$reparados
+    estados <- codificacion$estados_valores
+    if (is.null(estados)) estados <- codificacion$estados
+    consumidas_valores <- codificacion$consumidas_valores
+    if (is.null(consumidas_valores)) consumidas_valores <- codificacion$consumidas
+    indices <- match(textos, valores)
+    posiciones <- which(solo)
+  }
+  if (length(valores) != length(candidatos) ||
+      length(valores) != length(reparados)) {
+    return(salida)
+  }
+  cache <- vector("list", length(valores))
+  calculadas <- rep(FALSE, length(valores))
+  for (i in posiciones) {
+    j <- if (usa_subconjunto) indices[[match(i, posiciones)]] else indices[[i]]
+    if (is.na(j) || !isTRUE(candidatos[[j]]) ||
+        is.na(reparados[[j]])) {
+      next
+    }
+    if (!calculadas[[j]]) {
+      cache[[j]] <- .ftfy_posiciones_consumidas(
+        valores[[j]], reparado = reparados[[j]],
+        consumidas = if (length(consumidas_valores)) consumidas_valores[[j]],
+        estado = if (length(estados)) estados[[j]],
+        max_iteraciones = max_iteraciones
+      )
+      calculadas[[j]] <- TRUE
+    }
+    salida[[i]] <- cache[[j]]
+  }
+  salida
+}
 .ftfy_codificar <- function(texto, tabla, permitir_perdida = FALSE) {
   cps <- utf8ToInt(texto)
   if (anyNA(cps)) return(NULL)
@@ -309,6 +618,8 @@ names(.ftfy_tablas_bytes) <- c(
   if (is.null(bytes) || !length(bytes)) return(NULL)
   valores <- as.integer(bytes)
   n <- length(valores)
+  origen <- seq_len(n)
+  consumidas <- logical(n)
   # Este bucle era cuadratico por dos lados a la vez, y sobre un texto roto de
   # 160 KB hacia que `perfilar()` tardara 65 s sobre una tabla de tres filas:
   #
@@ -321,6 +632,7 @@ names(.ftfy_tablas_bytes) <- c(
   # de escritura; y la comparacion mira `valores` en su lugar, con
   # desplazamiento, sin copiar nada.
   salida <- integer(3L * n)
+  origen_salida <- integer(3L * n)
   k <- 0L
   cambiado <- FALSE
   # `desde` es la posicion en `valores` donde arranca la comparacion.
@@ -343,9 +655,13 @@ names(.ftfy_tablas_bytes) <- c(
           empieza_en(resto_desde, "s ")
       )
       if (!isTRUE(excluida)) {
+        consumidas[origen[i:(i + 1L)]] <- TRUE
         salida[[k + 1L]] <- 0xc3L
         salida[[k + 2L]] <- 0xa0L
         salida[[k + 3L]] <- 0x20L
+        origen_salida[[k + 1L]] <- origen[[i]]
+        origen_salida[[k + 2L]] <- origen[[i + 1L]]
+        origen_salida[[k + 3L]] <- origen[[i + 1L]]
         k <- k + 3L
         cambiado <- TRUE
         i <- i + 2L
@@ -354,9 +670,11 @@ names(.ftfy_tablas_bytes) <- c(
     }
     k <- k + 1L
     salida[[k]] <- valores[[i]]
+    origen_salida[[k]] <- origen[[i]]
     i <- i + 1L
   }
   salida <- salida[seq_len(k)]
+  origen <- origen_salida[seq_len(k)]
 
   valores <- salida
   n <- length(valores)
@@ -365,18 +683,21 @@ names(.ftfy_tablas_bytes) <- c(
     if (i + 1L <= n && valores[[i]] %in% c(0xc2L, 0xc3L, 0xc5L, 0xceL,
                                            0xd0L, 0xd9L) &&
         valores[[i + 1L]] == 0x20L) {
+      consumidas[origen[[i + 1L]]] <- TRUE
       valores[[i + 1L]] <- 0xa0L
       cambiado <- TRUE; i <- i + 2L; next
     }
     if (i + 2L <= n && valores[[i]] %in% c(0xe2L, 0xe3L) &&
         valores[[i + 1L]] == 0x20L &&
         valores[[i + 2L]] %in% c(0x80L:0x84L, 0x86L:0x9fL, 0xa1L:0xbfL)) {
+      consumidas[origen[[i + 1L]]] <- TRUE
       valores[[i + 1L]] <- 0xa0L
       cambiado <- TRUE; i <- i + 3L; next
     }
     if (i + 2L <= n && valores[[i]] %in% 0xe0L:0xe3L &&
         valores[[i + 1L]] %in% c(0x80L:0x84L, 0x86L:0x9fL, 0xa1L:0xbfL) &&
         valores[[i + 2L]] == 0x20L) {
+      consumidas[origen[[i + 2L]]] <- TRUE
       valores[[i + 2L]] <- 0xa0L
       cambiado <- TRUE; i <- i + 3L; next
     }
@@ -384,6 +705,7 @@ names(.ftfy_tablas_bytes) <- c(
         valores[[i + 1L]] == 0x20L &&
         valores[[i + 2L]] %in% 0x80L:0xbfL &&
         valores[[i + 3L]] %in% 0x80L:0xbfL) {
+      consumidas[origen[[i + 1L]]] <- TRUE
       valores[[i + 1L]] <- 0xa0L
       cambiado <- TRUE; i <- i + 4L; next
     }
@@ -391,6 +713,7 @@ names(.ftfy_tablas_bytes) <- c(
         valores[[i + 1L]] %in% 0x80L:0xbfL &&
         valores[[i + 2L]] == 0x20L &&
         valores[[i + 3L]] %in% 0x80L:0xbfL) {
+      consumidas[origen[[i + 2L]]] <- TRUE
       valores[[i + 2L]] <- 0xa0L
       cambiado <- TRUE; i <- i + 4L; next
     }
@@ -398,13 +721,16 @@ names(.ftfy_tablas_bytes) <- c(
         valores[[i + 1L]] %in% 0x80L:0xbfL &&
         valores[[i + 2L]] %in% 0x80L:0xbfL &&
         valores[[i + 3L]] == 0x20L) {
+      consumidas[origen[[i + 3L]]] <- TRUE
       valores[[i + 3L]] <- 0xa0L
       cambiado <- TRUE; i <- i + 4L; next
     }
     i <- i + 1L
   }
   if (!cambiado) return(NULL)
-  as.raw(valores)
+  salida <- as.raw(valores)
+  attr(salida, "ftfy_consumidas") <- consumidas
+  salida
 }
 .ftfy_fix_c1_controls <- function(texto) {
   cps <- utf8ToInt(texto)
@@ -560,9 +886,15 @@ names(.ftfy_tablas_bytes) <- c(
       reparados <- if (nombre == "sloppy-windows-1250") NULL else
         .ftfy_restaurar_a0(bytes)
       if (!is.null(reparados)) {
+        consumidas <- attr(reparados, "ftfy_consumidas")
         bytes <- reparados
+        attr(bytes, "ftfy_consumidas") <- NULL
         pasos_transcodificacion <- c(pasos_transcodificacion, "restore_byte_a0")
+      } else {
+        consumidas <- NULL
       }
+    } else {
+      consumidas <- NULL
     }
     if (es_sloppy) {
       reemplazados <- .ftfy_replace_lossy_sequences(bytes)
@@ -582,7 +914,7 @@ names(.ftfy_tablas_bytes) <- c(
         }
         sufijo <- paste(c(paste0("encode:", nombre), pasos_transcodificacion,
                           decodificador), collapse = ";")
-        return(list(texto = salida, paso = sufijo))
+        return(list(texto = salida, paso = sufijo, consumidas = consumidas))
       }
     }
   }
@@ -607,11 +939,13 @@ names(.ftfy_tablas_bytes) <- c(
 .ftfy_reparar_uno <- function(x, max_iteraciones = 20L,
                               usar_extensiones_inicial = TRUE) {
   if (length(x) != 1L) {
-    return(list(texto = NA_character_, pasos = character(), estado = "sin_texto"))
+    return(list(texto = NA_character_, pasos = character(), estado = "sin_texto",
+                consumidas = logical()))
   }
   valor <- as.character(x)
   if (is.na(valor) || !nzchar(valor)) {
-    return(list(texto = valor, pasos = character(), estado = "sin_texto"))
+    return(list(texto = valor, pasos = character(), estado = "sin_texto",
+                consumidas = logical()))
   }
   # Lo que no declara codificacion y es UTF-8 valido se MARCA antes de
   # `enc2utf8()`, que sobre un `unknown` consulta `LC_CTYPE`: bajo `C` escapaba
@@ -620,6 +954,8 @@ names(.ftfy_tablas_bytes) <- c(
   # Es la declaracion de la normalizacion, `.declarar_utf8_valido()`.
   actual <- enc2utf8(.declarar_utf8_valido(valor))
   pasos <- character()
+  consumidas <- logical(length(utf8ToInt(actual)))
+  primera_pasada <- TRUE
   usar_extensiones <- isTRUE(usar_extensiones_inicial)
   if (!.ftfy_es_mojibake(actual)) {
     # Se devuelve el ORIGINAL, no el resultado de `enc2utf8()`.
@@ -634,7 +970,8 @@ names(.ftfy_tablas_bytes) <- c(
     # La invariante que esto fija es la que el estado promete: si no se reparo,
     # no se cambia.
     return(list(texto = valor, pasos = pasos,
-                estado = if (length(pasos)) "reparado" else "no_parece_roto"))
+                estado = if (length(pasos)) "reparado" else "no_parece_roto",
+                consumidas = consumidas))
   }
   tope <- max(1L, as.integer(max_iteraciones[[1L]]))
   for (i in seq_len(min(tope, 20L))) {
@@ -670,6 +1007,11 @@ names(.ftfy_tablas_bytes) <- c(
       break
     }
     if (identical(paso$texto, actual)) break
+    if (isTRUE(primera_pasada) && !is.null(paso$consumidas) &&
+        length(paso$consumidas) == length(consumidas)) {
+      consumidas <- consumidas | paso$consumidas
+    }
+    primera_pasada <- FALSE
     actual <- paso$texto
     pasos <- c(pasos, paso$paso)
     if (!.ftfy_es_mojibake(actual, usar_extensiones)) break
@@ -688,7 +1030,7 @@ names(.ftfy_tablas_bytes) <- c(
   # se devuelve es el que entro, sin la normalizacion de `enc2utf8()` que en un
   # locale C corrompe los bytes invalidos.
   if (!length(pasos)) actual <- valor
-  list(texto = actual, pasos = pasos, estado = estado)
+  list(texto = actual, pasos = pasos, estado = estado, consumidas = consumidas)
 }
 .ftfy_estado_agregado <- function(estados) {
   estados <- estados[!is.na(estados)]
@@ -700,16 +1042,30 @@ names(.ftfy_tablas_bytes) <- c(
   if (any(estados == "reparado")) return("reparado")
   "no_se_pudo"
 }
-.analizar_codificacion <- function(textos) {
+.analizar_codificacion <- function(textos, max_iteraciones = 20L) {
   valores <- as.character(textos)
   reparados <- rep(NA_character_, length(valores))
   estados <- rep(NA_character_, length(valores))
   pasos <- vector("list", length(valores))
-  candidatos <- which(!is.na(valores) & (vapply(valores, .ftfy_es_mojibake, logical(1L)) |
-    grepl("\uFFFD", valores, fixed = TRUE)))
+  consumidas <- vector("list", length(valores))
+  # El hallazgo `codificacion_rota` se publica: lo decide el detector
+  # completo, sin el prefiltro de `.ftfy_mascara_candidatos()`. El prefiltro
+  # cubre toda celda que la reparacion cambia, que es lo que necesitan las
+  # protecciones de `aplicar()`, pero no toda celda que el detector marca
+  # ("\u0153 " es una).
+  presentes <- !is.na(valores)
+  detectados <- rep(FALSE, length(valores))
+  if (any(presentes)) {
+    detectados[presentes] <- .ftfy_mascara_mojibake(valores[presentes])
+  }
+  detectados <- detectados |
+    (presentes & grepl("\uFFFD", valores, fixed = TRUE))
+  candidatos <- which(detectados)
   if (length(candidatos)) {
     unicos <- unique(valores[candidatos])
-    resultados <- lapply(unicos, .ftfy_reparar_uno)
+    resultados <- lapply(
+      unicos, .ftfy_reparar_uno, max_iteraciones = max_iteraciones
+    )
     con_perdida <- grepl("\uFFFD", unicos, fixed = TRUE)
     if (any(con_perdida)) {
       resultados[con_perdida] <- lapply(which(con_perdida), function(i) {
@@ -725,6 +1081,7 @@ names(.ftfy_tablas_bytes) <- c(
     reparados[candidatos] <- vapply(resultados[mapa], function(z) z[["texto"]], character(1L))
     estados[candidatos] <- vapply(resultados[mapa], function(z) z[["estado"]], character(1L))
     pasos[candidatos] <- lapply(resultados[mapa], function(z) z[["pasos"]])
+    consumidas[candidatos] <- lapply(resultados[mapa], function(z) z[["consumidas"]])
   }
   reparables <- !is.na(reparados) & !is.na(valores) & reparados != valores & estados == "reparado"
   parciales <- !is.na(reparados) & !is.na(valores) & reparados != valores & estados == "reparado_parcialmente"
@@ -746,6 +1103,7 @@ names(.ftfy_tablas_bytes) <- c(
        n_reparables_parcialmente = sum(parciales), n_irreparables = sum(irreparables),
        n_no_se_pudo = sum(estados == "no_se_pudo", na.rm = TRUE), evidencia = evidencia,
        reparados = reparados, estados = estados, pasos = pasos,
-       afectados = afectados,
+       afectados = afectados, candidatos = detectados, valores = valores,
+       consumidas = consumidas,
        estado = .ftfy_estado_agregado(estados))
 }

@@ -1669,25 +1669,35 @@
   partes
 }
 
-.analizar_codificacion_vocabulario <- function(textos, valores = NULL) {
+.analizar_codificacion_vocabulario <- function(textos, valores = NULL,
+                                              max_iteraciones = 20L,
+                                              con_cache = FALSE) {
   if (!is.null(valores) && length(textos) > 1L &&
       length(valores) / length(textos) > .umbral_vocabulario_codificacion) {
-    return(.analizar_codificacion(textos))
+    return(.analizar_codificacion(
+      textos, max_iteraciones = max_iteraciones
+    ))
   }
   vocabulario <- .vocabulario_texto(
     textos, .umbral_vocabulario_codificacion, valores = valores
   )
   if (!isTRUE(vocabulario$usar)) {
-    return(.analizar_codificacion(textos))
+    return(.analizar_codificacion(
+      textos, max_iteraciones = max_iteraciones
+    ))
   }
-  unico <- .analizar_codificacion(vocabulario$valores)
+  unico <- .analizar_codificacion(
+    vocabulario$valores, max_iteraciones = max_iteraciones
+  )
   reparados <- rep(NA_character_, length(textos))
   estados <- rep(NA_character_, length(textos))
   pasos <- vector("list", length(textos))
+  consumidas <- vector("list", length(textos))
   presentes <- !is.na(vocabulario$indices)
   reparados[presentes] <- unico$reparados[vocabulario$indices[presentes]]
   estados[presentes] <- unico$estados[vocabulario$indices[presentes]]
   pasos[presentes] <- unico$pasos[vocabulario$indices[presentes]]
+  consumidas[presentes] <- unico$consumidas[vocabulario$indices[presentes]]
   reparables <- !is.na(reparados) & !is.na(textos) &
     reparados != textos & estados == "reparado"
   parciales <- !is.na(reparados) & !is.na(textos) &
@@ -1704,15 +1714,31 @@
       paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
     }
   }, character(1L)), collapse = "; ")
-  list(
+  candidatos_expandidos <- rep(FALSE, length(textos))
+  candidatos_expandidos[presentes] <-
+    unico$candidatos[vocabulario$indices[presentes]]
+  salida <- list(
     n = sum(afectados), n_reparables = sum(reparables),
     n_reparables_parcialmente = sum(parciales),
     n_irreparables = sum(irreparables),
     n_no_se_pudo = sum(estados == "no_se_pudo", na.rm = TRUE),
     evidencia = evidencia, reparados = reparados, estados = estados,
     pasos = pasos, afectados = afectados,
+    candidatos = candidatos_expandidos, valores = as.character(textos),
+    consumidas = consumidas,
     estado = .ftfy_estado_agregado(estados)
   )
+  if (isTRUE(con_cache)) {
+    # Estos campos conservan la salida sin expandir para que la mascara de
+    # invisibles la alinee con el mismo vocabulario sin volver a reparar. El
+    # resto del resultado sigue alineado a `textos` para los conteos publicados.
+    salida$valores <- vocabulario$valores
+    salida$candidatos_valores <- unico$candidatos
+    salida$reparados_valores <- unico$reparados
+    salida$estados_valores <- unico$estados
+    salida$consumidas_valores <- unico$consumidas
+  }
+  salida
 }
 
 # El texto de una celda en la forma con que se lo lee como numero: declarado
@@ -2314,7 +2340,7 @@
   codigos %in% .codigos_control_invisible_set
 }
 
-.predicados_invisibles <- function(textos) {
+.predicados_invisibles <- function(textos, codificacion = NULL) {
   n <- length(textos)
   salida <- list(
     control = rep(FALSE, n), eliminable = rep(FALSE, n),
@@ -2330,17 +2356,70 @@
   ))) {
     return(salida)
   }
+  consumidos_por_celda <- .ftfy_posiciones_consumidas_vector(
+    textos, codificacion = codificacion
+  )
   for (i in seq_len(n)) {
     texto <- textos[[i]]
     if (is.na(texto)) next
     # .texto_analizable() sanea los bytes UTF-8 inválidos antes de llegar
     # aquí; por eso esta única pasada no necesita un tryCatch por predicado.
     codigos <- utf8ToInt(texto)
-    salida$control[[i]] <- any(codigos %in% .codigos_control_invisible_set)
-    salida$eliminable[[i]] <- any(codigos %in% .codigos_control_eliminable_set)
-    salida$espacio[[i]] <- any(codigos %in% .codigos_espacios_invisibles)
-    salida$significativo[[i]] <- any(codigos %in% .codigos_invisibles_significativos)
-    salida$separador[[i]] <- any(codigos %in% .codigos_salto_linea_set)
+    consumidos <- consumidos_por_celda[[i]]
+    if (is.null(consumidos) || length(consumidos) != length(codigos)) {
+      consumidos <- rep(FALSE, length(codigos))
+    }
+    no_ascii <- codigos > 0x7fL
+    solo_c1 <- any(codigos %in% 0x80L:0x9fL) &&
+      all(codigos[no_ascii] %in% 0x80L:0x9fL) &&
+      identical(.ftfy_reparar_uno(texto)$estado, "no_se_pudo")
+    salida$control[[i]] <- any(
+      .codigos_control_invisible(codigos) & (!consumidos | solo_c1)
+    )
+    proteccion <- list(
+      candidatos = .ftfy_mascara_candidatos(texto),
+      mascaras = list(consumidos)
+    )
+    candidato_inicial <- proteccion$candidatos
+    texto_desde_codigos <- function(valores) {
+      paste0(intToUtf8(valores, multiple = TRUE), collapse = "")
+    }
+    decidir_accion <- function(afectados, transformar, valores_nuevos) {
+      if (!any(afectados)) return(FALSE)
+      candidato_nuevo <- .ftfy_mascara_candidatos(
+        texto_desde_codigos(valores_nuevos)
+      )
+      if (!isTRUE(candidato_inicial) && !isTRUE(candidato_nuevo)) {
+        return(TRUE)
+      }
+      transformar(texto, proteccion)$n > 0L
+    }
+    eliminable <- .codigos_control_eliminable(codigos) & !consumidos
+    if (any(eliminable)) {
+      salida$eliminable[[i]] <- decidir_accion(
+        eliminable, .quitar_controles_invisibles,
+        codigos[!.codigos_control_eliminable(codigos) | consumidos]
+      )
+    }
+    espacios <- codigos %in% .codigos_espacios_invisibles & !consumidos
+    if (any(espacios)) {
+      nuevos_espacios <- codigos
+      nuevos_espacios[espacios] <- 32L
+      salida$espacio[[i]] <- decidir_accion(
+        espacios, .normalizar_espacios_invisibles, nuevos_espacios
+      )
+    }
+    salida$significativo[[i]] <- any(
+      codigos %in% .codigos_invisibles_significativos & !consumidos
+    )
+    separador <- codigos %in% .codigos_salto_linea_set & !consumidos
+    if (any(separador)) {
+      nuevos_separadores <- codigos
+      nuevos_separadores[separador] <- 32L
+      salida$separador[[i]] <- decidir_accion(
+        separador, .reemplazar_separadores, nuevos_separadores
+      )
+    }
   }
   salida
 }
@@ -2600,17 +2679,24 @@
   } else {
     vocabulario
   }
+  codificacion <- .analizar_codificacion_vocabulario(
+    textos, valores = unicos, con_cache = TRUE
+  )
   if (length(textos) > 1L &&
       length(unicos) / length(textos) <= .umbral_vocabulario_barato) {
     vocabulario_barato <- .vocabulario_texto(
       textos, .umbral_vocabulario_barato, valores = unicos
     )
-    espacios_unicos <- vocabulario_barato$valores !=
-      trimws(vocabulario_barato$valores)
+    espacios_unicos <- .celdas_texto_protegidas(
+      unicos, "recortar_espacios"
+    )
     espacios <- validos &
       espacios_unicos[vocabulario_barato$indices]
   } else {
-    espacios <- validos & textos != trimws(textos)
+    espacios_unicos <- .celdas_texto_protegidas(
+      unicos, "recortar_espacios"
+    )
+    espacios <- validos & espacios_unicos[match(textos, unicos)]
   }
   # `unique()` sobre una cadena marcada `bytes` ABORTA en el minimo declarado -R
   # 4.1- con "translating strings with bytes encoding is not allowed", y estos
@@ -2669,15 +2755,9 @@
   vocabulario_predicados <- .vocabulario_texto(
     textos, .umbral_vocabulario_barato, valores = unicos
   )
-  mapear_predicado <- function(fn) {
-    evaluados <- fn(vocabulario_predicados$valores)
-    if (isTRUE(vocabulario_predicados$usar)) {
-      evaluados[vocabulario_predicados$indices]
-    } else {
-      evaluados
-    }
-  }
-  invisibles <- .predicados_invisibles(vocabulario_predicados$valores)
+  invisibles <- .predicados_invisibles(
+    vocabulario_predicados$valores, codificacion = codificacion
+  )
   mapear_resultado <- function(evaluados) {
     if (isTRUE(vocabulario_predicados$usar)) {
       evaluados[vocabulario_predicados$indices]
@@ -2690,8 +2770,15 @@
   espacios_invisibles <- mapear_resultado(invisibles$espacio)
   significativos <- mapear_resultado(invisibles$significativo)
   saltos <- mapear_resultado(invisibles$separador)
-  entidades <- mapear_predicado(.entidades_html_en_texto)
-  codificacion <- .analizar_codificacion_vocabulario(textos, valores = unicos)
+  entidades_unicas <- .celdas_texto_protegidas(
+    vocabulario_predicados$valores, "decodificar_entidades_html"
+  )
+  entidades <- mapear_resultado(entidades_unicas)
+  invisibles_cache <- list(
+    control = controles, eliminable = eliminables,
+    espacio = espacios_invisibles, significativo = significativos,
+    separador = saltos
+  )
 
   list(
     n_espacios_borde = sum(espacios),
@@ -2726,7 +2813,12 @@
     n_entidades_html = sum(entidades, na.rm = TRUE),
     evidencia_entidades_html = .evidencia_texto_visible(publicables, entidades),
     n_separadores_en_campo = sum(saltos, na.rm = TRUE),
-    evidencia_separadores_en_campo = .evidencia_texto_visible(publicables, saltos)
+    evidencia_separadores_en_campo = .evidencia_texto_visible(publicables, saltos),
+    # `.indices_hallazgo_columna()` se ejecuta despues, durante la construccion
+    # de hallazgos. Estas mascaras son el resultado de la misma pasada: volver a
+    # descubrirlas alli repetia el filtro y la alineacion sobre la columna.
+    cache_invisibles = invisibles_cache,
+    cache_codificacion_afectados = codificacion$afectados
   )
 }
 
@@ -3194,7 +3286,9 @@
   if (is.character(x_analisis_diagnostico) ||
       is.factor(x_analisis_diagnostico)) {
     espacios_completos <- !is.na(x_analisis_diagnostico) &
-      x_analisis_diagnostico != trimws(x_analisis_diagnostico)
+      .celdas_texto_protegidas(
+        as.character(x_analisis_diagnostico), "recortar_espacios"
+      )
     diagnostico_texto$n_espacios_borde <- as.integer(sum(espacios_completos))
     if (any(espacios_completos)) {
       publicables_completos <- .vista_publicable(

@@ -207,12 +207,15 @@ identical(nombres$nombre[[1]], jose_roto)
   la evidencia del plan lo muestra antes de aplicar. Si la acción se aplica, se
   reescribe como la letra que esos bytes codifican. Si la columna contiene texto
   así, la acción no se activa.
-- **Unos mismos bytes pueden recibir 2 diagnósticos.** `c2 80` es un carácter
-  de control C1. También es la huella de un `€` de Windows-1252 leído como
-  latin-1. El plan puede proponer reparar la codificación y eliminar ese control.
-  Entonces manda la reparación: corre primero y restituye el `€`, y la eliminación
-  queda sin nada que hacer. En el caso raro de un control C1 genuino, la
-  reparación lo convierte en `€`.
+- **Unos mismos bytes pueden parecer un control.** `c2 80` es un carácter de
+  control C1, y también la huella de un `€` de Windows-1252 leído como
+  latin-1. El segundo byte de una «Á» mal leída es otro C1, y el de una «í», un
+  guion blando. Lo que la reparación reemplaza no cuenta como carácter
+  invisible, y ninguna otra acción del plan lo toca. Aunque se desmarque
+  `reparar_codificacion`, la secuencia queda entera y el perfil siguiente la
+  sigue encontrando. Un control que la reparación deja como está, como un
+  U+0081 suelto, se diagnostica y se quita aparte. Y la reparación corre antes
+  que las demás acciones de su columna, sea cual sea su `orden`.
 
 El recorrido completo de un plan, con la edición de las acciones, está en
 [Limpiar con un plan](limpiar-con-un-plan.html).

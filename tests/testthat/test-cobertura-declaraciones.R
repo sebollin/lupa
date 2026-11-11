@@ -173,7 +173,8 @@ test_that("los decodificadores declaran entradas imposibles y no reparables", {
   expect_identical(lupa:::.ftfy_decode_inconsistent_utf8("texto sano"), "texto sano")
   expect_null(lupa:::.ftfy_fallback_latin1_windows1252("texto sano"))
   expect_equal(lupa:::.ftfy_reparar_uno(character()), list(
-    texto = NA_character_, pasos = character(), estado = "sin_texto"
+    texto = NA_character_, pasos = character(), estado = "sin_texto",
+    consumidas = logical()
   ))
   expect_equal(lupa:::.ftfy_reparar_uno("texto sano")$estado, "no_parece_roto")
   expect_equal(lupa:::.ftfy_estado_agregado(character()), "no_parece_roto")

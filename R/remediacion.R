@@ -1266,10 +1266,14 @@
 #' revisado de una omisión deliberada.
 #'
 #' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
-#' fija la secuencia reproducible. Si dos acciones comparten el mismo `orden`,
-#' el empate lo resuelve `id_accion`, no la posición de la fila: reordenar el
-#' plan no cambia el resultado. Y un grupo marcado como `elegida` sin ninguna
-#' acción activa se rechaza, porque no es ni una elección ni una omisión. `n_afectadas` es la estimación del perfil
+#' fija la secuencia reproducible. La acción `reparar_codificacion`, cuando está
+#' seleccionada, tiene precedencia sobre las demás acciones de su misma columna:
+#' corre primero en esa columna para que las restantes reciban texto ya
+#' decodificado, aunque su `orden` editado sea mayor. No reordena acciones de
+#' otras columnas. Entre las acciones restantes, y entre empates, el desempate lo resuelve
+#' `id_accion`, no la posición de la fila: reordenar el plan no cambia el
+#' resultado. Y un grupo marcado como `elegida` sin ninguna acción activa se
+#' rechaza, porque no es ni una elección ni una omisión. `n_afectadas` es la estimación del perfil
 #' sobre **lo que esta acción tocaría**, que puede ser menos que el conteo del
 #' hallazgo que la originó cuando la acción sólo cubre parte del caso: una
 #' columna con tres valores de codificación rota, de los cuales uno es
@@ -1284,7 +1288,10 @@
 #' **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son ciertas.**
 #' La estimación se calcula sobre los datos que se perfilaron; el registro
 #' cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
-#' esa columna, la posterior encuentra menos —o más— de lo estimado: con
+#' esa columna, la posterior encuentra menos —o más— de lo estimado. La única
+#' excepción de precedencia es `reparar_codificacion`, que se adelanta a las
+#' demás acciones de su columna para que ninguna opere sobre mojibake. Por
+#' ejemplo, con
 #' `convertir_sentinelas_numericos` (orden 110) convirtiendo tres `-999` en
 #' ausentes, `winsorizar_outliers` (orden 520) recorta dos valores donde el plan
 #' estimaba siete. No es un desvío que ocultar: `orden`, `n_afectadas` y
@@ -1384,12 +1391,16 @@
 #' muestra antes de aplicar, y si se aplica la acción se reescribe como la letra
 #' que esos bytes codifican. Si la columna contiene texto así, no active la
 #' acción.
-#' Unos mismos bytes pueden recibir dos diagnósticos: `c2 80` es a la vez un
-#' carácter de control C1 y la huella de un `€` de Windows-1252 leído como
-#' latin-1. Cuando el plan propone reparar la codificación y eliminar ese
-#' control, manda la reparación —corre primero y restituye el `€`—, y la
-#' eliminación queda sin nada que hacer. Es la lectura habitual en texto real;
-#' en el caso raro de un control C1 genuino, la reparación lo convierte en `€`.
+#' Unos mismos bytes pueden parecer un control: el segundo byte de una «Á» mal
+#' leída es un C1, el de una «í» un guion blando, y `c2 80` es la huella de un
+#' euro de Windows-1252 leído como latin-1. Lo que la reparación reemplaza no
+#' cuenta como carácter invisible y ninguna otra acción del plan lo toca:
+#' aunque se desmarque `reparar_codificacion`, la secuencia queda entera y el
+#' perfil siguiente la sigue encontrando. Lo mismo si el motor no puede reparar
+#' la celda: sus letras rotas quedan como están. Los controles que la
+#' reparación deja como están, como un U+0081 suelto o un guion blando fuera de
+#' una letra rota, se diagnostican y se quitan, también en una celda con
+#' mojibake. El perfil cuenta un invisible sólo donde la acción puede quitarlo.
 #' Una celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
 #' son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja [read.csv()]
 #' sin `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no la
@@ -3318,7 +3329,280 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   cambio
 }
 
-.celdas_que_pierden_valor <- function(anterior, nuevo) {
+# Repara solamente las celdas que una accion ya sabe que va a tocar. La
+# deteccion vectorizada evita llamar al reparador sobre texto limpio.
+.reparar_textos_seleccionados <- function(textos, seleccion) {
+  salida <- textos
+  if (!length(textos) || length(seleccion) != length(textos) ||
+      !any(seleccion, na.rm = TRUE)) {
+    return(salida)
+  }
+  indices <- which(!is.na(seleccion) & seleccion & !is.na(textos))
+  if (!length(indices)) return(salida)
+  candidatos <- .ftfy_mascara_candidatos(textos[indices])
+  if (!any(candidatos)) return(salida)
+  posiciones <- indices[candidatos]
+  reparados <- .analizar_codificacion(textos[posiciones])$reparados
+  validos <- !is.na(reparados)
+  if (any(validos)) salida[posiciones[validos]] <- reparados[validos]
+  salida
+}
+
+.proteccion_texto_valores <- function(valores, codificacion = NULL) {
+  candidatos <- .ftfy_mascara_candidatos(valores)
+  mascaras <- vector("list", length(valores))
+  indices <- which(candidatos)
+  if (length(indices)) {
+    candidatos_cod <- if (!is.null(codificacion) &&
+                          is.logical(codificacion$candidatos_valores) &&
+                          length(codificacion$candidatos_valores) == length(valores)) {
+      codificacion$candidatos_valores
+    } else if (!is.null(codificacion) &&
+               is.logical(codificacion$candidatos) &&
+               length(codificacion$candidatos) == length(valores)) {
+      codificacion$candidatos
+    } else NULL
+    reparados_cod <- if (!is.null(codificacion) &&
+                         length(codificacion$reparados_valores) == length(valores)) {
+      codificacion$reparados_valores
+    } else if (!is.null(codificacion) &&
+               length(codificacion$reparados) == length(valores)) {
+      codificacion$reparados
+    } else NULL
+    estados_cod <- if (!is.null(codificacion) &&
+                       length(codificacion$estados_valores) == length(valores)) {
+      codificacion$estados_valores
+    } else if (!is.null(codificacion) &&
+               length(codificacion$estados) == length(valores)) {
+      codificacion$estados
+    } else NULL
+    consumidas_cod <- if (!is.null(codificacion) &&
+                          length(codificacion$consumidas_valores) == length(valores)) {
+      codificacion$consumidas_valores
+    } else if (!is.null(codificacion) &&
+               length(codificacion$consumidas) == length(valores)) {
+      codificacion$consumidas
+    } else NULL
+    if (!is.null(candidatos_cod) && !is.null(reparados_cod) &&
+        !is.null(estados_cod) && !is.null(consumidas_cod)) {
+      calculadas <- lapply(indices, function(i) {
+        .ftfy_posiciones_consumidas(
+          valores[[i]], reparado = reparados_cod[[i]],
+          consumidas = consumidas_cod[[i]], estado = estados_cod[[i]]
+        )
+      })
+    } else {
+      analisis <- .analizar_codificacion(valores[indices])
+      calculadas <- .ftfy_posiciones_consumidas_vector(
+        valores[indices], codificacion = analisis
+      )
+    }
+    mascaras[indices] <- calculadas
+  }
+  list(candidatos = candidatos, mascaras = mascaras)
+}
+
+# El perfil usa la misma puerta que la accion para contar una celda. Asi una
+# guarda que protege un tramo de mojibake no puede dejar un hallazgo que luego
+# la accion no tiene permitido cambiar.
+.celdas_texto_protegidas <- function(textos, estrategia, proteccion = NULL) {
+  if (!length(textos)) return(logical())
+  candidatos <- switch(
+    estrategia,
+    recortar_espacios = !is.na(textos) & textos != trimws(textos),
+    decodificar_entidades_html = .entidades_html_en_texto(textos),
+    .detener("Estrategia de texto desconocida.", call. = FALSE)
+  )
+  salida <- rep(FALSE, length(textos))
+  indices <- which(candidatos)
+  if (!length(indices)) return(salida)
+  if (is.null(proteccion)) {
+    proteccion <- .proteccion_texto_valores(textos[indices])
+  } else if (length(proteccion$candidatos) == length(textos)) {
+    proteccion <- list(
+      candidatos = proteccion$candidatos[indices],
+      mascaras = proteccion$mascaras[indices]
+    )
+  }
+  textos_candidatos <- textos[indices]
+  cambio <- switch(
+    estrategia,
+    recortar_espacios = .recortar_texto(textos_candidatos, proteccion),
+    decodificar_entidades_html = .decodificar_entidades_html(
+      textos_candidatos, proteccion
+    ),
+    .detener("Estrategia de texto desconocida.", call. = FALSE)
+  )
+  salida[indices] <- .celdas_cambiadas(textos_candidatos, cambio$valor)
+  salida
+}
+
+.accion_fabrica_secuencia <- function(anterior, nuevo) {
+  entrada <- .codigos_decodificables(anterior)
+  salida <- .codigos_decodificables(nuevo)
+  if (is.null(entrada) || is.null(salida) || identical(anterior, nuevo)) {
+    return(FALSE)
+  }
+  antes <- .ftfy_reparar_uno(anterior)
+  despues <- .ftfy_reparar_uno(nuevo)
+  !identical(antes$estado, "reparado") &&
+    identical(despues$estado, "reparado") &&
+    !identical(despues$texto, nuevo)
+}
+
+# Protege la propiedad de que una accion de texto no cambie la lectura de la
+# reparacion. `transformar` es la accion sin mascara y `enmascarar` reconstruye
+# solo las celdas donde la accion tocaria un punto consumido por la reparacion.
+# Si la accion crea una secuencia reparable, la celda queda intacta: no se
+# puede convertir una accion elegida por el usuario en una reparacion implicita.
+.proteger_accion_texto <- function(anterior, transformar, enmascarar = NULL,
+                                  proteccion = NULL,
+                                  revisar_nuevas = "siempre") {
+  nuevo <- transformar(anterior)
+  tocar <- .celdas_cambiadas(anterior, nuevo)
+  resultado <- function(valor, cambiadas) {
+    list(valor = valor, cambiadas = cambiadas)
+  }
+  if (!any(tocar)) return(resultado(nuevo, tocar))
+  indices <- which(tocar & !is.na(anterior))
+  if (!length(indices)) return(resultado(nuevo, tocar))
+  candidatos <- if (!is.null(proteccion) &&
+                    length(proteccion$candidatos) == length(anterior)) {
+    proteccion$candidatos[indices]
+  } else {
+    .ftfy_mascara_candidatos(anterior[indices])
+  }
+  nuevas <- logical(length(indices))
+  indices_nuevas <- which(!candidatos)
+  if (length(indices_nuevas) && identical(revisar_nuevas, "siempre")) {
+    nuevas[indices_nuevas] <- .ftfy_mascara_candidatos(
+      nuevo[indices[indices_nuevas]]
+    )
+  } else if (length(indices_nuevas) && identical(revisar_nuevas, "si_hay_A")) {
+    posibles <- grepl("[\u00c2\u00c3]", nuevo[indices[indices_nuevas]], perl = TRUE)
+    if (any(posibles)) {
+      ubicaciones <- indices_nuevas[posibles]
+      nuevas[posibles] <- .ftfy_mascara_candidatos(nuevo[indices[ubicaciones]])
+    }
+  }
+  if (!any(candidatos | nuevas)) {
+    return(resultado(nuevo, tocar))
+  }
+  reparado <- .reparar_textos_seleccionados(anterior, tocar)
+  consumidos <- if (!is.null(proteccion) &&
+                    is.list(proteccion$mascaras) &&
+                    length(proteccion$mascaras) == length(anterior)) {
+    proteccion$mascaras
+  } else {
+    .ftfy_posiciones_consumidas_vector(anterior, solo = tocar)
+  }
+  protegido <- nuevo
+  proteger_entera <- rep(FALSE, length(indices))
+  for (j in seq_along(indices)) {
+    i <- indices[[j]]
+    mascara <- consumidos[[i]]
+    if ((isTRUE(candidatos[[j]]) || isTRUE(nuevas[[j]])) &&
+        (!length(mascara) || !any(mascara)) &&
+        .accion_fabrica_secuencia(anterior[[i]], nuevo[[i]])) {
+      # Si quitar el invisible vuelve reparable la celda, no hay una posicion
+      # previa que pueda enmascararse: se conserva la celda completa.
+      protegido[[i]] <- anterior[[i]]
+      proteger_entera[[j]] <- TRUE
+    }
+  }
+  if (!is.null(enmascarar)) {
+    for (j in which(!proteger_entera)) {
+      i <- indices[[j]]
+      mascara <- consumidos[[i]]
+      if (length(mascara) && any(mascara)) {
+        protegido[[i]] <- enmascarar(anterior[[i]], mascara)
+      }
+    }
+  }
+  accion_reparada <- transformar(reparado)
+  for (j in which(!proteger_entera)) {
+    i <- indices[[j]]
+    mascara <- consumidos[[i]]
+    codigos <- .codigos_decodificables(reparado[[i]])
+    if (is.null(enmascarar) || !length(mascara) || is.null(codigos) ||
+        length(mascara) != length(codigos)) next
+    accion_reparada[[i]] <- transformar(
+      enmascarar(reparado[[i]], mascara)
+    )[[1L]]
+  }
+  reparado_protegido <- .reparar_textos_seleccionados(protegido, tocar)
+  diferencias <- .celdas_cambiadas(reparado_protegido, accion_reparada)
+  if (any(diferencias)) {
+    revertir <- vapply(which(diferencias), function(i) {
+      mascara <- consumidos[[i]]
+      length(mascara) && any(mascara) &&
+        !identical(reparado[[i]], anterior[[i]])
+    }, logical(1L), USE.NAMES = FALSE)
+    if (any(revertir)) {
+      protegidos <- which(diferencias)[revertir]
+      protegido[protegidos] <- anterior[protegidos]
+    }
+  }
+  resultado(protegido, .celdas_cambiadas(anterior, protegido))
+}
+
+.preparar_protecciones_texto <- function(datos, plan, seleccion) {
+  estrategias <- c(
+    "recortar_espacios", "eliminar_controles_invisibles",
+    "normalizar_espacios_invisibles", "decodificar_entidades_html",
+    "reemplazar_separadores"
+  )
+  indices <- seleccion[plan$estrategia[seleccion] %in% estrategias &
+                         !is.na(plan$columna[seleccion])]
+  if (!length(indices)) return(list())
+  columnas <- unique(as.character(plan$columna[indices]))
+  salida <- vector("list", length(columnas))
+  nombres <- names(datos)
+  for (j in seq_along(columnas)) {
+    columna <- columnas[[j]]
+    posiciones <- which(.nombres_para_operar(nombres) %in%
+                          .nombres_para_operar(columna))
+    if (length(posiciones) != 1L) next
+    valores <- as.character(datos[[posiciones]])
+    salida[[j]] <- c(
+      list(columna = columna), .proteccion_texto_valores(valores)
+    )
+  }
+  salida[!vapply(salida, is.list, logical(1L))] <- NULL
+  if (length(salida)) names(salida) <- vapply(salida, `[[`, character(1L), "columna")
+  salida
+}
+
+.proteccion_texto_columna <- function(protecciones, columna, largo) {
+  if (is.null(protecciones) || length(columna) != 1L || is.na(columna)) {
+    return(NULL)
+  }
+  indices <- which(.nombres_para_operar(names(protecciones)) %in%
+                     .nombres_para_operar(columna))
+  if (length(indices) != 1L ||
+      length(protecciones[[indices]]$candidatos) != largo) return(NULL)
+  protecciones[[indices]]
+}
+
+.actualizar_proteccion_texto <- function(protecciones, datos, columna) {
+  if (is.null(protecciones) || length(columna) != 1L || is.na(columna)) {
+    return(protecciones)
+  }
+  indices_proteccion <- which(.nombres_para_operar(names(protecciones)) %in%
+                                .nombres_para_operar(columna))
+  indices_datos <- which(.nombres_para_operar(names(datos)) %in%
+                           .nombres_para_operar(columna))
+  if (length(indices_proteccion) != 1L || length(indices_datos) != 1L) {
+    return(protecciones)
+  }
+  protecciones[[indices_proteccion]] <- c(
+    list(columna = protecciones[[indices_proteccion]]$columna),
+    .proteccion_texto_valores(as.character(datos[[indices_datos]]))
+  )
+  protecciones
+}
+
+.celdas_que_pierden_valor <- function(anterior, nuevo, cambiadas = NULL) {
   # Cuando una accion NORMALIZA la escritura -recortar espacios, quitar un
   # control invisible, unificar mayusculas-, el valor sigue en su lugar y la
   # documentacion la exime del conteo por nombre. Pero la misma accion pierde
@@ -3336,7 +3620,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # `recortar_espacios` tenia el defecto simetrico: sobre `" ana "` y `"ana"`
   # los dos quedan `"ana"` -de cuatro distintos a tres- y el registro publicaba
   # cero irreversibles.
-  cambiadas <- .celdas_cambiadas(anterior, nuevo)
+  if (is.null(cambiadas) || length(cambiadas) != length(anterior)) {
+    cambiadas <- .celdas_cambiadas(anterior, nuevo)
+  }
   if (!any(cambiadas)) return(cambiadas)
   # Se compara sobre la CLAVE por bytes, no sobre las cadenas. En R 4.1
   # `duplicated()` y `split()` sobre una cadena marcada
@@ -3443,7 +3729,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   as.integer(sum(.celdas_que_pierden_valor(x, y)))
 }
 
-.recortar_texto <- function(x) {
+.recortar_texto <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("El recorte de espacios requiere una columna de texto.", call. = FALSE)
   }
@@ -3454,16 +3740,34 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # `ca<f1>o` declarado `bytes`, que ya no es UTF-8 valido. El destino de una
   # fila lo decidia lo que hubiera en el resto de la tanda. Se recorta cada
   # grupo por separado para que ninguna marca contamine a la vecina.
-  nuevo <- .aplicar_por_marca(
-    anterior, trimws,
-    function(v) trimws(v, whitespace = "[ \t\r\n]")
+  transformar <- function(v) .aplicar_por_marca(
+    v, trimws,
+    function(z) trimws(z, whitespace = "[ \t\r\n]")
   )
-  mascara <- .celdas_cambiadas(anterior, nuevo)
+  enmascarar <- function(texto, consumidos) {
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(texto)
+    if (is.null(consumidos) || length(consumidos) != length(codigos)) {
+      consumidos <- rep(FALSE, length(codigos))
+    }
+    quitar <- codigos %in% c(9L:13L, 32L) & !consumidos
+    conservar <- which(!quitar)
+    if (!length(conservar)) return("")
+    paste0(intToUtf8(codigos[min(conservar):max(conservar)], multiple = TRUE),
+           collapse = "")
+  }
+  protegido <- .proteger_accion_texto(
+    anterior, transformar, enmascarar, proteccion, revisar_nuevas = "nunca"
+  )
+  nuevo <- protegido$valor
+  mascara <- protegido$cambiadas
   list(valor = nuevo, n = sum(mascara),
-       n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
+       n_no_reversibles = sum(.celdas_que_pierden_valor(
+         anterior, nuevo, mascara
+       )))
 }
 
-.quitar_controles_invisibles <- function(x) {
+.quitar_controles_invisibles <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("La eliminaci\u00f3n de controles invisibles requiere una columna de texto.",
          call. = FALSE)
@@ -3475,48 +3779,70 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # con UTF-8, tres de siete valores se volvian `"NA"` al aplicar una accion
   # marcada como recomendada. No tocarlo tambien es una respuesta, y es la
   # unica honesta cuando no se puede leer el contenido.
-  nuevo <- vapply(anterior, function(texto) {
+  transformar <- function(v) vapply(v, function(texto) {
     if (is.na(texto)) return(NA_character_)
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
     conservar <- !.codigos_control_eliminable(codigos)
-    # Si no habia nada que quitar, se devuelve el texto TAL CUAL. Rearmarlo
-    # desde sus puntos de codigo lo reescribe en UTF-8 aunque no haya cambiado
-    # nada: una celda `latin1` sin ningun control perdia su declaracion y sus
-    # bytes (`f1` -> `c3 b1`) al aplicar una accion que no tenia nada que
-    # hacer en ella. Y el registro no lo contaba, porque cuenta cambios de
-    # texto y como texto era el mismo valor. Una accion de remediacion tiene
-    # que ser minima: lo que no necesita tocar, no se toca.
     if (all(conservar)) return(texto)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
-  cambio <- .celdas_cambiadas(anterior, nuevo)
+  enmascarar <- function(texto, consumidos) {
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(texto)
+    if (is.null(consumidos) || length(consumidos) != length(codigos)) {
+      consumidos <- rep(FALSE, length(codigos))
+    }
+    conservar <- !(.codigos_control_eliminable(codigos) & !consumidos)
+    if (all(conservar)) return(texto)
+    paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
+  }
+  protegido <- .proteger_accion_texto(
+    anterior, transformar, enmascarar, proteccion
+  )
+  nuevo <- protegido$valor
+  cambio <- protegido$cambiadas
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
-       n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
+       n_no_reversibles = sum(.celdas_que_pierden_valor(
+         anterior, nuevo, cambio
+       )))
 }
 
-.normalizar_espacios_invisibles <- function(x) {
+.normalizar_espacios_invisibles <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("La normalizaci\u00f3n de espacios Unicode requiere una columna de texto.",
          call. = FALSE)
   }
   anterior <- as.character(x)
-  # Mismo motivo que en `.quitar_controles_invisibles()`: lo que no se puede
-  # decodificar se deja intacto en vez de reemplazarlo por la cadena `"NA"`.
-  nuevo <- vapply(anterior, function(texto) {
+  transformar <- function(v) vapply(v, function(texto) {
     if (is.na(texto)) return(NA_character_)
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
     afectados <- codigos %in% .codigos_espacios_invisibles
-    # Mismo motivo que en `.quitar_controles_invisibles()`: sin nada que
-    # normalizar, el valor se devuelve intacto en vez de reescribirse.
     if (!any(afectados)) return(texto)
     codigos[afectados] <- 32L
     paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
-  cambio <- .celdas_cambiadas(anterior, nuevo)
+  enmascarar <- function(texto, consumidos) {
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(texto)
+    if (is.null(consumidos) || length(consumidos) != length(codigos)) {
+      consumidos <- rep(FALSE, length(codigos))
+    }
+    afectados <- codigos %in% .codigos_espacios_invisibles & !consumidos
+    if (!any(afectados)) return(texto)
+    codigos[afectados] <- 32L
+    paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
+  }
+  protegido <- .proteger_accion_texto(
+    anterior, transformar, enmascarar, proteccion, revisar_nuevas = "si_hay_A"
+  )
+  nuevo <- protegido$valor
+  cambio <- protegido$cambiadas
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
-       n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
+       n_no_reversibles = sum(.celdas_que_pierden_valor(
+         anterior, nuevo, cambio
+       )))
 }
 
 # HTML5 lee las referencias numericas entre 0x80 y 0x9F como Windows-1252, no como
@@ -3552,14 +3878,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   unname(.entidades_html_comunes[[cuerpo]])
 }
 
-.decodificar_entidades_html <- function(x) {
+.decodificar_entidades_html <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("La decodificaci\u00f3n HTML requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
   # La misma que usa la deteccion: las dos tienen que coincidir.
   patron <- .PATRON_ENTIDAD_HTML
-  nuevo <- vapply(anterior, function(original) {
+  transformar <- function(v) vapply(v, function(original) {
     if (is.na(original)) return(NA_character_)
     # Declarado antes de la expresion regular, como en `.aplicar_por_marca()`:
     # bajo `LC_CTYPE=C` un `unknown` UTF-8 valido se leia como bytes de la
@@ -3572,10 +3898,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     regmatches(texto, list(coincidencias)) <- list(reemplazos)
     texto
   }, character(1L), USE.NAMES = FALSE)
-  list(valor = .resultado_texto(x, nuevo), n = sum(.celdas_cambiadas(anterior, nuevo)))
+  protegido <- .proteger_accion_texto(
+    anterior, transformar, proteccion = proteccion
+  )
+  list(valor = .resultado_texto(x, protegido$valor),
+       n = sum(protegido$cambiadas))
 }
 
-.reemplazar_separadores <- function(x) {
+.reemplazar_separadores <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("El reemplazo de saltos de l\u00ednea requiere una columna de texto.",
          call. = FALSE)
@@ -3592,12 +3922,43 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # `\x09` a `\x0D` son ASCII: no aparecen dentro de ningun
   # caracter multibyte, asi que la rama por bytes no puede partir una letra.
   patron <- "\\x0D\\x0A|[\\x09-\\x0D]"
-  nuevo <- .aplicar_por_marca(
-    anterior,
+  transformar <- function(v) .aplicar_por_marca(
+    v,
     function(v) gsub(patron, " ", v, perl = TRUE),
     function(v) gsub(patron, " ", v, perl = TRUE, useBytes = TRUE)
   )
-  list(valor = .resultado_texto(x, nuevo), n = sum(.celdas_cambiadas(anterior, nuevo)))
+  enmascarar <- function(texto, consumidos) {
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(texto)
+    if (is.null(consumidos) || length(consumidos) != length(codigos)) {
+      consumidos <- rep(FALSE, length(codigos))
+    }
+    salida <- integer()
+    i <- 1L
+    while (i <= length(codigos)) {
+      if (i < length(codigos) && codigos[[i]] == 13L &&
+          codigos[[i + 1L]] == 10L) {
+        if (any(consumidos[i:(i + 1L)])) {
+          salida <- c(salida, codigos[i:(i + 1L)])
+        } else {
+          salida <- c(salida, 32L)
+        }
+        i <- i + 2L
+      } else if (codigos[[i]] %in% 9L:13L && !consumidos[[i]]) {
+        salida <- c(salida, 32L)
+        i <- i + 1L
+      } else {
+        salida <- c(salida, codigos[[i]])
+        i <- i + 1L
+      }
+    }
+    paste0(intToUtf8(salida, multiple = TRUE), collapse = "")
+  }
+  protegido <- .proteger_accion_texto(
+    anterior, transformar, enmascarar, proteccion, revisar_nuevas = "si_hay_A"
+  )
+  list(valor = .resultado_texto(x, protegido$valor),
+       n = sum(protegido$cambiadas))
 }
 
 .reparar_codificacion <- function(x, parametros) {
@@ -3627,20 +3988,21 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # queda como esta -no hay nada que interpretar ahi- y sigue contandose en
   # `n_codificacion_invalida`.
   anterior <- .texto_para_transformar(anterior)
+  aplicables <- if (isTRUE(parametros$aplicar_parciales)) {
+    c("reparado", "reparado_parcialmente")
+  } else "reparado"
   unicos <- unique(anterior[!is.na(anterior)])
-  resultados <- lapply(unicos, .ftfy_reparar_uno, max_iteraciones = iteraciones)
+  analisis <- .analizar_codificacion(
+    unicos, max_iteraciones = iteraciones
+  )
   indice <- match(anterior, unicos)
   candidatos <- rep(NA_character_, length(anterior))
   estados <- rep(NA_character_, length(anterior))
   if (length(unicos)) {
-    candidatos[!is.na(indice)] <- vapply(resultados[indice[!is.na(indice)]],
-      function(z) z$texto, character(1L))
-    estados[!is.na(indice)] <- vapply(resultados[indice[!is.na(indice)]],
-      function(z) z$estado, character(1L))
+    presentes <- !is.na(indice)
+    candidatos[presentes] <- analisis$reparados[indice[presentes]]
+    estados[presentes] <- analisis$estados[indice[presentes]]
   }
-  aplicables <- if (isTRUE(parametros$aplicar_parciales)) {
-    c("reparado", "reparado_parcialmente")
-  } else "reparado"
   mascara <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior &
     estados %in% aplicables
   nuevo <- anterior
@@ -3652,9 +4014,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # toco. Lo mismo una celda `no_se_pudo` -el caracter de reemplazo-: la accion
   # no la toca, y con ella el registro publicaba `reparado_parcialmente` sobre
   # tres celdas reparadas enteras, contra el `reparado` del plan.
-  estado <- .ftfy_estado_agregado(
-    estados[mascara | is.na(estados) | !(parciales | estados %in% "no_se_pudo")]
-  )
+  estados_aplicados <- estados
+  estados_aplicados[!(estados %in% aplicables)] <- NA_character_
+  estado <- .ftfy_estado_agregado(estados_aplicados)
   list(valor = .resultado_texto(x, nuevo), n = sum(mascara),
        n_parciales = sum(parciales), estado_reparacion = estado,
        estados = estados)
@@ -4369,7 +4731,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 }
 
 .ejecutar_accion <- function(datos, accion, original = datos,
-                             protegidas = character()) {
+                             protegidas = character(), protecciones = NULL) {
   estrategia <- accion$estrategia[[1L]]
   parametros <- accion$parametros[[1L]]
   columna <- accion$columna[[1L]]
@@ -4519,6 +4881,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
   indice <- .indice_columna(datos, columna)
   x <- datos[[indice]]
+  proteccion <- .proteccion_texto_columna(
+    protecciones, columna, length(x)
+  )
   if (identical(estrategia, "convertir_ausencias_textuales")) {
     cambio <- .reemplazar_ausencias_textuales(x, parametros)
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
@@ -4542,30 +4907,30 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     return(.imputar_dependencia(datos, parametros, protegidas))
   }
   if (identical(estrategia, "recortar_espacios")) {
-    cambio <- .recortar_texto(x)
+    cambio <- .recortar_texto(x, proteccion)
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "eliminar_controles_invisibles")) {
-    cambio <- .quitar_controles_invisibles(x)
+    cambio <- .quitar_controles_invisibles(x, proteccion)
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "normalizar_espacios_invisibles")) {
-    cambio <- .normalizar_espacios_invisibles(x)
+    cambio <- .normalizar_espacios_invisibles(x, proteccion)
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "decodificar_entidades_html")) {
-    cambio <- .decodificar_entidades_html(x)
+    cambio <- .decodificar_entidades_html(x, proteccion)
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n))
   }
   if (identical(estrategia, "reemplazar_separadores")) {
-    cambio <- .reemplazar_separadores(x)
+    cambio <- .reemplazar_separadores(x, proteccion)
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n))
   }
@@ -4889,6 +5254,26 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       plan$orden[seleccion],
       .clave_bytes(as.character(plan$id_accion[seleccion]))
     )]
+    # La reparacion es una barrera de lectura por columna: si esta seleccionada,
+    # se adelanta a las otras acciones de esa columna, pero no altera el orden
+    # entre columnas independientes.
+    columnas <- unique(plan$columna[seleccion])
+    for (columna in columnas) {
+      if (is.na(columna)) next
+      mismas <- !is.na(plan$columna[seleccion]) &
+        plan$columna[seleccion] == columna
+      reparaciones <- seleccion[mismas &
+        plan$estrategia[seleccion] == "reparar_codificacion"]
+      otras <- seleccion[mismas &
+        plan$estrategia[seleccion] != "reparar_codificacion"]
+      if (!length(reparaciones) || !length(otras)) next
+      sin_reparaciones <- seleccion[!seleccion %in% reparaciones]
+      primera <- which(sin_reparaciones %in% otras)[[1L]]
+      seleccion <- c(
+        sin_reparaciones[seq_len(primera - 1L)], reparaciones,
+        sin_reparaciones[primera:length(sin_reparaciones)]
+      )
+    }
   }
   # La puerta del consentimiento deriva de la ESTRATEGIA, no de la celda
   # `destructiva`. Combinarlas la volvia evitable con una edicion: poner
@@ -4926,6 +5311,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   # perdian las acciones validas del mismo plan.
   nombres_iniciales <- names(datos)
   salida <- .copiar_datos(datos)
+  protecciones <- .preparar_protecciones_texto(datos, plan, seleccion)
   registros <- vector("list", length(seleccion))
   eliminados <- list(filas = list(), columnas = list())
   for (j in seq_along(seleccion)) {
@@ -4949,7 +5335,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     } else {
       tryCatch(
         .ejecutar_accion(.copiar_datos(salida), accion, original = datos,
-                         protegidas = protegidas),
+                         protegidas = protegidas, protecciones = protecciones),
         error = function(e) list(
           error = conditionMessage(e), n = 0, n_no_reversibles = 0
         )
@@ -4965,6 +5351,19 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     fallo <- !is.null(ejecutada$error)
     if (!fallo) {
       salida <- ejecutada$datos
+      if (accion$estrategia[[1L]] %in% c(
+        "recortar_espacios", "eliminar_controles_invisibles",
+        "normalizar_espacios_invisibles", "decodificar_entidades_html",
+        "reemplazar_separadores", "reparar_codificacion"
+      ) && isTRUE(ejecutada$n > 0)) {
+        # Cada accion de texto puede acortar o reescribir la columna. La
+        # proteccion se alinea de nuevo con el estado que queda, no con el
+        # largo del perfil inicial; la siguiente accion recibe posiciones
+        # validas aunque una anterior haya quitado caracteres.
+        protecciones <- .actualizar_proteccion_texto(
+          protecciones, salida, accion$columna[[1L]]
+        )
+      }
       if (length(clave) && .accion_modifica_clave(accion, clave)) {
         data.table::setkey(salida, NULL)
       }

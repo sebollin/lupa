@@ -3385,14 +3385,23 @@
   invisibles <- NULL
   obtener_invisibles <- function() {
     if (is.null(invisibles) && !is.null(texto) && is.character(texto)) {
-      vocabulario <- .vocabulario_texto(texto, .umbral_vocabulario_barato)
-      invisibles <<- .predicados_invisibles(vocabulario$valores)
-      if (isTRUE(vocabulario$usar)) {
-        invisibles <<- lapply(invisibles, function(mascara) {
-          resultado <- mascara[vocabulario$indices]
-          resultado[is.na(resultado)] <- FALSE
-          resultado
-        })
+      cache <- resultado$diagnostico_texto$cache_invisibles
+      cache_valido <- is.list(cache) &&
+        all(vapply(cache, function(mascara) {
+          is.logical(mascara) && length(mascara) == length(texto)
+        }, logical(1L)))
+      if (cache_valido) {
+        invisibles <<- cache
+      } else {
+        vocabulario <- .vocabulario_texto(texto, .umbral_vocabulario_barato)
+        invisibles <<- .predicados_invisibles(vocabulario$valores)
+        if (isTRUE(vocabulario$usar)) {
+          invisibles <<- lapply(invisibles, function(mascara) {
+            resultado <- mascara[vocabulario$indices]
+            resultado[is.na(resultado)] <- FALSE
+            resultado
+          })
+        }
       }
     }
     invisibles
@@ -3433,13 +3442,14 @@
       if (is.null(mascara) || length(mascara) != n) NULL else which(mascara)
     },
     espacios_sobrantes = if (is.null(texto_completo)) NULL else
-      which(!is.na(texto_completo) & texto_completo != trimws(texto_completo)),
+      which(!is.na(texto_completo) &
+        .celdas_texto_protegidas(texto_completo, "recortar_espacios")),
     controles_invisibles = {
       invisibles <- obtener_invisibles()
       if (is.null(invisibles)) NULL else which(invisibles$control)
     },
     entidades_html = if (is.null(texto)) NULL else
-      which(.entidades_html_en_texto(texto)),
+      which(.celdas_texto_protegidas(texto, "decodificar_entidades_html")),
     separadores_en_campo = {
       invisibles <- obtener_invisibles()
       if (is.null(invisibles)) NULL else which(invisibles$separador)
@@ -3469,9 +3479,14 @@
       .texto_analizable(x)$posiciones, error = function(e) NULL
     ),
     codificacion_rota = if (is.null(texto)) NULL else {
-      cod <- tryCatch(.analizar_codificacion_vocabulario(texto), error = function(e) NULL)
-      if (is.null(cod) || is.null(cod$afectados)) NULL else
-        which(cod$afectados)
+      afectados_cache <- resultado$diagnostico_texto$cache_codificacion_afectados
+      if (is.logical(afectados_cache) && length(afectados_cache) == length(texto)) {
+        which(afectados_cache)
+      } else {
+        cod <- tryCatch(.analizar_codificacion_vocabulario(texto), error = function(e) NULL)
+        if (is.null(cod) || is.null(cod$afectados)) NULL else
+          which(cod$afectados)
+      }
     },
     numero_como_texto = if (is.null(texto_completo)) NULL else {
       partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
