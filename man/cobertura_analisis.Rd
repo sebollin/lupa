@@ -60,6 +60,12 @@ duplicación. Un marco propio puede marcar otros factores mediante la columna
 \code{perfil_mide}. Los demás sólo pasan a \code{"medida"} cuando \code{medicion} contiene
 una métrica del factor; descubrir un patrón o una dependencia no los
 convierte por sí solo en un requisito confirmado.
+
+Para AGESIC, \code{como_resolverlo} se deriva de las entradas implementadas o
+agregables de \code{\link[=catalogo_agesic]{catalogo_agesic()}}, no de una lista independiente de factores.
+Por ejemplo, \code{No-contradicción} recomienda instanciar
+\code{EntidadContradictoria} sobre un atributo; no requiere una clave y, cuando
+compara más de un valor distinto, necesita el paquete opcional \code{stringdist}.
 }
 \examples{
 perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)

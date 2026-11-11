@@ -98,6 +98,12 @@
 #' filas los valores predeterminados descritos abajo; en particular,
 #' `perfil_mide = FALSE`.
 #'
+#' En AGESIC, las instrucciones `como_resolverlo` de los factores se derivan de
+#' las métricas implementadas o agregables en [catalogo_agesic()]. En los marcos
+#' ISO/IEC 25012 y CEA/CEPAL no se infieren métricas por similitud de nombres:
+#' sus factores conservan la instrucción declarada por cada marco hasta que se
+#' les asocia una métrica con el mismo par dimensión-factor.
+#'
 #' `marco_iso25012()` adapta las dos perspectivas de ISO/IEC 25012:2008 a la
 #' estructura dimensión-factor. Usa tres grupos disjuntos como dimensiones:
 #' características inherentes, características inherentes y dependientes del
@@ -200,9 +206,12 @@ marco_agesic <- function() {
       catalogo$dimension, catalogo$factor
     )
   )
+  especificaciones <- .especificaciones_metricas_catalogo(catalogo)
   factores$como_resolverlo <- mapply(
     .resolver_factor, factores$dimension, factores$factor,
-    USE.NAMES = FALSE
+    MoreArgs = list(
+      catalogo = catalogo, especificaciones = especificaciones
+    ), USE.NAMES = FALSE
   )
   factores$perfil_mide <- .identificadores_en(claves, c(
     "Completitud|Densidad", "Unicidad|No-duplicaci\u00f3n"

@@ -1,44 +1,32 @@
-.resolver_factor <- function(dimension, factor) {
+.resolver_factor <- function(dimension, factor, catalogo = NULL,
+                             especificaciones = NULL) {
+  if (is.null(catalogo)) catalogo <- catalogo_agesic()
   clave <- .clave_par_identificador(dimension, factor)
-  claves_especificas <- .clave_par_identificador(
-    c(
-      "Exactitud", "Exactitud", "Exactitud", "Consistencia", "Consistencia",
-      "Consistencia", "Completitud", "Completitud", "Unicidad", "Frescura",
-      "Frescura"
-    ),
-    c(
-      "Correctitud sem\u00e1ntica", "Correctitud sint\u00e1ctica", "Precisi\u00f3n",
-      "Integridad inter-entidad", "Integridad intra-entidad",
-      "Integridad de dominio", "Cobertura", "Densidad", "No-duplicaci\u00f3n",
-      "Actualidad", "Oportunidad"
-    )
-  )
-  indice <- match(clave, claves_especificas)
-  switch(
-    as.character(indice),
-    "1" =
-      "Crear referencial() e instanciar metricas_referencial().",
-    "2" =
-      "Especializar Formato con expresi\u00f3n, diccionario o validador.",
-    "3" =
-      "Declarar escala() o medir ErrorEstandar sobre el atributo.",
-    "4" =
-      "Instanciar ReglaIntegridadInterEntidad con claves confirmadas.",
-    "5" =
-      "Confirmar una regla y especializar ReglaIntegridadIntraEntidad.",
-    "6" =
-      "Proveer un dominio a ValoresPosiblesPorExtension o Comprension.",
-    "7" =
-      "Crear un referencial(completo = TRUE) y medir RatioCobertura.",
-    "8" = "Usar NoNulo o DensidadPonderada.",
-    "9" =
-      "Usar las m\u00e9tricas de duplicaci\u00f3n o el perfil autom\u00e1tico.",
-    "10" =
-      "Declarar vigencia() y medir DesactualizacionPorFecha o PorCambios.",
-    "11" =
-      "Declarar vigencia() y medir una m\u00e9trica Oportunidad*.",
-    "Requiere un backend o referencial especializado que no integra esta versi\u00f3n."
-  )
+  claves_catalogo <- .clave_par_identificador(catalogo$dimension, catalogo$factor)
+  entradas <- catalogo[
+    claves_catalogo == clave & as.character(catalogo$estado) %in%
+      c("implementada", "via_agregacion"), , drop = FALSE
+  ]
+  estados <- as.character(entradas$estado)
+  disponibles <- estados %in% c("implementada", "via_agregacion")
+  metricas <- .identificadores_unicos(entradas$metrica_lupa[
+    disponibles & !is.na(entradas$metrica_lupa)
+  ])
+  if (length(metricas)) {
+    if (is.null(especificaciones)) {
+      especificaciones <- .especificaciones_metricas_catalogo(catalogo)
+    }
+    faltantes <- setdiff(metricas, names(especificaciones))
+    if (length(faltantes)) {
+      .detener(
+        "Faltan especificaciones para las metricas del factor: ",
+        paste(faltantes, collapse = ", "), ".", call. = FALSE
+      )
+    }
+    seleccionadas <- unname(especificaciones[metricas])
+    return(.texto_factor_especificaciones(seleccionadas))
+  }
+  "Requiere un backend o referencial especializado que no integra esta versi\u00f3n."
 }
 
 .perfil_tiene_geometria <- function(perfil) {
@@ -80,6 +68,12 @@
 #' `perfil_mide`. Los demás sólo pasan a `"medida"` cuando `medicion` contiene
 #' una métrica del factor; descubrir un patrón o una dependencia no los
 #' convierte por sí solo en un requisito confirmado.
+#'
+#' Para AGESIC, `como_resolverlo` se deriva de las entradas implementadas o
+#' agregables de [catalogo_agesic()], no de una lista independiente de factores.
+#' Por ejemplo, `No-contradicción` recomienda instanciar
+#' `EntidadContradictoria` sobre un atributo; no requiere una clave y, cuando
+#' compara más de un valor distinto, necesita el paquete opcional `stringdist`.
 #'
 #' @param perfil **Primer argumento.** Objeto creado por [perfilar()] o
 #'   [perfilar_dbi()]. En el segundo caso se analiza `perfil_muestra` cuando

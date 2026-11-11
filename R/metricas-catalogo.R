@@ -820,6 +820,987 @@
   )
 }
 
+.meta_especificaciones_metricas_catalogo <- function() {
+  datos_referencial <- function() {
+    data.frame(
+      id = 1:3, nombre = c("A", "B", "C"),
+      stringsAsFactors = FALSE
+    )
+  }
+  datos_fecha <- function() {
+    data.frame(
+      actualizado = as.Date(c("2026-06-01", "2026-06-29"))
+    )
+  }
+  contrato_referencial <- function(clave, valor = NULL, completo = FALSE) {
+    argumentos <- list(datos = datos_referencial(), clave = clave)
+    if (!is.null(valor)) argumentos$valor <- valor
+    if (isTRUE(completo)) {
+      argumentos$completo <- TRUE
+      argumentos$alcance <- "padron de prueba"
+    }
+    list(nombre = "referencial", argumentos = argumentos)
+  }
+  contrato_vigencia <- function(...) {
+    list(
+      nombre = "vigencia",
+      argumentos = c(
+        list(
+          columna_actualizacion = "actualizado",
+          fecha_acceso = as.Date("2026-06-30")
+        ),
+        list(...)
+      )
+    )
+  }
+
+  list(
+    CorrectitudSemDebil = list(
+      contrato = contrato_referencial("id", valor = "nombre"),
+      vinculo = list(entidad = "personas", atributos = c("id", "nombre")),
+      datos = function() data.frame(
+        id = c(1, 4), nombre = c("A", "X"), stringsAsFactors = FALSE
+      )
+    ),
+    CorrectitudSemFuerte = list(
+      contrato = contrato_referencial("id"),
+      vinculo = list(entidad = "personas", atributos = "id"),
+      datos = function() data.frame(id = c(1, 4))
+    ),
+    Formato = list(
+      configuraciones = list(
+        list(expresion_regular = "^[A-Z][0-9]$"),
+        list(diccionario = c("A1", "B2")),
+        list(validador = function(x) grepl("^[A-Z][0-9]$", x))
+      ),
+      vinculo = list(entidad = "personas", atributos = "codigo"),
+      datos = function() data.frame(codigo = c("A1", "x"))
+    ),
+    Escala = list(
+      contrato = list(
+        nombre = "escala",
+        argumentos = list(error = 1, tipo = "absoluto")
+      ),
+      vinculo = list(entidad = "personas", atributos = "edad"),
+      datos = function() data.frame(edad = c(20, 30))
+    ),
+    ErrorEstandar = list(
+      vinculo = list(entidad = "personas", atributos = "edad"),
+      datos = function() data.frame(edad = c(20, 30))
+    ),
+    ReglaIntegridadInterEntidad = list(
+      configuraciones = list(list()),
+      propiedades_opcionales = "muestra",
+      omisiones_opcionales = list(muestra = "Inf"),
+      vinculo = list(
+        entidad = c("padres", "hijos"), atributos = c("id", "id_padre")
+      ),
+      datos = function() list(
+        padres = data.frame(id = 1:3),
+        hijos = data.frame(id_padre = c(1, 2, 4))
+      )
+    ),
+    ReglaIntegridadIntraEntidad = list(
+      configuraciones = list(list(
+        regla = function(d) !is.na(d$edad) & d$edad >= 18
+      )),
+      vinculo = list(entidad = "personas", atributos = "edad"),
+      datos = function() data.frame(edad = c(17, 18))
+    ),
+    ValoresPosiblesPorExtension = list(
+      configuraciones = list(list(valores = c("A", "B"))),
+      vinculo = list(entidad = "personas", atributos = "sexo"),
+      datos = function() data.frame(sexo = c("A", "C"))
+    ),
+    ValoresPosiblesPorComprension = list(
+      configuraciones = list(
+        list(predicado = function(x) !is.na(x) & x > 0),
+        list(minimo = 0, maximo = 100, inclusivo = TRUE)
+      ),
+      vinculo = list(entidad = "personas", atributos = "edad"),
+      datos = function() data.frame(edad = c(20, 30))
+    ),
+    RatioCobertura = list(
+      contrato = contrato_referencial("id", completo = TRUE),
+      vinculo = list(entidad = "personas", atributos = "id"),
+      datos = function() data.frame(id = c(1, 4))
+    ),
+    NoNulo = list(
+      configuraciones = list(list()),
+      propiedades_opcionales = c("valores_nulos", "aplicable", "opcional"),
+      vinculo = list(entidad = "personas", atributos = "edad"),
+      datos = function() data.frame(edad = c(20, NA_real_))
+    ),
+    DensidadPonderada = list(
+      configuraciones = list(list(coeficientes = c(edad = 1))),
+      vinculo = list(entidad = "personas", atributos = "edad"),
+      datos = function() data.frame(edad = c(20, NA_real_))
+    ),
+    AtributoDuplicado = list(
+      configuraciones = list(list()),
+      vinculo = list(entidad = "personas", atributos = "codigo"),
+      datos = function() data.frame(codigo = c("A", "A", "B"))
+    ),
+    ConjuntoAtributosDuplicado = list(
+      configuraciones = list(list()),
+      vinculo = list(
+        entidad = "personas", atributos = c("codigo", "tipo")
+      ),
+      datos = function() data.frame(
+        codigo = c("A", "A"), tipo = c("X", "X")
+      )
+    ),
+    EntidadDuplicada = list(
+      configuraciones = list(list()),
+      vinculo = list(
+        entidad = "personas", atributos = c("codigo", "tipo")
+      ),
+      datos = function() data.frame(
+        codigo = c("A", "A"), tipo = c("X", "X")
+      )
+    ),
+    EntidadContradictoria = list(
+      configuraciones = list(list()),
+      paquete = "stringdist",
+      ratio = list(granularidad = "atributo", agregacion = "ratio"),
+      propiedades_opcionales = c(
+        "metodo", "p", "umbral", "normalizar", "max_valores", "nucleos"
+      ),
+      incluir_propiedades_opcionales = TRUE,
+      vinculo = list(entidad = "personas", atributos = "nombre"),
+      datos = function() data.frame(
+        nombre = c("Org Nac", "Org Nacl", "Otro"),
+        stringsAsFactors = FALSE
+      )
+    ),
+    DesactualizacionPorFecha = list(
+      contrato = list(
+        nombre = "vigencia",
+        alternativas = list(
+          contrato_vigencia(
+            fecha_ultimo_cambio = as.Date("2026-06-01")
+          ),
+          contrato_vigencia(frecuencia_cambio = 30)
+        )
+      ),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = datos_fecha
+    ),
+    DesactualizacionPorCambios = list(
+      contrato = contrato_vigencia(frecuencia_cambio = 30),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = datos_fecha
+    ),
+    DesactualizacionPorFormato = list(
+      configuraciones = list(
+        list(expresion_regular = "^2026-[0-9]{2}-[0-9]{2}$"),
+        list(validador = function(x) !is.na(x))
+      ),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = function() data.frame(
+        actualizado = c("2026-06-01", "viejo"), stringsAsFactors = FALSE
+      )
+    ),
+    OportunidadAtributoPorFecha = list(
+      configuraciones = list(list(fecha_limite = as.Date("2026-06-30"))),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = datos_fecha
+    ),
+    OportunidadAtributoPorIntervalo = list(
+      configuraciones = list(list(
+        inicio_vigencia = as.Date("2026-01-01"),
+        fin_vigencia = as.Date("2026-12-31")
+      )),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = datos_fecha
+    ),
+    OportunidadEntPorFecha = list(
+      contrato = contrato_vigencia(fecha_limite = as.Date("2026-06-30")),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = datos_fecha
+    ),
+    OportunidadEntPorIntervalo = list(
+      contrato = contrato_vigencia(
+        inicio_intervalo = as.Date("2026-01-01"),
+        fin_intervalo = as.Date("2026-12-31")
+      ),
+      vinculo = list(entidad = "personas", atributos = "actualizado"),
+      datos = datos_fecha
+    )
+  )
+}
+
+.configuraciones_especificacion <- function(meta, metrica) {
+  contrato <- meta$contrato
+  if (!is.null(contrato) && identical(contrato$nombre, "escala")) {
+    return(list(list(escala = do.call(escala, contrato$argumentos))))
+  }
+  if (!is.null(contrato) && identical(contrato$nombre, "vigencia")) {
+    contratos <- if (is.null(contrato$alternativas)) {
+      list(contrato)
+    } else {
+      contrato$alternativas
+    }
+    return(lapply(contratos, function(x) {
+      list(vigencia = do.call(vigencia, x$argumentos))
+    }))
+  }
+  configuraciones <- meta$configuraciones
+  if (is.null(configuraciones)) list(list()) else configuraciones
+}
+
+.validar_especificacion_metrica <- function(meta, metrica, configuraciones) {
+  declaracion <- attr(metrica, "declaracion", exact = TRUE)
+  validador <- attr(metrica, "validador_propiedades", exact = TRUE)
+  for (configuracion in configuraciones) {
+    if (!is.list(configuracion)) {
+      .detener("Cada configuracion de receta debe ser una lista.", call. = FALSE)
+    }
+    if (!is.null(validador)) {
+      validada <- validador(configuracion)
+      if (!is.list(validada)) {
+        .detener("El validador de la metrica no devolvio una lista.", call. = FALSE)
+      }
+    } else {
+      .validar_propiedades_base(configuracion, declaracion$propiedades)
+    }
+  }
+  if (is.null(meta$vinculo) ||
+      !all(c("entidad", "atributos") %in% names(meta$vinculo))) {
+    .detener("La especificacion debe declarar el vinculo de la metrica.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+.contrato_ruta_especificacion <- function(meta, configuracion, indice) {
+  contrato <- meta$contrato
+  if (is.null(contrato)) return(NULL)
+  definicion <- if (is.null(contrato$alternativas)) {
+    contrato
+  } else {
+    contrato$alternativas[[indice]]
+  }
+  objeto <- if (identical(contrato$nombre, "referencial")) {
+    do.call(referencial, definicion$argumentos)
+  } else if (!is.null(configuracion[[contrato$nombre]])) {
+    configuracion[[contrato$nombre]]
+  } else {
+    do.call(get(contrato$nombre, mode = "function"), definicion$argumentos)
+  }
+  destino <- if (contrato$nombre %in% c("vigencia", "escala")) {
+    list(funcion = "especializar", argumento = contrato$nombre)
+  } else {
+    list(funcion = "instanciar", argumento = contrato$nombre)
+  }
+  list(
+    funcion = contrato$nombre,
+    argumentos = definicion$argumentos,
+    objeto = objeto,
+    destino = destino,
+    salida = "contrato"
+  )
+}
+
+.pasos_ruta_especificacion <- function(meta, metrica, configuracion, indice) {
+  contrato <- .contrato_ruta_especificacion(meta, configuracion, indice)
+  especializar_args <- c(list(metrica = metrica), configuracion)
+  propiedades <- setdiff(names(configuracion), "vigencia")
+  if (!is.null(contrato) && contrato$destino$funcion == "especializar") {
+    especializar_args[[contrato$destino$argumento]] <- contrato$objeto
+    propiedades <- setdiff(propiedades, contrato$destino$argumento)
+  }
+  opcionales <- if (is.null(meta$propiedades_opcionales)) {
+    character()
+  } else {
+    meta$propiedades_opcionales
+  }
+  paso_especializar <- list(
+    funcion = "especializar",
+    argumentos = especializar_args,
+    propiedades = list(
+      obligatorias = propiedades,
+      opcionales = opcionales
+    ),
+    contrato = if (is.null(contrato) ||
+        contrato$destino$funcion != "especializar") NULL else
+      list(funcion = contrato$funcion,
+           argumento = contrato$destino$argumento),
+    salida = "metrica_especifica"
+  )
+  argumentos_instanciar <- list(
+    entidad = meta$vinculo$entidad,
+    atributos = meta$vinculo$atributos
+  )
+  if (!is.null(contrato) && contrato$destino$funcion == "instanciar") {
+    argumentos_instanciar[[contrato$destino$argumento]] <- NULL
+  }
+  paso_instanciar <- list(
+    funcion = "instanciar",
+    argumentos = argumentos_instanciar,
+    entrada = "metrica_especifica",
+    contrato = if (is.null(contrato) ||
+        contrato$destino$funcion != "instanciar") NULL else
+      list(funcion = contrato$funcion,
+           argumento = contrato$destino$argumento),
+    granularidad = attr(metrica, "declaracion", exact = TRUE)$granularidad,
+    atributos_referencial = if (!is.null(contrato) &&
+        identical(contrato$funcion, "referencial") &&
+        attr(metrica, "declaracion", exact = TRUE)$granularidad %in%
+          c("instanciaAtributo", "atributo")) {
+      argumentos <- contrato$argumentos
+      roles <- list(clave = length(argumentos$clave))
+      if (length(argumentos$valor)) roles$valor <- length(argumentos$valor)
+      roles
+    } else NULL,
+    salida = "instancia"
+  )
+  pasos <- list()
+  if (!is.null(contrato)) pasos[[length(pasos) + 1L]] <- contrato
+  pasos[[length(pasos) + 1L]] <- paso_especializar
+  pasos[[length(pasos) + 1L]] <- paso_instanciar
+  pasos[[length(pasos) + 1L]] <- list(
+    funcion = "medir",
+    entrada = "instancia",
+    datos = meta$datos,
+    salida = "medicion"
+  )
+  if (!is.null(meta$ratio)) {
+    pasos[[length(pasos) + 1L]] <- list(
+      funcion = "agregar",
+      entrada = "medicion",
+      argumentos = list(
+        destino = meta$ratio$granularidad,
+        funcion = meta$ratio$agregacion
+      ),
+      salida = "medicion"
+    )
+  }
+  pasos
+}
+
+.pasos_especificacion <- function(meta, metrica, configuraciones) {
+  lapply(seq_along(configuraciones), function(indice) {
+    .pasos_ruta_especificacion(
+      meta, metrica, configuraciones[[indice]], indice
+    )
+  })
+}
+
+.ejecutar_pasos_especificacion <- function(pasos) {
+  objetos <- new.env(parent = emptyenv())
+  for (paso in pasos) {
+    if (identical(paso$funcion, "referencial") ||
+        identical(paso$funcion, "vigencia") ||
+        identical(paso$funcion, "escala")) {
+      valor <- do.call(
+        get(paso$funcion, mode = "function"), paso$argumentos
+      )
+    } else if (identical(paso$funcion, "especializar")) {
+      argumentos <- paso$argumentos
+      if (!is.null(paso$contrato)) {
+        argumentos[[paso$contrato$argumento]] <- get(
+          "contrato", envir = objetos, inherits = FALSE
+        )
+      }
+      valor <- do.call(especializar, argumentos)
+    } else if (identical(paso$funcion, "instanciar")) {
+      argumentos <- paso$argumentos
+      argumentos$metrica_especifica <- get(
+        paso$entrada, envir = objetos, inherits = FALSE
+      )
+      if (!is.null(paso$contrato)) {
+        argumentos[[paso$contrato$argumento]] <- get(
+          "contrato", envir = objetos, inherits = FALSE
+        )
+      }
+      valor <- do.call(instanciar, argumentos)
+    } else if (identical(paso$funcion, "medir")) {
+      instrumento <- get(paso$entrada, envir = objetos, inherits = FALSE)
+      valor <- medir(modelo(instrumento), paso$datos())
+    } else if (identical(paso$funcion, "agregar")) {
+      valor <- do.call(
+        agregar,
+        c(
+          list(medidas = get(paso$entrada, envir = objetos, inherits = FALSE)),
+          paso$argumentos
+        )
+      )
+    } else {
+      .detener(
+        "Funcion no contemplada en los pasos de la receta: ",
+        paso$funcion, ".", call. = FALSE
+      )
+    }
+    assign(paso$salida, valor, envir = objetos)
+  }
+  get("medicion", envir = objetos, inherits = FALSE)
+}
+
+.cache_especificaciones_metricas_catalogo <- new.env(parent = emptyenv())
+
+.especificaciones_metricas_catalogo <- function(catalogo = NULL) {
+  if (is.null(catalogo)) catalogo <- catalogo_agesic()
+  if (exists("catalogo", envir = .cache_especificaciones_metricas_catalogo,
+             inherits = FALSE) &&
+      identical(
+        catalogo,
+        get("catalogo", envir = .cache_especificaciones_metricas_catalogo)
+      )) {
+    return(get(
+      "especificaciones", envir = .cache_especificaciones_metricas_catalogo
+    ))
+  }
+  nucleo <- metricas_nucleo()
+  referenciales <- metricas_referencial()
+  meta <- .meta_especificaciones_metricas_catalogo()
+  nombres <- .identificadores_unicos(catalogo$metrica_lupa[
+    !is.na(catalogo$metrica_lupa)
+  ])
+  faltantes <- setdiff(nombres, names(meta))
+  if (length(faltantes)) {
+    .detener(
+      "Faltan especificaciones para las metricas del catalogo: ",
+      paste(faltantes, collapse = ", "), ".", call. = FALSE
+    )
+  }
+  salida <- lapply(nombres, function(nombre) {
+    es_referencial <- nombre %in% names(referenciales)
+    metricas <- if (es_referencial) referenciales else nucleo
+    metrica <- metricas[[nombre]]
+    if (is.null(metrica)) {
+      .detener("La metrica del catalogo no existe: ", nombre, ".", call. = FALSE)
+    }
+    declaracion <- attr(metrica, "declaracion", exact = TRUE)
+    configuraciones <- .configuraciones_especificacion(meta[[nombre]], metrica)
+    .validar_especificacion_metrica(meta[[nombre]], metrica, configuraciones)
+    indices <- which(catalogo$metrica_lupa == nombre)
+    indice <- indices[[1L]]
+    propiedades <- propiedades_metrica(metrica)$propiedad
+    contrato <- meta[[nombre]]$contrato
+    if (!is.null(contrato)) {
+      funcion <- get(contrato$nombre, mode = "function")
+      formales <- names(formals(funcion))
+      argumentos <- if (!is.null(contrato$alternativas)) {
+        unlist(lapply(contrato$alternativas, function(x) names(x$argumentos)))
+      } else {
+        names(contrato$argumentos)
+      }
+      faltan_formales <- setdiff(unique(argumentos), formales)
+      if (length(faltan_formales)) {
+        .detener(
+          "El contrato de ", nombre, " usa argumentos no declarados: ",
+          paste(faltan_formales, collapse = ", "), ".", call. = FALSE
+        )
+      }
+      contrato$formales <- formales
+    }
+    estructura <- meta[[nombre]]
+    estructura$nombre <- nombre
+    estructura$catalogo <- if (es_referencial) {
+      "metricas_referencial"
+    } else {
+      "metricas_nucleo"
+    }
+    estructura$metrica <- metrica
+    estructura$declaracion <- declaracion
+    estructura$dimension <- as.character(catalogo$dimension[[indice]])
+    estructura$factor <- as.character(catalogo$factor[[indice]])
+    estructura$propiedades <- propiedades
+    estructura$validador_propiedades <- attr(
+      metrica, "validador_propiedades", exact = TRUE
+    )
+    estructura$configuraciones <- configuraciones
+    estructura$contrato <- contrato
+    estructura$pasos <- .pasos_especificacion(
+      meta[[nombre]], metrica, configuraciones
+    )
+    estructura$operaciones <- c("especializar", "instanciar", "medir")
+    estructura$propiedad_grupos <- lapply(configuraciones, names)
+    estructura$propiedad_grupos <- estructura$propiedad_grupos[
+      lengths(estructura$propiedad_grupos) > 0L
+    ]
+    if (!is.null(contrato) && identical(contrato$nombre, "vigencia")) {
+      estructura$propiedad_grupos <- lapply(
+        estructura$propiedad_grupos,
+        function(grupo) setdiff(grupo, "vigencia")
+      )
+      estructura$propiedad_grupos <- estructura$propiedad_grupos[
+        lengths(estructura$propiedad_grupos) > 0L
+      ]
+    }
+    if (isTRUE(estructura$incluir_propiedades_opcionales)) {
+      estructura$propiedad_grupos <- list(propiedades)
+    }
+    opcionales_texto <- unique(unlist(lapply(
+      estructura$pasos,
+      function(pasos) .pasos_de_funcion(pasos, "especializar")[[1L]]$propiedades$opcionales
+    ), use.names = FALSE))
+    estructura$tokens_obligatorios <- unique(c(
+      estructura$operaciones,
+      if (is.null(contrato)) character() else {
+        argumentos <- if (!is.null(contrato$alternativas)) {
+          unlist(lapply(contrato$alternativas, function(x) names(x$argumentos)))
+        } else {
+          names(contrato$argumentos)
+        }
+        setdiff(unique(argumentos), c("datos", "columna_actualizacion"))
+      },
+      unlist(estructura$propiedad_grupos, use.names = FALSE),
+      opcionales_texto
+    ))
+    estructura
+  })
+  salida <- stats::setNames(salida, nombres)
+  assign(
+    "catalogo", catalogo,
+    envir = .cache_especificaciones_metricas_catalogo
+  )
+  assign(
+    "especificaciones", salida,
+    envir = .cache_especificaciones_metricas_catalogo
+  )
+  salida
+}
+
+.codigo_metrica_especificacion <- function(especificacion) {
+  paste0(
+    "`", especificacion$catalogo, "()$", especificacion$nombre, "`"
+  )
+}
+
+.codigo_lista_especificacion <- function(nombres) {
+  ultimo <- nombres[[length(nombres)]]
+  # "e" solo delante de lo que empieza con el sonido i ("i", "hi" sin
+  # diptongo: "inclusivo"); delante de todo lo demas, "y".
+  conjuncion <- if (grepl("^(i|hi)([^aeiou]|$)", ultimo, useBytes = TRUE)) {
+    " e "
+  } else {
+    " y "
+  }
+  nombres <- paste0("`", nombres, "`")
+  if (length(nombres) == 1L) return(nombres)
+  paste0(
+    paste(nombres[-length(nombres)], collapse = ", "),
+    conjuncion, nombres[[length(nombres)]]
+  )
+}
+
+.texto_propiedades_especificacion <- function(especificacion) {
+  rutas <- especificacion$pasos
+  grupos <- lapply(rutas, function(pasos) {
+    paso <- pasos[[which(vapply(
+      pasos, function(x) identical(x$funcion, "especializar"), logical(1L)
+    ))]]
+    paso$propiedades$obligatorias
+  })
+  grupos <- grupos[lengths(grupos) > 0L]
+  if (!length(grupos)) return(character())
+  grupos <- unique(vapply(
+    grupos, .codigo_lista_especificacion, character(1L)
+  ))
+  if (length(grupos) == 1L) return(grupos)
+  paste(grupos, collapse = ", o bien ")
+}
+
+.texto_vinculo_pasos <- function(pasos) {
+  paso <- pasos[[which(vapply(
+    pasos, function(x) identical(x$funcion, "instanciar"), logical(1L)
+  ))]]
+  granularidad <- paso$granularidad
+  n_entidades <- length(paso$argumentos$entidad)
+  n_atributos <- length(paso$argumentos$atributos)
+  if (n_entidades > 1L) return("dos entidades y sus claves")
+  if (length(paso$atributos_referencial)) {
+    roles <- names(paso$atributos_referencial)
+    nombres <- paste0("`", roles, "`")
+    if (length(roles) == 1L) {
+      return(paste0("un atributo por cada columna de ", nombres))
+    }
+    return(paste0(
+      "un atributo por cada columna de ",
+      paste(nombres, collapse = " y de "), ", en ese orden"
+    ))
+  }
+  if (granularidad %in% c("instanciaAtributo", "atributo")) {
+    if (n_atributos > 1L) {
+      return("varios atributos")
+    }
+    return("un atributo")
+  }
+  if (identical(granularidad, "entidad")) return("una entidad y sus atributos")
+  "una entidad y sus atributos"
+}
+
+.argumentos_contrato_paso <- function(paso) {
+  argumentos <- paso$argumentos
+  nombres <- setdiff(names(argumentos), c("datos", "columna_actualizacion"))
+  if (!length(nombres)) return(character())
+  texto <- .codigo_lista_especificacion(nombres)
+  if ("completo" %in% nombres && isTRUE(argumentos$completo)) {
+    texto <- sub(
+      "`completo`", "`completo` = TRUE", texto, fixed = TRUE
+    )
+  }
+  texto
+}
+
+.pasos_de_funcion <- function(pasos, funcion) {
+  pasos[vapply(pasos, function(x) identical(x$funcion, funcion), logical(1L))]
+}
+
+.texto_contrato_pasos <- function(especificacion) {
+  contratos <- lapply(especificacion$pasos, function(pasos) {
+    candidatos <- Filter(function(x) x$funcion %in% c(
+      "referencial", "vigencia", "escala"
+    ), pasos)
+    if (length(candidatos)) candidatos[[1L]] else NULL
+  })
+  contratos <- Filter(Negate(is.null), contratos)
+  if (!length(contratos)) return(character())
+  nombre <- contratos[[1L]]$funcion
+  argumentos <- unique(vapply(
+    contratos, .argumentos_contrato_paso, character(1L)
+  ))
+  detalle <- paste(argumentos, collapse = " o bien ")
+  if (identical(nombre, "referencial")) {
+    return(paste0(
+      "Crear `referencial()` con ",
+      detalle, "."
+    ))
+  }
+  if (identical(nombre, "vigencia")) {
+    return(paste0("Crear `vigencia()` con ", detalle, "."))
+  }
+  if (identical(nombre, "escala")) {
+    return(paste0(
+      "Declarar `escala()` con `error`; `tipo` es opcional."
+    ))
+  }
+  character()
+}
+
+.texto_opcionales_pasos <- function(especificacion) {
+  opcionales <- unique(unlist(lapply(especificacion$pasos, function(pasos) {
+    especializar <- .pasos_de_funcion(pasos, "especializar")[[1L]]
+    especializar$propiedades$opcionales
+  }), use.names = FALSE))
+  if (!length(opcionales)) return(character())
+  texto <- .codigo_lista_especificacion(opcionales)
+  omisiones <- especificacion$omisiones_opcionales
+  if (!is.null(omisiones) && "muestra" %in% opcionales) {
+    return("`muestra` es opcional (por omisi\u00f3n Inf)")
+  }
+  paste0("las propiedades ", texto, " son opcionales")
+}
+
+.texto_destino_contrato_pasos <- function(pasos, funcion) {
+  especializar <- .pasos_de_funcion(pasos, "especializar")[[1L]]
+  instanciar <- .pasos_de_funcion(pasos, "instanciar")[[1L]]
+  if (!is.null(especializar$contrato) &&
+      identical(especializar$contrato$funcion, funcion)) {
+    return(paste0(" con `", funcion, "`"))
+  }
+  if (!is.null(instanciar$contrato) &&
+      identical(instanciar$contrato$funcion, funcion)) {
+    return(paste0(" con `", funcion, "`"))
+  }
+  character()
+}
+
+.texto_especificacion_metrica <- function(especificacion) {
+  pasos <- especificacion$pasos[[1L]]
+  propiedad <- .texto_propiedades_especificacion(especificacion)
+  metrica <- .codigo_metrica_especificacion(especificacion)
+  contrato <- .texto_contrato_pasos(especificacion)
+  inicio <- contrato
+  if (length(inicio)) inicio <- paste0(inicio, " ")
+  especializar <- paste0("Aplicar `especializar()` a ", metrica)
+  if (length(propiedad)) {
+    especializar <- paste0(especializar, " con ", propiedad)
+  }
+  destino <- unique(c(
+    .texto_destino_contrato_pasos(pasos, "vigencia"),
+    .texto_destino_contrato_pasos(pasos, "escala")
+  ))
+  if (length(destino)) especializar <- paste0(especializar, destino[[1L]])
+  opcionales <- .texto_opcionales_pasos(especificacion)
+  if (length(opcionales)) especializar <- paste0(especializar, "; ", opcionales)
+  pasar <- .texto_destino_contrato_pasos(pasos, "referencial")
+  vinculo <- .texto_vinculo_pasos(pasos)
+  separador <- if (length(pasar) && grepl(
+      "en ese orden", vinculo, fixed = TRUE, useBytes = TRUE
+  )) "," else ""
+  texto <- paste0(
+    inicio, especializar, "; luego `instanciar()` sobre ",
+    vinculo, separador, pasar,
+    "; despu\u00e9s `medir()`."
+  )
+  agregar <- .pasos_de_funcion(pasos, "agregar")
+  if (length(agregar)) {
+    argumentos <- agregar[[1L]]$argumentos
+    texto <- paste0(
+      texto, " Si se comparan varios valores distintos, se necesita stringdist;",
+      " despu\u00e9s, `agregar()` con destino \"", argumentos$destino,
+      "\" y agregaci\u00f3n \"", argumentos$funcion,
+      "\" resume la medida."
+    )
+  }
+  texto
+}
+
+.texto_factor_especificaciones <- function(especificaciones) {
+  if (!length(especificaciones)) return(character())
+  paste(
+    vapply(especificaciones, .texto_especificacion_metrica, character(1L)),
+    collapse = " "
+  )
+}
+
+.identificadores_metricas_texto <- function(texto) {
+  encontrados <- regmatches(
+    texto,
+    gregexpr(
+      "`?[A-Za-z][A-Za-z0-9_]*\\(\\)\\$[A-Za-z][A-Za-z0-9_]*`?",
+      texto, perl = TRUE, useBytes = TRUE
+    )
+  )[[1L]]
+  if (identical(encontrados, -1L)) return(character())
+  sub("`$", "", sub("^`", "", encontrados))
+}
+
+.errores_identificadores_metricas <- function(texto, especificaciones) {
+  publicados <- .identificadores_metricas_texto(texto)
+  conocidos <- unique(vapply(
+    especificaciones,
+    function(x) paste0(x$catalogo, "()$", x$nombre),
+    character(1L)
+  ))
+  faltantes <- setdiff(publicados, conocidos)
+  if (!length(faltantes)) return(character())
+  paste0("La receta publica metricas inexistentes: ",
+         paste(faltantes, collapse = ", "), ".")
+}
+
+.errores_destinos_contrato_texto <- function(texto) {
+  errores <- character()
+  usos_invalidos <- list(
+    c("vigencia", "instanciar"),
+    c("escala", "instanciar"),
+    c("referencial", "especializar")
+  )
+  for (uso in usos_invalidos) {
+    patron <- paste0(
+      "`?", uso[[1L]], "`?[[:space:]]+a[[:space:]]+`?",
+      uso[[2L]], "\\(\\)`?"
+    )
+    if (grepl(patron, texto, perl = TRUE, useBytes = TRUE)) {
+      errores <- c(
+        errores,
+        paste0("El texto pasa `", uso[[1L]], "` a `", uso[[2L]], "()`."))
+    }
+  }
+  errores
+}
+
+.errores_texto_especificacion <- function(texto, especificacion) {
+  errores <- character()
+  exigir <- function(condicion, mensaje) {
+    if (!isTRUE(condicion)) errores <<- c(errores, mensaje)
+  }
+  for (indice in seq_along(especificacion$pasos)) {
+    pasos <- especificacion$pasos[[indice]]
+    exigir(
+      grepl(.codigo_metrica_especificacion(especificacion), texto,
+            fixed = TRUE, useBytes = TRUE),
+      paste0(especificacion$nombre, " no publica la metrica.")
+    )
+    for (paso in pasos) {
+      funcion <- paso$funcion
+      exigir(
+        grepl(paste0("`", funcion, "()"), texto,
+              fixed = TRUE, useBytes = TRUE),
+        paste0(especificacion$nombre, " no publica ", funcion, "().")
+      )
+    }
+    especializar <- .pasos_de_funcion(pasos, "especializar")[[1L]]
+    propiedades <- especializar$propiedades
+    for (nombre in propiedades$obligatorias) {
+      exigir(
+        grepl(paste0("`", nombre, "`"), texto,
+              fixed = TRUE, useBytes = TRUE),
+        paste0(especificacion$nombre, " omite la propiedad ", nombre, ".")
+      )
+    }
+    if (length(propiedades$opcionales)) {
+      for (nombre in propiedades$opcionales) {
+        exigir(
+          grepl(paste0("`", nombre, "`"), texto,
+                fixed = TRUE, useBytes = TRUE),
+          paste0(especificacion$nombre, " omite la propiedad opcional ",
+                 nombre, ".")
+        )
+      }
+    }
+    for (paso in pasos) {
+      if (identical(paso$funcion, "referencial") ||
+          identical(paso$funcion, "vigencia") ||
+          identical(paso$funcion, "escala")) {
+        for (nombre in setdiff(
+          names(paso$argumentos), c("datos", "columna_actualizacion")
+        )) {
+          exigir(
+            grepl(paste0("`", nombre, "`"), texto,
+                  fixed = TRUE, useBytes = TRUE),
+            paste0(especificacion$nombre, " omite el argumento ", nombre,
+                   " del contrato.")
+          )
+        }
+      }
+    }
+    vinculo <- .texto_vinculo_pasos(pasos)
+    exigir(
+      grepl(vinculo, texto, fixed = TRUE, useBytes = TRUE),
+      paste0(especificacion$nombre, " no publica el vinculo ", vinculo, ".")
+    )
+    contrato <- .pasos_de_funcion(pasos, "especializar")[[1L]]$contrato
+    inicio_especializar <- regexpr(
+      "`especializar()`", texto, fixed = TRUE, useBytes = TRUE
+    )[[1L]]
+    inicio_instanciar <- regexpr(
+      "`instanciar()`", texto, fixed = TRUE, useBytes = TRUE
+    )[[1L]]
+    if (!is.null(contrato)) {
+      nombre <- contrato$funcion
+      posicion <- regexpr(
+        paste0("`", nombre, "`"), texto, fixed = TRUE, useBytes = TRUE
+      )[[1L]]
+      apariciones <- gregexpr(
+        paste0("`", nombre, "`"), texto, fixed = TRUE, useBytes = TRUE
+      )[[1L]]
+      exigir(
+        length(apariciones) == 1L && posicion > inicio_especializar &&
+          posicion < inicio_instanciar,
+        paste0(especificacion$nombre, " no pasa ", nombre,
+               " a especializar().")
+      )
+    }
+    instanciar <- .pasos_de_funcion(pasos, "instanciar")[[1L]]
+    if (!is.null(instanciar$contrato)) {
+      nombre <- instanciar$contrato$funcion
+      posicion <- regexpr(
+        paste0("`", nombre, "`"), texto, fixed = TRUE, useBytes = TRUE
+      )[[1L]]
+      apariciones <- gregexpr(
+        paste0("`", nombre, "`"), texto, fixed = TRUE, useBytes = TRUE
+      )[[1L]]
+      exigir(
+        length(apariciones) == 1L && posicion > inicio_instanciar &&
+          grepl(
+            paste0("con `", nombre, "`"), texto,
+            fixed = TRUE, useBytes = TRUE
+          ),
+        paste0(especificacion$nombre, " no pasa ", nombre,
+               " a instanciar().")
+      )
+    }
+    agregar <- .pasos_de_funcion(pasos, "agregar")
+    if (length(agregar)) {
+      argumentos <- agregar[[1L]]$argumentos
+      exigir(
+        grepl(paste0("\"", argumentos$destino, "\""), texto,
+              fixed = TRUE, useBytes = TRUE) &&
+          grepl(paste0("\"", argumentos$funcion, "\""), texto,
+                fixed = TRUE, useBytes = TRUE),
+        paste0(especificacion$nombre,
+               " no publica el destino y la agregacion.")
+      )
+    }
+  }
+  unique(errores)
+}
+
+.errores_textos_catalogo <- function(
+    recetas = NULL, marco = NULL, especificaciones = NULL
+) {
+  if (is.null(especificaciones)) {
+    especificaciones <- .especificaciones_metricas_catalogo()
+  }
+  if (is.null(recetas)) {
+    recetas <- .recetas_metricas_catalogo(especificaciones)
+  }
+  if (is.null(marco)) marco <- marco_agesic()
+  errores <- character()
+  for (nombre in names(especificaciones)) {
+    errores <- c(
+      errores,
+      .errores_texto_especificacion(recetas[[nombre]], especificaciones[[nombre]])
+    )
+  }
+  catalogo <- catalogo_agesic()
+  claves <- .clave_par_identificador(catalogo$dimension, catalogo$factor)
+  claves_marco <- .clave_par_identificador(
+    marco$factores$dimension, marco$factores$factor
+  )
+  for (i in seq_len(nrow(marco$factores))) {
+    nombres <- .identificadores_unicos(catalogo$metrica_lupa[
+      claves == claves_marco[[i]] &
+        as.character(catalogo$estado) %in% c("implementada", "via_agregacion")
+    ])
+    errores <- c(
+      errores,
+      .errores_identificadores_metricas(
+        marco$factores$como_resolverlo[[i]], especificaciones
+      )
+    )
+    errores <- c(
+      errores,
+      .errores_destinos_contrato_texto(
+        marco$factores$como_resolverlo[[i]]
+      )
+    )
+    for (nombre in nombres) {
+      receta <- recetas[[nombre]]
+      if (!grepl(receta, marco$factores$como_resolverlo[[i]],
+                 fixed = TRUE, useBytes = TRUE)) {
+        errores <- c(
+          errores,
+          paste0(
+            nombre, " no publica su receta individual completa en el factor."
+          )
+        )
+      }
+      errores <- c(
+        errores,
+        .errores_texto_especificacion(receta, especificaciones[[nombre]])
+      )
+    }
+  }
+  unique(errores)
+}
+
+.recetas_metricas_catalogo <- function(especificaciones = NULL) {
+  if (is.null(especificaciones)) especificaciones <-
+    .especificaciones_metricas_catalogo()
+  textos <- vapply(
+    especificaciones, .texto_especificacion_metrica, character(1L)
+  )
+  stats::setNames(textos, names(especificaciones))
+}
+
+.contrato_especificacion_catalogo <- function(especificacion, indice = 1L) {
+  pasos <- especificacion$pasos[[indice]]
+  contrato <- Filter(function(x) x$funcion %in% c(
+    "referencial", "vigencia", "escala"
+  ), pasos)
+  if (!length(contrato)) return(NULL)
+  contrato[[1L]]$objeto
+}
+
+.medir_especificacion_catalogo <- function(especificacion, indice = 1L) {
+  .ejecutar_pasos_especificacion(especificacion$pasos[[indice]])
+}
+
 #' Correspondencia con el catálogo de métricas de AGESIC
 #'
 #' Devuelve las 49 entradas del catálogo del marco y explicita qué parte está

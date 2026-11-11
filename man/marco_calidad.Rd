@@ -57,6 +57,12 @@ dimensiones y cuyos valores son factores. La forma lista aplica a todas las
 filas los valores predeterminados descritos abajo; en particular,
 \code{perfil_mide = FALSE}.
 
+En AGESIC, las instrucciones \code{como_resolverlo} de los factores se derivan de
+las métricas implementadas o agregables en \code{\link[=catalogo_agesic]{catalogo_agesic()}}. En los marcos
+ISO/IEC 25012 y CEA/CEPAL no se infieren métricas por similitud de nombres:
+sus factores conservan la instrucción declarada por cada marco hasta que se
+les asocia una métrica con el mismo par dimensión-factor.
+
 \code{marco_iso25012()} adapta las dos perspectivas de ISO/IEC 25012:2008 a la
 estructura dimensión-factor. Usa tres grupos disjuntos como dimensiones:
 características inherentes, características inherentes y dependientes del

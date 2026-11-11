@@ -845,6 +845,20 @@
   al motor: 176 sentencias que el plan no anunciaba y `max_consultas` no
   contaba. La ayuda declara fuera de la cuenta las que un controlador manda para
   contestar `DBI::dbGetInfo()` o `DBI::dbIsValid()`, una o dos por corrida.
+- `cobertura_analisis()` y `marco_agesic()` recomiendan para cada factor de
+  AGESIC la vía que el paquete implementa. Para «No-contradicción» decían
+  «Requiere un backend o referencial especializado que no integra esta
+  versión.», aunque `EntidadContradictoria` está implementada. La indicación
+  (`como_resolverlo`) sale ahora de las métricas que `catalogo_agesic()` marca
+  implementadas o por agregación: una receta por métrica, con la cadena entera
+  (`especializar()`, `instanciar()`, `medir()`), el contrato en la llamada que
+  lo recibe y cada propiedad con el nombre que el código acepta. Varias venían
+  mal desde 0.1.0: mandaban a instanciar una métrica sin especializarla, a
+  escribir `método`, «expresión», `Comprension` o `dominio`, a declarar
+  `vigencia()` en las métricas de oportunidad por atributo, que no la aceptan,
+  o a crear `referencial(completo = TRUE)` sin `alcance`, que aborta. El texto y
+  la prueba que recorre cada receta hasta una medición salen de los mismos
+  pasos.
 
 # lupa 0.1.0
 
