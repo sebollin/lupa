@@ -15,9 +15,9 @@ authors:
   - family-names: Lucas
     given-names: Sebastián
     orcid: "https://orcid.org/0009-0009-9068-0276"
-version: 0.1.0
+version: 0.1.1
 doi: 10.5281/zenodo.24117753
-date-released: 2026-11-10
+date-released: 2026-11-12
 license: GPL-3.0-only
 repository-code: "https://github.com/sebollin/lupa"
 repository-artifact: "https://CRAN.R-project.org/package=lupa"
