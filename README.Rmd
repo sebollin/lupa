@@ -382,7 +382,9 @@ date and checksum ([Evidencia y rendimiento](https://sebollin.github.io/lupa/art
 ```{r cita, eval = FALSE}
 ```
 
-Every release is archived on Zenodo:
+For a CRAN installation the entry carries the package DOI assigned by CRAN,
+[10.32614/CRAN.package.lupa](https://doi.org/10.32614/CRAN.package.lupa).
+Every release is also archived on Zenodo:
 [10.5281/zenodo.24117753](https://doi.org/10.5281/zenodo.24117753) always
 resolves to the latest version, and each version has its own DOI there for
 citing an exact release.

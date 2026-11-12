@@ -376,7 +376,9 @@ de control ([Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/e
 ```{r cita, eval = FALSE}
 ```
 
-Cada versión queda archivada en Zenodo:
+En una instalación desde CRAN la cita lleva el DOI que CRAN le asigna al
+paquete, [10.32614/CRAN.package.lupa](https://doi.org/10.32614/CRAN.package.lupa).
+Cada versión queda además archivada en Zenodo:
 [10.5281/zenodo.24117753](https://doi.org/10.5281/zenodo.24117753) resuelve
 siempre a la última, y cada versión tiene allí su propio DOI para citar una
 versión exacta.

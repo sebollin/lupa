@@ -3,15 +3,24 @@ citHeader(paste(
   "La segunda es el marco conceptual que el paquete implementa:"
 ))
 
+# El DOI que CRAN le asigna al paquete va en la cita cuando el paquete se
+# instaló desde CRAN, igual que en la cita que R arma sola para un paquete sin
+# este archivo. Una versión de desarrollo no está en CRAN y no lo lleva.
+doi_cran <- if (identical(meta$Repository, "CRAN")) {
+  "10.32614/CRAN.package.lupa"
+}
+
 bibentry(
   bibtype = "Manual",
   title = "lupa: Data Profiling and Quality Measurement",
   author = person("Sebastián", "Lucas"),
   year = "2026",
   note = paste("R package version", meta$Version),
+  doi = doi_cran,
   textVersion = paste0(
     "Lucas S (2026). lupa: Data Profiling and Quality Measurement. ",
-    "R package version ", meta$Version, "."
+    "R package version ", meta$Version, ".",
+    if (!is.null(doi_cran)) paste0(" doi:", doi_cran, ".")
   )
 )
 

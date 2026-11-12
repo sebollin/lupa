@@ -10,8 +10,13 @@ su alcance y lo que no pudo medir.
 
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
 [![CI de motores](https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&label=CI%20de%20motores)](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)
+[![Estado en CRAN](https://www.r-pkg.org/badges/version/lupa)](https://CRAN.R-project.org/package=lupa)
+[![Descargas de CRAN](https://cranlogs.r-pkg.org/badges/grand-total/lupa)](https://CRAN.R-project.org/package=lupa)
+[![Descargas de CRAN por mes](https://cranlogs.r-pkg.org/badges/lupa)](https://CRAN.R-project.org/package=lupa)
+[![Dependencias](https://tinyverse.netlify.app/badge/lupa)](https://CRAN.R-project.org/package=lupa)
 [![r-universe](https://sebollin.r-universe.dev/lupa/badges/version)](https://sebollin.r-universe.dev/lupa)
 [![Preguntar a DeepWiki](https://img.shields.io/badge/preguntar-DeepWiki-0969DA.svg)](https://deepwiki.com/sebollin/lupa)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.24117753-1682D4.svg)](https://doi.org/10.5281/zenodo.24117753)
 [![R \>= 4.2.0](https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg)](https://cran.r-project.org/)
 [![Ciclo de vida: estable](https://img.shields.io/badge/ciclo%20de%20vida-estable-0D9786.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
 [![Licencia: GPL-3](https://img.shields.io/badge/licencia-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
@@ -393,6 +398,13 @@ de control ([Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/e
 ``` r
 citation("lupa")
 ```
+
+En una instalación desde CRAN la cita lleva el DOI que CRAN le asigna al
+paquete, [10.32614/CRAN.package.lupa](https://doi.org/10.32614/CRAN.package.lupa).
+Cada versión queda además archivada en Zenodo:
+[10.5281/zenodo.24117753](https://doi.org/10.5281/zenodo.24117753) resuelve
+siempre a la última, y cada versión tiene allí su propio DOI para citar una
+versión exacta.
 
 Las referencias conceptuales son [Batini y Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
 el [Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos)

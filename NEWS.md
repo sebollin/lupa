@@ -1,5 +1,14 @@
 # lupa (development version)
 
+## Documentación
+
+- `citation("lupa")` lleva el DOI que CRAN le asignó al paquete,
+  `10.32614/CRAN.package.lupa`, cuando el paquete se instaló desde CRAN, como la
+  cita que R arma sola para un paquete sin archivo de cita propio. Los dos
+  README lo dicen junto al DOI de Zenodo.
+- La portada del sitio vuelve a ser la misma que el README en castellano: le
+  faltaban las insignias de CRAN y de Zenodo y la frase del DOI de Zenodo.
+
 # lupa 0.1.1
 
 ## Perfilado
