@@ -492,6 +492,14 @@ rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.ht
 citation("lupa")
 ```
 
+En una instalación desde CRAN la cita lleva el DOI que CRAN le asigna al
+paquete,
+[10.32614/CRAN.package.lupa](https://doi.org/10.32614/CRAN.package.lupa).
+Cada versión queda además archivada en Zenodo:
+[10.5281/zenodo.24117753](https://doi.org/10.5281/zenodo.24117753)
+resuelve siempre a la última, y cada versión tiene allí su propio DOI
+para citar una versión exacta.
+
 Las referencias conceptuales son [Batini y Scannapieco
 (2016)](https://doi.org/10.1007/978-3-319-24106-7), el [Marco de trabajo
 para la Gestión de la Calidad de Datos en Gobierno Digital
