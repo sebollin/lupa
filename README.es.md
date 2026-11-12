@@ -15,7 +15,7 @@ su alcance y lo que no pudo medir.
 [![Descargas de CRAN por mes](https://cranlogs.r-pkg.org/badges/lupa)](https://CRAN.R-project.org/package=lupa)
 [![Dependencias](https://tinyverse.netlify.app/badge/lupa)](https://CRAN.R-project.org/package=lupa)
 [![r-universe](https://sebollin.r-universe.dev/lupa/badges/version)](https://sebollin.r-universe.dev/lupa)
-[![Preguntar a DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/sebollin/lupa)
+[![Preguntar a DeepWiki](https://img.shields.io/badge/preguntar-DeepWiki-0969DA.svg)](https://deepwiki.com/sebollin/lupa)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.24117753-1682D4.svg)](https://doi.org/10.5281/zenodo.24117753)
 [![R \>= 4.2.0](https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg)](https://cran.r-project.org/)
 [![Ciclo de vida: estable](https://img.shields.io/badge/ciclo%20de%20vida-estable-0D9786.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
