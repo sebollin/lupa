@@ -453,6 +453,22 @@ la declaración ya se publica en `meta$cadenas_ausencia`. Tapados,
 saldrían `[valor protegido]` y `aplicar()` registraría `fallida` la
 acción recomendada.
 
+`convertir_sentinelas_numericos` convierte los números de
+`parametros$valores`. El plan arma la lista con los centinelas que el
+perfil contó en esa columna y con los que se declararon en
+`sentinelas_numericos`: un `999` dentro de una numeración de 1 a 2000 no
+es un centinela para
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
+la acción no lo convierte. Así, aplicada a los datos del perfil, cambia
+las celdas que `n_afectadas` anuncia. La lista se lee de la evidencia
+del hallazgo, que muestra las marcas más frecuentes: si la evidencia no
+alcanza a nombrar todo lo contado —una columna de texto con muchas
+marcas de ausencia distintas—, la lista es el catálogo entero y conviene
+revisarla antes de marcar la acción. También es el catálogo entero
+cuando el perfil se hizo con `proteger_datos_personales = TRUE`.
+Editarla es una decisión del usuario, como en la acción de las ausencias
+textuales.
+
 ## See also
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),

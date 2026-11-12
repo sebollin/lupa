@@ -159,7 +159,7 @@ tiene los mismos campos.
 | `n_evaluados`, `n_afectados` | cuántas unidades se miraron y en cuántas está la señal |
 | `unidad_conteo` | en qué se cuentan las 2 anteriores: filas, columnas, formatos, valores distintos |
 | `estado_reparacion` | en los hallazgos de codificación, si el texto se puede reparar; en los demás, `NA` |
-| `trazabilidad` | en qué filas está: sus índices y, si declaramos `clave`, sus valores |
+| `trazabilidad` | en qué filas está: sus índices y, si declaramos `clave`, sus valores; si el hallazgo no trae filas, `estado` lo dice (`no_aplica` o `no_disponible`) |
 
 El vocabulario completo de `tipo_hallazgo`, con lo que mide cada uno,
 está en el artículo [Alcance y
@@ -531,7 +531,7 @@ Las palabras que usan el paquete y sus guías, en orden alfabético.
   [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
   (abajo).
 - **evidencia, sugerencia, trazabilidad**: en un hallazgo, lo que se
-  vio, lo que se podría hacer y en qué filas está.
+  vio, lo que se podría hacer y, si señala filas, en cuáles está.
 - **granularidad**: el nivel al que se mide una métrica: celda, columna,
   fila, tabla, base de datos.
   [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)

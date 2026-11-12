@@ -1089,11 +1089,15 @@
   `recortar_espacios`, `reemplazar_separadores` y
   `decodificar_entidades_html` también las respetan. Si el motor no
   puede reparar una celda, sus letras rotas tampoco las toca ninguna
-  acción, y la celda sigue señalada. Un control que la reparación deja
-  como está, como un U+0081 suelto o un guion blando junto a una letra
-  rota, se sigue detectando y quitando. El perfil cuenta un invisible
-  sólo donde la acción puede quitarlo, así que el plan no ofrece una
-  acción que después termina `fallida`.
+  acción, y la celda sigue señalada. Queda un caso sin cubrir: una
+  comilla tipográfica, un guion o un emoji rotos que tienen pegado
+  delante un símbolo que impide la reparación (un espacio duro, un `°`)
+  todavía pierden su último byte con `eliminar_controles_invisibles`; la
+  celda sigue señalada. Un control que la reparación deja como está,
+  como un U+0081 suelto o un guion blando junto a una letra rota, se
+  sigue detectando y quitando. El perfil cuenta un invisible sólo donde
+  la acción puede quitarlo, así que el plan no ofrece una acción que
+  después termina `fallida`.
 - [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   corre `reparar_codificacion` antes que las demás acciones de su
   columna, aunque el `orden` editado la ponga después. Con el orden por
@@ -1113,6 +1117,27 @@
   leído así: «ÁREA» (`C3 81`) ahora se repara. Una celda que una acción
   cambia queda en UTF-8, como documenta
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
+  Y la marca no decide nada: una columna declarada `latin1` y la misma
+  columna en UTF-8 dan las mismas cuentas en el perfil, las mismas
+  acciones en el plan y los mismos valores al aplicarlo, con la
+  reparación marcada o desmarcada. Sólo cambia
+  `n_codificacion_normalizada`, que cuenta las celdas `latin1` que una
+  acción dejó en UTF-8.
+- [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  arma `convertir_sentinelas_numericos` con los centinelas que el perfil
+  contó en esa columna, y no con el catálogo entero.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  decide por columna cuáles cuentan —un `999` dentro de una numeración
+  de 1 a 2000 no es un centinela; diez `-9`, sí—, pero la acción llevaba
+  la lista completa: al marcarla,
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  convertía también el `999` legítimo, y el registro decía 11 celdas
+  donde el plan anunciaba 10. Ahora la lista se lee de la evidencia del
+  hallazgo, más lo que se declaró en `sentinelas_numericos`. Si la
+  evidencia no alcanza a nombrar todo lo contado —una columna de texto
+  con muchas marcas de ausencia distintas— o el perfil se hizo con
+  `proteger_datos_personales = TRUE`, la lista sigue siendo el catálogo
+  entero, como antes.
 
 ## lupa 0.1.0
 

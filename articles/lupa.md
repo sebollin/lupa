@@ -1,7 +1,7 @@
 # 1. Empezar en diez minutos
 
 Llega una tabla y, antes de usarla, queremos saber si podemos confiar en
-ella. ¿Qué tiene mal, en qué filas está cada problema y qué no se pudo
+ella. ¿Qué tiene mal, en qué filas están los problemas y qué no se pudo
 revisar?
 
 > **En esta guía:**
@@ -79,8 +79,8 @@ con el hallazgo que lo señala:
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 lee la tabla sin modificarla. En `clave` le pasamos la columna que
-identifica cada evento en el sistema de origen. Así, cada hallazgo dice
-en qué eventos está.
+identifica cada evento en el sistema de origen. Así, donde un hallazgo
+señala filas, dice en qué eventos están.
 
 ``` r
 

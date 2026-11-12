@@ -98,8 +98,8 @@ en diez minutos</a>. <code>lupa</code> writes its messages and tables in
 Spanish, so the output below is in Spanish.</p>
 </blockquote>
 <p>A table arrives and, before using it, we want to know whether we can
-trust it. What is wrong with it, in which rows is each problem, and what
-could not be checked?</p>
+trust it. What is wrong with it, in which rows are the problems, and
+what could not be checked?</p>
 <blockquote>
 <p><strong>In this guide:</strong></p>
 <ul>
@@ -258,8 +258,8 @@ key</td>
 </h2>
 <p><code><a href="../reference/perfilar.html">perfilar()</a></code> (<em>profile</em>) reads the table without
 modifying it. In <code>clave</code> (<em>key</em>) we pass the column
-that identifies each event in the source system. That way, each finding
-says in which events it is.</p>
+that identifies each event in the source system. That way, where a
+finding points to rows, it says which events they are.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="st">"id_evento"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor</span></span>

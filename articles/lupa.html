@@ -92,7 +92,7 @@
     
     
 <p>Llega una tabla y, antes de usarla, queremos saber si podemos confiar
-en ella. ¿Qué tiene mal, en qué filas está cada problema y qué no se
+en ella. ¿Qué tiene mal, en qué filas están los problemas y qué no se
 pudo revisar?</p>
 <blockquote>
 <p><strong>En esta guía:</strong></p>
@@ -245,7 +245,8 @@ misma razón que los formatos de <code>codigo_usuario</code>)</td>
 </h2>
 <p><code><a href="../reference/perfilar.html">perfilar()</a></code> lee la tabla sin modificarla. En
 <code>clave</code> le pasamos la columna que identifica cada evento en
-el sistema de origen. Así, cada hallazgo dice en qué eventos está.</p>
+el sistema de origen. Así, donde un hallazgo señala filas, dice en qué
+eventos están.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="st">"id_evento"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor</span></span>

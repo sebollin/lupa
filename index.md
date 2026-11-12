@@ -15,11 +15,11 @@ no ve:
 - filas y columnas repetidas;
 - estructura que nadie declaró.
 
-Dice en qué filas está cada problema y qué controles no pudo hacer.
-Después ayuda a convertir lo confirmado en mediciones, a evaluarlas, a
-limpiar una copia con un plan editable y a comparar entregas. Es para
-quien analiza, produce o publica datos tabulares y necesita saber qué
-tan confiables son antes de usarlos.
+Dice en qué filas está la mayoría de los problemas y qué controles no
+pudo hacer. Después ayuda a convertir lo confirmado en mediciones, a
+evaluarlas, a limpiar una copia con un plan editable y a comparar
+entregas. Es para quien analiza, produce o publica datos tabulares y
+necesita saber qué tan confiables son antes de usarlos.
 
 Lo que lo distingue:
 

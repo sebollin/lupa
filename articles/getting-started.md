@@ -6,8 +6,8 @@
 > Spanish.
 
 A table arrives and, before using it, we want to know whether we can
-trust it. What is wrong with it, in which rows is each problem, and what
-could not be checked?
+trust it. What is wrong with it, in which rows are the problems, and
+what could not be checked?
 
 > **In this guide:**
 >
@@ -85,7 +85,7 @@ describes it), with the finding that flags it:
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 (*profile*) reads the table without modifying it. In `clave` (*key*) we
 pass the column that identifies each event in the source system. That
-way, each finding says in which events it is.
+way, where a finding points to rows, it says which events they are.
 
 ``` r
 

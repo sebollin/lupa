@@ -285,7 +285,8 @@ los demás, <code>NA</code>
 <tr class="even">
 <td><code>trazabilidad</code></td>
 <td>en qué filas está: sus índices y, si declaramos <code>clave</code>,
-sus valores</td>
+sus valores; si el hallazgo no trae filas, <code>estado</code> lo dice
+(<code>no_aplica</code> o <code>no_disponible</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -629,8 +630,8 @@ correspondencia completa está en <code><a href="../reference/granularidades.htm
 (abajo).</li>
 <li>
 <strong>evidencia, sugerencia, trazabilidad</strong>: en un
-hallazgo, lo que se vio, lo que se podría hacer y en qué filas
-está.</li>
+hallazgo, lo que se vio, lo que se podría hacer y, si señala filas, en
+cuáles está.</li>
 <li>
 <strong>granularidad</strong>: el nivel al que se mide una métrica:
 celda, columna, fila, tabla, base de datos. <code><a href="../reference/agregar.html">agregar()</a></code> sube

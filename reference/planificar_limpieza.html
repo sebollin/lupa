@@ -488,6 +488,18 @@ también sobre una columna protegida: un marcador del catálogo —<code>sin dat
 o uno declarado —<code>SIN REGISTRO</code>— no es el dato de nadie, y la declaración ya
 se publica en <code>meta$cadenas_ausencia</code>. Tapados, saldrían <code>[valor protegido]</code>
 y <code>aplicar()</code> registraría <code>fallida</code> la acción recomendada.</p>
+<p><code>convertir_sentinelas_numericos</code> convierte los números de
+<code>parametros$valores</code>. El plan arma la lista con los centinelas que el perfil
+contó en esa columna y con los que se declararon en <code>sentinelas_numericos</code>:
+un <code>999</code> dentro de una numeración de 1 a 2000 no es un centinela para
+<code><a href="perfilar.html">perfilar()</a></code>, y la acción no lo convierte. Así, aplicada a los datos del
+perfil, cambia las celdas que <code>n_afectadas</code> anuncia. La lista se lee de la
+evidencia del hallazgo, que muestra las marcas más frecuentes: si la
+evidencia no alcanza a nombrar todo lo contado —una columna de texto con
+muchas marcas de ausencia distintas—, la lista es el catálogo entero y
+conviene revisarla antes de marcar la acción. También es el catálogo entero
+cuando el perfil se hizo con <code>proteger_datos_personales = TRUE</code>. Editarla es
+una decisión del usuario, como en la acción de las ausencias textuales.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
