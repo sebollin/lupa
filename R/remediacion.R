@@ -3333,13 +3333,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # deteccion vectorizada evita llamar al reparador sobre texto limpio.
 .ftfy_mascara_para_texto <- function(textos, trabajo = NULL) {
   if (is.null(trabajo)) trabajo <- .texto_para_operar(textos)
-  candidatos <- .ftfy_mascara_candidatos(trabajo)
-  # Una cadena marcada `latin1` ya declara como se leen sus bytes. Despues de
-  # convertirla a UTF-8, sus secuencias `C2` y `C3` pueden parecer mojibake a
-  # ftfy aunque sean caracteres legitimos del dato; no se repara una marca que
-  # ya resolvio la codificacion.
-  candidatos[!is.na(textos) & Encoding(textos) == "latin1"] <- FALSE
-  candidatos
+  .ftfy_mascara_candidatos(trabajo)
 }
 
 .reparar_textos_seleccionados <- function(textos, seleccion) {
@@ -3459,16 +3453,19 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 }
 
 .accion_fabrica_secuencia <- function(anterior, nuevo) {
-  entrada <- .codigos_decodificables(anterior)
-  salida <- .codigos_decodificables(nuevo)
-  if (is.null(entrada) || is.null(salida) || identical(anterior, nuevo)) {
+  anterior_trabajo <- .texto_para_operar(anterior)
+  nuevo_trabajo <- .texto_para_operar(nuevo)
+  entrada <- .codigos_decodificables(anterior_trabajo)
+  salida <- .codigos_decodificables(nuevo_trabajo)
+  if (is.null(entrada) || is.null(salida) ||
+      identical(anterior_trabajo, nuevo_trabajo)) {
     return(FALSE)
   }
-  antes <- .ftfy_reparar_uno(anterior)
-  despues <- .ftfy_reparar_uno(nuevo)
+  antes <- .ftfy_reparar_uno(anterior_trabajo)
+  despues <- .ftfy_reparar_uno(nuevo_trabajo)
   !identical(antes$estado, "reparado") &&
     identical(despues$estado, "reparado") &&
-    !identical(despues$texto, nuevo)
+    !identical(despues$texto, nuevo_trabajo)
 }
 
 # Protege la propiedad de que una accion de texto no cambie la lectura de la
@@ -3495,9 +3492,6 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   }
   nuevas <- logical(length(indices))
   indices_nuevas <- which(!candidatos)
-  indices_nuevas <- indices_nuevas[
-    Encoding(anterior[indices[indices_nuevas]]) != "latin1"
-  ]
   if (length(indices_nuevas) && identical(revisar_nuevas, "siempre")) {
     nuevas[indices_nuevas] <- .ftfy_mascara_para_texto(
       nuevo[indices[indices_nuevas]]
@@ -3520,7 +3514,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else {
     .ftfy_posiciones_consumidas_vector(
       .texto_para_operar(anterior),
-      solo = tocar & Encoding(anterior) != "latin1"
+      solo = tocar
     )
   }
   protegido <- nuevo
@@ -3563,7 +3557,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     revertir <- vapply(which(diferencias), function(i) {
       mascara <- consumidos[[i]]
       length(mascara) && any(mascara) &&
-        !identical(reparado[[i]], anterior[[i]])
+        !identical(
+          .texto_para_operar(reparado[[i]]),
+          .texto_para_operar(anterior[[i]])
+        )
     }, logical(1L), USE.NAMES = FALSE)
     if (any(revertir)) {
       protegidos <- which(diferencias)[revertir]

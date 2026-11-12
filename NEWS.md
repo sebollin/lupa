@@ -876,7 +876,10 @@
   posiciones protegidas salen de la misma reparación, y `recortar_espacios`,
   `reemplazar_separadores` y `decodificar_entidades_html` también las respetan.
   Si el motor no puede reparar una celda, sus letras rotas tampoco las toca
-  ninguna acción, y la celda sigue señalada. Un control que la reparación deja
+  ninguna acción, y la celda sigue señalada. Queda un caso sin cubrir: una
+  comilla tipográfica, un guion o un emoji rotos que tienen pegado delante un
+  símbolo que impide la reparación (un espacio duro, un `°`) todavía pierden
+  su último byte con `eliminar_controles_invisibles`; la celda sigue señalada. Un control que la reparación deja
   como está, como un U+0081 suelto o un guion blando junto a una letra rota, se
   sigue detectando y quitando. El perfil cuenta un invisible sólo donde la
   acción puede quitarlo, así que el plan no ofrece una acción que después
@@ -895,6 +898,11 @@
   `encoding = "latin1"`, o uno en UTF-8 leído así: «ÁREA» (`C3 81`) ahora se
   repara. Una celda que una acción cambia queda en UTF-8, como documenta
   `aplicar()`.
+  Y la marca no decide nada: una columna declarada `latin1` y la misma columna
+  en UTF-8 dan las mismas cuentas en el perfil, las mismas acciones en el plan y
+  los mismos valores al aplicarlo, con la reparación marcada o desmarcada. Sólo
+  cambia `n_codificacion_normalizada`, que cuenta las celdas `latin1` que una
+  acción dejó en UTF-8.
 
 # lupa 0.1.0
 
