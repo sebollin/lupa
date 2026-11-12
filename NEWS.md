@@ -862,28 +862,31 @@
   o a crear `referencial(completo = TRUE)` sin `alcance`, que aborta. El texto y
   la prueba que recorre cada receta hasta una medición salen de los mismos
   pasos.
-- Un carácter que es un byte de una letra mal codificada ya no cuenta como
-  invisible, y ninguna acción del plan lo toca salvo la reparación. El texto
-  UTF-8 leído como latin-1 deja, en el segundo byte de muchas letras, un control
-  C1 («Á» queda `Ã` más U+0081), un guion blando («í», U+00AD) o un espacio duro
-  («à», U+00A0); y un C1 suelto puede ser un carácter de Windows-1252 (U+0080
-  por `€`). `perfilar()` publicaba `controles_invisibles` además de
-  `codificacion_rota` por un solo defecto. Si en el plan se desmarcaba
-  `reparar_codificacion`, `eliminar_controles_invisibles` y
-  `normalizar_espacios_invisibles` borraban ese byte y dejaban «MarÃa» o «ÃREA»,
-  ya sin arreglo y sin hallazgo. Con las dos acciones marcadas, `aplicar()`
-  registraba `fallida` la eliminación, que no tenía nada que hacer. Ahora las
-  posiciones protegidas salen de la misma reparación, y `recortar_espacios`,
-  `reemplazar_separadores` y `decodificar_entidades_html` también las respetan.
-  Si el motor no puede reparar una celda, sus letras rotas tampoco las toca
-  ninguna acción, y la celda sigue señalada. Queda un caso sin cubrir: una
-  comilla tipográfica, un guion o un emoji rotos que tienen pegado delante un
-  símbolo que impide la reparación (un espacio duro, un `°`) todavía pierden
-  su último byte con `eliminar_controles_invisibles`; la celda sigue señalada. Un control que la reparación deja
+- Un carácter que la reparación de la codificación reemplaza —el segundo byte de
+  una letra mal codificada— ya no cuenta como invisible, y ninguna otra acción
+  del plan lo toca. El texto UTF-8 leído como latin-1 deja, en el segundo byte
+  de muchas letras, un control C1 («Á» queda `Ã` más U+0081), un guion blando
+  («í», U+00AD) o un espacio duro («à», U+00A0); y un C1 suelto puede ser un
+  carácter de Windows-1252 (U+0080 por `€`). `perfilar()` publicaba
+  `controles_invisibles` además de `codificacion_rota` por un solo defecto. Si
+  en el plan se desmarcaba `reparar_codificacion`,
+  `eliminar_controles_invisibles` y `normalizar_espacios_invisibles` borraban
+  ese byte y dejaban «MarÃa» o «ÃREA», ya sin arreglo y sin hallazgo. Con las
+  dos acciones marcadas, `aplicar()` registraba `fallida` la eliminación, que no
+  tenía nada que hacer. Ahora las posiciones protegidas salen de la misma
+  reparación, y `recortar_espacios`, `reemplazar_separadores` y
+  `decodificar_entidades_html` también las respetan. Si el motor no puede
+  reparar una celda, sus letras rotas tampoco las toca ninguna acción, y la
+  celda sigue señalada. Quedan dos casos sin cubrir. Una comilla tipográfica, un
+  guion o un emoji rotos que tienen pegado delante un símbolo que impide la
+  reparación (un espacio duro, un `°`) todavía pierden su último byte con
+  `eliminar_controles_invisibles`; la celda sigue señalada. Y una letra rota que
+  el motor no reconoce como tal —«Š» leída como `Å` más un espacio duro— no
+  tiene protección ni hallazgo, como antes. Un control que la reparación deja
   como está, como un U+0081 suelto o un guion blando junto a una letra rota, se
   sigue detectando y quitando. El perfil cuenta un invisible sólo donde la
-  acción puede quitarlo, así que el plan no ofrece una acción que después
-  termina `fallida`.
+  acción puede quitarlo, así que el plan ya no ofrece por esa causa una acción
+  que después termina `fallida`.
 - `aplicar()` corre `reparar_codificacion` antes que las demás acciones de su
   columna, aunque el `orden` editado la ponga después. Con el orden por omisión
   ya era así. Si se la reordenaba detrás de `convertir_mayusculas`, la
@@ -911,9 +914,10 @@
   `999` legítimo, y el registro decía 11 celdas donde el plan anunciaba 10.
   Ahora la lista se lee de la evidencia del hallazgo, más lo que se declaró en
   `sentinelas_numericos`. Si la evidencia no alcanza a nombrar todo lo contado
-  —una columna de texto con muchas marcas de ausencia distintas— o el perfil se
-  hizo con `proteger_datos_personales = TRUE`, la lista sigue siendo el
-  catálogo entero, como antes.
+  —una columna de texto con muchas marcas de ausencia distintas—, si una marca
+  declarada en `cadenas_ausencia` contiene `; ` o si el perfil se hizo con
+  `proteger_datos_personales = TRUE`, la lista sigue siendo el catálogo
+  entero, como antes.
 
 # lupa 0.1.0
 
