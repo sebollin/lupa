@@ -1110,6 +1110,54 @@
   }
 }
 
+# Los centinelas numericos que el perfil CONTO en la columna, leidos de la
+# evidencia del hallazgo. El detector decide por columna cuales cuentan -un
+# `999` dentro de una numeracion de 1 a 2000 no es un centinela, diez `-9`
+# si-, y la accion llevaba la lista entera: al marcarla, `aplicar()` convertia
+# tambien el `999` legitimo, once celdas donde el plan anunciaba diez. Medido.
+# La evidencia nombra cada valor con su conteo, y es lo que ya lee la accion
+# hermana (`.marcadores_de_ausencia()`): si los conteos de sus etiquetas
+# numericas suman lo que el perfil conto, la lista esta completa y es la del
+# detector. Si no -la evidencia muestra solo las marcas mas frecuentes, o una
+# etiqueta no se puede releer- devuelve `NULL`, y quien llama conserva la lista
+# entera, como antes: nunca una lista parcial, que dejaria celdas sin convertir.
+.sentinelas_contados_en_evidencia <- function(evidencia, n_numericos,
+                                              convencion = NULL,
+                                              textuales = character()) {
+  if (is.null(evidencia) || !length(evidencia) || is.na(evidencia[[1L]]) ||
+      !nzchar(evidencia[[1L]]) || !isTRUE(n_numericos > 0)) {
+    return(NULL)
+  }
+  # La evidencia separa las marcas con "; ". Una marca declarada que lleva ese
+  # separador adentro -`cadenas_ausencia = "9; x"`- se parte en dos, y un trozo
+  # se leia como un numero que nadie conto: no se puede confiar en el corte.
+  if (any(grepl("; ", textuales, fixed = TRUE, useBytes = TRUE))) {
+    return(NULL)
+  }
+  partes <- strsplit(
+    .declarar_utf8_valido(as.character(evidencia)[[1L]]), "; ", fixed = TRUE
+  )[[1L]]
+  # Cada parte tiene que ser una marca con su conteo; si a alguna le falta, la
+  # evidencia no tiene la forma que se sabe leer.
+  if (!all(grepl("\\([0-9]+\\)$", partes))) return(NULL)
+  etiquetas <- sub("\\s*\\([0-9]+\\)$", "", partes)
+  conteos <- suppressWarnings(
+    as.numeric(sub("^.*\\(([0-9]+)\\)$", "\\1", partes))
+  )
+  numeros <- .leer_numeros_texto_centinela(etiquetas, convencion)
+  # Una marca textual declarada que se escribe como numero -`cadenas_ausencia =
+  # "99"`- se conto entre las textuales: no entra en esta cuenta.
+  numericas <- !is.na(numeros) & !(
+    .minusculas_para_comparar(etiquetas) %in%
+      .minusculas_para_comparar(textuales)
+  )
+  if (!any(numericas) || anyNA(conteos[numericas]) ||
+      !isTRUE(sum(conteos[numericas]) == as.numeric(n_numericos))) {
+    return(NULL)
+  }
+  .normalizar_sentinelas_numericos(numeros[numericas])
+}
+
 # Lleva la regla de aplicabilidad del perfil a las acciones del plan. Sin esto
 # la limpieza operaba sobre la columna entera aunque el usuario hubiera
 # declarado que una parte de las filas no le corresponde: una `S/D` en una fila
@@ -1591,6 +1639,19 @@
 #' se publica en `meta$cadenas_ausencia`. Tapados, saldrían `[valor protegido]`
 #' y `aplicar()` registraría `fallida` la acción recomendada.
 #'
+#' `convertir_sentinelas_numericos` convierte los números de
+#' `parametros$valores`. El plan arma la lista con los centinelas que el perfil
+#' contó en esa columna y con los que se declararon en `sentinelas_numericos`:
+#' un `999` dentro de una numeración de 1 a 2000 no es un centinela para
+#' [perfilar()], y la acción no lo convierte. Así, aplicada a los datos del
+#' perfil, cambia las celdas que `n_afectadas` anuncia. La lista se lee de la
+#' evidencia del hallazgo, que muestra las marcas más frecuentes: si la
+#' evidencia no alcanza a nombrar todo lo contado —una columna de texto con
+#' muchas marcas de ausencia distintas—, la lista es el catálogo entero y
+#' conviene revisarla antes de marcar la acción. También es el catálogo entero
+#' cuando el perfil se hizo con `proteger_datos_personales = TRUE`. Editarla es
+#' una decisión del usuario, como en la acción de las ausencias textuales.
+#'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param datos Datos opcionales que originaron el perfil. Son necesarios para
 #'   comprobar la reversibilidad de conversiones sobre todos los valores y para
@@ -1849,6 +1910,26 @@ planificar_limpieza <- function(perfil, datos = NULL,
         convencion <- if ("numero_texto_convencion" %in% names(fila)) {
           as.character(fila$numero_texto_convencion[[1L]])
         } else ""
+        # La lista acota a lo que el perfil conto en ESTA columna, no al
+        # catalogo: ver `.sentinelas_contados_en_evidencia()`. Lo que el usuario
+        # declaro se suma, porque atraviesa la guarda del detector entera. Con
+        # un perfil protegido no se toca: la lista lleva tapados los rellenos y
+        # los centinelas declarados que son valores de una columna protegida
+        # -un `NA` en su lugar-, y achicarla los perdia. La proteccion se lee de
+        # `meta`, no de la clasificacion: una columna clasificada como personal
+        # figura para proteger aunque la proteccion este apagada.
+        if (identical(perfil$meta$proteger_datos_personales, FALSE) &&
+            !anyNA(sentinelas)) {
+          contados <- .sentinelas_contados_en_evidencia(
+            hallazgo$evidencia[[1L]], n_numericos, convencion,
+            textuales = perfil$meta$cadenas_ausencia
+          )
+          if (!is.null(contados)) {
+            sentinelas <- .normalizar_sentinelas_numericos(c(
+              contados, .sentinelas_numericos_declarados(sentinelas)
+            ))
+          }
+        }
         parametros_sentinelas <- list(valores = sentinelas)
         if (length(convencion) == 1L && !is.na(convencion) &&
             nzchar(convencion)) {

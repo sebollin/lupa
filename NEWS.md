@@ -903,6 +903,17 @@
   los mismos valores al aplicarlo, con la reparación marcada o desmarcada. Sólo
   cambia `n_codificacion_normalizada`, que cuenta las celdas `latin1` que una
   acción dejó en UTF-8.
+- `planificar_limpieza()` arma `convertir_sentinelas_numericos` con los
+  centinelas que el perfil contó en esa columna, y no con el catálogo entero.
+  `perfilar()` decide por columna cuáles cuentan —un `999` dentro de una
+  numeración de 1 a 2000 no es un centinela; diez `-9`, sí—, pero la acción
+  llevaba la lista completa: al marcarla, `aplicar()` convertía también el
+  `999` legítimo, y el registro decía 11 celdas donde el plan anunciaba 10.
+  Ahora la lista se lee de la evidencia del hallazgo, más lo que se declaró en
+  `sentinelas_numericos`. Si la evidencia no alcanza a nombrar todo lo contado
+  —una columna de texto con muchas marcas de ausencia distintas— o el perfil se
+  hizo con `proteger_datos_personales = TRUE`, la lista sigue siendo el
+  catálogo entero, como antes.
 
 # lupa 0.1.0
 

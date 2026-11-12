@@ -419,6 +419,19 @@ también sobre una columna protegida: un marcador del catálogo —\verb{sin dat
 o uno declarado —\verb{SIN REGISTRO}— no es el dato de nadie, y la declaración ya
 se publica en \code{meta$cadenas_ausencia}. Tapados, saldrían \verb{[valor protegido]}
 y \code{aplicar()} registraría \code{fallida} la acción recomendada.
+
+\code{convertir_sentinelas_numericos} convierte los números de
+\code{parametros$valores}. El plan arma la lista con los centinelas que el perfil
+contó en esa columna y con los que se declararon en \code{sentinelas_numericos}:
+un \code{999} dentro de una numeración de 1 a 2000 no es un centinela para
+\code{\link[=perfilar]{perfilar()}}, y la acción no lo convierte. Así, aplicada a los datos del
+perfil, cambia las celdas que \code{n_afectadas} anuncia. La lista se lee de la
+evidencia del hallazgo, que muestra las marcas más frecuentes: si la
+evidencia no alcanza a nombrar todo lo contado —una columna de texto con
+muchas marcas de ausencia distintas—, la lista es el catálogo entero y
+conviene revisarla antes de marcar la acción. También es el catálogo entero
+cuando el perfil se hizo con \code{proteger_datos_personales = TRUE}. Editarla es
+una decisión del usuario, como en la acción de las ausencias textuales.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))
