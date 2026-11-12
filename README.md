@@ -34,7 +34,7 @@ scope and what it could not measure.
   - repeated rows and columns;
   - structure nobody declared.
 
-It says which rows each problem is in and which checks it could not run. Then it
+It says which rows most problems are in and which checks it could not run. Then it
 helps turn what was confirmed into measurements, evaluate them, clean a copy with
 an editable plan and compare deliveries. It is for anyone who analyzes, produces
 or publishes tabular data and needs to know how far it can be trusted.

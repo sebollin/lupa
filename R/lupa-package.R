@@ -3,7 +3,7 @@
 #' `lupa` examina una tabla o una base de datos antes de confiar en ella:
 #' encuentra faltantes disfrazados, el mismo dato escrito de varias formas,
 #' fechas en formatos mezclados, filas y columnas repetidas y estructura que
-#' nadie declaró; dice en qué filas está cada problema y qué controles no pudo
+#' nadie declaró; dice en qué filas está la mayoría de los problemas y qué controles no pudo
 #' hacer. Cada resultado conserva su alcance y su evidencia, y ningún
 #' diagnóstico modifica los datos que recibe.
 #'
