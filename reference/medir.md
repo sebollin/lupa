@@ -165,14 +165,14 @@ nucleo <- metricas_nucleo()
 especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
-#>                                                               id_medida
-#> 1 medicion-20261112T153631.492725-12567-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261112T153631.492725-12567-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261112T153631.492725-12567-NoNuloEdad@personas.edad-000003
-#>                             id_medicion               fecha metrica
-#> 1 medicion-20261112T153631.492725-12567 2026-11-12 15:36:31  NoNulo
-#> 2 medicion-20261112T153631.492725-12567 2026-11-12 15:36:31  NoNulo
-#> 3 medicion-20261112T153631.492725-12567 2026-11-12 15:36:31  NoNulo
+#>                                                              id_medida
+#> 1 medicion-20261112T213800.220957-8196-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261112T213800.220957-8196-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261112T213800.220957-8196-NoNuloEdad@personas.edad-000003
+#>                            id_medicion               fecha metrica
+#> 1 medicion-20261112T213800.220957-8196 2026-11-12 21:38:00  NoNulo
+#> 2 medicion-20261112T213800.220957-8196 2026-11-12 21:38:00  NoNulo
+#> 3 medicion-20261112T213800.220957-8196 2026-11-12 21:38:00  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

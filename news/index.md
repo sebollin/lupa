@@ -1,6 +1,10 @@
 # Changelog
 
+## lupa (development version)
+
 ## lupa 0.1.1
+
+CRAN release: 2026-11-12
 
 ### Perfilado
 
