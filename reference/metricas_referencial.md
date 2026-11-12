@@ -81,19 +81,19 @@ m <- metricas_referencial()
 fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
-#>                                                                      id_medida
-#> 1 medicion-20261112T152116.090089-8155-CorrectitudSemFuerte@personas.id-000001
-#> 2 medicion-20261112T152116.090089-8155-CorrectitudSemFuerte@personas.id-000002
-#>                            id_medicion               fecha              metrica
-#> 1 medicion-20261112T152116.090089-8155 2026-11-12 15:21:16 CorrectitudSemFuerte
-#> 2 medicion-20261112T152116.090089-8155 2026-11-12 15:21:16 CorrectitudSemFuerte
-#>     metrica_especifica              metrica_instanciada dimension
-#> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
-#> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
-#>                  factor orientacion      granularidad tipo_resultado  entidad
-#> 1 Correctitud semántica conformidad instanciaAtributo       booleano personas
-#> 2 Correctitud semántica conformidad instanciaAtributo       booleano personas
-#>   atributo fila objeto_medible resultado agregacion
-#> 1       id    1 personas[1,id]         1       <NA>
-#> 2       id    2 personas[2,id]         0       <NA>
+#>                                                                       id_medida
+#> 1 medicion-20261112T153631.829198-12567-CorrectitudSemFuerte@personas.id-000001
+#> 2 medicion-20261112T153631.829198-12567-CorrectitudSemFuerte@personas.id-000002
+#>                             id_medicion               fecha
+#> 1 medicion-20261112T153631.829198-12567 2026-11-12 15:36:31
+#> 2 medicion-20261112T153631.829198-12567 2026-11-12 15:36:31
+#>                metrica   metrica_especifica              metrica_instanciada
+#> 1 CorrectitudSemFuerte CorrectitudSemFuerte CorrectitudSemFuerte@personas.id
+#> 2 CorrectitudSemFuerte CorrectitudSemFuerte CorrectitudSemFuerte@personas.id
+#>   dimension                factor orientacion      granularidad tipo_resultado
+#> 1 Exactitud Correctitud semántica conformidad instanciaAtributo       booleano
+#> 2 Exactitud Correctitud semántica conformidad instanciaAtributo       booleano
+#>    entidad atributo fila objeto_medible resultado agregacion
+#> 1 personas       id    1 personas[1,id]         1       <NA>
+#> 2 personas       id    2 personas[2,id]         0       <NA>
 ```
