@@ -1374,7 +1374,9 @@ modelo <- function(..., marco = NULL) {
   relacion <- detectar_relaciones(
     .seleccionar_columnas(tabla_referencia, atributo_pk),
     .seleccionar_columnas(tabla_dependiente, atributo_fk),
-    muestra = instancia$configuracion$muestra
+    muestra = instancia$configuracion$muestra,
+    # La metrica publica la cobertura; las filas huerfanas no se usan aca.
+    .trazar_huerfanas = FALSE
   )
   .salida_metodo(
     relacion$cobertura_tabla2_en_tabla1,

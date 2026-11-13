@@ -12,8 +12,10 @@ detectar_relaciones(
   umbral_cobertura = 0.9,
   podar = FALSE,
   tope_memoria_mb = Inf,
+  max_filas_huerfanas = 1000L,
   .rangos = NULL,
-  .rellenos_finales = NULL
+  .rellenos_finales = NULL,
+  .trazar_huerfanas = TRUE
 )
 }
 \arguments{
@@ -26,7 +28,9 @@ no limita nada: las coberturas se calculan sobre todas las filas.}
 \code{tabla2}, que declara las columnas que pueden participar. \code{NULL} conserva
 la exploración completa por compatibilidad.}
 
-\item{umbral_cobertura}{Umbral usado por la poda de cardinalidades imposibles.}
+\item{umbral_cobertura}{Umbral usado por la poda de cardinalidades
+imposibles, y cobertura mínima de un lado para ubicar sus filas huérfanas:
+por debajo se cuentan pero no se nombran.}
 
 \item{podar}{Si se aplican las podas que cambiarían lo informado —tipos
 incompatibles y cardinalidades imposibles—. \code{FALSE} por omisión: sólo se
@@ -34,7 +38,14 @@ aplica la poda cierta, que no cambia ninguna fila.}
 
 \item{tope_memoria_mb}{Presupuesto de memoria para las filas comparadas, en
 megabytes. Las combinaciones pendientes se declaran como podas cuando se
-alcanza; \code{Inf} no limita el procesamiento.}
+alcanza; \code{Inf} no limita el procesamiento. Los conteos y las trazas de
+filas huérfanas son parte de cada fila comparada y cuentan en el
+presupuesto.}
+
+\item{max_filas_huerfanas}{Tope de índices de fila que conserva cada traza
+de filas huérfanas, como \code{max_filas_hallazgo} en \code{\link[=perfilar]{perfilar()}}. Por defecto
+es \code{1000}; cuando se supera, el \code{estado} de la traza queda \code{truncada} y el
+\code{total} se conserva. \code{Inf} desactiva el tope.}
 
 \item{.rangos}{Uso interno de \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. Lista nombrada por
 \code{tabla1} y \code{tabla2}, con rangos y su origen para cada columna. La poda por
@@ -46,13 +57,22 @@ columna cuya lectura no permite comparar exacto lo declara en
 las columnas cuyo controlador compara ignorando espacios finales. Se aplica
 solo al par que tiene una columna declarada, para conservar la semantica de
 comparacion del motor sin convertir todas las columnas de texto.}
+
+\item{.trazar_huerfanas}{Uso interno. \code{FALSE} omite las columnas
+\code{huerfanas_tabla1} y \code{huerfanas_tabla2}, y la pasada por columna que
+cuestan; los cuatro conteos se calculan siempre.}
 }
 \value{
 Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}
 —\code{1:1}, \code{1:m}, \code{m:1}, \code{m:m}, \code{sin_coincidencias} o \code{sin_comparar}—,
 \code{n_valores_comunes},
 coberturas de integridad referencial en ambas direcciones y \code{motivo_poda},
-que sólo tiene valor en los pares no comparados. Los atributos
+que sólo tiene valor en los pares no comparados. Después, las filas
+huérfanas de cada lado: los conteos \code{n_filas_huerfanas_tabla1},
+\code{n_filas_huerfanas_tabla2}, \code{n_valores_huerfanos_tabla1} y
+\code{n_valores_huerfanos_tabla2}, y las columnas-lista \code{huerfanas_tabla1} y
+\code{huerfanas_tabla2}, con una traza por par
+(\code{resultado$huerfanas_tabla2[[i]]$indices_fila}). Los atributos
 \code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el alcance:
 \code{filas_analizadas} son todas las filas y \code{muestreado} vale \code{FALSE};
 \code{podas}, \code{n_pares_totales}, \code{n_pares_comparados} y \code{n_pares_podados}
@@ -118,11 +138,51 @@ La cardinalidad, la cantidad de valores comunes y las dos coberturas se
 calculan con ambas columnas completas: la cobertura cuenta las filas de cada
 valor distinto, así que sale exacta por el costo de una pasada más por
 columna, sin una muestra que pueda alinearse con los datos.
+
+\strong{Las filas huérfanas.} Cada par comparado dice cuántas filas y cuántos
+valores distintos de cada tabla no están en la otra:
+\code{n_filas_huerfanas_tabla1}, \code{n_filas_huerfanas_tabla2},
+\code{n_valores_huerfanos_tabla1} y \code{n_valores_huerfanos_tabla2}. Es lo que la
+cobertura deja afuera, contado sobre las mismas filas y con la misma
+identidad: otra caja o un espacio al borde son otro valor. \strong{Un ausente no
+es huérfano}: no entra en el denominador de la cobertura y tampoco en estos
+conteos, así que la cobertura de un lado es uno menos sus filas huérfanas
+sobre sus filas no ausentes.
+
+\code{huerfanas_tabla1} y \code{huerfanas_tabla2} dicen además \strong{cuáles} son, con la
+forma de la trazabilidad de un hallazgo de \code{\link[=perfilar]{perfilar()}}: una lista por par
+con \code{indices_fila} —posiciones en la tabla que se recibió, en su orden—,
+\code{total}, \code{mostrados}, \code{truncado}, \code{limite}, \code{estado} y \code{alcance}. Ubicarlas
+cuesta una pasada más por la columna, y en dos columnas sin relación casi
+todas las filas son huérfanas, así que sólo se ubican en el lado casi
+cubierto: con cobertura de \code{umbral_cobertura} a menos de 1. Por debajo del
+umbral la traza sale \code{no_disponible} con
+\code{alcance = "cobertura_bajo_umbral"} y conserva el \code{total}. Sin filas
+huérfanas no hay nada que ubicar: la traza sale vacía —\code{no_disponible}, con
+\code{total} \code{NA}— junto a un conteo de cero. En un par \code{sin_comparar} los cuatro
+conteos son \code{NA} y las trazas, \code{no_disponible} con \code{alcance = "no_evaluado"}.
+
+\strong{Los valores huérfanos no se publican}, sólo sus filas. Un índice no dice
+nada de la celda; el valor de una columna que se compara con otra suele ser
+un identificador, y esta función no sabe si es un dato personal. Con las
+filas el valor está a una línea, para quien tiene la tabla:
+\code{tabla2$columna[indices]}.
+
+Se compara una columna contra una columna. Una clave compuesta se compara
+componente por componente, y una combinación que no existe pero cuyos
+componentes existen por separado no sale huérfana: para verla hay que pegar
+los componentes en una columna de cada tabla y comparar ésa.
 }
 \examples{
 personas <- data.frame(id = 1:3)
 tramites <- data.frame(persona_id = c(1, 1, 3, 4))
 detectar_relaciones(personas, tramites)
+
+# Con casi todos los trámites cubiertos, la traza nombra el que no lo está.
+tramites <- data.frame(persona_id = c(rep(1:3, 6), 4))
+relacion <- detectar_relaciones(personas, tramites)
+relacion$n_filas_huerfanas_tabla2
+relacion$huerfanas_tabla2[[1]]$indices_fila
 }
 \seealso{
 \code{\link[=detectar_claves]{detectar_claves()}}, \code{\link[=referencial]{referencial()}}, \code{\link[=proponer_modelo]{proponer_modelo()}}

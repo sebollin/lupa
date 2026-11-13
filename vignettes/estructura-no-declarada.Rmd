@@ -87,15 +87,20 @@ un trámite. `detectar_relaciones()` recibe las 2 columnas de identificación y 
 sus valores:
 
 ```{r relaciones}
-detectar_relaciones(
+relacion <- detectar_relaciones(
   personas["id_persona"], tramites["id_persona"], muestra = Inf
 )
+relacion[, c("columna_tabla1", "columna_tabla2", "cardinalidad",
+             "cobertura_tabla1_en_tabla2", "cobertura_tabla2_en_tabla1",
+             "n_filas_huerfanas_tabla1", "n_filas_huerfanas_tabla2")]
 ```
 
 La cardinalidad es 1:m, uno a muchos. Las 2 coberturas valen 1 porque todos los
 identificadores de cada lado aparecen en el otro. No hay trámites de personas que no
-estén en `personas`, ni personas sin trámites. `muestra = Inf` deja explícito que se
-comparan todos los valores.
+estén en `personas`, ni personas sin trámites: por eso las filas huérfanas de cada
+lado son 0. Cuando no lo son, `huerfanas_tabla1` y `huerfanas_tabla2` dicen cuáles
+son, por su número de fila. `muestra = Inf` deja explícito que se comparan todos los
+valores.
 
 ## Una dependencia dentro de una tabla
 
@@ -133,7 +138,7 @@ confirmarlas como reglas.
 - `detectar_claves()` encuentra las columnas que identifican cada fila en esta entrega:
   son candidatas, no claves.
 - `detectar_relaciones()` compara 2 columnas de identificación y publica la
-  cardinalidad y la cobertura de cada lado.
+  cardinalidad, la cobertura de cada lado y cuántas filas quedan huérfanas, y cuáles.
 - `detectar_dependencias()` encuentra columnas que determinan a otras; `perfilar()` las
   busca por su cuenta.
 - Lo que los datos cumplen hoy lo confirma la documentación del sistema, no el paquete.

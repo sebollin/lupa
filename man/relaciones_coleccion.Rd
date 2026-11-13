@@ -60,7 +60,8 @@ en megabytes. Al agotarse, las combinaciones pendientes se declaran en
 }
 \value{
 Objeto \code{relaciones_coleccion} con \code{relaciones}, \code{cobertura_pares},
-\code{cobertura_podas} y \code{meta}.
+\code{cobertura_podas} y \code{meta}. En \code{relaciones}, las cuatro columnas de conteo
+de huérfanos van al final.
 }
 \description{
 Corre \code{\link[=detectar_relaciones]{detectar_relaciones()}} sobre los pares de tablas que se declaren, y
@@ -203,6 +204,22 @@ identifiquen}: si el mínimo o el máximo de un lado llega al piso de la
 protección —seis caracteres o más—, ese rango sale como \verb{[valor protegido]}.
 El mínimo de una columna de documentos es el documento de una persona real, y
 el par mínimo–máximo acota además a todos los valores intermedios.
+
+\strong{Cuántas filas quedan huérfanas, no cuáles.} Cada relación publica los
+cuatro conteos de \code{\link[=detectar_relaciones]{detectar_relaciones()}} —\code{n_filas_huerfanas_tabla1},
+\code{n_filas_huerfanas_tabla2}, \code{n_valores_huerfanos_tabla1} y
+\code{n_valores_huerfanos_tabla2}—, \strong{sobre las filas leídas}, igual que la
+cobertura: con una lectura truncada cuentan sólo las filas leídas, y si la
+truncada es la tabla de referencia cuentan de más, porque un valor que no
+está entre sus filas leídas puede estar en las demás. Un ausente no es
+huérfano. Las filas no se nombran: sus posiciones serían las de esta
+lectura, que no sirven para buscarlas en el motor. Y los valores huérfanos
+no se publican:
+son celdas de una columna que suele ser un identificador, y esta función no
+sabe si es un dato personal —por eso ya tapa los extremos en \code{detalle}—.
+Para ver cuáles son, leer las dos tablas y llamar a \code{\link[=detectar_relaciones]{detectar_relaciones()}},
+que nombra las filas, o pedirlo al motor con un \verb{NOT EXISTS}. Calcular los
+conteos no agrega ninguna consulta.
 }
 \examples{
 if (requireNamespace("RSQLite", quietly = TRUE) &&

@@ -1,5 +1,26 @@
 # lupa (development version)
 
+## Relaciones
+
+- `detectar_relaciones()` dice cuántas filas quedan huérfanas y cuáles. Cada
+  par comparado publica `n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,
+  `n_valores_huerfanos_tabla1` y `n_valores_huerfanos_tabla2` —lo que la
+  cobertura deja afuera; un valor ausente no es huérfano—, y las columnas-lista
+  `huerfanas_tabla1` y `huerfanas_tabla2` nombran las filas con la forma de la
+  trazabilidad de un hallazgo (`indices_fila`, `total`, `truncado`). Las filas
+  se nombran en el lado casi cubierto (cobertura entre `umbral_cobertura` y
+  1), hasta `max_filas_huerfanas` (1000 por omisión); por debajo del umbral se
+  cuentan y no se nombran. Los valores huérfanos no se publican: con los
+  índices están a una línea para quien tiene la tabla.
+- `relaciones_coleccion()` publica los mismos cuatro conteos, sobre las filas
+  leídas. No nombra las filas, que serían posiciones de la lectura, ni agrega
+  consultas.
+- Los conteos y las filas cuentan en `tope_memoria_mb`: con un tope finito, el
+  mismo presupuesto compara menos pares que antes, y los que quedan sin comparar
+  salen declarados como siempre. Quien leía una columna del resultado
+  abreviando su nombre (`rel$n_valores` por `n_valores_comunes`) recibe ahora
+  `NULL`, porque hay más de una que empieza así.
+
 ## Documentación
 
 - `citation("lupa")` lleva el DOI que CRAN le asignó al paquete,

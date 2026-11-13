@@ -764,6 +764,15 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   NULL
 }
 
+# La identidad con que una columna se compara con otra, una por fila: el valor
+# escrito de modo que dos iguales coincidan aunque los guarden clases distintas.
+# La usan el resumen de la columna -de donde salen la cobertura y los conteos de
+# huerfanos- y la traza que nombra las filas huerfanas. Tiene que ser la misma
+# en los dos: con otra, la traza nombraria filas que el conteo no conto.
+.identidad_relacion <- function(x) {
+  .texto_identidad(.valores_relacion(x))
+}
+
 .resumir_columna_relacion <- function(x, rango = NULL, origen_rango = NULL) {
   no_comparable <- .columna_no_comparable(x)
   if (!is.null(no_comparable)) {
@@ -778,7 +787,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # `integer64` en una tabla y como doble en la otra -100000 y 1e5- no se
   # encontraba, y la cobertura de una clave foranea daba 0 sobre 2 de 3.
   # Medido.
-  valores <- .texto_identidad(.valores_relacion(x))
+  valores <- .identidad_relacion(x)
   valores_completos <- valores[!is.na(valores)]
   familia <- .familia_relacion(x)
   if (is.null(origen_rango)) {
@@ -817,10 +826,105 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 }
 
 # La proporcion de filas no ausentes de `x` cuyo valor existe en `y`, exacta:
-# las frecuencias de los valores de `x` que tambien estan en `y`.
-.cobertura_relacion <- function(x, y) {
+# las frecuencias de los valores de `x` que tambien estan en `y`. `presentes`
+# es la mascara de esos valores: quien ya la tiene la pasa, porque de ella salen
+# tambien los huerfanos y calcularla es lo caro del par.
+.cobertura_relacion <- function(x, y, presentes = x$unicos %in% y$unicos) {
   if (!x$n_filas) return(NA_real_)
-  sum(x$frecuencias[x$unicos %in% y$unicos]) / x$n_filas
+  sum(x$frecuencias[presentes]) / x$n_filas
+}
+
+# Lo que la cobertura deja afuera: los valores de `x` que no estan en la otra
+# columna y las filas que ocupan. Es el complemento exacto de la cobertura
+# -misma mascara, mismas frecuencias-, asi que un ausente no es huerfano: no
+# entra en el denominador de la cobertura y tampoco se cuenta aca.
+.huerfanos_relacion <- function(x, presentes) {
+  list(
+    valores = x$unicos[!presentes],
+    n_valores = sum(!presentes),
+    n_filas = sum(x$frecuencias[!presentes])
+  )
+}
+
+# Las filas huerfanas de un lado, con la forma de la trazabilidad de un
+# hallazgo: indices en la tabla que se recibio, en su orden, hasta `limite`.
+#
+# Ubicarlas cuesta una pasada mas por la columna -el resumen no guarda ningun
+# vector del largo de la tabla-, y en un par de columnas sin relacion casi
+# todas las filas son huerfanas. Por eso solo se ubican en el lado casi
+# cubierto, con cobertura de `umbral_cobertura` a menos de 1: es donde una fila
+# huerfana es una excepcion que alguien va a ir a mirar. Por debajo del umbral
+# la traza declara por que no las trae y conserva el total, que ya esta contado.
+#
+# Esta funcion decide lo que se sabe sin mirar la columna. Cuando hay que
+# ubicar filas devuelve la traza con los indices en cero -del mismo tamano que
+# la verdadera, que depende solo del conteo y del tope- y `ubicar = TRUE`: las
+# ubica despues `.ubicar_huerfanas_relacion()`, una pasada por columna y no
+# por par. Recalcular la identidad en cada par costaba, medido sobre 200.000
+# filas y tres columnas por tabla con `umbral_cobertura = 0`, 17 pasadas donde
+# alcanzan 6, y casi triplicaba el tiempo de la funcion.
+#
+# No lleva valores, a proposito: un indice no dice nada de la celda, y el valor
+# de una columna que se compara con otra suele ser un identificador.
+.traza_huerfanas_relacion <- function(huerfanos, cobertura, umbral_cobertura,
+                                      limite) {
+  if (!huerfanos$n_filas) {
+    return(list(
+      traza = .trazabilidad_indices(integer(), "completo", limite),
+      ubicar = FALSE
+    ))
+  }
+  if (cobertura < umbral_cobertura) {
+    return(list(
+      traza = .trazabilidad_vacia(
+        total = huerfanos$n_filas, alcance = "cobertura_bajo_umbral",
+        limite = limite
+      ),
+      ubicar = FALSE
+    ))
+  }
+  list(
+    traza = .trazabilidad_indices(integer(huerfanos$n_filas), "completo", limite),
+    ubicar = TRUE
+  )
+}
+
+# Las filas cuya identidad es uno de los valores huerfanos. `identidad` es la de
+# `.identidad_relacion()` sobre la misma columna que resumio el par; los
+# valores no traen ausentes -el resumen los saca antes-, asi que una fila
+# ausente no coincide con ninguno.
+.ubicar_huerfanas_relacion <- function(identidad, huerfanos, limite) {
+  .trazabilidad_indices(
+    which(identidad %in% huerfanos$valores), "completo", limite
+  )
+}
+
+# La traza de un lado que no se comparo: no hay conteo ni filas que nombrar.
+.traza_huerfanas_sin_comparar <- function(limite) {
+  .trazabilidad_vacia(limite = limite)
+}
+
+# Las columnas de conteo de huerfanos de una fila del resultado, en un solo
+# lugar: las arman igual el par comparado, el que se resuelve sin comparar y el
+# que no se compara.
+.columnas_huerfanos_relacion <- function(huerfanos_1 = NULL,
+                                         huerfanos_2 = NULL) {
+  conteo <- function(huerfanos, campo) {
+    if (is.null(huerfanos)) NA_integer_ else huerfanos[[campo]]
+  }
+  list(
+    n_filas_huerfanas_tabla1 = conteo(huerfanos_1, "n_filas"),
+    n_filas_huerfanas_tabla2 = conteo(huerfanos_2, "n_filas"),
+    n_valores_huerfanos_tabla1 = conteo(huerfanos_1, "n_valores"),
+    n_valores_huerfanos_tabla2 = conteo(huerfanos_2, "n_valores")
+  )
+}
+
+# Las mismas columnas sin filas, para los esquemas vacios de
+# `detectar_relaciones()` y de `relaciones_coleccion()`: mismos nombres y misma
+# clase que en una tabla con filas.
+.columnas_huerfanos_relacion_vacias <- function() {
+  lapply(.columnas_huerfanos_relacion(), function(columna) integer())
 }
 
 .normalizar_relleno_final_relacion <- function(x) {
@@ -1082,19 +1186,61 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' valor distinto, así que sale exacta por el costo de una pasada más por
 #' columna, sin una muestra que pueda alinearse con los datos.
 #'
+#' **Las filas huérfanas.** Cada par comparado dice cuántas filas y cuántos
+#' valores distintos de cada tabla no están en la otra:
+#' `n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,
+#' `n_valores_huerfanos_tabla1` y `n_valores_huerfanos_tabla2`. Es lo que la
+#' cobertura deja afuera, contado sobre las mismas filas y con la misma
+#' identidad: otra caja o un espacio al borde son otro valor. **Un ausente no
+#' es huérfano**: no entra en el denominador de la cobertura y tampoco en estos
+#' conteos, así que la cobertura de un lado es uno menos sus filas huérfanas
+#' sobre sus filas no ausentes.
+#'
+#' `huerfanas_tabla1` y `huerfanas_tabla2` dicen además **cuáles** son, con la
+#' forma de la trazabilidad de un hallazgo de [perfilar()]: una lista por par
+#' con `indices_fila` —posiciones en la tabla que se recibió, en su orden—,
+#' `total`, `mostrados`, `truncado`, `limite`, `estado` y `alcance`. Ubicarlas
+#' cuesta una pasada más por la columna, y en dos columnas sin relación casi
+#' todas las filas son huérfanas, así que sólo se ubican en el lado casi
+#' cubierto: con cobertura de `umbral_cobertura` a menos de 1. Por debajo del
+#' umbral la traza sale `no_disponible` con
+#' `alcance = "cobertura_bajo_umbral"` y conserva el `total`. Sin filas
+#' huérfanas no hay nada que ubicar: la traza sale vacía —`no_disponible`, con
+#' `total` `NA`— junto a un conteo de cero. En un par `sin_comparar` los cuatro
+#' conteos son `NA` y las trazas, `no_disponible` con `alcance = "no_evaluado"`.
+#'
+#' **Los valores huérfanos no se publican**, sólo sus filas. Un índice no dice
+#' nada de la celda; el valor de una columna que se compara con otra suele ser
+#' un identificador, y esta función no sabe si es un dato personal. Con las
+#' filas el valor está a una línea, para quien tiene la tabla:
+#' `tabla2$columna[indices]`.
+#'
+#' Se compara una columna contra una columna. Una clave compuesta se compara
+#' componente por componente, y una combinación que no existe pero cuyos
+#' componentes existen por separado no sale huérfana: para verla hay que pegar
+#' los componentes en una columna de cada tabla y comparar ésa.
+#'
 #' @param tabla1,tabla2 Objetos que heredan de `data.frame`.
 #' @param muestra Se conserva por compatibilidad y se valida como antes, pero ya
 #'   no limita nada: las coberturas se calculan sobre todas las filas.
 #' @param columnas_candidatas Lista de dos vectores de nombres, para `tabla1` y
 #'   `tabla2`, que declara las columnas que pueden participar. `NULL` conserva
 #'   la exploración completa por compatibilidad.
-#' @param umbral_cobertura Umbral usado por la poda de cardinalidades imposibles.
+#' @param umbral_cobertura Umbral usado por la poda de cardinalidades
+#'   imposibles, y cobertura mínima de un lado para ubicar sus filas huérfanas:
+#'   por debajo se cuentan pero no se nombran.
 #' @param podar Si se aplican las podas que cambiarían lo informado —tipos
 #'   incompatibles y cardinalidades imposibles—. `FALSE` por omisión: sólo se
 #'   aplica la poda cierta, que no cambia ninguna fila.
 #' @param tope_memoria_mb Presupuesto de memoria para las filas comparadas, en
 #'   megabytes. Las combinaciones pendientes se declaran como podas cuando se
-#'   alcanza; `Inf` no limita el procesamiento.
+#'   alcanza; `Inf` no limita el procesamiento. Los conteos y las trazas de
+#'   filas huérfanas son parte de cada fila comparada y cuentan en el
+#'   presupuesto.
+#' @param max_filas_huerfanas Tope de índices de fila que conserva cada traza
+#'   de filas huérfanas, como `max_filas_hallazgo` en [perfilar()]. Por defecto
+#'   es `1000`; cuando se supera, el `estado` de la traza queda `truncada` y el
+#'   `total` se conserva. `Inf` desactiva el tope.
 #' @param .rangos Uso interno de [relaciones_coleccion()]. Lista nombrada por
 #'   `tabla1` y `tabla2`, con rangos y su origen para cada columna. La poda por
 #'   rangos solo acepta rangos de la columna completa o del universo DBI. Una
@@ -1104,12 +1250,20 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #'   las columnas cuyo controlador compara ignorando espacios finales. Se aplica
 #'   solo al par que tiene una columna declarada, para conservar la semantica de
 #'   comparacion del motor sin convertir todas las columnas de texto.
+#' @param .trazar_huerfanas Uso interno. `FALSE` omite las columnas
+#'   `huerfanas_tabla1` y `huerfanas_tabla2`, y la pasada por columna que
+#'   cuestan; los cuatro conteos se calculan siempre.
 #'
 #' @return Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
 #'   —`1:1`, `1:m`, `m:1`, `m:m`, `sin_coincidencias` o `sin_comparar`—,
 #'   `n_valores_comunes`,
 #'   coberturas de integridad referencial en ambas direcciones y `motivo_poda`,
-#'   que sólo tiene valor en los pares no comparados. Los atributos
+#'   que sólo tiene valor en los pares no comparados. Después, las filas
+#'   huérfanas de cada lado: los conteos `n_filas_huerfanas_tabla1`,
+#'   `n_filas_huerfanas_tabla2`, `n_valores_huerfanos_tabla1` y
+#'   `n_valores_huerfanos_tabla2`, y las columnas-lista `huerfanas_tabla1` y
+#'   `huerfanas_tabla2`, con una traza por par
+#'   (`resultado$huerfanas_tabla2[[i]]$indices_fila`). Los atributos
 #'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el alcance:
 #'   `filas_analizadas` son todas las filas y `muestreado` vale `FALSE`;
 #'   `podas`, `n_pares_totales`, `n_pares_comparados` y `n_pares_podados`
@@ -1121,12 +1275,20 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' personas <- data.frame(id = 1:3)
 #' tramites <- data.frame(persona_id = c(1, 1, 3, 4))
 #' detectar_relaciones(personas, tramites)
+#'
+#' # Con casi todos los trámites cubiertos, la traza nombra el que no lo está.
+#' tramites <- data.frame(persona_id = c(rep(1:3, 6), 4))
+#' relacion <- detectar_relaciones(personas, tramites)
+#' relacion$n_filas_huerfanas_tabla2
+#' relacion$huerfanas_tabla2[[1]]$indices_fila
 detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
                                 columnas_candidatas = NULL,
                                 umbral_cobertura = 0.9,
                                 podar = FALSE,
-                                tope_memoria_mb = Inf, .rangos = NULL,
-                                .rellenos_finales = NULL) {
+                                tope_memoria_mb = Inf,
+                                max_filas_huerfanas = 1000L, .rangos = NULL,
+                                .rellenos_finales = NULL,
+                                .trazar_huerfanas = TRUE) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     .detener("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
@@ -1144,6 +1306,12 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
     .detener("`tope_memoria_mb` debe ser un n\u00famero no negativo.", call. = FALSE)
   }
+  # El tope de la traza es el de `max_filas_hallazgo` de `perfilar()`: un entero
+  # positivo o `Inf`.
+  max_filas_huerfanas <- .validar_limite_duplicados(
+    max_filas_huerfanas, "max_filas_huerfanas"
+  )
+  trazar <- isTRUE(.trazar_huerfanas)
   .validar_muestra(muestra)
   nombres_1 <- names(tabla1)
   nombres_2 <- names(tabla2)
@@ -1240,6 +1408,64 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   memoria_mb <- 0
   comparadas <- 0L
   presupuesto_agotado <- FALSE
+  # Las trazas de las filas huerfanas van aparte de `filas`, una por par y por
+  # lado, y se pegan al final como columnas-lista: `rbind()` de las filas no
+  # tiene que cargar con ellas.
+  trazas_1 <- list()
+  trazas_2 <- list()
+  sin_traza <- .traza_huerfanas_sin_comparar(max_filas_huerfanas)
+  # Las trazas cuyas filas hay que ubicar, por lado: se ubican despues del
+  # recorrido, agrupadas por columna, con una sola pasada de identidad por
+  # columna -ver `.traza_huerfanas_relacion()`-.
+  por_ubicar_1 <- list()
+  por_ubicar_2 <- list()
+  # La traza de un lado de la fila `fila`. Devuelve la traza que va al
+  # resultado -con los indices en cero si falta ubicarlos- y anota lo que falta.
+  # `sin_relleno` dice si el par comparo la columna sin el relleno final: la
+  # traza tiene que salir de la misma columna que el resumen.
+  trazar_lado <- function(lado, fila, indice, sin_relleno, huerfanos,
+                          cobertura) {
+    decidida <- .traza_huerfanas_relacion(
+      huerfanos, cobertura, umbral_cobertura, max_filas_huerfanas
+    )
+    if (decidida$ubicar) {
+      pendiente <- list(
+        fila = fila, indice = indice, sin_relleno = sin_relleno,
+        huerfanos = huerfanos
+      )
+      if (lado == 1L) {
+        por_ubicar_1[[length(por_ubicar_1) + 1L]] <<- pendiente
+      } else {
+        por_ubicar_2[[length(por_ubicar_2) + 1L]] <<- pendiente
+      }
+    }
+    decidida$traza
+  }
+  # Ubica las filas de las trazas anotadas de un lado: la identidad de cada
+  # columna se calcula una vez y se descarta antes de pasar a la siguiente.
+  ubicar_lado <- function(trazas, por_ubicar, tabla) {
+    if (!length(por_ubicar)) return(trazas)
+    # Un grupo por columna y por variante: la misma columna con y sin el relleno
+    # final son dos identidades distintas.
+    grupo <- vapply(por_ubicar, function(p) {
+      2 * as.numeric(p$indice) + as.numeric(p$sin_relleno)
+    }, numeric(1L))
+    for (clave in unique(grupo)) {
+      del_grupo <- which(grupo == clave)
+      primero <- por_ubicar[[del_grupo[[1L]]]]
+      columna <- tabla[[primero$indice]]
+      if (primero$sin_relleno) {
+        columna <- .normalizar_relleno_final_relacion(columna)
+      }
+      identidad <- .identidad_relacion(columna)
+      for (k in del_grupo) {
+        trazas[[por_ubicar[[k]]$fila]] <- .ubicar_huerfanas_relacion(
+          identidad, por_ubicar[[k]]$huerfanos, max_filas_huerfanas
+        )
+      }
+    }
+    trazas
+  }
 
   repetido_1 <- .nombres_repetidos(nombres_1)[indices_1]
   repetido_2 <- .nombres_repetidos(nombres_2)[indices_2]
@@ -1266,6 +1492,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       # `varchar` y conservar el relleno. Se recalcula solo este par; recortar
       # toda la tabla cambiaria la semantica de `varchar` contra `varchar` en
       # PostgreSQL.
+      sin_relleno_1 <- FALSE
+      sin_relleno_2 <- FALSE
       if ((relleno_de("tabla1", nombre_1) ||
            relleno_de("tabla2", nombre_2) || todo_texto) &&
           (is.character(tabla1[[indices_1[[i]]]]) ||
@@ -1274,11 +1502,13 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           x <- .rehacer_resumen_relleno_relacion(
             tabla1[[indices_1[[i]]]], x
           )
+          sin_relleno_1 <- TRUE
         }
         if (normalizar_relleno_de("tabla2", nombre_2)) {
           y <- .rehacer_resumen_relleno_relacion(
             tabla2[[indices_2[[j]]]], y
           )
+          sin_relleno_2 <- TRUE
         }
       }
       # Dos pares que no se pueden comparar, con `podar` o sin el, porque la
@@ -1329,8 +1559,13 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           cardinalidad = "sin_comparar", n_valores_comunes = NA_integer_,
           cobertura_tabla1_en_tabla2 = NA_real_,
           cobertura_tabla2_en_tabla1 = NA_real_,
-          motivo_poda = no_comparable$motivo, stringsAsFactors = FALSE
+          motivo_poda = no_comparable$motivo,
+          .columnas_huerfanos_relacion(), stringsAsFactors = FALSE
         )
+        if (trazar) {
+          trazas_1[[length(filas)]] <- sin_traza
+          trazas_2[[length(filas)]] <- sin_traza
+        }
         next
       }
       poda <- if (isTRUE(podar)) {
@@ -1349,8 +1584,13 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           cardinalidad = "sin_comparar", n_valores_comunes = NA_integer_,
           cobertura_tabla1_en_tabla2 = NA_real_,
           cobertura_tabla2_en_tabla1 = NA_real_,
-          motivo_poda = poda$motivo, stringsAsFactors = FALSE
+          motivo_poda = poda$motivo,
+          .columnas_huerfanos_relacion(), stringsAsFactors = FALSE
         )
+        if (trazar) {
+          trazas_1[[length(filas)]] <- sin_traza
+          trazas_2[[length(filas)]] <- sin_traza
+        }
         next
       }
       cierta <- .poda_cierta_relacion(x, y)
@@ -1361,14 +1601,30 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           stringsAsFactors = FALSE
         )
         # Rangos disjuntos de la misma familia y del mismo universo: la
-        # respuesta se conoce sin comparar, y es la misma.
-        filas[[length(filas) + 1L]] <- data.frame(
+        # respuesta se conoce sin comparar, y es la misma. Tambien la de los
+        # huerfanos: ningun valor de un lado esta en el otro.
+        huerfanos_1 <- .huerfanos_relacion(x, logical(length(x$unicos)))
+        huerfanos_2 <- .huerfanos_relacion(y, logical(length(y$unicos)))
+        fila <- data.frame(
           columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
           cardinalidad = "sin_coincidencias", n_valores_comunes = 0L,
           cobertura_tabla1_en_tabla2 = if (x$n_filas) 0 else NA_real_,
           cobertura_tabla2_en_tabla1 = if (y$n_filas) 0 else NA_real_,
-          motivo_poda = NA_character_, stringsAsFactors = FALSE
+          motivo_poda = NA_character_,
+          .columnas_huerfanos_relacion(huerfanos_1, huerfanos_2),
+          stringsAsFactors = FALSE
         )
+        filas[[length(filas) + 1L]] <- fila
+        if (trazar) {
+          trazas_1[[length(filas)]] <- trazar_lado(
+            1L, length(filas), indices_1[[i]], sin_relleno_1, huerfanos_1,
+            fila$cobertura_tabla1_en_tabla2
+          )
+          trazas_2[[length(filas)]] <- trazar_lado(
+            2L, length(filas), indices_2[[j]], sin_relleno_2, huerfanos_2,
+            fila$cobertura_tabla2_en_tabla1
+          )
+        }
         comparadas <- comparadas + 1L
         next
       }
@@ -1393,8 +1649,12 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           cobertura_tabla1_en_tabla2 = NA_real_,
           cobertura_tabla2_en_tabla1 = NA_real_,
           motivo_poda = "presupuesto_memoria_agotado",
-          stringsAsFactors = FALSE
+          .columnas_huerfanos_relacion(), stringsAsFactors = FALSE
         )
+        if (trazar) {
+          trazas_1[[length(filas)]] <- sin_traza
+          trazas_2[[length(filas)]] <- sin_traza
+        }
         next
       }
       n_valores_comunes <- length(intersect(x$unicos, y$unicos))
@@ -1411,19 +1671,45 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       } else {
         "m:m"
       }
+      # Que valores de cada lado estan en el otro. De esa mascara salen la
+      # cobertura y su complemento, los huerfanos: se calcula una vez por lado.
+      presentes_1 <- x$unicos %in% y$unicos
+      presentes_2 <- y$unicos %in% x$unicos
+      huerfanos_1 <- .huerfanos_relacion(x, presentes_1)
+      huerfanos_2 <- .huerfanos_relacion(y, presentes_2)
       fila <- data.frame(
         columna_tabla1 = nombre_1,
         columna_tabla2 = nombre_2,
         cardinalidad = cardinalidad,
         n_valores_comunes = n_valores_comunes,
-        cobertura_tabla1_en_tabla2 = .cobertura_relacion(x, y),
-        cobertura_tabla2_en_tabla1 = .cobertura_relacion(y, x),
+        cobertura_tabla1_en_tabla2 = .cobertura_relacion(x, y, presentes_1),
+        cobertura_tabla2_en_tabla1 = .cobertura_relacion(y, x, presentes_2),
         motivo_poda = NA_character_,
+        .columnas_huerfanos_relacion(huerfanos_1, huerfanos_2),
         stringsAsFactors = FALSE
       )
       filas[[length(filas) + 1L]] <- fila
       comparadas <- comparadas + 1L
       memoria_mb <- memoria_mb + as.numeric(utils::object.size(fila)) / 1024^2
+      if (trazar) {
+        traza_1 <- trazar_lado(
+          1L, length(filas), indices_1[[i]], sin_relleno_1, huerfanos_1,
+          fila$cobertura_tabla1_en_tabla2
+        )
+        traza_2 <- trazar_lado(
+          2L, length(filas), indices_2[[j]], sin_relleno_2, huerfanos_2,
+          fila$cobertura_tabla2_en_tabla1
+        )
+        trazas_1[[length(filas)]] <- traza_1
+        trazas_2[[length(filas)]] <- traza_2
+        # Las trazas son parte del resultado y cuentan en su presupuesto. Una
+        # que falta ubicar ya tiene el tamano final: lo que se descuenta aca es
+        # lo que se publica.
+        memoria_mb <- memoria_mb + (
+          as.numeric(utils::object.size(traza_1)) +
+            as.numeric(utils::object.size(traza_2))
+        ) / 1024^2
+      }
     }
   }
 
@@ -1436,8 +1722,15 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       cardinalidad = character(), n_valores_comunes = integer(),
       cobertura_tabla1_en_tabla2 = numeric(),
       cobertura_tabla2_en_tabla1 = numeric(), motivo_poda = character(),
-      stringsAsFactors = FALSE
+      .columnas_huerfanos_relacion_vacias(), stringsAsFactors = FALSE
     )
+  }
+  if (trazar) {
+    trazas_1 <- ubicar_lado(trazas_1, por_ubicar_1, tabla1)
+    trazas_2 <- ubicar_lado(trazas_2, por_ubicar_2, tabla2)
+    # Columnas-lista, como `trazabilidad` en `hallazgos()`: una traza por par.
+    resultado$huerfanas_tabla1 <- I(trazas_1)
+    resultado$huerfanas_tabla2 <- I(trazas_2)
   }
   class(resultado) <- c("relaciones_detectadas", "data.frame")
   attr(resultado, "filas_totales") <- c(

@@ -2616,7 +2616,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     filas_leidas_1 = numeric(), filas_leidas_2 = numeric(),
     filas_totales_1 = numeric(), filas_totales_2 = numeric(),
     muestreado_1 = logical(), muestreado_2 = logical(),
-    momento = as.POSIXct(character()), stringsAsFactors = FALSE
+    momento = as.POSIXct(character()),
+    .columnas_huerfanos_relacion_vacias(), stringsAsFactors = FALSE
   )
 }
 
@@ -3889,6 +3890,22 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' El mínimo de una columna de documentos es el documento de una persona real, y
 #' el par mínimo–máximo acota además a todos los valores intermedios.
 #'
+#' **Cuántas filas quedan huérfanas, no cuáles.** Cada relación publica los
+#' cuatro conteos de [detectar_relaciones()] —`n_filas_huerfanas_tabla1`,
+#' `n_filas_huerfanas_tabla2`, `n_valores_huerfanos_tabla1` y
+#' `n_valores_huerfanos_tabla2`—, **sobre las filas leídas**, igual que la
+#' cobertura: con una lectura truncada cuentan sólo las filas leídas, y si la
+#' truncada es la tabla de referencia cuentan de más, porque un valor que no
+#' está entre sus filas leídas puede estar en las demás. Un ausente no es
+#' huérfano. Las filas no se nombran: sus posiciones serían las de esta
+#' lectura, que no sirven para buscarlas en el motor. Y los valores huérfanos
+#' no se publican:
+#' son celdas de una columna que suele ser un identificador, y esta función no
+#' sabe si es un dato personal —por eso ya tapa los extremos en `detalle`—.
+#' Para ver cuáles son, leer las dos tablas y llamar a [detectar_relaciones()],
+#' que nombra las filas, o pedirlo al motor con un `NOT EXISTS`. Calcular los
+#' conteos no agrega ninguna consulta.
+#'
 #' @param coleccion Objeto creado por [coleccion()].
 #' @param pares Data frame con columnas `tabla_1` y `tabla_2`. Cero filas es una
 #'   declaración válida de «ningún par».
@@ -3919,7 +3936,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #'   `cobertura_podas` y los pares pendientes en `cobertura_pares`.
 #'
 #' @return Objeto `relaciones_coleccion` con `relaciones`, `cobertura_pares`,
-#'   `cobertura_podas` y `meta`.
+#'   `cobertura_podas` y `meta`. En `relaciones`, las cuatro columnas de conteo
+#'   de huérfanos van al final.
 #' @export
 #' @param podar Si se aplican las podas que cambiarían lo informado —tipos
 #'   incompatibles y cardinalidades imposibles—, tal como en
@@ -4146,7 +4164,11 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
             tabla1 = lector$tipos(t1), tabla2 = lector$tipos(t2)
           ),
           motor = .motor_permisos_columnas_dbi(conexion)
-        )
+        ),
+        # Los conteos de huerfanos llegan; la traza por fila no se calcula. Sus
+        # indices serian posiciones en esta lectura, que no sirven para buscar
+        # la fila en el motor, y ubicarlas cuesta una pasada por columna.
+        .trazar_huerfanas = FALSE
       ), error = function(e) e
     )
     if (inherits(relacion, "condition")) {
@@ -4312,6 +4334,15 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     candidatas$muestreado_1 <- alcance_1$muestreado
     candidatas$muestreado_2 <- alcance_2$muestreado
     candidatas$momento <- momento
+    # Los conteos de huerfanos van al final de la fila, para que las columnas
+    # que `relaciones` ya publicaba conserven su posicion. Se quitan y se
+    # vuelven a poner -no se reordena con `[`- porque seleccionar columnas
+    # descarta los atributos de la tabla.
+    for (conteo in names(.columnas_huerfanos_relacion())) {
+      valores <- candidatas[[conteo]]
+      candidatas[[conteo]] <- NULL
+      candidatas[[conteo]] <- valores
+    }
     encontradas[[length(encontradas) + 1L]] <- candidatas
     memoria_resultado_mb <- memoria_resultado_mb +
       as.numeric(utils::object.size(candidatas)) / 1024^2

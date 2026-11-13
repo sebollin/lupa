@@ -250,7 +250,8 @@ data.frame(
   columna_1 = paste(encontradas$tabla_1, encontradas$columna_tabla1, sep = "."),
   columna_2 = paste(encontradas$tabla_2, encontradas$columna_tabla2, sep = "."),
   cobertura_1_en_2 = round(encontradas$cobertura_tabla1_en_tabla2, 2),
-  cobertura_2_en_1 = round(encontradas$cobertura_tabla2_en_tabla1, 2)
+  cobertura_2_en_1 = round(encontradas$cobertura_tabla2_en_tabla1, 2),
+  huerfanas_2 = encontradas$n_filas_huerfanas_tabla2
 )
 relaciones$meta$estable
 ```
@@ -259,8 +260,9 @@ Cada fila trae 2 coberturas, una por dirección. `cobertura_2_en_1` es la
 proporción de las filas de la segunda tabla cuyo valor aparece en la primera:
 
 - `sucursales.id_sucursal` cubre el 95 % de `ventas.id_sucursal`. El 5 % que
-  falta son las 2 ventas de la sucursal 9: filas huérfanas que hay que revisar
-  en el sistema de origen.
+  falta son las 2 ventas de la sucursal 9 (`huerfanas_2`): filas huérfanas que
+  hay que revisar en el sistema de origen. Para ver cuáles son, se leen las dos
+  tablas y se llama a `detectar_relaciones()`, que nombra las filas.
 - `productos.id_producto` contra `ventas.id_producto` cubre todo en las 2
   direcciones.
 - `productos.id_producto` contra `ventas.id_sucursal` es una coincidencia: los
@@ -273,6 +275,9 @@ stopifnot(
   isTRUE(all.equal(encontradas$cobertura_tabla2_en_tabla1[
     encontradas$tabla_1 == "sucursales"
   ], 0.95)),
+  identical(as.integer(encontradas$n_filas_huerfanas_tabla2[
+    encontradas$tabla_1 == "sucursales"
+  ]), 2L),
   nrow(encontradas) == 3L,
   identical(formals(relaciones_coleccion)$muestra, 10000)
 )
