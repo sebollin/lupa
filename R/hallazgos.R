@@ -2807,6 +2807,12 @@
   )
 }
 
+# Los hallazgos que cuentan formatos de fecha y no filas. Los nombra el conteo,
+# que les pone la unidad, y la traza, que les busca las celdas.
+.TIPOS_HALLAZGO_FORMATO_FECHA <- c(
+  "formato_fecha_ambiguo", "anio_de_dos_digitos", "formatos_fecha_mixtos"
+)
+
 .conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
   n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
     as.numeric(fila$n[[1L]])
@@ -2924,9 +2930,7 @@
       NA_real_
     }
   }
-  unidad <- if (tipo %in% c(
-    "formato_fecha_ambiguo", "anio_de_dos_digitos", "formatos_fecha_mixtos"
-  )) {
+  unidad <- if (tipo %in% .TIPOS_HALLAZGO_FORMATO_FECHA) {
     "formato"
   } else if (tipo %in% c(
     "mayusculas_inconsistentes", "normalizacion_unicode"
@@ -3267,6 +3271,32 @@
   cuantitativos
 }
 
+# El texto de la columna tal como lo analizo el perfil: lo que
+# `.texto_analizable()` deja leer, con las filas de fuera del universo como
+# ausentes. Lo usan las trazas que vuelven a mirar el texto, para mirar el mismo
+# que midio el hallazgo.
+#
+# El universo aplicable entra ACA, antes de formar los grupos, y no despues
+# recortando el resultado. Recortar deja la traza nombrando filas que el conteo
+# no cuenta: medido, con `A`, `a` y `c` aplicables y `c`, `C` fuera del universo,
+# `mayusculas_inconsistentes` contaba 2 valores distintos y citaba `"A"; "a"`,
+# mientras la traza nombraba las filas 1, 2 y 3 -la 3 vale `c`, que colisiona con
+# la `C` de una fila NO aplicable-. Dos universos en la misma fila del hallazgo, y
+# el propio paquete disparando su alarma de trazabilidad incoherente sobre un
+# perfil intacto.
+#
+# Es el mismo paso que `columnas.R` ya hace antes de diagnosticar el texto, y por
+# el mismo motivo: se marca como ausente en vez de recortar el vector, para que
+# los indices de fila sigan alineados con la tabla.
+.texto_en_el_universo <- function(x, aplicable = NULL) {
+  texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  if (!is.null(texto) && !is.null(aplicable) &&
+      length(aplicable) == length(texto) && !all(aplicable)) {
+    texto[!aplicable] <- NA
+  }
+  texto
+}
+
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
                                       distinguir_mayusculas = TRUE,
@@ -3360,25 +3390,8 @@
   }
   n <- length(x)
   if (!n) return(integer())
-  texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  texto <- .texto_en_el_universo(x, aplicable)
   texto_completo <- texto
-  # El universo aplicable entra ACA, antes de formar los grupos, y no despues
-  # recortando el resultado. Recortar deja la traza nombrando filas que el conteo
-  # no cuenta: medido, con `A`, `a` y `c` aplicables y `c`, `C` fuera del universo,
-  # `mayusculas_inconsistentes` contaba 2 valores distintos y citaba `"A"; "a"`,
-  # mientras la traza nombraba las filas 1, 2 y 3 -la 3 vale `c`, que colisiona con
-  # la `C` de una fila NO aplicable-. Dos universos en la misma fila del hallazgo, y
-  # el propio paquete disparando su alarma de trazabilidad incoherente sobre un
-  # perfil intacto.
-  #
-  # Es el mismo paso que `columnas.R` ya hace antes de diagnosticar el texto, y por
-  # el mismo motivo: se marca como ausente en vez de recortar el vector, para que
-  # los indices de fila sigan alineados con la tabla.
-  if (!is.null(texto) && !is.null(aplicable) &&
-      length(aplicable) == length(texto) && !all(aplicable)) {
-    texto[!aplicable] <- NA
-    texto_completo[!aplicable] <- NA
-  }
   mascara_largos <- tryCatch(resultado$texto_largo$mascara,
                               error = function(e) NULL)
   if (is.character(texto) && is.logical(mascara_largos) &&
@@ -3616,15 +3629,19 @@
                                    resultados, expandir, aproximados,
                                    indice_hallazgo, tipos_hallazgos, limite,
                                    distinguir_mayusculas = TRUE,
-                                  clave = NULL, posicion = NULL) {
+                                  clave = NULL, posicion = NULL,
+                                  asignaciones_fecha = NULL) {
   unidad <- as.character(hallazgo$unidad_conteo[[1L]])
-  if (unidad %in% c("columna", "formato")) {
+  # Solo lo contado en columnas no tiene filas que nombrar. Un hallazgo contado
+  # en formatos si: las celdas escritas en esos formatos (mas abajo).
+  if (identical(unidad, "columna")) {
     return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
   }
   trazabilidad_precalculada <- hallazgo$trazabilidad[[1L]]
   if (tipo %in% c(
       "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario",
-      "fecha_nacimiento_fuera_rango", "fecha_fallecimiento_fuera_rango"
+      "fecha_nacimiento_fuera_rango", "fecha_fallecimiento_fuera_rango",
+      "posible_ausencia_estructural", "regla_silencia_ausencia"
     ) &&
       is.list(trazabilidad_precalculada) &&
       !identical(trazabilidad_precalculada$estado, "no_disponible")) {
@@ -3801,6 +3818,12 @@
   nombre <- as.character(hallazgo$columna[[1L]])
   indice <- .indice_columna_hallazgo(nombre, nombres, posicion)
   if (is.na(indice)) return(.trazabilidad_vacia(limite = limite))
+  if (tipo %in% .TIPOS_HALLAZGO_FORMATO_FECHA) {
+    return(.trazabilidad_formato_fecha(
+      tipo, datos, indice, resultados[[indice]], limite, clave,
+      asignaciones_fecha
+    ))
+  }
   indices <- .indices_hallazgo_columna(
     tipo, datos[[indice]], resultados[[indice]]$fila,
     resultados[[indice]], expandir, distinguir_mayusculas,
@@ -3844,6 +3867,79 @@
   )
 }
 
+# La traza de un hallazgo que cuenta formatos de fecha: las celdas escritas en
+# formatos con el problema que el hallazgo afirma. Es la regla de la unidad hermana
+# `valor_distinto` con el formato en el lugar del valor, y por eso `total` no es
+# `n_afectados` -uno cuenta filas y el otro formatos-.
+#
+# - `formatos_fecha_mixtos` cuenta todos los formatos: van todas las filas con
+#   fecha, las de las representaciones no dominantes primero para que el tope
+#   no se lleve lo accionable, y el reparto con los nombres que ya usan los
+#   hallazgos de vocabulario.
+# - `anio_de_dos_digitos`: toda fila cuya escritura solo admite lecturas con el
+#   ano de dos cifras, tambien las que dos de esas lecturas aceptan y no cuenta
+#   el `n` de ninguna -`01/12/20` entre `%d/%m/%y` y `%m/%d/%y`-.
+# - `formato_fecha_ambiguo`: toda fila escrita en una lectura que la columna
+#   entera no puede resolver.
+#
+# Las filas salen de la columna ENTERA, y los formatos tambien: la traza
+# contesta en que filas esta el problema, y eso no depende de lo que vio la
+# muestra. Puede nombrar filas escritas en formatos que la muestra no llego a
+# ver; la evidencia y `n_afectados` siguen siendo los de la muestra.
+# Eso cuesta una segunda deteccion, y por eso se paga solo aca -cuando el
+# hallazgo salio- y una vez por columna: `asignaciones`, un entorno que comparten
+# los hallazgos de la misma llamada, guarda la de cada columna para sus tres
+# tipos.
+.trazabilidad_formato_fecha <- function(tipo, datos, indice, resultado,
+                                        limite, clave = NULL,
+                                        asignaciones = NULL) {
+  llave <- as.character(indice)
+  asignacion <- if (is.environment(asignaciones)) asignaciones[[llave]] else NULL
+  if (is.null(asignacion)) {
+    texto <- .texto_en_el_universo(datos[[indice]], resultado$aplicable)
+    asignacion <- if (is.character(texto)) {
+      tryCatch(.filas_formatos_fecha(texto), error = function(e) NULL)
+    } else NULL
+    # `FALSE` y no `NULL`: que no haya asignacion tambien se recuerda.
+    if (is.null(asignacion)) asignacion <- FALSE
+    if (is.environment(asignaciones)) asignaciones[[llave]] <- asignacion
+  }
+  if (!is.list(asignacion)) return(.trazabilidad_vacia(limite = limite))
+  reparto <- NULL
+  if (identical(tipo, "formatos_fecha_mixtos")) {
+    reparto <- .reparto_filas_formatos_fecha(asignacion)
+    indices <- c(reparto$variantes, reparto$dominantes)
+  } else if (identical(tipo, "anio_de_dos_digitos")) {
+    indices <- .filas_de_formatos_fecha(
+      asignacion, .lecturas_anio_corto(asignacion)
+    )
+  } else {
+    indices <- .filas_de_formatos_fecha(
+      asignacion, .formatos_fecha_ambiguos(asignacion$tabla)$formato
+    )
+    # La muestra no pudo resolver una lectura que la columna entera si
+    # resuelve -los valores que la deciden cayeron fuera de la muestra-: no
+    # queda ninguna fila ambigua del modo que el hallazgo dice. Se nombran
+    # entonces las celdas que admiten dos o mas de las lecturas que el hallazgo
+    # cita, que son las que lo hicieron salir; nombrar ninguna dejaria un
+    # hallazgo de formato sin filas.
+    if (!length(indices)) {
+      indices <- .filas_que_admiten_varias(
+        asignacion, .formatos_fecha_ambiguos(resultado$formatos)$formato
+      )
+    }
+  }
+  traza <- .trazabilidad_indices(indices, "completo", limite = Inf)
+  if (identical(traza$estado, "no_disponible")) {
+    return(.trazabilidad_vacia(limite = limite))
+  }
+  if (!is.null(reparto)) {
+    traza$n_filas_formas_variantes <- length(reparto$variantes)
+    traza$n_filas_formas_dominantes <- length(reparto$dominantes)
+  }
+  .limitar_trazabilidad(traza, limite = limite, clave = clave, datos = datos)
+}
+
 .agregar_trazabilidad_hallazgos <- function(
     hallazgos, datos, nombres, resultados, expandir = FALSE,
     aproximados = NULL, limite = 1000L, distinguir_mayusculas = TRUE,
@@ -3858,17 +3954,20 @@
   posiciones <- lapply(hallazgos$trazabilidad, function(traza) {
     if (is.list(traza)) traza[["posicion_columna"]] else NULL
   })
-  # Un hallazgo contado en columnas o en formatos no tiene filas que trazar, y
+  # Un hallazgo contado en columnas no tiene filas que trazar, y
   # `.trazabilidad_hallazgo()` le devuelve la traza `no_aplica` antes de mirar
   # nada mas. Se resuelve aca, sin extraer la fila con `hallazgos[i, ]`: cuando
   # `columnas_duplicadas` publicaba un hallazgo por par, 300 columnas iguales
   # eran 44.850, y extraer cada fila de esa tabla costaba 4,4 de los 10,1 s de
   # esta funcion. Sigue valiendo para cualquier tabla con muchos hallazgos
   # contados en columnas.
-  sin_filas <- as.character(hallazgos$unidad_conteo) %in% c("columna", "formato")
+  sin_filas <- as.character(hallazgos$unidad_conteo) %in% "columna"
   traza_no_aplica <- .trazabilidad_vacia(
     "no_aplica", alcance = "no_aplica", limite = limite
   )
+  # Ver `.trazabilidad_formato_fecha()`: una deteccion por columna, no por
+  # hallazgo.
+  asignaciones_fecha <- new.env(parent = emptyenv())
   trazabilidad <- vector("list", nrow(hallazgos))
   trazabilidad[sin_filas] <- list(traza_no_aplica)
   trazabilidad[!sin_filas] <- lapply(which(!sin_filas), function(i) {
@@ -3876,7 +3975,7 @@
       as.character(hallazgos$tipo_hallazgo[[i]]), hallazgos[i, , drop = FALSE],
       datos, nombres, resultados, expandir, aproximados, i,
       tipos_hallazgos, limite, distinguir_mayusculas, clave = clave,
-      posicion = posiciones[[i]]
+      posicion = posiciones[[i]], asignaciones_fecha = asignaciones_fecha
     )
     if (is.list(traza)) traza[["posicion_columna"]] <- NULL
     traza
@@ -4005,22 +4104,38 @@
   )
 }
 
+# Un hallazgo informativo (`ok`) que cuenta filas: `posible_ausencia_estructural`
+# y `regla_silencia_ausencia`. Los demas informativos cuentan columnas o cuentan
+# cero, y no tienen filas que deber.
+.informativo_cuenta_filas <- function(unidad, afectados) {
+  !is.na(unidad) & unidad == "fila" & is.finite(afectados) & afectados > 0
+}
+
 .advertir_incoherencias_trazabilidad <- function(hallazgos, datos = NULL,
                                                  nombres = NULL,
                                                  aplicables = NULL,
                                                  posiciones = NULL) {
   if (!nrow(hallazgos)) return(invisible(hallazgos))
   # Sin `severidad` no se puede decidir: la guarda salta los hallazgos
-  # informativos -que cuentan cero por definicion- comparando ese campo, y sin
+  # informativos que no cuentan filas comparando ese campo, y sin
   # el acusaria a todos. Desde que esta guarda corre tambien al PUBLICAR, le
   # llegan objetos a los que les falta una columna, y acusar sin el campo que
   # decide es una acusacion falsa.
   campos <- c("severidad", "n_afectados", "unidad_conteo", "trazabilidad")
   if (!all(campos %in% names(hallazgos))) return(invisible(hallazgos))
   problemas <- character()
+  # La guarda corre en dos momentos: al construir el perfil, con los datos, y
+  # al publicarlo -`hallazgos()`, `reportar()`-, sin ellos. Lo que se construye
+  # ahora tiene que nombrar las filas de todo hallazgo que las cuenta. Lo que se
+  # publica puede ser un perfil guardado por una version anterior, que dejaba
+  # sin filas a los hallazgos de formato de fecha (`no_aplica`) y a los dos
+  # informativos de ausencia (la traza vacia con la que nacen): esas dos formas
+  # se toleran solo ahi. Acusarlas seria avisar, sobre un archivo de ayer, de un
+  # problema que ese archivo no tiene.
+  construyendo <- !is.null(datos)
   # Las filas que el recorrido de abajo saltea sin acusar nada se separan antes,
   # de una vez: las informativas (`ok`), las que no traen una traza, y las
-  # contadas en columnas o formatos con su traza `no_aplica`. Cuando
+  # contadas en columnas con su traza `no_aplica`. Cuando
   # `columnas_duplicadas` publicaba un hallazgo por par, 1.000 columnas iguales
   # eran 499.500, todos de la ultima clase, y recorrerlos de a uno costaba 10 s
   # al perfilar y otros 8 en cada `hallazgos()`. Las demas filas siguen el recorrido completo, en el
@@ -4035,11 +4150,13 @@
     severidades <- as.character(hallazgos$severidad)
     afectados_todos <- hallazgos$n_afectados
     unidades <- as.character(hallazgos$unidad_conteo)
-    informativa <- !is.na(severidades) & severidades == "ok"
+    informativa <- !is.na(severidades) & severidades == "ok" &
+      !.informativo_cuenta_filas(unidades, afectados_todos)
     sin_traza <- !vapply(trazas, is.list, logical(1L))
     no_aplica_declarada <- !informativa & !sin_traza &
       is.finite(afectados_todos) & afectados_todos != 0 &
-      !is.na(unidades) & unidades %in% c("columna", "formato")
+      !is.na(unidades) &
+      (unidades == "columna" | (unidades == "formato" & !construyendo))
     no_aplica_declarada[no_aplica_declarada] <- vapply(
       trazas[no_aplica_declarada], function(traza) {
         identical(traza$estado, "no_aplica") ||
@@ -4053,7 +4170,14 @@
     afectados <- hallazgos$n_afectados[[i]]
     unidad <- as.character(hallazgos$unidad_conteo[[i]])
     traza <- hallazgos$trazabilidad[[i]]
-    if (identical(severidad, "ok") || !is.list(traza)) next
+    if (!is.list(traza)) next
+    # Un informativo no afirma un defecto y casi siempre cuenta columnas o
+    # cuenta cero. El que cuenta filas se revisa como cualquier otro: decia
+    # "200 ausencias" sin nombrar ninguna y la guarda no lo miraba.
+    informativo <- identical(severidad, "ok")
+    if (informativo && !isTRUE(.informativo_cuenta_filas(unidad, afectados))) {
+      next
+    }
     etiqueta <- paste0(
       as.character(hallazgos$tipo_hallazgo[[i]]), " en ",
       as.character(hallazgos$columna[[i]])
@@ -4065,7 +4189,15 @@
     if (!isTRUE(is.finite(afectados)) || is.na(unidad)) next
     no_aplica <- identical(traza$estado, "no_aplica") ||
       identical(traza$alcance, "no_aplica")
-    if (unidad %in% c("columna", "formato") && !no_aplica) {
+    if (identical(unidad, "formato") && no_aplica) {
+      if (construyendo) {
+        problemas <- c(problemas, paste0(
+          etiqueta, ": hallazgo de formato sin filas"
+        ))
+      }
+      next
+    }
+    if (identical(unidad, "columna") && !no_aplica) {
       problemas <- c(problemas, paste0(etiqueta, ": falta no_aplica"))
       next
     }
@@ -4077,6 +4209,8 @@
     if (identical(traza$estado, "no_disponible") &&
         identical(traza$alcance, .ALCANCE_TRAZA_ORDEN_INESTABLE)) next
     if (identical(traza$estado, "no_disponible")) {
+      if (informativo && !construyendo &&
+          identical(traza$alcance, "no_evaluado")) next
       problemas <- c(problemas, paste0(etiqueta, ": traza no disponible"))
       next
     }
@@ -4086,6 +4220,19 @@
         (total != length(indices) && !isTRUE(traza$truncado))) {
       problemas <- c(problemas, paste0(
         etiqueta, ": total de traza no coincide con sus \u00edndices"
+      ))
+      next
+    }
+    # El reparto entre formas variantes y dominantes parte el total: si no lo
+    # suma, `mostrados_formas_variantes` ya no dice cuantas de las filas
+    # mostradas son las accionables.
+    variantes <- traza$n_filas_formas_variantes
+    dominantes <- traza$n_filas_formas_dominantes
+    if ((length(variantes) || length(dominantes)) &&
+        !isTRUE(length(variantes) == 1L && length(dominantes) == 1L &&
+                  variantes + dominantes == total)) {
+      problemas <- c(problemas, paste0(
+        etiqueta, ": el reparto de la traza no suma su total"
       ))
       next
     }
@@ -4129,7 +4276,7 @@
       }
     }
   }
-  # Las seis condiciones de arriba comparan dos salidas del propio `lupa` -lo que
+  # Las condiciones de arriba comparan dos salidas del propio `lupa` -lo que
   # el hallazgo afirma contra las filas que se le adjuntaron-, y ninguna mira los
   # datos del usuario. No hay nada que corregir en la tabla, y decir "la
   # trazabilidad contiene incoherencias" mandaba a buscar en los datos algo que
@@ -4865,11 +5012,7 @@
       ))
     }
 
-    candidatos_fecha <- resultado$formatos[
-      resultado$formatos$estado == "candidato" &
-        (!resultado$formatos$anio_dos_digitos |
-           resultado$formatos$n_inequivocos == 0L), , drop = FALSE
-    ]
+    candidatos_fecha <- .formatos_fecha_ambiguos(resultado$formatos)
     if (nrow(candidatos_fecha) &&
         fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
       # Con guion y dos cifras la ambiguedad tambien puede ser del ano con el
@@ -4894,9 +5037,7 @@
       ))
     }
 
-    formatos_anio_corto <- resultado$formatos[
-      resultado$formatos$anio_dos_digitos, , drop = FALSE
-    ]
+    formatos_anio_corto <- .formatos_fecha_anio_corto(resultado$formatos)
     if (nrow(formatos_anio_corto) &&
         fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
       agregar(.nuevo_hallazgo(

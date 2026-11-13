@@ -257,7 +257,12 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   } else {
     conteos[[tipo]]
   }
-  if (!conservar_cache) attr(formatos, "meses_texto") <- NULL
+  if (!conservar_cache) {
+    # Los dos intermedios de la deteccion: ninguno es parte de lo que
+    # `inferir_tipo()` publica.
+    attr(formatos, "meses_texto") <- NULL
+    attr(formatos, "asignacion") <- NULL
+  }
   .inferencia(tipo, compatibles, n, muestreo, candidatos, formatos)
 }
 

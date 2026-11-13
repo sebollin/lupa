@@ -287,14 +287,34 @@ test_that("las unidades que no son fila se declaran y no se comparan como filas"
   esperar_unidad_no_fila(
     perfil, "tipo_declarado_distinto", "anio_corto", "columna", no_aplica = TRUE
   )
-  esperar_unidad_no_fila(
-    perfil, "formato_fecha_ambiguo", "anio_corto", "formato", no_aplica = TRUE
+  # Un hallazgo contado en formatos nombra las celdas escritas en esos
+  # formatos. Estas tres aserciones afirmaban `no_aplica`, o sea que ubicar esas
+  # celdas no corresponde, y es lo que hace falta para corregirlas: la regla
+  # escrita para la unidad hermana `valor_distinto` es que la traza enumera las
+  # filas. La unidad sigue siendo `formato` -`n_afectados` cuenta formatos-, y
+  # por eso `total` cuenta filas y no se compara con el.
+  filas_anio_corto <- which(seq_len(n) %% 20L == 0L)
+  esperar_formato_y_filas <- function(tipo, esperadas) {
+    hallazgo <- esperar_unidad_no_fila(perfil, tipo, "anio_corto", "formato")
+    traza <- hallazgo$trazabilidad[[1L]]
+    expect_equal(as.character(traza$estado), "disponible", info = tipo)
+    expect_equal(as.character(traza$alcance), "completo", info = tipo)
+    expect_setequal(traza$indices_fila, esperadas)
+    expect_equal(traza$total, length(esperadas), info = tipo)
+    invisible(traza)
+  }
+  # `12/03/2019` y `12/03/99` se leen las dos de dos maneras: las 600 filas
+  # estan escritas en un formato que no se puede resolver.
+  esperar_formato_y_filas("formato_fecha_ambiguo", seq_len(n))
+  esperar_formato_y_filas("anio_de_dos_digitos", filas_anio_corto)
+  # Todas las filas con fecha, y primero las de la escritura minoritaria.
+  traza_mixtos <- esperar_formato_y_filas("formatos_fecha_mixtos", seq_len(n))
+  expect_identical(
+    traza_mixtos$indices_fila[seq_along(filas_anio_corto)], filas_anio_corto
   )
-  esperar_unidad_no_fila(
-    perfil, "anio_de_dos_digitos", "anio_corto", "formato", no_aplica = TRUE
-  )
-  esperar_unidad_no_fila(
-    perfil, "formatos_fecha_mixtos", "anio_corto", "formato", no_aplica = TRUE
+  expect_equal(traza_mixtos$n_filas_formas_variantes, length(filas_anio_corto))
+  expect_equal(
+    traza_mixtos$n_filas_formas_dominantes, n - length(filas_anio_corto)
   )
   esperar_unidad_no_fila(
     perfil, "fecha_partida_columnas", NULL, "columna", no_aplica = TRUE

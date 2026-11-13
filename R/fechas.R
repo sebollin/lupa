@@ -550,13 +550,23 @@
 detectar_formatos_fecha <- function(x, muestra = 1e5) {
   resultado <- .detectar_formatos_fecha_interno(x, muestra)
   attr(resultado, "meses_texto") <- NULL
+  attr(resultado, "asignacion") <- NULL
   resultado
 }
 
 # El resultado público no lleva el parser intermedio de meses. El recorrido
 # interno lo conserva sólo hasta pasarlo al resumen de la columna.
+#
+# `asignacion = TRUE` conserva ademas lo que la deteccion calcula para contar
+# y despues descarta: que formas cuenta cada fila de la tabla. Es lo unico que
+# permite decir en que filas de la columna esta escrito cada formato sin
+# escribir una segunda regla al lado de esta; la tabla sola no alcanza, porque
+# el `n` de una lectura ambigua no es la mascara de su formato. Viaja en el
+# atributo `asignacion`, que es interno: lo pide y lo consume
+# `.filas_formatos_fecha()`, y no se publica.
 .detectar_formatos_fecha_interno <- function(x, muestra = 1e5,
-                                              vocabulario = NULL) {
+                                              vocabulario = NULL,
+                                              asignacion = FALSE) {
   .validar_vector_no_tabla(x)
   muestra_x <- .muestrear_vector(x, muestra)
   valores_originales <- muestra_x$valores
@@ -599,7 +609,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
 
   valores <- .texto_analizable(valores_originales)$valores
   valores <- trimws(valores)
-  valores <- valores[!is.na(valores) & nzchar(valores)]
+  presentes <- !is.na(valores) & nzchar(valores)
+  valores <- valores[presentes]
   total <- length(valores)
   if (is.null(vocabulario)) {
     vocabulario <- .vocabulario_texto(valores, .umbral_vocabulario_barato)
@@ -617,6 +628,19 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     split(meses_texto$filas, seq_len(nrow(meses_texto$filas)))
   } else list()
   filas <- filas_meses
+  # Con `asignacion`, al lado de cada fila de la tabla van las formas que esa
+  # fila cuenta -indices de `formas`-, y aparte las que dos lecturas probadas
+  # aceptan y por eso no cuenta ninguna (`entre`). Y, para toda celda que mas
+  # de una lectura de un grupo acepta, cuales son (`lecturas_ambiguas`). Un mes
+  # escrito lo cuenta la fila de su formato: es la mascara con la que
+  # `.detectar_meses_texto()` armo esa fila.
+  formas_filas <- if (asignacion) {
+    lapply(unname(filas_meses), function(fila) {
+      which(meses_formas$validos & meses_formas$formatos == fila$formato)
+    })
+  } else NULL
+  formas_entre <- integer()
+  lecturas_ambiguas <- list()
   # Los identificadores numéricos de ocho dígitos son frecuentes y no deben
   # atravesar las decenas de formatos de fecha si ni siquiera contienen un
   # año plausible. La guarda conserva la misma semántica del formato compacto
@@ -711,6 +735,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
         anio_dos_digitos = especificaciones$anio_dos_digitos[[i]],
         granularidad = especificaciones$granularidad[[i]]
       )
+      if (asignacion) formas_filas[[k]] <- indices_numericos[mascara]
       cubiertos[indices_numericos] <- cubiertos[indices_numericos] | mascara
     }
   }
@@ -742,6 +767,15 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     }
     cubiertos[indices_numericos] <- cubiertos[indices_numericos] |
       lecturas > 0L
+    # Que lecturas del grupo acepta cada celda que lee mas de una, en todas las
+    # ramas de abajo: con eso la traza sabe si una celda solo admite lecturas
+    # con el ano de dos cifras, o si admite varias de las que cita un hallazgo.
+    if (asignacion) {
+      lecturas_ambiguas <- c(lecturas_ambiguas, .lecturas_de_celdas_ambiguas(
+        mascaras_grupo, ambiguos, especificaciones$formato[indices],
+        especificaciones$anio_dos_digitos[indices], indices_numericos
+      ))
+    }
 
     if (!any(con_solo)) {
       # Ningun valor tiene una sola lectura: todas las que leen algo son
@@ -754,6 +788,9 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
           estado = "candidato", n_inequivocos = 0L, n_ambiguos = n_lee,
           grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
         )
+        if (asignacion) {
+          formas_filas[[k]] <- indices_numericos[mascaras_grupo[[posicion]]]
+        }
       }
     } else if (sum(con_solo) == 1L) {
       posicion <- which(con_solo)
@@ -777,6 +814,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
         grupo_ambiguo = if (anio_dos && !hay_resto) grupo else "",
         anio_dos_digitos = anio_dos
       )
+      if (asignacion) formas_filas[[k]] <- indices_numericos[mascara]
       for (otra in otras) {
         resto <- mascaras_grupo[[otra]] & !mascara
         if (!any(resto)) next
@@ -788,6 +826,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
           n_ambiguos = sum(pesos_grupo[resto]),
           grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
         )
+        if (asignacion) formas_filas[[k]] <- indices_numericos[resto]
       }
     } else {
       # Dos o mas lecturas probadas cada una por valores que solo ella lee: son
@@ -805,6 +844,16 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
           n_ambiguos = sum(pesos_grupo[ambiguos]),
           grupo_ambiguo = "", anio_dos_digitos = anio_dos
         )
+        if (asignacion) {
+          formas_filas[[k]] <- indices_numericos[solos[[posicion]]]
+        }
+      }
+      # Lo que dos lecturas probadas aceptan no lo cuenta el `n` de ninguna
+      # -va a `n_ambiguos`-, pero esta escrito como fecha, y en esas lecturas:
+      # `01/12/20` junto a `13/06/20` y `06/30/20` es `%d/%m/%y` o `%m/%d/%y`
+      # (sus lecturas quedaron en `lecturas_ambiguas`, arriba).
+      if (asignacion) {
+        formas_entre <- c(formas_entre, indices_numericos[ambiguos])
       }
     }
   }
@@ -812,8 +861,11 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   if (length(filas)) {
     # Los nombres de fila se descartan dos lineas abajo: ver `.apilar_filas()`.
     resultado <- .apilar_filas(filas)
-    resultado <- resultado[.orden_por_bytes(-resultado$n, resultado$formato), , drop = FALSE]
+    orden <- .orden_por_bytes(-resultado$n, resultado$formato)
+    resultado <- resultado[orden, , drop = FALSE]
     rownames(resultado) <- NULL
+    # La misma permutacion que la tabla: cada fila sigue al lado de sus formas.
+    if (asignacion) formas_filas <- formas_filas[orden]
   } else {
     resultado <- .data_frame_simple(
       formato = character(), n = integer(), proporcion = numeric(),
@@ -824,17 +876,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     )
   }
 
-  unidades <- character()
-  if (nrow(resultado)) {
-    confirmados <- resultado$estado == "confirmado"
-    unidades <- c(unidades, resultado$formato[confirmados])
-    candidatos <- resultado[resultado$estado == "candidato", , drop = FALSE]
-    unidades_candidatas <- ifelse(
-      nzchar(candidatos$grupo_ambiguo), candidatos$grupo_ambiguo,
-      candidatos$formato
-    )
-    unidades <- c(unidades, unique(unidades_candidatas))
-  }
+  unidades <- .representaciones_formatos_fecha(resultado)
   mixtos <- length(unique(unidades)) >= 2L
   resultado$grupo_ambiguo <- NULL
   class(resultado) <- c("formatos_fecha", "data.frame")
@@ -844,7 +886,176 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   attr(resultado, "compatibles") <- sum(pesos[cubiertos])
   attr(resultado, "formatos_mixtos") <- mixtos
   attr(resultado, "meses_texto") <- meses_texto
+  if (asignacion) {
+    attr(resultado, "asignacion") <- list(
+      # Donde esta cada valor analizado en el vector recibido, y cual es su
+      # forma: con las dos cosas una forma vuelve a sus filas.
+      posiciones = which(presentes), indices = vocabulario$indices,
+      n_formas = length(formas), formas = formas_filas,
+      representaciones = unidades, entre = formas_entre,
+      lecturas_ambiguas = lecturas_ambiguas
+    )
+  }
   resultado
+}
+
+# La representacion de cada fila de la tabla de formatos: un formato confirmado
+# es una, y las lecturas candidatas de un mismo grupo ambiguo son una sola
+# -`%d/%m/%y` y `%m/%d/%y` leen las mismas celdas-. Es la unidad con la que la
+# deteccion decide `formatos_mixtos` y la que reparte las filas de la columna
+# entre dominantes y variantes; por eso esta escrita una vez.
+.representaciones_formatos_fecha <- function(tabla) {
+  representacion <- tabla$formato
+  agrupada <- tabla$estado == "candidato" & nzchar(tabla$grupo_ambiguo)
+  representacion[agrupada] <- tabla$grupo_ambiguo[agrupada]
+  representacion
+}
+
+# Los formatos que nombra `formato_fecha_ambiguo`: los candidatos que no se
+# pueden resolver. Un candidato que lo es solo por el ano de dos cifras, con
+# valores que nadie mas lee, tiene su hallazgo propio.
+.formatos_fecha_ambiguos <- function(formatos) {
+  formatos[
+    formatos$estado == "candidato" &
+      (!formatos$anio_dos_digitos | formatos$n_inequivocos == 0L), ,
+    drop = FALSE
+  ]
+}
+
+# Los formatos que nombra `anio_de_dos_digitos`.
+.formatos_fecha_anio_corto <- function(formatos) {
+  formatos[formatos$anio_dos_digitos, , drop = FALSE]
+}
+
+# En que filas esta escrito cada formato, sobre la columna entera.
+#
+# La tabla de formatos del perfil cuenta: dice cuantos valores lee cada formato
+# y no cuales. Aca la misma deteccion corre sobre todo el texto -sin muestra- y
+# deja ademas la asignacion que usa para contar. `texto` es el que analizo el
+# perfil: el de `.texto_en_el_universo()`.
+#
+# Devuelve `NULL` cuando la deteccion no reparte formas: fechas nativas, o una
+# columna de ocho cifras, que no producen ningun hallazgo de formato.
+.filas_formatos_fecha <- function(texto) {
+  tabla <- .detectar_formatos_fecha_interno(
+    texto, muestra = Inf, asignacion = TRUE
+  )
+  asignacion <- attr(tabla, "asignacion", exact = TRUE)
+  if (is.null(asignacion) || !nrow(tabla)) return(NULL)
+  # La representacion de cada forma. Cero es "no es una fecha"; el codigo
+  # negativo, "es una fecha y no pertenece a ninguna representacion": la leen
+  # dos lecturas probadas, o la cuentan filas de representaciones distintas.
+  representaciones <- unique(asignacion$representaciones)
+  codigos <- match(asignacion$representaciones, representaciones)
+  de_forma <- integer(asignacion$n_formas)
+  for (k in seq_along(asignacion$formas)) {
+    formas <- asignacion$formas[[k]]
+    previo <- de_forma[formas]
+    de_forma[formas] <- ifelse(
+      previo == 0L | previo == codigos[[k]], codigos[[k]], -1L
+    )
+  }
+  de_forma[asignacion$entre] <- -1L
+  list(
+    formatos = tabla$formato,
+    formas = asignacion$formas,
+    n_formas = asignacion$n_formas,
+    posiciones = asignacion$posiciones,
+    indices = asignacion$indices,
+    lecturas_ambiguas = asignacion$lecturas_ambiguas,
+    # La tabla de la columna entera, con lo que deciden los hallazgos: la traza
+    # nombra los formatos que encuentra esta deteccion, no los de la muestra.
+    tabla = .data_frame_simple(
+      formato = tabla$formato, estado = tabla$estado,
+      n_inequivocos = tabla$n_inequivocos,
+      anio_dos_digitos = tabla$anio_dos_digitos, stringsAsFactors = FALSE
+    ),
+    representaciones = representaciones,
+    # Por valor analizado, en el orden de `posiciones`.
+    representacion = de_forma[asignacion$indices]
+  )
+}
+
+# Las filas escritas en alguno de `formatos`, en orden de fila: las que cuenta
+# el `n` de esas filas de la tabla, y las que solo esas lecturas aceptan. Estas
+# ultimas no las cuenta el `n` de ningun formato -estan entre dos lecturas
+# probadas- y por eso, con mas de un formato, las filas pueden ser mas que la
+# suma de sus `n`. Con un formato solo son exactamente su `n`: una celda entre
+# dos lecturas necesita las dos.
+.filas_de_formatos_fecha <- function(asignacion, formatos) {
+  cuenta <- logical(asignacion$n_formas)
+  elegidas <- which(asignacion$formatos %in% formatos)
+  cuenta[unlist(asignacion$formas[elegidas], use.names = FALSE)] <- TRUE
+  for (celdas in asignacion$lecturas_ambiguas) {
+    if (all(celdas$formatos %in% formatos)) cuenta[celdas$formas] <- TRUE
+  }
+  asignacion$posiciones[cuenta[asignacion$indices]]
+}
+
+# Las celdas que mas de una lectura de un grupo acepta, partidas por el
+# conjunto de lecturas que las aceptan: una entrada por conjunto, con sus
+# formatos, si cada uno tiene el ano de dos cifras y sus formas.
+.lecturas_de_celdas_ambiguas <- function(mascaras, ambiguos, formatos,
+                                         anio_dos, formas) {
+  if (!any(ambiguos)) return(list())
+  bits <- 2L^(seq_along(mascaras) - 1L)
+  lectoras <- Reduce(`+`, lapply(seq_along(mascaras), function(p) {
+    as.integer(mascaras[[p]][ambiguos]) * bits[[p]]
+  }))
+  formas_ambiguas <- formas[ambiguos]
+  lapply(unique(lectoras), function(codigo) {
+    leen <- bitwAnd(as.integer(codigo), as.integer(bits)) > 0L
+    list(
+      formatos = formatos[leen], anio_dos = anio_dos[leen],
+      formas = formas_ambiguas[lectoras == codigo]
+    )
+  })
+}
+
+# Las lecturas con el ano de dos cifras que encuentra la columna entera: las de
+# su tabla y las que solo aceptan celdas ambiguas. Con ellas,
+# `.filas_de_formatos_fecha()` nombra toda fila cuya escritura solo admite
+# lecturas con el ano corto, la haya visto o no la muestra.
+.lecturas_anio_corto <- function(asignacion) {
+  tabla <- asignacion$tabla
+  c(tabla$formato[tabla$anio_dos_digitos], unlist(lapply(
+    asignacion$lecturas_ambiguas, function(celdas) {
+      celdas$formatos[celdas$anio_dos]
+    }
+  ), use.names = FALSE))
+}
+
+# Las filas cuya escritura admite dos o mas de `lecturas`.
+.filas_que_admiten_varias <- function(asignacion, lecturas) {
+  cuenta <- logical(asignacion$n_formas)
+  for (celdas in asignacion$lecturas_ambiguas) {
+    if (sum(celdas$formatos %in% lecturas) >= 2L) cuenta[celdas$formas] <- TRUE
+  }
+  asignacion$posiciones[cuenta[asignacion$indices]]
+}
+
+# Todas las filas con fecha, partidas entre la representacion dominante y las
+# demas. Dominante es la que tiene mas filas, si es una sola: con empate en el
+# primer lugar no hay ninguna y todas las filas son variantes, que es lo que
+# hace `variantes_equifrecuentes_vocabulario` cuando ninguna evidencia dice
+# cual es la correcta. Una celda que dos lecturas probadas leen distinto no es
+# de ninguna representacion y va con las variantes.
+.reparto_filas_formatos_fecha <- function(asignacion) {
+  representacion <- asignacion$representacion
+  filas_por_representacion <- tabulate(
+    representacion[representacion > 0L], length(asignacion$representaciones)
+  )
+  maximo <- max(filas_por_representacion, 0L)
+  dominante <- which(filas_por_representacion == maximo)
+  es_dominante <- if (maximo > 0L && length(dominante) == 1L) {
+    representacion == dominante
+  } else {
+    rep(FALSE, length(representacion))
+  }
+  list(
+    variantes = asignacion$posiciones[representacion != 0L & !es_dominante],
+    dominantes = asignacion$posiciones[es_dominante]
+  )
 }
 
 .meses_texto_para_formas <- function(meses_texto, textos, formas) {

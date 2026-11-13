@@ -1,5 +1,31 @@
 # lupa (development version)
 
+## Trazabilidad
+
+- Los tres hallazgos de formato de fecha (`formatos_fecha_mixtos`,
+  `formato_fecha_ambiguo` y `anio_de_dos_digitos`) traen en su `trazabilidad`
+  las filas con el problema; antes decían `no_aplica`. La traza se arma sobre
+  la columna entera, también cuando la tabla de formatos, la evidencia y
+  `n_afectados` son de una muestra, y puede nombrar filas escritas en formatos
+  que la muestra no llegó a ver. `n_afectados` sigue contando formatos, así que
+  el `total` de la traza cuenta filas. Esa segunda lectura de la columna se hace
+  sólo cuando alguno de los tres hallazgos sale, una vez por columna.
+  `anio_de_dos_digitos` traza toda fila cuya escritura sólo admite lecturas con
+  el año de dos cifras; `formato_fecha_ambiguo`, toda fila escrita en una
+  lectura que la columna entera no puede resolver; `formatos_fecha_mixtos`,
+  todas las filas con fecha, primero las de las escrituras que no son la más
+  frecuente, con el reparto de `casi_duplicados_vocabulario`
+  (`n_filas_formas_variantes`, `n_filas_formas_dominantes`); con empate en el
+  primer lugar no hay dominante y todas cuentan como variantes.
+- `posible_ausencia_estructural` y `regla_silencia_ausencia` traen en su
+  `trazabilidad` las filas que cuentan: las ausentes que caen donde la regla
+  dice que la columna no corresponde, y las que la declaración del universo
+  dejó de contar.
+- La advertencia `lupa_trazabilidad_incoherente` revisa también esos cinco:
+  avisa si al construir el perfil un hallazgo de formato no trae filas o un
+  informativo que cuenta filas no las nombra. Un perfil guardado por una versión
+  anterior se publica sin aviso.
+
 ## Relaciones
 
 - `detectar_relaciones()` dice cuántas filas quedan huérfanas y cuáles. Cada

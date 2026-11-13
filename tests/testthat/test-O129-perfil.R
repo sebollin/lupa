@@ -306,7 +306,10 @@ test_that("H8: muestra_motor retiene la traza como no_disponible y conserva el c
     # Antes: NULL, fuera de los cuatro estados.
     expect_true(is.list(traza))
     expect_length(traza$indices_fila, 0L)
-    if (h$unidad_conteo[[i]] %in% c("columna", "formato")) {
+    # Solo lo contado en columnas no tiene filas: un hallazgo contado en
+    # formatos nombra las celdas escritas en ellos, asi que bajo la muestra del
+    # motor se retiene como cualquier otra traza con filas.
+    if (h$unidad_conteo[[i]] %in% "columna") {
       expect_identical(traza$estado, "no_aplica")
     } else {
       expect_identical(traza$estado, "no_disponible")

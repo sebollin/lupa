@@ -228,7 +228,11 @@
     } else NA_character_,
     sentido = sentido,
     n_indeterminados = det$n_indeterminados,
-    n_ausentes_explicados = as.integer(explicados)
+    n_ausentes_explicados = as.integer(explicados),
+    # Donde cae el corte en el vector ordenado: es lo que separa el lado donde
+    # la columna no corresponde, y con eso se nombran las filas que
+    # `n_ausentes_explicados` cuenta. Ver `.filas_ausencia_explicada()`.
+    posicion_corte = indice
   )
 }
 
@@ -346,8 +350,44 @@
     # Las ausentes que caen en los niveles donde la columna no corresponde.
     n_ausentes_explicados = as.integer(sum(
       (det$n_por_nivel - presentes_por_nivel)[!aplica]
-    ))
+    )),
+    # Los mismos niveles, por codigo: con ellos se nombran esas filas. Ver
+    # `.filas_ausencia_explicada()`.
+    por_nivel_aplica = aplica
   )
+}
+
+# Las filas que cuenta `n_ausentes_explicados`: las ausentes que caen donde la
+# regla dice que la columna no corresponde. Salen de las mismas cantidades con
+# que se contaron -los codigos de nivel, o la posicion del corte en el vector
+# ordenado- y no de la regla publicada: reconstruirlas desde la etiqueta del
+# corte o desde los nombres de los niveles seria contar por segunda vez, con
+# otra escritura del mismo valor.
+#
+# Las ausencias que la regla NO explica -las que caen donde la columna si
+# corresponde- no van: el hallazgo no las cuenta. Se llega a ellas declarando
+# la regla, que deja un `faltantes` con esas filas.
+.filas_ausencia_explicada <- function(presente, det, ajuste) {
+  usables <- which(det$usable)
+  if (is.null(ajuste$posicion_corte)) {
+    no_corresponde <- !ajuste$por_nivel_aplica[det$codigos]
+  } else {
+    # Debajo del corte estan las primeras `posicion_corte` filas del vector
+    # ordenado. Con `>=` la columna no corresponde ahi; con `<`, en el resto.
+    debajo <- logical(length(usables))
+    debajo[det$orden[seq_len(ajuste$posicion_corte)]] <- TRUE
+    no_corresponde <- if (identical(ajuste$sentido, ">=")) debajo else !debajo
+  }
+  usables[no_corresponde & !presente[usables]]
+}
+
+# La traza de un hallazgo de ausencia, armada por quien lo conto. Sin tope: lo
+# aplica `.trazabilidad_hallazgo()` al publicar, que ademas pone las claves.
+.con_filas_de_ausencia <- function(hallazgo, filas) {
+  hallazgo$trazabilidad <- I(list(
+    .trazabilidad_indices(filas, "completo", limite = Inf)
+  ))
+  hallazgo
 }
 
 .hallazgo_ausencia_determinada <- function(columna, determinante, ajuste,
@@ -464,11 +504,31 @@
   )
 }
 
+# Las filas que cuenta `regla_silencia_ausencia` salen de la misma mascara que
+# su conteo, que no es la misma en los dos origenes. En una columna opcional son
+# las de fuera del universo, y un faltante disfrazado NO es una de ellas: ahi el
+# universo son las celdas con valor, y `s/d` es un valor. Medido: con 150 `NA` y
+# 10 `s/d` el aviso cuenta 150, y la ausencia del perfil -`NA` o disfrazado-
+# daria 160. Con `aplicabilidad` son las ausentes de dentro del universo, las
+# mismas del `faltantes` que sale al lado.
+.filas_regla_silenciosa <- function(origen, x, resultado) {
+  aplicable <- resultado$aplicable
+  if (!is.logical(aplicable)) return(NULL)
+  # Las filas indeterminadas de una regla tambien estan fuera de `aplicable`.
+  if (identical(origen, "columnas_opcionales")) return(which(!aplicable))
+  ausente <- .mascara_ausencia_columna(
+    x, resultado$faltantes_disfrazados, length(aplicable)
+  )
+  if (is.null(ausente)) return(NULL)
+  which(ausente & aplicable)
+}
+
 # Un aviso, no un defecto: la regla declarada esta haciendo su trabajo, y por
 # eso mismo el perfil sale limpio. Quien no lea `cobertura_diagnosticos` no se
 # entera de que una columna casi vacia dejo de contar. El aviso lo pone en la
 # misma tabla que todo lo demas.
-.hallazgos_regla_silenciosa <- function(nombres, resultados, reglas, umbral) {
+.hallazgos_regla_silenciosa <- function(nombres, resultados, reglas, umbral,
+                                        datos = NULL) {
   if (!nrow(reglas)) return(list())
   salida <- list()
   for (k in seq_len(nrow(reglas))) {
@@ -489,7 +549,10 @@
     }
     proporcion <- if (n_aplicables > 0L) n_ausentes / n_aplicables else NA_real_
     if (!isTRUE(is.finite(proporcion)) || proporcion < umbral) next
-    salida[[length(salida) + 1L]] <- .nuevo_hallazgo(
+    filas <- if (is.null(datos)) NULL else {
+      .filas_regla_silenciosa(origen, datos[[i]], resultados[[i]])
+    }
+    aviso <- .nuevo_hallazgo(
       reglas$columna[[k]], "regla_silencia_ausencia", "ok",
       paste0(
         "La declaraci\u00f3n del universo evit\u00f3 que esta columna apareciera como ",
@@ -526,6 +589,8 @@
       },
       n_aplicables, n_ausentes, "fila"
     )
+    if (!is.null(filas)) aviso <- .con_filas_de_ausencia(aviso, filas)
+    salida[[length(salida) + 1L]] <- aviso
   }
   salida
 }
@@ -587,7 +652,8 @@
     hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia()
   )
   avisos <- .hallazgos_regla_silenciosa(
-    nombres, resultados, aplicabilidad_resuelta$reglas, umbral_faltantes_error
+    nombres, resultados, aplicabilidad_resuelta$reglas, umbral_faltantes_error,
+    datos = datos
   )
   vacio$hallazgos <- avisos
   n <- nrow(datos)
@@ -705,6 +771,7 @@
   for (k in seq_along(indices)) {
     columna <- nombres[[indices[[k]]]]
     mejor <- NULL
+    mejor_det <- NULL
     mejor_nombre <- NA_character_
     mejor_indice <- NA_integer_
     for (det in determinantes) {
@@ -721,15 +788,19 @@
           (ajuste$cumplimiento == mejor$cumplimiento &&
              niveles_de(ajuste) < niveles_de(mejor))) {
         mejor <- ajuste
+        mejor_det <- det
         mejor_nombre <- det$nombre
         mejor_indice <- det$indice
       }
     }
     if (!is.null(mejor)) {
-      hallazgos[[length(hallazgos) + 1L]] <- .hallazgo_ausencia_determinada(
-        columna, mejor_nombre, mejor, n_ausentes[[indices[[k]]]],
-        columna_texto = nombres_texto[[indices[[k]]]],
-        determinante_texto = nombres_texto[[mejor_indice]]
+      hallazgos[[length(hallazgos) + 1L]] <- .con_filas_de_ausencia(
+        .hallazgo_ausencia_determinada(
+          columna, mejor_nombre, mejor, n_ausentes[[indices[[k]]]],
+          columna_texto = nombres_texto[[indices[[k]]]],
+          determinante_texto = nombres_texto[[mejor_indice]]
+        ),
+        .filas_ausencia_explicada(presentes[[k]], mejor_det, mejor)
       )
       explicadas <- c(explicadas, columna)
     }
@@ -773,11 +844,15 @@
       usadas_operativas <- c(usadas_operativas,
                              nombres_operativos[indices[grupo]])
       for (k in grupo) {
-        hallazgos[[length(hallazgos) + 1L]] <- .hallazgo_ausencia_excluyente(
-          nombres[[indices[[k]]]], nombres_grupo, solapamiento, cubierto, n,
-          n_ausentes[[indices[[k]]]],
-          columna_texto = nombres_texto[[indices[[k]]]],
-          grupo_texto = nombres_grupo_texto
+        # Aca el hallazgo cuenta todas las ausencias de la columna.
+        hallazgos[[length(hallazgos) + 1L]] <- .con_filas_de_ausencia(
+          .hallazgo_ausencia_excluyente(
+            nombres[[indices[[k]]]], nombres_grupo, solapamiento, cubierto, n,
+            n_ausentes[[indices[[k]]]],
+            columna_texto = nombres_texto[[indices[[k]]]],
+            grupo_texto = nombres_grupo_texto
+          ),
+          which(!presentes[[k]])
         )
       }
     }

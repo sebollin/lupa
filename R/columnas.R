@@ -3455,6 +3455,11 @@
   # The month parser is an internal hand-off between type inference and the
   # column summary. It must not remain attached to the public profile table.
   attr(formatos, "meses_texto") <- NULL
+  # Tampoco la asignacion de formas a formatos, que es del mismo orden: un
+  # intermedio de la deteccion. Hoy nadie la pide por este camino; si alguna
+  # vez se reusa aca la deteccion para las filas de un hallazgo, la tabla que
+  # se publica sigue sin llevarla.
+  attr(formatos, "asignacion") <- NULL
   patrones <- if (is.character(x_analisis) || is.factor(x_analisis)) {
     # `proteger_datos_personales = FALSE` no es un descuido: `perfilar()` protege
     # el perfil ENTERO despues, y ahi respeta la declaracion del usuario. Si se

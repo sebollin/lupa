@@ -2694,8 +2694,31 @@
 #'   de unidad `valor_distinto` las filas de las formas variantes se entregan
 #'   primero —en `mayusculas_inconsistentes` y `normalizacion_unicode`, la forma
 #'   dominante de cada grupo es la guardada más veces—, de modo que el truncado
-#'   no se lleve lo accionable. Para
-#'   `patron_raro`,
+#'   no se lleve lo accionable.
+#'   En los tres hallazgos de unidad `formato` (`formatos_fecha_mixtos`,
+#'   `formato_fecha_ambiguo` y `anio_de_dos_digitos`), `n_afectados` cuenta
+#'   formatos y la traza enumera filas; por eso su total no se compara con
+#'   `n_afectados`. La traza se arma sobre la columna entera aunque la tabla de
+#'   formatos, la evidencia y `n_afectados` sean de una muestra, y puede nombrar
+#'   filas escritas en formatos que la muestra no llegó a ver; esa segunda
+#'   lectura se hace sólo cuando alguno de los tres hallazgos sale, una vez por
+#'   columna. `anio_de_dos_digitos` traza toda fila cuya escritura sólo admite
+#'   lecturas con el año de dos cifras, incluidas las que dos lecturas probadas
+#'   aceptan y por eso no cuenta el `n` de ninguna; su total puede ser mayor
+#'   que la suma de los `n` de `formatos_fecha`. `formato_fecha_ambiguo` traza
+#'   toda fila escrita en una lectura que la columna entera no puede resolver
+#'   (si la columna entera las resuelve todas, las celdas que admiten dos o más
+#'   de las lecturas que cita). `formatos_fecha_mixtos` traza todas las
+#'   filas con fecha, primero las de las escrituras que no son la más
+#'   frecuente, con el mismo reparto que `casi_duplicados_vocabulario`
+#'   (`n_filas_formas_variantes`, `n_filas_formas_dominantes` y sus
+#'   `mostrados_formas_*`); si dos escrituras empatan en el primer lugar no hay
+#'   dominante y todas sus filas cuentan como variantes. Los dos informativos
+#'   que cuentan filas también las traen: `posible_ausencia_estructural`, las
+#'   ausentes que caen donde la regla dice que la columna no corresponde, y
+#'   `regla_silencia_ausencia`, las que la declaración del universo dejó de
+#'   contar.
+#'   Para `patron_raro`,
 #'   el alcance puede ser `completo`, `muestra_patrones`,
 #'   `patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen y
 #'   el texto de evidencia de `patron_raro` muestran como maximo seis patrones,
@@ -2712,7 +2735,11 @@
 #'   observada y el argumento que se puede ajustar.
 #'   Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 #'   advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara el
-#'   total previo al truncado y respeta la unidad declarada.
+#'   total previo al truncado y respeta la unidad declarada. Avisa también si
+#'   un hallazgo de formato o un informativo que cuenta filas se construye sin
+#'   nombrarlas, y si el reparto entre formas variantes y dominantes no suma el
+#'   total de la traza; un perfil guardado por una versión anterior, que traía
+#'   esos hallazgos sin filas, se publica sin ese aviso.
 #'   Una columna compuesta no analizada conserva en la traza todas sus filas. Si una
 #'   columna de listas se reconoce como constante pero no se puede contar su
 #'   frecuencia, el conteo afectado queda en NA y `cobertura_diagnosticos`
