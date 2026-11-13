@@ -1904,22 +1904,14 @@
   estados[presentes] <- unico$estados[vocabulario$indices[presentes]]
   pasos[presentes] <- unico$pasos[vocabulario$indices[presentes]]
   consumidas[presentes] <- unico$consumidas[vocabulario$indices[presentes]]
-  reparables <- !is.na(reparados) & !is.na(textos) &
-    reparados != textos & estados == "reparado"
-  parciales <- !is.na(reparados) & !is.na(textos) &
-    reparados != textos & estados == "reparado_parcialmente"
-  irreparables <- !is.na(textos) & grepl("\uFFFD", textos, fixed = TRUE)
-  afectados <- reparables | parciales | irreparables
-  ejemplos <- utils::head(which(afectados), 5L)
-  evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
-    origen <- .comillas_sin_locale(textos[[i]], quote = '"')
-    if (reparables[[i]] || parciales[[i]]) {
-      paste0(origen, " -> ", .comillas_sin_locale(reparados[[i]], quote = '"'),
-             " [", estados[[i]], "]")
-    } else {
-      paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
-    }
-  }, character(1L)), collapse = "; ")
+  clasificacion <- .ftfy_mascaras_codificacion(textos, reparados, estados)
+  reparables <- clasificacion$reparables
+  parciales <- clasificacion$parciales
+  irreparables <- clasificacion$irreparables
+  afectados <- clasificacion$afectados
+  evidencia <- .ftfy_evidencia_codificacion(
+    textos, reparados, estados, afectados, irreparables
+  )
   candidatos_expandidos <- rep(FALSE, length(textos))
   candidatos_expandidos[presentes] <-
     unico$candidatos[vocabulario$indices[presentes]]
@@ -1927,7 +1919,7 @@
     n = sum(afectados), n_reparables = sum(reparables),
     n_reparables_parcialmente = sum(parciales),
     n_irreparables = sum(irreparables),
-    n_no_se_pudo = sum(estados == "no_se_pudo", na.rm = TRUE),
+    n_no_se_pudo = sum(clasificacion$no_se_pudo),
     evidencia = evidencia, reparados = reparados, estados = estados,
     pasos = pasos, afectados = afectados,
     candidatos = candidatos_expandidos, valores = as.character(textos),

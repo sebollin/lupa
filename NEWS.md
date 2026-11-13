@@ -100,6 +100,45 @@
   `convertir_numero_regional`.
 - La justificación de una conversión con `%` ya no dice que los valores «quedan
   como proporción en [0, 1]»: `150%` queda en 1,5.
+- Las acciones de texto del plan respetan con una sola regla lo que la
+  reparación de la codificación necesita. Sobre una celda que el perfil señala
+  como rota y reparable, una acción se conserva sólo si conmuta con la
+  reparación —reparar y después aplicarla da el mismo texto que aplicarla y
+  después reparar—; si no, la celda queda como estaba y no cuenta entre las
+  cambiadas. Vale para `convertir_mayusculas`, `convertir_minusculas`,
+  `convertir_titulo`, `convertir_segun_diccionario` y
+  `convertir_ausencias_textuales`, que no pasaban por la protección: con
+  `reparar_codificacion` desmarcada, `MÃœNCHEN` en minúsculas quedaba
+  `mãœnchen`, ya sin arreglo. Y para `decodificar_entidades_html`: decodificar
+  `&#233;` junto a una palabra rota (`&#233; cÅ“ur`) dejaba la celda sin
+  reparación posible; ahora la acción, sola, no toca esa celda, y después de la
+  reparación sí.
+- Una comilla tipográfica, un guion o un emoji rotos con un símbolo pegado
+  delante (un espacio duro, un `°`) ya no pierden su último byte con
+  `eliminar_controles_invisibles`. La protección reconoce un byte de
+  continuación también como el carácter que Windows-1252 pone en su lugar (`€`
+  por `0x80`). Era uno de los dos casos que la 0.1.1 declaraba sin cubrir.
+- El plan cuenta, para cada acción de texto, las filas que la acción puede
+  cambiar. Donde quitar un invisible o recortar el borde cambia lo que la
+  reparación reconoce, la celda no se cuenta y la acción no se ofrece por ella,
+  así que ninguna acción marcada por omisión termina `fallida` por celdas
+  protegidas. `espacios_sobrantes` deja de contar el espacio del borde que es lo
+  que permite reconocer una letra rota (`ÃŒ` seguido de un espacio): recortarlo
+  dejaba la celda rota y sin señalar; se informa después de reparar.
+- `perfilar()` cuenta el texto mal convertido que el motor no puede reparar
+  también cuando el valor se repite: `rep("Œ ", 10)` publicaba
+  `n_codificacion_no_se_pudo = 10`, `n_codificacion_rota = 0` y ningún hallazgo.
+  Repetir las filas de una columna multiplica los conteos y no cambia los
+  estados ni los hallazgos.
+- La evidencia de `codificacion_rota` cita valores distintos —repetía el mismo
+  hasta cinco veces cuando el valor se repetía en la columna— y no dice
+  «carácter de reemplazo» de un valor que no lo trae.
+- Una columna cuyas celdas rotas se reparan sólo en parte ofrece
+  `reparar_codificacion` `lista` y sin marcar, como dice la ayuda; salía
+  `recuperar_codificacion_en_origen`, informativa, y la reparación parcial no se
+  podía aplicar. La justificación de `recuperar_codificacion_en_origen`
+  distingue los bytes perdidos (U+FFFD) del texto que el motor reconoce mal
+  convertido y no puede reparar.
 
 # lupa 0.1.1
 

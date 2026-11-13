@@ -44,6 +44,18 @@ names(.ftfy_tablas_bytes) <- c(
   "sloppy-windows-1257", "iso-8859-2", "macroman", "cp437", "koi8-r"
 )
 
+# Una continuacion UTF-8 mal leida puede conservarse como C1/Latin-1 o como
+# el punto Unicode que Windows-1252 asigna al mismo byte. La tabla congelada ya
+# contiene esa correspondencia: derivar el conjunto evita omitir un miembro al
+# ampliar la lista de bytes que el reparador acepta.
+.ftfy_representaciones_continuacion <- {
+  bytes <- 0x80L:0xBFL
+  unique(c(
+    bytes,
+    .ftfy_tablas_bytes[["sloppy-windows-1252"]][seq_along(bytes)]
+  ))
+}
+
 .ftfy_categorias <- list(
   common = "\u00a0\u00ad\u00b7\u00b4\u2013\u2014\u2015\u2026\u2019",
   c1 = "\u0080-\u009f",
@@ -305,7 +317,8 @@ names(.ftfy_tablas_bytes) <- c(
     }
     for (desplazamiento in seq_len(longitud)) {
       posicion <- inicio + desplazamiento
-      if (posicion > n || !entrada[[posicion]] %in% 0x80L:0xBFL) break
+      if (posicion > n ||
+          !entrada[[posicion]] %in% .ftfy_representaciones_continuacion) break
       salida[[posicion]] <- TRUE
     }
   }
@@ -383,7 +396,10 @@ names(.ftfy_tablas_bytes) <- c(
                                         max_iteraciones = 20L) {
   entrada <- .codigos_decodificables(texto)
   if (is.null(entrada)) return(logical())
-  if (!any(entrada %in% 0x80L:0xBFL) &&
+  # El atajo mira las mismas representaciones que la mascara de respaldo. El
+  # perfil y `aplicar()` piden la mascara por aqui: con un conjunto para cada
+  # uno, el perfil contaba celdas que la accion despues dejaba como estaban.
+  if (!any(entrada %in% .ftfy_representaciones_continuacion) &&
       (is.null(consumidas) || !any(consumidas))) {
     return(rep(FALSE, length(entrada)))
   }
@@ -1049,6 +1065,53 @@ names(.ftfy_tablas_bytes) <- c(
   if (any(estados == "reparado")) return("reparado")
   "no_se_pudo"
 }
+.ftfy_mascaras_codificacion <- function(valores, reparados, estados) {
+  reparables <- !is.na(reparados) & !is.na(valores) & reparados != valores &
+    estados == "reparado"
+  parciales <- !is.na(reparados) & !is.na(valores) & reparados != valores &
+    estados == "reparado_parcialmente"
+  irreparables <- !is.na(valores) & grepl("\uFFFD", valores, fixed = TRUE)
+  no_se_pudo <- !is.na(valores) & !is.na(estados) & estados == "no_se_pudo"
+  list(
+    reparables = reparables,
+    parciales = parciales,
+    irreparables = irreparables,
+    no_se_pudo = no_se_pudo,
+    afectados = reparables | parciales | irreparables | no_se_pudo
+  )
+}
+.ftfy_evidencia_codificacion <- function(valores, reparados, estados,
+                                         afectados, irreparables = NULL) {
+  indices <- which(afectados & !is.na(valores))
+  if (!length(indices)) return("")
+  if (is.null(irreparables)) {
+    irreparables <- !is.na(valores) &
+      grepl("\uFFFD", valores, fixed = TRUE)
+  }
+  claves <- .clave_bytes(valores[indices])
+  indices <- utils::head(indices[!duplicated(claves)], 5L)
+  origenes <- vapply(
+    indices, function(i) .comillas_sin_locale(valores[[i]], quote = '"'),
+    character(1L)
+  )
+  evidencias <- vapply(indices, function(i) {
+    origen <- .comillas_sin_locale(valores[[i]], quote = '"')
+    estado <- as.character(estados[[i]])
+    if (isTRUE(estado %in% c("reparado", "reparado_parcialmente"))) {
+      paste0(origen, " -> ",
+             .comillas_sin_locale(reparados[[i]], quote = '"'),
+             " [", estados[[i]], "]")
+    } else if (isTRUE(irreparables[[i]])) {
+      paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
+    } else {
+      # El mismo texto que ya publicaba el camino sin vocabulario: la evidencia
+      # es un dato del perfil, y cambiarle la puntuacion la vuelve otra al
+      # comparar dos perfiles.
+      paste0(origen, " (mal convertido; el motor no pudo repararlo)")
+    }
+  }, character(1L))
+  paste(evidencias[!duplicated(origenes)], collapse = "; ")
+}
 .analizar_codificacion <- function(textos, max_iteraciones = 20L) {
   valores <- as.character(textos)
   reparados <- rep(NA_character_, length(valores))
@@ -1090,25 +1153,22 @@ names(.ftfy_tablas_bytes) <- c(
     pasos[candidatos] <- lapply(resultados[mapa], function(z) z[["pasos"]])
     consumidas[candidatos] <- lapply(resultados[mapa], function(z) z[["consumidas"]])
   }
-  reparables <- !is.na(reparados) & !is.na(valores) & reparados != valores & estados == "reparado"
-  parciales <- !is.na(reparados) & !is.na(valores) & reparados != valores & estados == "reparado_parcialmente"
-  irreparables <- !is.na(valores) & grepl("\uFFFD", valores, fixed = TRUE)
+  clasificacion <- .ftfy_mascaras_codificacion(valores, reparados, estados)
+  reparables <- clasificacion$reparables
+  parciales <- clasificacion$parciales
+  irreparables <- clasificacion$irreparables
   # El motor puede reconocer un texto mal convertido y no poder repararlo sin que
   # traiga el caracter de reemplazo. Quedaba fuera de los afectados: el perfil
   # publicaba `n_codificacion_no_se_pudo = 1` y `estado = "no_se_pudo"`, y sin
   # embargo ningun hallazgo ni accion. Ahora cuenta, una sola vez por valor.
-  no_se_pudo <- !is.na(valores) & !is.na(estados) & estados == "no_se_pudo"
-  afectados <- reparables | parciales | irreparables | no_se_pudo
-  ejemplos <- utils::head(which(afectados), 5L)
-  evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
-    origen <- .comillas_sin_locale(valores[[i]], quote = '"')
-    if (reparables[[i]] || parciales[[i]]) paste0(origen, " -> ", .comillas_sin_locale(reparados[[i]], quote = '"'), " [", estados[[i]], "]")
-    else if (irreparables[[i]]) paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
-    else paste0(origen, " (mal convertido; el motor no pudo repararlo)")
-  }, character(1L)), collapse = "; ")
+  no_se_pudo <- clasificacion$no_se_pudo
+  afectados <- clasificacion$afectados
+  evidencia <- .ftfy_evidencia_codificacion(
+    valores, reparados, estados, afectados, irreparables
+  )
   list(n = sum(afectados), n_reparables = sum(reparables),
        n_reparables_parcialmente = sum(parciales), n_irreparables = sum(irreparables),
-       n_no_se_pudo = sum(estados == "no_se_pudo", na.rm = TRUE), evidencia = evidencia,
+       n_no_se_pudo = sum(no_se_pudo), evidencia = evidencia,
        reparados = reparados, estados = estados, pasos = pasos,
        afectados = afectados, candidatos = detectados, valores = valores,
        consumidas = consumidas,

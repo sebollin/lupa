@@ -247,6 +247,19 @@ marca cuyos bytes son UTF-8 válido se trata como UTF-8 en cualquier locale,
 igual que en el perfil: con \code{LC_CTYPE=C} las acciones hacen lo mismo que en
 una sesión UTF-8.
 
+La protección de las acciones de texto se decide por una propiedad común,
+no por una lista de estrategias: en cada celda que el perfil señala como
+rota y reparable se comparan los dos órdenes de reparación y acción. Si no
+conmutan, la celda conserva su valor original y no cuenta entre las
+cambiadas. La comprobación se ejecuta sólo sobre las celdas que la acción
+iba a cambiar. El perfil cuenta con la misma regla: \code{n_afectadas} es lo que
+la acción sola puede cambiar, y el plan no la ofrece por las celdas que la
+protección le reserva (el espacio del borde que deja reconocer una letra
+rota no cuenta como \code{espacios_sobrantes}). La excepción es \code{entidades_html}:
+la entidad se informa aunque esté junto a una letra rota;
+\code{decodificar_entidades_html}, que no viene marcada, la decodifica después de
+la reparación y, sola, deja esa celda como está.
+
 Una celda \code{latin1} \strong{sí} se transforma —ahí R conoce la codificación y la
 convierte sin pérdida—, y el resultado queda marcado \code{UTF-8}. Como la acción
 toca sólo las celdas que cambia, una columna \code{latin1} puede quedar con marcas
