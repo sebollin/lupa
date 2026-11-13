@@ -113,6 +113,9 @@ test_that("H1: el id_medicion por omision se escribe con punto con LC_NUMERIC en
 })
 
 test_that("Guarda H1: toda lectura de texto con formato pasa por el lector que fija LC_NUMERIC", {
+  # Recorre los cuerpos de las funciones del paquete, y covr los reescribe
+  # para contar cada expresion: bajo covr esta prueba leeria su instrumento.
+  skip_on_covr()
   # Por construccion: un `strptime()` -o un `as.POSIXct()`/`as.POSIXlt()` con
   # `format` o `tryFormats`, que llaman a `strptime()`- fuera del lector comun
   # leeria la fraccion de `%OS` con la marca de la sesion. Lo que queda fuera:

@@ -12,8 +12,8 @@
 # (aca no hay servidores): la cobertura publicada es la de la suite sin
 # motores, y por eso queda por debajo de la que se mide con ellos.
 #
-# Las pruebas que leen las fuentes del paquete o comparan contra un proceso
-# hijo llevan `skip_on_covr()`: bajo covr corren sobre una copia instalada e
+# Las pruebas que leen las fuentes del paquete, recorren los cuerpos de sus
+# funciones o comparan contra un proceso hijo llevan `skip_on_covr()`: bajo covr corren sobre una copia instalada e
 # instrumentada, y ahi no miden lo que dicen. Las de tiempo absoluto ya llevan
 # `skip_on_ci()`. Medido en la maquina de desarrollo el 2026-11-13: la suite
 # bajo covr tarda unos 65 minutos.

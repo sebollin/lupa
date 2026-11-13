@@ -79,6 +79,9 @@ test_that("una columna de nombre vacio que falta en los datos bloquea su grupo",
 })
 
 test_that("los tipos de hallazgo de la tabla son los que se publican con columna NA", {
+  # Bajo covr las pruebas corren sobre una copia instalada del paquete, y lo
+  # que esta prueba lee de las fuentes no esta como lo escribio el paquete.
+  skip_on_covr()
   ruta <- testthat::test_path("..", "..", "R")
   skip_if_not(dir.exists(ruta))
   tipos <- character()
