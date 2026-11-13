@@ -9,6 +9,29 @@
 - La portada del sitio vuelve a ser la misma que el README en castellano: le
   faltaban las insignias de CRAN y de Zenodo y la frase del DOI de Zenodo.
 
+## Correcciones
+
+- `comparar_equivalencia()` y `comparar_perfiles()` comparan la moda y el
+  centinela conjeturado de una columna numérica por su valor y no por cómo los
+  imprimió la sesión. La misma tabla perfilada con `options(OutDec = ",")` y con
+  punto salía `materialmente_distinto` en `moda` (`2245,63` contra `2245.63`) al
+  lado de `identico` en `media`. Una columna de texto se sigue comparando como
+  texto, y un cambio verdadero de la moda se sigue informando.
+- `comparar_perfiles()` ya no informa como modificada la política de centinelas
+  numéricos cuando uno de los dos perfiles no la registra, como pasa con un
+  perfil guardado por una versión anterior: sin registro no hay evidencia de un
+  cambio. Una política que de verdad cambió (`sentinelas_numericos = numeric()`
+  contra la de omisión) se sigue informando.
+- Una columna que se llama literalmente `<tabla>` ya no se confunde, en
+  `comparar_perfiles()`, con los hallazgos que son de la tabla entera: su fila
+  salía con `columna = NA`.
+- `relaciones_coleccion()` consulta el esquema de cada tabla una vez; lo
+  consultaba dos.
+- El mensaje de una columna de geometrías con el presupuesto recortado
+  (`max_geometrias`) cuenta sobre los valores que se intentaron convertir: decía
+  «1 de 2 valores presentes» cuando había tres presentes y se habían intentado
+  dos.
+
 # lupa 0.1.1
 
 ## Perfilado

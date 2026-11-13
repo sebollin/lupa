@@ -3448,15 +3448,6 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     }
     # La proyeccion lee cada columna con la expresion de `perfilar_dbi()`: ver
     # `lectura_de()`. `columnas_lectura` vacia es la tabla entera.
-    lectura <- lectura_de(identificador, tabla_sql, columnas_lectura)
-    seleccion_sql <- lectura$seleccion_sql
-    orden_sql <- if (length(columnas_orden)) {
-      paste0(
-        " ORDER BY ",
-        paste(.citar_identificador_dbi(conexion, columnas_orden),
-              collapse = ", ")
-      )
-    } else ""
     momento <- Sys.time()
     # Lo que el controlador entregue en latin1 en ESTA lectura se declara en su
     # motivo: ver `.texto_del_controlador_dbi()`.

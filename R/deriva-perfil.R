@@ -1036,8 +1036,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 .hallazgo_cuenta_filas_tabla <- function(fila) {
   if (!all(c("columna", "unidad_conteo") %in% names(fila))) return(FALSE)
   unidad <- as.character(fila$unidad_conteo[[1L]])
-  tabla <- is.na(fila$columna[[1L]]) ||
-    identical(as.character(fila$columna[[1L]]), "<tabla>")
+  tabla <- is.na(fila$columna[[1L]])
   isTRUE(identical(unidad, "fila")) && isTRUE(tabla)
 }
 
@@ -1051,12 +1050,15 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       stringsAsFactors = FALSE
     ))
   }
-  columna <- ifelse(is.na(x$columna), "<tabla>", as.character(x$columna))
+  columna <- as.character(x$columna)
   # Un hallazgo `columnas_duplicadas` se identifica por TODAS sus columnas, sin
   # importar el orden: la primera del grupo cambia si se reordenan las columnas
   # y el grupo sigue siendo el mismo. Los grupos se leen una vez; buscarlos por
   # hallazgo recorria todos los hallazgos en cada uno.
-  columna_clave <- columna
+  columna_clave <- ifelse(is.na(columna), "<tabla>", columna)
+  columna_llave <- vapply(seq_along(columna), function(i) {
+    if (is.na(columna[[i]])) "T" else paste0("C", .clave_bytes(columna[[i]]))
+  }, character(1L))
   miembros_duplicadas <- list()
   duplicadas <- which(as.character(x$tipo_hallazgo) == "columnas_duplicadas")
   con_grupo_duplicadas <- logical(length(duplicadas))
@@ -1077,6 +1079,9 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     con_grupo_duplicadas <- con_grupo
     miembros_duplicadas[con_grupo] <- grupos$grupos[grupo_fila[con_grupo]]
     columna_clave[duplicadas[con_grupo]] <- claves_grupo[grupo_fila[con_grupo]]
+    columna_llave[duplicadas[con_grupo]] <- paste0(
+      "G", .clave_bytes(claves_grupo[grupo_fila[con_grupo]])
+    )
     for (j in which(!con_grupo)) {
       i <- duplicadas[[j]]
       miembros_duplicadas[[j]] <- .miembros_columna_duplicada_deriva(
@@ -1085,11 +1090,12 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       columna_clave[[i]] <- .clave_columna_duplicada_deriva(
         miembros_duplicadas[[j]]
       )
+      columna_llave[[i]] <- paste0("G", .clave_bytes(columna_clave[[i]]))
     }
   }
   clave_de <- function(filas) {
     .clave_bytes(paste(
-      .clave_bytes(columna_clave[filas]), .clave_bytes(x$tipo_hallazgo[filas]),
+      .clave_bytes(columna_llave[filas]), .clave_bytes(x$tipo_hallazgo[filas]),
       sep = "\034"
     ))
   }
@@ -2067,6 +2073,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   sentinelas_comparables <- !is.null(sentinelas_a) &&
     !is.null(sentinelas_b) &&
     isTRUE(all.equal(sentinelas_a, sentinelas_b, check.attributes = FALSE))
+  sentinelas_registrados <- !is.null(sentinelas_a) &&
+    !is.null(sentinelas_b)
   # Dos listas enmascaradas del mismo modo comparan iguales y no hay nada que
   # declarar: la guarda es para cuando DIFIEREN y esa diferencia se explica por
   # el enmascarado, no por la politica.
@@ -2092,7 +2100,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         "correr las dos con la misma configuraci\u00f3n de protecci\u00f3n."
       )
     )
-  } else if (!sentinelas_comparables) {
+  } else if (sentinelas_registrados && !sentinelas_comparables) {
     agregar(
       NA_character_, "configuracion_sentinelas_numericos", "modificado",
       "error", texto_configuracion(sentinelas_a),
@@ -2361,12 +2369,15 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         exigir_todas = TRUE
       )
     }
-    clave_habilitada <- .clave_declinacion_deriva(x$columna, x$tipo_hallazgo)
+    clave_habilitada <- .clave_declinacion_deriva(
+      if (is.na(x$columna)) "<tabla>" else x$columna,
+      x$tipo_hallazgo
+    )
     argumento_nuevo <- if (clave_habilitada %in% habilitados_ahora) {
       names(habilitados_ahora)[match(clave_habilitada, habilitados_ahora)]
     } else NA_character_
     agregar(
-      if (x$columna == "<tabla>") NA_character_ else x$columna,
+      x$columna,
       "hallazgo", "aparecido", x$severidad, NA_character_, x$tipo_hallazgo,
       descripcion = if (length(unidas_por_tipo)) {
         paste0(
@@ -2437,7 +2448,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       separadas_por_tipo <- .duplicadas_separadas_por_tipo(
         miembros_viejos, nombres_actuales, anterior, actual, hallazgos_b
       )
-    } else if (x$columna != "<tabla>" &&
+    } else if (!is.na(x$columna) &&
         !.nombres_para_operar(x$columna) %in% nombres_actuales &&
         .hallazgo_nombra_columna_retirada(
           columna_hallazgo, columnas_retiradas, columnas_hallazgo
@@ -2460,13 +2471,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       next
     }
     clave_declinacion <- .clave_declinacion_deriva(
-      x$columna, x$tipo_hallazgo
+      if (is.na(x$columna)) "<tabla>" else x$columna,
+      x$tipo_hallazgo
     )
     # Un hallazgo de varias columnas tampoco se volvio a evaluar si la
     # cobertura del perfil nuevo declina su diagnostico sobre alguna de ellas:
     # las relaciones entre columnas declaran las que omitieron como una lista
     # (`a,b,c`), y la guarda las parte en `.diagnosticos_declinados_deriva()`.
-    componentes <- if (!identical(x$columna, "<tabla>")) {
+    componentes <- if (!is.na(x$columna)) {
       if (is.list(x$trazabilidad[[1L]]) &&
           length(x$trazabilidad[[1L]]$columnas)) {
         as.character(x$trazabilidad[[1L]]$columnas)
@@ -2491,7 +2503,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       .declinados_por_cambio_de_tipo(anterior, actual)
     declinado <- declinado || length(separadas_por_tipo) > 0L
     agregar(
-      if (x$columna == "<tabla>") NA_character_ else x$columna,
+      x$columna,
       "hallazgo",
       if (declinado) "no_evaluado" else "resuelto",
       if (declinado) "sospechoso" else "ok",
@@ -2538,7 +2550,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     if (sa != sb) {
       columna <- hallazgos_b$columna[[indice_b]]
       agregar(
-        if (columna == "<tabla>") NA_character_ else columna,
+      columna,
         "severidad_hallazgo",
         if (match(sb, c("ok", "sospechoso", "error")) >
             match(sa, c("ok", "sospechoso", "error"))) "agravado" else "atenuado",
@@ -2836,6 +2848,44 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   columnas[[campo]][[indice]]
 }
 
+# La moda y el centinela pueden llegar como texto aunque la columna de origen
+# sea numerica: el perfil conserva esos valores en una forma publicable. Para
+# comparar hay que volver a leer solo los tipos numericos conocidos; una cadena
+# de una columna de texto sigue siendo un valor de texto y no debe interpretarse
+# como numero por accidente.
+.valor_comparable_equivalencia <- function(columnas, campo, indice) {
+  valor <- .valor_equivalencia(columnas, campo, indice)
+  if (!campo %in% c("moda", "centinela_valor") ||
+      !is.character(valor) || length(valor) != 1L || is.na(valor)) {
+    return(valor)
+  }
+  tipo <- .tipo_declarado_equivalencia(columnas, indice)
+  if (is.na(tipo) || !tipo %in% c("doble", "entero", "integer64")) {
+    return(valor)
+  }
+  texto <- trimws(valor)
+  if (!nzchar(texto) ||
+      (grepl(",", texto, fixed = TRUE, useBytes = TRUE) &&
+       grepl(".", texto, fixed = TRUE, useBytes = TRUE))) {
+    return(valor)
+  }
+  if (identical(tipo, "integer64")) {
+    if (!grepl("^[+-]?[0-9]+$", texto, perl = TRUE, useBytes = TRUE)) {
+      return(valor)
+    }
+    negativo <- startsWith(texto, "-")
+    digitos <- sub(
+      "^0+(?=[0-9])", "", sub("^[+-]", "", texto), perl = TRUE
+    )
+    return(if (negativo && !identical(digitos, "0")) {
+      paste0("-", digitos)
+    } else digitos)
+  }
+  texto <- gsub(",", ".", texto, fixed = TRUE)
+  numero <- suppressWarnings(as.numeric(texto))
+  if (is.na(numero) && !is.na(valor)) valor else numero
+}
+
 .igualdad_equivalencia <- function(a, b) {
   resultado <- tryCatch(a == b, error = function(e) FALSE)
   isTRUE(resultado)
@@ -2976,6 +3026,9 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' selección se comparan en el eje `exacto`; las fechas canónicas en `fecha` y
 #' `moda` y `centinela_valor` en `valor`. Los ejes `exacto`, `fecha` y `valor`
 #' son binarios por construcción.
+#' En una columna numérica, `moda` y `centinela_valor` se comparan por el número
+#' y no por cómo lo escribió cada sesión: la marca decimal de `options(OutDec)`
+#' y la notación de `scipen` no cuentan como una diferencia.
 #'
 #' El comparador devuelve datos, no decisiones: no alimenta hallazgos,
 #' severidades ni puntajes. La tolerancia es del llamador y jamás entra en una
@@ -3252,8 +3305,14 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
         )
         next
       }
+      a_comparable <- .valor_comparable_equivalencia(
+        anterior, campo, indice_a
+      )
+      b_comparable <- .valor_comparable_equivalencia(
+        actual, campo, indice_b
+      )
       comparacion <- .comparar_valor_equivalencia(
-        a, b, tipo_eje[[1L]], tolerancia
+        a_comparable, b_comparable, tipo_eje[[1L]], tolerancia
       )
       k <- k + 1L
       salida[[k]] <- list(

@@ -56,6 +56,9 @@ El registro fijo asigna tolerancia sólo a \code{media}, \code{mediana}, \code{d
 selección se comparan en el eje \code{exacto}; las fechas canónicas en \code{fecha} y
 \code{moda} y \code{centinela_valor} en \code{valor}. Los ejes \code{exacto}, \code{fecha} y \code{valor}
 son binarios por construcción.
+En una columna numérica, \code{moda} y \code{centinela_valor} se comparan por el número
+y no por cómo lo escribió cada sesión: la marca decimal de \code{options(OutDec)}
+y la notación de \code{scipen} no cuentan como una diferencia.
 
 El comparador devuelve datos, no decisiones: no alimenta hallazgos,
 severidades ni puntajes. La tolerancia es del llamador y jamás entra en una

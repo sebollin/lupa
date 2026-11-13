@@ -1182,7 +1182,13 @@
     representacion, n_descartados, n_fallidos, conversion$error, n_nulos
   )
   universo_intento <- if (presupuesto$recortado) {
-    " valores que se intentaron convertir"
+    if (length(intentadas) == 1L) {
+      " valor que se intento convertir"
+    } else {
+      " valores que se intentaron convertir"
+    }
+  } else if (length(intentadas) == 1L) {
+    " valor presente"
   } else {
     " valores presentes"
   }
@@ -1214,9 +1220,9 @@
     paste0(
       "La columna llega como ", representacion, " y ",
       if (length(intentadas) == 1L) {
-        paste0(n_no_convertidos, " valor presente")
+        paste0(n_no_convertidos, universo_intento)
       } else {
-        paste0(n_no_convertidos, " de ", length(intentadas), " valores presentes")
+        paste0(n_no_convertidos, " de ", length(intentadas), universo_intento)
       },
       if (n_no_convertidos == 1L) " no se pudo" else " no se pudieron",
       " convertir a geometr\u00eda: ", detalle,

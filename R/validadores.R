@@ -69,13 +69,6 @@
   ), " ", fixed = TRUE
 )[[1L]]
 
-# Mayusculas sobre las letras ASCII y nada mas. `toupper()` sigue al locale y
-# lleva `ſ` a `S` e `ı` a `I`: `validar_iso3166("ſe")` daba TRUE en una sesion
-# UTF-8 y FALSE bajo C, la misma cadena con dos respuestas.
-.mayusculas_ascii <- function(x) {
-  chartr(paste(letters, collapse = ""), paste(LETTERS, collapse = ""), x)
-}
-
 .texto_validador <- function(x, recortar = TRUE) {
   if (!is.atomic(x) || is.list(x)) {
     .detener("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
