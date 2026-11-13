@@ -199,12 +199,19 @@ espera acción y no entra a ninguno de los dos. Los tres se imprimen con el
 plan.
 
 \code{convertir_numero_regional} sólo se recomienda si todos los valores
-presentes comparten convención decimal, unidad y moneda. Un valor con \verb{\%}
-se divide por 100 y queda como proporción en \verb{[0, 1]}, la escala con que el
-paquete publica toda proporción; una unidad o un símbolo de moneda dejan de
+presentes comparten convención decimal, unidad y moneda. En una columna que
+el perfil infiere como \code{identificador} (\verb{101a}, \verb{102a}) la acción queda
+\code{lista} sin activar: lo que acompaña al número puede ser parte del código.
+Un valor con \verb{\%} se divide por 100, la escala con que el paquete publica
+toda proporción; queda en \verb{[0, 1]} si el porcentaje estaba entre 0 y 100, y
+el plan no comprueba ese rango. Una unidad o un símbolo de moneda dejan de
 formar parte del valor y quedan en \code{parametros}. La justificación lo dice
 cuando ocurre. Una columna que mezcla \code{5} con \verb{5 \%} no se convierte: habría
-que decidir si el número sin \verb{\%} está en la misma escala.
+que decidir si el número sin \verb{\%} está en la misma escala. Esta conversión no
+lee la notación científica (\code{1e5}): si la columna la trae junto a números
+con formato regional, la acción queda \code{bloqueada}. \code{convertir_tipo} lee cada
+texto con la convención decimal de la columna, como el resumen del perfil:
+con coma decimal, \code{12.500} se convierte en doce mil quinientos.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
 \code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial —una celda que

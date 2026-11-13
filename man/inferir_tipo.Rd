@@ -40,6 +40,16 @@ evidencia de las dos, con la que trae el propio valor (\verb{1.234,56} sólo adm
 la coma decimal): es como lo lee el resumen de \code{\link[=perfilar]{perfilar()}}. Sin evidencia de
 convención no cuenta, y un primer grupo de miles que empieza con cero
 (\verb{099.123.456}, la forma de un teléfono) no es un número en ninguna.
+Un separador decimal que abre el número (\code{.5}, \verb{,5}) se lee igual que \code{0.5}
+o \verb{0,5} y aporta la misma evidencia de convención; mezclado con la
+convención contraria, la columna queda \code{mixta}. La notación científica
+(\code{1e5}, \code{1.2E-05}, \verb{1,5e3}) es un número, y no la forma de un identificador,
+cualquiera sea el signo del exponente; un exponente que desborda el doble
+(\code{1e400}) no lo es. Si la proporción de números alcanza el umbral y alguno
+trae decimales, el tipo inferido es \code{doble} aunque la mayoría sean enteros:
+es el tipo que los cubre a todos. Un número con unidad o moneda (\verb{12 kg},
+\verb{USD 35}) no cuenta como entero ni como doble: \code{\link[=perfilar]{perfilar()}} lo informa como
+número escrito como texto.
 }
 \examples{
 inferir_tipo(c("1", "2", "3"))

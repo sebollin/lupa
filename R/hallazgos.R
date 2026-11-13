@@ -5481,9 +5481,7 @@
     # solo tiene sentido sobre una magnitud. Las unidades y las monedas mezcladas
     # salen de la misma lectura de la columna como cantidad, y se omiten con ella.
     # Se declara en `cobertura_diagnosticos`, solo si alguno habria salido.
-    lectura_numerica <- (isTRUE(fila$n_numeros_texto > 0L) &&
-      is.finite(fila$proporcion_numeros_texto) &&
-      fila$proporcion_numeros_texto >= 0.8) ||
+    lectura_numerica <- .fila_con_numeros_como_texto(fila) ||
       length(resultado$numeros_texto$unidades) > 1L ||
       length(resultado$numeros_texto$monedas) > 1L
     if (codigo_declarado && lectura_numerica) {
@@ -5501,9 +5499,7 @@
         )
       )
     }
-    if (!codigo_declarado && isTRUE(fila$n_numeros_texto > 0L) &&
-        is.finite(fila$proporcion_numeros_texto) &&
-        fila$proporcion_numeros_texto >= 0.8) {
+    if (!codigo_declarado && .fila_con_numeros_como_texto(fila)) {
       agregar(.nuevo_hallazgo(
         nombre, "numero_como_texto", "sospechoso",
         if (isTRUE(fila$numero_texto_ambiguo)) {

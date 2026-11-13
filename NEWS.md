@@ -54,6 +54,52 @@
   igual que en `double`, y ya no además como `posible_centinela_numerico`;
   `centinela_valor`, `centinela_repeticiones` y `densidad_sin_centinela` quedan
   `NA`, como en `double`.
+- Un valor con un sufijo en mayúsculas ya no se convierte a número perdiendo el
+  sufijo. `c("1.5TB", "500GB", "250MB", "2TB")` y `c("850K", "1,5M", "2M",
+  "300K")` publicaban `n_numeros_texto = 1` —sólo el valor con separador
+  decimal— y el plan proponía `convertir_numero_regional` activada, que dejaba
+  1.5, 500, 250 y 2. El perfil contaba con una regla (un sufijo es una unidad
+  sólo si termina en minúscula) y la conversión leía con otra (cualquier tramo
+  de letras). Ahora es una sola: lo que acompaña a un número es una unidad
+  (`%` o una abreviatura que termina en minúscula) o una moneda, y si no, el
+  valor no es un número. `12 KG`, `12A`, `1.5TB` y `850K` no cuentan como
+  números escritos como texto, y una columna que mezcla esos valores con
+  números no se convierte: `c("1,5", "2,5", "3", "12 KG")` dejaba 12 donde
+  decía `12 KG`.
+- Tres mayúsculas junto a un número son una moneda sólo si son un código ISO
+  4217, con la lista de `validar_iso4217()`. `LEY 18331` se publicaba con
+  `numero_texto_moneda = "LEY"` y se convertía a 18331.
+- En una columna que el perfil infiere como `identificador` (`101a`, `102a`),
+  `convertir_numero_regional` queda `lista` sin activar: `aplicar()` dejaba
+  101, 102 y la letra del código se perdía sin que nadie lo pidiera.
+- La inferencia del tipo, el resumen y `convertir_tipo` leen los números
+  escritos como texto con la misma función y la misma convención decimal.
+  `c(".5", ".5", ".5", "1.234,56", "1.234,56", "1.234,56", "1.234,56", "7",
+  "12,5")` se infería `doble` con compatibilidad 1 mientras el resumen dejaba
+  cuatro de los nueve valores afuera; `c("1e3", "2,5", "3.5e2", "4")` contaba
+  cuatro números y resumía tres; y `convertir_tipo` convertía `12.500` en 12,5
+  en una columna de coma decimal cuyo resumen publicaba 12500.
+- Un separador decimal que abre el número (`.5`, `,5`) se lee igual que `0.5` y
+  `0,5` y aporta la misma evidencia de convención: `c(",5", ",25", "1.500",
+  "2,75")` leía `1.500` como 1,5 y su gemela con el cero escrito como 1500.
+- La notación científica es un número cualquiera sea el signo del exponente:
+  `c("1.2E-05", "3.4E-07", "5.6E-03", "2.2E-04")` y `c("1e5", "2e5", "3e5",
+  "4e5")` se inferían `identificador`, sin resumen, y `1E+05` se infería
+  `doble`. Un exponente que desborda el doble (`1e400`) no es un número.
+- Con un decimal entre enteros el tipo inferido es `doble`, que es el que cubre
+  todos los valores. `c("10", "12", "9", "15", "9,5")` se infería `entero` con
+  compatibilidad 0,8 y el hallazgo decía «convertir dejaría 1 de 5 valores en
+  NA» sobre una columna que el plan convertía sin ningún `NA`.
+- La evidencia de `tipo_declarado_distinto` dice «la conversión no pierde
+  ningún valor» sólo cuando el plan propone una conversión `lista`. La decía
+  sobre un entero que no entra en `integer` (`3000000000`), sobre una columna
+  con una celda de espacios y sobre una columna con notación científica cuya
+  conversión regional queda bloqueada, al lado de un plan que no convertía.
+- Una celda vacía o de espacios no bloquea `convertir_tipo`: el perfil ya la
+  cuenta como ausencia y la conversión la deja en `NA`, como hace
+  `convertir_numero_regional`.
+- La justificación de una conversión con `%` ya no dice que los valores «quedan
+  como proporción en [0, 1]»: `150%` queda en 1,5.
 
 # lupa 0.1.1
 

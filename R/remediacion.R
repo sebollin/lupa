@@ -922,8 +922,17 @@
     # 20 cifras, no-. Escrita una sola vez, el plan y el perfil no pueden
     # contar distinto.
     if (!is.null(texto) && length(texto) == length(antes)) {
+      # El numero es el que el conversor obtiene de ese texto: `.convertir_tipo()`
+      # lee el texto con el lector comun y la convencion de la columna, y la
+      # conversion regional le pasa a `as.numeric()` su texto ya normalizado.
+      valores_precision <- if (identical(estrategia, "convertir_tipo") &&
+                               (is.character(original) || is.factor(original))) {
+        suppressWarnings(.leer_numeros_texto(texto))
+      } else {
+        suppressWarnings(as.numeric(texto))
+      }
       redondeados <- presentes & .cifras_que_redondea_un_doble(
-        texto, suppressWarnings(as.numeric(texto))
+        texto, valores_precision
       )
     }
   }
@@ -1055,8 +1064,8 @@
   if (length(unidad) == 1L && !is.na(unidad) && nzchar(unidad)) {
     nota <- c(nota, if (identical(unidad, "%")) {
       paste0(
-        " Los valores con \"%\" se dividen por 100 y quedan como proporci\u00f3n ",
-        "en [0, 1]."
+        " Los valores con \"%\" se dividen por 100; un porcentaje que no ",
+        "est\u00e1 entre 0 y 100 queda fuera de [0, 1]."
       )
     } else {
       paste0(
@@ -1418,12 +1427,19 @@
 #' plan.
 #'
 #' `convertir_numero_regional` sólo se recomienda si todos los valores
-#' presentes comparten convención decimal, unidad y moneda. Un valor con `%`
-#' se divide por 100 y queda como proporción en `[0, 1]`, la escala con que el
-#' paquete publica toda proporción; una unidad o un símbolo de moneda dejan de
+#' presentes comparten convención decimal, unidad y moneda. En una columna que
+#' el perfil infiere como `identificador` (`101a`, `102a`) la acción queda
+#' `lista` sin activar: lo que acompaña al número puede ser parte del código.
+#' Un valor con `%` se divide por 100, la escala con que el paquete publica
+#' toda proporción; queda en `[0, 1]` si el porcentaje estaba entre 0 y 100, y
+#' el plan no comprueba ese rango. Una unidad o un símbolo de moneda dejan de
 #' formar parte del valor y quedan en `parametros`. La justificación lo dice
 #' cuando ocurre. Una columna que mezcla `5` con `5 %` no se convierte: habría
-#' que decidir si el número sin `%` está en la misma escala.
+#' que decidir si el número sin `%` está en la misma escala. Esta conversión no
+#' lee la notación científica (`1e5`): si la columna la trae junto a números
+#' con formato regional, la acción queda `bloqueada`. `convertir_tipo` lee cada
+#' texto con la convención decimal de la columna, como el resumen del perfil:
+#' con coma decimal, `12.500` se convierte en doce mil quinientos.
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial —una celda que
@@ -2115,7 +2131,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
       comprobacion_numero <- .comprobar_reversibilidad_accion(
         datos, columna, "convertir_numero_regional", parametros_numero
       )
-      conversion_numero_segura <- seguro &&
+      # Una columna que el perfil infiere `identificador` (`101a`, `102a`) se
+      # lee tambien como un numero con la unidad `a`, y por ser una sola unidad
+      # la conversion salia marcada: `aplicar()` dejaba 101, 102 y la letra del
+      # codigo se perdia sin que nadie la pidiera. La evidencia que hace de la
+      # letra una unidad es la misma que la hace parte del codigo, asi que el
+      # plan no elige: ofrece la conversion `lista` y sin marcar. Es lo unico
+      # que cambia: si la comprobacion encuentra una perdida, el motivo y la
+      # marca de destructiva siguen siendo los de esa perdida.
+      identificador <- identical(
+        as.character(fila$tipo_inferido[[1L]]), "identificador"
+      )
+      conversion_numero_segura <- seguro && !identificador &&
         isTRUE(comprobacion_numero$reversible)
       # Una conversion que el plan sabe que no se puede ejecutar sobre estos
       # datos no sale `lista`: sobre una columna que no es texto su propio
@@ -2146,6 +2173,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
             ") y puede convertirse sin elegir entre interpretaciones.",
             .nota_unidad_numero(parametros_numero)
           )
+        } else if (seguro && identificador &&
+                   isTRUE(comprobacion_numero$reversible)) {
+          paste0(
+            "La columna se infiri\u00f3 como identificador: lo que acompa\u00f1a ",
+            "al n\u00famero puede ser parte del c\u00f3digo y la conversi\u00f3n ",
+            "lo descartar\u00eda. La acci\u00f3n queda lista sin activar.",
+            .nota_unidad_numero(parametros_numero)
+          )
         } else if (seguro) {
           motivo_numero
         } else {
@@ -2165,7 +2200,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           motivo_no_reversible = motivo_numero
         )),
         unidad_conteo = "valor",
-        destructiva = (seguro && !conversion_numero_segura) ||
+        destructiva = (seguro && !isTRUE(comprobacion_numero$reversible)) ||
           .perdida_medida(comprobacion_numero),
         orden = 320L
       ))
@@ -4137,10 +4172,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # aparecieron cinco -entero plano, con `%`, notacion
 # cientifica, mantisa con coma, y entero es-UY con `,0` final-. Con una sola
 # normalizacion para los dos, lo que el conversor sabe leer la guarda lo ve.
-# El texto que `.convertir_tipo()` le pasa a `as.numeric()`. Aparte por el
-# mismo motivo que `.texto_regional_normalizado()`.
+# El texto que `.convertir_tipo()` lee como numero. Aparte por el mismo motivo
+# que `.texto_regional_normalizado()`. Ya no reemplaza la coma por el punto: el
+# texto se lee con `.leer_numeros_texto()` y la convencion decimal de la
+# columna, como lo lee el resumen del perfil. Con el reemplazo propio, `12.500`
+# en una columna de coma decimal -doce mil quinientos para el resumen- se
+# convertia en 12,5.
 .texto_tipo_normalizado <- function(x) {
-  sub(",", ".", .texto_legible_recortado(x), fixed = TRUE)
+  .texto_legible_recortado(x)
 }
 
 .texto_regional_normalizado <- function(x, parametros) {
@@ -4378,7 +4417,18 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     return(.convertir_logico(x))
   }
   texto <- .texto_tipo_normalizado(x)
-  numero <- suppressWarnings(as.numeric(texto))
+  if (is.character(x) || is.factor(x)) {
+    # Una celda vacia o de solo espacios no es un valor presente: el perfil la
+    # cuenta como ausencia y la conversion la deja en `NA`, como hace
+    # `convertir_numero_regional`. Contada como presente bloqueaba la
+    # conversion de una columna que el hallazgo declaraba sin perdida.
+    presentes <- !is.na(texto) & nzchar(.recortar_bytes(texto))
+    # El texto se lee con el lector comun y la convencion decimal de la
+    # columna, como lo leen la inferencia y el resumen.
+    numero <- suppressWarnings(.leer_numeros_texto(texto))
+  } else {
+    numero <- suppressWarnings(as.numeric(texto))
+  }
   if (any(presentes & (!is.finite(numero) | is.na(numero)))) {
     .detener("Hay valores presentes que no pueden convertirse a n\u00famero.", call. = FALSE)
   }

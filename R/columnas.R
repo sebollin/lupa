@@ -1967,31 +1967,82 @@
   # Lo que no es UTF-8 valido no es un numero en ninguna sesion: bajo un locale
   # UTF-8 `trimws()` abortaba sobre el y bajo `C` lo leia por bytes.
   texto <- .texto_legible_recortado(x)
+  # Lo que acompana a un numero se reconoce como moneda o como unidad, o el
+  # valor no es un numero. La forma completa -`compatible`- y la extraccion de
+  # mas abajo usan las mismas definiciones. Antes la forma aceptaba cualquier
+  # tramo de letras detras del numero y la unidad solo el que termina en
+  # minuscula: `12 KG` no se contaba, pero `1.5TB` si -por su punto-, sin
+  # unidad que publicar, y la conversion, que lee con esta misma funcion, le
+  # quitaba el `TB` a toda la columna sin decirlo.
+  #
+  # - Moneda: un codigo de tres mayusculas separado del numero por espacios,
+  #   que ademas tiene que ser ISO 4217 -se valida abajo: `LEY 18331` no es un
+  #   importe-; `U$S`; o un simbolo monetario.
+  # - Unidad: `%` o una abreviatura alfabetica que termina en minuscula. Las
+  #   mayusculas pegadas al numero (`12A`, `13B`, `500GB`) se reservan para
+  #   codigos: ese valor no es un numero, traiga o no separador decimal.
   prefijo <- "(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)?"
-  sufijo <- "[[:space:]]*(?:%|[[:alpha:]]+)?$"
+  sufijo <- paste0(
+    "(?:[[:space:]]*(?:%|[[:alpha:]]*[[:lower:]])|",
+    "[[:space:]]+[[:upper:]]{3})?$"
+  )
+  # El separador decimal puede abrir el numero: `,5` es `0,5` y `.5` es `0.5`,
+  # con la misma evidencia de convencion que su gemelo con el cero escrito.
   numero_coma <- paste0(
-    "(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?"
+    "(?:(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?|,[0-9]+)"
   )
   numero_punto <- paste0(
-    "(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?"
+    "(?:(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?|\\.[0-9]+)"
   )
   patron_coma <- paste0("^", prefijo, "[+-]?", numero_coma, sufijo)
   patron_punto <- paste0("^", prefijo, "[+-]?", numero_punto, sufijo)
+  # La notacion cientifica (`1e3`, `1,5E+06`) no entra en estas formas: es un
+  # numero para la inferencia y el resumen, que la leen con
+  # `.leer_numeros_texto()`, pero no un numero escrito con separador regional,
+  # unidad o moneda. Aca no se cuenta, y la conversion regional, que lee con
+  # esta misma funcion, no la convierte.
   compatible_coma <- !is.na(texto) & grepl(patron_coma, texto, perl = TRUE)
   compatible_punto <- !is.na(texto) & grepl(patron_punto, texto, perl = TRUE)
   compatible <- compatible_coma | compatible_punto
   patron_prefijo <- paste0(
     "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)"
   )
-  moneda <- rep("", length(texto))
   patron_codigo_prefijo <- "^[[:space:]]*([[:upper:]]{3})[[:space:]]+"
   codigo_prefijo <- compatible & grepl(
     patron_codigo_prefijo, texto, perl = TRUE
   )
-  moneda[codigo_prefijo] <- sub(
+  codigo_delante <- rep("", length(texto))
+  codigo_delante[codigo_prefijo] <- sub(
     paste0(patron_codigo_prefijo, ".*$"), "\\1", texto[codigo_prefijo],
     perl = TRUE
   )
+  patron_codigo_sufijo <- "[[:space:]]+([[:upper:]]{3})$"
+  codigo_sufijo <- compatible & grepl(patron_codigo_sufijo, texto, perl = TRUE)
+  codigo_detras <- rep("", length(texto))
+  codigo_detras[codigo_sufijo] <- sub(
+    paste0("^.*", patron_codigo_sufijo), "\\1", texto[codigo_sufijo],
+    perl = TRUE
+  )
+  # Tres mayusculas son una moneda solo si son un codigo ISO 4217, con la lista
+  # de `validar_iso4217()`. Las que no lo son no acompanan a un numero: el
+  # valor deja de ser compatible, y con eso ni se cuenta ni se convierte.
+  codigos <- unique(c(
+    codigo_delante[codigo_prefijo], codigo_detras[codigo_sufijo]
+  ))
+  if (length(codigos)) {
+    falsos <- codigos[!(validar_iso4217(codigos) %in% TRUE)]
+    if (length(falsos)) {
+      sin_moneda <- (codigo_prefijo & codigo_delante %in% falsos) |
+        (codigo_sufijo & codigo_detras %in% falsos)
+      compatible_coma[sin_moneda] <- FALSE
+      compatible_punto[sin_moneda] <- FALSE
+      compatible[sin_moneda] <- FALSE
+      codigo_prefijo[sin_moneda] <- FALSE
+      codigo_sufijo[sin_moneda] <- FALSE
+      codigo_delante[sin_moneda] <- ""
+    }
+  }
+  moneda <- codigo_delante
   patron_dolar_us_prefijo <- "^[[:space:]]*(U\\$S)[[:space:]]+"
   dolar_us_prefijo <- compatible & grepl(
     patron_dolar_us_prefijo, texto, perl = TRUE
@@ -2005,24 +2056,19 @@
     paste0(patron_simbolo_prefijo, ".*$"), "\\1",
     texto[simbolo_prefijo], perl = TRUE
   )
-  patron_codigo_sufijo <- "[[:space:]]+([[:upper:]]{3})$"
-  codigo_sufijo <- compatible & grepl(patron_codigo_sufijo, texto, perl = TRUE)
   sin_prefijo <- codigo_sufijo & !nzchar(moneda)
-  moneda[sin_prefijo] <- sub(
-    paste0("^.*", patron_codigo_sufijo), "\\1", texto[sin_prefijo],
-    perl = TRUE
-  )
+  moneda[sin_prefijo] <- codigo_detras[sin_prefijo]
   tiene_moneda <- nzchar(moneda)
   cuerpo <- texto
   cuerpo <- sub(patron_prefijo, "", cuerpo, perl = TRUE)
-  # Un sufijo de unidad se reconoce de forma deliberadamente acotada: `%` o
-  # una abreviatura alfabetica en minusculas. Las letras mayusculas pegadas al
-  # numero (`12A`, `13B`) se reservan para codigos, no para inventar unidades.
-  tiene_unidad <- grepl("(?:%|[[:lower:]]{1,8})$", cuerpo, perl = TRUE)
-  unidad <- ifelse(
-    compatible & tiene_unidad,
-    sub("^.*?[[:space:]]*(%|[[:alpha:]]+)$", "\\1", cuerpo, perl = TRUE),
-    ""
+  # La unidad es el tramo alfabetico entero cuando termina en minuscula, o `%`:
+  # lo mismo que `sufijo` acepta arriba. El otro tramo que la forma admite
+  # detras del numero es el codigo de moneda, que no es una unidad.
+  tiene_unidad <- compatible & grepl("(?:%|[[:lower:]])$", cuerpo, perl = TRUE)
+  unidad <- rep("", length(texto))
+  unidad[tiene_unidad] <- sub(
+    "^.*?[[:space:]]*(%|[[:alpha:]]+)$", "\\1", cuerpo[tiene_unidad],
+    perl = TRUE
   )
   sin_unidad <- sub("[[:space:]]*(?:%|[[:alpha:]]+)$", "", cuerpo, perl = TRUE)
   tiene_coma <- grepl(",", sin_unidad, fixed = TRUE, useBytes = TRUE)
@@ -2033,15 +2079,19 @@
   coma_tres <- grepl(
     "^[+-]?[0-9]{1,3}(?:,[0-9]{3})+$", sin_unidad, perl = TRUE
   )
+  # Un separador seguido de tres digitos es evidencia cuando no puede agrupar
+  # miles: detras de cuatro digitos o mas, o abriendo el numero. `,500` es
+  # medio, igual que `0,500`; con uno, dos o mas de tres digitos detras el
+  # separador inicial ya es evidencia por la expresion anterior.
   evidencia_coma <- compatible_coma & (
     grepl("\\.[0-9]{3}(?:\\.[0-9]{3})*,[0-9]+$", sin_unidad, perl = TRUE) |
       grepl(",[0-9]{1,2}$|,[0-9]{4,}$", sin_unidad, perl = TRUE) |
-      grepl("^[+-]?[0-9]{4,},[0-9]{3}$", sin_unidad, perl = TRUE)
+      grepl("^[+-]?(?:[0-9]{4,})?,[0-9]{3}$", sin_unidad, perl = TRUE)
   )
   evidencia_punto <- compatible_punto & (
     grepl(",[0-9]{3}(?:,[0-9]{3})*\\.[0-9]+$", sin_unidad, perl = TRUE) |
       grepl("\\.[0-9]{1,2}$|\\.[0-9]{4,}$", sin_unidad, perl = TRUE) |
-      grepl("^[+-]?[0-9]{4,}\\.[0-9]{3}$", sin_unidad, perl = TRUE)
+      grepl("^[+-]?(?:[0-9]{4,})?\\.[0-9]{3}$", sin_unidad, perl = TRUE)
   )
   especial <- tiene_coma | tiene_punto | tiene_moneda | nzchar(unidad)
   list(
@@ -2054,6 +2104,55 @@
   )
 }
 
+# La notacion cientifica: una mantisa con a lo sumo un separador y su
+# exponente, con signo o sin el (`1e5`, `1.2E-05`, `1,5e+3`). La inferencia la
+# cuenta como numero antes de conjeturar un identificador -tiene letras y
+# digitos, y con valores distintos salia `identificador` o `doble` segun el
+# signo del exponente-, y el lector resuelve su separador sin la convencion.
+.forma_cientifica_numero_texto <- function(x) {
+  posicion <- regexpr(
+    "^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)[eE][+-]?[0-9]+$",
+    x, perl = TRUE
+  )
+  !is.na(x) & posicion > 0L
+}
+
+# Un numero que empieza con el separador decimal: `.5`, `,5`, `-.25`.
+.separador_inicial_numero_texto <- function(x) {
+  !is.na(x) & grepl("^[+-]?[.,][0-9]+$", x, perl = TRUE)
+}
+
+# El separador que abre un numero y el de la mantisa de la notacion cientifica
+# solo pueden ser decimales: ninguna convencion los lee como miles. Con la
+# regla general, `.5` en una columna de coma decimal perdia el punto -quedaba
+# 5- y `3.5e2` quedaba sin lectura, mientras la inferencia contaba los dos.
+#
+# `con_miles` son los valores que traen el separador de miles de la convencion:
+# los unicos cuya lectura cambia, y los unicos sobre los que se pregunta. El
+# lector pasa por aca en cada lectura de la columna, y en una columna de punto
+# decimal sin ninguna coma no cuesta nada.
+.separador_solo_decimal <- function(x, con_miles) {
+  if (any(con_miles)) {
+    candidatos <- x[con_miles]
+    con_miles[con_miles] <- .separador_inicial_numero_texto(candidatos) |
+      .forma_cientifica_numero_texto(candidatos)
+  }
+  con_miles
+}
+
+# Si el texto empieza como un numero escrito como texto: la moneda delante, el
+# signo, y un digito o el separador decimal que abre el numero. Es la pregunta
+# barata con que el analisis decide si mira la columna (al menos el 80 % de los
+# valores presentes), y la hacen igual sus dos caminos.
+.inicio_numero_texto <- function(x) {
+  grepl(
+    paste0(
+      "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
+      "\\p{Sc}[[:space:]]*)?[+-]?(?:[0-9]|[.,][0-9])"
+    ), x, perl = TRUE
+  )
+}
+
 # Resuelve los separadores de un numero escrito como texto segun la convencion
 # decimal: con `decimal_coma` el punto agrupa miles y la coma es decimal; con
 # `decimal_punto`, al reves. Es el texto que la remediacion le pasa a
@@ -2062,15 +2161,31 @@
 # `numero_texto_convencion = "decimal_coma"` y resumia `1.500` como 1,5 con un
 # `sub(",", ".")` propio, mientras la limpieza del mismo paquete, con la
 # convencion publicada, convertia el mismo texto en 1500.
-.normalizar_separadores_numero <- function(texto, convencion) {
-  if (identical(convencion, "decimal_coma")) {
-    texto <- gsub(".", "", texto, fixed = TRUE)
-    sub(",", ".", texto, fixed = TRUE)
-  } else if (identical(convencion, "decimal_punto")) {
-    gsub(",", "", texto, fixed = TRUE)
-  } else {
-    texto
+.normalizar_separadores_numero <- function(texto, convencion,
+                                           separador_libre = NULL) {
+  coma <- identical(convencion, "decimal_coma")
+  if (!coma && !identical(convencion, "decimal_punto")) return(texto)
+  # Quien ya lo calculo sobre el mismo vector lo pasa, para no repetir la
+  # pasada en cada lectura de la columna.
+  if (is.null(separador_libre)) {
+    separador_libre <- .separador_solo_decimal(
+      texto,
+      !is.na(texto) & grepl(
+        if (coma) "." else ",", texto, fixed = TRUE, useBytes = TRUE
+      )
+    )
   }
+  normalizado <- if (coma) {
+    sub(",", ".", gsub(".", "", texto, fixed = TRUE), fixed = TRUE)
+  } else {
+    gsub(",", "", texto, fixed = TRUE)
+  }
+  if (any(separador_libre)) {
+    normalizado[separador_libre] <- sub(
+      ",", ".", texto[separador_libre], fixed = TRUE
+    )
+  }
+  normalizado
 }
 
 # El numero que el perfil lee en cada texto de una columna inferida entera o
@@ -2080,7 +2195,9 @@
 #
 # - `decimal_coma` y `decimal_punto`: la normalizacion compartida. El separador
 #   de miles solo vale agrupando de a tres; un punto que no agrupa en una columna
-#   de coma decimal no tiene lectura con esa convencion y queda afuera.
+#   de coma decimal no tiene lectura con esa convencion y queda afuera. El
+#   separador que abre el numero y el de una mantisa con exponente no agrupan
+#   nunca: ver `.separador_solo_decimal()`.
 # - `ambigua` y `mixta`: la columna no decide. Cada valor se lee con su PROPIA
 #   evidencia -`2,5` y `1.234,5` solo admiten una lectura- y el que no la tiene
 #   -`1.500`, `1,500`- queda afuera: elegir seria inventar, igual que con una
@@ -2102,8 +2219,12 @@
 # (`n_valores_excluidos_resumen`), como cualquier texto que no llega a numero.
 # `NaN` e `Inf` escritos siguen siendo `NaN` e `Inf`: el resumen los cuenta en
 # sus propios campos y no en el maximo.
-.normalizar_numeros_texto <- function(texto, convencion = NULL) {
-  texto <- trimws(as.character(texto))
+#
+# `recortado` lo pasa quien ya recorto el texto: `trimws()` es la operacion mas
+# cara de esta lectura, y la columna se lee varias veces por perfil.
+.normalizar_numeros_texto <- function(texto, convencion = NULL,
+                                      recortado = FALSE) {
+  if (!recortado) texto <- trimws(as.character(texto))
   con_separador <- !is.na(texto) & grepl("[.,]", texto, perl = TRUE)
   if (!any(con_separador)) {
     return(texto)
@@ -2121,9 +2242,13 @@
     miles <- if (coma) "." else ","
     agrupado <- if (coma) .patron_miles_coma else .patron_miles_punto
     con_miles <- con_separador & grepl(miles, texto, fixed = TRUE, useBytes = TRUE)
-    sin_lectura <- con_miles & !grepl(agrupado, texto, perl = TRUE)
+    separador_libre <- .separador_solo_decimal(texto, con_miles)
+    sin_lectura <- con_miles & !separador_libre &
+      !grepl(agrupado, texto, perl = TRUE)
     normalizado[sin_lectura] <- NA_character_
-    normalizado <- .normalizar_separadores_numero(normalizado, convencion)
+    normalizado <- .normalizar_separadores_numero(
+      normalizado, convencion, separador_libre
+    )
   } else if (convencion %in% c("ambigua", "mixta")) {
     partes <- .componentes_numero_texto(texto[con_separador])
     propia <- rep(NA_character_, sum(con_separador))
@@ -2152,9 +2277,14 @@
   normalizado
 }
 
+# El lector comun: lo usan la inferencia del tipo, el resumen, la frase de
+# `tipo_declarado_distinto` y la conversion de tipo, y por eso cuentan y leen lo
+# mismo. No atraviesa una unidad ni una moneda: `12 kg` y `USD 35` no son
+# numeros para el, sino numeros escritos como texto, que cuenta y convierte
+# `.componentes_numero_texto()`.
 .leer_numeros_texto <- function(texto, convencion = NULL) {
   texto <- trimws(as.character(texto))
-  normalizado <- .normalizar_numeros_texto(texto, convencion)
+  normalizado <- .normalizar_numeros_texto(texto, convencion, recortado = TRUE)
   .solo_formas_numero(suppressWarnings(as.numeric(normalizado)), texto)
 }
 
@@ -2388,6 +2518,20 @@
   )
 }
 
+# Si el perfil lee la columna como numeros escritos como texto: hay alguno con
+# separador regional, unidad o moneda, y al menos el 80 % de los valores
+# presentes responde a esa forma. Es la condicion con que se publica
+# `numero_como_texto`, y por eso la que manda la conversion del plan por la via
+# regional. La preguntan el hallazgo, su cobertura y la frase de
+# `tipo_declarado_distinto` (`.riesgos_conversion_tipo()`), que tiene que decir
+# lo mismo que ese plan.
+.fila_con_numeros_como_texto <- function(fila) {
+  n <- fila[["n_numeros_texto"]]
+  proporcion <- fila[["proporcion_numeros_texto"]]
+  length(n) == 1L && isTRUE(n > 0L) && length(proporcion) == 1L &&
+    is.finite(proporcion) && proporcion >= 0.8
+}
+
 .analizar_numeros_texto_directo <- function(x, umbral_compatibilidad = 0.8) {
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
@@ -2397,18 +2541,18 @@
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
-  presentes <- !is.na(textos) & nzchar(textos)
+  # Una celda de solo espacios no es un valor presente -el perfil la cuenta
+  # como ausencia-. Contada, bajaba la proporcion de la columna: con mas de un
+  # 20 % de celdas asi la convencion no se evaluaba y `1.500` se leia 1,5. Es
+  # presente lo que `trimws()` no deja vacio, preguntado en una sola pasada.
+  presentes <- !is.na(textos) &
+    grepl("[^ \t\r\n]", textos, perl = TRUE, useBytes = TRUE)
   n_presentes <- sum(presentes)
   vacio$n_presentes <- n_presentes
   if (!n_presentes || !any(grepl("[0-9]", textos[presentes], perl = TRUE))) {
     return(vacio)
   }
-  inicio_numerico <- grepl(
-    paste0(
-      "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
-      "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
-    ), textos[presentes], perl = TRUE
-  )
+  inicio_numerico <- .inicio_numero_texto(textos[presentes])
   # Misma distincion que en `.analizar_numeros_texto()`: `n = 0` afirma "no hay
   # ninguno", y es falso cuando SI los vio y decidio no contarlos. La regla vive
   # en dos funciones -esta es el camino directo- y las dos tienen que decir lo
@@ -2438,7 +2582,12 @@
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
-  presentes <- !is.na(textos) & nzchar(textos)
+  # Una celda de solo espacios no es un valor presente -el perfil la cuenta
+  # como ausencia-. Contada, bajaba la proporcion de la columna: con mas de un
+  # 20 % de celdas asi la convencion no se evaluaba y `1.500` se leia 1,5. Es
+  # presente lo que `trimws()` no deja vacio, preguntado en una sola pasada.
+  presentes <- !is.na(textos) &
+    grepl("[^ \t\r\n]", textos, perl = TRUE, useBytes = TRUE)
   n_presentes <- sum(presentes)
   vacio$n_presentes <- n_presentes
   if (is.null(vocabulario) && !is.null(n_distintos) &&
@@ -2467,24 +2616,15 @@
   if (!n_presentes || !any(tiene_digitos[presentes])) {
     return(vacio)
   }
-  patron_inicio <- paste0(
-    "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
-    "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
-  )
   if (isTRUE(vocabulario_numeros$usar)) {
-    inicio_vocabulario <- grepl(
-      patron_inicio, valores_vocabulario, perl = TRUE
-    )
+    inicio_vocabulario <- .inicio_numero_texto(valores_vocabulario)
     inicio_numerico <- inicio_vocabulario[indices_vocabulario]
     partes <- .componentes_numero_texto_optimizado(
       textos, valores = valores_vocabulario
     )
   } else {
     inicio_numerico <- rep(FALSE, length(textos))
-    inicio_numerico[presentes] <- grepl(
-      patron_inicio,
-      textos[presentes], perl = TRUE
-    )
+    inicio_numerico[presentes] <- .inicio_numero_texto(textos[presentes])
     partes <- .componentes_numero_texto(textos)
   }
   proporcion_inicio <- mean(inicio_numerico[presentes])
@@ -3250,6 +3390,46 @@
   } else {
     .marca_texto_largo(x_analisis, texto_largo$mascara)
   }
+  n <- NROW(x)
+  claves_identidad <- if (is.character(x_identidad) || is.factor(x_identidad)) {
+    .clave_bytes(x_identidad)
+  } else NULL
+  n_distintos <- .n_distintos_columna(x_identidad, claves = claves_identidad)
+  vocabulario_texto <- if (
+    (is.character(x_analisis_diagnostico) ||
+       is.factor(x_analisis_diagnostico)) &&
+      n > 1L && is.finite(n_distintos) &&
+      n_distintos / n <= .umbral_vocabulario_codificacion
+  ) {
+    unique(x_analisis_diagnostico[!is.na(x_analisis_diagnostico)])
+  } else {
+    NULL
+  }
+  vocabulario_texto_caro <- if (
+    is.null(vocabulario_texto) || !any(texto_largo$mascara)
+  ) {
+    vocabulario_texto
+  } else {
+    unique(x_analisis_diagnostico[
+      !is.na(x_analisis_diagnostico) & !texto_largo$mascara
+    ])
+  }
+  vocabulario_numeros <- if (
+    is.null(vocabulario_texto) &&
+      (is.character(x_analisis_diagnostico) ||
+         is.factor(x_analisis_diagnostico))
+  ) x_analisis_diagnostico else vocabulario_texto
+  numeros_texto <- .analizar_numeros_texto(
+    x_analisis_diagnostico, vocabulario = vocabulario_numeros,
+    n_distintos = n_distintos,
+    directo = is.null(vocabulario_texto) &&
+      (is.character(x_analisis_diagnostico) ||
+         is.factor(x_analisis_diagnostico))
+  )
+  # La convencion decimal de la columna se decide antes de inferir el tipo: la
+  # inferencia cuenta como numero lo que el lector comun lee con ella, que es
+  # lo que despues lee el resumen. Aunque infiera sobre una muestra, la
+  # convencion es la de la columna entera.
   # El perfilado conserva el resultado intermedio sólo durante esta llamada;
   # la función exportada `inferir_tipo()` nunca devuelve ese caché.
   inferencia <- .inferir_tipo_interno(
@@ -3258,7 +3438,8 @@
       x_analisis_diagnostico
     } else {
       x_identidad
-    }, muestra = muestra, conservar_cache = TRUE
+    }, muestra = muestra, conservar_cache = TRUE,
+    convencion_numero_texto = numeros_texto$convencion
   )
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
@@ -3329,7 +3510,6 @@
   # Ademas alinea `n` con la mascara del universo, que llega con el largo de la
   # TABLA: con `aplicabilidad` declarada sobre una columna compuesta, `n` y
   # `sum(aplicable)` describian universos de distinto tamano.
-  n <- NROW(x)
   # El universo aplicable. Sin declaracion, toda la columna aplica y todo lo de
   # abajo se reduce al comportamiento de siempre. Con declaracion, las filas
   # donde la columna no corresponde salen del denominador: un ausente por
@@ -3358,43 +3538,8 @@
   # textuales tienen su propio alcance, declarado por
   # `n_codificacion_invalida` y el hallazgo correspondiente.
   n_validos <- n_aplicables - n_faltantes
-  claves_identidad <- if (is.character(x_identidad) || is.factor(x_identidad)) {
-    .clave_bytes(x_identidad)
-  } else NULL
-  n_distintos <- .n_distintos_columna(x_identidad, claves = claves_identidad)
   valor_concentrado <- .estadisticos_valor_concentrado(
     x_identidad, sentinelas_declarados
-  )
-  vocabulario_texto <- if (
-    (is.character(x_analisis_diagnostico) ||
-       is.factor(x_analisis_diagnostico)) &&
-      n > 1L && is.finite(n_distintos) &&
-      n_distintos / n <= .umbral_vocabulario_codificacion
-  ) {
-    unique(x_analisis_diagnostico[!is.na(x_analisis_diagnostico)])
-  } else {
-    NULL
-  }
-  vocabulario_texto_caro <- if (
-    is.null(vocabulario_texto) || !any(texto_largo$mascara)
-  ) {
-    vocabulario_texto
-  } else {
-    unique(x_analisis_diagnostico[
-      !is.na(x_analisis_diagnostico) & !texto_largo$mascara
-    ])
-  }
-  vocabulario_numeros <- if (
-    is.null(vocabulario_texto) &&
-      (is.character(x_analisis_diagnostico) ||
-         is.factor(x_analisis_diagnostico))
-  ) x_analisis_diagnostico else vocabulario_texto
-  numeros_texto <- .analizar_numeros_texto(
-    x_analisis_diagnostico, vocabulario = vocabulario_numeros,
-    n_distintos = n_distintos,
-    directo = is.null(vocabulario_texto) &&
-      (is.character(x_analisis_diagnostico) ||
-         is.factor(x_analisis_diagnostico))
   )
   # La convencion decimal que la fila publica viaja con la inferencia a TODO lo
   # que lee la columna como numero -la secuencia entera, los faltantes
