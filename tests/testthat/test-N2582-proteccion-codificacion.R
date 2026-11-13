@@ -407,3 +407,36 @@ test_that("aplicar no calcula la proteccion de una columna que ninguna accion de
   testthat::expect_identical(recortado$datos$a[[1L]], roto)
   testthat::expect_equal(llamadas, 1L)
 })
+
+# Una celda limpia que termina en `A` con circunflejo seguida de un espacio
+# tipografico no se normaliza: con el espacio comun pasaria a leerse como una
+# letra rota. Esa proteccion se perdia cuando la columna traia ademas una celda
+# rota, porque la respuesta de la comprobacion se guardaba en la posicion de
+# otra celda: la accion cambiaba una fila mas de las que el plan contaba y el
+# perfil siguiente encontraba una celda rota que antes no habia.
+test_that("normalizar los espacios invisibles no vuelve rota una celda limpia que convive con una rota", {
+  skip_on_cran()
+  u <- function(...) intToUtf8(c(...))
+  datos <- data.frame(
+    x = c(u(0xC3, 0xA9, 0x2000), u(0x78, 0x2000), u(0xC2, 0x2000),
+          u(0x79, 0x2001)),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, proteger_datos_personales = FALSE)
+  plan <- planificar_limpieza(perfil, datos)
+  es_la_accion <- plan$estrategia == "normalizar_espacios_invisibles"
+  expect_identical(sum(es_la_accion), 1L)
+  # La accion sola, con la reparacion desmarcada.
+  plan$aplicar <- es_la_accion
+  resultado <- suppressMessages(aplicar(plan, datos))
+  expect_identical(resultado$datos$x[[3L]], datos$x[[3L]])
+  registro <- resultado$registro[
+    resultado$registro$estrategia == "normalizar_espacios_invisibles", ,
+    drop = FALSE
+  ]
+  expect_identical(as.character(registro$estado), "ejecutada")
+  expect_equal(registro$n_cambiadas, plan$n_afectadas[es_la_accion])
+  despues <- perfilar(resultado$datos, proteger_datos_personales = FALSE)
+  expect_equal(despues$columnas$n_codificacion_rota,
+               perfil$columnas$n_codificacion_rota)
+})

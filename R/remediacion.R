@@ -3707,8 +3707,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else if (length(indices_nuevas) && identical(revisar_nuevas, "si_hay_A")) {
     posibles <- grepl("[\u00c2\u00c3]", nuevo[indices[indices_nuevas]], perl = TRUE)
     if (any(posibles)) {
+      # `posibles` recorre `indices_nuevas`, no `indices`: indexar `nuevas`
+      # con el dejaba la respuesta en otra celda cuando la columna traia
+      # tambien candidatas, y una celda limpia quedaba sin proteger.
       ubicaciones <- indices_nuevas[posibles]
-      nuevas[posibles] <- .ftfy_mascara_para_texto(nuevo[indices[ubicaciones]])
+      nuevas[ubicaciones] <- .ftfy_mascara_para_texto(nuevo[indices[ubicaciones]])
     }
   }
   if (!any(candidatos | nuevas)) {
