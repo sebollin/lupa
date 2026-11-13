@@ -26,3 +26,4 @@
 ^man/figures/perfil-console\.png$
 ^tests/testthat/test-local-.*\.R$
 ^CITATION\.cff$
+^codecov\.yml$

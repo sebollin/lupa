@@ -69,6 +69,9 @@ testthat::skip_on_cran()
 }
 
 test_that("el parseo de dependencias sobrevive a los parentesis", {
+  # Bajo covr las pruebas corren sobre una copia instalada del paquete, que
+  # trae su DESCRIPTION pero no las fuentes: lo que esta prueba lee no esta.
+  skip_on_covr()
   parsear <- .n88_fragmento_workflow()
   skip_if(is.null(parsear), "el workflow no esta a la vista")
   limpiar <- function(x) setdiff(x, c("R", "", NA))

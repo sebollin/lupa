@@ -1,0 +1,77 @@
+# Mide la cobertura de las pruebas y la publica en Codecov.
+#
+# Va en un flujo aparte y no dentro del check. Bajo `covr` cada linea del
+# paquete se instrumenta y la suite tarda varias veces lo que tarda sola: un
+# trabajo asi de largo no tiene que demorar ni poner en rojo al que dice si el
+# paquete pasa. Por eso corre al empujar a main y a pedido, no en cada pedido
+# de cambios, y un fallo al subir el informe no lo vuelve rojo.
+#
+# `NOT_CRAN` va en `true`: casi toda la suite lleva `skip_on_cran()` para no
+# gastar el tiempo de CRAN, y sin la variable la cobertura mediria solo lo que
+# corre alla. Las pruebas contra motores de bases de datos se saltean solas
+# (aca no hay servidores): la cobertura publicada es la de la suite sin
+# motores, y por eso queda por debajo de la que se mide con ellos.
+#
+# Las pruebas que leen las fuentes del paquete o comparan contra un proceso
+# hijo llevan `skip_on_covr()`: bajo covr corren sobre una copia instalada e
+# instrumentada, y ahi no miden lo que dicen. Las de tiempo absoluto ya llevan
+# `skip_on_ci()`. Medido en la maquina de desarrollo el 2026-11-13: la suite
+# bajo covr tarda unos 65 minutos.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+name: test-coverage.yaml
+
+permissions: read-all
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      NOT_CRAN: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::covr, any::xml2
+          needs: coverage
+
+      - name: Medir la cobertura
+        shell: Rscript {0}
+        run: |
+          cobertura <- covr::package_coverage(
+            quiet = FALSE,
+            clean = FALSE,
+            install_path = file.path(Sys.getenv("RUNNER_TEMP"), "lupa-covr")
+          )
+          print(cobertura)
+          covr::to_cobertura(cobertura, filename = "cobertura.xml")
+
+      - name: Mostrar la salida de las pruebas si fallaron
+        if: failure()
+        shell: bash
+        run: |
+          if [ -d "${{ runner.temp }}/lupa-covr" ]; then
+            find "${{ runner.temp }}/lupa-covr" -name 'testthat.Rout*' -type f \
+              -exec sh -c 'echo "=== $1 ==="; tail -100 "$1"' _ {} \;
+          fi
+
+      - name: Subir la cobertura a Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./cobertura.xml
+          plugins: noop
+          disable_search: true
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}

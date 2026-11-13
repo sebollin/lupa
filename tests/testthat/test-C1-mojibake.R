@@ -763,6 +763,9 @@ test_that("la mascara es una alineacion valida y maxima por definicion", {
 })
 
 test_that("la regresion de la alineacion anterior falla en otro proceso", {
+  # Bajo covr el proceso hijo carga la copia instrumentada del paquete, que
+  # no es la que esta prueba imita: la comparacion no mide nada ahi.
+  skip_on_covr()
   entrada <- c(0xC4L, 0xB1L, 0x7aL, 0xC4L, 0xB1L)
   salida <- c(0x131L, 0x7aL, 0x131L)
   referencia <- .c1_moji_lcs_referencia(entrada, salida)
@@ -904,6 +907,9 @@ test_that("el respaldo estructural protege continuaciones y deja controles ajeno
 })
 
 test_that("las tablas generadas conservan la cuenta de cada accion de texto", {
+  # Bajo covr el proceso hijo carga la copia instrumentada del paquete, que
+  # no es la que esta prueba imita: la comparacion no mide nada ahi.
+  skip_on_covr()
   tablas <- .c1_moji_tablas_generadas()
   campos <- c(
     n_espacios_borde = "recortar_espacios",
