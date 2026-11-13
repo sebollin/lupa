@@ -136,7 +136,10 @@ queda en la tabla con veredicto <code>no_comparable</code> y no suma como acuerd
 <code>longitud_media</code>. Los conteos, proporciones de conteos y extremos por
 selección se comparan en el eje <code>exacto</code>; las fechas canónicas en <code>fecha</code> y
 <code>moda</code> y <code>centinela_valor</code> en <code>valor</code>. Los ejes <code>exacto</code>, <code>fecha</code> y <code>valor</code>
-son binarios por construcción.</p>
+son binarios por construcción.
+En una columna numérica, <code>moda</code> y <code>centinela_valor</code> se comparan por el número
+y no por cómo lo escribió cada sesión: la marca decimal de <code>options(OutDec)</code>
+y la notación de <code>scipen</code> no cuentan como una diferencia.</p>
 <p>El comparador devuelve datos, no decisiones: no alimenta hallazgos,
 severidades ni puntajes. La tolerancia es del llamador y jamás entra en una
 regla del paquete; sólo se aplica al eje flotante finito y queda publicada

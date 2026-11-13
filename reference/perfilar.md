@@ -2360,24 +2360,31 @@ con cero adelante —`099.123.456`, un teléfono—, un hexadecimal o un `5.`
 quedan afuera y se declaran igual. Un número con moneda o unidad
 (`USD 1,234.56`, `12 kg`) no se resume: es un número escrito como texto,
 y `numero_texto_moneda` y `numero_texto_unidad` publican lo que traía.
-Los prefijos de tres letras separados del número, incluso como sufijo,
-`U$S` y los símbolos monetarios se conservan como evidencia;
+Un código de tres letras mayúsculas separado del número por espacios,
+delante o detrás, es una moneda sólo si es un código ISO 4217 —la lista
+de
+[`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)—:
+`USD 35` es un importe y `LEY 18331` no es un número. `U$S` y los
+símbolos monetarios también se conservan como evidencia;
 `monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas
 de cambio. Una única moneda o un símbolo `$` aislado no produce ese
 hallazgo. Un sufijo de unidad se reconoce sólo si es `%` o una
-abreviatura alfabética en minúsculas; por eso `12 kg` y `13500 g` son
-unidades, mientras que `12A` y `13B` se tratan como códigos. Si hay más
-de una unidad observada, `unidades_mixtas` informa sus frecuencias y no
-convierte ni compara sus magnitudes. Una única unidad no genera ese
-hallazgo. `formatos_fecha_mixtos` compara representaciones dentro de una
-columna cuyo dominio es la fecha o la fecha-hora. Una fecha agregada
-adentro de una columna de horas del día —`12/02/2011 6:55 a.m.` entre
-valores `7:10 a.m.`— no produce ese hallazgo, porque la columna no es de
-fechas: aparece como `patron_raro`, que es lo que de verdad cambió.
-Decidir que esa columna sólo debe contener horas es una regla de dominio
-y el paquete no la supone. Del mismo modo, un número sin sufijo no
-cuenta como una segunda unidad: una columna que mezcla `5` con `5 %`
-observa una sola unidad y se informa como `numero_como_texto`, no como
+abreviatura alfabética que termina en minúscula; por eso `12 kg` y
+`13500 g` son unidades. Un valor con un sufijo en mayúsculas que no es
+un código de moneda (`12A`, `13B`, `500GB`, `1.5TB`) se trata como un
+código: no cuenta como número escrito como texto, tenga o no separador
+decimal, y el plan no propone convertirlo. Si hay más de una unidad
+observada, `unidades_mixtas` informa sus frecuencias y no convierte ni
+compara sus magnitudes. Una única unidad no genera ese hallazgo.
+`formatos_fecha_mixtos` compara representaciones dentro de una columna
+cuyo dominio es la fecha o la fecha-hora. Una fecha agregada adentro de
+una columna de horas del día —`12/02/2011 6:55 a.m.` entre valores
+`7:10 a.m.`— no produce ese hallazgo, porque la columna no es de fechas:
+aparece como `patron_raro`, que es lo que de verdad cambió. Decidir que
+esa columna sólo debe contener horas es una regla de dominio y el
+paquete no la supone. Del mismo modo, un número sin sufijo no cuenta
+como una segunda unidad: una columna que mezcla `5` con `5 %` observa
+una sola unidad y se informa como `numero_como_texto`, no como
 `unidades_mixtas`. `celdas_multivaluadas` es deliberadamente
 conservador: usa los patrones de
 [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)

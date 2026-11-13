@@ -2228,16 +2228,20 @@ adelante —<code>099.123.456</code>, un teléfono—, un hexadecimal o un <code
 y se declaran igual. Un número con moneda o unidad (<code>USD 1,234.56</code>, <code>12 kg</code>)
 no se resume: es un número escrito como texto, y <code>numero_texto_moneda</code> y
 <code>numero_texto_unidad</code> publican lo que traía.
-Los prefijos de tres letras separados
-del número, incluso como sufijo, <code>U$S</code> y los símbolos monetarios se
-conservan como evidencia; <code>monedas_mixtas</code> informa sus frecuencias sin
-convertir ni suponer tasas de cambio. Una única moneda o un símbolo <code>$</code>
-aislado no produce ese hallazgo.
+Un código de tres letras mayúsculas separado del número por espacios,
+delante o detrás, es una moneda sólo si es un código ISO 4217 —la lista de
+<code><a href="validadores_formato.html">validar_iso4217()</a></code>—: <code>USD 35</code> es un importe y <code>LEY 18331</code> no es un número.
+<code>U$S</code> y los símbolos monetarios también se conservan como evidencia;
+<code>monedas_mixtas</code> informa sus frecuencias sin convertir ni suponer tasas de
+cambio. Una única moneda o un símbolo <code>$</code> aislado no produce ese hallazgo.
 Un sufijo de unidad se reconoce sólo si es <code>%</code> o una abreviatura alfabética
-en minúsculas; por eso <code>12 kg</code> y <code>13500 g</code> son unidades, mientras que
-<code>12A</code> y <code>13B</code> se tratan como códigos. Si hay más de una unidad observada,
-<code>unidades_mixtas</code> informa sus frecuencias y no convierte ni compara sus
-magnitudes. Una única unidad no genera ese hallazgo.
+que termina en minúscula; por eso <code>12 kg</code> y <code>13500 g</code> son unidades. Un valor
+con un sufijo en mayúsculas que no es un código de moneda (<code>12A</code>, <code>13B</code>,
+<code>500GB</code>, <code>1.5TB</code>) se trata como un código: no cuenta como número escrito
+como texto, tenga o no separador decimal, y el plan no propone convertirlo.
+Si hay más de una unidad observada, <code>unidades_mixtas</code> informa sus
+frecuencias y no convierte ni compara sus magnitudes. Una única unidad no
+genera ese hallazgo.
 <code>formatos_fecha_mixtos</code> compara representaciones dentro de una columna cuyo
 dominio es la fecha o la fecha-hora. Una fecha agregada adentro de una
 columna de horas del día —<code>12/02/2011 6:55 a.m.</code> entre valores <code>7:10 a.m.</code>—

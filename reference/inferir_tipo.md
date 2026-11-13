@@ -23,7 +23,18 @@ decimal): es como lo lee el resumen de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 Sin evidencia de convención no cuenta, y un primer grupo de miles que
 empieza con cero (`099.123.456`, la forma de un teléfono) no es un
-número en ninguna.
+número en ninguna. Un separador decimal que abre el número (`.5`, `,5`)
+se lee igual que `0.5` o `0,5` y aporta la misma evidencia de
+convención; mezclado con la convención contraria, la columna queda
+`mixta`. La notación científica (`1e5`, `1.2E-05`, `1,5e3`) es un
+número, y no la forma de un identificador, cualquiera sea el signo del
+exponente; un exponente que desborda el doble (`1e400`) no lo es. Si la
+proporción de números alcanza el umbral y alguno trae decimales, el tipo
+inferido es `doble` aunque la mayoría sean enteros: es el tipo que los
+cubre a todos. Un número con unidad o moneda (`12 kg`, `USD 35`) no
+cuenta como entero ni como doble:
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
+informa como número escrito como texto.
 
 ## Usage
 

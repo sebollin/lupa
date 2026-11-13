@@ -12,6 +12,210 @@
   castellano: le faltaban las insignias de CRAN y de Zenodo y la frase
   del DOI de Zenodo.
 
+### Correcciones
+
+- [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  comparan la moda y el centinela conjeturado de una columna numérica
+  por su valor y no por cómo los imprimió la sesión. La misma tabla
+  perfilada con `options(OutDec = ",")` y con punto salía
+  `materialmente_distinto` en `moda` (`2245,63` contra `2245.63`) al
+  lado de `identico` en `media`. Una columna de texto se sigue
+  comparando como texto, y un cambio verdadero de la moda se sigue
+  informando.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  ya no informa como modificada la política de centinelas numéricos
+  cuando uno de los dos perfiles no la registra, como pasa con un perfil
+  guardado por una versión anterior: sin registro no hay evidencia de un
+  cambio. Una política que de verdad cambió
+  (`sentinelas_numericos = numeric()` contra la de omisión) se sigue
+  informando.
+- Una columna que se llama literalmente `<tabla>` ya no se confunde, en
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),
+  con los hallazgos que son de la tabla entera: su fila salía con
+  `columna = NA`.
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  consulta el esquema de cada tabla una vez; lo consultaba dos.
+- El mensaje de una columna de geometrías con el presupuesto recortado
+  (`max_geometrias`) cuenta sobre los valores que se intentaron
+  convertir: decía «1 de 2 valores presentes» cuando había tres
+  presentes y se habían intentado dos.
+- [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  toma una sola vez, con el código de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  las tres decisiones que dependen de la columna entera —el centinela
+  numérico que la columna conjetura, la numeración densa que impide
+  tomar por ausencia un código como `999`, y el identificador que
+  excluye a una columna de la ley de Benford—, y las aplica también a
+  las columnas de texto y `factor` que se leen como números. Antes, un
+  grupo de una numeración escrita como texto publicaba
+  `faltantes_disfrazados` por un `999` que la tabla entera no acusa, o
+  un `posible_centinela_numerico` distinto del de la columna, sin fila
+  en la cobertura; y un grupo publicaba `desviacion_benford` sobre una
+  columna que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  excluye por identificador. Lo que un grupo deja de publicar por estas
+  decisiones queda declarado en `cobertura_diagnosticos`
+  (`centinelas_numericos`, `ley_benford`). Todo lo demás —los valores
+  extremos, `posible_identificador`, las ausencias escritas con texto—
+  lo sigue decidiendo cada grupo con sus filas.
+- [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  sobre `integer64`: una numeración cuya moda sobresale (cincuenta `999`
+  en `1:2000`) publica esos `999` en cada grupo, como
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y como la misma columna en `double`; antes los grupos los declaraban
+  en la cobertura.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre `integer64`: un centinela de la lista declarada (por omisión
+  `-9999`, `-999`, `999`) se publica como `faltantes_disfrazados`, igual
+  que en `double`, y ya no además como `posible_centinela_numerico`;
+  `centinela_valor`, `centinela_repeticiones` y `densidad_sin_centinela`
+  quedan `NA`, como en `double`.
+- Un valor con un sufijo en mayúsculas ya no se convierte a número
+  perdiendo el sufijo. `c("1.5TB", "500GB", "250MB", "2TB")` y
+  `c("850K", "1,5M", "2M", "300K")` publicaban `n_numeros_texto = 1`
+  —sólo el valor con separador decimal— y el plan proponía
+  `convertir_numero_regional` activada, que dejaba 1.5, 500, 250 y 2. El
+  perfil contaba con una regla (un sufijo es una unidad sólo si termina
+  en minúscula) y la conversión leía con otra (cualquier tramo de
+  letras). Ahora es una sola: lo que acompaña a un número es una unidad
+  (`%` o una abreviatura que termina en minúscula) o una moneda, y si
+  no, el valor no es un número. `12 KG`, `12A`, `1.5TB` y `850K` no
+  cuentan como números escritos como texto, y una columna que mezcla
+  esos valores con números no se convierte:
+  `c("1,5", "2,5", "3", "12 KG")` dejaba 12 donde decía `12 KG`.
+- Tres mayúsculas junto a un número son una moneda sólo si son un código
+  ISO 4217, con la lista de
+  [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md).
+  `LEY 18331` se publicaba con `numero_texto_moneda = "LEY"` y se
+  convertía a 18331.
+- En una columna que el perfil infiere como `identificador` (`101a`,
+  `102a`), `convertir_numero_regional` queda `lista` sin activar:
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  dejaba 101, 102 y la letra del código se perdía sin que nadie lo
+  pidiera.
+- La inferencia del tipo, el resumen y `convertir_tipo` leen los números
+  escritos como texto con la misma función y la misma convención
+  decimal.
+  `c(".5", ".5", ".5", "1.234,56", "1.234,56", "1.234,56", "1.234,56", "7", "12,5")`
+  se infería `doble` con compatibilidad 1 mientras el resumen dejaba
+  cuatro de los nueve valores afuera; `c("1e3", "2,5", "3.5e2", "4")`
+  contaba cuatro números y resumía tres; y `convertir_tipo` convertía
+  `12.500` en 12,5 en una columna de coma decimal cuyo resumen publicaba
+  12500.
+- Un separador decimal que abre el número (`.5`, `,5`) se lee igual que
+  `0.5` y `0,5` y aporta la misma evidencia de convención:
+  `c(",5", ",25", "1.500", "2,75")` leía `1.500` como 1,5 y su gemela
+  con el cero escrito como 1500.
+- La notación científica es un número cualquiera sea el signo del
+  exponente: `c("1.2E-05", "3.4E-07", "5.6E-03", "2.2E-04")` y
+  `c("1e5", "2e5", "3e5", "4e5")` se inferían `identificador`, sin
+  resumen, y `1E+05` se infería `doble`. Un exponente que desborda el
+  doble (`1e400`) no es un número.
+- Con un decimal entre enteros el tipo inferido es `doble`, que es el
+  que cubre todos los valores. `c("10", "12", "9", "15", "9,5")` se
+  infería `entero` con compatibilidad 0,8 y el hallazgo decía «convertir
+  dejaría 1 de 5 valores en NA» sobre una columna que el plan convertía
+  sin ningún `NA`.
+- La evidencia de `tipo_declarado_distinto` dice «la conversión no
+  pierde ningún valor» sólo cuando el plan propone una conversión
+  `lista`. La decía sobre un entero que no entra en `integer`
+  (`3000000000`), sobre una columna con una celda de espacios y sobre
+  una columna con notación científica cuya conversión regional queda
+  bloqueada, al lado de un plan que no convertía.
+- Una celda vacía o de espacios no bloquea `convertir_tipo`: el perfil
+  ya la cuenta como ausencia y la conversión la deja en `NA`, como hace
+  `convertir_numero_regional`.
+- La justificación de una conversión con `%` ya no dice que los valores
+  «quedan como proporción en \[0, 1\]»: `150%` queda en 1,5.
+- Las acciones de texto del plan respetan con una sola regla lo que la
+  reparación de la codificación necesita. Sobre una celda que el perfil
+  señala como rota y reparable, una acción se conserva sólo si conmuta
+  con la reparación —reparar y después aplicarla da el mismo texto que
+  aplicarla y después reparar—; si no, la celda queda como estaba y no
+  cuenta entre las cambiadas. Vale para `convertir_mayusculas`,
+  `convertir_minusculas`, `convertir_titulo`,
+  `convertir_segun_diccionario` y `convertir_ausencias_textuales`, que
+  no pasaban por la protección: con `reparar_codificacion` desmarcada,
+  `MÃœNCHEN` en minúsculas quedaba `mãœnchen`, ya sin arreglo. Y para
+  `decodificar_entidades_html`: decodificar `&#233;` junto a una palabra
+  rota (`&#233; cÅ“ur`) dejaba la celda sin reparación posible; ahora la
+  acción, sola, no toca esa celda, y después de la reparación sí.
+- Una comilla tipográfica, un guion o un emoji rotos con un símbolo
+  pegado delante (un espacio duro, un `°`) ya no pierden su último byte
+  con `eliminar_controles_invisibles`. La protección reconoce un byte de
+  continuación también como el carácter que Windows-1252 pone en su
+  lugar (`€` por `0x80`). Era uno de los dos casos que la 0.1.1
+  declaraba sin cubrir.
+- El plan cuenta, para cada acción de texto, las filas que la acción
+  puede cambiar. Donde quitar un invisible o recortar el borde cambia lo
+  que la reparación reconoce, la celda no se cuenta y la acción no se
+  ofrece por ella, así que ninguna acción marcada por omisión termina
+  `fallida` por celdas protegidas. `espacios_sobrantes` deja de contar
+  el espacio del borde que es lo que permite reconocer una letra rota
+  (`ÃŒ` seguido de un espacio): recortarlo dejaba la celda rota y sin
+  señalar; se informa después de reparar.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  cuenta el texto mal convertido que el motor no puede reparar también
+  cuando el valor se repite: `rep("Œ ", 10)` publicaba
+  `n_codificacion_no_se_pudo = 10`, `n_codificacion_rota = 0` y ningún
+  hallazgo. Repetir las filas de una columna multiplica los conteos y no
+  cambia los estados ni los hallazgos.
+- La evidencia de `codificacion_rota` cita valores distintos —repetía el
+  mismo hasta cinco veces cuando el valor se repetía en la columna— y no
+  dice «carácter de reemplazo» de un valor que no lo trae.
+- Una columna cuyas celdas rotas se reparan sólo en parte ofrece
+  `reparar_codificacion` `lista` y sin marcar, como dice la ayuda; salía
+  `recuperar_codificacion_en_origen`, informativa, y la reparación
+  parcial no se podía aplicar. La justificación de
+  `recuperar_codificacion_en_origen` distingue los bytes perdidos
+  (U+FFFD) del texto que el motor reconoce mal convertido y no puede
+  reparar.
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  con una columna que el motor no deja leer, las columnas a su derecha
+  se juzgaban con el tipo de la omitida. Un `DECIMAL(18,2)` después de
+  un `BLOB` ilegible salía con `tipo_declarado = "texto"` en el perfil
+  de la muestra, y bajo `universo = "muestra_motor"` con
+  `bloque_muestra = "solo_agregados"` el desvío de una columna sana
+  salía `no_disponible`. Los atributos de cada columna viajan ahora
+  juntos y la columna rota no cambia el perfil de las demás.
+- `perfilar_dbi(metricas = "desvio")`, sin `"validos"`, ya no aborta con
+  «missing value where TRUE/FALSE needed» cuando el motor devuelve una
+  magnitud infinita: la métrica queda `no_disponible` con su motivo.
+- En SQLite y en DuckDB el desvío de una columna con dobles cerca del
+  máximo representable (`1e308`) o muy chicos salía `Inf` o `0` con
+  estado `calculado`. Ahora se calcula escalado, como ya se hacía en
+  PostgreSQL, SQL Server, MySQL y MariaDB, y si el motor igual no
+  devuelve un desvío finito no se publica como calculado.
+- Cuando la lectura por bloques falla y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  responde con el resumen SQL por columna, la segunda corrida respeta lo
+  que se pidió: pisaba `max_consultas`, `dialecto`, los topes de la
+  muestra y los avisos, y la cobertura publicaba dos veces
+  `columnas_opcionales`. Si esa segunda corrida también falla, su
+  mensaje queda en la cobertura.
+- `perfilar_dbi(universo = "muestra_motor")`: cuando la materialización
+  queda recortada por `max_bytes_materializacion`, o no se puede leer
+  por una columna que el motor rechaza y se perfilan las demás,
+  `resumen_tabla$columnas$n` es la cantidad de filas perfiladas y no el
+  total de la tabla, que quedaba al lado de los válidos de unas pocas
+  filas (`n = 5` con `n_validos = 2`). En una corrida sin recortes `n`
+  sigue siendo el total de la tabla.
+  [`print()`](https://rdrr.io/r/base/print.html) de ese resultado ya no
+  aborta con «Multiple quantities for pluralization».
+- Tras reintentar una muestra que salió corta,
+  `meta$muestreo$fraccion_solicitada` conserva la fracción pedida;
+  publicaba la del reintento (0,25 o 1 donde se había pedido 0,5).
+- Con `politica_costo = "por_cardinalidad"`, la corrida declara el mismo
+  máximo de consultas (`n_consultas_max`) que
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md);
+  declaraba dos de más.
+- Un error de la fuente de la muestra se publica con su mensaje original
+  y no como `capacidad_no_aceptada`, y una columna ilegible conserva sus
+  filas en `resumen_tabla$sql` aunque no quede ninguna métrica por
+  ejecutar.
+
 ## lupa 0.1.1
 
 CRAN release: 2026-11-12

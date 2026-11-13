@@ -163,21 +163,21 @@ lo que no se pudo medir no se publica como una cobertura cero.</p>
 <span class="r-in"><span><span class="va">fuerte</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">CorrectitudSemFuerte</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  <span class="st">"personas"</span>, <span class="st">"id"</span>, referencial <span class="op">=</span> <span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">fuerte</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                       id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261112T215725.832089-12897-CorrectitudSemFuerte@personas.id-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261112T215725.832089-12897-CorrectitudSemFuerte@personas.id-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                             id_medicion               fecha</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261112T215725.832089-12897 2026-11-12 21:57:25</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261112T215725.832089-12897 2026-11-12 21:57:25</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                metrica   metrica_especifica              metrica_instanciada</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte CorrectitudSemFuerte@personas.id</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte CorrectitudSemFuerte@personas.id</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   dimension                factor orientacion      granularidad tipo_resultado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Exactitud Correctitud semántica conformidad instanciaAtributo       booleano</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Exactitud Correctitud semántica conformidad instanciaAtributo       booleano</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    entidad atributo fila objeto_medible resultado agregacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 personas       id    1 personas[1,id]         1       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 personas       id    2 personas[2,id]         0       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                      id_medida</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261113T102702.148656-8009-CorrectitudSemFuerte@personas.id-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261113T102702.148656-8009-CorrectitudSemFuerte@personas.id-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261113T102702.148656-8009 2026-11-13 10:27:02 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261113T102702.148656-8009 2026-11-13 10:27:02 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica              metrica_instanciada dimension</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                  factor orientacion      granularidad tipo_resultado  entidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Correctitud semántica conformidad instanciaAtributo       booleano personas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Correctitud semántica conformidad instanciaAtributo       booleano personas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   atributo fila objeto_medible resultado agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       id    1 personas[1,id]         1       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       id    2 personas[2,id]         0       &lt;NA&gt;</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

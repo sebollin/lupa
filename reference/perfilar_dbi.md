@@ -913,7 +913,12 @@ que no se publica cero ni se dispara la cascada `sin_valores`. Una
 muestra no vacía sin valores válidos usa
 `muestra_inestable:sin_valores_validos`; una capacidad no aceptada usa
 `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla
-completa.
+completa. Hay dos excepciones, en las que lo perfilado no es la muestra
+pedida: si la materialización queda recortada por
+`max_bytes_materializacion`, o si no se puede leer y lo que queda es el
+perfil aislado de las columnas legibles, `n` es la cantidad de filas
+perfiladas, para que las demás cuentas se lean contra ellas y no contra
+el total de la tabla.
 
 Con `bloque_muestra = "solo_agregados"` cada sentencia sobre la muestra
 del motor sortea la suya. Lo que decide los agregados de una columna -la

@@ -168,9 +168,13 @@ bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo
 sin hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre
 el que no se miró.
 
-Las senales de numeracion densa y de identificacion se miden tambien
-sobre columnas `integer64` con comparaciones exactas. Si un grupo vuelve
-a conjeturar un centinela por la particion, el hallazgo se mueve a esta
+Las señales de numeración densa y de identificación, y el centinela que
+la columna conjetura, se miden una sola vez sobre la columna entera con
+el mismo código que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+en columnas numéricas, en `integer64` con comparaciones exactas, y en
+texto y `factor` que se leen como números. Si un grupo vuelve a
+conjeturar un centinela por la partición, el hallazgo se mueve a esta
 cobertura y no se publica como defecto del grupo. "La columna entera" es
 la que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)

@@ -218,41 +218,48 @@ acción y no entra a ninguno de los dos. Los tres se imprimen con el
 plan.
 
 `convertir_numero_regional` sólo se recomienda si todos los valores
-presentes comparten convención decimal, unidad y moneda. Un valor con
-`%` se divide por 100 y queda como proporción en `[0, 1]`, la escala con
-que el paquete publica toda proporción; una unidad o un símbolo de
+presentes comparten convención decimal, unidad y moneda. En una columna
+que el perfil infiere como `identificador` (`101a`, `102a`) la acción
+queda `lista` sin activar: lo que acompaña al número puede ser parte del
+código. Un valor con `%` se divide por 100, la escala con que el paquete
+publica toda proporción; queda en `[0, 1]` si el porcentaje estaba entre
+0 y 100, y el plan no comprueba ese rango. Una unidad o un símbolo de
 moneda dejan de formar parte del valor y quedan en `parametros`. La
 justificación lo dice cuando ocurre. Una columna que mezcla `5` con
 `5 %` no se convierte: habría que decidir si el número sin `%` está en
-la misma escala. La acción de codificación prueba las tablas congeladas
-de varias codificaciones y deja en `estado_reparacion` uno de
-`reparado`, `reparado_parcialmente` o `no_se_pudo`. Una reparación
-parcial —una celda que el motor repara sólo en parte— no se activa
-automáticamente: la acción queda `lista` con `aplicar = FALSE`, y se
-selecciona de forma explícita marcando `aplicar = TRUE`; entonces se
-aplican también las parciales. Una celda sin reparación local —con el
-carácter de reemplazo U+FFFD, o que el motor no pudo reparar— no frena
-la de las demás: queda como está y la justificación de la acción la
-cuenta. La estrategia se llama `reparar_codificacion` y no limita el
-motor a latin-1. Un texto legítimo que se escribe con los mismos bytes
-que un mojibake —por ejemplo, uno que cita literalmente la `Ã` seguida
-de `©`— no se distingue de uno roto: se acusa, la evidencia del plan lo
-muestra antes de aplicar, y si se aplica la acción se reescribe como la
-letra que esos bytes codifican. Si la columna contiene texto así, no
-active la acción. Unos mismos bytes pueden parecer un control: el
-segundo byte de una «Á» mal leída es un C1, el de una «í» un guion
-blando, y `c2 80` es la huella de un euro de Windows-1252 leído como
-latin-1. Lo que la reparación reemplaza no cuenta como carácter
-invisible y ninguna otra acción del plan lo toca: aunque se desmarque
-`reparar_codificacion`, la secuencia queda entera y el perfil siguiente
-la sigue encontrando. Lo mismo si el motor no puede reparar la celda:
-sus letras rotas quedan como están. Los controles que la reparación deja
-como están, como un U+0081 suelto o un guion blando fuera de una letra
-rota, se diagnostican y se quitan, también en una celda con mojibake. El
-perfil cuenta un invisible sólo donde la acción puede quitarlo. Una
-celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
-son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja
-[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
+la misma escala. Esta conversión no lee la notación científica (`1e5`):
+si la columna la trae junto a números con formato regional, la acción
+queda `bloqueada`. `convertir_tipo` lee cada texto con la convención
+decimal de la columna, como el resumen del perfil: con coma decimal,
+`12.500` se convierte en doce mil quinientos. La acción de codificación
+prueba las tablas congeladas de varias codificaciones y deja en
+`estado_reparacion` uno de `reparado`, `reparado_parcialmente` o
+`no_se_pudo`. Una reparación parcial —una celda que el motor repara sólo
+en parte— no se activa automáticamente: la acción queda `lista` con
+`aplicar = FALSE`, y se selecciona de forma explícita marcando
+`aplicar = TRUE`; entonces se aplican también las parciales. Una celda
+sin reparación local —con el carácter de reemplazo U+FFFD, o que el
+motor no pudo reparar— no frena la de las demás: queda como está y la
+justificación de la acción la cuenta. La estrategia se llama
+`reparar_codificacion` y no limita el motor a latin-1. Un texto legítimo
+que se escribe con los mismos bytes que un mojibake —por ejemplo, uno
+que cita literalmente la `Ã` seguida de `©`— no se distingue de uno
+roto: se acusa, la evidencia del plan lo muestra antes de aplicar, y si
+se aplica la acción se reescribe como la letra que esos bytes codifican.
+Si la columna contiene texto así, no active la acción. Unos mismos bytes
+pueden parecer un control: el segundo byte de una «Á» mal leída es un
+C1, el de una «í» un guion blando, y `c2 80` es la huella de un euro de
+Windows-1252 leído como latin-1. Lo que la reparación reemplaza no
+cuenta como carácter invisible y ninguna otra acción del plan lo toca:
+aunque se desmarque `reparar_codificacion`, la secuencia queda entera y
+el perfil siguiente la sigue encontrando. Lo mismo si el motor no puede
+reparar la celda: sus letras rotas quedan como están. Los controles que
+la reparación deja como están, como un U+0081 suelto o un guion blando
+fuera de una letra rota, se diagnostican y se quitan, también en una
+celda con mojibake. El perfil cuenta un invisible sólo donde la acción
+puede quitarlo. Una celda cuyo texto no se puede leer —declarada `bytes`
+con bytes que no son UTF-8, o sin marca en una sesión UTF-8, que es lo
+que deja [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no
 la midió y la informa como `codificacion_invalida`, cuyo remedio es
 volver a leer la fuente declarando su codificación. Las acciones de
@@ -260,6 +267,20 @@ texto trabajan sobre las demás celdas de la columna y cuentan sólo lo
 que cambiaron. Una celda sin marca cuyos bytes son UTF-8 válido se trata
 como UTF-8 en cualquier locale, igual que en el perfil: con `LC_CTYPE=C`
 las acciones hacen lo mismo que en una sesión UTF-8.
+
+La protección de las acciones de texto se decide por una propiedad
+común, no por una lista de estrategias: en cada celda que el perfil
+señala como rota y reparable se comparan los dos órdenes de reparación y
+acción. Si no conmutan, la celda conserva su valor original y no cuenta
+entre las cambiadas. La comprobación se ejecuta sólo sobre las celdas
+que la acción iba a cambiar. El perfil cuenta con la misma regla:
+`n_afectadas` es lo que la acción sola puede cambiar, y el plan no la
+ofrece por las celdas que la protección le reserva (el espacio del borde
+que deja reconocer una letra rota no cuenta como `espacios_sobrantes`).
+La excepción es `entidades_html`: la entidad se informa aunque esté
+junto a una letra rota; `decodificar_entidades_html`, que no viene
+marcada, la decodifica después de la reparación y, sola, deja esa celda
+como está.
 
 Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y
 la convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la

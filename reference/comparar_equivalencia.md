@@ -66,7 +66,10 @@ El registro fijo asigna tolerancia sólo a `media`, `mediana`, `desvio` y
 `longitud_media`. Los conteos, proporciones de conteos y extremos por
 selección se comparan en el eje `exacto`; las fechas canónicas en
 `fecha` y `moda` y `centinela_valor` en `valor`. Los ejes `exacto`,
-`fecha` y `valor` son binarios por construcción.
+`fecha` y `valor` son binarios por construcción. En una columna
+numérica, `moda` y `centinela_valor` se comparan por el número y no por
+cómo lo escribió cada sesión: la marca decimal de `options(OutDec)` y la
+notación de `scipen` no cuentan como una diferencia.
 
 El comparador devuelve datos, no decisiones: no alimenta hallazgos,
 severidades ni puntajes. La tolerancia es del llamador y jamás entra en

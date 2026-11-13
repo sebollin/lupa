@@ -279,12 +279,19 @@ cubra el hallazgo: eso es una decisión del dominio. Un hallazgo <code>ok</code>
 espera acción y no entra a ninguno de los dos. Los tres se imprimen con el
 plan.</p>
 <p><code>convertir_numero_regional</code> sólo se recomienda si todos los valores
-presentes comparten convención decimal, unidad y moneda. Un valor con <code>%</code>
-se divide por 100 y queda como proporción en <code>[0, 1]</code>, la escala con que el
-paquete publica toda proporción; una unidad o un símbolo de moneda dejan de
+presentes comparten convención decimal, unidad y moneda. En una columna que
+el perfil infiere como <code>identificador</code> (<code>101a</code>, <code>102a</code>) la acción queda
+<code>lista</code> sin activar: lo que acompaña al número puede ser parte del código.
+Un valor con <code>%</code> se divide por 100, la escala con que el paquete publica
+toda proporción; queda en <code>[0, 1]</code> si el porcentaje estaba entre 0 y 100, y
+el plan no comprueba ese rango. Una unidad o un símbolo de moneda dejan de
 formar parte del valor y quedan en <code>parametros</code>. La justificación lo dice
 cuando ocurre. Una columna que mezcla <code>5</code> con <code>5 %</code> no se convierte: habría
-que decidir si el número sin <code>%</code> está en la misma escala.
+que decidir si el número sin <code>%</code> está en la misma escala. Esta conversión no
+lee la notación científica (<code>1e5</code>): si la columna la trae junto a números
+con formato regional, la acción queda <code>bloqueada</code>. <code>convertir_tipo</code> lee cada
+texto con la convención decimal de la columna, como el resumen del perfil:
+con coma decimal, <code>12.500</code> se convierte en doce mil quinientos.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en <code>estado_reparacion</code> uno de <code>reparado</code>,
 <code>reparado_parcialmente</code> o <code>no_se_pudo</code>. Una reparación parcial —una celda que
@@ -319,6 +326,18 @@ demás celdas de la columna y cuentan sólo lo que cambiaron. Una celda sin
 marca cuyos bytes son UTF-8 válido se trata como UTF-8 en cualquier locale,
 igual que en el perfil: con <code>LC_CTYPE=C</code> las acciones hacen lo mismo que en
 una sesión UTF-8.</p>
+<p>La protección de las acciones de texto se decide por una propiedad común,
+no por una lista de estrategias: en cada celda que el perfil señala como
+rota y reparable se comparan los dos órdenes de reparación y acción. Si no
+conmutan, la celda conserva su valor original y no cuenta entre las
+cambiadas. La comprobación se ejecuta sólo sobre las celdas que la acción
+iba a cambiar. El perfil cuenta con la misma regla: <code>n_afectadas</code> es lo que
+la acción sola puede cambiar, y el plan no la ofrece por las celdas que la
+protección le reserva (el espacio del borde que deja reconocer una letra
+rota no cuenta como <code>espacios_sobrantes</code>). La excepción es <code>entidades_html</code>:
+la entidad se informa aunque esté junto a una letra rota;
+<code>decodificar_entidades_html</code>, que no viene marcada, la decodifica después de
+la reparación y, sola, deja esa celda como está.</p>
 <p>Una celda <code>latin1</code> <strong>sí</strong> se transforma —ahí R conoce la codificación y la
 convierte sin pérdida—, y el resultado queda marcado <code>UTF-8</code>. Como la acción
 toca sólo las celdas que cambia, una columna <code>latin1</code> puede quedar con marcas
