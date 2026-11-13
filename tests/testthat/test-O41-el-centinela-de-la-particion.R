@@ -27,8 +27,12 @@ test_that("el centinela que sale de la particion se declara, no se publica", {
   skip_if_not_installed("bit64")
   datos <- .datos_con_centinelas_por_grupo()
 
+  # Sin centinelas declarados: `-9999` y `-999` estan en la lista por omision,
+  # y un valor declarado no se conjetura -tampoco en `integer64`-. Lo que se
+  # prueba aca es la conjetura.
   por_grupo <- perfilar_por(datos, "g", analizar_dependencias = FALSE,
-                            proteger_datos_personales = FALSE)
+                            proteger_datos_personales = FALSE,
+                            sentinelas_numericos = numeric())
   tabla <- as.data.frame(por_grupo)
   centinelas <- tabla[tabla$tipo_hallazgo == "posible_centinela_numerico", ,
                       drop = FALSE]
@@ -50,7 +54,8 @@ test_that("el centinela que la columna entera si conjetura sigue publicandose", 
   datos <- .datos_con_centinelas_por_grupo()
 
   por_grupo <- perfilar_por(datos, "g", analizar_dependencias = FALSE,
-                            proteger_datos_personales = FALSE)
+                            proteger_datos_personales = FALSE,
+                            sentinelas_numericos = numeric())
   tabla <- as.data.frame(por_grupo)
   centinelas <- tabla[tabla$tipo_hallazgo == "posible_centinela_numerico", ,
                       drop = FALSE]

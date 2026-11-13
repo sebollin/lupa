@@ -129,6 +129,32 @@
       max(huecos) > 1)
 }
 
+# La exclusion de Benford tiene tres razones y se comparte con la via por
+# grupos. La forma de la numeracion no alcanza: una columna puede ser
+# identificadora por su tipo o por el hallazgo que ya produjo el perfil.
+.motivos_identificador_benford <- function(x, tipo_inferido,
+                                           posible_identificador = FALSE,
+                                           clave_declarada = FALSE) {
+  finitos <- if (is.numeric(x)) {
+    as.numeric(x[is.finite(x)])
+  } else {
+    numeric()
+  }
+  repite <- !.numeracion_sin_repetir(finitos)
+  c(
+    if (identical(as.character(tipo_inferido), "identificador")) {
+      "el tipo inferido es identificador"
+    },
+    if (isTRUE(posible_identificador) &&
+        (isTRUE(clave_declarada) || !repite)) {
+      "el perfil p\u00fablico `posible_identificador`"
+    },
+    if (.parece_correlativo_benford(x)) {
+      "los valores forman una secuencia correlativa"
+    }
+  )
+}
+
 .resultado_benford_columna <- function(x, nombre, tipo_inferido,
                                        posible_identificador,
                                        umbrales = .umbrales_benford(),
@@ -165,18 +191,8 @@
   # columna que cumple Benford (ver `.numeracion_sin_repetir()`). Contarlo aca
   # devolvia el silencio que depende de `n` por la otra puerta. Una clave
   # declarada no pasa por esto: es un hecho, se repita o no.
-  repite <- !.numeracion_sin_repetir(finitos)
-  motivos_identificador <- c(
-    if (identical(as.character(tipo_inferido), "identificador")) {
-      "el tipo inferido es identificador"
-    },
-    if (isTRUE(posible_identificador) &&
-        (isTRUE(clave_declarada) || !repite)) {
-        "el perfil p\u00fablico `posible_identificador`"
-    },
-    if (.parece_correlativo_benford(x)) {
-      "los valores forman una secuencia correlativa"
-    }
+  motivos_identificador <- .motivos_identificador_benford(
+    x, tipo_inferido, posible_identificador, clave_declarada
   )
   es_identificador <- length(motivos_identificador) > 0L
 

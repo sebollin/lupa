@@ -356,6 +356,20 @@
     isTRUE(is.finite(distintos) && distintos >= .MIN_DISTINTOS_NUMERACION)
 }
 
+.decision_identificador_numerico <- function(fila) {
+  parece <- .parece_identificador_numerico(fila)
+  n_validos <- suppressWarnings(as.numeric(
+    fila$n_aplicables - fila$n_faltantes
+  ))
+  posible <- isTRUE(n_validos > 1) &&
+    (identical(as.character(fila$tipo_inferido), "identificador") ||
+       isTRUE(fila$secuencia_entera_densa) || parece) &&
+    (isTRUE(is.finite(fila$tasa_distintos) &&
+              fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR) ||
+       parece)
+  list(parece = parece, posible = posible)
+}
+
 .cobertura_diagnosticos_vacia <- function() {
   data.frame(
     diagnostico = character(), columna = character(), motivo = character(),
@@ -4668,13 +4682,8 @@
     # no era defendible era el motivo publicado, que nombraba una disyuncion de
     # tres condiciones sin decir cual, con dos de ellas falsas en esa salida. Eso
     # se arreglo en `benford.R`: ahora el motivo nombra el hecho.
-    if (isTRUE(n_validos > 1L) &&
-        (fila$tipo_inferido == "identificador" ||
-         isTRUE(fila$secuencia_entera_densa) ||
-         .parece_identificador_numerico(fila)) &&
-        (isTRUE(is.finite(fila$tasa_distintos) &&
-                  fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR) ||
-         .parece_identificador_numerico(fila))) {
+    decision_identificador <- .decision_identificador_numerico(fila)
+    if (isTRUE(decision_identificador$posible)) {
       # Una numeracion puede ser casi unica -un identificador de fila- o
       # repetirse mucho -un codigo de catalogo-, y son dos cosas distintas que
       # merecen dos textos distintos. Exigir unicidad alta para las dos dejaba

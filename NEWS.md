@@ -31,6 +31,29 @@
   (`max_geometrias`) cuenta sobre los valores que se intentaron convertir: decía
   «1 de 2 valores presentes» cuando había tres presentes y se habían intentado
   dos.
+- `perfilar_por()` toma una sola vez, con el código de `perfilar()`, las tres
+  decisiones que dependen de la columna entera —el centinela numérico que la
+  columna conjetura, la numeración densa que impide tomar por ausencia un
+  código como `999`, y el identificador que excluye a una columna de la ley de
+  Benford—, y las aplica también a las columnas de texto y `factor` que se leen
+  como números. Antes, un grupo de una numeración escrita como texto publicaba
+  `faltantes_disfrazados` por un `999` que la tabla entera no acusa, o un
+  `posible_centinela_numerico` distinto del de la columna, sin fila en la
+  cobertura; y un grupo publicaba `desviacion_benford` sobre una columna que
+  `perfilar()` excluye por identificador. Lo que un grupo deja de publicar por
+  estas decisiones queda declarado en `cobertura_diagnosticos`
+  (`centinelas_numericos`, `ley_benford`). Todo lo demás —los valores
+  extremos, `posible_identificador`, las ausencias escritas con texto— lo
+  sigue decidiendo cada grupo con sus filas.
+- `perfilar_por()` sobre `integer64`: una numeración cuya moda sobresale
+  (cincuenta `999` en `1:2000`) publica esos `999` en cada grupo, como
+  `perfilar()` y como la misma columna en `double`; antes los grupos los
+  declaraban en la cobertura.
+- `perfilar()` sobre `integer64`: un centinela de la lista declarada (por
+  omisión `-9999`, `-999`, `999`) se publica como `faltantes_disfrazados`,
+  igual que en `double`, y ya no además como `posible_centinela_numerico`;
+  `centinela_valor`, `centinela_repeticiones` y `densidad_sin_centinela` quedan
+  `NA`, como en `double`.
 
 # lupa 0.1.1
 

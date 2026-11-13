@@ -575,7 +575,8 @@
 
 .resumen_secuencia_entera <- function(x, inferencia, formatos,
                                       umbral_densidad = 0.8,
-                                      min_distintos = 20L) {
+                                      min_distintos = 20L,
+                                      cuantitativos = NULL) {
   vacio <- list(
     densa = FALSE, densidad = NA_real_, n_posiciones = NA_real_,
     n_huecos = NA_real_, hueco_maximo = NA_real_, salto_de_escala = FALSE,
@@ -614,7 +615,9 @@
   if (!as.character(inferencia$tipo) %in% c("entero", "doble", "integer64")) {
     return(vacio)
   }
-  cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
+  if (is.null(cuantitativos)) {
+    cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
+  }
   if (!identical(cuantitativos$clase, "numero") &&
       !identical(cuantitativos$clase, "integer64")) {
     return(vacio)
@@ -763,15 +766,18 @@
   )
 }
 
-.valores_numericos_secuencia <- function(x, inferencia, formatos) {
+.valores_numericos_secuencia <- function(x, inferencia, formatos,
+                                         cuantitativos = NULL) {
   if (!as.character(inferencia$tipo) %in%
       c("entero", "doble", "integer64")) {
     return(numeric())
   }
-  cuantitativos <- tryCatch(
-    .valores_cuantitativos(x, inferencia, formatos),
-    error = function(e) NULL
-  )
+  if (is.null(cuantitativos)) {
+    cuantitativos <- tryCatch(
+      .valores_cuantitativos(x, inferencia, formatos),
+      error = function(e) NULL
+    )
+  }
   if (is.null(cuantitativos) ||
       !(cuantitativos$clase %in% c("numero", "integer64"))) {
     return(numeric())
@@ -836,6 +842,202 @@
     }, logical(1L))
   }
   candidatos[fuera | sobresale]
+}
+
+# Una sola decision para las dos puertas que miran una numeracion: el resumen
+# de la columna y la cobertura de `perfilar_por()`. El grupo no debe volver a
+# inventar si la guarda de la columna entera estaba cerrada.
+.decision_guarda_numeracion <- function(valores, secuencia_entera,
+                                        sentinelas_numericos,
+                                        sentinelas_declarados =
+                                          .sentinelas_numericos_declarados(
+                                            sentinelas_numericos
+                                          )) {
+  candidatos <- .candidatos_sentinelas_presentes(
+    valores, sentinelas_numericos
+  )
+  rango <- .rango_numeracion_sin_candidatos(valores, candidatos)
+  efectivos <- if (isTRUE(secuencia_entera$densa) &&
+                   !length(sentinelas_declarados)) {
+    .sentinelas_que_abren_guarda(
+      valores, candidatos, rango, secuencia_entera
+    )
+  } else if (!length(sentinelas_declarados)) {
+    .sentinelas_sin_apariciones_unicas(
+      valores, candidatos, rango, sentinelas_numericos
+    )
+  } else {
+    sentinelas_numericos
+  }
+  list(
+    candidatos = candidatos,
+    rango = rango,
+    sentinelas_efectivos = efectivos,
+    detectar_sentinelas = length(sentinelas_declarados) > 0L ||
+      !isTRUE(secuencia_entera$densa) || length(efectivos) > 0L,
+    guarda_cerrada = isTRUE(secuencia_entera$densa) &&
+      !length(.sentinelas_que_abren_guarda(
+        valores, candidatos, rango, secuencia_entera
+      ))
+  )
+}
+
+# Las tres decisiones que `perfilar()` toma mirando la columna entera y que
+# `perfilar_por()` comparte con los grupos: la secuencia y su guarda de
+# numeracion, el centinela conjeturado y el identificador para Benford. Se
+# arman con las mismas piezas que `.perfilar_columna()`, no con una copia. Los
+# valores que se leen como numero pueden venir guardados como texto o factor;
+# la conversion pasa por la misma inferencia y la misma convencion decimal que
+# el perfil. No devuelve nada mas: lo que no es de esas tres decisiones lo
+# decide cada grupo con su rebanada.
+.contexto_decisiones_columna <- function(
+    x, sentinelas_numericos, aplicable = NULL, muestra = 1e5,
+    clave_declarada = FALSE) {
+  vacio <- list(
+    fila = NULL, secuencia = NULL, cuantitativo = NULL, guarda = NULL,
+    es_identificador = FALSE
+  )
+  if (.es_columna_compuesta(x)) return(vacio)
+  aplicable <- if (is.null(aplicable)) {
+    rep(TRUE, NROW(x))
+  } else {
+    as.logical(aplicable)
+  }
+  if (length(aplicable) != NROW(x)) return(vacio)
+
+  preparacion <- .texto_analizable(x)
+  x_analisis <- preparacion$valores
+  x_identidad <- preparacion$valores_identidad
+  if (is.null(x_identidad)) x_identidad <- x_analisis
+  if (!all(aplicable)) {
+    x_analisis[!aplicable] <- NA
+    if (inherits(x_identidad, "sfc")) {
+      x_identidad <- x_identidad[aplicable]
+    } else {
+      x_identidad[!aplicable] <- NA
+    }
+  }
+
+  inferencia <- .inferir_tipo_interno(
+    if (is.character(x_analisis) || is.factor(x_analisis)) {
+      x_analisis
+    } else {
+      x_identidad
+    }, muestra = muestra, conservar_cache = TRUE
+  )
+  formatos <- inferencia$formatos_fecha
+  if (is.null(formatos)) formatos <- detectar_formatos_fecha(
+    x_analisis, muestra = muestra
+  )
+  claves_identidad <- if (is.character(x_identidad) ||
+                          is.factor(x_identidad)) {
+    .clave_bytes(x_identidad)
+  } else NULL
+  n_distintos <- .n_distintos_columna(
+    x_identidad, claves = claves_identidad, rapido = TRUE
+  )
+  vocabulario <- if (
+    (is.character(x_analisis) || is.factor(x_analisis)) &&
+      NROW(x_analisis) > 1L && is.finite(n_distintos) &&
+      n_distintos / NROW(x_analisis) <= .umbral_vocabulario_codificacion
+  ) {
+    unique(x_analisis[!is.na(x_analisis)])
+  } else NULL
+  numeros_texto <- .analizar_numeros_texto(
+    x_analisis, vocabulario = vocabulario, n_distintos = n_distintos,
+    directo = is.null(vocabulario) &&
+      (is.character(x_analisis) || is.factor(x_analisis))
+  )
+  inferencia$convencion_numero_texto <- numeros_texto$convencion
+  sentinelas_declarados <- .sentinelas_numericos_declarados(
+    sentinelas_numericos
+  )
+  cuantitativos_secuencia <- tryCatch(
+    .valores_cuantitativos(x_analisis, inferencia, formatos),
+    error = function(e) NULL
+  )
+  secuencia <- tryCatch(
+    .resumen_secuencia_entera(
+      x_analisis, inferencia, formatos,
+      cuantitativos = cuantitativos_secuencia
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(secuencia)) return(vacio)
+  valores_numericos <- tryCatch(
+    .valores_numericos_secuencia(
+      x_analisis, inferencia, formatos,
+      cuantitativos = cuantitativos_secuencia
+    ),
+    error = function(e) NULL
+  )
+  cuantitativo <- if (length(sentinelas_declarados)) tryCatch(
+    .valores_cuantitativos(
+      x_analisis, inferencia, formatos,
+      sentinelas_numericos = sentinelas_declarados
+    ),
+    error = function(e) NULL
+  ) else cuantitativos_secuencia
+  cuantitativo <- tryCatch(
+    .resumen_cuantitativo(
+      x_analisis, inferencia, formatos,
+      sentinelas_numericos = sentinelas_numericos,
+      valores_preparados = x_analisis,
+      cuantitativos = cuantitativo
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(cuantitativo)) return(vacio)
+  moda <- .moda_columna(x_identidad, claves = claves_identidad)
+  n_aplicables <- sum(aplicable)
+  n_faltantes <- sum(is.na(x_identidad) & aplicable)
+  n_validos <- n_aplicables - n_faltantes
+  tasa_distintos <- if (n_validos) n_distintos / n_validos else NA_real_
+  fila <- list(
+    tipo_declarado = .tipo_declarado(x),
+    tipo_inferido = inferencia$tipo,
+    n_distintos = n_distintos,
+    n_aplicables = n_aplicables,
+    n_faltantes = n_faltantes,
+    frecuencia_moda = moda$frecuencia,
+    densidad_sin_centinela = cuantitativo$densidad_sin_centinela,
+    salto_de_escala_secuencia_entera = secuencia$salto_de_escala,
+    moda_sobresale_secuencia_entera = secuencia$moda_sobresale,
+    densidad_secuencia_entera = secuencia$densidad,
+    secuencia_entera_densa = secuencia$densa,
+    tasa_distintos = tasa_distintos
+  )
+  # `posible_identificador` no se comparte con los grupos, pero es una de las
+  # tres razones por las que Benford excluye una columna: se calcula para eso.
+  posible <- isTRUE(tryCatch(
+    .decision_identificador_numerico(fila)$posible,
+    error = function(e) FALSE
+  ))
+  guarda <- if (is.null(valores_numericos)) NULL else tryCatch(
+    .decision_guarda_numeracion(
+      valores_numericos, secuencia, sentinelas_numericos,
+      sentinelas_declarados
+    ),
+    error = function(e) NULL
+  )
+  # Benford decide sobre el universo del resumen, que es el que `perfilar()` le
+  # pasa: lo que el usuario declaro centinela no es un valor de la columna.
+  # Decidir sobre los valores crudos daba otra respuesta que la tabla entera.
+  # Medido con `c(1:2000, rep(8888, 20))` y `sentinelas_numericos = 8888`:
+  # `perfilar()` excluye la columna por correlativa -sin los 8888 es `1:2000`-,
+  # y aca los veinte 8888 rompian la numeracion, la columna no salia
+  # identificadora y un grupo publicaba `desviacion_benford`. Solo un numero
+  # sin clase es candidato a Benford; a las demas clases no les cambia nada.
+  universo_benford <- if (.es_numerico_pelado(x)) {
+    .universo_del_resumen(list(x), sentinelas_numericos, list(aplicable))[[1L]]
+  } else valores_numericos
+  motivos <- .motivos_identificador_benford(
+    universo_benford, inferencia$tipo, posible, clave_declarada
+  )
+  list(
+    fila = fila, secuencia = secuencia, cuantitativo = cuantitativo,
+    guarda = guarda, es_identificador = length(motivos) > 0L
+  )
 }
 
 # Un `999` que aparece UNA vez, en su lugar, dentro de un catalogo `1:1000 +
@@ -1231,6 +1433,7 @@
 
 .resumen_integer64 <- function(x, sentinelas_numericos = NULL) {
   vacio <- .resumen_vacio_cuantitativo("sin_valores")
+  sentinelas_completos <- sentinelas_numericos
   sentinelas_numericos <- .sentinelas_numericos_declarados(
     sentinelas_numericos
   )
@@ -1288,7 +1491,7 @@
     as.numeric(valores),
     list(tipo = "doble"),
     data.frame(stringsAsFactors = FALSE),
-    sentinelas_numericos = numeric()
+    sentinelas_numericos = sentinelas_completos
   )
   resultado$minimo_exacto <- minimo_exacto
   resultado$maximo_exacto <- maximo_exacto
@@ -1319,15 +1522,18 @@
                                   meses_texto = NULL,
                                   sentinelas_numericos = NULL,
                                   vocabulario = NULL,
-                                  valores_preparados = NULL) {
+                                  valores_preparados = NULL,
+                                  cuantitativos = NULL) {
   sentinelas_declarados <- .sentinelas_numericos_declarados(
     sentinelas_numericos
   )
-  cuantitativos <- .valores_cuantitativos(
-    x, inferencia, formatos, meses_texto = meses_texto,
-    vocabulario = vocabulario, valores_preparados = valores_preparados,
-    sentinelas_numericos = sentinelas_declarados
-  )
+  if (is.null(cuantitativos)) {
+    cuantitativos <- .valores_cuantitativos(
+      x, inferencia, formatos, meses_texto = meses_texto,
+      vocabulario = vocabulario, valores_preparados = valores_preparados,
+      sentinelas_numericos = sentinelas_declarados
+    )
+  }
   if (identical(cuantitativos$clase, "fecha_granularidad_incompleta")) {
     salida <- .resumen_vacio_cuantitativo("granularidad_incompleta")
     salida$n_fechas_resumidas <- cuantitativos$n_fechas_resumidas
@@ -1340,7 +1546,7 @@
   if (identical(cuantitativos$clase, "integer64")) {
     return(.resumen_integer64(
       cuantitativos$valores,
-      sentinelas_numericos = sentinelas_declarados
+      sentinelas_numericos = sentinelas_numericos
     ))
   }
   # La misma respuesta que `integer64` para el mismo dato escrito como texto:
@@ -2823,7 +3029,7 @@
   )
 }
 
-.n_distintos_columna <- function(x, claves = NULL) {
+.n_distintos_columna <- function(x, claves = NULL, rapido = FALSE) {
   validos <- tryCatch(!is.na(x), error = function(e) NULL)
   if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
   if (!any(validos)) return(0L)
@@ -2831,6 +3037,9 @@
     if (is.null(claves)) claves <- .clave_bytes(x)
     if (any(validos & is.na(claves))) return(NA_integer_)
     return(as.integer(length(unique(claves[validos]))))
+  }
+  if (isTRUE(rapido) && (is.numeric(x) || inherits(x, "integer64"))) {
+    return(as.integer(length(unique(x[validos]))))
   }
   # El acumulador de distintos conserva valores atomicos. Las columnas de
   # listas (incluidas `sfc` y `POSIXlt`) siguen necesitando la igualdad de la
@@ -2885,17 +3094,9 @@
   valores_numericos <- .valores_numericos_secuencia(
     x_analisis, inferencia, formatos
   )
-  candidatos_sentinelas <- .candidatos_sentinelas_presentes(
-    valores_numericos, sentinelas_numericos
-  )
-  rango_numeracion <- .rango_numeracion_sin_candidatos(
-    valores_numericos, candidatos_sentinelas
-  )
-  centinela_fuera_rango <- .sentinela_numerico_fuera_rango(
-    candidatos_sentinelas, rango_numeracion
-  )
-  centinela_moda_sobresaliente <- .sentinela_numerico_es_moda_sobresaliente(
-    valores_numericos, candidatos_sentinelas, secuencia_entera
+  guarda <- .decision_guarda_numeracion(
+    valores_numericos, secuencia_entera, sentinelas_numericos,
+    sentinelas_declarados
   )
   # Sobre una numeracion limpia la guarda no corre entera: corre SOLO para los
   # candidatos que muestran una senal propia. Sobre cualquier otra columna corre
@@ -2906,23 +3107,8 @@
   # numeracion de 501 a 1000 no marcaba nada -999 esta dentro del rango y no
   # sobresale-, o sea que el paquete ignoraba lo que el usuario acababa de
   # decirle. Lo atrapo `test-grupos-guiado.R`.
-  sentinelas_efectivos <- if (isTRUE(secuencia_entera$densa) &&
-                              !length(sentinelas_declarados)) {
-    .sentinelas_que_abren_guarda(
-      valores_numericos, candidatos_sentinelas, rango_numeracion,
-      secuencia_entera
-    )
-  } else if (!length(sentinelas_declarados)) {
-    .sentinelas_sin_apariciones_unicas(
-      valores_numericos, candidatos_sentinelas, rango_numeracion,
-      sentinelas_numericos
-    )
-  } else {
-    sentinelas_numericos
-  }
-  detectar_sentinelas <- length(sentinelas_declarados) > 0L ||
-    !isTRUE(secuencia_entera$densa) ||
-    length(sentinelas_efectivos) > 0L
+  sentinelas_efectivos <- guarda$sentinelas_efectivos
+  detectar_sentinelas <- guarda$detectar_sentinelas
   # La convencion decimal que la fila publica: un centinela escrito con ella
   # -`"-999,00"` en una columna `decimal_coma`- se lee como lo lee el resumen.
   convencion <- inferencia[["convencion_numero_texto"]]
