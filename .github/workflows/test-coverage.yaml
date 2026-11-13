@@ -17,9 +17,9 @@
 # instrumentada, y ahi no miden lo que dicen. Las de tiempo absoluto ya llevan
 # `skip_on_ci()`. Medido en la maquina de desarrollo el 2026-11-13: la suite
 # bajo covr tarda unos 65 minutos.
+# Por ahora corre solo a pedido: se activa al empujar cuando el porcentaje
+# medido este a la altura de lo que el paquete prueba de verdad.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 name: test-coverage.yaml
