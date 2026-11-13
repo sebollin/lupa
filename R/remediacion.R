@@ -59,6 +59,41 @@
   if (is.null(fila)) NA_real_ else fila$n[[1L]]
 }
 
+# Los valores presentes de la COLUMNA ENTERA, contados con las cifras del
+# perfil. Una conversion de tipo cambia la columna entera -una columna tiene un
+# solo tipo-, asi que su alcance son todos los presentes: los del universo
+# aplicable, que el perfil cuenta como `n_aplicables - n_faltantes`, y los que
+# publica aparte, fuera del universo y donde el predicado no se pudo decidir.
+# Es la misma suma con que la corroboracion por DBI separa lo de fuera.
+#
+# Se contaba `n - n_faltantes`, y con un universo declarado eso no cuenta
+# presentes: `n_faltantes` solo cuenta las ausencias DENTRO del universo, asi
+# que las celdas vacias de fuera -vacias por diseno- quedaban como presentes.
+# Con `aplicabilidad = list(x = ~ g == "si")`, 30 vacias fuera y 60 presentes
+# dentro, `convertir_numero_regional` prometia 90 y `aplicar()` cambiaba 60. Con
+# un solo presente fuera prometia 61, lo cierto, porque ese caso se recontaba
+# en otro lugar con la regla del perfil: dos caminos que contaban distinto.
+# Una columna de `columnas_opcionales` tenia lo mismo, porque su universo son
+# las celdas con valor.
+#
+# Un perfil sin estas cifras -de una version anterior- conserva la cuenta de
+# antes, la unica que se puede hacer con lo que trae.
+.n_presentes_columna <- function(fila) {
+  partes <- c(
+    "n_aplicables", "n_faltantes", "n_presentes_fuera_de_aplicabilidad",
+    "n_presentes_en_aplicabilidad_indeterminada"
+  )
+  valores <- if (all(partes %in% names(fila))) {
+    vapply(partes, function(parte) as.numeric(fila[[parte]][[1L]]), numeric(1L))
+  }
+  if (is.null(valores) || anyNA(valores)) {
+    return(fila$n[[1L]] - fila$n_faltantes[[1L]])
+  }
+  valores[["n_aplicables"]] - valores[["n_faltantes"]] +
+    valores[["n_presentes_fuera_de_aplicabilidad"]] +
+    valores[["n_presentes_en_aplicabilidad_indeterminada"]]
+}
+
 .nombres_snake <- function(nombres) {
   originales <- as.character(nombres)
   originales[is.na(originales)] <- ""
@@ -1253,14 +1288,15 @@
       parametros$aplicabilidad <- reglas[[columna]]
       resultado$parametros[[i]] <- parametros
     } else if (estrategia %in% .estrategias_cambio_de_tipo) {
-      # No se puede aplicar a medias: se declara el alcance real.
+      # No se puede aplicar a medias, y el alcance real -todos los presentes de
+      # la columna- ya lo cuenta la accion al nacer (`.n_presentes_columna()`).
+      # Aca solo se explica. Recontar aca era un segundo camino, y contaba
+      # distinto que el primero: este solo corria con presentes fuera.
       fila <- .fila_perfil(perfil, columna)
-      if (!is.null(fila) && all(c("n_aplicables", "n_faltantes",
-                                  "n_presentes_fuera_de_aplicabilidad") %in% names(fila))) {
+      if (!is.null(fila) &&
+          "n_presentes_fuera_de_aplicabilidad" %in% names(fila)) {
         fuera <- fila$n_presentes_fuera_de_aplicabilidad[[1L]]
         if (isTRUE(fuera > 0L)) {
-          resultado$n_afectadas[[i]] <- fila$n_aplicables[[1L]] -
-            fila$n_faltantes[[1L]] + fuera
           resultado$justificacion[[i]] <- paste0(
             resultado$justificacion[[i]], " La conversi\u00f3n cambia la ",
             "columna entera, incluidas ", fuera,
@@ -1405,6 +1441,17 @@
 #' declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
 #' hereda del hallazgo—. El registro informa `n_cambiadas` sobre los datos
 #' recibidos.
+#'
+#' Con un universo declarado, `n_afectadas` también cuenta lo que la acción va
+#' a cambiar. Las acciones por celda no tocan las filas que `aplicabilidad`
+#' deja fuera, y tampoco las cuentan. Una conversión de tipo
+#' cambia la columna entera —una columna tiene un solo tipo—, así que cuenta
+#' todos sus valores presentes: los del universo, los de fuera y los de las
+#' filas donde la regla no se pudo decidir. Las celdas vacías no se cuentan:
+#' fuera del universo están vacías por diseño, y en una columna de
+#' `columnas_opcionales` el universo son justamente las celdas con valor.
+#' Aplicada sola sobre los datos del perfil, la conversión registra en
+#' `n_cambiadas` lo que anunció.
 #'
 #' **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son ciertas.**
 #' La estimación se calcula sobre los datos que se perfilaron; el registro
@@ -2344,7 +2391,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # heredaba `n_numeros_texto`, que solo cuenta los que tienen
         # separadores, y el plan prometia 11 donde la conversion cambiaba los
         # 20 -una columna cambia de tipo entera, tambien el "7"-.
-        fila$n[[1L]] - fila$n_faltantes[[1L]], comprobacion_numero$reversible,
+        .n_presentes_columna(fila), comprobacion_numero$reversible,
         estado = estado_numero,
         aplicar = conversion_numero_segura &&
           identical(estado_columna, "lista"),
@@ -2417,7 +2464,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "convertir_fecha_confirmada", conversion_fecha_segura,
         if (conversion_fecha_segura) justificacion else motivo_fecha,
-        fila$n[[1L]] - fila$n_faltantes[[1L]],
+        .n_presentes_columna(fila),
         comprobacion_fecha$reversible,
         estado = estado_fecha,
         aplicar = conversion_fecha_segura && identical(estado, "lista"),
@@ -2479,7 +2526,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       }
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "convertir_tipo", recomendar, justificacion,
-        fila$n[[1L]] - fila$n_faltantes[[1L]], comprobacion_tipo$reversible,
+        .n_presentes_columna(fila), comprobacion_tipo$reversible,
         estado = estado, aplicar = recomendar,
         parametros = c(parametros_tipo, list(
           reversibilidad_comprobada = comprobacion_tipo$verificable,

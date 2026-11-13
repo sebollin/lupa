@@ -58,6 +58,14 @@
 
 ## Correcciones
 
+- `planificar_limpieza()`: una conversión de tipo (`convertir_tipo`,
+  `convertir_numero_regional`, `convertir_fecha_confirmada`) sobre una columna
+  con `aplicabilidad` o declarada en `columnas_opcionales` anuncia en
+  `n_afectadas` los valores presentes de la columna, que son los que `aplicar()`
+  cambia. Antes contaba como presentes las celdas vacías fuera del universo:
+  sobre 70 filas aplicables con 10 faltantes y 30 vacías fuera, prometía 90
+  cambios donde `aplicar()` hacía 60. Tampoco contaba los presentes de las filas
+  donde la regla no se pudo decidir. Sin universo declarado, el plan no cambia.
 - `planificar_limpieza()` y `analizar()` con `proteger_datos_personales = TRUE`
   ya no abortan con «subíndice fuera de los límites» cuando una columna
   protegida tiene una regla de `aplicabilidad`. El barrido que tapa las fechas
