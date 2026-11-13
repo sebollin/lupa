@@ -58,6 +58,13 @@
 
 ## Correcciones
 
+- `planificar_limpieza()` y `analizar()` con `proteger_datos_personales = TRUE`
+  ya no abortan con «subíndice fuera de los límites» cuando una columna
+  protegida tiene una regla de `aplicabilidad`. El barrido que tapa las fechas
+  de los parámetros borraba un parámetro `NULL` (`cadenas_ausencia` sin
+  declarar) y corría los que venían detrás. Sin la regla no abortaba, pero el
+  plan protegido perdía ese parámetro sin avisar; ahora cada acción trae los
+  mismos parámetros que sin protección.
 - Un importe con el símbolo de la moneda detrás del número (`1.234,56 €`,
   `1.234,56€`, `1.234,56 $`) se reconoce igual que con el símbolo delante:
   cuenta en `n_numeros_texto`, publica `numero_texto_moneda`, recibe

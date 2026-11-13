@@ -4031,9 +4031,14 @@
     }
     return(x)
   }
+  # Un parametro `NULL` -`cadenas_ausencia` sin declaracion- es parte del
+  # contrato de la accion. `x[[i]] <- NULL` lo borraba y corria los siguientes:
+  # con otro parametro detras -la `aplicabilidad` que el plan agrega al final-
+  # el recorrido salia de la lista y `planificar_limpieza()` abortaba; al final,
+  # se perdia sin aviso. Se asigna como los otros barridos de parametros.
   if (is.list(x)) {
     for (i in seq_along(x)) {
-      x[[i]] <- .proteger_fechas_parametros(x[[i]])
+      x[i] <- list(.proteger_fechas_parametros(x[[i]]))
     }
     return(x)
   }
