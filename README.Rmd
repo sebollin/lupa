@@ -24,6 +24,7 @@ scope and what it could not measure.
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/sebollin/lupa/graph/badge.svg)](https://app.codecov.io/gh/sebollin/lupa)
 [![Engines CI](https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&label=engines%20CI)](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)
 [![CRAN status](https://www.r-pkg.org/badges/version/lupa)](https://CRAN.R-project.org/package=lupa)
 [![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/lupa)](https://CRAN.R-project.org/package=lupa)

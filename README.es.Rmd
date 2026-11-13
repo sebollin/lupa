@@ -24,6 +24,7 @@ su alcance y lo que no pudo medir.
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![Cobertura de las pruebas](https://codecov.io/gh/sebollin/lupa/graph/badge.svg)](https://app.codecov.io/gh/sebollin/lupa)
 [![CI de motores](https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&label=CI%20de%20motores)](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)
 [![Estado en CRAN](https://www.r-pkg.org/badges/version/lupa)](https://CRAN.R-project.org/package=lupa)
 [![Descargas de CRAN](https://cranlogs.r-pkg.org/badges/grand-total/lupa)](https://CRAN.R-project.org/package=lupa)
