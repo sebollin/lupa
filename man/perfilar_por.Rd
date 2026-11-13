@@ -142,6 +142,16 @@ entera" es la que \code{\link[=perfilar]{perfilar()}} mide con la misma declarac
 la guarda de Benford. Y lo que la columna entera sí conjetura —una
 numeración cuya moda sobresale, o un candidato fuera de su rango— no es
 de la partición: el grupo lo publica.
+
+Sobre una numeración densa, cada grupo cuenta los faltantes disfrazados
+con la guarda de la columna entera, como \code{\link[=perfilar]{perfilar()}} sobre la tabla
+completa: un \code{999} dentro de \code{1:2000} es un código de la numeración y no
+se cuenta ni en \code{faltantes_disfrazados} ni en \code{faltantes}, aunque dentro
+del grupo la numeración tenga huecos. Lo que así se deja de contar se
+declara en esta cobertura, con el diagnóstico \code{centinelas_numericos}, y el
+motivo dice si contado habría hecho cruzar el umbral de \code{faltantes}. Las
+ausencias escritas con texto —un \code{"0"} declarado en \code{cadenas_ausencia},
+por ejemplo— son del grupo y se siguen contando.
 }
 \description{
 Aplica \code{\link[=perfilar]{perfilar()}} a cada grupo de filas por separado y devuelve los

@@ -58,6 +58,14 @@
 
 ## Correcciones
 
+- `perfilar_por()`: sobre una columna que en la tabla entera es una numeración
+  densa, cada grupo cuenta los faltantes disfrazados con la guarda de la
+  columna entera, como `perfilar()`. Un `999` dentro de `1:2000` ya no se suma
+  al hallazgo `faltantes` del grupo: un grupo de 50 filas con 4 `NA` y dos
+  `999` publicaba «4 ausentes reales y 2 disfrazados (0.120 del total)» y
+  cruzaba el umbral. Tampoco entra en `faltantes_disfrazados` ni en la
+  proporción. Lo protegido se declara en `cobertura_diagnosticos`
+  (`centinelas_numericos`), con el motivo y si contado habría cruzado el umbral.
 - `convertir_sentinelas_numericos` convierte exactamente las celdas que el
   perfil contó en `n_faltantes_disfrazados_numericos`. En la 0.1.1 el plan leía
   la lista de la evidencia del hallazgo: con más marcas en la columna de las

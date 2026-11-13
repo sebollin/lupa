@@ -150,6 +150,16 @@
 #'   la guarda de Benford. Y lo que la columna entera sí conjetura —una
 #'   numeración cuya moda sobresale, o un candidato fuera de su rango— no es
 #'   de la partición: el grupo lo publica.
+#'
+#'   Sobre una numeración densa, cada grupo cuenta los faltantes disfrazados
+#'   con la guarda de la columna entera, como [perfilar()] sobre la tabla
+#'   completa: un `999` dentro de `1:2000` es un código de la numeración y no
+#'   se cuenta ni en `faltantes_disfrazados` ni en `faltantes`, aunque dentro
+#'   del grupo la numeración tenga huecos. Lo que así se deja de contar se
+#'   declara en esta cobertura, con el diagnóstico `centinelas_numericos`, y el
+#'   motivo dice si contado habría hecho cruzar el umbral de `faltantes`. Las
+#'   ausencias escritas con texto —un `"0"` declarado en `cadenas_ausencia`,
+#'   por ejemplo— son del grupo y se siguen contando.
 #' @export
 #' @seealso [perfilar()], [cobertura_analisis()]
 #'
@@ -478,9 +488,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # - el centinela numerico que la columna conjetura ->
   #   `posible_centinela_numerico`;
   # - la numeracion densa, que es la guarda de los faltantes disfrazados
-  #   NUMERICOS -> `faltantes_disfrazados`, el `posible_centinela_numerico` que
-  #   la rebanada conjetura sobre la numeracion y `faltantes` cuando todo su
-  #   contenido son esos disfrazados.
+  #   NUMERICOS -> el `posible_centinela_numerico` que la rebanada conjetura
+  #   sobre la numeracion. Los faltantes disfrazados no se mueven: el perfil del
+  #   grupo los cuenta ya con la guarda de la columna entera, y lo que esa
+  #   guarda protege no llega a `faltantes_disfrazados` ni a `faltantes` (ver
+  #   `.disfrazados_con_la_columna_entera()`). `faltantes_disfrazados` queda en
+  #   la lista solo para la columna `integer64` que no se puede medir sin
+  #   `bit64`.
   #
   # Ningun otro tipo entra, y la lista es la que autoriza: `mover_a_cobertura()`
   # no saca del grupo un tipo que no este aca, lo marque quien lo marque.
@@ -496,7 +510,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   tipos_de_columna_entera <- list(
     ley_benford = "desviacion_benford",
     centinelas_numericos = c(
-      "posible_centinela_numerico", "faltantes_disfrazados", "faltantes"
+      "posible_centinela_numerico", "faltantes_disfrazados"
     )
   )
 
@@ -536,6 +550,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   columnas_identificadoras <- character()
   columnas_contexto <- character()
   columnas_densas <- character()
+  columnas_numeracion <- character()
+  efectivos_numeracion <- list()
   columnas_centinales_no_evaluables <- character()
   # El centinela que conjetura la COLUMNA ENTERA, por columna. Sin esto no se
   # puede distinguir el centinela que un grupo conjetura POR LA PARTICION -el
@@ -553,6 +569,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     extras$muestra
   } else {
     eval(formals(perfilar)$muestra)
+  }
+  # El umbral con que el perfil del grupo decide `faltantes`, para que la
+  # cobertura pueda decir si lo protegido por la numeracion lo habria cruzado.
+  umbral_faltantes <- if ("umbral_faltantes_sospechoso" %in% names(extras)) {
+    extras$umbral_faltantes_sospechoso
+  } else {
+    eval(formals(perfilar)$umbral_faltantes_sospechoso)
   }
   hay_centinelas_declarados <- length(
     .sentinelas_numericos_declarados(sentinelas_columna)
@@ -628,7 +651,29 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         isTRUE(contexto$guarda$guarda_cerrada)) {
       columnas_densas <<- c(columnas_densas, nombre_columna)
     }
+    # Lo que la guarda de la columna entera deja contar, si la columna es una
+    # numeracion densa: ver `.disfrazados_con_la_columna_entera()`. Con la guarda
+    # cerrada no deja contar ninguno; abierta, solo los candidatos que la abren.
+    if (!is.null(contexto$guarda) && isTRUE(secuencia$densa)) {
+      columnas_numeracion <<- c(columnas_numeracion, nombre_columna)
+      efectivos_numeracion[[length(efectivos_numeracion) + 1L]] <<-
+        .numeros_na(contexto$guarda$sentinelas_efectivos)
+    }
     invisible(NULL)
+  }
+  # La consulta que el perfil de cada grupo le hace a la columna entera, por
+  # nombre. La columna se mide la primera vez que un grupo la pide.
+  guarda_de_la_columna <- function(nombre_columna) {
+    indice_columna <- .indice_nombre(nombre_columna, names(datos))
+    if (is.na(indice_columna) || indice_columna == indice_por) return(NULL)
+    nombre_columna <- names(datos)[[indice_columna]]
+    asegurar_contexto(nombre_columna)
+    posicion <- match(
+      .nombres_para_operar(nombre_columna),
+      .nombres_para_operar(columnas_numeracion)
+    )
+    if (is.na(posicion)) return(NULL)
+    efectivos_numeracion[[posicion]]
   }
 
   # Los indices de la traza salen de perfilar la REBANADA, asi que son
@@ -821,7 +866,15 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
     grupos_perfilados <- c(grupos_perfilados, nombre_grupo)
     filas_perfilados <- c(filas_perfilados, length(filas))
-    perfil <- do.call(perfilar, c(list(rebanada), extras_grupo))
+    # El perfil del grupo cuenta los faltantes disfrazados con la guarda de la
+    # numeracion de la columna entera: ver `.disfrazados_con_la_columna_entera()`.
+    protegidos_grupo <- list()
+    previo_contexto <- .fijar_contexto_por(guarda_de_la_columna)
+    perfil <- tryCatch({
+      perfil_grupo <- do.call(perfilar, c(list(rebanada), extras_grupo))
+      protegidos_grupo <- .CONTEXTO_POR$protegidos
+      perfil_grupo
+    }, finally = .restaurar_contexto_por(previo_contexto))
     # Cada grupo se perfila por separado, asi que cada uno declina sus propios
     # diagnosticos: una columna puede tener bastantes filas en un grupo y muy
     # pocas en otro. Sin juntar esas declaraciones, quien mira los hallazgos por
@@ -840,6 +893,22 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     # Lo que la tabla entera ya decidio sobre la columna manda sobre lo que la
     # rebanada deduce. El hallazgo no se borra: se mueve a la cobertura con el
     # motivo, que es lo que este mismo objeto hace con todo lo que no se midio.
+    declarar_en_cobertura <- function(diagnostico, columna_afectada, motivo) {
+      cobertura_diagnosticos[[length(cobertura_diagnosticos) + 1L]] <<-
+        data.frame(
+          grupo = nombre_grupo, n_filas_grupo = length(filas),
+          diagnostico = diagnostico, columna = columna_afectada,
+          motivo = motivo,
+          como_resolverlo = paste(
+            "Si esa columna es una magnitud y no una numeraci\u00f3n, perfilar",
+            "el grupo por separado con `perfilar()`."
+          ),
+          dependencia = NA_character_,
+          columnas = I(list(as.character(columna_afectada))),
+          stringsAsFactors = FALSE
+        )
+      invisible(NULL)
+    }
     mover_a_cobertura <- function(marcados, diagnostico, motivo) {
       # La lista de arriba es la que autoriza: un tipo que no pertenece a las
       # decisiones de columna entera no sale del grupo aunque venga marcado.
@@ -849,31 +918,33 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       for (columna_afectada in unique(
         as.character(perfil$hallazgos$columna[marcados])
       )) {
-        cobertura_diagnosticos[[length(cobertura_diagnosticos) + 1L]] <<-
-          data.frame(
-            grupo = nombre_grupo, n_filas_grupo = length(filas),
-            diagnostico = diagnostico, columna = columna_afectada,
-            motivo = motivo,
-            como_resolverlo = paste(
-              "Si esa columna es una magnitud y no una numeraci\u00f3n, perfilar",
-              "el grupo por separado con `perfilar()`."
-            ),
-            dependencia = NA_character_,
-            columnas = I(list(as.character(columna_afectada))),
-            stringsAsFactors = FALSE
-          )
+        declarar_en_cobertura(diagnostico, columna_afectada, motivo)
       }
       perfil$hallazgos <<- perfil$hallazgos[!marcados, , drop = FALSE]
       invisible(NULL)
     }
-    # `faltantes` no pide por si solo la decision de la columna: se mueve
-    # unicamente cuando todo su contenido es disfrazado, y entonces el grupo
-    # publica tambien `faltantes_disfrazados` sobre esa columna, que ya la
-    # pide. Asi una columna con ausencias reales y nada mas no paga la pasada.
+    # Lo que la guarda de la numeracion de la columna entera dejo sin contar en
+    # el perfil del grupo no es un hallazgo que se mueva -nunca se conto-, pero
+    # se declara con lo que habria cambiado, en el mismo diagnostico que la
+    # conjetura de centinelas. Una fila por columna: si algo del perfil midio la
+    # misma columna dos veces, es la misma medida.
+    if (length(protegidos_grupo)) {
+      columnas_protegidas <- vapply(protegidos_grupo, function(registro) {
+        as.character(registro$columna)
+      }, character(1L))
+      for (indice_registro in which(
+        !duplicated(.nombres_para_operar(columnas_protegidas))
+      )) {
+        registro <- protegidos_grupo[[indice_registro]]
+        declarar_en_cobertura(
+          "centinelas_numericos", registro$columna,
+          .motivo_numeracion_protege(registro, perfil, umbral_faltantes)
+        )
+      }
+    }
     columnas_a_contextualizar <- unique(as.character(
-      perfil$hallazgos$columna[perfil$hallazgos$tipo_hallazgo %in% setdiff(
-        unlist(tipos_de_columna_entera), "faltantes"
-      )]
+      perfil$hallazgos$columna[perfil$hallazgos$tipo_hallazgo %in%
+                                 unlist(tipos_de_columna_entera)]
     ))
     for (columna_contexto in columnas_a_contextualizar) {
       asegurar_contexto(columna_contexto)
@@ -893,45 +964,16 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
     if (nrow(perfil$hallazgos) && length(columnas_densas) &&
           !hay_centinelas_declarados) {
-      # La numeracion es la guarda de los disfrazados NUMERICOS, y de ningun
-      # otro: `SD` o `N/A` dentro de un texto que se lee como numeros no son un
-      # codigo de la numeracion, son una ausencia que el grupo reconoce con su
-      # vocabulario. Un hallazgo del grupo que cuenta alguna ausencia textual
-      # se queda en el grupo entero -con los numericos que traiga-, porque
-      # partirlo exigiria reescribir su conteo y su evidencia, y publicar de
-      # mas cuesta menos que callar la ausencia verdadera. En una columna
-      # numerica o `integer64` no hay ausencias textuales y nada cambia.
-      #
-      # `faltantes` entra tambien, pero SOLO cuando su contenido es enteramente
-      # disfrazado. Sobre una columna densa
-      # en la tabla completa, un grupo cuya densidad cae bajo el umbral emitia
-      # `faltantes` -"0 ausentes reales y 4 disfrazados"- y ese tipo no estaba en
-      # la lista, asi que las dos puertas discrepaban sobre las mismas cuatro
-      # filas. Se exige que el grupo no tenga NINGUNA ausencia real: un faltante
-      # de verdad no es de la particion y no se reubica.
-      conteo_del_grupo <- function(campo) {
-        vapply(
-          as.character(perfil$hallazgos$columna),
-          function(columna_hallazgo) {
-            indice <- .indice_nombre(columna_hallazgo, perfil$columnas$columna)
-            if (is.na(indice)) return(NA_real_)
-            suppressWarnings(as.numeric(perfil$columnas[[campo]][[indice]]))
-          },
-          numeric(1L)
-        )
-      }
-      reales <- conteo_del_grupo("n_faltantes")
-      disfrazados <- conteo_del_grupo("n_faltantes_disfrazados")
-      textuales <- conteo_del_grupo("n_faltantes_disfrazados_textuales")
-      sin_ausencias_textuales <- !(is.finite(textuales) & textuales > 0)
-      sin_ausencias_reales <- is.finite(reales) & reales == 0 &
-        is.finite(disfrazados) & disfrazados > 0
+      # Los faltantes disfrazados ya se contaron con la guarda de la columna
+      # entera, dentro del perfil del grupo, y lo que esa guarda protege no
+      # llego a ningun hallazgo: ni a `faltantes_disfrazados` ni a `faltantes`
+      # (ver `.disfrazados_con_la_columna_entera()`). Antes se movian despues
+      # esos dos hallazgos, y `faltantes` solo cuando era enteramente
+      # disfrazado: con 4 `NA` y dos `999` en el grupo se quedaba sumando los
+      # dos. Lo que queda de la numeracion es la conjetura de un centinela sobre
+      # los huecos de la rebanada.
       mover_a_cobertura(
-        (perfil$hallazgos$tipo_hallazgo == "posible_centinela_numerico" |
-           (perfil$hallazgos$tipo_hallazgo == "faltantes_disfrazados" &
-              sin_ausencias_textuales) |
-           (perfil$hallazgos$tipo_hallazgo == "faltantes" &
-              sin_ausencias_reales & sin_ausencias_textuales)) &
+        perfil$hallazgos$tipo_hallazgo == "posible_centinela_numerico" &
           .nombres_para_operar(perfil$hallazgos$columna) %in%
             .nombres_para_operar(columnas_densas),
         "centinelas_numericos",
@@ -1128,4 +1170,150 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   class(salida) <- c("hallazgos_por_grupo", "data.frame")
   salida
+}
+
+# La guarda de la numeracion que `perfilar_por()` decide sobre la columna
+# entera, para el perfil de cada grupo. Un estado de la llamada y no un
+# argumento, como `.CONTEXTO_COPIAS`: la deteccion corre dentro de `perfilar()`,
+# sobre la rebanada, y `perfilar()` no tiene -ni debe tener- un argumento para
+# esto. Fuera de `perfilar_por()` esta vacio y nada cambia.
+#
+# - `guarda_columna`: funcion que recibe el nombre de una columna y devuelve los
+#   centinelas que la guarda de la columna entera deja contar, o `NULL` si la
+#   columna entera no es una numeracion densa (entonces decide la rebanada).
+# - `protegidos`: lo que la guarda de la columna entera dejo sin contar en el
+#   grupo que se esta perfilando, para declararlo en la cobertura.
+.CONTEXTO_POR <- new.env(parent = emptyenv())
+.CONTEXTO_POR$guarda_columna <- NULL
+.CONTEXTO_POR$protegidos <- NULL
+
+.fijar_contexto_por <- function(guarda_columna) {
+  previo <- list(
+    guarda_columna = .CONTEXTO_POR$guarda_columna,
+    protegidos = .CONTEXTO_POR$protegidos
+  )
+  .CONTEXTO_POR$guarda_columna <- guarda_columna
+  .CONTEXTO_POR$protegidos <- list()
+  invisible(previo)
+}
+
+.restaurar_contexto_por <- function(previo) {
+  .CONTEXTO_POR$guarda_columna <- previo$guarda_columna
+  .CONTEXTO_POR$protegidos <- previo$protegidos
+  invisible(NULL)
+}
+
+# Sobre la tabla entera, una numeracion densa protege a sus valores: un `999`
+# dentro de `1:2000` no se cuenta como faltante disfrazado, ni en
+# `faltantes_disfrazados` ni en `faltantes`. Partida en grupos, la rebanada deja
+# de ser densa, la guarda se abre y el grupo los contaba. Mover despues el
+# hallazgo `faltantes_disfrazados` a la cobertura no alcanzaba: el hallazgo
+# `faltantes` seguia sumandolos. Medido: un grupo de 50 filas con 4 `NA` y dos
+# `999` publicaba "4 ausentes reales y 2 disfrazados (0.120 del total)" y
+# cruzaba el umbral del 10 %, con la cobertura diciendo al lado que esos dos no
+# eran faltantes.
+#
+# Por eso la decision entra al perfil del grupo, antes de contar: de los
+# centinelas que el grupo contaria, solo quedan los que la guarda de la columna
+# entera tambien deja contar -los que caen fuera de su rango o son su moda
+# sobresaliente-, y todo lo que se cuenta a partir de ahi -los dos hallazgos,
+# `n_faltantes_disfrazados`, la proporcion- sale de la misma mascara. Solo
+# quita: un centinela que el grupo no cuenta no se agrega por la columna. Las
+# ausencias escritas con texto no son de la numeracion y no se tocan.
+#
+# `detectar` vuelve a contar la columna con otra lista de centinelas; se pide
+# solo cuando la lista cambia. Lo que se dejo de contar queda en
+# `.CONTEXTO_POR$protegidos` para que `perfilar_por()` lo declare: nada se pierde
+# en silencio.
+.disfrazados_con_la_columna_entera <- function(disfrazados, nombre, guarda,
+                                               sentinelas_declarados,
+                                               detectar) {
+  consultar <- .CONTEXTO_POR$guarda_columna
+  # Una declaracion explicita atraviesa la guarda, en el grupo y en la columna
+  # entera. Y si el grupo no cuenta ningun centinela, no hay nada que proteger:
+  # la columna entera no se mide.
+  if (is.null(nombre) || !is.function(consultar) ||
+      length(sentinelas_declarados) || !isTRUE(guarda$detectar_sentinelas) ||
+      !isTRUE(disfrazados$n_numericos > 0L)) {
+    return(disfrazados)
+  }
+  de_la_columna <- consultar(nombre)
+  if (is.null(de_la_columna)) return(disfrazados)
+  efectivos <- .numeros_na(guarda$sentinelas_efectivos)
+  conservados <- efectivos[efectivos %in% .numeros_na(de_la_columna)]
+  if (length(conservados) == length(efectivos)) return(disfrazados)
+  # Si ninguno de los que se quitan esta en el grupo, contar de nuevo da lo
+  # mismo: la lista del grupo trae toda la de por omision aunque solo aparezca
+  # el 999. Sin candidatos medidos no se sabe y se cuenta.
+  quitados <- efectivos[!(efectivos %in% conservados)]
+  candidatos <- .numeros_na(guarda$candidatos)
+  if (length(candidatos) && !any(quitados %in% candidatos)) {
+    return(disfrazados)
+  }
+  sin_protegidos <- detectar(conservados, length(conservados) > 0L)
+  n_protegidos <- as.integer(
+    disfrazados$n_numericos - sin_protegidos$n_numericos
+  )
+  if (!isTRUE(n_protegidos > 0L)) return(disfrazados)
+  # La mascara que el grupo decide solo, para lo que no es un conteo de
+  # faltantes: la casi-clave es un diagnostico propio del grupo y sale igual que
+  # perfilando el grupo por separado (lo vigila
+  # `test-perfilar-por-columna-entera.R`). Lo que cuenta faltantes -los dos
+  # hallazgos, sus columnas y su traza- lee `mascara`.
+  sin_protegidos$mascara_grupo <- disfrazados$mascara
+  .CONTEXTO_POR$protegidos[[length(.CONTEXTO_POR$protegidos) + 1L]] <- list(
+    columna = nombre, n = n_protegidos,
+    valores = quitados[quitados %in% candidatos]
+  )
+  sin_protegidos
+}
+
+# El motivo con que `perfilar_por()` declara lo que la numeracion de la columna
+# entera protegio en un grupo. Si sin esos valores el grupo queda debajo del
+# umbral de `faltantes` y contados lo habria cruzado, lo dice: es la diferencia
+# que el usuario ve en la tabla de hallazgos, y no puede quedar sin explicar.
+.motivo_numeracion_protege <- function(registro, perfil, umbral) {
+  n <- as.integer(registro$n)
+  valores <- if (length(registro$valores)) {
+    paste0(" (", paste(.etiqueta_numero_reversible(registro$valores),
+                       collapse = ", "), ")")
+  } else ""
+  motivo <- paste0(
+    "La columna es una secuencia entera densa en la tabla completa, y ah\u00ed ",
+    "sus valores son c\u00f3digos de la numeraci\u00f3n, no faltantes disfrazados: ",
+    n, if (n == 1L) " valor del grupo" else " valores del grupo", valores,
+    if (n == 1L) " no se cuenta" else " no se cuentan",
+    " ni en `faltantes_disfrazados` ni en `faltantes`."
+  )
+  indice <- .indice_nombre(registro$columna, perfil$columnas$columna)
+  if (is.na(indice) || !is.numeric(umbral) || length(umbral) != 1L ||
+      !is.finite(umbral)) {
+    return(motivo)
+  }
+  n_aplicables <- suppressWarnings(
+    as.numeric(perfil$columnas$n_aplicables[[indice]])
+  )
+  sin <- suppressWarnings(
+    as.numeric(perfil$columnas$prop_faltantes_totales[[indice]])
+  )
+  publicado <- any(
+    perfil$hallazgos$tipo_hallazgo == "faltantes" &
+      .nombres_para_operar(perfil$hallazgos$columna) ==
+        .nombres_para_operar(registro$columna),
+    na.rm = TRUE
+  )
+  if (publicado || !isTRUE(n_aplicables > 0) || !isTRUE(is.finite(sin))) {
+    return(motivo)
+  }
+  con <- sin + n / n_aplicables
+  if (con > umbral && !(sin > umbral)) {
+    motivo <- paste0(
+      motivo, " Contados, los faltantes del grupo ser\u00edan ",
+      .formatear_decimal_publicado(con), " del total; sin ellos son ",
+      .formatear_decimal_publicado(sin), " y no superan el umbral (",
+      .formatear_decimal_publicado(umbral),
+      "), as\u00ed que `faltantes` no se publica."
+    )
+  }
+  motivo
 }

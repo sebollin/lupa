@@ -3246,7 +3246,8 @@
                                            secuencia_entera,
                                            sentinelas_numericos,
                                            sentinelas_declarados,
-                                           cadenas_ausencia, aplicable) {
+                                           cadenas_ausencia, aplicable,
+                                           nombre = NULL) {
   valores_numericos <- .valores_numericos_secuencia(
     x_analisis, inferencia, formatos
   )
@@ -3286,15 +3287,25 @@
   # La convencion decimal que la fila publica: un centinela escrito con ella
   # -`"-999,00"` en una columna `decimal_coma`- se lee como lo lee el resumen.
   convencion <- inferencia[["convencion_numero_texto"]]
-  faltantes_disfrazados <- .detectar_faltantes_disfrazados(
-    x_analisis, sentinelas_numericos = sentinelas_efectivos,
-    cadenas_ausencia = cadenas_ausencia, convencion = convencion,
-    # Una numeración compacta no apaga por sí sola la corazonada: un candidato
-    # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
-    # abrirla. Una declaración explícita siempre atraviesa la guarda.
-    detectar_sentinelas_numericos = detectar_sentinelas
+  detectar <- function(efectivos, detectar_numericos) {
+    .restringir_disfrazados(.detectar_faltantes_disfrazados(
+      x_analisis, sentinelas_numericos = efectivos,
+      cadenas_ausencia = cadenas_ausencia, convencion = convencion,
+      # Una numeracion compacta no apaga por si sola la corazonada: un candidato
+      # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
+      # abrirla. Una declaracion explicita siempre atraviesa la guarda.
+      detectar_sentinelas_numericos = detectar_numericos
+    ), aplicable)
+  }
+  faltantes_disfrazados <- detectar(sentinelas_efectivos, detectar_sentinelas)
+  # Dentro de `perfilar_por()` la guarda de la numeracion es la de la columna
+  # entera, no la de la rebanada: ver `.disfrazados_con_la_columna_entera()`.
+  # Fuera de esa llamada no cambia nada.
+  faltantes_disfrazados <- .disfrazados_con_la_columna_entera(
+    faltantes_disfrazados, nombre, guarda, sentinelas_declarados, detectar
   )
-  faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
+  # Los centinelas que la traza publica salen de la mascara ya decidida, la
+  # misma que cuenta: tambien dentro de `perfilar_por()`.
   faltantes_disfrazados <- .con_sentinelas_contados(faltantes_disfrazados)
   faltantes_declarados <- .detectar_faltantes_disfrazados(
     x_analisis,
@@ -3598,12 +3609,15 @@
   faltantes_disfrazados <- .faltantes_disfrazados_columna(
     x_analisis_diagnostico, inferencia, formatos, secuencia_entera,
     sentinelas_numericos,
-    sentinelas_declarados, cadenas_ausencia, aplicable
+    sentinelas_declarados, cadenas_ausencia, aplicable, nombre = nombre
   )
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
     x_analisis_diagnostico, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
-    disfrazados = faltantes_disfrazados$mascara
+    # Dentro de `perfilar_por()`, la que el grupo decide solo: ver
+    # `.disfrazados_con_la_columna_entera()`. Fuera, la misma mascara.
+    disfrazados = faltantes_disfrazados$mascara_grupo %||%
+      faltantes_disfrazados$mascara
   )
   vocabulario_fecha <- if (
     (is.character(x_analisis_diagnostico) ||
