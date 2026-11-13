@@ -118,8 +118,22 @@ test_that("una tabla con un nombre que es prefijo de otro no filtra la cola", {
     nombre = c("Maria Nunez", "Maria Nunez de Castro", "Ana Lopez"),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  # La proteccion se pide: una cola solo puede quedar suelta al lado de un
+  # marcador, y sin pedirla no se tapa nada.
+  perfil <- perfilar(datos, analizar_dependencias = FALSE,
+                     proteger_datos_personales = TRUE)
   texto <- paste(capture.output(print(perfil)), collapse = " ")
   expect_false(grepl("de Castro", texto, fixed = TRUE))
   expect_false(grepl("Maria Nunez", texto, fixed = TRUE))
+
+  # Lo que `print()` deja en la salida estandar es la tabla de cinco campos por
+  # columna, y ninguno lleva valores: ese texto no trae un nombre ni un marcador
+  # con la proteccion ni sin ella, asi que mirarlo no alcanza para ver una cola.
+  # Los valores tapados viven en el objeto que la funcion publica entrega, y la
+  # misma pregunta se le hace a todo su contenido.
+  publicado <- paste(utils::capture.output(dput(perfil)), collapse = " ")
+  # Primera mitad: ahi si hay marcadores. Sin esto, cero colas no diria nada.
+  expect_true(grepl("[valor protegido]", publicado, fixed = TRUE))
+  expect_false(grepl("de Castro", publicado, fixed = TRUE))
+  expect_false(grepl("Maria Nunez", publicado, fixed = TRUE))
 })

@@ -213,7 +213,9 @@ test_that("H3: un nombre de columna con un byte latin1 suelto no tumba analizar(
     # `warn = 2` abortaba en el `strsplit()` de la proteccion.
     a <- analizar(datos, fecha = .F0_O148, id_medicion = "m1")
     medidas[[locale]] <- as.character(a$medicion$objeto_medible)
-    p <- perfilar(datos, fecha = .F0_O148)
+    # La proteccion se pide: el `strsplit()` que abortaba es suyo, y sin
+    # pedirla `perfilar()` no llega a el.
+    p <- perfilar(datos, fecha = .F0_O148, proteger_datos_personales = TRUE)
     expect_identical(nrow(p$columnas), 3L, info = locale)
   }
   # La misma medicion en los dos: un objeto medible por medida.

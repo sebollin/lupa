@@ -2,6 +2,10 @@
 # de pila corriente- no se tapa en ninguna salida. Se tapaba en los atributos
 # del plan, y el hallazgo declarado sin accion dejaba de corresponder a su
 # columna.
+#
+# Todas las llamadas piden la proteccion: un nombre de columna solo se puede
+# romper donde algo se tapa. Sin pedirla ninguna salida trae `[valor protegido]`
+# y buscar `[valor protegido]_` no encuentra nada, haya defecto o no.
 
 # Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
 # suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
@@ -44,7 +48,7 @@ testthat::skip_on_cran()
 
 test_that("todo hallazgo del plan queda con accion o declarado en su columna", {
   datos <- .datos_O123()
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   expect_true("segundo_nombre" %in% .columnas_personales_protegidas(perfil))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   hallazgos <- hallazgos(perfil)
@@ -62,14 +66,16 @@ test_that("todo hallazgo del plan queda con accion o declarado en su columna", {
 
 test_that("ningun nombre de columna se rompe en el perfil, el analisis o las distribuciones", {
   datos <- .datos_O123()
-  perfil <- suppressWarnings(perfilar(datos))
-  analisis <- suppressWarnings(analizar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
+  analisis <- suppressWarnings(analizar(datos, proteger_datos_personales = TRUE))
   # Antes: `columnas_analizadas` de las dependencias y las asociaciones, y
   # `columnas_datos_personales_protegidas` del plan del analisis.
   expect_identical(.nombres_rotos_O123(perfil), character())
   expect_identical(.nombres_rotos_O123(analisis), character())
   expect_identical(
-    .nombres_rotos_O123(suppressWarnings(distribucion_valores(datos))), character()
+    .nombres_rotos_O123(suppressWarnings(
+      distribucion_valores(datos, proteger_datos_personales = TRUE)
+    )), character()
   )
 })
 
@@ -79,6 +85,8 @@ test_that("el resumen del motor no rompe un nombre de columna", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", .datos_O123())
-  resultado <- suppressMessages(suppressWarnings(perfilar_dbi(conexion, "t")))
+  resultado <- suppressMessages(suppressWarnings(
+    perfilar_dbi(conexion, "t", proteger_datos_personales = TRUE)
+  ))
   expect_identical(.nombres_rotos_O123(resultado), character())
 })

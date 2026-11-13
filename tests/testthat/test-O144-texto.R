@@ -332,7 +332,9 @@ test_that("bajo LC_CTYPE=C el texto UTF-8 sin marca no hace avisar a perfilar, p
 
   avisos <- character()
   r <- withCallingHandlers({
-    perfil <- perfilar(datos)
+    # La proteccion se pide: el aviso salia de ella, y sin pedirla `perfilar()`
+    # no pasa por el codigo que avisaba.
+    perfil <- perfilar(datos, proteger_datos_personales = TRUE)
     plan <- planificar_limpieza(perfil, datos)
     aplicar(plan, datos)
   }, warning = function(w) {

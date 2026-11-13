@@ -56,7 +56,10 @@ test_that("el trazador registra la clasificacion y la proteccion", {
                       x = c(1, 2, 3))
   trazador <- lupa:::.trazador_tiempos_dbi(TRUE)
   attr(datos, "lupa_trazador_tiempos_dbi") <- trazador
-  invisible(suppressWarnings(perfilar(datos, columnas_personales = "documento")))
+  # La proteccion se pide: sin pedirla la etapa figura con estado
+  # `no_solicitado`, que es un nombre en la lista y no una etapa medida.
+  invisible(suppressWarnings(perfilar(datos, columnas_personales = "documento",
+                                      proteger_datos_personales = TRUE)))
   etapas <- lupa:::.resumen_tiempos_dbi(trazador)$etapa
   expect_true(all(c("clasificacion_datos_personales",
                     "proteccion_datos_personales") %in% etapas))

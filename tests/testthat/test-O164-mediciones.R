@@ -666,6 +666,9 @@ test_that("la clase de cada argumento explica lo que cambia al moverlo", {
   d <- .datos_O164()[c(1:36, 77:86, 97:104, 113:120), ]
   d$doble <- d$monto * 2
   d$doble[3] <- 7
+  # Cada valor es distinto del que el argumento toma por omision. La proteccion
+  # se mueve a TRUE: la omision es FALSE, y un FALSE aca perfila dos veces lo
+  # mismo y no pone a prueba la clase de ese argumento.
   movidos <- list(
     muestra = 50, max_patrones = 2L, distinguir_mayusculas = FALSE,
     expandir = TRUE, umbral_alta_cardinalidad = 0.9,
@@ -678,7 +681,7 @@ test_that("la clase de cada argumento explica lo que cambia al moverlo", {
     cadenas_ausencia = "zz", analizar_dependencias = FALSE,
     umbral_dependencia = 1, umbral_casi_clave_dependencia = 0.99,
     max_columnas_dependencias = 2L, datos_personales_permitidos = FALSE,
-    proteger_datos_personales = FALSE, columnas_personales = "ciudad",
+    proteger_datos_personales = TRUE, columnas_personales = "ciudad",
     validadores_personales = FALSE, umbral_documento_verificado = 1,
     muestra_validadores = 10L,
     duplicados_aproximados = list(columnas = c("ciudad", "depto")),

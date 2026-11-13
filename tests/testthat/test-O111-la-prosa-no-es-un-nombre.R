@@ -60,12 +60,15 @@ test_that("con muchos nombres protegidos, la prosa de otras columnas se lee", {
     constante = "x",
     stringsAsFactors = FALSE
   )
-  h <- hallazgos(suppressWarnings(perfilar(d)))
+  # La proteccion se pide: la regla que se prueba solo corre con ella. Sin
+  # pedirla no hay ningun texto tapado y las dos expectativas de abajo pasan sin
+  # mirar nada.
+  h <- hallazgos(suppressWarnings(perfilar(d, proteger_datos_personales = TRUE)))
   otras <- h$columna %in% c("categoria", "constante")
   expect_true(any(otras))
   expect_false(any(h$descripcion[otras] == "[valor protegido]"))
   expect_false(any(h$sugerencia[otras] == "[valor protegido]"))
   # Control: la columna de apellidos sigue protegida.
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_true(p$datos_personales$proteger[p$datos_personales$columna == "primer_apellido"])
 })

@@ -119,7 +119,10 @@ test_that("la senal no filtra valores de una columna protegida", {
     monto = c(subnormales(4), rep(100, 6)),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, columnas_personales = "monto")
+  # Declarar la columna no la protege: la proteccion se pide. Sin pedirla
+  # `monto` se publica entera y la prueba no mide una columna protegida.
+  perfil <- perfilar(datos, columnas_personales = "monto",
+                     proteger_datos_personales = TRUE)
   hallazgo <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "valores_subnormales", ,
     drop = FALSE

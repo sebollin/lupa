@@ -194,8 +194,12 @@ test_that("H2: ninguna funcion del paquete llama a deparse() fuera de su envolto
 test_that("H3: con scipen negativo el piso no tapa los estadisticos de una columna no protegida", {
   anterior <- options(scipen = -9)
   on.exit(options(anterior), add = TRUE)
+  # La proteccion se pide: el piso solo corre con ella. Sin pedirla ninguna
+  # columna queda protegida, el piso no tapa nada y las cuatro cifras de
+  # `id_copia` salen igual, este el defecto o no.
   perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE,
-                     fecha = as.POSIXct("2026-01-15", tz = "UTC"))
+                     fecha = as.POSIXct("2026-01-15", tz = "UTC"),
+                     proteger_datos_personales = TRUE)
   fila <- columnas(perfil)[columnas(perfil)$columna == "id_copia", ]
   # A mano: id_copia = 1..10, 10, 1, 11; suma 77 en 13 valores; el 7.o
   # ordenado es 6; extremos 1 y 11.
