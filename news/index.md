@@ -215,6 +215,13 @@
   y no como `capacidad_no_aceptada`, y una columna ilegible conserva sus
   filas en `resumen_tabla$sql` aunque no quede ninguna métrica por
   ejecutar.
+- `normalizar_espacios_invisibles` y `reemplazar_separadores`, aplicadas
+  con `reparar_codificacion` desmarcada sobre una columna que mezcla una
+  celda rota con una limpia terminada en `Â` o `Ã` y un espacio
+  tipográfico, ya no tocan la celda limpia: quedaba `Â` más un espacio
+  común, que el perfil siguiente leía como una letra rota, y la acción
+  cambiaba una fila más de las que el plan contaba. Con el plan por
+  omisión no ocurría.
 
 ## lupa 0.1.1
 
