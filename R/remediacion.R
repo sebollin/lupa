@@ -1167,6 +1167,70 @@
   .normalizar_sentinelas_numericos(numeros[numericas])
 }
 
+# Los centinelas numericos que el perfil conto, como los publica la traza del
+# hallazgo. `NULL` si la traza no los trae -un perfil guardado por una version
+# anterior- o los trae tapados -la proteccion toco la evidencia del hallazgo y
+# el perfil no dice que valor conto-. Nunca una lista parcial: con un `NA`
+# adentro no se sabe que falta, y convertir el resto dejaria celdas contadas
+# sin convertir.
+.sentinelas_contados_de_traza <- function(hallazgo) {
+  traza <- tryCatch(hallazgo$trazabilidad[[1L]], error = function(e) NULL)
+  if (!is.list(traza)) return(NULL)
+  contados <- traza[["sentinelas_contados"]]
+  if (!is.numeric(contados) || !length(contados) || anyNA(contados)) {
+    return(NULL)
+  }
+  .normalizar_sentinelas_numericos(contados)
+}
+
+# Lo que `aplicar()` necesita para acotar la lista de centinelas cuando el plan
+# no sabe cuales conto el perfil: el contexto con que el detector decide, tal
+# como el perfil ya lo publica en la fila de la columna -el tipo inferido, la
+# convencion decimal y las dos banderas de la numeracion- y en `meta` -la lista
+# de centinelas-. Con eso `aplicar()` corre el mismo detector sobre la columna
+# que recibe (`.sentinelas_contados_sobre_datos()`) y convierte solo los
+# centinelas de la lista que el detector cuenta. La guarda nunca agrega: lo que
+# no esta en `valores` no se convierte.
+#
+# `sentinelas` es la lista de `meta`, que con proteccion trae un `NA` en el
+# lugar de cada centinela declarado que es un valor protegido. Ese hueco solo
+# lo deja una declaracion -el catalogo del paquete no se tapa-, y por eso
+# alcanza para saber que la lista fue declarada aunque lo que queda a la vista
+# coincida con el catalogo.
+#
+# `universo_recortado` dice si el perfil conto dentro de un universo aplicable
+# mas chico que la columna. Las banderas de la numeracion describen ese
+# universo, no la columna entera, asi que sin la regla `aplicar()` no puede
+# reproducir el conteo: ver `.mascara_universo_guarda()`. Una columna declarada
+# en `columnas_opcionales` no cuenta: su universo deja afuera solo las celdas
+# ausentes, que el detector no mira.
+.guarda_sentinelas_del_perfil <- function(perfil, columna, fila, sentinelas,
+                                          convencion) {
+  campo <- function(nombre) {
+    if (!is.null(fila) && nombre %in% names(fila)) fila[[nombre]][[1L]] else NA
+  }
+  visibles <- .normalizar_sentinelas_numericos(sentinelas)
+  opcional <- !is.na(columna) &&
+    .nombres_para_operar(columna) %in%
+      .nombres_para_operar(as.character(perfil$meta$columnas_opcionales))
+  n <- suppressWarnings(as.numeric(campo("n")))
+  n_aplicables <- suppressWarnings(as.numeric(campo("n_aplicables")))
+  list(
+    tipo = as.character(campo("tipo_inferido")),
+    convencion = if (length(convencion) == 1L && !is.na(convencion)) {
+      as.character(convencion)
+    } else "",
+    densa = isTRUE(as.logical(campo("secuencia_entera_densa"))),
+    moda_sobresale = isTRUE(
+      as.logical(campo("moda_sobresale_secuencia_entera"))
+    ),
+    sentinelas = visibles,
+    declarada = anyNA(sentinelas) ||
+      length(.sentinelas_numericos_declarados(visibles)) > 0L,
+    universo_recortado = !opcional && isTRUE(n_aplicables < n)
+  )
+}
+
 # Lleva la regla de aplicabilidad del perfil a las acciones del plan. Sin esto
 # la limpieza operaba sobre la columna entera aunque el usuario hubiera
 # declarado que una parte de las filas no le corresponde: una `S/D` en una fila
@@ -1670,16 +1734,39 @@
 #'
 #' `convertir_sentinelas_numericos` convierte los números de
 #' `parametros$valores`. El plan arma la lista con los centinelas que el perfil
-#' contó en esa columna y con los que se declararon en `sentinelas_numericos`:
+#' contó en esa columna —los que la traza del hallazgo publica en
+#' `sentinelas_contados`— y con los que se declararon en `sentinelas_numericos`:
 #' un `999` dentro de una numeración de 1 a 2000 no es un centinela para
 #' [perfilar()], y la acción no lo convierte. Así, aplicada a los datos del
-#' perfil, cambia las celdas que `n_afectadas` anuncia. La lista se lee de la
-#' evidencia del hallazgo, que muestra las marcas más frecuentes: si la
-#' evidencia no alcanza a nombrar todo lo contado —una columna de texto con
-#' muchas marcas de ausencia distintas—, la lista es el catálogo entero y
-#' conviene revisarla antes de marcar la acción. También es el catálogo entero
-#' cuando el perfil se hizo con `proteger_datos_personales = TRUE`. Editarla es
-#' una decisión del usuario, como en la acción de las ausencias textuales.
+#' perfil, cambia exactamente las celdas que `n_afectadas` anuncia. Una celda
+#' que el perfil contó como marca textual declarada en `cadenas_ausencia` —un
+#' `"999"` con `cadenas_ausencia = "999"`— es de `convertir_ausencias_textuales`,
+#' y esta acción no la toca aunque se lea como uno de sus números. La acción
+#' trabaja sobre números, texto, factores, duraciones (`difftime`) y medidas con
+#' unidad (`units`), y conserva la clase y la unidad de la columna. Editar la
+#' lista es una decisión del usuario, como en la acción de las ausencias
+#' textuales.
+#'
+#' Sobre otros datos —otra entrega de la misma tabla— la lista manda: la acción
+#' convierte esos valores y ningún otro. Si la otra entrega usa otro código, la
+#' acción termina `fallida` sin cambiar celdas, y hay que volver a perfilar o
+#' agregar el código a `valores`.
+#'
+#' En dos casos el plan no sabe qué centinelas contó el perfil: un perfil
+#' guardado por una versión anterior, cuya traza no trae el campo, y un
+#' hallazgo cuya evidencia tapó la protección de datos personales, porque el
+#' perfil no publica ahí qué valor contó. Entonces `valores` es la lista entera
+#' de centinelas del perfil, la justificación lo dice, y la acción lleva en
+#' `parametros$guarda` el contexto con que el perfil decidió —el tipo inferido,
+#' la convención decimal y las banderas de la numeración—. Al aplicar, convierte
+#' sólo los centinelas de esa lista que el mismo detector cuenta en los datos
+#' que recibe, que pueden ser menos, y nunca un valor que no esté en `valores`;
+#' lo que el usuario agregue a `valores` se convierte sin acotar. Sobre los
+#' datos del perfil convierte lo contado. Sobre otra entrega decide con esos
+#' datos, y puede convertir un centinela de la lista que el perfil de origen no
+#' había contado: es el límite de estos dos casos. Si el perfil contó dentro de
+#' un universo declarado en `aplicabilidad`, la acción necesita la regla que el
+#' plan le copia para acotar: sin ella termina `fallida` y dice por qué.
 #'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param datos Datos opcionales que originaron el perfil. Son necesarios para
@@ -1940,29 +2027,62 @@ planificar_limpieza <- function(perfil, datos = NULL,
           as.character(fila$numero_texto_convencion[[1L]])
         } else ""
         # La lista acota a lo que el perfil conto en ESTA columna, no al
-        # catalogo: ver `.sentinelas_contados_en_evidencia()`. Lo que el usuario
-        # declaro se suma, porque atraviesa la guarda del detector entera. Con
-        # un perfil protegido no se toca: la lista lleva tapados los rellenos y
-        # los centinelas declarados que son valores de una columna protegida
-        # -un `NA` en su lugar-, y achicarla los perdia. La proteccion se lee de
-        # `meta`, no de la clasificacion: una columna clasificada como personal
-        # figura para proteger aunque la proteccion este apagada.
-        if (identical(perfil$meta$proteger_datos_personales, FALSE) &&
+        # catalogo. Lo dice la traza del hallazgo (`sentinelas_contados`), que
+        # sale de la misma mascara que el conteo: con la lista entera,
+        # `aplicar()` convertia tambien el `999` legitimo de una numeracion.
+        # Lo que el usuario declaro se suma, porque atraviesa la guarda del
+        # detector entera.
+        #
+        # La traza no lo trae en dos casos: un perfil guardado por una version
+        # anterior, y un hallazgo cuya evidencia la proteccion tapo -ahi el
+        # perfil no publica que valor conto-. En el primero todavia se puede
+        # leer de la evidencia, si nombra todo lo contado
+        # (`.sentinelas_contados_en_evidencia()`); con un perfil protegido no,
+        # porque la lista lleva tapados los centinelas declarados que son
+        # valores de una columna protegida -un `NA` en su lugar- y achicarla
+        # los perdia. La proteccion se lee de `meta`, no de la clasificacion:
+        # una columna clasificada como personal figura para proteger aunque la
+        # proteccion este apagada. Si tampoco se puede, la lista queda entera
+        # y la accion lleva la guarda con que `aplicar()` la acota sobre los
+        # datos que recibe: ver `.guarda_sentinelas_del_perfil()`.
+        contados <- .sentinelas_contados_de_traza(hallazgo)
+        if (is.null(contados) &&
+            identical(perfil$meta$proteger_datos_personales, FALSE) &&
             !anyNA(sentinelas)) {
           contados <- .sentinelas_contados_en_evidencia(
             hallazgo$evidencia[[1L]], n_numericos, convencion,
             textuales = perfil$meta$cadenas_ausencia
           )
-          if (!is.null(contados)) {
-            sentinelas <- .normalizar_sentinelas_numericos(c(
-              contados, .sentinelas_numericos_declarados(sentinelas)
-            ))
-          }
+        }
+        guarda_sentinelas <- NULL
+        if (!is.null(contados)) {
+          sentinelas <- .normalizar_sentinelas_numericos(c(
+            contados, .sentinelas_numericos_declarados(sentinelas)
+          ))
+        } else {
+          guarda_sentinelas <- .guarda_sentinelas_del_perfil(
+            perfil, columna, fila, sentinelas, convencion
+          )
+          justificacion <- paste0(
+            justificacion, " La lista `valores` es la lista entera de ",
+            "sentinelas del perfil, que no dice cu\u00e1les cont\u00f3 en esta ",
+            "columna; al aplicar, la acci\u00f3n convierte s\u00f3lo los que el ",
+            "detector cuenta en los datos que recibe, que pueden ser menos."
+          )
         }
         parametros_sentinelas <- list(valores = sentinelas)
         if (length(convencion) == 1L && !is.na(convencion) &&
             nzchar(convencion)) {
           parametros_sentinelas$convencion <- convencion
+        }
+        # Las marcas textuales declaradas viajan con la accion: una celda que
+        # el perfil conto como marca textual -`cadenas_ausencia = "999"`- no es
+        # de esta accion aunque se lea como uno de sus numeros.
+        if (length(perfil$meta$cadenas_ausencia)) {
+          parametros_sentinelas$cadenas_ausencia <- perfil$meta$cadenas_ausencia
+        }
+        if (!is.null(guarda_sentinelas)) {
+          parametros_sentinelas$guarda <- guarda_sentinelas
         }
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "convertir_sentinelas_numericos", FALSE,
@@ -3121,15 +3241,139 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # rellenos de la columna (`.rellenos_de_columna()`). El plan solo lo ofrece asi
 # cuando esa resolucion convierte lo que estima; ver
 # `.centinelas_tapados_en_plan()`.
-.valores_sentinelas_accion <- function(x, parametros) {
+#
+# Con `guarda` -el plan no sabe cuales centinelas conto el perfil: la traza no
+# los trae o la proteccion los tapo- la lista entera se acota antes sobre los
+# datos: de los centinelas de la guarda quedan los que el detector cuenta en la
+# columna recibida. Lo que el usuario agrego a `valores` no es de la guarda y
+# queda; lo que quito ya no esta. La guarda nunca agrega un valor a la lista.
+#
+# `x_guarda` es la columna sobre la que decide la guarda: la que `aplicar()`
+# RECIBIO, no la que dejaron las acciones anteriores del mismo plan. El perfil
+# decidio mirando la columna entera, tambien las celdas que son marca textual:
+# con `cadenas_ausencia = "999"`, tres `"999"` y un `"999,00"`, el 999 aparece
+# cuatro veces y el detector lo cuenta. Si `convertir_ausencias_textuales` corre
+# antes y la guarda mira lo que queda, el 999 aparece una sola vez, dentro del
+# rango, y deja de contarse: la accion convertia una celda menos que el perfil.
+.valores_sentinelas_accion <- function(x, parametros, aplicable = NULL,
+                                       x_guarda = x) {
   valores <- parametros$valores
+  guarda <- parametros$guarda
+  if (is.list(guarda) && is.numeric(valores) &&
+      is.numeric(guarda$sentinelas)) {
+    contados <- .sentinelas_contados_sobre_datos(
+      x_guarda, guarda, parametros$cadenas_ausencia, aplicable
+    )
+    de_la_guarda <- !is.na(valores) & valores %in% guarda$sentinelas
+    valores <- valores[!de_la_guarda | valores %in% contados]
+  }
   if (!isTRUE(parametros$valores_enmascarados)) return(valores)
   visibles <- valores[!is.na(valores)]
   rellenos <- suppressWarnings(as.numeric(.rellenos_de_columna(x)))
   unique(c(visibles, rellenos[!is.na(rellenos)]))
 }
 
-.mascara_sentinelas_numericos <- function(x, parametros) {
+# Los centinelas de la guarda que el detector cuenta en la columna que recibe
+# `aplicar()`. Es `.faltantes_disfrazados_columna()` -la unica funcion que
+# decide el conteo del perfil- con el contexto que el perfil publico, en lugar
+# de volver a inferirlo: el tipo, la convencion decimal y las banderas de la
+# numeracion salen de la guarda. Las filas fuera del universo aplicable salen
+# antes, como en el perfil: las banderas describen ese universo, y un centinela
+# de fuera no se cuenta ni puede volver sobresaliente a una moda.
+.sentinelas_contados_sobre_datos <- function(x, guarda, cadenas_ausencia = NULL,
+                                             aplicable = NULL) {
+  x_analisis <- .texto_analizable(x)$valores
+  if (is.null(aplicable)) aplicable <- rep(TRUE, length(x_analisis))
+  if (length(aplicable) != length(x_analisis)) return(numeric())
+  if (!all(aplicable)) x_analisis[!aplicable] <- NA
+  lista <- .normalizar_sentinelas_numericos(guarda$sentinelas)
+  disfrazados <- .faltantes_disfrazados_columna(
+    x_analisis,
+    inferencia = list(
+      tipo = as.character(guarda$tipo)[[1L]],
+      convencion_numero_texto = guarda$convencion
+    ),
+    formatos = NULL,
+    secuencia_entera = list(
+      densa = isTRUE(guarda$densa),
+      moda_sobresale = isTRUE(guarda$moda_sobresale)
+    ),
+    sentinelas_numericos = lista,
+    sentinelas_declarados = if (isTRUE(guarda$declarada)) lista else numeric(),
+    cadenas_ausencia = cadenas_ausencia,
+    aplicable = aplicable
+  )
+  disfrazados$sentinelas_contados
+}
+
+# El universo aplicable para la guarda. Sin guarda no hace falta: la lista ya es
+# la que el perfil conto dentro de su universo, y las celdas de fuera se
+# devuelven despues (`.restringir_a_aplicabilidad()`). Con guarda es obligatorio:
+# sin la mascara el detector contaria los centinelas de las filas de fuera, y
+# las banderas de la numeracion describen las filas aplicables. Si el perfil
+# recorto el universo y la accion no trae la regla, no se puede acotar, y se
+# dice en lugar de convertir la lista entera.
+.mascara_universo_guarda <- function(datos, original, columna, parametros) {
+  guarda <- parametros$guarda
+  if (!is.list(guarda)) return(NULL)
+  if (is.null(parametros$aplicabilidad)) {
+    if (isTRUE(guarda$universo_recortado)) {
+      .detener(
+        "La acci\u00f3n no se puede acotar a lo que el perfil cont\u00f3: el perfil ",
+        "cont\u00f3 los sentinelas de `", columna, "` dentro de un universo ",
+        "aplicable y la acci\u00f3n no trae esa regla en `aplicabilidad`. Volver ",
+        "a planificar desde el perfil, o reponer la regla.", call. = FALSE
+      )
+    }
+    return(NULL)
+  }
+  if (nrow(original) != nrow(datos)) {
+    .detener(
+      "No se puede respetar la aplicabilidad despu\u00e9s de eliminar filas: ",
+      "aplicar las acciones por celda antes de las que eliminan filas.",
+      call. = FALSE
+    )
+  }
+  .mascara_aplicabilidad_accion(original, columna, parametros)
+}
+
+# La columna sobre la que decide la guarda: la de los datos que `aplicar()`
+# recibio (ver `.valores_sentinelas_accion()`). Si no se la puede ubicar ahi
+# con el mismo largo -una accion anterior elimino filas-, la del estado actual.
+.columna_para_guarda <- function(original, columna, x, parametros) {
+  if (!is.list(parametros$guarda) || !inherits(original, "data.frame") ||
+      is.na(columna)) {
+    return(x)
+  }
+  indice <- .indice_nombre(columna, names(original))
+  if (length(indice) != 1L || is.na(indice)) return(x)
+  recibida <- original[[indice]]
+  if (NROW(recibida) != NROW(x)) return(x)
+  recibida
+}
+
+# Las celdas que el detector cuenta como MARCA TEXTUAL de ausencia. No son de
+# esta accion aunque se lean como uno de sus numeros: con `cadenas_ausencia =
+# "999"` y la misma cifra escrita `"999"` seis veces y `"999.0"` cinco, el
+# perfil cuenta seis textuales y cinco numericos, y la accion numerica sola
+# convertia las once. Es la mascara que usa `convertir_ausencias_textuales`,
+# calculada por el detector.
+.mascara_marcas_textuales <- function(x, parametros, aplicable = NULL) {
+  texto <- .texto_analizable(x)$valores
+  if (!is.null(aplicable) && length(aplicable) == length(texto) &&
+      !all(aplicable)) {
+    texto[!aplicable] <- NA
+  }
+  .detectar_faltantes_disfrazados(
+    texto, sentinelas_numericos = numeric(),
+    detectar_sentinelas_numericos = FALSE,
+    cadenas_ausencia = parametros$cadenas_ausencia
+  )$mascara_textual
+}
+
+.mascara_sentinelas_numericos <- function(x, parametros, aplicable = NULL,
+                                          x_guarda = x) {
+  valores <- .valores_sentinelas_accion(x, parametros, aplicable, x_guarda)
   if (is.character(x) || is.factor(x)) {
     # Con la convencion decimal que el plan registro, la lectura del detector:
     # ver `.leer_numeros_texto_centinela()`.
@@ -3138,21 +3382,31 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       texto, parametros$convencion
     )
     identidad <- .identidades_sentinelas_texto(
-      texto, .valores_sentinelas_accion(x, parametros), parametros$convencion,
-      valores_leidos = numeros
+      texto, valores, parametros$convencion, valores_leidos = numeros
     )
-    return(!is.na(x) & !is.na(identidad))
-  } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
+    mascara <- !is.na(x) & !is.na(identidad)
+    if (any(mascara)) {
+      mascara <- mascara & !.mascara_marcas_textuales(x, parametros, aplicable)
+    }
+    return(mascara)
+  } else if (
+    (is.numeric(x) || inherits(x, c("difftime", "units"))) &&
+      !inherits(x, c("Date", "POSIXt"))
+  ) {
+    # Las mismas clases que el detector: `is.numeric()` da FALSE sobre una
+    # duracion y sobre una medida con unidad, y la accion que el perfil
+    # proponia para ellas quedaba `fallida`. Se compara el numero, como el
+    # detector; al asignar `NA` la columna conserva su clase y su unidad.
     numeros <- as.numeric(x)
   } else {
     .detener("Los sentinelas num\u00e9ricos requieren texto o n\u00fameros.", call. = FALSE)
   }
-  !is.na(x) & !is.na(numeros) &
-    numeros %in% .valores_sentinelas_accion(x, parametros)
+  !is.na(x) & !is.na(numeros) & numeros %in% valores
 }
 
-.reemplazar_sentinelas_numericos <- function(x, parametros) {
-  mascara <- .mascara_sentinelas_numericos(x, parametros)
+.reemplazar_sentinelas_numericos <- function(x, parametros, aplicable = NULL,
+                                             x_guarda = x) {
+  mascara <- .mascara_sentinelas_numericos(x, parametros, aplicable, x_guarda)
   if (is.factor(x)) x <- as.character(x)
   x[mascara] <- NA
   list(valor = x, n = sum(mascara))
@@ -5177,7 +5431,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     return(list(datos = datos, n = cambio$n, n_no_reversibles = cambio$n))
   }
   if (identical(estrategia, "convertir_sentinelas_numericos")) {
-    cambio <- .reemplazar_sentinelas_numericos(x, parametros)
+    cambio <- .reemplazar_sentinelas_numericos(
+      x, parametros,
+      aplicable = .mascara_universo_guarda(datos, original, columna, parametros),
+      x_guarda = .columna_para_guarda(original, columna, x, parametros)
+    )
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     # Cada celda cambiada pierde su valor original y ningun formato lo
     # recupera. El registro informaba `n_no_reversibles = 0` porque este

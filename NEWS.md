@@ -58,6 +58,30 @@
 
 ## Correcciones
 
+- `convertir_sentinelas_numericos` convierte exactamente las celdas que el
+  perfil contó en `n_faltantes_disfrazados_numericos`. En la 0.1.1 el plan leía
+  la lista de la evidencia del hallazgo: con más marcas en la columna de las
+  que la evidencia muestra, con una marca declarada que contiene `; ` o con
+  `proteger_datos_personales = TRUE`, la lista volvía al catálogo entero y
+  `aplicar()` podía convertir también el `999` legítimo de una numeración.
+  Ahora el hallazgo `faltantes_disfrazados` publica en su `trazabilidad` el
+  campo `sentinelas_contados`, tomado de las mismas celdas que el conteo, y el
+  plan arma la lista con él. Donde el perfil no lo trae (un perfil guardado por
+  una versión anterior, o un hallazgo cuya evidencia tapó la protección de
+  datos personales, donde el campo queda `NA`), `aplicar()` acota la lista
+  corriendo el mismo detector sobre los datos que recibe; si el perfil contó
+  dentro de un universo de `aplicabilidad` y la acción ya no trae esa regla,
+  termina `fallida` y dice por qué.
+- La misma acción ya no toca las celdas que el perfil contó como marca textual
+  declarada en `cadenas_ausencia`: con `cadenas_ausencia = "999"`, `"999"` es de
+  `convertir_ausencias_textuales` y sólo `"999.0"` es de esta acción.
+- Sobre otra entrega de la misma tabla, la acción convierte los centinelas que
+  su lista nombra y ningún otro; antes, el catálogo entero.
+- `perfilar()` cuenta lo mismo en una numeración guardada como `integer`,
+  `difftime` o `units`: en las dos últimas la guarda de la numeración no corría
+  y el `999` de `1:1000` salía como faltante disfrazado. Y
+  `convertir_sentinelas_numericos` acepta duraciones y medidas con unidad
+  (antes terminaba `fallida`) y conserva la clase y la unidad de la columna.
 - `comparar_equivalencia()` y `comparar_perfiles()` comparan la moda y el
   centinela conjeturado de una columna numérica por su valor y no por cómo los
   imprimió la sesión. La misma tabla perfilada con `options(OutDec = ",")` y con

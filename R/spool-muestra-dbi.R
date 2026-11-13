@@ -995,9 +995,13 @@
     alcance = .ALCANCE_TRAZA_ORDEN_INESTABLE, limite = limite
   )
   if (is.list(traza)) {
+    # `sentinelas_contados` tampoco nombra filas: dice que centinelas conto el
+    # detector en la columna, y el plan de limpieza lo lee. Sin el, el plan de
+    # una muestra de orden inestable volvia a la lista entera del catalogo.
     conteos <- c(
       "n_patrones_raros", "limite_patrones_raros_trazabilidad",
-      "n_filas_formas_variantes", "n_filas_formas_dominantes"
+      "n_filas_formas_variantes", "n_filas_formas_dominantes",
+      "sentinelas_contados"
     )
     for (campo in intersect(conteos, names(traza))) {
       retenida[[campo]] <- traza[[campo]]

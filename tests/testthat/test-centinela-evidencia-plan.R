@@ -85,7 +85,12 @@ test_that("lo que el usuario declara se suma a la lista", {
   expect_false(any(c(-1, 999) %in% aplicado$datos$x))
 })
 
-test_that("si la evidencia no nombra todo lo contado la lista queda entera", {
+# La lista sale de los centinelas que el perfil conto, no de leer la evidencia
+# impresa. Antes, si la evidencia no los nombraba a todos -aca la parten las
+# marcas textuales-, la accion caia al catalogo entero y podia convertir un
+# valor del catalogo que el perfil no habia contado. Ahora lleva exactamente
+# los contados, tambien sin los datos.
+test_that("si la evidencia no nombra todo lo contado la lista es la de lo contado", {
   marcas <- c("S/D", "N/A", "NULL", "-", "sin dato", "NA")
   texto <- c(
     as.character(seq(50, 5000, by = 3)), rep(marcas, each = 12),
@@ -99,7 +104,7 @@ test_that("si la evidencia no nombra todo lo contado la lista queda entera", {
     expect_identical(contados, 24)
     expect_setequal(
       as.numeric(accion$parametros[[1L]]$valores),
-      c(-9999, -999, -99, -9, 999)
+      c(-999, -99, -9)
     )
     aplicado <- .cev_aplicar(r$plan, datos)
     expect_identical(as.character(aplicado$registro$estado), "ejecutada")
@@ -154,9 +159,11 @@ test_that("una marca declarada con el separador de la evidencia no fabrica centi
     accion <- .cev_accion(r$plan)
     contados <- .cev_contados(r$perfil)
     expect_identical(contados, 19)
+    # Lo contado, no el catalogo: la marca con el separador ya no puede
+    # hacer caer la lista al catalogo entero.
     expect_setequal(
       as.numeric(accion$parametros[[1L]]$valores),
-      c(-9999, -999, -99, -9, 999)
+      c(-999, -99, -9)
     )
     aplicado <- .cev_aplicar(r$plan, datos)
     expect_identical(as.numeric(aplicado$registro$n_cambiadas), contados)
@@ -178,7 +185,12 @@ test_that("una columna clasificada como personal no apaga la lista acotada", {
   expect_identical(as.numeric(aplicado$registro$n_cambiadas), contados)
 })
 
-test_that("con un perfil protegido la lista de centinelas no se achica", {
+# Con la proteccion pedida, la columna de importes no es personal: su hallazgo
+# publica los centinelas que conto y la lista es esa, `-999`. Lo que no puede
+# pasar es que se pierda un centinela contado ni que la accion convierta otra
+# cosa que lo contado (antes llevaba la lista entera del perfil, con lo tapado
+# en su lugar, porque no habia de donde saber que se habia contado).
+test_that("con un perfil protegido la lista de centinelas es la de lo contado", {
   documento <- c(
     sprintf("%d.%03d.%03d-%d", 1:5, 100:104, 200:204, 1:5),
     rep("9.999.999-9", 3), sprintf("%d.%03d.%03d-%d", 2:4, 300:302, 400:402, 6:8)
@@ -202,9 +214,11 @@ test_that("con un perfil protegido la lista de centinelas no se achica", {
       plan$columna %in% "monto", , drop = FALSE
   ]
   expect_identical(nrow(accion), 1L)
-  # La lista es la del perfil, con lo tapado en su lugar: nada se cae.
-  expect_identical(
-    length(accion$parametros[[1L]]$valores),
-    length(perfil$meta$sentinelas_numericos)
-  )
+  expect_identical(as.numeric(accion$parametros[[1L]]$valores), -999)
+  plan$aplicar <- plan$estrategia == "convertir_sentinelas_numericos" &
+    plan$columna %in% "monto"
+  aplicado <- suppressWarnings(aplicar(plan, datos))
+  expect_identical(as.numeric(aplicado$registro$n_cambiadas),
+                   .cev_contados(perfil, "monto"))
+  expect_false(any(aplicado$datos$monto %in% -999))
 })

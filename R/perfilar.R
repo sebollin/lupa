@@ -2725,6 +2725,15 @@
 #'   pero la trazabilidad conserva los nombres de todos los patrones raros hasta
 #'   un limite de 5.000; `patrones_parciales` indica que se alcanzo ese limite,
 #'   no que se haya alcanzado el tope de presentacion.
+#'   En `faltantes_disfrazados`, la traza conserva además `sentinelas_contados`:
+#'   los centinelas numéricos que el perfil contó en la columna, sin repetir,
+#'   tomados de las mismas celdas que `n_faltantes_disfrazados_numericos`
+#'   —la evidencia muestra sólo las seis marcas más frecuentes—. Es la lista
+#'   que [planificar_limpieza()] convierte. Queda vacío si el hallazgo contó
+#'   sólo marcas textuales, y `NA` si la protección de datos personales tapó la
+#'   evidencia del hallazgo, entera o por valor: donde el perfil no muestra la
+#'   evidencia, tampoco dice qué valor contó. Un perfil guardado por una
+#'   versión anterior no trae el campo.
 #'   Cuando se emite un hallazgo `patron_raro`, su evidencia incluye la
 #'   proporcion del patron dominante y cuantas filas pertenecen a patrones no
 #'   dominantes que superan `umbral_patron_raro` y por eso quedan excluidos.

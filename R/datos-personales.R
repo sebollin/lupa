@@ -3869,7 +3869,7 @@
   referencias <- unlist(cofre$referencias, use.names = FALSE)
   protegidas[referencias] <- textos[referencias]
   cofre$desde <- 0L
-  .recorrer_textos_salida(x, function(hoja, campo) {
+  salida <- .recorrer_textos_salida(x, function(hoja, campo) {
     tramo <- protegidas[cofre$desde + seq_along(hoja)]
     cofre$desde <- cofre$desde + length(hoja)
     # Los atributos de la hoja -nombres, sobre todo- los pierde el corte del
@@ -3877,6 +3877,11 @@
     attributes(tramo) <- attributes(hoja)
     tramo
   }, intocables, sin_iguales = sin_iguales)
+  # Si el barrido tapo un valor en la evidencia de un hallazgo de faltantes
+  # disfrazados, su traza no puede seguir diciendo que centinelas se contaron:
+  # ver `.cerrar_sentinelas_contados()`. Va aca, y no en cada llamador, porque
+  # este barrido es la puerta comun de todos los que tapan por valor.
+  .cerrar_sentinelas_contados_en(salida)
 }
 
 # Los campos numericos que son ESTRUCTURA -cuentan, ubican o configuran- y no un
@@ -4338,8 +4343,55 @@
 .ejecutables_tras_barrido <- function(plan, originales, antes = originales,
                                       datos = NULL, declarados = NULL) {
   plan <- .marcadores_ausencia_ejecutables(plan, originales, declarados)
+  plan <- .guarda_sentinelas_ejecutable(plan, originales)
   plan <- .centinelas_tapados_en_plan(plan, antes, datos)
   .marcar_mapas_tapados(plan, originales)
+}
+
+# La guarda de `convertir_sentinelas_numericos` es lo que la accion EJECUTA para
+# acotar su lista sobre los datos (`.guarda_sentinelas_del_perfil()`), y los
+# barridos la rompian por coincidencia: el de una columna protegida lleva todos
+# sus valores, tambien los cortos, y tapaba en la lista de la guarda el `999` o
+# el `-9` del catalogo que la columna contiene. Con la lista de la guarda
+# incompleta, el centinela tapado dejaba de ser de la guarda y la accion lo
+# convertia sin acotar.
+#
+# Dos reglas, las de `.centinelas_tapados_en_plan()`:
+#
+#   * lo que es vocabulario del paquete o una bandera del perfil -el tipo
+#     inferido, la convencion decimal, las banderas de la numeracion- guarda su
+#     valor: no es un valor de ninguna celda y el perfil protegido ya lo publica;
+#   * de la lista de centinelas se restituye solo el catalogo DEL PAQUETE. Un
+#     centinela declarado que el barrido tapo sigue tapado y sale de la lista de
+#     la guarda: lo resuelve `aplicar()` con los rellenos de la columna, como
+#     siempre (`valores_enmascarados`).
+.guarda_sentinelas_ejecutable <- function(plan, originales) {
+  if (!inherits(plan, "data.frame") || !is.list(plan$parametros) ||
+      !is.list(originales) || length(originales) != length(plan$parametros)) {
+    return(plan)
+  }
+  indices <- which(
+    as.character(plan$estrategia) == "convertir_sentinelas_numericos"
+  )
+  for (i in indices) {
+    parametros <- plan$parametros[[i]]
+    original <- originales[[i]]
+    if (!is.list(parametros) || !is.list(original) ||
+        !is.list(original$guarda)) {
+      next
+    }
+    guarda <- original$guarda
+    lista <- suppressWarnings(as.numeric(original$guarda$sentinelas))
+    barrida <- if (is.list(parametros$guarda)) parametros$guarda$sentinelas
+    visibles <- !is.na(lista) & lista %in% .numeros_na_locales
+    if (is.numeric(barrida) && length(barrida) == length(lista)) {
+      visibles <- visibles | (!is.na(barrida) & barrida == lista)
+    }
+    guarda$sentinelas <- lista[visibles]
+    parametros$guarda <- guarda
+    plan$parametros[[i]] <- parametros
+  }
+  plan
 }
 
 # Lo que `convertir_ausencias_textuales` EJECUTA guarda su valor real: la lista
@@ -4369,9 +4421,13 @@
     normalizar(c(.cadenas_na_naniar_1_1_0, .cadenas_na_locales)),
     normalizar(declarados)
   ))
-  indices <- which(
-    as.character(plan$estrategia) == "convertir_ausencias_textuales"
-  )
+  # `convertir_sentinelas_numericos` tambien lleva la declaracion
+  # `cadenas_ausencia`, para no tocar las celdas que son marca textual: es la
+  # misma declaracion y guarda su valor por la misma razon. Su lista `valores`
+  # es numerica y no entra en lo de abajo.
+  indices <- which(as.character(plan$estrategia) %in% c(
+    "convertir_ausencias_textuales", "convertir_sentinelas_numericos"
+  ))
   for (i in indices) {
     parametros <- plan$parametros[[i]]
     original <- originales[[i]]
@@ -4474,11 +4530,19 @@
   if (!inherits(datos, "data.frame") || is.na(columna)) return(FALSE)
   indice <- .indice_nombre(columna, names(datos))
   if (length(indice) != 1L || is.na(indice)) return(FALSE)
-  mascara <- .mascara_sentinelas_numericos(datos[[indice]], parametros)
-  if (!is.null(parametros$aplicabilidad)) {
-    mascara <- mascara &
-      .mascara_aplicabilidad_accion(datos, columna, parametros)
+  # El universo, tambien para la guarda de la accion, que acota la lista sobre
+  # las filas aplicables: ver `.mascara_universo_guarda()`.
+  aplicable <- if (!is.null(parametros$aplicabilidad)) {
+    .mascara_aplicabilidad_accion(datos, columna, parametros)
   }
+  if (is.null(aplicable) && is.list(parametros$guarda) &&
+      isTRUE(parametros$guarda$universo_recortado)) {
+    return(FALSE)
+  }
+  mascara <- .mascara_sentinelas_numericos(
+    datos[[indice]], parametros, aplicable
+  )
+  if (!is.null(aplicable)) mascara <- mascara & aplicable
   length(n_afectadas) == 1L && isTRUE(sum(mascara) == n_afectadas)
 }
 
@@ -4554,6 +4618,85 @@
     ifelse(orden, "[estadisticos de orden protegidos]",
            ifelse(!is.na(momentos), "[momentos protegidos]", NA_character_))
   )
+}
+
+# La traza de un hallazgo `faltantes_disfrazados` dice que centinelas conto el
+# detector (`sentinelas_contados`): son valores de celda, los mismos que nombra
+# la evidencia. La regla es una y falla cerrada: el campo se publica solo donde
+# la evidencia del hallazgo se publica sin tapar. Si la proteccion tapo la
+# evidencia -entera, en una columna protegida; por valor, en una columna
+# personal que no se protege o donde el piso encontro un valor identificante-,
+# o tapo alguno de los numeros del campo, el campo entero queda `NA_real_`.
+# Entero y no por elemento: una lista con un hueco diria cuales de los otros se
+# contaron en una columna cuya evidencia el perfil no muestra, y al plan de
+# limpieza no le sirve -convertiria solo una parte-. Con el campo en `NA`, el
+# plan acota la accion sobre los datos al aplicar.
+#
+# Se decide por el ESTADO de la evidencia -lleva una marca de la proteccion- y
+# no por quien la tapo, asi que vale para toda puerta que la tape y se puede
+# aplicar mas de una vez. Un perfil guardado por una version anterior no trae el
+# campo y no se toca.
+.MARCAS_EVIDENCIA_TAPADA <- c("[evidencia protegida]", "[valor protegido]")
+
+.cerrar_sentinelas_contados <- function(hallazgos) {
+  if (!inherits(hallazgos, "data.frame") || !nrow(hallazgos) ||
+      !all(c("tipo_hallazgo", "evidencia", "trazabilidad") %in%
+             names(hallazgos)) ||
+      !is.list(hallazgos$trazabilidad)) {
+    return(hallazgos)
+  }
+  filas <- which(
+    as.character(hallazgos$tipo_hallazgo) == "faltantes_disfrazados"
+  )
+  for (i in filas) {
+    traza <- hallazgos$trazabilidad[[i]]
+    if (!is.list(traza) || !"sentinelas_contados" %in% names(traza)) next
+    contados <- traza[["sentinelas_contados"]]
+    evidencia <- as.character(hallazgos$evidencia[[i]])
+    tapada <- is.na(evidencia) || any(vapply(
+      .MARCAS_EVIDENCIA_TAPADA,
+      function(marca) grepl(marca, evidencia, fixed = TRUE, useBytes = TRUE),
+      logical(1L)
+    ))
+    if (tapada || !is.numeric(contados) || anyNA(contados)) {
+      traza[["sentinelas_contados"]] <- NA_real_
+      hallazgos$trazabilidad[[i]] <- traza
+    }
+  }
+  hallazgos
+}
+
+# Lo mismo sobre un objeto que lleva la tabla de hallazgos adentro -un perfil-
+# o que es la tabla -los hallazgos por grupo-.
+.cerrar_sentinelas_contados_en <- function(x) {
+  if (inherits(x, "data.frame")) return(.cerrar_sentinelas_contados(x))
+  if (is.list(x) && inherits(x[["hallazgos"]], "data.frame")) {
+    x[["hallazgos"]] <- .cerrar_sentinelas_contados(x[["hallazgos"]])
+  }
+  x
+}
+
+# El barrido por valor de la evidencia de una columna, sobre los centinelas
+# contados de sus hallazgos: un numero que es un valor tapado de la columna
+# queda `NA`, y `.cerrar_sentinelas_contados()` cierra el campo entero.
+.barrer_sentinelas_contados <- function(hallazgos, filas, valores) {
+  if (!inherits(hallazgos, "data.frame") || !length(valores) ||
+      !all(c("tipo_hallazgo", "trazabilidad") %in% names(hallazgos)) ||
+      !is.list(hallazgos$trazabilidad)) {
+    return(hallazgos)
+  }
+  filas <- which(
+    filas & as.character(hallazgos$tipo_hallazgo) == "faltantes_disfrazados"
+  )
+  for (i in filas) {
+    traza <- hallazgos$trazabilidad[[i]]
+    if (!is.list(traza) || !is.numeric(traza[["sentinelas_contados"]])) next
+    traza[["sentinelas_contados"]] <- .proteger_numeros_parametros(
+      traza[["sentinelas_contados"]], valores
+    )
+    hallazgos$trazabilidad[[i]] <- traza
+  }
+  hallazgos
 }
 
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
@@ -4767,7 +4910,14 @@
     for (campo in campos) {
       hallazgos[[campo]][indices_debiles] <- barridos[[campo]]
     }
+    # Y los centinelas contados de la traza, con los mismos valores: la
+    # evidencia muestra solo las seis marcas mas frecuentes, y un centinela que
+    # no llego a mostrarse no deja en ella nada que tapar.
+    hallazgos <- .barrer_sentinelas_contados(
+      hallazgos, indices_debiles, valores_debiles
+    )
   }
+  hallazgos <- .cerrar_sentinelas_contados(hallazgos)
   # La evidencia se tapaba y la descripcion no, y hay hallazgos que nombran un
   # valor de celda ahi adentro: `posible_centinela_numerico` decia "El valor
   # 9999 aparece 5 veces". Sobre una columna de documentos protegida eso es una
@@ -5157,6 +5307,9 @@
   # identificante protegido no se publica.
   columnas_antes <- perfil$columnas
   perfil <- .proteger_numeros_parametros(perfil, identificantes)
+  # El piso numerico pudo tapar uno de los centinelas contados de una traza: el
+  # campo se cierra entero, como cuando se tapa la evidencia.
+  perfil <- .cerrar_sentinelas_contados_en(perfil)
   perfil$columnas <- .tapar_derivados_del_piso(columnas_antes, perfil$columnas)
   perfil$meta <- meta_declarada
   if (!is.null(patrones_forma)) {

@@ -3210,6 +3210,30 @@
   disfrazados
 }
 
+# Los centinelas numericos que el detector CONTO, despues de recortar al
+# universo aplicable: los de las celdas de `mascara_numerica`, que es la mascara
+# de `n_faltantes_disfrazados_numericos`. Salen de la misma comparacion que el
+# conteo y por eso no pueden discrepar de el. Es lo que el hallazgo publica en
+# su traza y lo que el plan de limpieza convierte; la posicion por celda -un
+# vector del largo de la columna- se descarta aca y no viaja con el resultado.
+.con_sentinelas_contados <- function(disfrazados) {
+  posicion <- disfrazados$posicion_sentinela
+  sentinelas <- disfrazados$sentinelas
+  disfrazados$posicion_sentinela <- NULL
+  disfrazados$sentinelas <- NULL
+  contados <- numeric()
+  mascara <- disfrazados$mascara_numerica
+  if (length(posicion) && length(mascara) == length(posicion)) {
+    presentes <- unique(posicion[mascara])
+    presentes <- presentes[!is.na(presentes)]
+    if (length(presentes)) {
+      contados <- as.numeric(sentinelas[.sort_por_bytes(presentes)])
+    }
+  }
+  disfrazados$sentinelas_contados <- contados
+  disfrazados
+}
+
 # Los faltantes disfrazados de una columna -sentinelas numericos y cadenas que
 # dicen ausencia-, con la politica entera de `perfilar()`. Estaba escrita dentro
 # de `.perfilar_columna()`, y `detectar_claves()` llamaba a la casi-clave SIN
@@ -3226,6 +3250,24 @@
   valores_numericos <- .valores_numericos_secuencia(
     x_analisis, inferencia, formatos
   )
+  # Una duracion (`difftime`) o una medida con unidad (`units`) es un numero con
+  # una clase encima, y el detector ya la compara como numero. La guarda de la
+  # numeracion, en cambio, solo conoce los tipos `entero`, `doble` e
+  # `integer64`: para estas dos clases no habia ni valores ni secuencia, y
+  # corria como si no hubiera numeracion que proteger. Medido: `1:1000`
+  # guardado como `integer` publicaba cero faltantes disfrazados, y guardado
+  # como `difftime` o como `units` publicaba uno, el 999 que la numeracion trae
+  # una vez en su lugar. El mismo dato con dos respuestas, decididas por la
+  # clase. Aca se mide la numeracion de esos numeros con las mismas dos
+  # funciones; el resumen de secuencia que la fila publica no cambia.
+  if (inherits(x_analisis, c("difftime", "units"))) {
+    numeros <- suppressWarnings(as.numeric(x_analisis))
+    como_numero <- list(tipo = "doble")
+    secuencia_entera <- .resumen_secuencia_entera(numeros, como_numero, NULL)
+    valores_numericos <- .valores_numericos_secuencia(
+      numeros, como_numero, NULL
+    )
+  }
   guarda <- .decision_guarda_numeracion(
     valores_numericos, secuencia_entera, sentinelas_numericos,
     sentinelas_declarados
@@ -3253,6 +3295,7 @@
     detectar_sentinelas_numericos = detectar_sentinelas
   )
   faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
+  faltantes_disfrazados <- .con_sentinelas_contados(faltantes_disfrazados)
   faltantes_declarados <- .detectar_faltantes_disfrazados(
     x_analisis,
     sentinelas_numericos = .sentinelas_numericos_declarados(

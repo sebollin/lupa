@@ -442,16 +442,39 @@ y \code{aplicar()} registraría \code{fallida} la acción recomendada.
 
 \code{convertir_sentinelas_numericos} convierte los números de
 \code{parametros$valores}. El plan arma la lista con los centinelas que el perfil
-contó en esa columna y con los que se declararon en \code{sentinelas_numericos}:
+contó en esa columna —los que la traza del hallazgo publica en
+\code{sentinelas_contados}— y con los que se declararon en \code{sentinelas_numericos}:
 un \code{999} dentro de una numeración de 1 a 2000 no es un centinela para
 \code{\link[=perfilar]{perfilar()}}, y la acción no lo convierte. Así, aplicada a los datos del
-perfil, cambia las celdas que \code{n_afectadas} anuncia. La lista se lee de la
-evidencia del hallazgo, que muestra las marcas más frecuentes: si la
-evidencia no alcanza a nombrar todo lo contado —una columna de texto con
-muchas marcas de ausencia distintas—, la lista es el catálogo entero y
-conviene revisarla antes de marcar la acción. También es el catálogo entero
-cuando el perfil se hizo con \code{proteger_datos_personales = TRUE}. Editarla es
-una decisión del usuario, como en la acción de las ausencias textuales.
+perfil, cambia exactamente las celdas que \code{n_afectadas} anuncia. Una celda
+que el perfil contó como marca textual declarada en \code{cadenas_ausencia} —un
+\code{"999"} con \code{cadenas_ausencia = "999"}— es de \code{convertir_ausencias_textuales},
+y esta acción no la toca aunque se lea como uno de sus números. La acción
+trabaja sobre números, texto, factores, duraciones (\code{difftime}) y medidas con
+unidad (\code{units}), y conserva la clase y la unidad de la columna. Editar la
+lista es una decisión del usuario, como en la acción de las ausencias
+textuales.
+
+Sobre otros datos —otra entrega de la misma tabla— la lista manda: la acción
+convierte esos valores y ningún otro. Si la otra entrega usa otro código, la
+acción termina \code{fallida} sin cambiar celdas, y hay que volver a perfilar o
+agregar el código a \code{valores}.
+
+En dos casos el plan no sabe qué centinelas contó el perfil: un perfil
+guardado por una versión anterior, cuya traza no trae el campo, y un
+hallazgo cuya evidencia tapó la protección de datos personales, porque el
+perfil no publica ahí qué valor contó. Entonces \code{valores} es la lista entera
+de centinelas del perfil, la justificación lo dice, y la acción lleva en
+\code{parametros$guarda} el contexto con que el perfil decidió —el tipo inferido,
+la convención decimal y las banderas de la numeración—. Al aplicar, convierte
+sólo los centinelas de esa lista que el mismo detector cuenta en los datos
+que recibe, que pueden ser menos, y nunca un valor que no esté en \code{valores};
+lo que el usuario agregue a \code{valores} se convierte sin acotar. Sobre los
+datos del perfil convierte lo contado. Sobre otra entrega decide con esos
+datos, y puede convertir un centinela de la lista que el perfil de origen no
+había contado: es el límite de estos dos casos. Si el perfil contó dentro de
+un universo declarado en \code{aplicabilidad}, la acción necesita la regla que el
+plan le copia para acotar: sin ella termina \code{fallida} y dice por qué.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))

@@ -139,28 +139,34 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     detectar_sentinelas_numericos = TRUE,
     cadenas_ausencia = NULL, convencion = NULL) {
   n <- length(x)
+  numeros_na <- .numeros_na(sentinelas_numericos)
   if (!n) {
     return(list(
       n = 0L, proporcion = 0, mascara = logical(), evidencia = "",
-      n_textuales = 0L, n_numericos = 0L
+      n_textuales = 0L, n_numericos = 0L,
+      posicion_sentinela = integer(), sentinelas = numeros_na
     ))
   }
 
   mascara <- rep(FALSE, n)
   mascara_textual <- rep(FALSE, n)
   mascara_numerica <- rep(FALSE, n)
-  numeros_na <- .numeros_na(sentinelas_numericos)
+  # A que centinela de la lista corresponde cada celda, o `NA`. Sale de la misma
+  # comparacion que arma la mascara, para que quien llama pueda decir CUALES
+  # centinelas conto y no solo cuantas celdas: el plan de limpieza convertia la
+  # lista entera, y con ella un `999` que el perfil no habia contado.
+  identidad <- rep(NA_integer_, n)
   if (is.character(x) || is.factor(x)) {
     textos <- .texto_analizable(x)$valores
     normalizados <- .minusculas_para_comparar(textos)
     cadenas <- .cadenas_ausencia_columna(normalizados, cadenas_ausencia)
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
     numericos <- .leer_numeros_texto_centinela(normalizados, convencion)
+    identidad <- .identidades_sentinelas_texto(
+      normalizados, numeros_na, convencion, valores_leidos = numericos
+    )
     mascara_numerica <- detectar_sentinelas_numericos &
-      !is.na(normalizados) & !is.na(numericos) &
-      !is.na(.identidades_sentinelas_texto(
-        normalizados, numeros_na, convencion, valores_leidos = numericos
-      ))
+      !is.na(normalizados) & !is.na(numericos) & !is.na(identidad)
     mascara <- mascara_textual | mascara_numerica
     etiquetas <- textos[mascara]
     etiquetas[trimws(etiquetas) == ""] <- "<blanco>"
@@ -187,8 +193,9 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     # La comparacion se hace sobre el numero, que es donde viven los centinelas:
     # `as.numeric()` de un `difftime` de minutos da los minutos.
     numero <- suppressWarnings(as.numeric(x))
+    identidad <- match(numero, numeros_na)
     mascara_numerica <- detectar_sentinelas_numericos &
-      !is.na(numero) & numero %in% numeros_na
+      !is.na(numero) & !is.na(identidad)
     mascara <- mascara_numerica
     # La etiqueta del valor, no su escritura en la sesion: con `scipen = -9` el
     # centinela -99 salia `-9.9e+01` en la evidencia, que ademas se relee como
@@ -224,7 +231,12 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     # Las submascaras salen para que un universo aplicable declarado pueda
     # recortar los conteos sin volver a detectar.
     mascara_textual = mascara_textual,
-    mascara_numerica = mascara_numerica & !mascara_textual
+    mascara_numerica = mascara_numerica & !mascara_textual,
+    # La posicion en `sentinelas` del centinela de cada celda. Quien llama la
+    # reduce a los centinelas contados y la descarta: es un vector del largo de
+    # la columna y no se guarda en el resultado.
+    posicion_sentinela = identidad,
+    sentinelas = numeros_na
   )
 }
 

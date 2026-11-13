@@ -3859,6 +3859,26 @@
     )
     return(traza)
   }
+  if (tipo == "faltantes_disfrazados") {
+    traza <- if (is.null(indices)) {
+      .trazabilidad_vacia(limite = limite)
+    } else {
+      .trazabilidad_indices(
+        indices, "completo", limite, clave = clave, datos = datos
+      )
+    }
+    # Los centinelas numericos que el detector conto en la columna: la evidencia
+    # muestra solo las seis marcas mas frecuentes, y el plan de limpieza
+    # necesita el conjunto entero para convertir esas celdas y ninguna otra.
+    # Con la traza vacia tambien: que no haya indices no cambia que se conto.
+    contados <- resultados[[indice]]$faltantes_disfrazados$sentinelas_contados
+    traza$sentinelas_contados <- if (is.numeric(contados)) {
+      as.numeric(contados)
+    } else {
+      numeric()
+    }
+    return(traza)
+  }
   if (is.null(indices)) {
     return(.trazabilidad_vacia(limite = limite))
   }

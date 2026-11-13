@@ -19468,6 +19468,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   x <- .proteger_textos_salida(x, identificantes, intocables = intocables)
   columnas_antes <- x$columnas
   x <- .proteger_numeros_parametros(x, identificantes)
+  # Como en `.proteger_perfil()`: si el piso numerico tapo uno de los centinelas
+  # contados de una traza, el campo se cierra entero.
+  x <- .cerrar_sentinelas_contados_en(x)
   if (inherits(columnas_antes, "data.frame")) {
     x$columnas <- .tapar_derivados_del_piso(columnas_antes, x$columnas)
     x <- .tapar_familias_como_columnas_dbi(x, columnas_antes)
@@ -19595,6 +19598,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     filas <- no_personal(perfil$hallazgos$columna) &
       !is.na(perfil$hallazgos$evidencia)
     perfil$hallazgos$evidencia[filas] <- "[evidencia protegida]"
+    # Con la evidencia tapada, la traza tampoco dice que centinelas se contaron.
+    perfil$hallazgos <- .cerrar_sentinelas_contados(perfil$hallazgos)
   }
   list(resumen = resumen, perfil = perfil)
 }
