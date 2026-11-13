@@ -18,8 +18,10 @@ detectar_relaciones(
   umbral_cobertura = 0.9,
   podar = FALSE,
   tope_memoria_mb = Inf,
+  max_filas_huerfanas = 1000L,
   .rangos = NULL,
-  .rellenos_finales = NULL
+  .rellenos_finales = NULL,
+  .trazar_huerfanas = TRUE
 )
 ```
 
@@ -42,7 +44,9 @@ detectar_relaciones(
 
 - umbral_cobertura:
 
-  Umbral usado por la poda de cardinalidades imposibles.
+  Umbral usado por la poda de cardinalidades imposibles, y cobertura
+  mínima de un lado para ubicar sus filas huérfanas: por debajo se
+  cuentan pero no se nombran.
 
 - podar:
 
@@ -54,7 +58,17 @@ detectar_relaciones(
 
   Presupuesto de memoria para las filas comparadas, en megabytes. Las
   combinaciones pendientes se declaran como podas cuando se alcanza;
-  `Inf` no limita el procesamiento.
+  `Inf` no limita el procesamiento. Los conteos y las trazas de filas
+  huérfanas son parte de cada fila comparada y cuentan en el
+  presupuesto.
+
+- max_filas_huerfanas:
+
+  Tope de índices de fila que conserva cada traza de filas huérfanas,
+  como `max_filas_hallazgo` en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Por defecto es `1000`; cuando se supera, el `estado` de la traza queda
+  `truncada` y el `total` se conserva. `Inf` desactiva el tope.
 
 - .rangos:
 
@@ -75,17 +89,27 @@ detectar_relaciones(
   conservar la semantica de comparacion del motor sin convertir todas
   las columnas de texto.
 
+- .trazar_huerfanas:
+
+  Uso interno. `FALSE` omite las columnas `huerfanas_tabla1` y
+  `huerfanas_tabla2`, y la pasada por columna que cuestan; los cuatro
+  conteos se calculan siempre.
+
 ## Value
 
 Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
 —`1:1`, `1:m`, `m:1`, `m:m`, `sin_coincidencias` o `sin_comparar`—,
 `n_valores_comunes`, coberturas de integridad referencial en ambas
 direcciones y `motivo_poda`, que sólo tiene valor en los pares no
-comparados. Los atributos `filas_totales`, `filas_analizadas` y
-`muestreado` documentan el alcance: `filas_analizadas` son todas las
-filas y `muestreado` vale `FALSE`; `podas`, `n_pares_totales`,
-`n_pares_comparados` y `n_pares_podados` documentan qué se comparó y qué
-no.
+comparados. Después, las filas huérfanas de cada lado: los conteos
+`n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,
+`n_valores_huerfanos_tabla1` y `n_valores_huerfanos_tabla2`, y las
+columnas-lista `huerfanas_tabla1` y `huerfanas_tabla2`, con una traza
+por par (`resultado$huerfanas_tabla2[[i]]$indices_fila`). Los atributos
+`filas_totales`, `filas_analizadas` y `muestreado` documentan el
+alcance: `filas_analizadas` son todas las filas y `muestreado` vale
+`FALSE`; `podas`, `n_pares_totales`, `n_pares_comparados` y
+`n_pares_podados` documentan qué se comparó y qué no.
 
 ## Details
 
@@ -146,6 +170,42 @@ calculan con ambas columnas completas: la cobertura cuenta las filas de
 cada valor distinto, así que sale exacta por el costo de una pasada más
 por columna, sin una muestra que pueda alinearse con los datos.
 
+**Las filas huérfanas.** Cada par comparado dice cuántas filas y cuántos
+valores distintos de cada tabla no están en la otra:
+`n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,
+`n_valores_huerfanos_tabla1` y `n_valores_huerfanos_tabla2`. Es lo que
+la cobertura deja afuera, contado sobre las mismas filas y con la misma
+identidad: otra caja o un espacio al borde son otro valor. **Un ausente
+no es huérfano**: no entra en el denominador de la cobertura y tampoco
+en estos conteos, así que la cobertura de un lado es uno menos sus filas
+huérfanas sobre sus filas no ausentes.
+
+`huerfanas_tabla1` y `huerfanas_tabla2` dicen además **cuáles** son, con
+la forma de la trazabilidad de un hallazgo de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+una lista por par con `indices_fila` —posiciones en la tabla que se
+recibió, en su orden—, `total`, `mostrados`, `truncado`, `limite`,
+`estado` y `alcance`. Ubicarlas cuesta una pasada más por la columna, y
+en dos columnas sin relación casi todas las filas son huérfanas, así que
+sólo se ubican en el lado casi cubierto: con cobertura de
+`umbral_cobertura` a menos de 1. Por debajo del umbral la traza sale
+`no_disponible` con `alcance = "cobertura_bajo_umbral"` y conserva el
+`total`. Sin filas huérfanas no hay nada que ubicar: la traza sale vacía
+—`no_disponible`, con `total` `NA`— junto a un conteo de cero. En un par
+`sin_comparar` los cuatro conteos son `NA` y las trazas, `no_disponible`
+con `alcance = "no_evaluado"`.
+
+**Los valores huérfanos no se publican**, sólo sus filas. Un índice no
+dice nada de la celda; el valor de una columna que se compara con otra
+suele ser un identificador, y esta función no sabe si es un dato
+personal. Con las filas el valor está a una línea, para quien tiene la
+tabla: `tabla2$columna[indices]`.
+
+Se compara una columna contra una columna. Una clave compuesta se
+compara componente por componente, y una combinación que no existe pero
+cuyos componentes existen por separado no sale huérfana: para verla hay
+que pegar los componentes en una columna de cada tabla y comparar ésa.
+
 ## See also
 
 [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
@@ -162,4 +222,16 @@ detectar_relaciones(personas, tramites)
 #> 1             id     persona_id          1:m                 2
 #>   cobertura_tabla1_en_tabla2 cobertura_tabla2_en_tabla1 motivo_poda
 #> 1                  0.6666667                       0.75        <NA>
+#>   n_filas_huerfanas_tabla1 n_filas_huerfanas_tabla2 n_valores_huerfanos_tabla1
+#> 1                        1                        1                          1
+#>   n_valores_huerfanos_tabla2 huerfanas_tabla1 huerfanas_tabla2
+#> 1                          1     no_dispo....     no_dispo....
+
+# Con casi todos los trámites cubiertos, la traza nombra el que no lo está.
+tramites <- data.frame(persona_id = c(rep(1:3, 6), 4))
+relacion <- detectar_relaciones(personas, tramites)
+relacion$n_filas_huerfanas_tabla2
+#> [1] 1
+relacion$huerfanas_tabla2[[1]]$indices_fila
+#> [1] 19
 ```

@@ -184,6 +184,18 @@ lo que la columna entera sí conjetura —una numeración cuya moda
 sobresale, o un candidato fuera de su rango— no es de la partición: el
 grupo lo publica.
 
+Sobre una numeración densa, cada grupo cuenta los faltantes disfrazados
+con la guarda de la columna entera, como
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+sobre la tabla completa: un `999` dentro de `1:2000` es un código de la
+numeración y no se cuenta ni en `faltantes_disfrazados` ni en
+`faltantes`, aunque dentro del grupo la numeración tenga huecos. Lo que
+así se deja de contar se declara en esta cobertura, con el diagnóstico
+`centinelas_numericos`, y el motivo dice si contado habría hecho cruzar
+el umbral de `faltantes`. Las ausencias escritas con texto —un `"0"`
+declarado en `cadenas_ausencia`, por ejemplo— son del grupo y se siguen
+contando.
+
 ## Details
 
 Dentro de cada grupo se descartan las columnas enteramente ausentes

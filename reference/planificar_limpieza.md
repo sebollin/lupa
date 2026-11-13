@@ -223,43 +223,44 @@ que el perfil infiere como `identificador` (`101a`, `102a`) la acción
 queda `lista` sin activar: lo que acompaña al número puede ser parte del
 código. Un valor con `%` se divide por 100, la escala con que el paquete
 publica toda proporción; queda en `[0, 1]` si el porcentaje estaba entre
-0 y 100, y el plan no comprueba ese rango. Una unidad o un símbolo de
-moneda dejan de formar parte del valor y quedan en `parametros`. La
-justificación lo dice cuando ocurre. Una columna que mezcla `5` con
-`5 %` no se convierte: habría que decidir si el número sin `%` está en
-la misma escala. Esta conversión no lee la notación científica (`1e5`):
-si la columna la trae junto a números con formato regional, la acción
-queda `bloqueada`. `convertir_tipo` lee cada texto con la convención
-decimal de la columna, como el resumen del perfil: con coma decimal,
-`12.500` se convierte en doce mil quinientos. La acción de codificación
-prueba las tablas congeladas de varias codificaciones y deja en
-`estado_reparacion` uno de `reparado`, `reparado_parcialmente` o
-`no_se_pudo`. Una reparación parcial —una celda que el motor repara sólo
-en parte— no se activa automáticamente: la acción queda `lista` con
-`aplicar = FALSE`, y se selecciona de forma explícita marcando
-`aplicar = TRUE`; entonces se aplican también las parciales. Una celda
-sin reparación local —con el carácter de reemplazo U+FFFD, o que el
-motor no pudo reparar— no frena la de las demás: queda como está y la
-justificación de la acción la cuenta. La estrategia se llama
-`reparar_codificacion` y no limita el motor a latin-1. Un texto legítimo
-que se escribe con los mismos bytes que un mojibake —por ejemplo, uno
-que cita literalmente la `Ã` seguida de `©`— no se distingue de uno
-roto: se acusa, la evidencia del plan lo muestra antes de aplicar, y si
-se aplica la acción se reescribe como la letra que esos bytes codifican.
-Si la columna contiene texto así, no active la acción. Unos mismos bytes
-pueden parecer un control: el segundo byte de una «Á» mal leída es un
-C1, el de una «í» un guion blando, y `c2 80` es la huella de un euro de
-Windows-1252 leído como latin-1. Lo que la reparación reemplaza no
-cuenta como carácter invisible y ninguna otra acción del plan lo toca:
-aunque se desmarque `reparar_codificacion`, la secuencia queda entera y
-el perfil siguiente la sigue encontrando. Lo mismo si el motor no puede
-reparar la celda: sus letras rotas quedan como están. Los controles que
-la reparación deja como están, como un U+0081 suelto o un guion blando
-fuera de una letra rota, se diagnostican y se quitan, también en una
-celda con mojibake. El perfil cuenta un invisible sólo donde la acción
-puede quitarlo. Una celda cuyo texto no se puede leer —declarada `bytes`
-con bytes que no son UTF-8, o sin marca en una sesión UTF-8, que es lo
-que deja [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
+0 y 100, y el plan no comprueba ese rango. Una unidad, o una moneda
+delante o detrás del número (`$ 35`, `1.234,56 $`), dejan de formar
+parte del valor y quedan en `parametros`. La justificación lo dice
+cuando ocurre. Una columna que mezcla `5` con `5 %` no se convierte:
+habría que decidir si el número sin `%` está en la misma escala. Esta
+conversión no lee la notación científica (`1e5`): si la columna la trae
+junto a números con formato regional, la acción queda `bloqueada`.
+`convertir_tipo` lee cada texto con la convención decimal de la columna,
+como el resumen del perfil: con coma decimal, `12.500` se convierte en
+doce mil quinientos. La acción de codificación prueba las tablas
+congeladas de varias codificaciones y deja en `estado_reparacion` uno de
+`reparado`, `reparado_parcialmente` o `no_se_pudo`. Una reparación
+parcial —una celda que el motor repara sólo en parte— no se activa
+automáticamente: la acción queda `lista` con `aplicar = FALSE`, y se
+selecciona de forma explícita marcando `aplicar = TRUE`; entonces se
+aplican también las parciales. Una celda sin reparación local —con el
+carácter de reemplazo U+FFFD, o que el motor no pudo reparar— no frena
+la de las demás: queda como está y la justificación de la acción la
+cuenta. La estrategia se llama `reparar_codificacion` y no limita el
+motor a latin-1. Un texto legítimo que se escribe con los mismos bytes
+que un mojibake —por ejemplo, uno que cita literalmente la `Ã` seguida
+de `©`— no se distingue de uno roto: se acusa, la evidencia del plan lo
+muestra antes de aplicar, y si se aplica la acción se reescribe como la
+letra que esos bytes codifican. Si la columna contiene texto así, no
+active la acción. Unos mismos bytes pueden parecer un control: el
+segundo byte de una «Á» mal leída es un C1, el de una «í» un guion
+blando, y `c2 80` es la huella de un euro de Windows-1252 leído como
+latin-1. Lo que la reparación reemplaza no cuenta como carácter
+invisible y ninguna otra acción del plan lo toca: aunque se desmarque
+`reparar_codificacion`, la secuencia queda entera y el perfil siguiente
+la sigue encontrando. Lo mismo si el motor no puede reparar la celda:
+sus letras rotas quedan como están. Los controles que la reparación deja
+como están, como un U+0081 suelto o un guion blando fuera de una letra
+rota, se diagnostican y se quitan, también en una celda con mojibake. El
+perfil cuenta un invisible sólo donde la acción puede quitarlo. Una
+celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
+son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja
+[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no
 la midió y la informa como `codificacion_invalida`, cuyo remedio es
 volver a leer la fuente declarando su codificación. Las acciones de
@@ -476,19 +477,42 @@ acción recomendada.
 
 `convertir_sentinelas_numericos` convierte los números de
 `parametros$valores`. El plan arma la lista con los centinelas que el
-perfil contó en esa columna y con los que se declararon en
+perfil contó en esa columna —los que la traza del hallazgo publica en
+`sentinelas_contados`— y con los que se declararon en
 `sentinelas_numericos`: un `999` dentro de una numeración de 1 a 2000 no
 es un centinela para
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
 la acción no lo convierte. Así, aplicada a los datos del perfil, cambia
-las celdas que `n_afectadas` anuncia. La lista se lee de la evidencia
-del hallazgo, que muestra las marcas más frecuentes: si la evidencia no
-alcanza a nombrar todo lo contado —una columna de texto con muchas
-marcas de ausencia distintas—, la lista es el catálogo entero y conviene
-revisarla antes de marcar la acción. También es el catálogo entero
-cuando el perfil se hizo con `proteger_datos_personales = TRUE`.
-Editarla es una decisión del usuario, como en la acción de las ausencias
-textuales.
+exactamente las celdas que `n_afectadas` anuncia. Una celda que el
+perfil contó como marca textual declarada en `cadenas_ausencia` —un
+`"999"` con `cadenas_ausencia = "999"`— es de
+`convertir_ausencias_textuales`, y esta acción no la toca aunque se lea
+como uno de sus números. La acción trabaja sobre números, texto,
+factores, duraciones (`difftime`) y medidas con unidad (`units`), y
+conserva la clase y la unidad de la columna. Editar la lista es una
+decisión del usuario, como en la acción de las ausencias textuales.
+
+Sobre otros datos —otra entrega de la misma tabla— la lista manda: la
+acción convierte esos valores y ningún otro. Si la otra entrega usa otro
+código, la acción termina `fallida` sin cambiar celdas, y hay que volver
+a perfilar o agregar el código a `valores`.
+
+En dos casos el plan no sabe qué centinelas contó el perfil: un perfil
+guardado por una versión anterior, cuya traza no trae el campo, y un
+hallazgo cuya evidencia tapó la protección de datos personales, porque
+el perfil no publica ahí qué valor contó. Entonces `valores` es la lista
+entera de centinelas del perfil, la justificación lo dice, y la acción
+lleva en `parametros$guarda` el contexto con que el perfil decidió —el
+tipo inferido, la convención decimal y las banderas de la numeración—.
+Al aplicar, convierte sólo los centinelas de esa lista que el mismo
+detector cuenta en los datos que recibe, que pueden ser menos, y nunca
+un valor que no esté en `valores`; lo que el usuario agregue a `valores`
+se convierte sin acotar. Sobre los datos del perfil convierte lo
+contado. Sobre otra entrega decide con esos datos, y puede convertir un
+centinela de la lista que el perfil de origen no había contado: es el
+límite de estos dos casos. Si el perfil contó dentro de un universo
+declarado en `aplicabilidad`, la acción necesita la regla que el plan le
+copia para acotar: sin ella termina `fallida` y dice por qué.
 
 ## See also
 

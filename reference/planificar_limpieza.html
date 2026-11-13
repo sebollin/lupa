@@ -284,8 +284,9 @@ el perfil infiere como <code>identificador</code> (<code>101a</code>, <code>102a
 <code>lista</code> sin activar: lo que acompaña al número puede ser parte del código.
 Un valor con <code>%</code> se divide por 100, la escala con que el paquete publica
 toda proporción; queda en <code>[0, 1]</code> si el porcentaje estaba entre 0 y 100, y
-el plan no comprueba ese rango. Una unidad o un símbolo de moneda dejan de
-formar parte del valor y quedan en <code>parametros</code>. La justificación lo dice
+el plan no comprueba ese rango. Una unidad, o una moneda delante o detrás
+del número (<code>$ 35</code>, <code>1.234,56 $</code>), dejan de formar parte del valor y quedan
+en <code>parametros</code>. La justificación lo dice
 cuando ocurre. Una columna que mezcla <code>5</code> con <code>5 %</code> no se convierte: habría
 que decidir si el número sin <code>%</code> está en la misma escala. Esta conversión no
 lee la notación científica (<code>1e5</code>): si la columna la trae junto a números
@@ -509,16 +510,37 @@ se publica en <code>meta$cadenas_ausencia</code>. Tapados, saldrían <code>[valo
 y <code>aplicar()</code> registraría <code>fallida</code> la acción recomendada.</p>
 <p><code>convertir_sentinelas_numericos</code> convierte los números de
 <code>parametros$valores</code>. El plan arma la lista con los centinelas que el perfil
-contó en esa columna y con los que se declararon en <code>sentinelas_numericos</code>:
+contó en esa columna —los que la traza del hallazgo publica en
+<code>sentinelas_contados</code>— y con los que se declararon en <code>sentinelas_numericos</code>:
 un <code>999</code> dentro de una numeración de 1 a 2000 no es un centinela para
 <code><a href="perfilar.html">perfilar()</a></code>, y la acción no lo convierte. Así, aplicada a los datos del
-perfil, cambia las celdas que <code>n_afectadas</code> anuncia. La lista se lee de la
-evidencia del hallazgo, que muestra las marcas más frecuentes: si la
-evidencia no alcanza a nombrar todo lo contado —una columna de texto con
-muchas marcas de ausencia distintas—, la lista es el catálogo entero y
-conviene revisarla antes de marcar la acción. También es el catálogo entero
-cuando el perfil se hizo con <code>proteger_datos_personales = TRUE</code>. Editarla es
-una decisión del usuario, como en la acción de las ausencias textuales.</p>
+perfil, cambia exactamente las celdas que <code>n_afectadas</code> anuncia. Una celda
+que el perfil contó como marca textual declarada en <code>cadenas_ausencia</code> —un
+<code>"999"</code> con <code>cadenas_ausencia = "999"</code>— es de <code>convertir_ausencias_textuales</code>,
+y esta acción no la toca aunque se lea como uno de sus números. La acción
+trabaja sobre números, texto, factores, duraciones (<code>difftime</code>) y medidas con
+unidad (<code>units</code>), y conserva la clase y la unidad de la columna. Editar la
+lista es una decisión del usuario, como en la acción de las ausencias
+textuales.</p>
+<p>Sobre otros datos —otra entrega de la misma tabla— la lista manda: la acción
+convierte esos valores y ningún otro. Si la otra entrega usa otro código, la
+acción termina <code>fallida</code> sin cambiar celdas, y hay que volver a perfilar o
+agregar el código a <code>valores</code>.</p>
+<p>En dos casos el plan no sabe qué centinelas contó el perfil: un perfil
+guardado por una versión anterior, cuya traza no trae el campo, y un
+hallazgo cuya evidencia tapó la protección de datos personales, porque el
+perfil no publica ahí qué valor contó. Entonces <code>valores</code> es la lista entera
+de centinelas del perfil, la justificación lo dice, y la acción lleva en
+<code>parametros$guarda</code> el contexto con que el perfil decidió —el tipo inferido,
+la convención decimal y las banderas de la numeración—. Al aplicar, convierte
+sólo los centinelas de esa lista que el mismo detector cuenta en los datos
+que recibe, que pueden ser menos, y nunca un valor que no esté en <code>valores</code>;
+lo que el usuario agregue a <code>valores</code> se convierte sin acotar. Sobre los
+datos del perfil convierte lo contado. Sobre otra entrega decide con esos
+datos, y puede convertir un centinela de la lista que el perfil de origen no
+había contado: es el límite de estos dos casos. Si el perfil contó dentro de
+un universo declarado en <code>aplicabilidad</code>, la acción necesita la regla que el
+plan le copia para acotar: sin ella termina <code>fallida</code> y dice por qué.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -317,12 +317,13 @@ data.frame(
   columna_1 = paste(encontradas$tabla_1, encontradas$columna_tabla1, sep = "."),
   columna_2 = paste(encontradas$tabla_2, encontradas$columna_tabla2, sep = "."),
   cobertura_1_en_2 = round(encontradas$cobertura_tabla1_en_tabla2, 2),
-  cobertura_2_en_1 = round(encontradas$cobertura_tabla2_en_tabla1, 2)
+  cobertura_2_en_1 = round(encontradas$cobertura_tabla2_en_tabla1, 2),
+  huerfanas_2 = encontradas$n_filas_huerfanas_tabla2
 )
-#>                columna_1          columna_2 cobertura_1_en_2 cobertura_2_en_1
-#> 1 sucursales.id_sucursal ventas.id_sucursal             1.00             0.95
-#> 2  productos.id_producto ventas.id_sucursal             0.67             0.95
-#> 3  productos.id_producto ventas.id_producto             1.00             1.00
+#>                columna_1          columna_2 cobertura_1_en_2 cobertura_2_en_1 huerfanas_2
+#> 1 sucursales.id_sucursal ventas.id_sucursal             1.00             0.95           2
+#> 2  productos.id_producto ventas.id_sucursal             0.67             0.95           2
+#> 3  productos.id_producto ventas.id_producto             1.00             1.00           0
 relaciones$meta$estable
 #> [1] TRUE
 ```
@@ -332,8 +333,11 @@ proporción de las filas de la segunda tabla cuyo valor aparece en la
 primera:
 
 - `sucursales.id_sucursal` cubre el 95 % de `ventas.id_sucursal`. El 5 %
-  que falta son las 2 ventas de la sucursal 9: filas huérfanas que hay
-  que revisar en el sistema de origen.
+  que falta son las 2 ventas de la sucursal 9 (`huerfanas_2`): filas
+  huérfanas que hay que revisar en el sistema de origen. Para ver cuáles
+  son, se leen las dos tablas y se llama a
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+  que nombra las filas.
 - `productos.id_producto` contra `ventas.id_producto` cubre todo en las
   2 direcciones.
 - `productos.id_producto` contra `ventas.id_sucursal` es una

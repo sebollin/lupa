@@ -1271,14 +1271,46 @@ con el reparto de lo que sobrevivió al truncado. En los tres diagnósticos
 de unidad <code>valor_distinto</code> las filas de las formas variantes se entregan
 primero —en <code>mayusculas_inconsistentes</code> y <code>normalizacion_unicode</code>, la forma
 dominante de cada grupo es la guardada más veces—, de modo que el truncado
-no se lleve lo accionable. Para
-<code>patron_raro</code>,
+no se lleve lo accionable.
+En los tres hallazgos de unidad <code>formato</code> (<code>formatos_fecha_mixtos</code>,
+<code>formato_fecha_ambiguo</code> y <code>anio_de_dos_digitos</code>), <code>n_afectados</code> cuenta
+formatos y la traza enumera filas; por eso su total no se compara con
+<code>n_afectados</code>. La traza se arma sobre la columna entera aunque la tabla de
+formatos, la evidencia y <code>n_afectados</code> sean de una muestra, y puede nombrar
+filas escritas en formatos que la muestra no llegó a ver; esa segunda
+lectura se hace sólo cuando alguno de los tres hallazgos sale, una vez por
+columna. <code>anio_de_dos_digitos</code> traza toda fila cuya escritura sólo admite
+lecturas con el año de dos cifras, incluidas las que dos lecturas probadas
+aceptan y por eso no cuenta el <code>n</code> de ninguna; su total puede ser mayor
+que la suma de los <code>n</code> de <code>formatos_fecha</code>. <code>formato_fecha_ambiguo</code> traza
+toda fila escrita en una lectura que la columna entera no puede resolver
+(si la columna entera las resuelve todas, las celdas que admiten dos o más
+de las lecturas que cita). <code>formatos_fecha_mixtos</code> traza todas las
+filas con fecha, primero las de las escrituras que no son la más
+frecuente, con el mismo reparto que <code>casi_duplicados_vocabulario</code>
+(<code>n_filas_formas_variantes</code>, <code>n_filas_formas_dominantes</code> y sus
+<code>mostrados_formas_*</code>); si dos escrituras empatan en el primer lugar no hay
+dominante y todas sus filas cuentan como variantes. Los dos informativos
+que cuentan filas también las traen: <code>posible_ausencia_estructural</code>, las
+ausentes que caen donde la regla dice que la columna no corresponde, y
+<code>regla_silencia_ausencia</code>, las que la declaración del universo dejó de
+contar.
+Para <code>patron_raro</code>,
 el alcance puede ser <code>completo</code>, <code>muestra_patrones</code>,
 <code>patrones_parciales</code> o <code>muestra_patrones+patrones_parciales</code>. El resumen y
 el texto de evidencia de <code>patron_raro</code> muestran como maximo seis patrones,
 pero la trazabilidad conserva los nombres de todos los patrones raros hasta
 un limite de 5.000; <code>patrones_parciales</code> indica que se alcanzo ese limite,
 no que se haya alcanzado el tope de presentacion.
+En <code>faltantes_disfrazados</code>, la traza conserva además <code>sentinelas_contados</code>:
+los centinelas numéricos que el perfil contó en la columna, sin repetir,
+tomados de las mismas celdas que <code>n_faltantes_disfrazados_numericos</code>
+—la evidencia muestra sólo las seis marcas más frecuentes—. Es la lista
+que <code><a href="planificar_limpieza.html">planificar_limpieza()</a></code> convierte. Queda vacío si el hallazgo contó
+sólo marcas textuales, y <code>NA</code> si la protección de datos personales tapó la
+evidencia del hallazgo, entera o por valor: donde el perfil no muestra la
+evidencia, tampoco dice qué valor contó. Un perfil guardado por una
+versión anterior no trae el campo.
 Cuando se emite un hallazgo <code>patron_raro</code>, su evidencia incluye la
 proporcion del patron dominante y cuantas filas pertenecen a patrones no
 dominantes que superan <code>umbral_patron_raro</code> y por eso quedan excluidos.
@@ -1289,7 +1321,11 @@ el hallazgo: <code>cobertura_diagnosticos</code> declara la no medicion, su prop
 observada y el argumento que se puede ajustar.
 Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 advertencia de clase <code>lupa_trazabilidad_incoherente</code>. La guarda compara el
-total previo al truncado y respeta la unidad declarada.
+total previo al truncado y respeta la unidad declarada. Avisa también si
+un hallazgo de formato o un informativo que cuenta filas se construye sin
+nombrarlas, y si el reparto entre formas variantes y dominantes no suma el
+total de la traza; un perfil guardado por una versión anterior, que traía
+esos hallazgos sin filas, se publica sin ese aviso.
 Una columna compuesta no analizada conserva en la traza todas sus filas. Si una
 columna de listas se reconoce como constante pero no se puede contar su
 frecuencia, el conteo afectado queda en NA y <code>cobertura_diagnosticos</code>
@@ -2230,9 +2266,14 @@ no se resume: es un número escrito como texto, y <code>numero_texto_moneda</cod
 <code>numero_texto_unidad</code> publican lo que traía.
 Un código de tres letras mayúsculas separado del número por espacios,
 delante o detrás, es una moneda sólo si es un código ISO 4217 —la lista de
-<code><a href="validadores_formato.html">validar_iso4217()</a></code>—: <code>USD 35</code> es un importe y <code>LEY 18331</code> no es un número.
-<code>U$S</code> y los símbolos monetarios también se conservan como evidencia;
-<code>monedas_mixtas</code> informa sus frecuencias sin convertir ni suponer tasas de
+<code><a href="validadores_formato.html">validar_iso4217()</a></code>—: <code>USD 35</code> es un importe y <code>LEY 18331</code> no es un número;
+pegado al número (<code>35USD</code>) no es una moneda sino un código. Un símbolo
+monetario —<code>$</code>, <code>£</code>, el del euro— o <code>U$S</code> es una moneda delante o detrás
+del número, pegado o separado por un espacio, también el duro o el fino que
+deja una planilla: <code>1.234,56 $</code>, <code>$1.234,56</code> y <code>U$S35</code> son importes, y
+<code>$ 10</code> y <code>20 $</code> son la misma moneda. Un valor con moneda delante y detrás
+(<code>$ 35 $</code>, <code>USD 35 EUR</code>) no es un número. La moneda se conserva como
+evidencia; <code>monedas_mixtas</code> informa sus frecuencias sin convertir ni suponer tasas de
 cambio. Una única moneda o un símbolo <code>$</code> aislado no produce ese hallazgo.
 Un sufijo de unidad se reconoce sólo si es <code>%</code> o una abreviatura alfabética
 que termina en minúscula; por eso <code>12 kg</code> y <code>13500 g</code> son unidades. Un valor

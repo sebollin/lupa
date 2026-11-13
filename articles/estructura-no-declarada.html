@@ -190,18 +190,23 @@ se repite: una persona puede tener más de un trámite.
 <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> recibe las 2 columnas de
 identificación y compara sus valores:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/detectar_relaciones.html">detectar_relaciones</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">relacion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_relaciones.html">detectar_relaciones</a></span><span class="op">(</span></span>
 <span>  <span class="va">personas</span><span class="op">[</span><span class="st">"id_persona"</span><span class="op">]</span>, <span class="va">tramites</span><span class="op">[</span><span class="st">"id_persona"</span><span class="op">]</span>, muestra <span class="op">=</span> <span class="cn">Inf</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt;   columna_tabla1 columna_tabla2 cardinalidad n_valores_comunes cobertura_tabla1_en_tabla2</span></span>
-<span><span class="co">#&gt; 1     id_persona     id_persona          1:m                 8                          1</span></span>
-<span><span class="co">#&gt;   cobertura_tabla2_en_tabla1 motivo_poda</span></span>
-<span><span class="co">#&gt; 1                          1        &lt;NA&gt;</span></span></code></pre></div>
+<span><span class="va">relacion</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna_tabla1"</span>, <span class="st">"columna_tabla2"</span>, <span class="st">"cardinalidad"</span>,</span>
+<span>             <span class="st">"cobertura_tabla1_en_tabla2"</span>, <span class="st">"cobertura_tabla2_en_tabla1"</span>,</span>
+<span>             <span class="st">"n_filas_huerfanas_tabla1"</span>, <span class="st">"n_filas_huerfanas_tabla2"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   columna_tabla1 columna_tabla2 cardinalidad cobertura_tabla1_en_tabla2</span></span>
+<span><span class="co">#&gt; 1     id_persona     id_persona          1:m                          1</span></span>
+<span><span class="co">#&gt;   cobertura_tabla2_en_tabla1 n_filas_huerfanas_tabla1 n_filas_huerfanas_tabla2</span></span>
+<span><span class="co">#&gt; 1                          1                        0                        0</span></span></code></pre></div>
 <p>La cardinalidad es 1:m, uno a muchos. Las 2 coberturas valen 1 porque
 todos los identificadores de cada lado aparecen en el otro. No hay
 trámites de personas que no estén en <code>personas</code>, ni personas
-sin trámites. <code>muestra = Inf</code> deja explícito que se comparan
-todos los valores.</p>
+sin trámites: por eso las filas huérfanas de cada lado son 0. Cuando no
+lo son, <code>huerfanas_tabla1</code> y <code>huerfanas_tabla2</code>
+dicen cuáles son, por su número de fila. <code>muestra = Inf</code> deja
+explícito que se comparan todos los valores.</p>
 </div>
 <div class="section level2">
 <h2 id="una-dependencia-dentro-de-una-tabla">Una dependencia dentro de una tabla<a class="anchor" aria-label="anchor" href="#una-dependencia-dentro-de-una-tabla"></a>
@@ -248,8 +253,8 @@ es la que puede confirmarlas como reglas.</p>
 identifican cada fila en esta entrega: son candidatas, no claves.</li>
 <li>
 <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> compara 2 columnas de
-identificación y publica la cardinalidad y la cobertura de cada
-lado.</li>
+identificación y publica la cardinalidad, la cobertura de cada lado y
+cuántas filas quedan huérfanas, y cuáles.</li>
 <li>
 <code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> encuentra columnas que
 determinan a otras; <code><a href="../reference/perfilar.html">perfilar()</a></code> las busca por su

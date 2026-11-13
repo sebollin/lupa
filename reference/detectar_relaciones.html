@@ -85,8 +85,10 @@ escoger la dirección PK/FK sin imponerla de antemano.</p>
 <span>  umbral_cobertura <span class="op">=</span> <span class="fl">0.9</span>,</span>
 <span>  podar <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  tope_memoria_mb <span class="op">=</span> <span class="cn">Inf</span>,</span>
+<span>  max_filas_huerfanas <span class="op">=</span> <span class="fl">1000L</span>,</span>
 <span>  .rangos <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  .rellenos_finales <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  .rellenos_finales <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  .trazar_huerfanas <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -110,7 +112,9 @@ la exploración completa por compatibilidad.</p></dd>
 
 
 <dt id="arg-umbral-cobertura">umbral_cobertura<a class="anchor" aria-label="anchor" href="#arg-umbral-cobertura"></a></dt>
-<dd><p>Umbral usado por la poda de cardinalidades imposibles.</p></dd>
+<dd><p>Umbral usado por la poda de cardinalidades
+imposibles, y cobertura mínima de un lado para ubicar sus filas huérfanas:
+por debajo se cuentan pero no se nombran.</p></dd>
 
 
 <dt id="arg-podar">podar<a class="anchor" aria-label="anchor" href="#arg-podar"></a></dt>
@@ -122,7 +126,16 @@ aplica la poda cierta, que no cambia ninguna fila.</p></dd>
 <dt id="arg-tope-memoria-mb">tope_memoria_mb<a class="anchor" aria-label="anchor" href="#arg-tope-memoria-mb"></a></dt>
 <dd><p>Presupuesto de memoria para las filas comparadas, en
 megabytes. Las combinaciones pendientes se declaran como podas cuando se
-alcanza; <code>Inf</code> no limita el procesamiento.</p></dd>
+alcanza; <code>Inf</code> no limita el procesamiento. Los conteos y las trazas de
+filas huérfanas son parte de cada fila comparada y cuentan en el
+presupuesto.</p></dd>
+
+
+<dt id="arg-max-filas-huerfanas">max_filas_huerfanas<a class="anchor" aria-label="anchor" href="#arg-max-filas-huerfanas"></a></dt>
+<dd><p>Tope de índices de fila que conserva cada traza
+de filas huérfanas, como <code>max_filas_hallazgo</code> en <code><a href="perfilar.html">perfilar()</a></code>. Por defecto
+es <code>1000</code>; cuando se supera, el <code>estado</code> de la traza queda <code>truncada</code> y el
+<code>total</code> se conserva. <code>Inf</code> desactiva el tope.</p></dd>
 
 
 <dt id="arg--rangos">.rangos<a class="anchor" aria-label="anchor" href="#arg--rangos"></a></dt>
@@ -139,6 +152,12 @@ las columnas cuyo controlador compara ignorando espacios finales. Se aplica
 solo al par que tiene una columna declarada, para conservar la semantica de
 comparacion del motor sin convertir todas las columnas de texto.</p></dd>
 
+
+<dt id="arg--trazar-huerfanas">.trazar_huerfanas<a class="anchor" aria-label="anchor" href="#arg--trazar-huerfanas"></a></dt>
+<dd><p>Uso interno. <code>FALSE</code> omite las columnas
+<code>huerfanas_tabla1</code> y <code>huerfanas_tabla2</code>, y la pasada por columna que
+cuestan; los cuatro conteos se calculan siempre.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -146,7 +165,12 @@ comparacion del motor sin convertir todas las columnas de texto.</p></dd>
 —<code>1:1</code>, <code>1:m</code>, <code>m:1</code>, <code>m:m</code>, <code>sin_coincidencias</code> o <code>sin_comparar</code>—,
 <code>n_valores_comunes</code>,
 coberturas de integridad referencial en ambas direcciones y <code>motivo_poda</code>,
-que sólo tiene valor en los pares no comparados. Los atributos
+que sólo tiene valor en los pares no comparados. Después, las filas
+huérfanas de cada lado: los conteos <code>n_filas_huerfanas_tabla1</code>,
+<code>n_filas_huerfanas_tabla2</code>, <code>n_valores_huerfanos_tabla1</code> y
+<code>n_valores_huerfanos_tabla2</code>, y las columnas-lista <code>huerfanas_tabla1</code> y
+<code>huerfanas_tabla2</code>, con una traza por par
+(<code>resultado$huerfanas_tabla2[[i]]$indices_fila</code>). Los atributos
 <code>filas_totales</code>, <code>filas_analizadas</code> y <code>muestreado</code> documentan el alcance:
 <code>filas_analizadas</code> son todas las filas y <code>muestreado</code> vale <code>FALSE</code>;
 <code>podas</code>, <code>n_pares_totales</code>, <code>n_pares_comparados</code> y <code>n_pares_podados</code>
@@ -200,6 +224,36 @@ su motivo y su detalle.</p>
 calculan con ambas columnas completas: la cobertura cuenta las filas de cada
 valor distinto, así que sale exacta por el costo de una pasada más por
 columna, sin una muestra que pueda alinearse con los datos.</p>
+<p><strong>Las filas huérfanas.</strong> Cada par comparado dice cuántas filas y cuántos
+valores distintos de cada tabla no están en la otra:
+<code>n_filas_huerfanas_tabla1</code>, <code>n_filas_huerfanas_tabla2</code>,
+<code>n_valores_huerfanos_tabla1</code> y <code>n_valores_huerfanos_tabla2</code>. Es lo que la
+cobertura deja afuera, contado sobre las mismas filas y con la misma
+identidad: otra caja o un espacio al borde son otro valor. <strong>Un ausente no
+es huérfano</strong>: no entra en el denominador de la cobertura y tampoco en estos
+conteos, así que la cobertura de un lado es uno menos sus filas huérfanas
+sobre sus filas no ausentes.</p>
+<p><code>huerfanas_tabla1</code> y <code>huerfanas_tabla2</code> dicen además <strong>cuáles</strong> son, con la
+forma de la trazabilidad de un hallazgo de <code><a href="perfilar.html">perfilar()</a></code>: una lista por par
+con <code>indices_fila</code> —posiciones en la tabla que se recibió, en su orden—,
+<code>total</code>, <code>mostrados</code>, <code>truncado</code>, <code>limite</code>, <code>estado</code> y <code>alcance</code>. Ubicarlas
+cuesta una pasada más por la columna, y en dos columnas sin relación casi
+todas las filas son huérfanas, así que sólo se ubican en el lado casi
+cubierto: con cobertura de <code>umbral_cobertura</code> a menos de 1. Por debajo del
+umbral la traza sale <code>no_disponible</code> con
+<code>alcance = "cobertura_bajo_umbral"</code> y conserva el <code>total</code>. Sin filas
+huérfanas no hay nada que ubicar: la traza sale vacía —<code>no_disponible</code>, con
+<code>total</code> <code>NA</code>— junto a un conteo de cero. En un par <code>sin_comparar</code> los cuatro
+conteos son <code>NA</code> y las trazas, <code>no_disponible</code> con <code>alcance = "no_evaluado"</code>.</p>
+<p><strong>Los valores huérfanos no se publican</strong>, sólo sus filas. Un índice no dice
+nada de la celda; el valor de una columna que se compara con otra suele ser
+un identificador, y esta función no sabe si es un dato personal. Con las
+filas el valor está a una línea, para quien tiene la tabla:
+<code>tabla2$columna[indices]</code>.</p>
+<p>Se compara una columna contra una columna. Una clave compuesta se compara
+componente por componente, y una combinación que no existe pero cuyos
+componentes existen por separado no sale huérfana: para verla hay que pegar
+los componentes en una columna de cada tabla y comparar ésa.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -215,6 +269,18 @@ columna, sin una muestra que pueda alinearse con los datos.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             id     persona_id          1:m                 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   cobertura_tabla1_en_tabla2 cobertura_tabla2_en_tabla1 motivo_poda</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1                  0.6666667                       0.75        &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_filas_huerfanas_tabla1 n_filas_huerfanas_tabla2 n_valores_huerfanos_tabla1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                        1                        1                          1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_valores_huerfanos_tabla2 huerfanas_tabla1 huerfanas_tabla2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                          1     no_dispo....     no_dispo....</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Con casi todos los trámites cubiertos, la traza nombra el que no lo está.</span></span></span>
+<span class="r-in"><span><span class="va">tramites</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>persona_id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="fl">6</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">relacion</span> <span class="op">&lt;-</span> <span class="fu">detectar_relaciones</span><span class="op">(</span><span class="va">personas</span>, <span class="va">tramites</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">relacion</span><span class="op">$</span><span class="va">n_filas_huerfanas_tabla2</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-in"><span><span class="va">relacion</span><span class="op">$</span><span class="va">huerfanas_tabla2</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">indices_fila</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 19</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -140,7 +140,8 @@ por uno.</p>
 <td><code><a href="../reference/perfilar.html">perfilar()</a></code></td>
 <td><code>muestra</code></td>
 <td>100.000 filas</td>
-<td>patrones, tipos inferidos, formatos de fecha y la muestra común de
+<td>patrones, tipos inferidos, formatos de fecha (la traza de sus
+hallazgos, no: se arma sobre la columna entera) y la muestra común de
 las dependencias funcionales</td>
 </tr>
 <tr class="even">
@@ -503,14 +504,24 @@ en grupos duplicados; la evidencia informa aparte los excedentes.</li>
 columnas con el mismo contenido: <code>columna</code> es la primera del
 grupo, la evidencia las nombra a todas y <code>n_afectados</code> las
 cuenta a todas.</li>
+<li>Los tres hallazgos de formato de fecha
+(<code>formatos_fecha_mixtos</code>, <code>formato_fecha_ambiguo</code>
+y <code>anio_de_dos_digitos</code>) cuentan formatos
+(<code>formato</code>) y trazan las filas con el problema. La traza se
+arma sobre la columna entera, aunque la tabla de formatos sea de una
+muestra, así que puede nombrar filas escritas en un formato que la
+muestra no vio. <code>formatos_fecha_mixtos</code> traza todas las filas
+con fecha, primero las de las escrituras que no son la más frecuente,
+con el mismo reparto que <code>casi_duplicados_vocabulario</code>.</li>
 </ul>
 <p>Por eso una traza puede tener más filas que <code>n_afectados</code>.
 La traza usa la misma comparación que el conteo, en las 2 direcciones y
-también en una columna <code>integer64</code>. Así,
-<code>n_afectados</code> y <code>trazabilidad$total</code> describen el
-mismo conjunto. Si un hallazgo y su traza no coinciden,
-<code><a href="../reference/perfilar.html">perfilar()</a></code> conserva el hallazgo y emite una advertencia de
-clase <code>lupa_trazabilidad_incoherente</code>.</p>
+también en una columna <code>integer64</code>. Así, en las señales que
+cuentan filas o valores, <code>n_afectados</code> y
+<code>trazabilidad$total</code> describen el mismo conjunto; en las de
+formato, uno cuenta formatos y el otro filas. Si un hallazgo y su traza
+no coinciden, <code><a href="../reference/perfilar.html">perfilar()</a></code> conserva el hallazgo y emite una
+advertencia de clase <code>lupa_trazabilidad_incoherente</code>.</p>
 <p>Con <code>clave</code>, la traza trae los valores que identifican
 cada fila en lugar de su índice. <code>trazabilidad$localizador</code>
 dice cuál se usó. Está explicado en <a href="leer-un-perfil.html">Leer

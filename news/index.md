@@ -2,6 +2,58 @@
 
 ## lupa (development version)
 
+### Trazabilidad
+
+- Los tres hallazgos de formato de fecha (`formatos_fecha_mixtos`,
+  `formato_fecha_ambiguo` y `anio_de_dos_digitos`) traen en su
+  `trazabilidad` las filas con el problema; antes decían `no_aplica`. La
+  traza se arma sobre la columna entera, también cuando la tabla de
+  formatos, la evidencia y `n_afectados` son de una muestra, y puede
+  nombrar filas escritas en formatos que la muestra no llegó a ver.
+  `n_afectados` sigue contando formatos, así que el `total` de la traza
+  cuenta filas. Esa segunda lectura de la columna se hace sólo cuando
+  alguno de los tres hallazgos sale, una vez por columna.
+  `anio_de_dos_digitos` traza toda fila cuya escritura sólo admite
+  lecturas con el año de dos cifras; `formato_fecha_ambiguo`, toda fila
+  escrita en una lectura que la columna entera no puede resolver;
+  `formatos_fecha_mixtos`, todas las filas con fecha, primero las de las
+  escrituras que no son la más frecuente, con el reparto de
+  `casi_duplicados_vocabulario` (`n_filas_formas_variantes`,
+  `n_filas_formas_dominantes`); con empate en el primer lugar no hay
+  dominante y todas cuentan como variantes.
+- `posible_ausencia_estructural` y `regla_silencia_ausencia` traen en su
+  `trazabilidad` las filas que cuentan: las ausentes que caen donde la
+  regla dice que la columna no corresponde, y las que la declaración del
+  universo dejó de contar.
+- La advertencia `lupa_trazabilidad_incoherente` revisa también esos
+  cinco: avisa si al construir el perfil un hallazgo de formato no trae
+  filas o un informativo que cuenta filas no las nombra. Un perfil
+  guardado por una versión anterior se publica sin aviso.
+
+### Relaciones
+
+- [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  dice cuántas filas quedan huérfanas y cuáles. Cada par comparado
+  publica `n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,
+  `n_valores_huerfanos_tabla1` y `n_valores_huerfanos_tabla2` —lo que la
+  cobertura deja afuera; un valor ausente no es huérfano—, y las
+  columnas-lista `huerfanas_tabla1` y `huerfanas_tabla2` nombran las
+  filas con la forma de la trazabilidad de un hallazgo (`indices_fila`,
+  `total`, `truncado`). Las filas se nombran en el lado casi cubierto
+  (cobertura entre `umbral_cobertura` y 1), hasta `max_filas_huerfanas`
+  (1000 por omisión); por debajo del umbral se cuentan y no se nombran.
+  Los valores huérfanos no se publican: con los índices están a una
+  línea para quien tiene la tabla.
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  publica los mismos cuatro conteos, sobre las filas leídas. No nombra
+  las filas, que serían posiciones de la lectura, ni agrega consultas.
+- Los conteos y las filas cuentan en `tope_memoria_mb`: con un tope
+  finito, el mismo presupuesto compara menos pares que antes, y los que
+  quedan sin comparar salen declarados como siempre. Quien leía una
+  columna del resultado abreviando su nombre (`rel$n_valores` por
+  `n_valores_comunes`) recibe ahora `NULL`, porque hay más de una que
+  empieza así.
+
 ### Documentación
 
 - `citation("lupa")` lleva el DOI que CRAN le asignó al paquete,
@@ -14,6 +66,59 @@
 
 ### Correcciones
 
+- Un importe con el símbolo de la moneda detrás del número
+  (`1.234,56 €`, `1.234,56€`, `1.234,56 $`) se reconoce igual que con el
+  símbolo delante: cuenta en `n_numeros_texto`, publica
+  `numero_texto_moneda`, recibe `numero_como_texto` y el plan lo
+  convierte. Lo mismo vale para `U$S35` pegado y para el espacio duro o
+  el fino entre el símbolo y el número. `€ 10` y `20 €` son la misma
+  moneda.
+- Un valor con moneda delante y detrás (`$ 35 $`, `USD 35 EUR`,
+  `$ 35 USD`) no es un número: `USD 35 EUR` se convertía en 35 y se
+  perdía el `EUR`.
+- [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md):
+  sobre una columna que en la tabla entera es una numeración densa, cada
+  grupo cuenta los faltantes disfrazados con la guarda de la columna
+  entera, como
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Un `999` dentro de `1:2000` ya no se suma al hallazgo `faltantes` del
+  grupo: un grupo de 50 filas con 4 `NA` y dos `999` publicaba «4
+  ausentes reales y 2 disfrazados (0.120 del total)» y cruzaba el
+  umbral. Tampoco entra en `faltantes_disfrazados` ni en la proporción.
+  Lo protegido se declara en `cobertura_diagnosticos`
+  (`centinelas_numericos`), con el motivo y si contado habría cruzado el
+  umbral.
+- `convertir_sentinelas_numericos` convierte exactamente las celdas que
+  el perfil contó en `n_faltantes_disfrazados_numericos`. En la 0.1.1 el
+  plan leía la lista de la evidencia del hallazgo: con más marcas en la
+  columna de las que la evidencia muestra, con una marca declarada que
+  contiene `;` o con `proteger_datos_personales = TRUE`, la lista volvía
+  al catálogo entero y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  podía convertir también el `999` legítimo de una numeración. Ahora el
+  hallazgo `faltantes_disfrazados` publica en su `trazabilidad` el campo
+  `sentinelas_contados`, tomado de las mismas celdas que el conteo, y el
+  plan arma la lista con él. Donde el perfil no lo trae (un perfil
+  guardado por una versión anterior, o un hallazgo cuya evidencia tapó
+  la protección de datos personales, donde el campo queda `NA`),
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  acota la lista corriendo el mismo detector sobre los datos que recibe;
+  si el perfil contó dentro de un universo de `aplicabilidad` y la
+  acción ya no trae esa regla, termina `fallida` y dice por qué.
+- La misma acción ya no toca las celdas que el perfil contó como marca
+  textual declarada en `cadenas_ausencia`: con
+  `cadenas_ausencia = "999"`, `"999"` es de
+  `convertir_ausencias_textuales` y sólo `"999.0"` es de esta acción.
+- Sobre otra entrega de la misma tabla, la acción convierte los
+  centinelas que su lista nombra y ningún otro; antes, el catálogo
+  entero.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  cuenta lo mismo en una numeración guardada como `integer`, `difftime`
+  o `units`: en las dos últimas la guarda de la numeración no corría y
+  el `999` de `1:1000` salía como faltante disfrazado. Y
+  `convertir_sentinelas_numericos` acepta duraciones y medidas con
+  unidad (antes terminaba `fallida`) y conserva la clase y la unidad de
+  la columna.
 - [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
   y
   [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)

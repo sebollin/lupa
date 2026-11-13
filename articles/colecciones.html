@@ -371,12 +371,13 @@ resultado lo declara.</p>
 <span>  columna_1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">encontradas</span><span class="op">$</span><span class="va">tabla_1</span>, <span class="va">encontradas</span><span class="op">$</span><span class="va">columna_tabla1</span>, sep <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>,</span>
 <span>  columna_2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">encontradas</span><span class="op">$</span><span class="va">tabla_2</span>, <span class="va">encontradas</span><span class="op">$</span><span class="va">columna_tabla2</span>, sep <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>,</span>
 <span>  cobertura_1_en_2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">encontradas</span><span class="op">$</span><span class="va">cobertura_tabla1_en_tabla2</span>, <span class="fl">2</span><span class="op">)</span>,</span>
-<span>  cobertura_2_en_1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">encontradas</span><span class="op">$</span><span class="va">cobertura_tabla2_en_tabla1</span>, <span class="fl">2</span><span class="op">)</span></span>
+<span>  cobertura_2_en_1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">encontradas</span><span class="op">$</span><span class="va">cobertura_tabla2_en_tabla1</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  huerfanas_2 <span class="op">=</span> <span class="va">encontradas</span><span class="op">$</span><span class="va">n_filas_huerfanas_tabla2</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt;                columna_1          columna_2 cobertura_1_en_2 cobertura_2_en_1</span></span>
-<span><span class="co">#&gt; 1 sucursales.id_sucursal ventas.id_sucursal             1.00             0.95</span></span>
-<span><span class="co">#&gt; 2  productos.id_producto ventas.id_sucursal             0.67             0.95</span></span>
-<span><span class="co">#&gt; 3  productos.id_producto ventas.id_producto             1.00             1.00</span></span>
+<span><span class="co">#&gt;                columna_1          columna_2 cobertura_1_en_2 cobertura_2_en_1 huerfanas_2</span></span>
+<span><span class="co">#&gt; 1 sucursales.id_sucursal ventas.id_sucursal             1.00             0.95           2</span></span>
+<span><span class="co">#&gt; 2  productos.id_producto ventas.id_sucursal             0.67             0.95           2</span></span>
+<span><span class="co">#&gt; 3  productos.id_producto ventas.id_producto             1.00             1.00           0</span></span>
 <span><span class="va">relaciones</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">estable</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p>Cada fila trae 2 coberturas, una por dirección.
@@ -386,8 +387,10 @@ segunda tabla cuyo valor aparece en la primera:</p>
 <li>
 <code>sucursales.id_sucursal</code> cubre el 95 % de
 <code>ventas.id_sucursal</code>. El 5 % que falta son las 2 ventas de la
-sucursal 9: filas huérfanas que hay que revisar en el sistema de
-origen.</li>
+sucursal 9 (<code>huerfanas_2</code>): filas huérfanas que hay que
+revisar en el sistema de origen. Para ver cuáles son, se leen las dos
+tablas y se llama a <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code>, que nombra las
+filas.</li>
 <li>
 <code>productos.id_producto</code> contra
 <code>ventas.id_producto</code> cubre todo en las 2 direcciones.</li>

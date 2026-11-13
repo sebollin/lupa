@@ -107,19 +107,24 @@ recibe las 2 columnas de identificación y compara sus valores:
 
 ``` r
 
-detectar_relaciones(
+relacion <- detectar_relaciones(
   personas["id_persona"], tramites["id_persona"], muestra = Inf
 )
-#>   columna_tabla1 columna_tabla2 cardinalidad n_valores_comunes cobertura_tabla1_en_tabla2
-#> 1     id_persona     id_persona          1:m                 8                          1
-#>   cobertura_tabla2_en_tabla1 motivo_poda
-#> 1                          1        <NA>
+relacion[, c("columna_tabla1", "columna_tabla2", "cardinalidad",
+             "cobertura_tabla1_en_tabla2", "cobertura_tabla2_en_tabla1",
+             "n_filas_huerfanas_tabla1", "n_filas_huerfanas_tabla2")]
+#>   columna_tabla1 columna_tabla2 cardinalidad cobertura_tabla1_en_tabla2
+#> 1     id_persona     id_persona          1:m                          1
+#>   cobertura_tabla2_en_tabla1 n_filas_huerfanas_tabla1 n_filas_huerfanas_tabla2
+#> 1                          1                        0                        0
 ```
 
 La cardinalidad es 1:m, uno a muchos. Las 2 coberturas valen 1 porque
 todos los identificadores de cada lado aparecen en el otro. No hay
 trámites de personas que no estén en `personas`, ni personas sin
-trámites. `muestra = Inf` deja explícito que se comparan todos los
+trámites: por eso las filas huérfanas de cada lado son 0. Cuando no lo
+son, `huerfanas_tabla1` y `huerfanas_tabla2` dicen cuáles son, por su
+número de fila. `muestra = Inf` deja explícito que se comparan todos los
 valores.
 
 ## Una dependencia dentro de una tabla
@@ -167,8 +172,8 @@ la que puede confirmarlas como reglas.
   encuentra las columnas que identifican cada fila en esta entrega: son
   candidatas, no claves.
 - [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
-  compara 2 columnas de identificación y publica la cardinalidad y la
-  cobertura de cada lado.
+  compara 2 columnas de identificación y publica la cardinalidad, la
+  cobertura de cada lado y cuántas filas quedan huérfanas, y cuáles.
 - [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
   encuentra columnas que determinan a otras;
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)

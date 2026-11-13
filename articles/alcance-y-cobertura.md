@@ -34,7 +34,7 @@ uno.
 
 | Función | Argumento | Por omisión | Qué acota |
 |----|----|----|----|
-| [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) | `muestra` | 100.000 filas | patrones, tipos inferidos, formatos de fecha y la muestra común de las dependencias funcionales |
+| [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) | `muestra` | 100.000 filas | patrones, tipos inferidos, formatos de fecha (la traza de sus hallazgos, no: se arma sobre la columna entera) y la muestra común de las dependencias funcionales |
 | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) | `muestra_validadores` | 1.000 valores | el primer filtro de los validadores de documentos; el validador que lo supera se evalúa sobre toda la columna |
 | [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) | `muestra` | 100.000 filas | el perfil, las distribuciones y los niveles observados |
 | [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) | `muestra_asociacion` | 10.000 filas | las asociaciones entre columnas |
@@ -311,11 +311,21 @@ que cuentan valores:
 - `columnas_duplicadas` publica un hallazgo por grupo de columnas con el
   mismo contenido: `columna` es la primera del grupo, la evidencia las
   nombra a todas y `n_afectados` las cuenta a todas.
+- Los tres hallazgos de formato de fecha (`formatos_fecha_mixtos`,
+  `formato_fecha_ambiguo` y `anio_de_dos_digitos`) cuentan formatos
+  (`formato`) y trazan las filas con el problema. La traza se arma sobre
+  la columna entera, aunque la tabla de formatos sea de una muestra, así
+  que puede nombrar filas escritas en un formato que la muestra no vio.
+  `formatos_fecha_mixtos` traza todas las filas con fecha, primero las
+  de las escrituras que no son la más frecuente, con el mismo reparto
+  que `casi_duplicados_vocabulario`.
 
 Por eso una traza puede tener más filas que `n_afectados`. La traza usa
 la misma comparación que el conteo, en las 2 direcciones y también en
-una columna `integer64`. Así, `n_afectados` y `trazabilidad$total`
-describen el mismo conjunto. Si un hallazgo y su traza no coinciden,
+una columna `integer64`. Así, en las señales que cuentan filas o
+valores, `n_afectados` y `trazabilidad$total` describen el mismo
+conjunto; en las de formato, uno cuenta formatos y el otro filas. Si un
+hallazgo y su traza no coinciden,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 conserva el hallazgo y emite una advertencia de clase
 `lupa_trazabilidad_incoherente`.

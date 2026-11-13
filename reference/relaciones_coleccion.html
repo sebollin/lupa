@@ -150,7 +150,8 @@ en megabytes. Al agotarse, las combinaciones pendientes se declaran en
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Objeto <code>relaciones_coleccion</code> con <code>relaciones</code>, <code>cobertura_pares</code>,
-<code>cobertura_podas</code> y <code>meta</code>.</p>
+<code>cobertura_podas</code> y <code>meta</code>. En <code>relaciones</code>, las cuatro columnas de conteo
+de huérfanos van al final.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -274,6 +275,21 @@ identifiquen</strong>: si el mínimo o el máximo de un lado llega al piso de la
 protección —seis caracteres o más—, ese rango sale como <code>[valor protegido]</code>.
 El mínimo de una columna de documentos es el documento de una persona real, y
 el par mínimo–máximo acota además a todos los valores intermedios.</p>
+<p><strong>Cuántas filas quedan huérfanas, no cuáles.</strong> Cada relación publica los
+cuatro conteos de <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code> —<code>n_filas_huerfanas_tabla1</code>,
+<code>n_filas_huerfanas_tabla2</code>, <code>n_valores_huerfanos_tabla1</code> y
+<code>n_valores_huerfanos_tabla2</code>—, <strong>sobre las filas leídas</strong>, igual que la
+cobertura: con una lectura truncada cuentan sólo las filas leídas, y si la
+truncada es la tabla de referencia cuentan de más, porque un valor que no
+está entre sus filas leídas puede estar en las demás. Un ausente no es
+huérfano. Las filas no se nombran: sus posiciones serían las de esta
+lectura, que no sirven para buscarlas en el motor. Y los valores huérfanos
+no se publican:
+son celdas de una columna que suele ser un identificador, y esta función no
+sabe si es un dato personal —por eso ya tapa los extremos en <code>detalle</code>—.
+Para ver cuáles son, leer las dos tablas y llamar a <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>,
+que nombra las filas, o pedirlo al motor con un <code>NOT EXISTS</code>. Calcular los
+conteos no agrega ninguna consulta.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -90,7 +90,8 @@ relaciones_coleccion(
 ## Value
 
 Objeto `relaciones_coleccion` con `relaciones`, `cobertura_pares`,
-`cobertura_podas` y `meta`.
+`cobertura_podas` y `meta`. En `relaciones`, las cuatro columnas de
+conteo de huérfanos van al final.
 
 ## Details
 
@@ -253,6 +254,24 @@ al piso de la protección —seis caracteres o más—, ese rango sale como
 `[valor protegido]`. El mínimo de una columna de documentos es el
 documento de una persona real, y el par mínimo–máximo acota además a
 todos los valores intermedios.
+
+**Cuántas filas quedan huérfanas, no cuáles.** Cada relación publica los
+cuatro conteos de
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+—`n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,
+`n_valores_huerfanos_tabla1` y `n_valores_huerfanos_tabla2`—, **sobre
+las filas leídas**, igual que la cobertura: con una lectura truncada
+cuentan sólo las filas leídas, y si la truncada es la tabla de
+referencia cuentan de más, porque un valor que no está entre sus filas
+leídas puede estar en las demás. Un ausente no es huérfano. Las filas no
+se nombran: sus posiciones serían las de esta lectura, que no sirven
+para buscarlas en el motor. Y los valores huérfanos no se publican: son
+celdas de una columna que suele ser un identificador, y esta función no
+sabe si es un dato personal —por eso ya tapa los extremos en `detalle`—.
+Para ver cuáles son, leer las dos tablas y llamar a
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+que nombra las filas, o pedirlo al motor con un `NOT EXISTS`. Calcular
+los conteos no agrega ninguna consulta.
 
 ## See also
 

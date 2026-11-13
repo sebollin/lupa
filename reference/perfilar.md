@@ -1276,32 +1276,69 @@ con el reparto de lo que sobrevivió al truncado. En los tres
 diagnósticos de unidad `valor_distinto` las filas de las formas
 variantes se entregan primero —en `mayusculas_inconsistentes` y
 `normalizacion_unicode`, la forma dominante de cada grupo es la guardada
-más veces—, de modo que el truncado no se lleve lo accionable. Para
-`patron_raro`, el alcance puede ser `completo`, `muestra_patrones`,
-`patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen
-y el texto de evidencia de `patron_raro` muestran como maximo seis
-patrones, pero la trazabilidad conserva los nombres de todos los
-patrones raros hasta un limite de 5.000; `patrones_parciales` indica que
-se alcanzo ese limite, no que se haya alcanzado el tope de presentacion.
-Cuando se emite un hallazgo `patron_raro`, su evidencia incluye la
-proporcion del patron dominante y cuantas filas pertenecen a patrones no
-dominantes que superan `umbral_patron_raro` y por eso quedan excluidos.
-Su `n_evaluados` es el universo de esas proporciones: las filas
-analizadas que tienen valor —un ausente no tiene patrón—. Si el patron
-dominante no alcanza `umbral_patron_dominante`, no se emite el hallazgo:
-`cobertura_diagnosticos` declara la no medicion, su proporcion observada
-y el argumento que se puede ajustar. Si el conteo y la traza no
-coinciden, conserva el hallazgo y emite una advertencia de clase
-`lupa_trazabilidad_incoherente`. La guarda compara el total previo al
-truncado y respeta la unidad declarada. Una columna compuesta no
-analizada conserva en la traza todas sus filas. Si una columna de listas
-se reconoce como constante pero no se puede contar su frecuencia, el
-conteo afectado queda en NA y `cobertura_diagnosticos` explica la no
-evaluación. Los índices no contienen valores. Usarlos para extraer filas
-de los datos originales puede volver a exponer datos personales; el
-paquete no realiza esa extracción y la protección de salidas no
-sustituye el control de acceso a los datos de entrada. En la evidencia
-de `casi_duplicados_vocabulario`, `clase_diferencia` puede ser
+más veces—, de modo que el truncado no se lleve lo accionable. En los
+tres hallazgos de unidad `formato` (`formatos_fecha_mixtos`,
+`formato_fecha_ambiguo` y `anio_de_dos_digitos`), `n_afectados` cuenta
+formatos y la traza enumera filas; por eso su total no se compara con
+`n_afectados`. La traza se arma sobre la columna entera aunque la tabla
+de formatos, la evidencia y `n_afectados` sean de una muestra, y puede
+nombrar filas escritas en formatos que la muestra no llegó a ver; esa
+segunda lectura se hace sólo cuando alguno de los tres hallazgos sale,
+una vez por columna. `anio_de_dos_digitos` traza toda fila cuya
+escritura sólo admite lecturas con el año de dos cifras, incluidas las
+que dos lecturas probadas aceptan y por eso no cuenta el `n` de ninguna;
+su total puede ser mayor que la suma de los `n` de `formatos_fecha`.
+`formato_fecha_ambiguo` traza toda fila escrita en una lectura que la
+columna entera no puede resolver (si la columna entera las resuelve
+todas, las celdas que admiten dos o más de las lecturas que cita).
+`formatos_fecha_mixtos` traza todas las filas con fecha, primero las de
+las escrituras que no son la más frecuente, con el mismo reparto que
+`casi_duplicados_vocabulario` (`n_filas_formas_variantes`,
+`n_filas_formas_dominantes` y sus `mostrados_formas_*`); si dos
+escrituras empatan en el primer lugar no hay dominante y todas sus filas
+cuentan como variantes. Los dos informativos que cuentan filas también
+las traen: `posible_ausencia_estructural`, las ausentes que caen donde
+la regla dice que la columna no corresponde, y
+`regla_silencia_ausencia`, las que la declaración del universo dejó de
+contar. Para `patron_raro`, el alcance puede ser `completo`,
+`muestra_patrones`, `patrones_parciales` o
+`muestra_patrones+patrones_parciales`. El resumen y el texto de
+evidencia de `patron_raro` muestran como maximo seis patrones, pero la
+trazabilidad conserva los nombres de todos los patrones raros hasta un
+limite de 5.000; `patrones_parciales` indica que se alcanzo ese limite,
+no que se haya alcanzado el tope de presentacion. En
+`faltantes_disfrazados`, la traza conserva además `sentinelas_contados`:
+los centinelas numéricos que el perfil contó en la columna, sin repetir,
+tomados de las mismas celdas que `n_faltantes_disfrazados_numericos` —la
+evidencia muestra sólo las seis marcas más frecuentes—. Es la lista que
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+convierte. Queda vacío si el hallazgo contó sólo marcas textuales, y
+`NA` si la protección de datos personales tapó la evidencia del
+hallazgo, entera o por valor: donde el perfil no muestra la evidencia,
+tampoco dice qué valor contó. Un perfil guardado por una versión
+anterior no trae el campo. Cuando se emite un hallazgo `patron_raro`, su
+evidencia incluye la proporcion del patron dominante y cuantas filas
+pertenecen a patrones no dominantes que superan `umbral_patron_raro` y
+por eso quedan excluidos. Su `n_evaluados` es el universo de esas
+proporciones: las filas analizadas que tienen valor —un ausente no tiene
+patrón—. Si el patron dominante no alcanza `umbral_patron_dominante`, no
+se emite el hallazgo: `cobertura_diagnosticos` declara la no medicion,
+su proporcion observada y el argumento que se puede ajustar. Si el
+conteo y la traza no coinciden, conserva el hallazgo y emite una
+advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara
+el total previo al truncado y respeta la unidad declarada. Avisa también
+si un hallazgo de formato o un informativo que cuenta filas se construye
+sin nombrarlas, y si el reparto entre formas variantes y dominantes no
+suma el total de la traza; un perfil guardado por una versión anterior,
+que traía esos hallazgos sin filas, se publica sin ese aviso. Una
+columna compuesta no analizada conserva en la traza todas sus filas. Si
+una columna de listas se reconoce como constante pero no se puede contar
+su frecuencia, el conteo afectado queda en NA y `cobertura_diagnosticos`
+explica la no evaluación. Los índices no contienen valores. Usarlos para
+extraer filas de los datos originales puede volver a exponer datos
+personales; el paquete no realiza esa extracción y la protección de
+salidas no sustituye el control de acceso a los datos de entrada. En la
+evidencia de `casi_duplicados_vocabulario`, `clase_diferencia` puede ser
 `normalizacion_exacta` (la coincidencia aparece después de normalizar),
 `dentro_de_palabra` (la diferencia está dentro de un token),
 `token_completo` (cambian tokens completos), `token_unico` (ambos
@@ -2364,12 +2401,17 @@ Un código de tres letras mayúsculas separado del número por espacios,
 delante o detrás, es una moneda sólo si es un código ISO 4217 —la lista
 de
 [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)—:
-`USD 35` es un importe y `LEY 18331` no es un número. `U$S` y los
-símbolos monetarios también se conservan como evidencia;
-`monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas
-de cambio. Una única moneda o un símbolo `$` aislado no produce ese
-hallazgo. Un sufijo de unidad se reconoce sólo si es `%` o una
-abreviatura alfabética que termina en minúscula; por eso `12 kg` y
+`USD 35` es un importe y `LEY 18331` no es un número; pegado al número
+(`35USD`) no es una moneda sino un código. Un símbolo monetario —`$`,
+`£`, el del euro— o `U$S` es una moneda delante o detrás del número,
+pegado o separado por un espacio, también el duro o el fino que deja una
+planilla: `1.234,56 $`, `$1.234,56` y `U$S35` son importes, y `$ 10` y
+`20 $` son la misma moneda. Un valor con moneda delante y detrás
+(`$ 35 $`, `USD 35 EUR`) no es un número. La moneda se conserva como
+evidencia; `monedas_mixtas` informa sus frecuencias sin convertir ni
+suponer tasas de cambio. Una única moneda o un símbolo `$` aislado no
+produce ese hallazgo. Un sufijo de unidad se reconoce sólo si es `%` o
+una abreviatura alfabética que termina en minúscula; por eso `12 kg` y
 `13500 g` son unidades. Un valor con un sufijo en mayúsculas que no es
 un código de moneda (`12A`, `13B`, `500GB`, `1.5TB`) se trata como un
 código: no cuenta como número escrito como texto, tenga o no separador
