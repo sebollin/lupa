@@ -58,6 +58,14 @@
 
 ## Correcciones
 
+- Un importe con el símbolo de la moneda detrás del número (`1.234,56 €`,
+  `1.234,56€`, `1.234,56 $`) se reconoce igual que con el símbolo delante:
+  cuenta en `n_numeros_texto`, publica `numero_texto_moneda`, recibe
+  `numero_como_texto` y el plan lo convierte. Lo mismo vale para `U$S35` pegado
+  y para el espacio duro o el fino entre el símbolo y el número. `€ 10` y
+  `20 €` son la misma moneda.
+- Un valor con moneda delante y detrás (`$ 35 $`, `USD 35 EUR`, `$ 35 USD`) no
+  es un número: `USD 35 EUR` se convertía en 35 y se perdía el `EUR`.
 - `perfilar_por()`: sobre una columna que en la tabla entera es una numeración
   densa, cada grupo cuenta los faltantes disfrazados con la guarda de la
   columna entera, como `perfilar()`. Un `999` dentro de `1:2000` ya no se suma

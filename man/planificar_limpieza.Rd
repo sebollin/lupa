@@ -204,8 +204,9 @@ el perfil infiere como \code{identificador} (\verb{101a}, \verb{102a}) la acció
 \code{lista} sin activar: lo que acompaña al número puede ser parte del código.
 Un valor con \verb{\%} se divide por 100, la escala con que el paquete publica
 toda proporción; queda en \verb{[0, 1]} si el porcentaje estaba entre 0 y 100, y
-el plan no comprueba ese rango. Una unidad o un símbolo de moneda dejan de
-formar parte del valor y quedan en \code{parametros}. La justificación lo dice
+el plan no comprueba ese rango. Una unidad, o una moneda delante o detrás
+del número (\verb{$ 35}, \verb{1.234,56 $}), dejan de formar parte del valor y quedan
+en \code{parametros}. La justificación lo dice
 cuando ocurre. Una columna que mezcla \code{5} con \verb{5 \%} no se convierte: habría
 que decidir si el número sin \verb{\%} está en la misma escala. Esta conversión no
 lee la notación científica (\code{1e5}): si la columna la trae junto a números

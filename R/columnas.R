@@ -1950,6 +1950,76 @@
   trimws(texto)
 }
 
+# La moneda que acompana a un numero escrito como texto. La comparten la forma
+# completa de `.componentes_numero_texto()` y la pregunta barata de
+# `.inicio_numero_texto()`, que tienen que reconocer lo mismo.
+#
+# Un simbolo -`U$S` o un simbolo monetario de Unicode (`\p{Sc}`: el peso, el
+# euro, la libra)- es moneda delante o detras del numero, pegado o separado. La
+# forma europea lo escribe detras, y se contaba solo delante: `1.234,56 $`
+# quedaba como texto, sin hallazgo y sin conversion, mientras `$ 1.234,56` se
+# convertia; y lo mismo con el euro. `U$S` se escribe pegado igual que `$`.
+#
+# El espacio junto a un simbolo es cualquier espacio, como en el recorte del
+# borde de los validadores: el duro (U+00A0) o el fino (U+202F) con que una
+# planilla separa el simbolo es la misma escritura que el espacio ASCII. Se
+# escribe con clases de PCRE y no con los caracteres, para que el patron siga
+# siendo ASCII y no obligue a leer en UTF-8 una columna que es toda ASCII.
+#
+# Un codigo de tres mayusculas solo es moneda separado del numero: pegado
+# (`35USD`) es un codigo como `12A`.
+.simbolo_moneda_numero <- "(?:U\\$S|\\p{Sc})"
+.espacio_moneda_numero <- "[[:space:]\\p{Z}]*"
+.moneda_delante_numero <- paste0(
+  "(?:[[:upper:]]{3}[[:space:]]+|", .simbolo_moneda_numero,
+  .espacio_moneda_numero, ")"
+)
+
+# La forma completa de un numero escrito como texto, con su moneda o su unidad:
+#
+# - Moneda: un codigo de tres mayusculas separado del numero por espacios,
+#   delante o detras, que ademas tiene que ser ISO 4217 -se valida en
+#   `.componentes_numero_texto()`: `LEY 18331` no es un importe-; o un simbolo
+#   delante o detras, pegado o separado. Una sola: con moneda delante y detras
+#   (`$ 35 $`, `USD 35 EUR`) el valor no es un numero, porque convertirlo
+#   obligaria a elegir cual de las dos vale.
+# - Unidad: `%` o una abreviatura alfabetica que termina en minuscula. Las
+#   mayusculas pegadas al numero (`12A`, `13B`, `500GB`) se reservan para
+#   codigos: ese valor no es un numero, traiga o no separador decimal. La
+#   unidad puede seguir a una moneda escrita delante (`$ 35 kg`), no a una
+#   escrita detras.
+#
+# El separador decimal puede abrir el numero: `,5` es `0,5` y `.5` es `0.5`,
+# con la misma evidencia de convencion que su gemelo con el cero escrito.
+#
+# Los patrones se arman una vez y no en cada llamada: el lector tambien se
+# llama valor por valor (`.detectar_multivaluados()` pregunta por cada celda
+# con coma), y ahi lo que cuesta cada llamada se multiplica por las filas.
+.unidad_detras_numero <- "[[:space:]]*(?:%|[[:alpha:]]*[[:lower:]])"
+.moneda_detras_numero <- paste0(
+  "[[:space:]]+[[:upper:]]{3}|", .espacio_moneda_numero, .simbolo_moneda_numero
+)
+.forma_numero_texto <- function(numero) {
+  paste0(
+    "^(?:", .moneda_delante_numero, "[+-]?", numero, "(?:",
+    .unidad_detras_numero, ")?|[+-]?", numero, "(?:", .unidad_detras_numero,
+    "|", .moneda_detras_numero, ")?)$"
+  )
+}
+.patron_coma_numero_texto <- .forma_numero_texto(
+  "(?:(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?|,[0-9]+)"
+)
+.patron_punto_numero_texto <- .forma_numero_texto(
+  "(?:(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?|\\.[0-9]+)"
+)
+.patron_prefijo_moneda_numero <- paste0("^[[:space:]]*", .moneda_delante_numero)
+.patron_simbolo_prefijo_numero <- paste0(
+  "^[[:space:]]*(", .simbolo_moneda_numero, ")"
+)
+.patron_simbolo_sufijo_numero <- paste0(
+  .espacio_moneda_numero, "(", .simbolo_moneda_numero, ")$"
+)
+
 .componentes_numero_texto <- function(x) {
   # La declaracion va antes de la primera primitiva. Sin ella, un
   # importe con el simbolo del euro en UTF-8 sin marca -un CSV leido sin
@@ -1965,29 +2035,10 @@
   # tramo de letras detras del numero y la unidad solo el que termina en
   # minuscula: `12 KG` no se contaba, pero `1.5TB` si -por su punto-, sin
   # unidad que publicar, y la conversion, que lee con esta misma funcion, le
-  # quitaba el `TB` a toda la columna sin decirlo.
-  #
-  # - Moneda: un codigo de tres mayusculas separado del numero por espacios,
-  #   que ademas tiene que ser ISO 4217 -se valida abajo: `LEY 18331` no es un
-  #   importe-; `U$S`; o un simbolo monetario.
-  # - Unidad: `%` o una abreviatura alfabetica que termina en minuscula. Las
-  #   mayusculas pegadas al numero (`12A`, `13B`, `500GB`) se reservan para
-  #   codigos: ese valor no es un numero, traiga o no separador decimal.
-  prefijo <- "(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)?"
-  sufijo <- paste0(
-    "(?:[[:space:]]*(?:%|[[:alpha:]]*[[:lower:]])|",
-    "[[:space:]]+[[:upper:]]{3})?$"
-  )
-  # El separador decimal puede abrir el numero: `,5` es `0,5` y `.5` es `0.5`,
-  # con la misma evidencia de convencion que su gemelo con el cero escrito.
-  numero_coma <- paste0(
-    "(?:(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?|,[0-9]+)"
-  )
-  numero_punto <- paste0(
-    "(?:(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?|\\.[0-9]+)"
-  )
-  patron_coma <- paste0("^", prefijo, "[+-]?", numero_coma, sufijo)
-  patron_punto <- paste0("^", prefijo, "[+-]?", numero_punto, sufijo)
+  # quitaba el `TB` a toda la columna sin decirlo. La forma esta escrita en
+  # `.forma_numero_texto()`.
+  patron_coma <- .patron_coma_numero_texto
+  patron_punto <- .patron_punto_numero_texto
   # La notacion cientifica (`1e3`, `1,5E+06`) no entra en estas formas: es un
   # numero para la inferencia y el resumen, que la leen con
   # `.leer_numeros_texto()`, pero no un numero escrito con separador regional,
@@ -1996,9 +2047,7 @@
   compatible_coma <- !is.na(texto) & grepl(patron_coma, texto, perl = TRUE)
   compatible_punto <- !is.na(texto) & grepl(patron_punto, texto, perl = TRUE)
   compatible <- compatible_coma | compatible_punto
-  patron_prefijo <- paste0(
-    "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)"
-  )
+  patron_prefijo <- .patron_prefijo_moneda_numero
   patron_codigo_prefijo <- "^[[:space:]]*([[:upper:]]{3})[[:space:]]+"
   codigo_prefijo <- compatible & grepl(
     patron_codigo_prefijo, texto, perl = TRUE
@@ -2035,27 +2084,45 @@
     }
   }
   moneda <- codigo_delante
-  patron_dolar_us_prefijo <- "^[[:space:]]*(U\\$S)[[:space:]]+"
-  dolar_us_prefijo <- compatible & grepl(
-    patron_dolar_us_prefijo, texto, perl = TRUE
-  )
-  moneda[dolar_us_prefijo] <- "U$S"
-  patron_simbolo_prefijo <- "^[[:space:]]*(\\p{Sc})[[:space:]]*"
+  # El simbolo se publica tal como esta escrito, delante o detras: `$ 10` y
+  # `20 $` son la misma moneda, y `$` y `U$S` son dos. `(?s)` deja que el resto
+  # cruce un salto de linea interno (`$ 35\nkg` responde a la forma), que sin
+  # el dejaba el texto entero como moneda. Las extracciones corren solo si hay
+  # a quien extraerle: cada patron se compila en cada llamada.
   simbolo_prefijo <- compatible & grepl(
-    patron_simbolo_prefijo, texto, perl = TRUE
+    .patron_simbolo_prefijo_numero, texto, perl = TRUE
   )
-  moneda[simbolo_prefijo] <- sub(
-    paste0(patron_simbolo_prefijo, ".*$"), "\\1",
-    texto[simbolo_prefijo], perl = TRUE
+  if (any(simbolo_prefijo)) {
+    moneda[simbolo_prefijo] <- sub(
+      paste0("(?s)", .patron_simbolo_prefijo_numero, ".*$"), "\\1",
+      texto[simbolo_prefijo], perl = TRUE
+    )
+  }
+  simbolo_sufijo <- compatible & grepl(
+    .patron_simbolo_sufijo_numero, texto, perl = TRUE
   )
+  if (any(simbolo_sufijo)) {
+    moneda[simbolo_sufijo] <- sub(
+      paste0("(?s)^.*?", .patron_simbolo_sufijo_numero), "\\1",
+      texto[simbolo_sufijo], perl = TRUE
+    )
+  }
   sin_prefijo <- codigo_sufijo & !nzchar(moneda)
   moneda[sin_prefijo] <- codigo_detras[sin_prefijo]
   tiene_moneda <- nzchar(moneda)
   cuerpo <- texto
   cuerpo <- sub(patron_prefijo, "", cuerpo, perl = TRUE)
+  # El simbolo escrito detras se quita antes de buscar la unidad: lo que queda
+  # es el numero, como cuando la moneda va delante.
+  if (any(simbolo_sufijo)) {
+    cuerpo[simbolo_sufijo] <- sub(
+      .patron_simbolo_sufijo_numero, "", cuerpo[simbolo_sufijo], perl = TRUE
+    )
+  }
   # La unidad es el tramo alfabetico entero cuando termina en minuscula, o `%`:
-  # lo mismo que `sufijo` acepta arriba. El otro tramo que la forma admite
-  # detras del numero es el codigo de moneda, que no es una unidad.
+  # lo mismo que `unidad_detras` acepta arriba. Lo otro que la forma admite
+  # detras del numero es la moneda: el codigo, que no es una unidad, y el
+  # simbolo, ya quitado.
   tiene_unidad <- compatible & grepl("(?:%|[[:lower:]])$", cuerpo, perl = TRUE)
   unidad <- rep("", length(texto))
   unidad[tiene_unidad] <- sub(
@@ -2135,14 +2202,15 @@
 # Si el texto empieza como un numero escrito como texto: la moneda delante, el
 # signo, y un digito o el separador decimal que abre el numero. Es la pregunta
 # barata con que el analisis decide si mira la columna (al menos el 80 % de los
-# valores presentes), y la hacen igual sus dos caminos.
+# valores presentes), y la hacen igual sus dos caminos. La moneda delante es la
+# misma que acepta la forma completa (`.moneda_delante_numero`): si no, un
+# valor que la forma cuenta podia quedar fuera antes de preguntarle.
+.patron_inicio_numero_texto <- paste0(
+  "^[[:space:]]*", .moneda_delante_numero, "?[+-]?(?:[0-9]|[.,][0-9])"
+)
+
 .inicio_numero_texto <- function(x) {
-  grepl(
-    paste0(
-      "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
-      "\\p{Sc}[[:space:]]*)?[+-]?(?:[0-9]|[.,][0-9])"
-    ), x, perl = TRUE
-  )
+  grepl(.patron_inicio_numero_texto, x, perl = TRUE)
 }
 
 # Resuelve los separadores de un numero escrito como texto segun la convencion

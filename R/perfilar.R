@@ -1692,9 +1692,14 @@
 #' `numero_texto_unidad` publican lo que traía.
 #' Un código de tres letras mayúsculas separado del número por espacios,
 #' delante o detrás, es una moneda sólo si es un código ISO 4217 —la lista de
-#' [validar_iso4217()]—: `USD 35` es un importe y `LEY 18331` no es un número.
-#' `U$S` y los símbolos monetarios también se conservan como evidencia;
-#' `monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas de
+#' [validar_iso4217()]—: `USD 35` es un importe y `LEY 18331` no es un número;
+#' pegado al número (`35USD`) no es una moneda sino un código. Un símbolo
+#' monetario —`$`, `£`, el del euro— o `U$S` es una moneda delante o detrás
+#' del número, pegado o separado por un espacio, también el duro o el fino que
+#' deja una planilla: `1.234,56 $`, `$1.234,56` y `U$S35` son importes, y
+#' `$ 10` y `20 $` son la misma moneda. Un valor con moneda delante y detrás
+#' (`$ 35 $`, `USD 35 EUR`) no es un número. La moneda se conserva como
+#' evidencia; `monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas de
 #' cambio. Una única moneda o un símbolo `$` aislado no produce ese hallazgo.
 #' Un sufijo de unidad se reconoce sólo si es `%` o una abreviatura alfabética
 #' que termina en minúscula; por eso `12 kg` y `13500 g` son unidades. Un valor

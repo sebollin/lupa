@@ -2141,9 +2141,14 @@ no se resume: es un número escrito como texto, y \code{numero_texto_moneda} y
 \code{numero_texto_unidad} publican lo que traía.
 Un código de tres letras mayúsculas separado del número por espacios,
 delante o detrás, es una moneda sólo si es un código ISO 4217 —la lista de
-\code{\link[=validar_iso4217]{validar_iso4217()}}—: \verb{USD 35} es un importe y \verb{LEY 18331} no es un número.
-\code{U$S} y los símbolos monetarios también se conservan como evidencia;
-\code{monedas_mixtas} informa sus frecuencias sin convertir ni suponer tasas de
+\code{\link[=validar_iso4217]{validar_iso4217()}}—: \verb{USD 35} es un importe y \verb{LEY 18331} no es un número;
+pegado al número (\verb{35USD}) no es una moneda sino un código. Un símbolo
+monetario —\code{$}, \verb{£}, el del euro— o \code{U$S} es una moneda delante o detrás
+del número, pegado o separado por un espacio, también el duro o el fino que
+deja una planilla: \verb{1.234,56 $}, \verb{$1.234,56} y \code{U$S35} son importes, y
+\verb{$ 10} y \verb{20 $} son la misma moneda. Un valor con moneda delante y detrás
+(\verb{$ 35 $}, \verb{USD 35 EUR}) no es un número. La moneda se conserva como
+evidencia; \code{monedas_mixtas} informa sus frecuencias sin convertir ni suponer tasas de
 cambio. Una única moneda o un símbolo \code{$} aislado no produce ese hallazgo.
 Un sufijo de unidad se reconoce sólo si es \verb{\%} o una abreviatura alfabética
 que termina en minúscula; por eso \verb{12 kg} y \verb{13500 g} son unidades. Un valor
