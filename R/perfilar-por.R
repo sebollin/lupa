@@ -613,8 +613,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
     if (isTRUE(is.finite(centinela_entero))) {
       centinelas_de_la_columna[[nombre_columna]] <<- centinela_entero
-    } else if (inherits(valores, "integer64") &&
-               (is.null(secuencia) || isTRUE(secuencia$no_evaluada))) {
+    } else if (inherits(valores, "integer64") && !.bit64_disponible()) {
+      # Solo sin `bit64`, que es cuando la columna no se puede medir. Con
+      # valores por encima de 2^53 la numeracion tampoco se evalua, pero ahi
+      # `perfilar()` no cierra la guarda y cuenta los faltantes disfrazados:
+      # el grupo los decide igual. Tratarlo como falta de soporte mandaba a la
+      # cobertura, con un motivo falso, el `-9999` de un grupo de valores
+      # chicos porque otro grupo traia identificadores de 64 bits.
       columnas_centinales_no_evaluables <<- c(
         columnas_centinales_no_evaluables, nombre_columna
       )

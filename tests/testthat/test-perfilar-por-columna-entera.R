@@ -557,3 +557,37 @@ test_that("los extremos de un grupo se publican aunque Benford siga a la columna
   expect_true(any(cobertura$grupo == "importes" & cobertura$columna == "x" &
                     cobertura$diagnostico == "ley_benford"))
 })
+
+# Una columna `integer64` con valores por encima de 2^53 no deja evaluar la
+# numeracion (en un doble se redondean), y eso no es lo mismo que no tener
+# `bit64`: `perfilar()` no cierra la guarda y cuenta los faltantes disfrazados.
+# Un grupo de valores chicos con dos `-9999` los tiene que seguir publicando
+# aunque otro grupo de la misma columna traiga identificadores de 64 bits.
+test_that("valores de mas de 2^53 en otro grupo no callan el faltante disfrazado de este", {
+  skip_on_cran()
+  skip_if_not_installed("bit64")
+  datos <- data.frame(
+    grupo = rep(c("g1", "g2"), each = 40L),
+    id = c(
+      bit64::as.integer64("9007199254740999") + seq_len(40L),
+      bit64::as.integer64(c(rep(-9999, 2L), 100 + seq_len(38L)))
+    ),
+    stringsAsFactors = FALSE
+  )
+  por_grupo <- perfilar_por(datos, "grupo", min_filas = 10L,
+                            analizar_dependencias = FALSE,
+                            proteger_datos_personales = FALSE)
+  tabla <- as.data.frame(por_grupo)
+  disfrazados <- tabla[
+    tabla$grupo == "g2" & tabla$columna %in% "id" &
+      tabla$tipo_hallazgo == "faltantes_disfrazados", ,
+    drop = FALSE
+  ]
+  expect_identical(nrow(disfrazados), 1L)
+  expect_equal(disfrazados$n_afectados, 2)
+  cobertura <- as.data.frame(attr(por_grupo, "cobertura_diagnosticos"))
+  expect_false(any(
+    cobertura$grupo == "g2" & cobertura$columna %in% "id" &
+      cobertura$diagnostico == "centinelas_numericos"
+  ))
+})
