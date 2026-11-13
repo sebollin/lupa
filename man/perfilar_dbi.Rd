@@ -794,6 +794,11 @@ Esto no permite concluir que la columna esté vacía, por lo que no se publica
 cero ni se dispara la cascada \code{sin_valores}. Una muestra no vacía sin valores
 válidos usa \code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada
 usa \code{capacidad_no_aceptada:...}. \code{n} conserva el conteo de la tabla completa.
+Hay dos excepciones, en las que lo perfilado no es la muestra pedida: si la
+materialización queda recortada por \code{max_bytes_materializacion}, o si no se
+puede leer y lo que queda es el perfil aislado de las columnas legibles, \code{n}
+es la cantidad de filas perfiladas, para que las demás cuentas se lean contra
+ellas y no contra el total de la tabla.
 
 Con \code{bloque_muestra = "solo_agregados"} cada sentencia sobre la muestra del
 motor sortea la suya. Lo que decide los agregados de una columna -la cuenta

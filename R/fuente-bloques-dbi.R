@@ -108,10 +108,8 @@
 .tipos_textuales_fuente_dbi <- function(campos, prototipo = NULL,
                                         tipos = NULL) {
   vapply(seq_along(campos), function(i) {
-    valor <- if (!is.null(prototipo) && i <= length(prototipo)) {
-      prototipo[[i]]
-    } else NULL
-    tipo <- if (!is.null(tipos) && i <= length(tipos)) tipos[[i]] else NA_character_
+    valor <- .atributo_columna_dbi(prototipo, campos[[i]], i)
+    tipo <- .atributo_columna_dbi(tipos, campos[[i]], i) %||% NA_character_
     is.character(valor) || is.factor(valor) ||
       (!is.null(tipo) && length(tipo) == 1L &&
        grepl(.regex_sin_caja("char|text|clob|varchar|citext"), tipo))
@@ -649,9 +647,9 @@
   for (i in seq_along(campos)) {
     campo <- campos[[i]]
     binaria <- campo %in% as.character(columnas_binarias)
-    tipo <- if (!is.null(prototipo) && i <= length(prototipo)) {
-      typeof(prototipo[[i]])
-    } else "character"
+    prototipo_campo <- .atributo_columna_dbi(prototipo, campo, i)
+    tipo <- if (!is.null(prototipo_campo)) typeof(prototipo_campo) else
+      "character"
     if ("validos" %in% metricas) {
       salida[[.clave_par_identificador(campo, "conteos", sep = "\u001f")]] <-
         .iniciar_acumulador(
@@ -662,8 +660,7 @@
         )
     }
     textual <- .tipos_textuales_fuente_dbi(
-      campo, if (is.null(prototipo)) NULL else prototipo[i],
-      if (is.null(tipos)) NULL else tipos[i]
+      campo, prototipo, tipos
     )
     if (textual || binaria) {
       salida[[.clave_par_identificador(campo, "longitudes", sep = "\u001f")]] <-
@@ -678,8 +675,8 @@
         )
     }
     es_numerico <- .es_numerico_dbi(
-      if (!is.null(prototipo) && i <= length(prototipo)) prototipo[[i]] else NULL,
-      if (!is.null(tipos) && i <= length(tipos)) tipos[[i]] else NA_character_
+      .atributo_columna_dbi(prototipo, campo, i),
+      .atributo_columna_dbi(tipos, campo, i) %||% NA_character_
     )
     if (es_numerico && any(c("basicos", "desvio") %in% metricas)) {
       salida[[.clave_par_identificador(campo, "cuantitativos", sep = "\u001f")]] <-
@@ -1077,16 +1074,20 @@
   # mediana de un `int` salia «La columna no es numerica». Cuando el
   # presupuesto se agoto antes de leer los tipos, el esquema minimo lo declara
   # (`prototipo_desconocido`): sus `logical()` no son una columna logica.
+  prototipo_campo <- .atributo_columna_dbi(
+    prototipo, campo, posicion_campo
+  )
+  tipo_campo_declarado <- .atributo_columna_dbi(
+    tipos, campo, posicion_campo
+  )
   prototipo_conocido <- !isTRUE(prototipo_desconocido) &&
-    !is.na(posicion_campo) && !is.null(prototipo) &&
-    posicion_campo <= length(prototipo) &&
-    !is.null(prototipo[[posicion_campo]])
-  tipo_conocido <- !is.na(posicion_campo) && !is.null(tipos) &&
-    posicion_campo <= length(tipos) && !is.na(tipos[[posicion_campo]])
+    !is.null(prototipo_campo)
+  tipo_conocido <- !is.null(tipo_campo_declarado) &&
+    !is.na(tipo_campo_declarado)
   columna_numerica <- if (prototipo_conocido || tipo_conocido) {
     .es_numerico_dbi(
-      if (prototipo_conocido) prototipo[[posicion_campo]] else NULL,
-      if (tipo_conocido) tipos[[posicion_campo]] else NA_character_
+      if (prototipo_conocido) prototipo_campo else NULL,
+      if (tipo_conocido) tipo_campo_declarado else NA_character_
     )
   } else NA
   for (grupo in c("basicos", "desvio")) {
@@ -1320,14 +1321,10 @@
   # motor sobre el valor exacto, y aca se contarian sobre los dobles. Lo mismo
   # vale para un entero ancho que el controlador entrego como doble -un
   # `integer64` no pasa por aca: lo retiene su propia regla-.
-  tipo_campo <- if (!is.null(tipos_motor) && !is.na(posicion_campo) &&
-                    posicion_campo <= length(tipos_motor) &&
-                    !is.na(tipos_motor[[posicion_campo]])) {
-    tipos_motor[[posicion_campo]]
-  } else if (!is.null(tipos) && !is.na(posicion_campo) &&
-             posicion_campo <= length(tipos)) {
-    tipos[[posicion_campo]]
-  } else NA_character_
+  tipo_campo <- .atributo_columna_dbi(
+    tipos_motor, campo, posicion_campo
+  ) %||% .atributo_columna_dbi(tipos, campo, posicion_campo) %||%
+    NA_character_
   extremos <- if (!is.null(sobre_cuantitativos) &&
                   identical(sobre_cuantitativos$estado, "calculado")) {
     c(sobre_cuantitativos$resultado$minimo, sobre_cuantitativos$resultado$maximo)
@@ -1511,12 +1508,13 @@
     senas <- .senas_conexion_dbi(conexion)
     tipos_motor <- preparacion$esquema$tipos_motor
     tipo_de <- function(i) {
-      tipo <- if (!is.null(tipos_motor) && i <= length(tipos_motor)) {
-        tipos_motor[[i]]
-      } else NA_character_
+      tipo <- .atributo_columna_dbi(
+        tipos_motor, preparacion$campos[[i]], i
+      ) %||% NA_character_
       if (length(tipo) != 1L || is.na(tipo) || !nzchar(as.character(tipo))) {
-        tipo <- if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else
-          NA_character_
+        tipo <- .atributo_columna_dbi(
+          preparacion$tipos, preparacion$campos[[i]], i
+        ) %||% NA_character_
       }
       as.character(tipo)
     }
@@ -1533,8 +1531,9 @@
         if (exacta) {
           modas_seguras <- modas_seguras + 1
         } else if (.entero_doble_ancho_moda_dbi(
-          if (i <= length(preparacion$prototipo)) preparacion$prototipo[[i]] else
-            NULL, tipo, NULL
+          .atributo_columna_dbi(
+            preparacion$prototipo, campos[[i]], i
+          ), tipo, NULL
         )) {
           modas_posibles <- modas_posibles + 1
         }
@@ -1774,6 +1773,27 @@
 # por bloques; lo usa la prueba que cambia la tabla en medio.
 .ARGUMENTOS_PROPIOS_DBI <- "antes_segunda_pasada"
 
+# `match.call()` conserva expresiones, no los valores que ya resolvio R. Los
+# formales de `perfilar_dbi()` son promesas en su propio entorno: leerlas con
+# `mget()` las fuerza una sola vez y conserva el entorno original de cada
+# promesa. Los puntos suspensivos se reciben ya como valores porque `list(...)`
+# los fuerza en ese mismo entorno.
+.capturar_argumentos_perfilar_dbi <- function(llamada, entorno, puntos) {
+  formales <- names(formals(perfilar_dbi))
+  presentes <- names(llamada)[-1L]
+  presentes <- presentes[!is.na(presentes) & nzchar(presentes) &
+    presentes %in% formales]
+  valores <- if (length(presentes)) {
+    mget(unique(presentes), envir = entorno, inherits = FALSE)
+  } else list()
+  declarados <- unique(c(presentes, names(puntos)))
+  declarados <- declarados[!is.na(declarados) & nzchar(declarados)]
+  list(
+    argumentos = c(valores, puntos), puntos = puntos,
+    declarados = declarados
+  )
+}
+
 .verificar_identidad_row_locator_dbi <- function(conexion, fuente, locators,
                                                  bloque_filas = fuente$bloque_filas,
                                                  presupuesto = NULL,
@@ -1838,6 +1858,8 @@
                                   incluir_valores, bloque_filas,
                                   max_celdas_muestra, max_bytes_muestra,
                                   argumentos = list(),
+                                  argumentos_originales = list(),
+                                  argumentos_declarados = character(),
                                   max_bytes_procesamiento =
                                     .MAX_BYTES_ESTADO_BLOQUES,
                                   metricas_publicas = preparacion$metricas) {
@@ -1945,46 +1967,65 @@
   # que estas decidan con lo que de verdad queda.
   .contar_dbi(preparacion$presupuesto, recorrido$bloques$consultas_sql %||% 0L)
   if (isTRUE(fuente$disponible) && !is.null(recorrido$error)) {
-    extras <- argumentos
-    extras$antes_segunda_pasada <- NULL
-    extras$columnas_opcionales <- NULL
-    extras$aplicabilidad <- NULL
-    extras$sentinelas_numericos <- NULL
+    llamada_fallback <- argumentos_originales
+    llamada_fallback$bloque_filas <- NULL
+    efectivos <- list(
+      conexion = conexion, tabla = tabla,
+      universo = preparacion$universo,
+      muestra = preparacion$muestra,
+      orden_muestra = preparacion$orden_muestra,
+      metricas = metricas_publicas,
+      estrategia_distintos = preparacion$estrategia_distintos$estrategia_solicitada %||%
+        "exacta",
+      estrategia_mediana = preparacion$estrategia_mediana,
+      politica_costo = preparacion$politica_costo$nombre %||% "todas",
+      bloque_muestra = preparacion$bloque_muestra,
+      max_consultas = preparacion$presupuesto$max %||% preparacion$max_consultas,
+      dialecto = "auto",
+      incluir_valores = incluir_valores,
+      instrumentar = preparacion$instrumentar,
+      umbral_cardinalidad = preparacion$politica_costo$umbral %||% 0.5,
+      max_celdas_muestra = max_celdas_muestra,
+      max_bytes_muestra = max_bytes_muestra,
+      max_bytes_procesamiento = max_bytes_procesamiento,
+      max_bytes_materializacion = preparacion$max_bytes_materializacion,
+      columnas_opcionales = argumentos$columnas_opcionales %||% character(),
+      aplicabilidad = argumentos$aplicabilidad,
+      sentinelas_numericos = argumentos$sentinelas_numericos %||%
+        c(-9, -99, -999, -9999, 999)
+    )
+    declarados <- unique(as.character(argumentos_declarados))
+    nombres_lote <- c(
+      "tamano_lote", "tamano_lote_planos", "tamano_lote_distintos"
+    )
+    if (!any(nombres_lote %in% declarados)) {
+      efectivos$tamano_lote <- preparacion$tamano_lote
+    } else if (!"tamano_lote" %in% declarados) {
+      if (!"tamano_lote_planos" %in% declarados) {
+        efectivos$tamano_lote_planos <- preparacion$tamano_lote_planos
+      }
+      if (!"tamano_lote_distintos" %in% declarados) {
+        efectivos$tamano_lote_distintos <- preparacion$tamano_lote_distintos
+      }
+    }
+    for (nombre in setdiff(names(efectivos), declarados)) {
+      llamada_fallback[[nombre]] <- efectivos[[nombre]]
+    }
+    motivo_fallback <- NULL
     fallback <- tryCatch(
-      do.call(
-        perfilar_dbi,
-        c(
-          list(
-            conexion = conexion, tabla = tabla, universo = "tabla_completa",
-            muestra = preparacion$muestra,
-            orden_muestra = preparacion$orden_muestra,
-            metricas = metricas_publicas,
-            estrategia_distintos = preparacion$estrategia_distintos$estrategia_solicitada %||%
-              "exacta",
-            estrategia_mediana = preparacion$estrategia_mediana,
-            politica_costo = preparacion$politica_costo$nombre %||% "todas",
-            bloque_muestra = preparacion$bloque_muestra, max_consultas = Inf,
-            dialecto = "auto", incluir_valores = incluir_valores,
-            tamano_lote = preparacion$tamano_lote,
-            tamano_lote_planos = preparacion$tamano_lote_planos,
-            tamano_lote_distintos = preparacion$tamano_lote_distintos,
-            instrumentar = preparacion$instrumentar,
-            umbral_cardinalidad = preparacion$politica_costo$umbral %||% 0.5,
-            columnas_opcionales = argumentos$columnas_opcionales %||% character(),
-            aplicabilidad = argumentos$aplicabilidad,
-            sentinelas_numericos = argumentos$sentinelas_numericos %||%
-              c(-9, -99, -999, -9999, 999),
-            max_bytes_procesamiento = max_bytes_procesamiento,
-            max_bytes_materializacion = preparacion$max_bytes_materializacion
-          ),
-          extras
-        )
-      ),
+      do.call(perfilar_dbi, llamada_fallback),
       error = function(e) {
         .repropagar_transaccion_dbi(e)
+        motivo_fallback <<- conditionMessage(e)
         NULL
       }
     )
+    if (length(motivo_fallback) == 1L && !is.na(motivo_fallback) &&
+        nzchar(motivo_fallback)) {
+      recorrido$error <- paste0(
+        recorrido$error, "; el repliegue SQL fallo: ", motivo_fallback
+      )
+    }
     if (!is.null(fallback) && !is.null(fallback$resumen_tabla)) {
       fallback$resumen_tabla$cobertura <- rbind(
         fallback$resumen_tabla$cobertura,
@@ -2005,6 +2046,7 @@
         motivo = recorrido$error, bloques = recorrido$bloques
       )
       rownames(fallback$resumen_tabla$cobertura) <- NULL
+      attr(fallback, "epilogo_aplicado_dbi") <- TRUE
       return(fallback)
     }
   }
@@ -2098,15 +2140,10 @@
   # materializar los bytes ni escribir temporales.
   modas_bloques <- list()
   tipo_motor_de <- function(campo) {
-    posicion <- match(campo, preparacion$campos)
     tipos_motor <- preparacion$esquema$tipos_motor
-    tipo <- if (!is.null(tipos_motor) && posicion <= length(tipos_motor)) {
-      tipos_motor[[posicion]]
-    } else NA_character_
+    tipo <- .atributo_columna_dbi(tipos_motor, campo) %||% NA_character_
     if (length(tipo) != 1L || is.na(tipo) || !nzchar(as.character(tipo))) {
-      tipo <- if (posicion <= length(preparacion$tipos)) {
-        preparacion$tipos[[posicion]]
-      } else NA_character_
+      tipo <- .atributo_columna_dbi(preparacion$tipos, campo) %||% NA_character_
     }
     as.character(tipo)
   }
@@ -2151,7 +2188,8 @@
         c(cuantitativos$resultado$minimo, cuantitativos$resultado$maximo)
       } else NULL
       entero_doble <- .entero_doble_ancho_moda_dbi(
-        preparacion$prototipo[[posicion]], tipo, extremos
+        .atributo_columna_dbi(preparacion$prototipo, campo, posicion),
+        tipo, extremos
       )
       # Los decimales ya tienen todos sus valores en el mapa que se construye
       # durante el recorrido. Resolverlos aca con una consulta SQL separada

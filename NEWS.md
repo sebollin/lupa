@@ -139,6 +139,42 @@
   podía aplicar. La justificación de `recuperar_codificacion_en_origen`
   distingue los bytes perdidos (U+FFFD) del texto que el motor reconoce mal
   convertido y no puede reparar.
+- `perfilar_dbi()`: con una columna que el motor no deja leer, las columnas a
+  su derecha se juzgaban con el tipo de la omitida. Un `DECIMAL(18,2)` después
+  de un `BLOB` ilegible salía con `tipo_declarado = "texto"` en el perfil de la
+  muestra, y bajo `universo = "muestra_motor"` con `bloque_muestra =
+  "solo_agregados"` el desvío de una columna sana salía `no_disponible`. Los
+  atributos de cada columna viajan ahora juntos y la columna rota no cambia el
+  perfil de las demás.
+- `perfilar_dbi(metricas = "desvio")`, sin `"validos"`, ya no aborta con
+  «missing value where TRUE/FALSE needed» cuando el motor devuelve una
+  magnitud infinita: la métrica queda `no_disponible` con su motivo.
+- En SQLite y en DuckDB el desvío de una columna con dobles cerca del máximo
+  representable (`1e308`) o muy chicos salía `Inf` o `0` con estado
+  `calculado`. Ahora se calcula escalado, como ya se hacía en PostgreSQL, SQL
+  Server, MySQL y MariaDB, y si el motor igual no devuelve un desvío finito no
+  se publica como calculado.
+- Cuando la lectura por bloques falla y `perfilar_dbi()` responde con el
+  resumen SQL por columna, la segunda corrida respeta lo que se pidió: pisaba
+  `max_consultas`, `dialecto`, los topes de la muestra y los avisos, y la
+  cobertura publicaba dos veces `columnas_opcionales`. Si esa segunda corrida
+  también falla, su mensaje queda en la cobertura.
+- `perfilar_dbi(universo = "muestra_motor")`: cuando la materialización queda
+  recortada por `max_bytes_materializacion`, o no se puede leer por una columna
+  que el motor rechaza y se perfilan las demás, `resumen_tabla$columnas$n` es
+  la cantidad de filas perfiladas y no el total de la tabla, que quedaba al
+  lado de los válidos de unas pocas filas (`n = 5` con `n_validos = 2`). En una
+  corrida sin recortes `n` sigue siendo el total de la tabla. `print()` de ese
+  resultado ya no aborta con «Multiple quantities for pluralization».
+- Tras reintentar una muestra que salió corta, `meta$muestreo$fraccion_solicitada`
+  conserva la fracción pedida; publicaba la del reintento (0,25 o 1 donde se
+  había pedido 0,5).
+- Con `politica_costo = "por_cardinalidad"`, la corrida declara el mismo máximo
+  de consultas (`n_consultas_max`) que `plan_perfilado_dbi()`; declaraba dos de
+  más.
+- Un error de la fuente de la muestra se publica con su mensaje original y no
+  como `capacidad_no_aceptada`, y una columna ilegible conserva sus filas en
+  `resumen_tabla$sql` aunque no quede ninguna métrica por ejecutar.
 
 # lupa 0.1.1
 
