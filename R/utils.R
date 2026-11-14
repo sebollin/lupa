@@ -535,6 +535,17 @@
   if (is.list(x)) {
     atributos <- attributes(x)
     cuerpo <- lapply(unclass(x), .marcar_para_exhibir, escapar = escapar)
+    # En el reintento se escapan tambien los nombres de lo que va adentro: una
+    # columna-lista puede llevar un `data.frame` -las claves de la traza- cuyo
+    # nombre es el de una columna con bytes que no son UTF-8, y `deparse()`
+    # aborta sobre ese nombre. Solo en el reintento, como el resto del escape:
+    # donde base puede, su salida no cambia.
+    if (escapar && !is.null(atributos$names)) {
+      atributos$names <- .marcar_para_exhibir(atributos$names, escapar)
+    }
+    if (escapar && is.character(atributos$row.names)) {
+      atributos$row.names <- .marcar_para_exhibir(atributos$row.names, escapar)
+    }
     if (!is.null(atributos)) attributes(cuerpo) <- atributos
     return(cuerpo)
   }

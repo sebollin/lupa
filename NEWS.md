@@ -123,6 +123,19 @@
   UTF-8 válido como el resto del perfil: en una sesión UTF-8 la dejaba fuera
   sin declararlo en `meta$orden_columnas`, y bajo `LC_ALL=C` contaba esas
   celdas como valores que no se pudieron convertir y descartaba el par.
+- `print()` de `hallazgos()` y de `cobertura()` ya no aborta en una sesión
+  UTF-8 cuando un nombre de columna trae, sin marca, bytes que no son UTF-8
+  válido —lo que deja `data.table::fread()` sobre un CSV en latin-1 con
+  encabezados acentuados—. El nombre viaja dentro de sus columnas-lista y
+  `print.data.frame()` no podía formatearlo: escribir `cobertura(p)` en la
+  consola abortaba con «invalid multibyte string». Las dos tablas llevan ahora
+  la clase `tabla_lupa` delante de `data.frame`, que las imprime como el resto
+  de las salidas del paquete, con el byte escapado (`ciudad\240`). Ningún valor
+  cambia, y `as.data.frame()` devuelve la tabla de siempre. Lo mismo con un
+  subconjunto de `proponer_modelo()` sin las columnas de la propuesta. Venía de
+  la 0.1.1. Bajo un locale que no puede representar un carácter, esas tablas
+  escriben su punto de código (`a<U+00F1>o`), como ya lo hacía `print()` del
+  perfil.
 - `perfilar()` y `analizar()` abortaban la tabla entera sobre una tabla con
   columnas de año, mes y día cuya primera fila no formaba una fecha —un mes
   `0`, un 30 de febrero, un `NA`—, porque la búsqueda de fechas partidas dejaba

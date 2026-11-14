@@ -288,7 +288,13 @@ as_tibble.perfil <- function(x, ...) {
 #'   alcance, o un vector nombrado con un conteo por tabla para una colección
 #'   —los nombres son los de `resumen_coleccion$tabla`, en el orden de la tabla—.
 #'   Devuelve
-#'   `NA` con su motivo cuando el objeto no conoce el conteo. El significado de
+#'   `NA` con su motivo cuando el objeto no conoce el conteo. Las tablas de
+#'   `hallazgos()` y `cobertura()` llevan la clase `tabla_lupa` delante de
+#'   `data.frame`, que sólo cambia cómo se imprimen: como la propuesta de
+#'   [proponer_modelo()], la impresión no aborta con un nombre de columna que no
+#'   es UTF-8 válido, que va adentro de sus columnas-lista (`trazabilidad`,
+#'   `columnas`); los subconjuntos la conservan y `as.data.frame()` la quita.
+#'   El significado de
 #'   cada campo de `columnas()` se explica por familias en los detalles de
 #'   [perfilar()]. `sql_perfil()` devuelve la tabla de consultas emitidas;
 #'   sobre una colección incluye la identidad de la tabla y conserva las
@@ -320,9 +326,9 @@ hallazgos <- function(x, ...) {
           "motivo, en cobertura().", call. = FALSE
         )
       }
-      return(.hallazgos_sin_filas())
+      return(.tabla_lupa(.hallazgos_sin_filas()))
     }
-    return(.hallazgos_sin_filas())
+    return(.tabla_lupa(.hallazgos_sin_filas()))
   }
   # La guarda de coherencia corre cuando los hallazgos se construyen, y no
   # volvia a correr cuando se PUBLICAN. Un objeto editado a mano despues de
@@ -332,7 +338,7 @@ hallazgos <- function(x, ...) {
   # contempla ese caso: dice que, si se modifico el objeto a mano, esa es la
   # causa mas probable.
   .advertir_incoherencias_trazabilidad(salida)
-  salida
+  .tabla_lupa(salida)
 }
 
 #' @rdname accesores_perfil
@@ -347,7 +353,32 @@ columnas <- function(x, ...) {
 cobertura <- function(x, ...) {
   .exigir_forma_conocida(x, "cobertura")
   salida <- .fuente_cobertura(x)
-  if (is.null(salida)) .cobertura_diagnosticos_vacia() else salida
+  .tabla_lupa(if (is.null(salida)) .cobertura_diagnosticos_vacia() else salida)
+}
+
+# Las tablas que devuelven `hallazgos()` y `cobertura()` llevan columnas-lista
+# con datos del usuario: `trazabilidad` guarda las claves de la fila como un
+# `data.frame` con el nombre de la columna clave, y `columnas`, los nombres de
+# las columnas. Con un nombre sin marca que no es UTF-8 valido -lo que deja
+# `data.table::fread()` sobre un CSV en latin-1-, `print.data.frame()` de base
+# abortaba en una sesion UTF-8 (`format.AsIs()` y `deparse()` no pueden con esa
+# cadena), y esas tablas son lo que se imprime al escribir `hallazgos(p)` en la
+# consola. La clase las manda por el camino de los `print.*` del paquete,
+# `.print_data_frame_bytes()`, como `print.propuesta_modelo()`. No cambia ningun
+# valor: los bytes del usuario quedan como estan, solo la copia que se exhibe
+# se declara o se escapa. `[.data.frame` conserva la clase en los subconjuntos
+# -una columna-lista sola sigue imprimiendose- y `as.data.frame()` la quita.
+.tabla_lupa <- function(x) {
+  if (is.data.frame(x) && !inherits(x, "tabla_lupa")) {
+    class(x) <- c("tabla_lupa", class(x))
+  }
+  x
+}
+
+#' @export
+print.tabla_lupa <- function(x, ...) {
+  .print_data_frame_bytes(x, ...)
+  invisible(x)
 }
 
 #' @rdname accesores_perfil

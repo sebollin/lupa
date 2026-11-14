@@ -295,7 +295,9 @@
 #'   extensión.
 #' @param max_sugerencias Máximo de filas devueltas.
 #'
-#' @return Data frame S3 de clase `propuesta_modelo`; las columnas de listas
+#' @return Data frame S3 de clase `propuesta_modelo` (y `tabla_lupa`, con la que
+#'   se imprime también un subconjunto que pierde las columnas de la propuesta y
+#'   deja de serlo); las columnas de listas
 #'   contienen la configuración y los vínculos sin convertirlos en texto. Su
 #'   método `print()` no falla por codificación en ningún locale: la copia
 #'   que se exhibe convierte lo que trae codificación declarada, declara como
@@ -597,7 +599,12 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   resultado$prioridad <- factor(
     resultado$prioridad, levels = c("baja", "media", "alta"), ordered = TRUE
   )
-  class(resultado) <- c("propuesta_modelo", "data.frame")
+  # `tabla_lupa` debajo: el subconjunto que pierde las columnas del contrato
+  # deja de ser una propuesta, pero se sigue imprimiendo por el camino del
+  # paquete. Su columna-lista `atributos_ligados` lleva los nombres de las
+  # columnas, y con uno que no es UTF-8 valido `print.data.frame()` de base
+  # abortaba sobre `propuesta[, "atributos_ligados", drop = FALSE]`.
+  class(resultado) <- c("propuesta_modelo", "tabla_lupa", "data.frame")
   attr(resultado, "total_sugerencias") <- total
   attr(resultado, "truncado") <- total > nrow(resultado)
   resultado

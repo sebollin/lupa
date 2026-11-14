@@ -31,7 +31,9 @@ extensión.}
 \item{max_sugerencias}{Máximo de filas devueltas.}
 }
 \value{
-Data frame S3 de clase \code{propuesta_modelo}; las columnas de listas
+Data frame S3 de clase \code{propuesta_modelo} (y \code{tabla_lupa}, con la que
+se imprime también un subconjunto que pierde las columnas de la propuesta y
+deja de serlo); las columnas de listas
 contienen la configuración y los vínculos sin convertirlos en texto. Su
 método \code{print()} no falla por codificación en ningún locale: la copia
 que se exhibe convierte lo que trae codificación declarada, declara como
