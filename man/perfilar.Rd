@@ -287,9 +287,13 @@ de \code{\link[=normalizacion]{normalizacion()}}: \verb{SIN INFORMACIÓN} es \ve
 locale.}
 
 \item{analizar_dependencias}{Si se buscan dependencias funcionales entre
-pares de columnas. Se aplica una sola muestra común a toda la tabla.}
+pares de columnas. Se aplica una sola muestra común a toda la tabla. Una
+dependencia publicada que no es exacta es además el hallazgo
+\code{relacion_funcional_columnas}, con las filas que la rompen.}
 
-\item{umbral_dependencia}{Cumplimiento mínimo para informar una dependencia.}
+\item{umbral_dependencia}{Cumplimiento mínimo para informar una dependencia.
+Una informada con cumplimiento menor que 1 es también un hallazgo
+\code{relacion_funcional_columnas}.}
 
 \item{umbral_casi_clave_dependencia}{Tasa de valores distintos a partir de
 la cual un determinante se descarta como casi-clave antes de agrupar.}
@@ -1119,6 +1123,23 @@ que cuentan filas también las traen: \code{posible_ausencia_estructural}, las
 ausentes que caen donde la regla dice que la columna no corresponde, y
 \code{regla_silencia_ausencia}, las que la declaración del universo dejó de
 contar.
+\code{relacion_funcional_columnas} sale una vez por cada fila de \code{dependencias}
+que no es exacta —cumplimiento en \verb{[umbral_dependencia, 1)}—, y una por
+sentido: \code{a -> b} y \code{b -> a} son dos hallazgos, porque en general los
+rompen filas distintas. \code{columna} es \code{"determinante,dependiente"}, la
+unidad es \code{fila}, \code{n_evaluados} y \code{n_afectados} son \code{n_evaluados} y
+\code{n_violaciones} de la dependencia, y la evidencia repite su cumplimiento y
+sus contradicciones. La traza enumera las filas que la rompen —las que
+tienen las dos columnas presentes y un dependiente distinto del más
+frecuente de su determinante; con empate en ese máximo, el que aparece
+primero en la tabla—, su total es \code{n_afectados} y lleva \code{columnas}. Si las
+dependencias se buscaron sobre una muestra, las filas son de la tabla
+(\code{alcance = "completo"}) cuando la dependencia se recalculó sobre ella, y
+de la muestra, en su posición de la tabla, cuando el presupuesto no
+alcanzó (\code{alcance = "muestra_dependencias"}, lo mismo que sus cifras).
+\code{\link[=planificar_limpieza]{planificar_limpieza()}} no propone una acción para este hallazgo: va a
+\code{hallazgos_sin_accion}. Que la relación sea una regla del negocio lo sabe
+quien conoce los datos; si no lo es, no hay nada que corregir.
 Para \code{patron_raro},
 el alcance puede ser \code{completo}, \code{muestra_patrones},
 \code{patrones_parciales} o \code{muestra_patrones+patrones_parciales}. El resumen y

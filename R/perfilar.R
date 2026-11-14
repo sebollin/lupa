@@ -2012,8 +2012,12 @@
 #'   plataforma. Un texto con más cifras de las que distingue un doble sólo es el
 #'   centinela si lo escribe exacto.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
-#'   pares de columnas. Se aplica una sola muestra común a toda la tabla.
+#'   pares de columnas. Se aplica una sola muestra común a toda la tabla. Una
+#'   dependencia publicada que no es exacta es además el hallazgo
+#'   `relacion_funcional_columnas`, con las filas que la rompen.
 #' @param umbral_dependencia Cumplimiento mínimo para informar una dependencia.
+#'   Una informada con cumplimiento menor que 1 es también un hallazgo
+#'   `relacion_funcional_columnas`.
 #' @param umbral_casi_clave_dependencia Tasa de valores distintos a partir de
 #'   la cual un determinante se descarta como casi-clave antes de agrupar.
 #' @param max_columnas_dependencias Máximo de columnas que intervienen en la
@@ -2723,6 +2727,23 @@
 #'   ausentes que caen donde la regla dice que la columna no corresponde, y
 #'   `regla_silencia_ausencia`, las que la declaración del universo dejó de
 #'   contar.
+#'   `relacion_funcional_columnas` sale una vez por cada fila de `dependencias`
+#'   que no es exacta —cumplimiento en `[umbral_dependencia, 1)`—, y una por
+#'   sentido: `a -> b` y `b -> a` son dos hallazgos, porque en general los
+#'   rompen filas distintas. `columna` es `"determinante,dependiente"`, la
+#'   unidad es `fila`, `n_evaluados` y `n_afectados` son `n_evaluados` y
+#'   `n_violaciones` de la dependencia, y la evidencia repite su cumplimiento y
+#'   sus contradicciones. La traza enumera las filas que la rompen —las que
+#'   tienen las dos columnas presentes y un dependiente distinto del más
+#'   frecuente de su determinante; con empate en ese máximo, el que aparece
+#'   primero en la tabla—, su total es `n_afectados` y lleva `columnas`. Si las
+#'   dependencias se buscaron sobre una muestra, las filas son de la tabla
+#'   (`alcance = "completo"`) cuando la dependencia se recalculó sobre ella, y
+#'   de la muestra, en su posición de la tabla, cuando el presupuesto no
+#'   alcanzó (`alcance = "muestra_dependencias"`, lo mismo que sus cifras).
+#'   [planificar_limpieza()] no propone una acción para este hallazgo: va a
+#'   `hallazgos_sin_accion`. Que la relación sea una regla del negocio lo sabe
+#'   quien conoce los datos; si no lo es, no hay nada que corregir.
 #'   Para `patron_raro`,
 #'   el alcance puede ser `completo`, `muestra_patrones`,
 #'   `patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen y
@@ -3258,7 +3279,7 @@ perfilar <- function(datos,
   dependencias <- .medir_etapa_dbi(
     trazador_tiempos, "dependencias",
     if (analizar_dependencias) {
-      detectar_dependencias(
+      .detectar_dependencias_interno(
         datos_diagnostico, umbral = umbral_dependencia,
         muestra = muestra_diagnosticos,
         max_columnas = max_columnas_dependencias,
@@ -3267,7 +3288,9 @@ perfilar <- function(datos,
         max_trabajo = max_trabajo_dependencias,
         sentinelas_numericos = sentinelas_numericos,
         # El perfil se protege entero despues, con la declaracion del usuario.
-        proteger_datos_personales = FALSE
+        proteger_datos_personales = FALSE,
+        # Las filas que rompen cada dependencia casi exacta, para su hallazgo.
+        filas_rompen = TRUE, max_filas = max_filas_hallazgo
       )
     } else {
       # `datos[0, 0]` sobre un objeto `sf` conserva la geometria: la columna es
@@ -3284,6 +3307,12 @@ perfilar <- function(datos,
     },
     activa = analizar_dependencias
   )
+  # Las filas viajan en un atributo interno que no se publica: la tabla del
+  # perfil es la misma que devuelve `detectar_dependencias()`.
+  relaciones_funcionales <- .hallazgos_relacion_funcional(
+    dependencias, nombres_texto
+  )
+  attr(dependencias, "filas_rompen") <- NULL
 
   conteos_duplicados <- .conteos_filas_duplicadas(datos)
   n_filas_duplicadas <- conteos_duplicados$filas_duplicadas
@@ -3370,6 +3399,7 @@ perfilar <- function(datos,
     evaluacion_clave = evaluacion_clave,
     relaciones_orden = relaciones_orden$hallazgos,
     relaciones_aritmeticas = relaciones_aritmeticas$hallazgos,
+    relaciones_funcionales = relaciones_funcionales,
     normalizacion = normalizacion_resuelta,
     detectar_casi_duplicados = casi_duplicados_vocabulario,
     max_proporcion_grupo = max_proporcion_grupo_vocabulario,

@@ -21,6 +21,9 @@
   ))
 }
 
+# `posiciones` es la fila de cada par valido en los vectores recibidos: la
+# particion descarta los ausentes, y sin ella las filas que rompen una
+# dependencia no se pueden nombrar en la tabla.
 .particion_dependencia <- function(x, y) {
   validos <- !is.na(x) & !is.na(y)
   x <- .valores_relacion(x[validos])
@@ -29,7 +32,7 @@
   if (!n) {
     return(list(
       n = 0L, x = x, y = y, grupo = integer(), pareja = integer(),
-      conteos = integer(), grupos = 0L
+      conteos = integer(), grupos = 0L, posiciones = integer()
     ))
   }
   valores_x <- unique(x)
@@ -37,7 +40,8 @@
   pareja <- .codificar_parejas_dependencia(grupo, y)
   list(
     n = n, x = x, y = y, grupo = grupo, pareja = pareja,
-    conteos = tabulate(pareja), grupos = length(valores_x)
+    conteos = tabulate(pareja), grupos = length(valores_x),
+    posiciones = which(validos)
   )
 }
 
@@ -148,8 +152,44 @@
     grupos_conflicto = grupos_conflicto,
     grupo = grupo,
     x = particion$x,
-    y = particion$y
+    y = particion$y,
+    fila_modal = if (conformes < n) {
+      .fila_modal_dependencia(primera, pareja, grupo, conteos, maximos)
+    } else integer()
   )
+}
+
+# La pareja modal de cada grupo sale del MISMO maximo que cuenta los conformes:
+# decidida en otro lugar, las filas que rompen la dependencia podrian no sumar
+# sus violaciones. Se guarda la primera fila (entre las validas) de esa pareja
+# y no su codigo, porque el codigo depende de la codificacion elegida en
+# `.codificar_parejas_dependencia()` y la fila no. Con empate en el maximo gana
+# la pareja que aparece primero en la tabla: `"ZZ" -> "a" | "b"` con tres filas
+# cada una toma `"a"` si su primera fila esta antes, y las tres de `"b"` son
+# las que rompen.
+.fila_modal_dependencia <- function(primera, pareja, grupo, conteos, maximos) {
+  maximo_grupo <- integer(max(grupo))
+  maximo_grupo[as.integer(names(maximos))] <- as.integer(maximos)
+  primeras_filas <- which(primera)
+  candidatas <- primeras_filas[
+    conteos[pareja[primeras_filas]] == maximo_grupo[grupo[primeras_filas]]
+  ]
+  modal <- candidatas[!duplicated(grupo[candidatas])]
+  fila_modal <- integer(length(maximo_grupo))
+  fila_modal[grupo[modal]] <- modal
+  fila_modal
+}
+
+# Las filas cuya pareja no es la modal de su grupo, como posiciones en los
+# vectores que recibio la particion. Son exactamente `violaciones`: la moda
+# de cada grupo es la de `.fila_modal_dependencia()`, cuyo conteo es el maximo
+# que suma los conformes.
+.filas_rompen_dependencia <- function(particion, resumen) {
+  if (!particion$n || !length(resumen$fila_modal)) return(integer())
+  pareja <- particion$pareja
+  particion$posiciones[
+    pareja != pareja[resumen$fila_modal[particion$grupo]]
+  ]
 }
 
 .evidencia_dependencia <- function(resumen, max_ejemplos = 5L) {
@@ -255,7 +295,12 @@
 #' Busca pares ordenados `determinante -> dependiente`. El cumplimiento es la
 #' proporción de filas que coincide con el valor modal del dependiente para
 #' cada valor del determinante; por eso una dependencia aproximada señala
-#' directamente las filas minoritarias que pueden ser errores de carga.
+#' directamente las filas minoritarias que pueden ser errores de carga. Esta
+#' función no devuelve esas filas: [perfilar()] publica cada dependencia que no
+#' es exacta como el hallazgo `relacion_funcional_columnas`, con las filas que
+#' la rompen en su `trazabilidad`. El valor modal es el más frecuente; si dos
+#' empatan, el que aparece primero en la tabla, y las filas del otro son las que
+#' cuentan en `n_violaciones`.
 #'
 #' Para evitar resultados vacíos o triviales, se omiten por defecto las claves
 #' únicas, los determinantes cuya tasa de valores distintos alcanza
@@ -389,6 +434,39 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                    proteger_datos_personales = FALSE,
                                    columnas_personales = character(),
                                    sentinelas_numericos = NULL) {
+  .detectar_dependencias_interno(
+    datos, umbral = umbral, muestra = muestra, max_columnas = max_columnas,
+    umbral_casi_constante = umbral_casi_constante,
+    umbral_casi_clave = umbral_casi_clave, incluir_claves = incluir_claves,
+    min_observaciones = min_observaciones, max_ejemplos = max_ejemplos,
+    max_comparaciones = max_comparaciones, max_trabajo = max_trabajo,
+    proteger_datos_personales = proteger_datos_personales,
+    columnas_personales = columnas_personales,
+    sentinelas_numericos = sentinelas_numericos
+  )
+}
+
+# La busqueda de la funcion exportada, y algo mas que solo pide `perfilar()`:
+# con `filas_rompen = TRUE`, el atributo interno `filas_rompen` lleva, por cada
+# dependencia publicada que no es exacta, las filas de la tabla que la rompen
+# -a lo sumo `max_filas`-, las posiciones de sus dos columnas y el alcance de
+# esas filas. Es el patron de `detectar_formatos_fecha()`: el atributo no se
+# publica, lo consume `.hallazgos_relacion_funcional()`, y la funcion exportada
+# no lo pide, asi que no paga su costo ni cambia lo que devuelve.
+.detectar_dependencias_interno <- function(datos, umbral = 0.995, muestra = 1e5,
+                                           max_columnas = 100L,
+                                           umbral_casi_constante = 0.95,
+                                           umbral_casi_clave = 0.8,
+                                           incluir_claves = FALSE,
+                                           min_observaciones = 10L,
+                                           max_ejemplos = 5L,
+                                           max_comparaciones = 200000L,
+                                           max_trabajo = 100000000,
+                                           proteger_datos_personales = FALSE,
+                                           columnas_personales = character(),
+                                           sentinelas_numericos = NULL,
+                                           filas_rompen = FALSE,
+                                           max_filas = 1000L) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   # La misma entrada que el perfil: un nivel `NA` de un factor es un faltante
@@ -552,6 +630,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   )
   filas <- list()
   pares_publicados <- list()
+  indices_rompen <- list()
   k <- 0L
   comparaciones <- 0
   presupuesto_agotado <- FALSE
@@ -604,13 +683,22 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
           evidencia = .evidencia_dependencia(resumen, max_ejemplos),
           stringsAsFactors = FALSE
         )
+        # Las filas que rompen salen de la misma particion que cuenta
+        # `n_violaciones`; con muestra, son filas de la muestra, que
+        # `muestreo$valores` devuelve a su posicion en la tabla.
+        if (filas_rompen) {
+          indices_rompen[[k]] <- muestreo$valores[utils::head(
+            .filas_rompen_dependencia(particion, resumen), max_filas
+          )]
+        }
       }
       if (presupuesto_agotado) break
     }
   }
   verificacion <- .verificar_dependencias_tabla_completa(
     filas, pares_publicados, datos, muestreo, umbral, min_observaciones,
-    max_ejemplos, max_trabajo
+    max_ejemplos, max_trabajo,
+    indices_rompen = if (filas_rompen) indices_rompen, max_filas = max_filas
   )
   filas <- verificacion$filas
   resultado <- if (length(filas)) {
@@ -624,6 +712,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   )
   }
   verificadas <- verificacion$verificadas
+  # Lo que acompana a cada fila viaja con ella en el reordenamiento, como
+  # `verificadas`.
+  pares_publicados <- verificacion$pares
+  indices_rompen <- verificacion$indices_rompen
   if (nrow(resultado)) {
     orden <- .orden_por_bytes(
       -resultado$cumplimiento, -resultado$n_evaluados,
@@ -632,6 +724,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     )
     resultado <- resultado[orden, , drop = FALSE]
     verificadas <- verificadas[orden]
+    pares_publicados <- pares_publicados[orden]
+    if (filas_rompen) indices_rompen <- indices_rompen[orden]
     rownames(resultado) <- NULL
   }
   # La evidencia cita VALORES de la tabla -`"2.107.507-7" -> "Rosario ..." |
@@ -712,7 +806,92 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   attr(resultado, "max_columnas") <- as.integer(max_columnas)
   attr(resultado, "seleccion_posicional") <- TRUE
   attr(resultado, "umbral") <- umbral
+  # Las cifras de una dependencia que el presupuesto no dejo recalcular son de
+  # la muestra, y sus filas tambien: el alcance lo dice.
+  if (filas_rompen) {
+    attr(resultado, "filas_rompen") <- lapply(
+      seq_len(nrow(resultado)), function(i) {
+        list(
+          indices = as.integer(indices_rompen[[i]]),
+          posiciones = as.integer(pares_publicados[[i]]),
+          alcance = if (isTRUE(verificadas[[i]])) {
+            "completo"
+          } else "muestra_dependencias"
+        )
+      }
+    )
+  }
   resultado
+}
+
+# **Una dependencia que casi se cumple es un hallazgo con sus filas**, como sus
+# hermanas `relacion_orden_columnas` y `relacion_aritmetica_columnas`. La ayuda
+# de `detectar_dependencias()` prometia que una dependencia aproximada "senala
+# directamente las filas minoritarias que pueden ser errores de carga", y
+# ninguna salida las nombraba: `"MO" -> "Montevideo" | "Salto"` quedaba en
+# `perfil$dependencias` sin hallazgo y sin filas. Uno por cada dependencia
+# publicada que no es exacta y por sentido -`a -> b` y `b -> a` son dos
+# afirmaciones y en general las rompen filas distintas-. La traza viene armada
+# desde la busqueda, con las filas de la misma particion que cuenta
+# `n_violaciones`, asi que su total es `n_afectados` por construccion.
+.hallazgos_relacion_funcional <- function(dependencias, nombres_texto = NULL) {
+  trazas <- attr(dependencias, "filas_rompen", exact = TRUE)
+  if (!is.data.frame(dependencias) || !nrow(dependencias) ||
+      length(trazas) != nrow(dependencias)) {
+    return(list())
+  }
+  umbral <- attr(dependencias, "umbral", exact = TRUE)
+  filas_analizadas <- attr(dependencias, "filas_analizadas", exact = TRUE)
+  lapply(which(!dependencias$exacta), function(i) {
+    traza <- trazas[[i]]
+    determinante <- as.character(dependencias$determinante[[i]])
+    dependiente <- as.character(dependencias$dependiente[[i]])
+    textos <- if (length(nombres_texto) && length(traza$posiciones) == 2L) {
+      nombres_texto[traza$posiciones]
+    } else c(determinante, dependiente)
+    n_evaluados <- dependencias$n_evaluados[[i]]
+    n_violaciones <- dependencias$n_violaciones[[i]]
+    de_muestra <- identical(traza$alcance, "muestra_dependencias")
+    columna_hallazgo <- paste(determinante, dependiente, sep = ",")
+    relacion <- paste0(textos[[1L]], " -> ", textos[[2L]])
+    hallazgo <- .nuevo_hallazgo(
+      columna_hallazgo, "relacion_funcional_columnas", "sospechoso",
+      paste0(
+        "La dependencia funcional ", relacion, " se rompe en una ",
+        "minor\u00eda de las filas con las dos columnas presentes."
+      ),
+      paste0(
+        .formatear_decimal_publicado(dependencias$cumplimiento[[i]], 4L),
+        " de cumplimiento; ", n_violaciones, " de ", n_evaluados,
+        if (n_violaciones == 1L) " fila no tiene" else " filas no tienen",
+        " el valor de ", textos[[2L]], " m\u00e1s frecuente para su valor de ",
+        textos[[1L]], " (", dependencias$n_grupos[[i]],
+        if (dependencias$n_grupos[[i]] == 1L) " grupo" else " grupos",
+        "; umbral: ", .formatear_numero_publicado(umbral), "). ",
+        if (de_muestra) {
+          paste0(
+            "Cifras y filas de la muestra de ", filas_analizadas,
+            " filas: el presupuesto de trabajo no alcanz\u00f3 para ",
+            "recalcularlas sobre la tabla. "
+          )
+        },
+        "Contradicciones: ", dependencias$evidencia[[i]]
+      ),
+      paste0(
+        "Revisar esas filas en el origen: si ", relacion, " es una regla ",
+        "del negocio, son posibles errores de carga y la regla se puede ",
+        "formalizar con ReglaIntegridadIntraEntidad(", textos[[1L]], ",",
+        textos[[2L]], "); si no lo es, no hay nada que corregir."
+      ),
+      n_evaluados, n_violaciones, "fila"
+    )
+    hallazgo$trazabilidad[[1L]] <- .trazabilidad_vacia(
+      estado = "disponible", indices = traza$indices, total = n_violaciones,
+      alcance = traza$alcance, limite = Inf
+    )
+    hallazgo$trazabilidad[[1L]]$columnas <- c(determinante, dependiente)
+    hallazgo
+  })
 }
 
 # **Lo que la muestra publica se verifica sobre la tabla.** Los descartes por
@@ -732,10 +911,15 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
 # `verificadas_tabla_completa`.
 .verificar_dependencias_tabla_completa <- function(filas, pares, datos, muestreo,
                                                    umbral, min_observaciones,
-                                                   max_ejemplos, max_trabajo) {
+                                                   max_ejemplos, max_trabajo,
+                                                   indices_rompen = NULL,
+                                                   max_filas = 1000L) {
   verificadas <- rep(!isTRUE(muestreo$muestreado), length(filas))
   if (!isTRUE(muestreo$muestreado) || !length(filas)) {
-    return(list(filas = filas, verificadas = verificadas, descartadas = 0L))
+    return(list(
+      filas = filas, verificadas = verificadas, descartadas = 0L,
+      pares = pares, indices_rompen = indices_rompen
+    ))
   }
   n_filas <- as.numeric(nrow(datos))
   cupo <- if (is.infinite(max_trabajo) || !n_filas) Inf else
@@ -768,10 +952,18 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     filas[[f]]$n_violaciones <- resumen$violaciones
     filas[[f]]$exacta <- resumen$violaciones == 0L
     filas[[f]]$evidencia <- .evidencia_dependencia(resumen, max_ejemplos)
+    # Recalculada sobre la tabla, sus filas tambien son de la tabla, de la
+    # misma particion que sus cifras.
+    if (!is.null(indices_rompen)) {
+      indices_rompen[[f]] <- utils::head(
+        .filas_rompen_dependencia(particion, resumen), max_filas
+      )
+    }
   }
   list(
     filas = filas[conservar], verificadas = verificadas[conservar],
-    descartadas = sum(!conservar)
+    descartadas = sum(!conservar), pares = pares[conservar],
+    indices_rompen = if (!is.null(indices_rompen)) indices_rompen[conservar]
   )
 }
 

@@ -100,7 +100,7 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
   # atarlo a uno solo seria falso.
   sin_hallazgo <- c(
     "relacion_aritmetica_columnas", "texto_no_descifrable",
-    "dependencias_funcionales", "comparar_equivalencia",
+    "comparar_equivalencia",
     # `detectar_deriva_calidad` declara que una serie de UNA sola medicion no tiene
     # par que comparar. Es una nota de la capa de comparacion, igual que
     # `comparar_equivalencia`: no declina un hallazgo del perfil, porque la deriva no

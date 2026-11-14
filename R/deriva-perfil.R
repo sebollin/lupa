@@ -211,10 +211,20 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   ),
   sentinelas_numericos = list(clase = "politica", fila = "configuracion_sentinelas_numericos"),
   cadenas_ausencia = list(clase = "politica", fila = "configuracion_cadenas_ausencia"),
-  analizar_dependencias = list(clase = "sin_hallazgo"),
-  umbral_dependencia = list(clase = "sin_hallazgo"),
-  umbral_casi_clave_dependencia = list(clase = "sin_hallazgo"),
-  max_columnas_dependencias = list(clase = "sin_hallazgo"),
+  # Desde que una dependencia casi exacta es el hallazgo
+  # `relacion_funcional_columnas`, apagar la busqueda o mover sus umbrales
+  # cambia los hallazgos: apagada, una dependencia rota salia `resuelto, ok`
+  # con los mismos datos. Los topes de trabajo acotan y lo declaran en
+  # `cobertura_diagnosticos` (`dependencias_funcionales`).
+  analizar_dependencias = list(
+    clase = "habilita", meta = "analizar_dependencias", forma = "interruptor",
+    hallazgos = "relacion_funcional_columnas"
+  ),
+  umbral_dependencia = list(clase = "vara", meta = "umbral_dependencia"),
+  umbral_casi_clave_dependencia = list(
+    clase = "vara", meta = "umbral_casi_clave_dependencia"
+  ),
+  max_columnas_dependencias = list(clase = "limite"),
   datos_personales_permitidos = list(clase = "vara", meta = "datos_personales_permitidos"),
   proteger_datos_personales = list(clase = "politica", fila = "configuracion_proteccion"),
   columnas_personales = list(
@@ -264,9 +274,9 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   max_asimetria_equifrecuente_vocabulario = list(
     clase = "vara", meta = "max_asimetria_equifrecuente_vocabulario"
   ),
-  max_comparaciones_dependencias = list(clase = "sin_hallazgo"),
+  max_comparaciones_dependencias = list(clase = "limite"),
   max_trabajo_vocabulario = list(clase = "limite"),
-  max_trabajo_dependencias = list(clase = "sin_hallazgo"),
+  max_trabajo_dependencias = list(clase = "limite"),
   max_largo_valor_vocabulario = list(clase = "limite"),
   max_celdas_muestra = list(clase = "limite"),
   max_bytes_muestra = list(clase = "limite"),
@@ -965,6 +975,9 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   # chequeos que se omitieron, no un hallazgo propio.
   texto_largo_no_evaluado = character(),
   relacion_orden_columnas = "relacion_orden_columnas",
+  # La busqueda de dependencias recortada -por columnas, por presupuesto o por
+  # la muestra- deja sin evaluar sus hallazgos sobre las columnas que nombra.
+  dependencias_funcionales = "relacion_funcional_columnas",
   proximidad_vocabulario = c(
     "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
   ),
@@ -1494,7 +1507,8 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' diagnóstico con su argumento o retiró la declaración que lo habilita, cosa
 #' que se lee en `meta`: `casi_duplicados_vocabulario = FALSE`,
 #' `ausencia_estructural = FALSE`, `variantes_equifrecuentes_vocabulario =
-#' FALSE`, una `clave` retirada o declarada sobre otras columnas, una columna
+#' FALSE`, `analizar_dependencias = FALSE`, una `clave` retirada o declarada
+#' sobre otras columnas, una columna
 #' retirada de `columnas_sin_ceros`, `columnas_no_negativas`,
 #' `columnas_personales` o `aplicabilidad`, y `duplicados_aproximados` apagado o
 #' corrido sobre otras columnas —lo que corrió queda en
@@ -1522,12 +1536,18 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' [perfilar()] tiene su lugar en la comparación:
 #' habilita un diagnóstico, es una vara —su cambio se declara en la fila
 #' `configuracion_umbrales`, que incluye los umbrales de las
-#' relaciones de orden y aritméticas entre columnas, los del vocabulario y
+#' relaciones de orden y aritméticas entre columnas y de las dependencias
+#' funcionales, los del vocabulario y
 #' `datos_personales_permitidos`, `validadores_personales`,
 #' `umbral_documento_verificado` y `muestra_validadores`—, tiene su propia fila
 #' de configuración, acota el trabajo y lo declara en `cobertura_diagnosticos`,
 #' o no cambia los hallazgos. Una vara que uno de los dos perfiles no registra
 #' —un perfil de una versión anterior— no se compara.
+#' La comparación no sabe de versiones: un perfil guardado por una versión que
+#' todavía no emitía un tipo de hallazgo no lo trae, y comparado con uno nuevo
+#' de los mismos datos ese hallazgo sale `aparecido`. Pasa con
+#' `relacion_funcional_columnas` frente a un perfil anterior a ese hallazgo: una
+#' fila `aparecido` por cada dependencia casi exacta, en cada sentido.
 #'
 #' Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
 #' concreta tampoco se declaran resueltos si aparecieron o desaparecieron

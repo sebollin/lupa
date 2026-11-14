@@ -143,7 +143,8 @@ severidad \code{sospechoso}, porque no se sabe si el hallazgo sigue: dejar de
 mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo apagó el
 diagnóstico con su argumento o retiró la declaración que lo habilita, cosa
 que se lee en \code{meta}: \code{casi_duplicados_vocabulario = FALSE},
-\code{ausencia_estructural = FALSE}, \code{variantes_equifrecuentes_vocabulario = FALSE}, una \code{clave} retirada o declarada sobre otras columnas, una columna
+\code{ausencia_estructural = FALSE}, \code{variantes_equifrecuentes_vocabulario = FALSE}, \code{analizar_dependencias = FALSE}, una \code{clave} retirada o declarada
+sobre otras columnas, una columna
 retirada de \code{columnas_sin_ceros}, \code{columnas_no_negativas},
 \code{columnas_personales} o \code{aplicabilidad}, y \code{duplicados_aproximados} apagado o
 corrido sobre otras columnas —lo que corrió queda en
@@ -171,12 +172,18 @@ valores. Cada argumento de
 \code{\link[=perfilar]{perfilar()}} tiene su lugar en la comparación:
 habilita un diagnóstico, es una vara —su cambio se declara en la fila
 \code{configuracion_umbrales}, que incluye los umbrales de las
-relaciones de orden y aritméticas entre columnas, los del vocabulario y
+relaciones de orden y aritméticas entre columnas y de las dependencias
+funcionales, los del vocabulario y
 \code{datos_personales_permitidos}, \code{validadores_personales},
 \code{umbral_documento_verificado} y \code{muestra_validadores}—, tiene su propia fila
 de configuración, acota el trabajo y lo declara en \code{cobertura_diagnosticos},
 o no cambia los hallazgos. Una vara que uno de los dos perfiles no registra
 —un perfil de una versión anterior— no se compara.
+La comparación no sabe de versiones: un perfil guardado por una versión que
+todavía no emitía un tipo de hallazgo no lo trae, y comparado con uno nuevo
+de los mismos datos ese hallazgo sale \code{aparecido}. Pasa con
+\code{relacion_funcional_columnas} frente a un perfil anterior a ese hallazgo: una
+fila \code{aparecido} por cada dependencia casi exacta, en cada sentido.
 
 Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
 concreta tampoco se declaran resueltos si aparecieron o desaparecieron

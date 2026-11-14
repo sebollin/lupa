@@ -3787,7 +3787,11 @@
     traza$columnas <- nombres_par
     return(traza)
   }
-  if (tipo == "relacion_aritmetica_columnas") {
+  # Las dos relaciones cuya traza deja armada su detector, con todas las filas
+  # que la rompen (o con las primeras y su total): aca solo se recorta al tope.
+  if (tipo %in% c(
+      "relacion_aritmetica_columnas", "relacion_funcional_columnas"
+    )) {
     trazabilidad <- hallazgo$trazabilidad[[1L]]
     if (!is.list(trazabilidad)) {
       return(.trazabilidad_vacia(limite = limite))
@@ -6189,6 +6193,7 @@
                                  n_filas_en_grupos_duplicados,
                                  relaciones_orden = list(),
                                  relaciones_aritmeticas = list(),
+                                 relaciones_funcionales = list(),
                                  normalizacion = NULL,
                                  detectar_casi_duplicados = TRUE,
                                  max_proporcion_grupo = 0.5,
@@ -6512,6 +6517,9 @@
   }
   if (length(relaciones_aritmeticas)) {
     hallazgos <- c(hallazgos, relaciones_aritmeticas)
+  }
+  if (length(relaciones_funcionales)) {
+    hallazgos <- c(hallazgos, relaciones_funcionales)
   }
 
   if (length(hallazgos)) {

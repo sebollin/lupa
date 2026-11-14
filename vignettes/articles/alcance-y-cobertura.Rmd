@@ -572,6 +572,8 @@ su contrato:
   entre columnas numéricas, no reglas del dominio.
 - Encuentra `relacion_orden_columnas` entre columnas comparables, con el alcance
   de la comparación.
+- Encuentra `relacion_funcional_columnas`: dependencias funcionales que casi se
+  cumplen, con las filas que las rompen; observadas, no reglas del dominio.
 - Encuentra claves, relaciones, dependencias y granularidades de medición que
   nunca fueron declaradas.
 - Informa `casi_clave` cuando una columna no temporal tiene al menos

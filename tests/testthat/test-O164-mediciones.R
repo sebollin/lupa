@@ -408,11 +408,14 @@ test_that("M1-X: la moda de una columna de blobs que la muestra no cuenta no es 
   casi_duplicados_vocabulario = TRUE,
   variantes_equifrecuentes_vocabulario = TRUE,
   duplicados_aproximados = list(columnas = c("ciudad", "depto")),
-  aplicabilidad = list(depto = ~ ciudad != "Salto")
+  aplicabilidad = list(depto = ~ ciudad != "Salto"),
+  # Con 120 filas una dependencia rota en una sola fila cumple 0,9917, por
+  # debajo del umbral por omision: el encendido lo baja para que se publique.
+  analizar_dependencias = TRUE, umbral_dependencia = 0.99
 )
 .apagados_O164 <- list(
   ausencia_estructural = FALSE, casi_duplicados_vocabulario = FALSE,
-  variantes_equifrecuentes_vocabulario = FALSE
+  variantes_equifrecuentes_vocabulario = FALSE, analizar_dependencias = FALSE
 )
 .varas_O164 <- list(
   umbral_faltantes_sospechoso = 0.2, umbral_faltantes_error = 0.5,
@@ -427,7 +430,8 @@ test_that("M1-X: la moda de una columna de blobs que la muestra no cuenta no es 
   max_columnas_aritmetica = 5L, umbral_variante_rara_vocabulario = 0.1,
   min_asimetria_vocabulario_corto = 20, min_asimetria_vocabulario = 3,
   min_participacion_dominante_vocabulario_corto = 0.6,
-  max_asimetria_equifrecuente_vocabulario = 3
+  max_asimetria_equifrecuente_vocabulario = 3,
+  umbral_dependencia = 0.99, umbral_casi_clave_dependencia = 0.9
 )
 
 .datos_O164 <- function() {
@@ -483,6 +487,11 @@ test_that("M4: cada argumento de perfilar() tiene su lugar en comparar_perfiles(
 
 test_that("M4: apagar un diagnostico o retirar su declaracion no publica sus hallazgos como resueltos", {
   d <- .datos_O164()
+  # `zona -> region` se rompe en una fila: el hallazgo de `analizar_dependencias`.
+  d$zona <- rep(c("alta", "baja", "media", "costa"), 30L)
+  d$region <- unname(c(alta = "Rivera", baja = "Colonia", media = "Durazno",
+                       costa = "Rocha")[d$zona])
+  d$region[5L] <- "Colonia"
   fecha <- as.POSIXct("2026-01-01", tz = "UTC")
   encendido <- suppressWarnings(do.call(
     perfilar, c(list(d, fecha = fecha), .encendidos_O164)

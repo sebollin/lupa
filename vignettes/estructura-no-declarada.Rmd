@@ -118,7 +118,9 @@ dependencias
 ```
 
 `perfilar()` busca las mismas dependencias por su cuenta (`analizar_dependencias = TRUE`,
-el valor por omisión) y las deja en `perfil$dependencias`. Una dependencia exacta
+el valor por omisión) y las deja en `perfil$dependencias`. Una que casi se cumple
+aparece además entre los hallazgos, como `relacion_funcional_columnas`, con las filas
+que la rompen en su `trazabilidad`. Una dependencia exacta
 permite además imputar un valor faltante desde los propios datos, como se ve en
 [6. Limpiar con un plan](limpiar-con-un-plan.html).
 

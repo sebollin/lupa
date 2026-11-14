@@ -100,7 +100,12 @@ ninguna dependencia, de ningún lado, y se descarta con el motivo
 Busca pares ordenados \code{determinante -> dependiente}. El cumplimiento es la
 proporción de filas que coincide con el valor modal del dependiente para
 cada valor del determinante; por eso una dependencia aproximada señala
-directamente las filas minoritarias que pueden ser errores de carga.
+directamente las filas minoritarias que pueden ser errores de carga. Esta
+función no devuelve esas filas: \code{\link[=perfilar]{perfilar()}} publica cada dependencia que no
+es exacta como el hallazgo \code{relacion_funcional_columnas}, con las filas que
+la rompen en su \code{trazabilidad}. El valor modal es el más frecuente; si dos
+empatan, el que aparece primero en la tabla, y las filas del otro son las que
+cuentan en \code{n_violaciones}.
 }
 \details{
 Para evitar resultados vacíos o triviales, se omiten por defecto las claves
