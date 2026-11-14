@@ -3012,9 +3012,15 @@ perfilar <- function(datos,
     .advertir_clave_declarada(evaluacion_clave)
   }
   .validar_sentinelas_numericos(sentinelas_numericos)
+  # La declaracion se lee como se leen los datos, por `.texto_analizable()`: una
+  # cadena sin marca con un byte que no es UTF-8 valido -copiada de un CSV en
+  # latin-1- hacia abortar `trimws()` en una sesion UTF-8. No es vacia: trae
+  # bytes. Queda declarada y no coincide con ningun texto analizado, igual que
+  # las celdas que la repiten, que se excluyen del analisis textual y se cuentan
+  # en `n_codificacion_invalida`.
   if (!is.null(cadenas_ausencia) &&
       (!is.character(cadenas_ausencia) || anyNA(cadenas_ausencia) ||
-       any(!nzchar(trimws(cadenas_ausencia))))) {
+       any(!nzchar(trimws(.texto_analizable(cadenas_ausencia)$valores))))) {
     .detener(
       "`cadenas_ausencia` debe ser un vector de texto sin ausentes ni cadenas ",
       "vac\u00edas.", call. = FALSE

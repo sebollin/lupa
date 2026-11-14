@@ -8383,11 +8383,16 @@
 # con esa misma marca. Con `OutDec = ","` la moda 2.5 se publica "2,5" en los dos
 # bloques, `as.numeric()` daba `NA` en los dos y la corroboracion declaraba
 # `divergencia` entre dos valores identicos.
+#
+# El texto se lee legible (`.texto_legible_recortado()`): la moda describe lo
+# almacenado y puede ser una cadena sin marca que no es UTF-8 valido, que no es
+# un numero en ninguna sesion y sobre la que `as.numeric()` aborta en una sesion
+# UTF-8. El recorte no cambia nada: `as.numeric()` ya ignora los blancos.
 .numero_corroboracion_dbi <- function(valor) {
   if (is.null(valor) || length(valor) != 1L) return(NA_real_)
   primero <- valor[[1L]]
   if (is.character(primero) || is.factor(primero)) {
-    texto <- as.character(primero)
+    texto <- .texto_legible_recortado(primero)
     marca <- getOption("OutDec", ".")
     if (!is.na(texto) && is.character(marca) && length(marca) == 1L &&
         !identical(marca, ".")) {
@@ -8421,8 +8426,15 @@
 .equivalentes_sentinela_real_dbi <- function(a, b, sentinelas) {
   if (is.null(a) || is.null(b) || length(a) != 1L || length(b) != 1L ||
       !length(sentinelas)) return(FALSE)
-  a_num <- suppressWarnings(as.numeric(a[[1L]]))
-  b_num <- suppressWarnings(as.numeric(b[[1L]]))
+  # Una moda de texto se lee legible, como en `.numero_corroboracion_dbi()`: la
+  # que es una cadena sin marca que no es UTF-8 valido abortaba `as.numeric()`
+  # -y con el `perfilar_dbi()`- en una sesion UTF-8.
+  legible <- function(v) {
+    v <- v[[1L]]
+    if (is.character(v)) .texto_legible_recortado(v) else v
+  }
+  a_num <- suppressWarnings(as.numeric(legible(a)))
+  b_num <- suppressWarnings(as.numeric(legible(b)))
   if (!is.finite(a_num) || !is.finite(b_num)) return(FALSE)
   declarados <- suppressWarnings(as.numeric(sentinelas))
   declarados <- declarados[is.finite(declarados)]

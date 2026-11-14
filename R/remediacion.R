@@ -4663,12 +4663,22 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   .texto_legible_recortado(x)
 }
 
+# Lo que una conversion a numero tiene que leer: lo que no es `NA` ni queda
+# vacio recortado por bytes -`trimws()` sobre el texto crudo abortaba bajo un
+# locale UTF-8 con un byte suelto, y avisaba bajo `C` con marcas mezcladas-. Se
+# mira la celda CRUDA, no su texto legible: el texto legible pone `NA` en lo que
+# no es UTF-8 valido, y eso no es una ausencia sino un valor presente que no se
+# lee. `convertir_tipo` contaba presentes sobre el texto legible y daba por
+# ausente una celda `14` seguida de un byte suelto: la accion salia `lista`, no
+# destructiva, y `aplicar()` escribia `NA` en su lugar. La regional ya la
+# contaba presente y quedaba bloqueada.
+.presentes_para_convertir <- function(x) {
+  !is.na(x) & nzchar(.recortar_bytes(as.character(x)))
+}
+
 .texto_regional_normalizado <- function(x, parametros) {
   partes <- .componentes_numero_texto(x)
-  # Presente es lo que no esta vacio, recortado por bytes: `trimws()` sobre el
-  # texto crudo abortaba bajo un locale UTF-8 con un byte suelto, y avisaba bajo
-  # `C` con marcas mezcladas.
-  presentes <- !is.na(x) & nzchar(.recortar_bytes(as.character(x)))
+  presentes <- .presentes_para_convertir(x)
   if (any(presentes & !partes$compatible)) {
     .detener("Hay valores presentes que no responden al formato num\u00e9rico regional.",
          call. = FALSE)
@@ -4909,8 +4919,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     # Una celda vacia o de solo espacios no es un valor presente: el perfil la
     # cuenta como ausencia y la conversion la deja en `NA`, como hace
     # `convertir_numero_regional`. Contada como presente bloqueaba la
-    # conversion de una columna que el hallazgo declaraba sin perdida.
-    presentes <- !is.na(texto) & nzchar(.recortar_bytes(texto))
+    # conversion de una columna que el hallazgo declaraba sin perdida. Una
+    # celda que no es UTF-8 valido si lo es, y no se lee: bloquea.
+    presentes <- .presentes_para_convertir(x)
     # El texto se lee con el lector comun y la convencion decimal de la
     # columna, como lo leen la inferencia y el resumen.
     numero <- suppressWarnings(.leer_numeros_texto(texto))

@@ -99,6 +99,30 @@
 
 ## Correcciones
 
+- `planificar_limpieza()` proponía como `lista` y no destructiva la conversión
+  a número de una columna con una celda que no es UTF-8 válido, y `aplicar()`
+  escribía `NA` en esa celda con el plan por omisión: `c("12", "13", "14" +
+  0xFF, ...)` salía `12 13 NA ...`. Ahora la conversión queda bloqueada, como
+  ya quedaba la de formato regional, y la celda no se toca. La 0.1.1 la
+  bloqueaba; el defecto es posterior.
+- Una celda sin marca de codificación con un byte que no es UTF-8 válido —lo
+  que deja `read.csv()` sin `fileEncoding` sobre un CSV en latin-1 o
+  Windows-1252: el espacio duro como separador de miles, un grado, un byte
+  suelto— hacía abortar `perfilar()` entero en una sesión UTF-8 con «input
+  string N is invalid UTF-8» cuando la columna tenía números o fechas escritos
+  como texto; `analizar()` abortaba igual, y `perfilar_dbi()` y
+  `perfilar_coleccion()` perdían la muestra con un aviso. Ahora el perfil
+  describe el resto de la columna, la celda queda contada en
+  `n_codificacion_invalida` con su hallazgo, y la evidencia de
+  `tipo_declarado_distinto` dice que la conversión no lee esa celda en vez de
+  afirmar que no se pierde ningún valor. Tampoco abortan ya `perfilar()` con
+  una cadena así en `cadenas_ausencia`, ni `perfilar_dbi()` cuando la moda de
+  una columna es una de ellas. Casi todo venía de la 0.1.1; con la notación
+  científica y con un grado detrás de un número abortaba además desde después.
+- La comparación de orden entre columnas lee una columna con bytes que no son
+  UTF-8 válido como el resto del perfil: en una sesión UTF-8 la dejaba fuera
+  sin declararlo en `meta$orden_columnas`, y bajo `LC_ALL=C` contaba esas
+  celdas como valores que no se pudieron convertir y descartaba el par.
 - `perfilar()` y `analizar()` abortaban la tabla entera sobre una tabla con
   columnas de año, mes y día cuya primera fila no formaba una fecha —un mes
   `0`, un 30 de febrero, un `NA`—, porque la búsqueda de fechas partidas dejaba

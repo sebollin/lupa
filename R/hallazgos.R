@@ -654,6 +654,13 @@
 }
 
 .valores_orden_columna <- function(x, fila, formatos) {
+  # El texto que midio el perfil, como en `.valores_cuantitativos_hallazgo()`:
+  # sobre la columna cruda, una celda sin marca que no es UTF-8 valido hacia
+  # abortar `trimws()` en una sesion UTF-8, el `tryCatch()` de abajo devolvia
+  # `NULL` y la columna salia de la comparacion de orden sin que el alcance lo
+  # dijera; bajo `C` se leia y la celda se contaba en
+  # `n_valores_excluidos_conversion`.
+  if (is.character(x) || is.factor(x)) x <- .texto_analizable(x)$valores
   inferencia <- list(
     tipo = as.character(fila$tipo_inferido[[1L]]),
     muestreado = isTRUE(fila$muestreado_tipo_inferido[[1L]]),

@@ -307,8 +307,29 @@ print.inferencia_tipo <- function(x, ...) {
   if (is.null(x) || !(is.character(x) || is.factor(x))) return(NULL)
   riesgos <- character()
   antes <- .texto_representacion_conversion(x)
+  # Los lectores reciben el texto que midio el perfil -el que deja
+  # `.texto_analizable()`-, no la columna cruda, como en
+  # `.indices_hallazgo_columna()`. Una celda sin marca con un byte que no es
+  # UTF-8 valido -un CSV en latin-1 leido sin declarar la codificacion- hacia
+  # abortar `trimws()` dentro del lector, y con el `perfilar()` entero, en una
+  # sesion UTF-8; bajo `C` se leia. Esa celda ya esta fuera del analisis textual
+  # y contada en `n_codificacion_invalida`: no es un numero ni una fecha. `antes`
+  # sigue siendo lo almacenado, porque los ceros y las escrituras que chocan se
+  # cuentan como los cuenta el plan, `.evaluar_conversion()`.
+  texto <- .texto_analizable(x)$valores
   plural <- function(n, uno, varios) {
     paste0(.miles_trabajo(n), if (n == 1L) uno else varios)
+  }
+  # Un valor presente que el analisis dejo fuera por no ser UTF-8 valido no lo
+  # lee ninguna conversion: el plan la bloquea -"1 de 8 valores presentes no se
+  # lee"- y la evidencia decia que no se perdia ningun valor.
+  ilegibles <- !is.na(antes) & is.na(texto)
+  if (any(ilegibles)) {
+    riesgos <- c(riesgos, plural(
+      sum(ilegibles),
+      " valor no es texto UTF-8 v\u00e1lido y la conversi\u00f3n no lo lee",
+      " valores no son texto UTF-8 v\u00e1lido y la conversi\u00f3n no los lee"
+    ))
   }
   if (numero) {
     ceros <- !is.na(antes) &
@@ -325,7 +346,7 @@ print.inferencia_tipo <- function(x, ...) {
     if (length(convencion) != 1L || is.na(convencion)) convencion <- ""
     indecisa <- convencion %in% c("ambigua", "mixta")
     leidos <- suppressWarnings(.leer_numeros_texto(
-      x, if (nzchar(convencion)) convencion else NULL
+      texto, if (nzchar(convencion)) convencion else NULL
     ))
     # Un entero fuera del rango de `integer` es compatible con el tipo y la
     # conversion del plan no lo representa: queda bloqueada, con los mismos
@@ -351,9 +372,7 @@ print.inferencia_tipo <- function(x, ...) {
     # esta frase miraba solo `omitidos_precision`, que el resumen declara para
     # los enteros mayores que 2^53, y dejaba afuera los decimales de 18 cifras
     # que el plan si marca destructivos. Ver `.cifras_que_redondea_un_doble()`.
-    redondeados <- .cifras_que_redondea_un_doble(
-      trimws(as.character(x)), leidos
-    )
+    redondeados <- .cifras_que_redondea_un_doble(trimws(texto), leidos)
     if (any(redondeados)) {
       doble <- " de las que guarda un n\u00famero de doble precisi\u00f3n"
       riesgos <- c(riesgos, plural(
@@ -399,7 +418,8 @@ print.inferencia_tipo <- function(x, ...) {
       riesgos <- c(riesgos, "hay valores con m\u00e1s de una lectura de fecha")
     }
     despues <- tryCatch(
-      as.numeric(.parsear_fechas(x, formatos, meses_texto = meses_texto)),
+      as.numeric(.parsear_fechas(x, formatos, meses_texto = meses_texto,
+                                 valores_preparados = texto)),
       error = function(e) NULL
     )
     # `fecha` se guarda como `Date`: dos instantes del mismo dia son el mismo.
