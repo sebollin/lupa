@@ -370,6 +370,28 @@
   `lista` sin marcar, y marcarla aplica las parciales. Quien marcaba la acción
   a mano en una columna con las dos necesita ahora `aplicar_parciales = TRUE`
   para aplicar también las parciales.
+- Una celda marcada `latin1` y la misma celda en UTF-8 cuentan como un solo
+  valor también cuando traen uno de los cinco bytes que Windows-1252 no define
+  (0x81, 0x8D, 0x8F, 0x90, 0x9D). `n_distintos`, las filas y las columnas
+  duplicadas y `n_no_reversibles` las contaban como dos —en una columna con las
+  dos marcas, o entre una columna `latin1` y su copia en UTF-8—, y daban la
+  celda `latin1` por igual al texto de cuatro letras `<81>`, que es otro dato.
+  Ahora leen el texto como lo leen las acciones de texto.
+- `perfilar()` informa, y `eliminar_controles_invisibles` quita, los operadores
+  invisibles de la matemática (U+2061 a U+2064), los controles de formato en
+  desuso (U+206A a U+206F), los rellenos del hangul (U+115F, U+1160, U+3164 y
+  U+FFA0) y la etiqueta de idioma U+E0001: ningún contador los veía y ninguna
+  acción los tocaba. Las etiquetas U+E0020 a U+E007F, que arman las banderas de
+  Inglaterra, Escocia y Gales, cuentan entre los controles invisibles y se
+  conservan; el hallazgo lo dice.
+- El hallazgo `controles_invisibles` de una celda cuyo control ninguna acción
+  quita —porque sin él la celda se leería como una letra mal convertida— ya no
+  recomienda eliminarlo: dice que el plan no trae una acción para eso.
+- `aplicar()` corre `decodificar_entidades_html` antes que
+  `convertir_minusculas`, `convertir_titulo` y `convertir_mayusculas` de su
+  columna, aunque un `orden` editado la ponga detrás: `jos&eacute;` pasaba a
+  `Jos&Eacute;` y se decodificaba con la E mayúscula, y `&amp;` quedaba en
+  `&Amp;`. Con el orden del plan ya era así.
 - El plan cuenta, para cada acción de texto, las filas que la acción puede
   cambiar. Donde quitar un invisible o recortar el borde cambia lo que la
   reparación reconoce, la celda no se cuenta y la acción no se ofrece por ella,

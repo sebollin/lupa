@@ -2102,6 +2102,10 @@
   if (!inherits(datos, "data.frame")) {
     .detener("La clave de fila requiere un data.frame.", call. = FALSE)
   }
+  # Dos filas son la misma si sus celdas son el mismo texto para el paquete,
+  # tambien cuando una celda llega `latin1` y la otra en UTF-8. Ver
+  # `.leer_latin1_sin_windows_1252()`.
+  datos <- .leer_latin1_sin_windows_1252_tabla(datos)
   columnas_matriciales <- vapply(
     datos,
     .es_columna_compuesta,

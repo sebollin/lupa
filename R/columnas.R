@@ -2744,12 +2744,31 @@
   0x205F, 0x3000
 )
 
+# Los invisibles de transporte: no se ven, no aportan contenido y rompen las
+# comparaciones. Ademas de las marcas de direccion, el guion blando, el BOM y
+# los espacios de ancho cero, entran los operadores invisibles de la matematica
+# (U+2061 a U+2064), los seis controles de formato que Unicode declara en desuso
+# (U+206A a U+206F), los cuatro rellenos del hangul (U+115F, U+1160, U+3164 y
+# U+FFA0: letras que no dibujan nada, y que en texto actual solo aparecen para
+# simular un valor) y la etiqueta de idioma U+E0001, tambien en desuso. Fuera
+# de esta lista ningun contador los veia y ninguna accion los tocaba: una clave
+# con un U+2063 adentro no cruzaba con la misma sin el, y el perfil no decia nada.
 .codigos_invisibles_eliminables <- c(
-  0x00AD, 0x061C, 0x180E, 0x200B, 0x200E, 0x200F, 0x202A:0x202E,
-  0x2060, 0x2066:0x2069, 0xFEFF
+  0x00AD, 0x061C, 0x115F, 0x1160, 0x180E, 0x200B, 0x200E, 0x200F,
+  0x202A:0x202E, 0x2060:0x2064, 0x2066:0x206F, 0x3164, 0xFEFF, 0xFFA0,
+  0xE0001
 )
 
 .codigos_invisibles_significativos <- c(0x200C, 0x200D)
+
+# Las etiquetas U+E0020 a U+E007F arman las banderas de Inglaterra, Escocia o
+# Gales detras de U+1F3F4: quitarlas deja la bandera negra sola. Fuera de esa
+# secuencia no dibujan nada y rompen las comparaciones, y ningun contador las
+# veia. Son un conjunto aparte: se detectan -cuentan en los controles
+# invisibles- y no se quitan, porque ninguna accion distingue la bandera de la
+# basura; el hallazgo lo dice. No van con ZWJ y ZWNJ porque no cuentan como
+# uniones: `n_invisibles_significativos` sigue diciendo cuantas uniones hay.
+.codigos_etiquetas_unicode <- 0xE0020:0xE007F
 .codigos_c0_no_separadores <- c(0:8, 14L:31L)
 .codigos_c1 <- 127L:159L
 .codigos_salto_linea_set <- 9L:13L
@@ -2760,7 +2779,7 @@
 .codigos_control_invisible_set <- c(
   .codigos_c0_no_separadores, .codigos_c1,
   .codigos_espacios_invisibles, .codigos_invisibles_eliminables,
-  .codigos_invisibles_significativos
+  .codigos_invisibles_significativos, .codigos_etiquetas_unicode
 )
 
 .codigos_control_eliminable <- function(codigos) {
@@ -2795,6 +2814,11 @@
 .patron_bytes_predicados_invisibles <- .patron_bytes_codigos(c(
   .codigos_control_invisible_set, .codigos_salto_linea_set
 ))
+
+# Y las etiquetas solas, para que el hallazgo sepa si las hay.
+.patron_bytes_etiquetas_unicode <- .patron_bytes_codigos(
+  .codigos_etiquetas_unicode
+)
 
 .predicados_invisibles <- function(textos, codificacion = NULL) {
   n <- length(textos)
@@ -3096,6 +3120,7 @@
     evidencia_espacios_invisibles = "",
     n_invisibles_significativos = 0L,
     evidencia_invisibles_significativos = "",
+    n_etiquetas_unicode = 0L,
     n_entidades_html = 0L,
     evidencia_entidades_html = "",
     n_separadores_en_campo = 0L,
@@ -3241,6 +3266,18 @@
   eliminables <- mapear_resultado(invisibles$eliminable)
   espacios_invisibles <- mapear_resultado(invisibles$espacio)
   significativos <- mapear_resultado(invisibles$significativo)
+  # Las etiquetas cuentan entre los controles y no tienen accion; el hallazgo
+  # las explica aparte. Se buscan solo en las celdas que ya traen un control.
+  etiquetas_unicas <- invisibles$control
+  con_control <- which(etiquetas_unicas)
+  if (length(con_control)) {
+    etiquetas_unicas[con_control] <- grepl(
+      .patron_bytes_etiquetas_unicode,
+      vocabulario_predicados$valores[con_control],
+      useBytes = TRUE, perl = TRUE
+    )
+  }
+  etiquetas <- mapear_resultado(etiquetas_unicas)
   saltos <- mapear_resultado(invisibles$separador)
   entidades_unicas <- .celdas_texto_protegidas(
     vocabulario_predicados$valores, "decodificar_entidades_html"
@@ -3282,6 +3319,9 @@
     evidencia_espacios_invisibles = .evidencia_texto_visible(publicables, espacios_invisibles),
     n_invisibles_significativos = sum(significativos, na.rm = TRUE),
     evidencia_invisibles_significativos = .evidencia_texto_visible(publicables, significativos),
+    # No se publica en el perfil: decide como explica el hallazgo lo que
+    # ninguna accion quita.
+    n_etiquetas_unicode = sum(etiquetas, na.rm = TRUE),
     n_entidades_html = sum(entidades, na.rm = TRUE),
     evidencia_entidades_html = .evidencia_texto_visible(publicables, entidades),
     n_separadores_en_campo = sum(saltos, na.rm = TRUE),

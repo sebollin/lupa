@@ -5588,8 +5588,23 @@
         as.numeric(fila$n_invisibles_significativos)
       )
       hay <- function(x) isTRUE(is.finite(x) && x > 0)
-      solo_significativos <- hay(significativos) && !hay(eliminables) &&
-        !hay(espacios)
+      # Las etiquetas Unicode de las banderas se cuentan entre los controles y,
+      # como ZWJ/ZWNJ, no se quitan: pueden ser parte del texto. El hallazgo las
+      # trata igual -`sospechoso`- y las nombra, porque una columna con
+      # banderas de Escocia no tiene ningun ZWJ.
+      etiquetas <- suppressWarnings(
+        as.numeric(resultado$diagnostico_texto$n_etiquetas_unicode)
+      )
+      solo_significativos <- (hay(significativos) || hay(etiquetas)) &&
+        !hay(eliminables) && !hay(espacios)
+      con_etiquetas <- solo_significativos && hay(etiquetas)
+      # Y puede no haber nada de eso: el control se conto pero la accion no lo
+      # quita, porque es parte de una letra mal convertida o porque sin el la
+      # celda se leeria como una. El hallazgo recomendaba eliminarlo con un plan
+      # que no traia ninguna accion para hacerlo. Se exige el cero medido: un
+      # conteo que no se pudo medir no dice que no haya accion.
+      sin_accion <- isTRUE(eliminables == 0) && isTRUE(espacios == 0) &&
+        isTRUE(significativos == 0) && !hay(etiquetas)
       # Cuando solo hay uniones de ancho cero no hay nada que ELIMINAR, pero eso
       # no las vuelve correctas: un ZWJ entre `Juan` y `Perez` no tiene funcion
       # tipografica -el ZWJ une emojis y liga escrituras arabes o indicas, no
@@ -5600,12 +5615,27 @@
       agregar(.nuevo_hallazgo(
         nombre, "controles_invisibles",
         if (solo_significativos) "sospechoso" else "error",
-        if (solo_significativos) {
+        if (con_etiquetas) {
+          paste(
+            "Los \u00fanicos caracteres invisibles son de los que forman parte de",
+            "una secuencia: etiquetas Unicode, que arman banderas como la de",
+            "Escocia detr\u00e1s de U+1F3F4, o uniones de ancho cero (ZWJ/ZWNJ),",
+            "que unen emojis y ligan escrituras como el \u00e1rabe. Fuera de su",
+            "secuencia no cumplen ninguna funci\u00f3n y rompen las comparaciones",
+            "sin verse."
+          )
+        } else if (solo_significativos) {
           paste(
             "Los \u00fanicos caracteres invisibles son uniones de ancho cero",
             "(ZWJ/ZWNJ). Unen emojis y ligan escrituras como el \u00e1rabe, y ah\u00ed",
             "forman parte del texto; entre letras latinas no cumplen ninguna",
             "funci\u00f3n y rompen las comparaciones sin verse."
+          )
+        } else if (sin_accion) {
+          paste(
+            "Hay controles invisibles que ninguna acci\u00f3n del plan quita: son",
+            "parte de una letra mal convertida, o sin ellos la celda se leer\u00eda",
+            "como una y la reparaci\u00f3n de la codificaci\u00f3n la cambiar\u00eda."
           )
         } else {
           paste0(
@@ -5614,11 +5644,23 @@
           )
         },
         resultado$diagnostico_texto$evidencia_controles_invisibles,
-        if (solo_significativos) {
+        if (con_etiquetas) {
+          paste(
+            "Mirar entre qu\u00e9 caracteres est\u00e1n: si forman un emoji o ligan",
+            "una escritura que lo requiere, no hay nada que hacer; si separan",
+            "palabras, hay que eliminarlos."
+          )
+        } else if (solo_significativos) {
           paste(
             "Mirar entre qu\u00e9 caracteres est\u00e1n: si unen emojis o ligan una",
             "escritura que lo requiere, no hay nada que hacer; si separan",
             "palabras latinas, hay que eliminarlas."
+          )
+        } else if (sin_accion) {
+          paste(
+            "Revisar esas celdas y corregirlas en la fuente o a mano: quitar el",
+            "control desde el plan dejar\u00eda un texto que la reparaci\u00f3n de",
+            "la codificaci\u00f3n reescribe."
           )
         } else if (hay(eliminables) && !hay(espacios) && !hay(significativos)) {
           paste0(

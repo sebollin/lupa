@@ -128,6 +128,10 @@
 # cadena declarada `latin1` esos bytes son los puntos C1 correspondientes, asi
 # que solo esos tramos se convierten por punto de codigo y el resto conserva la
 # traduccion Windows-1252 que ya usa el paquete.
+#
+# Las cadenas sin ninguno de esos bytes -casi todas- se traducen juntas: la
+# traduccion es la misma celda por celda, y recorrerlas de a una le cobraba a
+# una columna `latin1` entera lo que solo necesitan las pocas que los traen.
 .latin1_a_utf8 <- function(textos, marcas = NULL) {
   if (!is.character(textos) || !length(textos)) return(textos)
   if (is.null(marcas)) marcas <- Encoding(textos)
@@ -135,13 +139,12 @@
   if (!length(indices)) return(textos)
   indefinidos <- c(0x81L, 0x8dL, 0x8fL, 0x90L, 0x9dL)
   salida <- textos
-  for (indice in indices) {
+  con_indefinidos <- .con_bytes_sin_windows_1252(textos[indices])
+  directos <- indices[!con_indefinidos]
+  if (length(directos)) salida[directos] <- enc2utf8(textos[directos])
+  for (indice in indices[con_indefinidos]) {
     bytes <- as.integer(charToRaw(textos[[indice]]))
     posiciones <- which(bytes %in% indefinidos)
-    if (!length(posiciones)) {
-      salida[[indice]] <- enc2utf8(textos[[indice]])
-      next
-    }
     partes <- character()
     inicio <- 1L
     for (posicion in posiciones) {
@@ -161,6 +164,74 @@
     salida[[indice]] <- paste0(partes, collapse = "")
   }
   salida
+}
+
+# Si cada cadena trae alguno de los cinco bytes que Windows-1252 no define. Se
+# pregunta por bytes y sin traducir: es lo que decide si `enc2utf8()` alcanza.
+.con_bytes_sin_windows_1252 <- function(textos) {
+  !is.na(textos) & grepl(
+    "[\\x81\\x8D\\x8F\\x90\\x9D]", textos, perl = TRUE, useBytes = TRUE
+  )
+}
+
+# Las celdas `latin1` que la igualdad de R no lee como las lee el paquete.
+.indices_latin1_sin_windows_1252 <- function(x) {
+  if (!is.character(x) || !length(x)) return(integer())
+  # Un `NA` no tiene marca (`Encoding()` lo da `unknown`), asi que no hace falta
+  # descartarlo aparte: se pregunta por cada columna de cada tabla, y casi
+  # siempre para contestar que no hay ninguna.
+  latin1 <- which(Encoding(x) == "latin1")
+  if (!length(latin1)) return(integer())
+  latin1[.con_bytes_sin_windows_1252(x[latin1])]
+}
+
+# Si dos celdas, dos filas o dos columnas son el mismo dato se decide con la
+# lectura de las acciones de texto (`.texto_para_operar()`), no con la de R. La
+# igualdad de R -`==`, `unique()`, `duplicated()`, `identical()`, `match()`-
+# traduce una cadena `latin1` con `enc2utf8()`, y esos cinco bytes pasan a ser el
+# texto `<81>`: una celda `latin1` y la misma en UTF-8 contaban como dos valores,
+# dos filas que solo diferian en la marca no eran duplicadas, y la misma celda
+# `latin1` era igual al texto de cuatro letras `<81>`, que es otro dato.
+#
+# Solo se convierten esas celdas. Con las demas la igualdad de R ya coincide
+# con la del paquete, y dejarlas como llegaron no le cobra nada a una columna
+# sin esos bytes, que son casi todas. La copia es para comparar: nada de lo que
+# se publica sale de aca.
+.leer_latin1_sin_windows_1252 <- function(x) {
+  if (is.factor(x)) {
+    niveles <- levels(x)
+    cambiar <- .indices_latin1_sin_windows_1252(niveles)
+    if (!length(cambiar)) return(x)
+    niveles[cambiar] <- .latin1_a_utf8(niveles[cambiar])
+    # Dos niveles que eran el mismo texto quedan en uno, y sus codigos tambien:
+    # si no, el factor seguiria separando lo que la lectura ya junto.
+    unicos <- unique(niveles)
+    atributos <- attributes(x)
+    codigos <- match(niveles, unicos)[as.integer(x)]
+    atributos$levels <- unicos
+    attributes(codigos) <- atributos
+    return(codigos)
+  }
+  cambiar <- .indices_latin1_sin_windows_1252(x)
+  if (!length(cambiar)) return(x)
+  x[cambiar] <- .latin1_a_utf8(x[cambiar])
+  x
+}
+
+.leer_latin1_sin_windows_1252_tabla <- function(datos) {
+  if (!inherits(datos, "data.frame") || !ncol(datos)) return(datos)
+  cambiar <- which(vapply(datos, function(columna) {
+    texto <- if (is.factor(columna)) levels(columna) else columna
+    length(.indices_latin1_sin_windows_1252(texto)) > 0L
+  }, logical(1L)))
+  if (!length(cambiar)) return(datos)
+  # `[[<-` sobre un `data.table` le deja la referencia interna invalida y
+  # avisa en el proximo `:=`: la copia para comparar se arma como `data.frame`.
+  if (inherits(datos, "data.table")) {
+    datos <- as.data.frame(datos, stringsAsFactors = FALSE)
+  }
+  for (i in cambiar) datos[[i]] <- .leer_latin1_sin_windows_1252(datos[[i]])
+  datos
 }
 
 # Deja cada valor en una forma segura para `trimws()` y las expresiones

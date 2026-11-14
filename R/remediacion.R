@@ -1427,7 +1427,13 @@
 #' seleccionada, tiene precedencia sobre las demás acciones de su misma columna:
 #' corre primero en esa columna para que las restantes reciban texto ya
 #' decodificado, aunque su `orden` editado sea mayor. No reordena acciones de
-#' otras columnas. Entre las acciones restantes, y entre empates, el desempate lo resuelve
+#' otras columnas. Del mismo modo, `decodificar_entidades_html` corre antes que
+#' `convertir_minusculas`, `convertir_titulo` y `convertir_mayusculas` de su
+#' columna aunque un `orden` editado la ponga detrás: una entidad con nombre
+#' distingue mayúsculas —`&eacute;` es «é» y `&Eacute;` es «É»—, y cambiar la
+#' caja antes de decodificar cambiaba la letra o dejaba la entidad sin leer
+#' (`&Amp;`). Con el `orden` del plan ya corre antes y nada se mueve.
+#' Entre las acciones restantes, y entre empates, el desempate lo resuelve
 #' `id_accion`, no la posición de la fila: reordenar el plan no cambia el
 #' resultado. Y un grupo marcado como `elegida` sin ninguna acción activa se
 #' rechaza, porque no es ni una elección ni una omisión. `n_afectadas` es la estimación del perfil
@@ -1456,9 +1462,10 @@
 #' **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son ciertas.**
 #' La estimación se calcula sobre los datos que se perfilaron; el registro
 #' cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
-#' esa columna, la posterior encuentra menos —o más— de lo estimado. La única
-#' excepción de precedencia es `reparar_codificacion`, que se adelanta a las
-#' demás acciones de su columna para que ninguna opere sobre mojibake. Por
+#' esa columna, la posterior encuentra menos —o más— de lo estimado. Las
+#' excepciones de precedencia son dos: `reparar_codificacion`, que se adelanta a
+#' las demás acciones de su columna para que ninguna opere sobre mojibake, y
+#' `decodificar_entidades_html`, que se adelanta a las conversiones de caja. Por
 #' ejemplo, con
 #' `convertir_sentinelas_numericos` (orden 110) convirtiendo tres `-999` en
 #' ausentes, `winsorizar_outliers` (orden 520) recorta dos valores donde el plan
@@ -1603,8 +1610,15 @@
 #' una letra rota, se diagnostican y se quitan, también en una celda con
 #' mojibake, salvo que quitarlos vuelva reparable la celda: entonces la acción
 #' la deja como está, para que el resultado no dependa de si corre antes o
-#' después de `reparar_codificacion`. El perfil cuenta un invisible sólo donde
-#' la acción puede quitarlo.
+#' después de `reparar_codificacion`. El perfil cuenta un invisible entre los
+#' que se pueden eliminar (`n_invisibles_eliminables`) sólo donde la acción
+#' puede quitarlo; el control que la acción deja así sigue contando en
+#' `n_controles_invisibles`, y si es el único el hallazgo dice que ninguna
+#' acción del plan lo quita, en vez de recomendar quitarlo. La reparación
+#' devuelve el texto que codificaban los bytes, y si ese texto trae un
+#' invisible —el mojibake de un U+200B se repara a un U+200B— el plan no lo
+#' quita en la misma pasada: el perfil describe los datos que recibió. El perfil
+#' del resultado lo señala, y su plan lo quita.
 #' Una celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
 #' son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja [read.csv()]
 #' sin `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no la
@@ -1656,11 +1670,14 @@
 #'
 #' Los hallazgos `controles_invisibles`, `entidades_html` y `separadores_en_campo`
 #' tienen acciones separadas. La detección de invisibles informa tanto los
-#' caracteres que se pueden normalizar como los ZWJ/ZWNJ significativos; la
-#' normalización actúa sobre un conjunto más pequeño que la detección. La acción
+#' caracteres que se pueden normalizar como los que pueden ser parte del texto
+#' —ZWJ/ZWNJ y las etiquetas Unicode que arman banderas—; la normalización actúa
+#' sobre un conjunto más pequeño que la detección. La acción
 #' `eliminar_controles_invisibles` quita controles C0/C1 que no son separadores
-#' y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
-#' ZWJ/ZWNJ. `normalizar_espacios_invisibles` colapsa espacios Unicode (incluido
+#' y los invisibles Unicode de transporte —también los operadores invisibles,
+#' los rellenos del hangul y la etiqueta de idioma U+E0001—, y se recomienda por
+#' defecto; conserva ZWJ/ZWNJ y las etiquetas de bandera.
+#' `normalizar_espacios_invisibles` colapsa espacios Unicode (incluido
 #' NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
 #' defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
 #' valores que eran distintos quedan iguales, el registro lo cuenta en
@@ -1687,7 +1704,7 @@
 #' ningún byte de un carácter multibyte. Las tres acciones
 #' registran el número de valores cambiados. Una comparación aproximada con
 #' `normalizar = TRUE` usa estas mismas clases: colapsa espacios y omite basura
-#' de transporte, pero conserva ZWJ/ZWNJ.
+#' de transporte, pero conserva ZWJ/ZWNJ y las etiquetas.
 #'
 #' Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 #' una dependencia exacta permite deducir un valor sin usar media, moda o un
@@ -5128,9 +5145,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     } else if (inherits(x, "POSIXlt")) {
       unclass(as.POSIXct(x))
     } else if (is.factor(x)) {
-      unclass(.factor_sin_nivel_na(x))
+      unclass(.leer_latin1_sin_windows_1252(.factor_sin_nivel_na(x)))
     } else if (is.character(x)) {
-      x
+      .leer_latin1_sin_windows_1252(x)
     } else {
       unclass(x)
     }
@@ -6034,6 +6051,32 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       seleccion <- c(
         sin_reparaciones[seq_len(primera - 1L)], reparaciones,
         sin_reparaciones[primera:length(sin_reparaciones)]
+      )
+    }
+    # Una entidad con nombre distingue la caja -`&eacute;` es la e minuscula y
+    # `&Eacute;` la mayuscula-, asi que cambiar la caja antes de decodificar
+    # cambia la letra: con el orden editado, `jos&eacute;` pasaba a
+    # `Jos&Eacute;` y se decodificaba con la E mayuscula sin aviso, y `&amp;` a
+    # `&Amp;`, que ya no es una entidad. Es la misma barrera de lectura que la
+    # reparacion, mas angosta: la decodificacion se adelanta solo a las
+    # conversiones de caja de su columna y solo si quedaba detras de alguna. Con
+    # el orden del plan ya corre antes (207 contra 600) y nada se mueve.
+    cajas <- c("convertir_minusculas", "convertir_titulo", "convertir_mayusculas")
+    for (columna in columnas) {
+      if (is.na(columna)) next
+      mismas <- !is.na(plan$columna[seleccion]) &
+        plan$columna[seleccion] == columna
+      decodificaciones <- seleccion[mismas &
+        plan$estrategia[seleccion] == "decodificar_entidades_html"]
+      de_caja <- seleccion[mismas & plan$estrategia[seleccion] %in% cajas]
+      if (!length(decodificaciones) || !length(de_caja)) next
+      if (max(match(decodificaciones, seleccion)) <
+          min(match(de_caja, seleccion))) next
+      sin_decodificar <- seleccion[!seleccion %in% decodificaciones]
+      primera <- which(sin_decodificar %in% de_caja)[[1L]]
+      seleccion <- c(
+        sin_decodificar[seq_len(primera - 1L)], decodificaciones,
+        sin_decodificar[primera:length(sin_decodificar)]
       )
     }
   }

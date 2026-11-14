@@ -257,8 +257,14 @@
   #
   # `bytes` queda afuera a proposito: `enc2utf8()` aborta sobre esa marca, y
   # debe hacerlo, porque son bytes que nadie declaro como texto.
+  #
+  # Y se convierte con la lectura de las acciones de texto, no con `enc2utf8()`
+  # a secas: los cinco bytes que Windows-1252 no define salian como el texto
+  # `<81>`, y la celda `latin1` daba una clave distinta de la misma en UTF-8
+  # -`n_distintos` contaba dos valores donde las acciones leen uno- e igual a la
+  # del texto de cuatro letras `<81>`. Ver `.latin1_a_utf8()`.
   declarada <- !is.na(crudo) & Encoding(crudo) == "latin1"
-  if (any(declarada)) crudo[declarada] <- enc2utf8(crudo[declarada])
+  if (any(declarada)) crudo[declarada] <- .latin1_a_utf8(crudo[declarada])
 
   # `bytes` NO es una codificacion mas: es la declaracion explicita de que eso
   # no se interprete como texto. El paquete la respeta al imprimir -lo fija
@@ -2708,6 +2714,9 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # tabla: los demas diagnosticos ven el factor como llego.
 .normalizar_columna_igualdad <- function(x) {
   x <- .normalizar_columna_entrada(x)
+  # El texto, con la lectura de las acciones: una columna `latin1` y su gemela
+  # UTF-8 son la misma columna. Ver `.leer_latin1_sin_windows_1252()`.
+  x <- .leer_latin1_sin_windows_1252(x)
   if (is.factor(x) && !is.ordered(x)) x <- .factor_niveles_por_bytes(x)
   x
 }

@@ -1594,12 +1594,18 @@ del dominio ni autoriza una corrección.
 Los valores de texto que no forman UTF-8 válido tampoco se convierten: se
 cuentan, se excluyen de los análisis textuales y generan un hallazgo con sus
 posiciones. Los diagnósticos de invisibles incluyen controles C0/C1,
-espacios Unicode, marcas direccionales, BOM y otros caracteres de transporte.
+espacios Unicode, marcas direccionales, BOM y otros caracteres de transporte:
+los operadores invisibles de la matemática (U+2061 a U+2064), los controles
+de formato en desuso (U+206A a U+206F), los rellenos del hangul (U+115F,
+U+1160, U+3164 y U+FFA0) y la etiqueta de idioma U+E0001.
 La evidencia los muestra como puntos de código; los espacios Unicode se
 detectan aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ
-se informan pero se conservan porque pueden ser semánticos. La comparación
-de duplicados con \code{normalizar = TRUE} aplica estas mismas clases sin borrar
-ZWJ/ZWNJ. El resto del texto se cita con sus caracteres, y no con los
+(en \code{n_invisibles_significativos}) y las etiquetas Unicode (U+E0020 a
+U+E007F, las que arman banderas como la de Escocia; sólo en
+\code{n_controles_invisibles}) se informan pero se conservan porque pueden ser
+semánticos. La comparación de duplicados con \code{normalizar = TRUE} aplica
+estas mismas clases sin borrar ZWJ/ZWNJ ni las etiquetas. El resto del texto
+se cita con sus caracteres, y no con los
 escapes de punto de código de \code{encodeString()}, que dependen del locale: la
 evidencia es la misma bajo \code{C} y bajo un locale UTF-8, y el ejemplo que
 cita casa con el de la tabla de patrones.

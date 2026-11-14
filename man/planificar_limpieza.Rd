@@ -100,7 +100,13 @@ fija la secuencia reproducible. La acción \code{reparar_codificacion}, cuando e
 seleccionada, tiene precedencia sobre las demás acciones de su misma columna:
 corre primero en esa columna para que las restantes reciban texto ya
 decodificado, aunque su \code{orden} editado sea mayor. No reordena acciones de
-otras columnas. Entre las acciones restantes, y entre empates, el desempate lo resuelve
+otras columnas. Del mismo modo, \code{decodificar_entidades_html} corre antes que
+\code{convertir_minusculas}, \code{convertir_titulo} y \code{convertir_mayusculas} de su
+columna aunque un \code{orden} editado la ponga detrás: una entidad con nombre
+distingue mayúsculas —\verb{&eacute;} es «é» y \verb{&Eacute;} es «É»—, y cambiar la
+caja antes de decodificar cambiaba la letra o dejaba la entidad sin leer
+(\verb{&Amp;}). Con el \code{orden} del plan ya corre antes y nada se mueve.
+Entre las acciones restantes, y entre empates, el desempate lo resuelve
 \code{id_accion}, no la posición de la fila: reordenar el plan no cambia el
 resultado. Y un grupo marcado como \code{elegida} sin ninguna acción activa se
 rechaza, porque no es ni una elección ni una omisión. \code{n_afectadas} es la estimación del perfil
@@ -129,9 +135,10 @@ Aplicada sola sobre los datos del perfil, la conversión registra en
 \strong{\code{n_afectadas} y \code{n_cambiadas} pueden no coincidir, y las dos son ciertas.}
 La estimación se calcula sobre los datos que se perfilaron; el registro
 cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
-esa columna, la posterior encuentra menos —o más— de lo estimado. La única
-excepción de precedencia es \code{reparar_codificacion}, que se adelanta a las
-demás acciones de su columna para que ninguna opere sobre mojibake. Por
+esa columna, la posterior encuentra menos —o más— de lo estimado. Las
+excepciones de precedencia son dos: \code{reparar_codificacion}, que se adelanta a
+las demás acciones de su columna para que ninguna opere sobre mojibake, y
+\code{decodificar_entidades_html}, que se adelanta a las conversiones de caja. Por
 ejemplo, con
 \code{convertir_sentinelas_numericos} (orden 110) convirtiendo tres \code{-999} en
 ausentes, \code{winsorizar_outliers} (orden 520) recorta dos valores donde el plan
@@ -275,8 +282,15 @@ reparación deja como están, como un U+0081 suelto o un guion blando fuera de
 una letra rota, se diagnostican y se quitan, también en una celda con
 mojibake, salvo que quitarlos vuelva reparable la celda: entonces la acción
 la deja como está, para que el resultado no dependa de si corre antes o
-después de \code{reparar_codificacion}. El perfil cuenta un invisible sólo donde
-la acción puede quitarlo.
+después de \code{reparar_codificacion}. El perfil cuenta un invisible entre los
+que se pueden eliminar (\code{n_invisibles_eliminables}) sólo donde la acción
+puede quitarlo; el control que la acción deja así sigue contando en
+\code{n_controles_invisibles}, y si es el único el hallazgo dice que ninguna
+acción del plan lo quita, en vez de recomendar quitarlo. La reparación
+devuelve el texto que codificaban los bytes, y si ese texto trae un
+invisible —el mojibake de un U+200B se repara a un U+200B— el plan no lo
+quita en la misma pasada: el perfil describe los datos que recibió. El perfil
+del resultado lo señala, y su plan lo quita.
 Una celda cuyo texto no se puede leer —declarada \code{bytes} con bytes que no
 son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja \code{\link[=read.csv]{read.csv()}}
 sin \code{fileEncoding} sobre un archivo latin1— no se transforma: el perfil no la
@@ -328,11 +342,14 @@ ese costo de memoria.
 
 Los hallazgos \code{controles_invisibles}, \code{entidades_html} y \code{separadores_en_campo}
 tienen acciones separadas. La detección de invisibles informa tanto los
-caracteres que se pueden normalizar como los ZWJ/ZWNJ significativos; la
-normalización actúa sobre un conjunto más pequeño que la detección. La acción
+caracteres que se pueden normalizar como los que pueden ser parte del texto
+—ZWJ/ZWNJ y las etiquetas Unicode que arman banderas—; la normalización actúa
+sobre un conjunto más pequeño que la detección. La acción
 \code{eliminar_controles_invisibles} quita controles C0/C1 que no son separadores
-y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
-ZWJ/ZWNJ. \code{normalizar_espacios_invisibles} colapsa espacios Unicode (incluido
+y los invisibles Unicode de transporte —también los operadores invisibles,
+los rellenos del hangul y la etiqueta de idioma U+E0001—, y se recomienda por
+defecto; conserva ZWJ/ZWNJ y las etiquetas de bandera.
+\code{normalizar_espacios_invisibles} colapsa espacios Unicode (incluido
 NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
 defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
 valores que eran distintos quedan iguales, el registro lo cuenta en
@@ -359,7 +376,7 @@ U+2029 son de \code{normalizar_espacios_invisibles} y el control U+0085 de
 ningún byte de un carácter multibyte. Las tres acciones
 registran el número de valores cambiados. Una comparación aproximada con
 \code{normalizar = TRUE} usa estas mismas clases: colapsa espacios y omite basura
-de transporte, pero conserva ZWJ/ZWNJ.
+de transporte, pero conserva ZWJ/ZWNJ y las etiquetas.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 una dependencia exacta permite deducir un valor sin usar media, moda o un
