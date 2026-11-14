@@ -91,63 +91,38 @@
 ### Rendimiento
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  es varias veces más rápido sobre columnas de texto con comas, punto y
-  coma o barras. La detección de celdas con varios valores
-  (`celdas_multivaluadas`) mira la columna entera en cada paso: antes
-  preguntaba celda por celda si era un número escrito con coma decimal o
-  con miles (`1,5`, `$ 1.234,56`), y partía y clasificaba cada celda por
-  separado. Sobre 200.000 filas, en Linux,
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  pasa de 337 a 58 segundos con diez columnas de decimales con coma, de
-  538 a 139 con diez de importes y de 165 a 44 con una mezcla de listas,
-  códigos e importes. Las respuestas no cambian.
-- Además,
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  ya no pregunta celda por celda lo que una celda ASCII no puede
-  contestar. Declarar la codificación, bajar a minúsculas las letras
-  acentuadas, la tabla de descomposición y la protección de `ñ` y `ü`
-  recorren sólo las celdas con algún carácter no ASCII; las entidades
-  HTML se buscan sólo donde hay un `&`, y los controles e invisibles
-  sólo en las celdas que traen alguno: antes bastaba un símbolo de
-  moneda en la columna para que cada celda pasara por su propia
-  pregunta, unas 287.000 llamadas de un valor a expresiones regulares
-  sobre 200.000 importes, cada una con un costo fijo que en Windows es
-  de unos 47 microsegundos. El vocabulario de los casi duplicados se
-  normaliza una vez por valor distinto y no por fila, los faltantes
-  disfrazados se detectan una sola vez cuando no hay centinelas
-  declarados, y el conteo de distintos y la moda de una columna numérica
-  comparten el mismo mapa. Sobre las mismas tablas de 200.000 filas, en
-  Linux, esto le quita un 37 % al tiempo con importes, un 25 % a la
-  mezcla y un 8 % a los decimales, y un 18 % a perfilar mil filas por
-  veinte columnas. Las respuestas no cambian.
-- Y
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  agrega de una vez los valores nuevos de cada bloque al mapa de valores
-  distintos —el que da `n_distintos` y la moda—: los agregaba de a uno,
-  copiando el vector, midiendo el estado entero con
-  [`object.size()`](https://rdrr.io/r/utils/object.size.html) y
-  recorriendo el bloque para buscar la primera fila de cada uno. Sólo si
-  el estado pasaría el tope de memoria los recorre de a uno, y corta en
-  el mismo valor que antes. La columna se lee como número una vez para
-  la secuencia, los faltantes disfrazados y el resumen; la detección de
-  listas pregunta sólo si una celda con coma ya es un número en vez de
-  descomponerla entera, y la trazabilidad de `numero_como_texto`,
-  `unidades_mixtas` y `monedas_mixtas` usa la descomposición que ya hizo
-  el perfil. Sobre las mismas tablas de 200.000 filas, en Linux, esto le
-  quita otro 25 % al tiempo con decimales y con importes y un 20 % a la
-  mezcla, y un 23 % a perfilar mil filas por veinte columnas. Las
-  respuestas no cambian.
+  es entre seis y ocho veces más rápido sobre columnas de texto con
+  números. Sobre 200.000 filas, en Linux, pasa de 320 a 38 segundos con
+  diez columnas de decimales con coma, de 414 a 66 con diez de importes
+  con moneda y de 162 a 27 con una mezcla de listas, códigos e importes;
+  perfilar `datos_operativos` pasa de 0,125 a 0,117 segundos por
+  llamada. Son medianas de tres corridas alternadas contra la 0.1.1, que
+  rehace `benchmark/medir_texto_numerico.R`. Las respuestas no cambian.
+  Lo que cambió:
+  - la detección de celdas con varios valores (`celdas_multivaluadas`)
+    mira la columna entera en cada paso: preguntaba celda por celda si
+    era un número escrito con coma decimal o con miles y partía cada
+    celda por separado;
+  - lo que sólo puede leer o cambiar letras no ASCII —declarar la
+    codificación, bajar a minúsculas las letras acentuadas, la tabla de
+    descomposición, la protección de `ñ` y `ü`— recorre sólo las celdas
+    con algún carácter no ASCII; las entidades HTML se buscan sólo donde
+    hay un `&`, y los controles e invisibles sólo en las celdas que
+    traen alguno. Bastaba un símbolo de moneda en la columna para que
+    cada celda pasara por su propia pregunta, cada una con un costo fijo
+    que en Windows es de unos 47 microsegundos;
+  - el mapa de valores distintos —el que da `n_distintos` y la moda—
+    agrega de una vez los valores nuevos de cada bloque, en vez de
+    copiar el vector y medir el estado entero por cada uno; si el estado
+    pasaría el tope de memoria, corta en el mismo valor que antes;
+  - el vocabulario de los casi duplicados se normaliza una vez por valor
+    distinto y no por fila, la columna se lee como número una vez para
+    la secuencia, los faltantes disfrazados y el resumen, y los
+    faltantes disfrazados se detectan una sola vez cuando no hay
+    centinelas declarados.
 
 ### Correcciones
 
-- [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
-  proponía como `lista` y no destructiva la conversión a número de una
-  columna con una celda que no es UTF-8 válido, y
-  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
-  escribía `NA` en esa celda con el plan por omisión:
-  `c("12", "13", "14" + 0xFF, ...)` salía `12 13 NA ...`. Ahora la
-  conversión queda bloqueada, como ya quedaba la de formato regional, y
-  la celda no se toca. La 0.1.1 la bloqueaba; el defecto es posterior.
 - Una celda sin marca de codificación con un byte que no es UTF-8 válido
   —lo que deja [`read.csv()`](https://rdrr.io/r/utils/read.table.html)
   sin `fileEncoding` sobre un CSV en latin-1 o Windows-1252: el espacio
@@ -168,9 +143,7 @@
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   con una cadena así en `cadenas_ausencia`, ni
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-  cuando la moda de una columna es una de ellas. Casi todo venía de la
-  0.1.1; con la notación científica y con un grado detrás de un número
-  abortaba además desde después.
+  cuando la moda de una columna es una de ellas.
 - La comparación de orden entre columnas lee una columna con bytes que
   no son UTF-8 válido como el resto del perfil: en una sesión UTF-8 la
   dejaba fuera sin declararlo en `meta$orden_columnas`, y bajo
