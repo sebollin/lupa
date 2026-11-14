@@ -1623,8 +1623,9 @@
 #' `n_codificacion_normalizada` en vez de dejarlo implícito. Ese conteo es de
 #' recodificaciones, no de marcas: una celda sin marca cuyos bytes son UTF-8
 #' válido ya es UTF-8 y no cambia de codificación aunque la acción la devuelva
-#' marcada, y un texto ASCII se escribe igual en toda codificación —decodificar
-#' `Jos&eacute;` cambia el valor, no la codificación—. No se convierte la
+#' marcada, y un texto ASCII, el de entrada o el que queda, se escribe igual en
+#' toda codificación —decodificar `Jos&eacute;` o recortar un espacio duro del
+#' borde cambia el valor, no la codificación—. No se convierte la
 #' columna entera a propósito: eso tocaría celdas que el plan no declaró como
 #' cambiadas y haría mentir a `n_cambiadas` por el otro lado.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
@@ -1650,7 +1651,14 @@
 #' NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
 #' defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
 #' valores que eran distintos quedan iguales, el registro lo cuenta en
-#' `n_no_reversibles`. `decodificar_entidades_html` cubre las entidades
+#' `n_no_reversibles`. Corre antes que `recortar_espacios`, así que el espacio
+#' común que deja en el borde lo quita el recorte. Para `recortar_espacios` y
+#' para `n_espacios_borde`, un espacio al borde es todo blanco ASCII —espacio,
+#' tabulación, salto de línea, tabulación vertical, avance de página y retorno—
+#' y todo separador de Unicode, como el espacio duro (U+00A0) o el fino
+#' (U+202F): los mismos que recortan los validadores. El espacio duro que es la
+#' mitad de una letra mal convertida no se cuenta ni se recorta.
+#' `decodificar_entidades_html` cubre las entidades
 #' con nombre comunes en español y referencias numéricas válidas, pero no se
 #' activa sola porque un ampersand puede ser contenido legítimo. Decodifica
 #' **una capa**: un texto codificado dos veces —`&amp;amp;`— queda en `&amp;`,
@@ -1853,8 +1861,8 @@
 #'   `n_codificacion_normalizada` cuenta, por acción, las celdas cuya **marca de
 #'   codificación** cambió: es el caso de una acción de texto sobre celdas
 #'   `latin1`, cuyo valor se conserva y cuyos bytes no. No cuenta una celda sin
-#'   marca cuyos bytes ya eran UTF-8 válido ni un texto ASCII, así que no
-#'   depende del locale.
+#'   marca cuyos bytes ya eran UTF-8 válido ni una celda que es o queda ASCII,
+#'   así que no depende del locale.
 #'   `n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
 #'   recuperar desde el resultado: un centinela `-999` que pasa a ausencia, un
 #'   extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -2204,6 +2212,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
         #
         # Lo que se pierde de verdad -dos valores distintos que quedan iguales-
         # lo sigue contando `n_no_reversibles`, y medido sin colision publica 0.
+        #
+        # Corre ANTES que `recortar_espacios` (200) y despues de
+        # `eliminar_controles_invisibles` (195). Corria despues del recorte, y
+        # el espacio duro del borde que esta accion vuelve un espacio comun
+        # quedaba al borde: aplicar el plan que el paquete propone dejaba
+        # espacios al borde, y el perfil de lo aplicado volvia a publicar
+        # `espacios_sobrantes`. En este orden el recorte los encuentra.
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "normalizar_espacios_invisibles", TRUE,
           paste0(
@@ -2216,7 +2231,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
             "`n_no_reversibles`."
           ), n_espacios, FALSE,
           estado = estado_columna,
-          aplicar = identical(estado_columna, "lista"), orden = 206L
+          aplicar = identical(estado_columna, "lista"), orden = 198L
         ))
       }
     } else if (identical(tipo, "entidades_html") && !is.null(fila)) {
@@ -3937,13 +3952,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!length(textos)) return(logical())
   candidatos <- switch(
     estrategia,
-    recortar_espacios = {
-      recortados <- .aplicar_por_marca(
-        textos, trimws,
-        function(z) trimws(z, whitespace = "[ \t\r\n]")
-      )
-      .celdas_cambiadas(textos, recortados)
-    },
+    recortar_espacios = .celdas_cambiadas(
+      textos, .recortar_borde_texto(textos)
+    ),
     decodificar_entidades_html = .entidades_html_en_texto(textos),
     .detener("Estrategia de texto desconocida.", call. = FALSE)
   )
@@ -4282,9 +4293,13 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # -`.declarar_utf8_valido()`-: un `unknown` valido ya ES UTF-8 y no cambio de
   # codificacion. Y un texto ASCII se escribe igual en todas, asi que tampoco:
   # `Jos&eacute;` decodificado a `Jose` con tilde cambio de valor, no de codificacion.
+  # Lo mismo del otro lado: una celda que queda ASCII -`a` con un espacio de ancho
+  # cero que se quita, un espacio duro del borde que se recorta- cambio de valor y
+  # ya no tiene codificacion que cambiar. Se contaba por mirar solo la entrada.
   x <- .declarar_utf8_valido(x)
   y <- .declarar_utf8_valido(y)
-  no_ascii <- grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE)
+  no_ascii <- grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE) &
+    grepl("[^\\001-\\177]", y, useBytes = TRUE, perl = TRUE)
   as.integer(sum(!is.na(x) & !is.na(y) & no_ascii & Encoding(x) != Encoding(y)))
 }
 
@@ -4302,28 +4317,50 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   as.integer(sum(.celdas_que_pierden_valor(x, y)))
 }
 
+# El recorte del borde sobre una columna, con la definicion de
+# `.recortar_espacios_borde()`. Lo usan la accion y el conteo del perfil, que
+# tienen que ver lo mismo: con dos copias de la transformacion, una podia
+# cambiar sin la otra y el plan ofrecia una accion que despues no cambiaba nada.
+#
+# `trimws()` sobre un vector que contiene UNA cadena marcada `bytes` devuelve
+# marcadas `bytes` tambien a las `latin1` que viajaban al lado, y ahi su
+# contenido deja de ser recuperable: un `ca<f1>o ` valido volvia como
+# `ca<f1>o` declarado `bytes`, que ya no es UTF-8 valido. El destino de una
+# fila lo decidia lo que hubiera en el resto de la tanda. Se recorta cada
+# grupo por separado para que ninguna marca contamine a la vecina. Lo
+# declarado `bytes` que llega a recortarse es UTF-8 valido
+# (`.aplicar_por_marca()` deja intacto lo demas), asi que se lee como UTF-8 para
+# reconocer sus espacios Unicode -como ya lo lee
+# `normalizar_espacios_invisibles`- y vuelve declarado `bytes`.
+.recortar_borde_texto <- function(v) .aplicar_por_marca(
+  v, .recortar_espacios_borde,
+  function(z) {
+    Encoding(z) <- "UTF-8"
+    .recortar_espacios_borde(z)
+  }
+)
+
 .recortar_texto <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("El recorte de espacios requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
-  # `trimws()` sobre un vector que contiene UNA cadena marcada `bytes` devuelve
-  # marcadas `bytes` tambien a las `latin1` que viajaban al lado, y ahi su
-  # contenido deja de ser recuperable: un `ca<f1>o ` valido volvia como
-  # `ca<f1>o` declarado `bytes`, que ya no es UTF-8 valido. El destino de una
-  # fila lo decidia lo que hubiera en el resto de la tanda. Se recorta cada
-  # grupo por separado para que ninguna marca contamine a la vecina.
-  transformar <- function(v) .aplicar_por_marca(
-    v, trimws,
-    function(z) trimws(z, whitespace = "[ \t\r\n]")
-  )
+  transformar <- .recortar_borde_texto
   enmascarar <- function(texto, consumidos) {
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
     if (is.null(consumidos) || length(consumidos) != length(codigos)) {
       consumidos <- rep(FALSE, length(codigos))
     }
-    quitar <- codigos %in% c(9L:13L, 32L) & !consumidos
+    # Un caracter es espacio si el recorte lo deja vacio: la misma definicion
+    # que la transformacion, y no una lista de codigos aparte. Un espacio que la
+    # reparacion consume -el U+00A0 de `A` con tilde seguida de U+00A0, que es
+    # una `a` con grave leida como latin-1- es parte de una letra y no se
+    # recorta; detiene el recorte en ese borde.
+    espacio <- !nzchar(.recortar_espacios_borde(
+      intToUtf8(codigos, multiple = TRUE)
+    ))
+    quitar <- espacio & !consumidos
     conservar <- which(!quitar)
     if (!length(conservar)) return("")
     paste0(intToUtf8(codigos[min(conservar):max(conservar)], multiple = TRUE),

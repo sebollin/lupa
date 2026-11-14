@@ -62,9 +62,15 @@ test_that("recortar_espacios trata igual latin1 y UTF-8 del mismo texto", {
     ]),
     as.numeric(fila_utf8$n_cambiadas)
   )
-  expect_identical(as.numeric(fila_latin1$n_cambiadas), 127)
-  expect_identical(as.numeric(fila_latin1$n_codificacion_normalizada), 127)
-  expect_identical(as.numeric(fila_utf8$n_cambiadas), 127)
+  # 126 y no 127: un espacio duro al borde es un espacio al borde. En
+  # ` borde ` + U+00C2 + ` `, la `A` con circunflejo y el espacio son un espacio
+  # duro mal convertido; recortar el espacio de la punta cambia lo que la
+  # reparacion puede rehacer, y la proteccion deja la celda entera. Y
+  # ` borde ` + U+00A0 + ` ` queda `borde`, que es ASCII: no hay codificacion que
+  # cambiar, y no cuenta como normalizada, ni en `latin1` (125) ni en UTF-8 (0).
+  expect_identical(as.numeric(fila_latin1$n_cambiadas), 126)
+  expect_identical(as.numeric(fila_latin1$n_codificacion_normalizada), 125)
+  expect_identical(as.numeric(fila_utf8$n_cambiadas), 126)
   expect_identical(as.numeric(fila_utf8$n_codificacion_normalizada), 0)
   expect_identical(
     enc2utf8(resultado_latin1$datos$texto),
@@ -76,7 +82,9 @@ test_that("recortar_espacios trata igual latin1 y UTF-8 del mismo texto", {
       i <- codigo - 0x7fL
       esperados <- utf8ToInt(utf8[[i]])
       obtenidos <- utf8ToInt(enc2utf8(resultado_latin1$datos$texto[[i]]))
-      all(esperados[esperados > 0x7fL] %in% obtenidos)
+      # Salvo el espacio duro, que al borde es un espacio y se recorta.
+      esperados <- esperados[esperados > 0x7fL & esperados != 0xa0L]
+      all(esperados %in% obtenidos)
     },
     logical(1L)
   )))

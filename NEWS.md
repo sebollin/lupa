@@ -106,6 +106,19 @@
   cuenta entre las fallidas. Antes quedaba `fallida` aunque los datos quedaran
   limpios. Si el problema sigue en los datos, o nunca estuvo en los que recibe
   `aplicar()`, la acción sigue `fallida`.
+- El plan por omisión ya no deja espacios al borde. `normalizar_espacios_invisibles`
+  corre antes que `recortar_espacios`, y un espacio Unicode al borde —el duro
+  (U+00A0), el fino (U+202F) y los demás separadores de Unicode, además de la
+  tabulación vertical y el avance de página— cuenta en `n_espacios_borde` y lo
+  quita `recortar_espacios`, igual que en los validadores. Antes el recorte
+  corría primero y el espacio duro del borde se volvía un espacio común que nadie
+  quitaba, o el plan ni ofrecía el recorte: después de aplicarlo, el perfil
+  volvía a publicar `espacios_sobrantes`. El espacio duro que es la mitad de una
+  letra mal convertida se conserva. La sugerencia del hallazgo ya no dice que
+  alcanza con `trimws()`, que no quita esos espacios.
+- `n_codificacion_normalizada` ya no cuenta una celda que queda ASCII después de
+  la acción, como `a` con un espacio de ancho cero que se quita: ya no tiene
+  codificación que cambiar.
 - `planificar_limpieza()`: una conversión de tipo (`convertir_tipo`,
   `convertir_numero_regional`, `convertir_fecha_confirmada`) sobre una columna
   con `aplicabilidad` o declarada en `columnas_opcionales` anuncia en

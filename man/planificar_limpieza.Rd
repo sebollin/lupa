@@ -43,8 +43,8 @@ acción seleccionada, incluso cuando una falla y las siguientes continúan.
 \code{n_codificacion_normalizada} cuenta, por acción, las celdas cuya \strong{marca de
 codificación} cambió: es el caso de una acción de texto sobre celdas
 \code{latin1}, cuyo valor se conserva y cuyos bytes no. No cuenta una celda sin
-marca cuyos bytes ya eran UTF-8 válido ni un texto ASCII, así que no
-depende del locale.
+marca cuyos bytes ya eran UTF-8 válido ni una celda que es o queda ASCII,
+así que no depende del locale.
 \code{n_no_reversibles} cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela \code{-999} que pasa a ausencia, un
 extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -295,8 +295,9 @@ valor es el mismo, pero los bytes no, así que el registro lo cuenta en
 \code{n_codificacion_normalizada} en vez de dejarlo implícito. Ese conteo es de
 recodificaciones, no de marcas: una celda sin marca cuyos bytes son UTF-8
 válido ya es UTF-8 y no cambia de codificación aunque la acción la devuelva
-marcada, y un texto ASCII se escribe igual en toda codificación —decodificar
-\code{Jos&eacute;} cambia el valor, no la codificación—. No se convierte la
+marcada, y un texto ASCII, el de entrada o el que queda, se escribe igual en
+toda codificación —decodificar \code{Jos&eacute;} o recortar un espacio duro del
+borde cambia el valor, no la codificación—. No se convierte la
 columna entera a propósito: eso tocaría celdas que el plan no declaró como
 cambiadas y haría mentir a \code{n_cambiadas} por el otro lado.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
@@ -322,7 +323,14 @@ ZWJ/ZWNJ. \code{normalizar_espacios_invisibles} colapsa espacios Unicode (inclui
 NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
 defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
 valores que eran distintos quedan iguales, el registro lo cuenta en
-\code{n_no_reversibles}. \code{decodificar_entidades_html} cubre las entidades
+\code{n_no_reversibles}. Corre antes que \code{recortar_espacios}, así que el espacio
+común que deja en el borde lo quita el recorte. Para \code{recortar_espacios} y
+para \code{n_espacios_borde}, un espacio al borde es todo blanco ASCII —espacio,
+tabulación, salto de línea, tabulación vertical, avance de página y retorno—
+y todo separador de Unicode, como el espacio duro (U+00A0) o el fino
+(U+202F): los mismos que recortan los validadores. El espacio duro que es la
+mitad de una letra mal convertida no se cuenta ni se recorta.
+\code{decodificar_entidades_html} cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
 activa sola porque un ampersand puede ser contenido legítimo. Decodifica
 \strong{una capa}: un texto codificado dos veces —\verb{&amp;amp;}— queda en \verb{&amp;},

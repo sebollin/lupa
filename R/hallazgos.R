@@ -5549,7 +5549,7 @@
           "; ejemplos: ",
           resultado$diagnostico_texto$evidencia_espacios
         ),
-        "Aplicar trimws() despu\u00e9s de confirmar que los espacios no son significativos."
+        "Recortar los espacios del borde, tambi\u00e9n los de Unicode como el espacio duro, que trimws() no quita, despu\u00e9s de confirmar que no son significativos."
       ))
     }
     if (isTRUE(fila$n_controles_invisibles > 0L)) {
