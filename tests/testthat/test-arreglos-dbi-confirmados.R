@@ -8,6 +8,18 @@
 # la omitida. El repliegue de la lectura por bloques rehacia la llamada a mano y
 # perdia lo que la persona habia declarado.
 
+# Una conexion DuckDB que no comparte el directorio de extensiones del
+# usuario. `shared_home` es de las versiones recientes de duckdb: una anterior,
+# como la del contenedor del minimo de R declarado, no lo acepta (aborta con
+# "... must be empty"), y ahi no hay directorio compartido que evitar.
+.adc_duckdb <- function() {
+  if ("shared_home" %in% names(formals(duckdb::duckdb))) {
+    duckdb::duckdb(shared_home = FALSE)
+  } else {
+    duckdb::duckdb()
+  }
+}
+
 # Comprueba que el tipo no se desplace cuando una columna intermedia falla.
 test_that("la muestra conserva el tipo de cada columna junto a una ilegible", {
   skip_on_cran()
@@ -18,9 +30,9 @@ test_that("la muestra conserva el tipo de cada columna junto a una ilegible", {
   DBI::dbExecute(con, "CREATE TABLE tipos_dbi (rota BLOB, derecha DECIMAL(18,2), texto VARCHAR)")
   DBI::dbExecute(con, paste0(
     "INSERT INTO tipos_dbi VALUES ",
-    "(decode('01','hex'), 100000000000000.01, 'a'),",
-    "(decode('02','hex'), 100000000000000.02, 'b'),",
-    "(decode('03','hex'), 100000000000000.03, 'a')"
+    "('\\x01'::BLOB, 100000000000000.01, 'a'),",
+    "('\\x02'::BLOB, 100000000000000.02, 'b'),",
+    "('\\x03'::BLOB, 100000000000000.03, 'a')"
   ))
   traer <- get(".traer_consulta_dbi", envir = asNamespace("lupa"))
   enviar <- get(".enviar_consulta_dbi", envir = asNamespace("lupa"))
@@ -70,9 +82,9 @@ test_that("el perfil de una columna legible no cambia por tener una ilegible a s
   ))
   DBI::dbExecute(con, paste0(
     "INSERT INTO pares_dbi VALUES ",
-    "(decode('01','hex'), 1, 1.25, 100.01, 'a'),",
-    "(decode('02','hex'), 2, NULL, 100.02, 'b'),",
-    "(decode('03','hex'), 3, 3.25, 100.03, 'a')"
+    "('\\x01'::BLOB, 1, 1.25, 100.01, 'a'),",
+    "('\\x02'::BLOB, 2, NULL, 100.02, 'b'),",
+    "('\\x03'::BLOB, 3, 3.25, 100.03, 'a')"
   ))
   DBI::dbExecute(con, paste0(
     "CREATE TABLE pares_dbi_ref (entero INTEGER, doble DOUBLE, ",
@@ -493,7 +505,7 @@ test_that("el replan por cardinalidad cuenta las mismas consultas que la corrida
     conexion_banco <- if (identical(motor, "sqlite")) {
       DBI::dbConnect(RSQLite::SQLite(), ":memory:")
     } else {
-      DBI::dbConnect(duckdb::duckdb(shared_home = FALSE))
+      DBI::dbConnect(.adc_duckdb())
     }
     for (con_texto in c(FALSE, TRUE)) {
       for (cantidad in seq_len(30L)) {
@@ -666,7 +678,7 @@ test_that("el motivo del decimal ancho queda dentro de la via del spool", {
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(shared_home = FALSE))
+  con <- DBI::dbConnect(.adc_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE decimal_reason_dbi (v DECIMAL(38,0))")
   DBI::dbExecute(con, paste0(
@@ -1025,7 +1037,7 @@ test_that("el perfil aislado de la muestra del motor se imprime", {
   con <- if (identical(motor, "sqlite")) {
     DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   } else {
-    DBI::dbConnect(duckdb::duckdb(shared_home = FALSE))
+    DBI::dbConnect(.adc_duckdb())
   }
   on.exit(if (identical(motor, "duckdb")) {
     DBI::dbDisconnect(con, shutdown = TRUE)

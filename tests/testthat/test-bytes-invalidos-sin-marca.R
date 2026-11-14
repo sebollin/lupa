@@ -133,6 +133,14 @@ test_that("perfilar_dbi() lee la muestra y la moda aunque traigan bytes que no s
     stringsAsFactors = FALSE
   )
   DBI::dbWriteTable(con, "numeros", numeros)
+  # La prueba necesita que el motor devuelva el byte tal como se escribio. Un
+  # driver viejo lo escapa al leer (`<ff>`), y ahi no hay byte invalido que
+  # perfilar: no es lo que se prueba.
+  leido <- DBI::dbGetQuery(con, "SELECT v FROM numeros WHERE id = 3")$v
+  skip_if_not(
+    identical(charToRaw(leido), charToRaw(numeros$v[[3L]])),
+    "el driver no devuelve los bytes tal como se escribieron"
+  )
   avisos <- character()
   perfil <- withCallingHandlers(
     perfilar_dbi(con, "numeros"),
