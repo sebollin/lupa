@@ -92,9 +92,28 @@
 # "unable to translate" o aborta.
 .declarar_utf8_valido <- function(textos, marcas = c("unknown", "bytes")) {
   if (!is.character(textos) || !length(textos)) return(textos)
-  validos <- !is.na(textos) & Encoding(textos) %in% marcas &
-    validUTF8(textos)
-  if (any(validos)) {
+  # Solo una cadena con bytes fuera de ASCII puede recibir la marca: a una ASCII
+  # R no se la pone, asi que declararla no cambia nada. La declaracion se pide
+  # en cada operacion de texto sobre la misma columna -decenas de veces por
+  # perfil-, y sobre una columna ASCII copiaba y remarcaba el vector entero cada
+  # vez para dejarlo igual. Lo que ya declara su codificacion sale primero, sin
+  # mirar sus bytes.
+  candidatos <- which(!is.na(textos) & Encoding(textos) %in% marcas)
+  if (!length(candidatos)) return(textos)
+  # Separar las ASCII cuesta leer los bytes de cada candidata -dos llamadas a
+  # PCRE, con su costo fijo de unos 47 microsegundos en Windows- y solo paga
+  # cuando son muchas y casi todas ASCII: con menos de dos mil, o sobre una
+  # columna sin marca y toda acentuada, es trabajo de mas. Se decide por las
+  # primeras cien; los dos caminos marcan lo mismo.
+  todos <- length(candidatos) == length(textos)
+  if (length(candidatos) >= 2000L &&
+      mean(.no_ascii(textos[candidatos[seq_len(100L)]])) < 0.5) {
+    candidatos <- candidatos[.no_ascii(if (todos) textos else textos[candidatos])]
+    if (!length(candidatos)) return(textos)
+    todos <- length(candidatos) == length(textos)
+  }
+  validos <- candidatos[validUTF8(if (todos) textos else textos[candidatos])]
+  if (length(validos)) {
     marcados <- textos[validos]
     Encoding(marcados) <- "UTF-8"
     textos[validos] <- marcados
@@ -295,7 +314,7 @@
     intToUtf8(unname(mapa), multiple = TRUE),
     collapse = ""
   )
-  function(textos) {
+  function(textos, no_ascii = NULL) {
     # `chartr()` interpreta el texto SEGUN EL LOCALE cuando la cadena no declara
     # su codificacion, y aborta con "invalid input multibyte string" si los bytes
     # no son validos ahi. Un CSV en espanol leido con `read.csv()` sale con
@@ -310,11 +329,17 @@
     # funcion existe para hacer. Hay que MARCAR lo que ya es UTF-8 valido, y
     # reparar solo lo que no lo es.
     textos <- .textos_para_plegar(textos)
+    # El mapa solo tiene letras no ASCII: sobre una celda ASCII no cambia nada,
+    # y pasarle la columna entera obligaba a `chartr()` a leer en UTF-8 cada
+    # celda. Se aplica a las celdas que pueden tener una de esas letras;
+    # `no_ascii`, si llega, es la mascara de antes de plegar, que las contiene.
+    textos <- .en_celdas_no_ascii(
+      textos, function(x) chartr(origen, destino, x), no_ascii
+    )
     # El ASCII se baja con `chartr()`, no con `tolower()`: lo que no esta en el
     # mapa se conserva igual en cualquier locale, y la `I` no se vuelve U+0131
     # bajo un locale turco.
-    chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz",
-           chartr(origen, destino, textos))
+    chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", textos)
   }
 })
 

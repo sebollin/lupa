@@ -359,8 +359,14 @@ print.normalizacion_lupa <- function(x, ...) {
 # mapa tambien ESCRIBE -`convertir_minusculas` de `aplicar()`- y ahi una sigma
 # final bien escrita no se toca. Es la unica funcion del paso: el camino
 # vectorial y el escalar la llaman los dos.
-.normalizacion_minusculas <- function(texto) {
-  chartr("\u03c2", "\u03c3", .normalizacion_minusculas_vector(texto))
+.normalizacion_minusculas <- function(texto, no_ascii = NULL) {
+  # La sigma final no es ASCII: solo puede estar en una celda que no lo sea. Las
+  # celdas no ASCII de la entrada contienen a las de la salida.
+  no_ascii <- .mascara_no_ascii(texto, no_ascii)
+  salida <- .normalizacion_minusculas_vector(texto, no_ascii)
+  .en_celdas_no_ascii(
+    salida, function(x) chartr("\u03c2", "\u03c3", x), no_ascii
+  )
 }
 
 # El texto del usuario en la forma con que se lo COMPARA contra un vocabulario
@@ -457,11 +463,19 @@ print.normalizacion_lupa <- function(x, ...) {
   }
 })
 
-.normalizacion_reemplazar_tabla <- function(textos) {
+.normalizacion_reemplazar_tabla <- function(textos, no_ascii = NULL) {
   tabla <- .normalizacion_tabla_vectorizada()
-  aciertos <- !is.na(textos) & grepl(tabla$patron, textos, perl = TRUE)
+  # Las claves de la tabla son letras no ASCII: solo se buscan en las celdas
+  # que tienen algun byte fuera de ASCII.
+  candidatas <- which(.mascara_no_ascii(textos, no_ascii))
+  if (!length(candidatas)) return(textos)
+  aciertos <- grepl(
+    tabla$patron,
+    if (length(candidatas) == length(textos)) textos else textos[candidatas],
+    perl = TRUE
+  )
   if (!any(aciertos)) return(textos)
-  seleccion <- which(aciertos)
+  seleccion <- candidatas[aciertos]
   afectados <- textos[seleccion]
   coincidencias <- gregexpr(
     tabla$patron_bytes, afectados, perl = TRUE, useBytes = TRUE
@@ -483,7 +497,7 @@ print.normalizacion_lupa <- function(x, ...) {
   textos
 }
 
-.normalizacion_proteger_vector <- function(textos, perfil) {
+.normalizacion_proteger_vector <- function(textos, perfil, no_ascii = NULL) {
   if (!isTRUE(perfil$acentos) || !length(perfil$proteger)) {
     return(list(textos = textos, marcadores = character(),
                 colision = rep(FALSE, length(textos))))
@@ -498,9 +512,21 @@ print.normalizacion_lupa <- function(x, ...) {
   grafemas <- grafemas[orden]
   marcadores <- intToUtf8(0xF0000L + seq_along(grafemas), multiple = TRUE)
   colision <- rep(FALSE, length(textos))
+  # Los marcadores son puntos de uso privado, no ASCII, y en una celda ASCII un
+  # grafema protegido solo puede casar si tambien es ASCII; entonces se
+  # cambiaria por su marcador y volveria a ser el mismo al final, sin que nada
+  # en el medio lo vea. Las celdas ASCII quedan igual, y se dejan fuera.
+  no_ascii <- .mascara_no_ascii(textos, no_ascii)
+  if (!any(no_ascii)) {
+    return(list(textos = textos, marcadores = stats::setNames(marcadores, grafemas),
+                colision = colision))
+  }
+  todas <- all(no_ascii)
+  trabajo <- if (todas) textos else textos[no_ascii]
+  colision_trabajo <- rep(FALSE, length(trabajo))
   for (marcador in marcadores) {
-    colision <- colision | (!is.na(textos) &
-      grepl(marcador, textos, fixed = TRUE, useBytes = FALSE))
+    colision_trabajo <- colision_trabajo | (!is.na(trabajo) &
+      grepl(marcador, trabajo, fixed = TRUE, useBytes = FALSE))
   }
   for (i in seq_along(grafemas)) {
     # No proteger un prefijo de un grafema con marcas adicionales: por
@@ -512,7 +538,14 @@ print.normalizacion_lupa <- function(x, ...) {
              collapse = ""),
       "(?![\\x{0300}-\\x{0332}])"
     )
-    textos <- gsub(patron, marcadores[[i]], textos, perl = TRUE)
+    trabajo <- gsub(patron, marcadores[[i]], trabajo, perl = TRUE)
+  }
+  if (todas) {
+    colision <- colision_trabajo
+    textos <- trabajo
+  } else {
+    colision[no_ascii] <- colision_trabajo
+    textos[no_ascii] <- trabajo
   }
   list(textos = textos, marcadores = stats::setNames(marcadores, grafemas),
        colision = colision)
@@ -645,27 +678,38 @@ print.normalizacion_lupa <- function(x, ...) {
     salida <- .normalizacion_puntuacion_vector(salida)
   }
 
-  salida <- .normalizacion_reemplazar_tabla(salida)
+  # Las celdas no ASCII de aca contienen a las de cada paso siguiente: ningun
+  # paso vuelve no ASCII una celda ASCII. Los pasos que solo tocan caracteres no
+  # ASCII usan esta mascara en vez de recorrer la columna entera.
+  no_ascii <- .mascara_no_ascii(salida)
+  salida <- .normalizacion_reemplazar_tabla(salida, no_ascii)
   if (isTRUE(perfil$acentos)) {
-    protegidos <- .normalizacion_proteger_vector(salida, perfil)
+    protegidos <- .normalizacion_proteger_vector(salida, perfil, no_ascii)
     salida <- protegidos$textos
     lento <- lento | protegidos$colision
   } else {
     protegidos <- list(marcadores = character())
   }
 
-  if (isTRUE(perfil$acentos)) {
-    salida <- gsub("(*UTF)[\\x{0300}-\\x{0332}]", "", salida,
-                   perl = TRUE)
-  }
-  if (length(protegidos$marcadores)) {
-    for (grafema in names(protegidos$marcadores)) {
-      salida <- gsub(unname(protegidos$marcadores[[grafema]]), grafema,
-                     salida, fixed = TRUE, useBytes = FALSE)
-    }
+  # Las marcas combinantes y los marcadores de la proteccion no son ASCII: una
+  # celda ASCII no tiene nada que quitar ni que reponer.
+  if (isTRUE(perfil$acentos) || length(protegidos$marcadores)) {
+    salida <- .en_celdas_no_ascii(salida, function(trabajo) {
+      if (isTRUE(perfil$acentos)) {
+        trabajo <- gsub("(*UTF)[\\x{0300}-\\x{0332}]", "", trabajo,
+                        perl = TRUE)
+      }
+      if (length(protegidos$marcadores)) {
+        for (grafema in names(protegidos$marcadores)) {
+          trabajo <- gsub(unname(protegidos$marcadores[[grafema]]), grafema,
+                          trabajo, fixed = TRUE, useBytes = FALSE)
+        }
+      }
+      trabajo
+    }, no_ascii)
   }
   if (isTRUE(perfil$minusculas)) {
-    salida <- .normalizacion_minusculas(salida)
+    salida <- .normalizacion_minusculas(salida, no_ascii)
   }
   if (isTRUE(perfil$espacios)) {
     salida <- trimws(gsub("[[:space:]]+", " ", salida, perl = TRUE))
@@ -674,9 +718,12 @@ print.normalizacion_lupa <- function(x, ...) {
   # Dos o más marcas requieren el orden canónico estable; las comillas y los
   # pliegues optativos requieren el contexto de la implementación escalar.
   marcas <- "[\\x{0300}-\\x{0332}]"
-  complejas <- !is.na(salida) & grepl(
-    paste0("(*UTF)", marcas, ".*", marcas), salida, perl = TRUE
-  )
+  complejas <- rep(FALSE, length(salida))
+  if (any(no_ascii)) {
+    complejas[no_ascii] <- grepl(
+      paste0("(*UTF)", marcas, ".*", marcas), salida[no_ascii], perl = TRUE
+    )
+  }
   lento <- lento | complejas
   if (any(lento & no_na)) {
     indices <- which(lento & no_na)
@@ -752,7 +799,16 @@ print.normalizacion_lupa <- function(x, ...) {
   completo <- .normalizacion_aplicar(textos, perfil)
   n_completo <- length(unique(completo))
   pasos <- list()
+  # Sobre un vocabulario ASCII, acentos, ancho y ligaduras no pueden cambiar
+  # nada (es la misma razon de `.normalizacion_ascii_sin_cambios()`): sacar el
+  # paso da la misma normalizacion y funde cero valores. Se cuenta sin volver a
+  # normalizar el vocabulario entero.
+  ascii <- length(textos) >= .MIN_CELDAS_MASCARA_NO_ASCII && .es_ascii(textos)
   for (nombre in activos) {
+    if (ascii && nombre %in% c("acentos", "ancho", "ligaduras")) {
+      pasos[[nombre]] <- 0L
+      next
+    }
     sin_paso <- perfil
     sin_paso[[nombre]] <- FALSE
     sin_normalizar <- .normalizacion_aplicar(textos, sin_paso)

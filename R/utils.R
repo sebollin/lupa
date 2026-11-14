@@ -26,8 +26,62 @@
 # ordenado: hace falta la clave para pasarsela a `order()`.
 .es_ascii <- function(x) {
   if (!length(x)) return(TRUE)
-  !any(grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE),
-       na.rm = TRUE)
+  !any(.no_ascii(x), na.rm = TRUE)
+}
+
+# Que elementos traen algun byte fuera de ASCII, mirando los bytes y no los
+# caracteres: no traduce, no depende del locale, y un `NA` da FALSE. Una cadena
+# ASCII no puede llevar marca de codificacion -R no se la pone- ni contener
+# ningun caracter que no sea ASCII, asi que todo paso que solo mira o cambia
+# caracteres no ASCII (declarar UTF-8, plegar acentos, proteger grafemas) la
+# deja igual. Con esta mascara esos pasos recorren solo lo que pueden cambiar:
+# sobre una columna ASCII de 200.000 filas, declarar la codificacion costaba lo
+# mismo que si cada celda la necesitara, y se pedia decenas de veces por perfil.
+#
+# Por lo mismo, una cadena con marca (`UTF-8`, `latin1`, `bytes`) es no ASCII
+# sin mirarla, y los bytes se leen solo en las que no la tienen: despues de la
+# primera declaracion de una columna eso es casi siempre lo ASCII, y una columna
+# no ASCII ya declarada no paga la lectura.
+.no_ascii <- function(x) {
+  if (!is.character(x)) {
+    return(grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE))
+  }
+  salida <- Encoding(x) != "unknown"
+  sin_marca <- !salida
+  if (any(sin_marca)) {
+    salida[sin_marca] <- grepl(
+      "[^\\001-\\177]", if (all(sin_marca)) x else x[sin_marca],
+      useBytes = TRUE, perl = TRUE
+    )
+  }
+  salida
+}
+
+# Las celdas que tiene que recorrer un paso que solo lee o cambia caracteres no
+# ASCII: la mascara que llega -la de `.no_ascii()` o una que la contiene: una
+# celda de mas solo se recorre de mas-, o la de `.no_ascii()`. Con pocas celdas
+# se recorren todas, como antes: leer los bytes es otra llamada a PCRE, con un
+# costo fijo (unos 47 microsegundos en Windows) que en un vector chico pesa mas
+# que lo que ahorra, y sumaba llamadas de un solo valor donde no las habia.
+.MIN_CELDAS_MASCARA_NO_ASCII <- 64L
+.mascara_no_ascii <- function(textos, no_ascii = NULL) {
+  if (!is.null(no_ascii)) return(no_ascii)
+  if (length(textos) < .MIN_CELDAS_MASCARA_NO_ASCII) {
+    return(rep(TRUE, length(textos)))
+  }
+  .no_ascii(textos)
+}
+
+# Aplica `f` -un paso que solo lee o cambia caracteres no ASCII- a las celdas
+# con algun byte fuera de ASCII, y deja las demas como estan: sobre ellas el paso
+# no hace nada. `no_ascii`: ver `.mascara_no_ascii()`. Si la mascara las incluye
+# todas, `f` recibe el vector entero, como antes, sin copiarlo.
+.en_celdas_no_ascii <- function(textos, f, no_ascii = NULL) {
+  no_ascii <- .mascara_no_ascii(textos, no_ascii)
+  if (!any(no_ascii)) return(textos)
+  if (all(no_ascii)) return(f(textos))
+  textos[no_ascii] <- f(textos[no_ascii])
+  textos
 }
 
 # R representa un byte que no puede mostrar con su octal -`\\377`-, y esa es la

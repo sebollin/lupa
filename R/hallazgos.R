@@ -1348,11 +1348,22 @@
   # Arreglar un consumidor y dejar el otro es peor que no arreglar ninguno: la
   # nota que anuncia el arreglo pasa a ser cierta a medias.
   perfil_columna <- .normalizacion_para_columna(perfil, columna)
-  textos_comparados <- textos
-  textos_comparados[presentes] <- .normalizacion_aplicar(
-    textos[presentes], perfil_columna
+  # La normalizacion es valor a valor: se calcula una vez por forma distinta y
+  # se reparte a las filas. Normalizar cada fila repetia el trabajo tantas
+  # veces como se repite el valor -sobre una mezcla de 200.000 filas era el 40 %
+  # de este diagnostico-, y las formas normalizadas se reusan abajo para
+  # comparar.
+  presentes_texto <- textos[presentes]
+  formas_presentes <- unique(presentes_texto)
+  normalizadas_presentes <- .normalizacion_aplicar(
+    formas_presentes, perfil_columna
   )
-  largos_comparados <- .nchar_texto_seguro(textos_comparados[presentes])
+  textos_comparados <- textos
+  textos_comparados[presentes] <- normalizadas_presentes[
+    match(presentes_texto, formas_presentes)
+  ]
+  # El largo maximo es el mismo sobre las formas que sobre las filas.
+  largos_comparados <- .nchar_texto_seguro(normalizadas_presentes)
   largos_comparados <- largos_comparados[is.finite(largos_comparados)]
   # Un solo numero para las dos ramas. Antes, la que excluia publicaba el largo
   # comparado y la que no excluia publicaba el crudo: el mismo campo significaba
@@ -1394,8 +1405,7 @@
   # `method = "radix"` no es un detalle: el orden por omision depende de la
   # configuracion regional de la maquina, y eso cambiaria el resultado de una
   # computadora a otra. El radix ordena por bytes, igual en todas.
-  presentes_texto <- textos[presentes]
-  formas <- .ordenar_por_bytes(unique(presentes_texto))
+  formas <- .ordenar_por_bytes(formas_presentes)
   n_total <- length(formas)
   n_evaluados <- min(n_total, max_valores)
   crudos <- formas[seq_len(n_evaluados)]
@@ -1429,7 +1439,7 @@
     publicables[formas_mezcladas] <- crudos[formas_mezcladas]
   }
   frecuencias <- tabulate(posicion[!is.na(posicion)], nbins = n_evaluados)
-  normalizados <- .normalizacion_aplicar(crudos, perfil_columna)
+  normalizados <- normalizadas_presentes[match(crudos, formas_presentes)]
   clases <- match(normalizados, unique(normalizados))
   n_unidades <- max(clases, 0L)
   valores_norm <- unique(normalizados)

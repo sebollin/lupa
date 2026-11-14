@@ -68,7 +68,7 @@
     tryCatch(as.character(vacia), error = function(e) e), "error"
   )
 }
-.moda_columna <- function(x, claves = NULL) {
+.moda_columna <- function(x, claves = NULL, sobre = NULL) {
   validos <- !is.na(x)
   # Dos ausencias distintas, y la diferencia importa: sin valores validos la
   # frecuencia es cero porque se conto y no hay ninguno; sobre una columna de
@@ -151,7 +151,10 @@
       frecuencia = as.integer(frecuencias[[posicion]])
     ))
   }
-  por_bloques <- .moda_mapa_distintos(.mapa_distintos_bloques(x))
+  # `sobre`: el mapa de distintos de `x`, si quien llama ya lo armo.
+  por_bloques <- .moda_mapa_distintos(
+    if (is.null(sobre)) .mapa_distintos_bloques(x) else sobre
+  )
   if (!is.null(por_bloques)) return(por_bloques)
   valores <- x[validos]
   unicos <- unique(valores)
@@ -2772,6 +2775,27 @@
   codigos %in% .codigos_control_invisible_set
 }
 
+# Una expresion que casa los BYTES UTF-8 de cualquiera de esos puntos de codigo,
+# armada de los mismos conjuntos para que no haya una segunda lista que
+# mantener. Se aplica con `useBytes = TRUE`, que lee los bytes como los lee
+# `utf8ToInt()`: sin traducir y sin mirar la marca. En UTF-8 valido una
+# secuencia solo puede empezar en el borde de un caracter -los bytes de
+# continuacion no son nunca iniciales-, asi que casar los bytes es lo mismo que
+# encontrar el punto de codigo. El cero no entra: no hay cadenas con NUL.
+.patron_bytes_codigos <- function(codigos) {
+  codigos <- unique(as.integer(codigos[codigos > 0L]))
+  secuencias <- vapply(codigos, function(codigo) {
+    paste0("\\x", as.character(charToRaw(intToUtf8(codigo))), collapse = "")
+  }, character(1L))
+  paste0("(?:", paste0(secuencias, collapse = "|"), ")")
+}
+
+# Lo que miran las cinco preguntas de `.predicados_invisibles()`: los controles
+# e invisibles y los separadores de linea.
+.patron_bytes_predicados_invisibles <- .patron_bytes_codigos(c(
+  .codigos_control_invisible_set, .codigos_salto_linea_set
+))
+
 .predicados_invisibles <- function(textos, codificacion = NULL) {
   n <- length(textos)
   salida <- list(
@@ -2780,18 +2804,24 @@
     separador = rep(FALSE, n)
   )
   if (!n) return(salida)
-  # En ASCII imprimible no hay puntos Unicode ni controles que detectar. La
-  # comprobacion vectorizada conserva el contrato de esta funcion y evita una
-  # llamada a `utf8ToInt()` por valor en el camino caliente.
-  if (.es_ascii(textos) && !any(grepl(
-    "[\\x00-\\x1F\\x7F]", textos, useBytes = TRUE, perl = TRUE
-  ))) {
-    return(salida)
-  }
+  # Las cinco preguntas miran solo controles, invisibles y separadores de linea:
+  # una celda que no trae ninguno contesta que no a todas, y no hace falta
+  # decodificarla. Antes eso se decidia para la columna entera -si era ASCII
+  # imprimible-, y bastaba un caracter acentuado o un simbolo de moneda para que
+  # cada celda pasara por el bucle de abajo: decodificar, preguntar por mojibake
+  # con dos `grepl()` de un solo valor y comparar contra seis conjuntos.
+  # Medido: el 8 % de perfilar una tabla de importes con euros, y 286.363 de
+  # sus 287.286 llamadas a `grepl(perl = TRUE)` de un valor. Ahora se decide por
+  # celda, con la misma lectura de bytes que hace `utf8ToInt()`; una celda que
+  # no es UTF-8 valido decodifica a `NA` y tambien contestaba que no.
+  con_codigos <- which(grepl(
+    .patron_bytes_predicados_invisibles, textos, useBytes = TRUE, perl = TRUE
+  ))
+  if (!length(con_codigos)) return(salida)
   consumidos_por_celda <- .ftfy_posiciones_consumidas_vector(
     textos, codificacion = codificacion
   )
-  for (i in seq_len(n)) {
+  for (i in con_codigos) {
     texto <- textos[[i]]
     if (is.na(texto)) next
     # .texto_analizable() sanea los bytes UTF-8 inválidos antes de llegar
@@ -2891,7 +2921,15 @@
 
 .entidades_html_en_texto <- function(textos) {
   patron <- .PATRON_ENTIDAD_HTML
-  vapply(textos, function(texto) {
+  salida <- rep(FALSE, length(textos))
+  # Toda entidad empieza con `&`, y ese byte es el mismo en UTF-8, en latin1 y
+  # en lo declarado `bytes`, y no aparece dentro de ningun caracter de varios
+  # bytes: una celda sin el no puede traer una entidad. Preguntar celda por
+  # celda -declarar su codificacion, buscar la gramatica- era el 14 % de
+  # perfilar una tabla de importes sin un solo `&`.
+  con_ampersand <- which(grepl("&", textos, fixed = TRUE, useBytes = TRUE))
+  if (!length(con_ampersand)) return(salida)
+  salida[con_ampersand] <- vapply(textos[con_ampersand], function(texto) {
     if (is.na(texto)) return(FALSE)
     texto <- .texto_para_operar(texto)
     if (!validUTF8(texto)) return(FALSE)
@@ -2900,6 +2938,7 @@
     encontrados <- regmatches(texto, list(posiciones))[[1L]]
     any(vapply(encontrados, .entidad_html_valida, logical(1L)))
   }, logical(1L), USE.NAMES = FALSE)
+  salida
 }
 
 .entidad_html_valida <- function(entidad) {
@@ -3255,7 +3294,24 @@
   )
 }
 
-.n_distintos_columna <- function(x, claves = NULL, rapido = FALSE) {
+# El mapa de distintos de una columna que no es texto, para el conteo de
+# distintos y para la moda del perfil: los dos lo armaban por separado sobre el
+# mismo vector, con los mismos argumentos, y armarlo es casi un tercio de
+# perfilar mil filas por veinte columnas (un objeto por valor nuevo). Se arma
+# solo donde los dos lo usarian: un vector atomico con algun valor, que no es
+# texto ni `integer64` (la moda de `integer64` va por su propio camino). En
+# cualquier otro caso cada uno sigue con lo suyo.
+.mapa_identidad_columna <- function(x, claves = NULL) {
+  if (!is.null(claves) || is.character(x) || is.factor(x) ||
+      !is.atomic(x) || !is.null(dim(x)) || inherits(x, "integer64") ||
+      !any(!is.na(x))) {
+    return(NULL)
+  }
+  .mapa_distintos_bloques(x)
+}
+
+.n_distintos_columna <- function(x, claves = NULL, rapido = FALSE,
+                                 sobre = NULL) {
   validos <- tryCatch(!is.na(x), error = function(e) NULL)
   if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
   if (!any(validos)) return(0L)
@@ -3272,10 +3328,14 @@
   # pasada unica: intentar guardarlas como representantes del data.frame del
   # mapa puede expandirlas o hacerlas no construibles. La migracion solo toma
   # la via por bloques para las clases que esa representacion puede conservar.
-  sobre <- if (is.atomic(x) && is.null(dim(x))) {
-    .mapa_distintos_bloques(x)
-  } else {
-    NULL
+  # `sobre` es el mapa de distintos de `x` si quien llama ya lo armo: ver
+  # `.mapa_identidad_columna()`.
+  if (is.null(sobre)) {
+    sobre <- if (is.atomic(x) && is.null(dim(x))) {
+      .mapa_distintos_bloques(x)
+    } else {
+      NULL
+    }
   }
   if (!is.null(sobre) && identical(sobre$estado, "calculado")) {
     return(as.integer(nrow(sobre$resultado)))
@@ -3401,11 +3461,17 @@
   # Los centinelas que la traza publica salen de la mascara ya decidida, la
   # misma que cuenta: tambien dentro de `perfilar_por()`.
   faltantes_disfrazados <- .con_sentinelas_contados(faltantes_disfrazados)
+  declarados <- .sentinelas_numericos_declarados(sentinelas_numericos)
+  # Sin centinelas declarados no hay ninguna celda que coincida con uno: el
+  # conteo es cero sin volver a leer la columna. La segunda deteccion repetia
+  # entera la primera -declarar, plegar, leer cada numero- para contestar eso.
+  if (!length(declarados)) {
+    faltantes_disfrazados$n_numericos_declarados <- 0L
+    return(faltantes_disfrazados)
+  }
   faltantes_declarados <- .detectar_faltantes_disfrazados(
     x_analisis,
-    sentinelas_numericos = .sentinelas_numericos_declarados(
-      sentinelas_numericos
-    ),
+    sentinelas_numericos = declarados,
     detectar_sentinelas_numericos = TRUE, convencion = convencion
   )
   faltantes_declarados <- .restringir_disfrazados(
@@ -3534,7 +3600,10 @@
   claves_identidad <- if (is.character(x_identidad) || is.factor(x_identidad)) {
     .clave_bytes(x_identidad)
   } else NULL
-  n_distintos <- .n_distintos_columna(x_identidad, claves = claves_identidad)
+  sobre_identidad <- .mapa_identidad_columna(x_identidad, claves_identidad)
+  n_distintos <- .n_distintos_columna(
+    x_identidad, claves = claves_identidad, sobre = sobre_identidad
+  )
   vocabulario_texto <- if (
     (is.character(x_analisis_diagnostico) ||
        is.factor(x_analisis_diagnostico)) &&
@@ -3726,7 +3795,9 @@
       valores = valores_fecha
     )
   } else NULL
-  moda <- .moda_columna(x_identidad, claves = claves_identidad)
+  moda <- .moda_columna(
+    x_identidad, claves = claves_identidad, sobre = sobre_identidad
+  )
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(
     x_analisis_diagnostico, inferencia, formatos, meses_texto = meses_texto,

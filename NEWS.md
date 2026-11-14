@@ -81,6 +81,21 @@
   filas, en Linux, `perfilar()` pasa de 337 a 58 segundos con diez columnas de
   decimales con coma, de 538 a 139 con diez de importes y de 165 a 44 con una
   mezcla de listas, códigos e importes. Las respuestas no cambian.
+- Además, `perfilar()` ya no pregunta celda por celda lo que una celda ASCII
+  no puede contestar. Declarar la codificación, bajar a minúsculas las letras
+  acentuadas, la tabla de descomposición y la protección de `ñ` y `ü` recorren
+  sólo las celdas con algún carácter no ASCII; las entidades HTML se buscan sólo
+  donde hay un `&`, y los controles e invisibles sólo en las celdas que traen
+  alguno: antes bastaba un símbolo de moneda en la columna para que cada celda
+  pasara por su propia pregunta, unas 287.000 llamadas de un valor a
+  expresiones regulares sobre 200.000 importes, cada una con un costo fijo que
+  en Windows es de unos 47 microsegundos. El vocabulario de los casi duplicados
+  se normaliza una vez por valor distinto y no por fila, los faltantes
+  disfrazados se detectan una sola vez cuando no hay centinelas declarados, y
+  el conteo de distintos y la moda de una columna numérica comparten el mismo
+  mapa. Sobre las mismas tablas de 200.000 filas, en Linux, esto le quita un
+  37 % al tiempo con importes, un 25 % a la mezcla y un 8 % a los decimales, y
+  un 18 % a perfilar mil filas por veinte columnas. Las respuestas no cambian.
 
 ## Correcciones
 
