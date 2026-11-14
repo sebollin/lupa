@@ -40,7 +40,18 @@ La versión publicada se instala desde CRAN:
 install.packages("lupa")
 ```
 
-y la versión de desarrollo, desde GitHub:
+la versión de desarrollo, ya construida, desde
+[r-universe](https://sebollin.r-universe.dev/lupa):
+
+``` r
+
+install.packages(
+  "lupa",
+  repos = c("https://sebollin.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+o la misma versión de desarrollo, desde GitHub:
 
 ``` r
 

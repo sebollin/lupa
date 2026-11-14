@@ -142,7 +142,9 @@ quedan en `cobertura_podas` con motivo `columna_sin_permiso` o
 `columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—,
 y dos así parecerían relacionadas sin compartir un solo valor. Una
 columna de `orden` así deja la lectura sin `ORDER BY`, como la que no se
-puede escribir.
+puede escribir. Si el catálogo no contesta —un sinónimo, una tabla de
+otra base—, la tabla se lee como siempre y `meta$lecturas$motivo` lo
+declara: dos columnas enmascaradas se compararían como dato.
 
 **Los valores se leen como los lee
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).**

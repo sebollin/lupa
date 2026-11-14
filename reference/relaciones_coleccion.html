@@ -190,7 +190,10 @@ rechaza entero, y la columna no se nombra en ninguna consulta. Sus
 combinaciones quedan en <code>cobertura_podas</code> con motivo <code>columna_sin_permiso</code> o
 <code>columna_enmascarada</code>: una columna enmascarada lee la máscara —<code>xxxx</code>—, y dos
 así parecerían relacionadas sin compartir un solo valor. Una columna de
-<code>orden</code> así deja la lectura sin <code>ORDER BY</code>, como la que no se puede escribir.</p>
+<code>orden</code> así deja la lectura sin <code>ORDER BY</code>, como la que no se puede escribir.
+Si el catálogo no contesta —un sinónimo, una tabla de otra base—, la tabla se
+lee como siempre y <code>meta$lecturas$motivo</code> lo declara: dos columnas
+enmascaradas se compararían como dato.</p>
 <p><strong>Los valores se leen como los lee <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</strong> RPostgres entrega <code>0</code>
 en toda celda <code>money</code>, y <code>MIN</code>/<code>MAX</code> de una columna <code>money</code> también: la
 lectura de cada tabla y la consulta de rangos de la poda la leen convertida

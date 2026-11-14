@@ -725,7 +725,13 @@ conocida). Con odbc las consultas se ejecutan sin preparar
 consulta rechazada por un permiso de columna dejaría la conexión rota y
 la siguiente haría caer a R. Lo que el catálogo no ve —un sinónimo, una
 tabla de otra base, una tabla temporal— se intenta leer: el rechazo del
-motor se declara y la conexión sigue. Con enmascaramiento dinámico de
+motor se declara y la conexión sigue. Y como entonces no se sabe qué
+columnas llegan enmascaradas, una fila `degradado` de
+`resumen_tabla$cobertura` sobre la tabla lo declara —también si sólo
+falló la consulta de `sys.masked_columns`—, y
+`resumen_tabla$meta$permisos_sin_consultar` dice qué parte no contestó
+(`"columnas"` o `"mascaras"`): una columna enmascarada de esa tabla se
+mide como si la máscara fuera el valor. Con enmascaramiento dinámico de
 SQL Server (`MASKED WITH`, 2016+) y una credencial sin `UNMASK` sobre la
 columna o la base, el motor devuelve la máscara y no el dato. La
 completitud de esa columna se publica —los no nulos se cuentan con una

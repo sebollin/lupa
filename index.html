@@ -120,8 +120,14 @@
 <p>La versión publicada se instala desde CRAN:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
-<p>y la versión de desarrollo, desde GitHub:</p>
+<p>la versión de desarrollo, ya construida, desde <a href="https://sebollin.r-universe.dev/lupa" class="external-link">r-universe</a>:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span></span>
+<span>  <span class="st">"lupa"</span>,</span>
+<span>  repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://sebollin.r-universe.dev"</span>, <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>o la misma versión de desarrollo, desde GitHub:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Depende sólo de <a href="https://CRAN.R-project.org/package=cli" class="external-link"><code>cli</code></a> y <a href="https://CRAN.R-project.org/package=data.table" class="external-link"><code>data.table</code></a>. Los sugeridos habilitan capacidades acotadas:</p>
@@ -139,7 +145,7 @@
 <h2 id="id_-en-30-s">⏱ En 30 s<a class="anchor" aria-label="anchor" href="#id_-en-30-s"></a>
 </h2>
 <p><code>datos_operativos</code> viene con el paquete: 13 filas y 10 columnas con defectos sembrados. Se perfila con una llamada y se empieza por los hallazgos de severidad <code>error</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
@@ -157,7 +163,7 @@
 <span><span class="co">#&gt;    fecha_evento tipo_declarado_distinto sospechoso</span></span></code></pre></div>
 <p>Una <code>columna</code> en <code>&lt;NA&gt;</code> es un hallazgo de la tabla entera, como las filas duplicadas.</p>
 <p>Lo que no se pudo medir no desaparece. En esta tabla quedaron 9 diagnósticos sin evaluar, contando cada uno en cada columna donde no pudo correr: la búsqueda de valores atípicos, por ejemplo, necesita más valores de los que hay. <code>cobertura(perfil)</code> dice cuáles, en qué columna, por qué y cómo resolverlo:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>diagnostico <span class="op">=</span> <span class="fu"><a href="reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span><span class="op">$</span><span class="va">diagnostico</span><span class="op">)</span>, responseName <span class="op">=</span> <span class="st">"columnas"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;              diagnostico columnas</span></span>
 <span><span class="co">#&gt; 1               outliers        4</span></span>
@@ -284,7 +290,7 @@
 <code>error</code> dice que un control cruzó su criterio declarado. Es el único nivel que conviene usar como barrera automática, y sólo después de aceptar ese criterio.</li>
 </ul>
 <p>Con <code>clave</code>, cada hallazgo trae los valores que identifican sus filas, y el caso se busca en el sistema de origen sin abrir la tabla:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">con_clave</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="st">"id_evento"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: La clave declarada no es única: entre 13 filas con la clave completa, 1 repite su valor</span></span>
 <span><span class="co">#&gt; (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene</span></span>
@@ -395,7 +401,7 @@
 <h2 id="perfilar-una-base-qué-trae-a-r">Perfilar una base: qué trae a R<a class="anchor" aria-label="anchor" href="#perfilar-una-base-qu%C3%A9-trae-a-r"></a>
 </h2>
 <p><code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve dos bloques: <code>resumen_tabla</code>, con los agregados que el motor calcula por SQL, y <code>perfil_muestra</code>, el perfil por fila de lo que se lee a R. Por omisión los agregados usan toda la tabla y el perfil por fila intenta traer <strong>todas</strong> las filas que entran en los topes: no es una muestra barata.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"eventos"</span>, <span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="va">en_la_base</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"eventos"</span><span class="op">)</span></span>
@@ -465,7 +471,7 @@
 <div class="float">
 <img src="reference/figures/informe-html.png" alt="Comienzo del informe HTML autocontenido: advertencias de alcance, resumen del perfil y el principio de la tabla de hallazgos"><div class="figcaption">Comienzo del informe HTML autocontenido: advertencias de alcance, resumen del perfil y el principio de la tabla de hallazgos</div>
 </div>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">analisis</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/analizar.html">analizar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/reportar.html">reportar</a></span><span class="op">(</span><span class="va">analisis</span>, archivo <span class="op">=</span> <span class="st">"informe-lupa.html"</span><span class="op">)</span></span></code></pre></div>
 <p>La propuesta es una sugerencia: los dominios y los patrones aprendidos de la misma entrega se proponen inactivos y no se miden hasta que alguien los confirma. <code><a href="reference/persistir_analisis.html">guardar_analisis()</a></code> y <code><a href="reference/persistir_analisis.html">leer_analisis()</a></code> conservan el recorrido entero. La guía es <a href="https://sebollin.github.io/lupa/articles/explorar-columnas.html">Explorar columnas con <code>analizar()</code></a>.</p>
@@ -588,7 +594,7 @@
 <div class="section level2">
 <h2 id="cita-licencia-y-contribuciones">Cita, licencia y contribuciones<a class="anchor" aria-label="anchor" href="#cita-licencia-y-contribuciones"></a>
 </h2>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>En una instalación desde CRAN la cita lleva el DOI que CRAN le asigna al paquete, <a href="https://doi.org/10.32614/CRAN.package.lupa" class="external-link">10.32614/CRAN.package.lupa</a>. Cada versión queda además archivada en Zenodo: <a href="https://doi.org/10.5281/zenodo.24117753" class="external-link">10.5281/zenodo.24117753</a> resuelve siempre a la última, y cada versión tiene allí su propio DOI para citar una versión exacta.</p>
 <p>Las referencias conceptuales son <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini y Scannapieco (2016)</a>, el <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos" class="external-link">Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital v1.6</a> de AGESIC, el <a href="https://repositorio.cepal.org/handle/11362/47464" class="external-link">marco de aseguramiento de la calidad de CEA/CEPAL (2022)</a> e <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>

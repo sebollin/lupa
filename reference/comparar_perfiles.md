@@ -163,7 +163,10 @@ Un hallazgo que ya no aparece se informa como `resuelto` sólo si el
 diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice
 en su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado`
 con severidad `sospechoso`, porque no se sabe si el hallazgo sigue:
-dejar de mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo
+dejar de mirar no es lo mismo que arreglar. Una fila de esa cobertura
+sin columna declina el diagnóstico en toda la tabla, también en cada
+columna: un grupo de columnas iguales comparado con una entrega sin
+filas sale `no_evaluado`, no `resuelto`. Lo mismo si el perfil nuevo
 apagó el diagnóstico con su argumento o retiró la declaración que lo
 habilita, cosa que se lee en `meta`:
 `casi_duplicados_vocabulario = FALSE`, `ausencia_estructural = FALSE`,

@@ -205,7 +205,10 @@ credencial no puede leer, un objeto que no es una tabla base y una tabla
 vacía van a `cobertura_coleccion` con su motivo y su `como_resolverlo`.
 Un motor que rechaza un agregado —o una columna cuyo tipo no lo admite—
 va a `cobertura_metricas`, con una fila por columna y métrica, y deja
-además una línea de resumen en `cobertura_coleccion`. Esa cobertura por
+además una línea de resumen en `cobertura_coleccion`. Una tabla cuyo
+catálogo de permisos no contestó se perfila con la lectura de siempre y
+deja una fila de alcance `permisos_columnas`: si tiene columnas
+enmascaradas, sus métricas describen la máscara. Esa cobertura por
 métrica **se calcula antes de descartar el perfil**, así que existe
 también con `conservar_perfiles = FALSE`. En bases institucionales los
 permisos parciales son el caso normal, no el borde.
