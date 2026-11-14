@@ -318,8 +318,12 @@
   # No alcanza con `entero`: por la puerta DBI casi todo llega como `doble`, y
   # varios lectores de CSV tambien. La densidad solo se mide cuando todos los
   # valores son enteros, asi que el tipo de almacenamiento no aporta nada.
-  numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
-    as.character(fila$tipo_declarado) %in% c("entero", "doble")
+  # `integer64` es la tercera forma de guardar lo mismo, y `.resumen_secuencia_entera()`
+  # ya la mide: sin ella aca, `bit64::as.integer64(1:1000)` era numeracion solo
+  # por la via de la secuencia densa, y con huecos no lo era.
+  tipos_numericos <- c("entero", "doble", "integer64")
+  numerico <- as.character(fila$tipo_inferido) %in% tipos_numericos ||
+    as.character(fila$tipo_declarado) %in% tipos_numericos
   if (!isTRUE(numerico)) return(FALSE)
   # Densa no alcanza: una numeracion casi no repite valores, y una magnitud que
   # lleno su rango si. Es la regla de `.numeracion_sin_repetir_conteos()`, con
@@ -330,6 +334,22 @@
     fila$frecuencia_moda
   )) {
     return(FALSE)
+  }
+  # La secuencia densa -`secuencia_entera_densa`, densidad 0,8 y veinte
+  # distintos- con unicidad de 0,9 es el caso mas claro de numeracion, y es un
+  # caso de esta regla, no otra regla: era `identificador_secuencial`, que
+  # decidia `posible_identificador` y `tipo_declarado_distinto` por su cuenta.
+  # Las dos guardas de forma de abajo no la descartan: con el tramo lleno en un
+  # 80 %, un bloque de treinta numeros borrados abre un "salto de escala" (31
+  # contra un hueco tipico de 1) y un centinela pegado al tramo hace sobresalir
+  # la moda, pero ninguno de los dos puede quedar fuera de los limites de Tukey
+  # y la columna sigue siendo la numeracion que era. Medido: sin esta linea,
+  # `1:3159` con un bloque borrado perdia `posible_identificador` y recibia
+  # `desviacion_benford`.
+  if (isTRUE(fila$secuencia_entera_densa) &&
+      isTRUE(is.finite(fila$tasa_distintos) &&
+               fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR)) {
+    return(TRUE)
   }
   # Un centinela adentro hunde la densidad y abre el salto: un identificador de
   # 1 a 4000 con quince `9999` pasaba de densidad 0,625 a 0,250 y dejaba de
@@ -356,18 +376,43 @@
     isTRUE(is.finite(distintos) && distintos >= .MIN_DISTINTOS_NUMERACION)
 }
 
+# **Una sola respuesta a "es una numeracion?"** La contestaban cuatro reglas
+# dentro del mismo perfil, y no coincidian: `secuencia_entera_densa` (densidad
+# 0,8 y veinte distintos), su variante unica `identificador_secuencial` (que
+# apagaba `tipo_declarado_distinto`), `.parece_identificador_numerico()` (densidad
+# 0,5, cinco distintos, sin salto de escala, que apaga Tukey) y la condicion de
+# `posible_identificador`, que aceptaba cualquiera de ellas. Medido sobre
+# `as.character(sample(1:4557, 3159))`, densidad 0,693: el perfil la llamaba
+# identificador, proponia convertirla a numero y le marcaba `patron_raro` por
+# los valores de una cifra, que en una numeracion que arranca en 1 son su
+# comienzo y no un desvio. La misma columna sin huecos recibia solo el primero.
+#
+# Ahora decide `.parece_identificador_numerico()`, con sus guardas de cantidad y
+# de tipo, y esa respuesta (`numeracion`) es la que leen `posible_identificador`,
+# la exclusion de la conversion en `tipo_declarado_distinto` y los desvios de
+# `patron_raro` (`.perfilar_columna()`). `secuencia_entera_densa` sigue
+# publicada como medicion de cobertura del tramo, sin decidir si la columna es
+# un identificador; la numeracion densa y casi unica -lo que era
+# `identificador_secuencial`- es un caso de la numeracion, no una regla aparte,
+# y la evidencia de `posible_identificador` lo publica con
+# `secuencia_entera_densa=TRUE`.
+#
+# `posible_identificador` tiene ademas la otra puerta, que no es una numeracion:
+# el texto con forma de identificador -ceros a la izquierda, letras y digitos-
+# que `tipos.R` infiere como `identificador` con la misma unicidad de 0,9.
 .decision_identificador_numerico <- function(fila) {
-  parece <- .parece_identificador_numerico(fila)
+  numeracion <- .parece_identificador_numerico(fila)
   n_validos <- suppressWarnings(as.numeric(
     fila$n_aplicables - fila$n_faltantes
   ))
-  posible <- isTRUE(n_validos > 1) &&
-    (identical(as.character(fila$tipo_inferido), "identificador") ||
-       isTRUE(fila$secuencia_entera_densa) || parece) &&
-    (isTRUE(is.finite(fila$tasa_distintos) &&
-              fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR) ||
-       parece)
-  list(parece = parece, posible = posible)
+  forma_identificador <-
+    identical(as.character(fila$tipo_inferido), "identificador") &&
+    isTRUE(is.finite(fila$tasa_distintos) &&
+             fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR)
+  list(
+    parece = numeracion,
+    posible = isTRUE(n_validos > 1) && (numeracion || forma_identificador)
+  )
 }
 
 .cobertura_diagnosticos_vacia <- function() {
@@ -415,8 +460,11 @@
   }
 }
 
+# `largo_esperado` dice si la columna trae por construccion valores de todos los
+# largos de digitos -una numeracion o un tramo de enteros lleno-; ver el
+# llamado en `.perfilar_columna()`.
 .desvios_patron_raro_detectados <- function(patrones,
-                                            secuencia_entera_densa,
+                                            largo_esperado,
                                             umbral_patron_raro) {
   resumen <- attr(patrones, "resumen_patrones", exact = TRUE)
   if (is.null(resumen) || !is.data.frame(resumen) || !nrow(resumen)) {
@@ -432,7 +480,7 @@
     ])
   }
   raros <- unique(raros[!is.na(raros)])
-  if (isTRUE(secuencia_entera_densa) && length(raros)) {
+  if (isTRUE(largo_esperado) && length(raros)) {
     solo_largo <- .patrones_solo_largo_corrida_numerica(
       resumen$patron[[1L]], raros
     )
@@ -4853,6 +4901,11 @@
     # no era defendible era el motivo publicado, que nombraba una disyuncion de
     # tres condiciones sin decir cual, con dos de ellas falsas en esa salida. Eso
     # se arreglo en `benford.R`: ahora el motivo nombra el hecho.
+    #
+    # Dentro de la fila resumida la respuesta si es una: la de la guarda de
+    # Tukey, que tambien decide `tipo_declarado_distinto` y `patron_raro`. La
+    # condicion de aca aceptaba ademas una secuencia densa y unica que esa
+    # guarda rechazaba. Ver `.decision_identificador_numerico()`.
     decision_identificador <- .decision_identificador_numerico(fila)
     if (isTRUE(decision_identificador$posible)) {
       # Una numeracion puede ser casi unica -un identificador de fila- o
@@ -5265,9 +5318,12 @@
       ))
     }
 
-    identificador_secuencial <- isTRUE(fila$secuencia_entera_densa) &&
-      is.finite(fila$tasa_distintos) &&
-      fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR
+    # Una numeracion no es una magnitud que convertir: la misma respuesta que
+    # publico `posible_identificador` unas lineas arriba. Se exigia aca una
+    # numeracion densa y casi unica, otra regla, y un identificador con huecos
+    # -densidad 0,693- recibia a la vez "posible identificador" y "convertir a
+    # numero". Ver `.decision_identificador_numerico()`.
+    numeracion <- isTRUE(decision_identificador$parece)
     # Un codigo declarado en `columnas_codigo` y guardado como texto ya tiene su
     # tipo: el hallazgo pedia "convertir la columna de forma explicita" a numero,
     # que es la magnitud que la declaracion niega -`"006"` pierde el cero-.
@@ -5276,7 +5332,7 @@
         c("texto", "factor", "factor-ordenado") &&
       as.character(fila$tipo_inferido) %in% c("entero", "doble", "integer64")
     if (!.tipos_equivalentes(fila$tipo_declarado, fila$tipo_inferido) &&
-        fila$tipo_inferido != "desconocido" && !identificador_secuencial &&
+        fila$tipo_inferido != "desconocido" && !numeracion &&
         !codigo_en_texto) {
       # La proporcion compatible se calculaba, se imprimia en la evidencia y no
       # decidia nada: el hallazgo sugeria "convertir la columna" igual con 0,98

@@ -1465,8 +1465,23 @@
 #' estimaba siete. No es un desvío que ocultar: `orden`, `n_afectadas` y
 #' `n_cambiadas` se publican los tres, y compararlos es la forma de ver el
 #' efecto de la composición. Sólo el caso extremo —la acción no produce **ningún**
-#' efecto —también cuando el plan no trae una estimación válida— se registra
-#' como `fallida` con su motivo.
+#' efecto, también cuando el plan no trae una estimación válida— se registra
+#' como `fallida` con su motivo, salvo que una acción anterior del mismo plan ya
+#' haya hecho su trabajo: si la misma detección con que el plan contó la acción
+#' encontraba el problema en los datos que recibió `aplicar()` y ya no lo
+#' encuentra cuando a la acción le toca correr, la acción queda `ejecutada` con
+#' `n_cambiadas = 0` y sin `error`, y el resumen impreso no la cuenta entre las
+#' fallidas. Por ejemplo, `convertir_ausencias_textuales` (orden 100) vuelve
+#' ausentes las celdas en blanco y a `recortar_espacios` (orden 200) no le
+#' queda nada que recortar en ellas. Esa detección existe para las acciones de
+#' texto que el perfil cuenta con `n_espacios_borde`, `n_invisibles_eliminables`,
+#' `n_espacios_invisibles`, `n_entidades_html`, `n_separadores_en_campo` y
+#' `n_codificacion_reparable`: `recortar_espacios`,
+#' `eliminar_controles_invisibles`, `normalizar_espacios_invisibles`,
+#' `decodificar_entidades_html`, `reemplazar_separadores` y
+#' `reparar_codificacion`. Si el problema sigue en los datos y la acción no lo
+#' tocó, si nunca estuvo en los datos que recibió `aplicar()` —un plan aplicado
+#' a otra entrega— o si la acción no tiene esa detección, sigue `fallida`.
 #'
 #' **Esa comparación sólo lee composición cuando las dos cifras cuentan en la
 #' misma unidad.** `n_afectadas` cuenta en la `unidad_conteo` que el plan
@@ -5766,6 +5781,64 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   )
 }
 
+# Los campos del perfil con que el plan cuenta cada accion de texto
+# (`n_afectadas`): los publica `.diagnosticar_texto()`, y `aplicar()` vuelve a
+# correr esa misma deteccion para saber si el problema sigue en los datos.
+.CAMPOS_DETECCION_ACCION_TEXTO <- list(
+  recortar_espacios = "n_espacios_borde",
+  eliminar_controles_invisibles = "n_invisibles_eliminables",
+  normalizar_espacios_invisibles = "n_espacios_invisibles",
+  decodificar_entidades_html = "n_entidades_html",
+  reemplazar_separadores = "n_separadores_en_campo",
+  reparar_codificacion = c(
+    "n_codificacion_reparable", "n_codificacion_reparable_parcialmente"
+  )
+)
+
+# Cuantas celdas de `columna` cuenta, en `datos`, la deteccion con que el plan
+# conto la accion. `NA` si la estrategia no tiene esa deteccion o no se puede
+# medir: quien llama lo lee como "no se sabe".
+.conteo_deteccion_accion <- function(estrategia, datos, columna) {
+  campos <- .CAMPOS_DETECCION_ACCION_TEXTO[[estrategia]]
+  if (is.null(campos) || length(columna) != 1L || is.na(columna)) {
+    return(NA_real_)
+  }
+  indice <- tryCatch(.indice_columna(datos, columna), error = function(e) NULL)
+  if (is.null(indice)) return(NA_real_)
+  x <- datos[[indice]]
+  if (!is.character(x) && !is.factor(x)) return(NA_real_)
+  deteccion <- tryCatch(.diagnosticar_texto(x), error = function(e) NULL)
+  if (is.null(deteccion)) return(NA_real_)
+  conteos <- suppressWarnings(as.numeric(unlist(deteccion[campos])))
+  if (length(conteos) != length(campos) || anyNA(conteos)) return(NA_real_)
+  sum(conteos)
+}
+
+# **Sin efecto porque otra accion del plan ya hizo el trabajo.** Una accion que
+# no cambia nada se registraba `fallida` aunque el problema que la motivo ya no
+# estuviera: con 200 tablas de texto, el plan por omision dejaba
+# `normalizar_espacios_invisibles` fallida porque `eliminar_controles_invisibles`
+# ya habia dejado sus dos celdas sin espacio invisible que contar, y
+# `recortar_espacios` fallida porque `convertir_ausencias_textuales` ya habia
+# vuelto ausentes sus cinco celdas en blanco. Despues de aplicar el plan que el
+# paquete propuso, "fallida" decia que algo habia salido mal sobre datos
+# limpios.
+#
+# Cuenta como trabajo hecho solo si la misma deteccion con que el plan conto la
+# accion encontraba el problema en los datos que recibio `aplicar()` y ya no lo
+# encuentra cuando a la accion le toca correr. Si el problema sigue -la accion
+# no pudo con el- o nunca estuvo en estos datos -un plan aplicado a otra
+# entrega-, la accion sigue `fallida`. Una estrategia sin esa deteccion tambien:
+# no se afirma un trabajo hecho que no se puede medir.
+.problema_resuelto_por_el_plan <- function(accion, recibidos, actuales) {
+  estrategia <- as.character(accion$estrategia[[1L]])
+  columna <- as.character(accion$columna[[1L]])
+  if (is.null(.CAMPOS_DETECCION_ACCION_TEXTO[[estrategia]])) return(FALSE)
+  antes <- .conteo_deteccion_accion(estrategia, recibidos, columna)
+  if (!isTRUE(antes > 0)) return(FALSE)
+  isTRUE(.conteo_deteccion_accion(estrategia, actuales, columna) == 0)
+}
+
 .accion_modifica_clave <- function(accion, clave) {
   if (!length(clave)) return(FALSE)
   estrategia <- accion$estrategia[[1L]]
@@ -5936,7 +6009,12 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     }
     if (is.null(ejecutada$error)) {
       motivo_efecto <- .motivo_efecto_accion(accion, ejecutada)
-      if (!is.null(motivo_efecto)) ejecutada$error <- motivo_efecto
+      # Sin efecto porque una accion anterior ya resolvio el problema: queda
+      # `ejecutada` con cero cambios. Ver `.problema_resuelto_por_el_plan()`.
+      if (!is.null(motivo_efecto) &&
+          !.problema_resuelto_por_el_plan(accion, datos, estado_previo)) {
+        ejecutada$error <- motivo_efecto
+      }
     }
     fallo <- !is.null(ejecutada$error)
     if (!fallo) {

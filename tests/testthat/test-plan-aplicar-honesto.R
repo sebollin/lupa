@@ -46,16 +46,22 @@ test_that("la unidad del hallazgo viaja al plan y al modo guiado", {
   expect_equal(resultado$registro$estado, "ejecutada")
 })
 
-test_that("un efecto nulo no se registra como ejecutado", {
-  # El marcador es `N/A` y no `NA`, y eso no es cosmetico. Esta prueba mide que
-  # una accion SIN EFECTO se registre `fallida`; el marcador es solo el
-  # mecanismo: la conversion de ausencias lo vuelve `NA` primero y asi al
-  # recorte no le queda nada que hacer. Desde que `NA` se trata como un valor
-  # que podria ser legitimo -es el codigo de Namibia, ver
-  # `test-O02-confirmar-dominio.R`- esa conversion ya no se aplica sola sobre
-  # `NA`, y el mecanismo dejaba de funcionar aunque la promesa siguiera
-  # intacta. `N/A` lleva puntuacion, nadie lo escribe como dato, y se sigue
-  # aplicando solo.
+test_that("un recorte que otra accion del plan dejo sin trabajo no es una falla", {
+  # Esta prueba pedia `fallida` para este mismo caso: la usaba como mecanismo
+  # para obtener una accion sin efecto. La conversion de ausencias vuelve `NA`
+  # el `" N/A "` primero, y al recorte no le queda nada que hacer. Pero aca no
+  # fallo nada: los datos quedan limpios y el problema que motivo el recorte ya
+  # no esta cuando le toca correr. Registrarla `fallida` le decia al usuario que
+  # el plan que el paquete le propuso habia salido mal. Ahora queda `ejecutada`
+  # con cero cambios. La promesa de fondo, que una accion que no hizo nada no se
+  # disfrace de exito, sigue en pie donde el problema sigue en los datos o
+  # nunca estuvo: la prueba siguiente (datos ya limpios) y
+  # `test-aplicar-trabajo-ya-hecho.R`.
+  #
+  # El marcador es `N/A` y no `NA`: desde que `NA` se trata como un valor que
+  # podria ser legitimo -el codigo de Namibia, ver
+  # `test-O02-confirmar-dominio.R`- la conversion ya no se aplica sola sobre
+  # `NA`. `N/A` lleva puntuacion, nadie lo escribe como dato, y se aplica solo.
   datos <- data.frame(x = c(" N/A ", NA, "x"), stringsAsFactors = FALSE)
   plan <- planificar_limpieza(perfilar(datos, proteger_datos_personales = TRUE), datos)
   resultado <- aplicar(plan, datos)
@@ -63,8 +69,9 @@ test_that("un efecto nulo no se registra como ejecutado", {
 
   expect_true(any(recorte))
   expect_equal(resultado$registro$n_cambiadas[recorte], 0)
-  expect_equal(resultado$registro$estado[recorte], "fallida")
-  expect_match(resultado$registro$error[recorte], "sin efecto")
+  expect_equal(resultado$registro$estado[recorte], "ejecutada")
+  expect_true(is.na(resultado$registro$error[recorte]))
+  expect_false(any(resultado$registro$estado == "fallida"))
   expect_true(all(is.na(resultado$datos$x[1:2])))
 })
 

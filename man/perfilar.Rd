@@ -1887,9 +1887,23 @@ cumple también una magnitud entera acotada cuando se cargan filas
 suficientes, y con esa condición sola el veredicto dependería de cuántas
 filas se leyeron; una
 numeración que se repite —un código de catálogo, una clave foránea— no se
-distingue por su forma de esa magnitud y no se trata como numeración. Es la
-misma regla que deciden \code{posible_identificador}, la guarda de los límites de
-Tukey, la de los patrones raros y la de Benford. Por eso un código de
+distingue por su forma de esa magnitud y no se trata como numeración. Esa
+condición de no repetirse es la misma en todas las reglas de numeración del
+perfil, y dentro de la fila la pregunta «¿es una numeración?» tiene una sola
+respuesta: una columna de enteros —guardada como entero, doble, \code{integer64}
+o texto que se lee número— que cubre al menos la mitad del tramo entre su
+mínimo y su máximo con cinco valores distintos o más, casi sin repetirse y
+sin un salto de escala ni una moda que sobresalga, o una secuencia \code{densa}
+con al menos un 90 \% de valores distintos. Esa respuesta publica
+\code{posible_identificador}, apaga los límites de Tukey, hace que
+\code{tipo_declarado_distinto} no proponga convertir la columna a número y que
+\code{patron_raro} no cuente como desvío a los valores que sólo difieren del
+dominante en la cantidad de cifras —los \code{1} a \code{9} de una numeración que
+arranca en 1—; esto último vale también para una secuencia \code{densa} que no
+es numeración, porque un tramo lleno trae todos los largos. Benford la usa
+como una de sus razones para excluir una columna. \code{secuencia_entera_densa}
+mide la cobertura del tramo y no decide sola si la columna es un
+identificador. Por eso un código de
 catálogo que se repite —un \code{EstCod} de 1 a 284— recibe límites de Tukey y,
 con tres órdenes de magnitud, Benford, aunque se lo pase como texto o como
 factor: el paquete infiere número. Para eso está \code{columnas_codigo}.

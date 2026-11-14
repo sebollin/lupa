@@ -138,8 +138,23 @@ ausentes, \code{winsorizar_outliers} (orden 520) recorta dos valores donde el pl
 estimaba siete. No es un desvío que ocultar: \code{orden}, \code{n_afectadas} y
 \code{n_cambiadas} se publican los tres, y compararlos es la forma de ver el
 efecto de la composición. Sólo el caso extremo —la acción no produce \strong{ningún}
-efecto —también cuando el plan no trae una estimación válida— se registra
-como \code{fallida} con su motivo.
+efecto, también cuando el plan no trae una estimación válida— se registra
+como \code{fallida} con su motivo, salvo que una acción anterior del mismo plan ya
+haya hecho su trabajo: si la misma detección con que el plan contó la acción
+encontraba el problema en los datos que recibió \code{aplicar()} y ya no lo
+encuentra cuando a la acción le toca correr, la acción queda \code{ejecutada} con
+\code{n_cambiadas = 0} y sin \code{error}, y el resumen impreso no la cuenta entre las
+fallidas. Por ejemplo, \code{convertir_ausencias_textuales} (orden 100) vuelve
+ausentes las celdas en blanco y a \code{recortar_espacios} (orden 200) no le
+queda nada que recortar en ellas. Esa detección existe para las acciones de
+texto que el perfil cuenta con \code{n_espacios_borde}, \code{n_invisibles_eliminables},
+\code{n_espacios_invisibles}, \code{n_entidades_html}, \code{n_separadores_en_campo} y
+\code{n_codificacion_reparable}: \code{recortar_espacios},
+\code{eliminar_controles_invisibles}, \code{normalizar_espacios_invisibles},
+\code{decodificar_entidades_html}, \code{reemplazar_separadores} y
+\code{reparar_codificacion}. Si el problema sigue en los datos y la acción no lo
+tocó, si nunca estuvo en los datos que recibió \code{aplicar()} —un plan aplicado
+a otra entrega— o si la acción no tiene esa detección, sigue \code{fallida}.
 
 \strong{Esa comparación sólo lee composición cuando las dos cifras cuentan en la
 misma unidad.} \code{n_afectadas} cuenta en la \code{unidad_conteo} que el plan

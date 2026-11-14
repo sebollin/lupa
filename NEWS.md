@@ -89,6 +89,23 @@
   tenían una cantidad de valores que las del otro no tenían (`"12, 15, 18"` con
   `"16; 17"`). Ahora publica `celdas_multivaluadas` con los dos delimitadores y
   cuántas celdas tienen cada cantidad de valores.
+- Un identificador numérico con huecos, como 3.159 valores entre 1 y 4.557
+  guardados como texto, recibía a la vez `posible_identificador`,
+  `tipo_declarado_distinto` (con la propuesta de convertirlo a número) y
+  `patron_raro` por sus valores de una cifra; el mismo identificador sin huecos
+  recibía sólo el primero. Dentro del perfil, la pregunta «¿es una numeración?»
+  tiene ahora una sola respuesta, la misma que deja a una numeración fuera de
+  los límites de Tukey: con ella sale `posible_identificador`, no se propone la
+  conversión a número y los valores de una cifra no son un patrón raro. Una
+  numeración guardada como `integer64` se reconoce igual que guardada como
+  doble.
+- `aplicar()` registra como `ejecutada`, con `n_cambiadas = 0` y sin `error`, una
+  acción de texto que no cambia nada porque una acción anterior del mismo plan
+  ya resolvió el problema que la motivó, como `recortar_espacios` después de que
+  `convertir_ausencias_textuales` vació sus celdas. El resumen impreso no la
+  cuenta entre las fallidas. Antes quedaba `fallida` aunque los datos quedaran
+  limpios. Si el problema sigue en los datos, o nunca estuvo en los que recibe
+  `aplicar()`, la acción sigue `fallida`.
 - `planificar_limpieza()`: una conversión de tipo (`convertir_tipo`,
   `convertir_numero_regional`, `convertir_fecha_confirmada`) sobre una columna
   con `aplicabilidad` o declarada en `columnas_opcionales` anuncia en

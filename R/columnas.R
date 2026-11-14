@@ -3714,10 +3714,8 @@
   secuencia_entera <- .resumen_secuencia_entera(
     x_analisis_diagnostico, inferencia, formatos
   )
-  attr(patrones, "desvios_patron_raro") <-
-    .desvios_patron_raro_detectados(
-      patrones, secuencia_entera$densa, umbral_patron_raro
-    )
+  # Los desvios de `patron_raro` se deciden cuando la fila ya esta armada, mas
+  # abajo: la numeracion se lee de ella.
   # La mascara se calcula en UNA funcion, que tambien usa `detectar_claves()`.
   faltantes_disfrazados <- .faltantes_disfrazados_columna(
     x_analisis_diagnostico, inferencia, formatos, secuencia_entera,
@@ -3988,6 +3986,22 @@
     numero_texto_moneda = numeros_texto$moneda,
     numero_texto_convencion = numeros_texto$convencion,
     stringsAsFactors = FALSE
+  )
+  # En una numeracion que arranca en 1 los valores de una cifra son su comienzo:
+  # que difieran del dominante solo en el largo de la corrida de digitos no es un
+  # desvio. Lo decidia solo `secuencia_entera_densa`, y un identificador con
+  # huecos -`sample(1:4557, 3159)`, densidad 0,693- recibia `patron_raro` al
+  # lado de `posible_identificador`. Ahora lo decide tambien la numeracion, la
+  # misma respuesta de `.decision_identificador_numerico()` que publica
+  # `posible_identificador`. La cobertura densa sigue alcanzando por si sola: un
+  # tramo lleno sin repetir trae todos los largos por construccion, sea o no un
+  # identificador -`c(1:2000, rep(500, 500))` no es numeracion por la moda que
+  # sobresale y sus `1` a `9` tampoco son desvios-.
+  attr(patrones, "desvios_patron_raro") <- .desvios_patron_raro_detectados(
+    patrones,
+    isTRUE(secuencia_entera$densa) ||
+      isTRUE(.decision_identificador_numerico(fila)$parece),
+    umbral_patron_raro
   )
 
   list(
