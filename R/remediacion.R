@@ -1591,7 +1591,10 @@
 #' la celda: sus letras rotas quedan como están. Los controles que la
 #' reparación deja como están, como un U+0081 suelto o un guion blando fuera de
 #' una letra rota, se diagnostican y se quitan, también en una celda con
-#' mojibake. El perfil cuenta un invisible sólo donde la acción puede quitarlo.
+#' mojibake, salvo que quitarlos vuelva reparable la celda: entonces la acción
+#' la deja como está, para que el resultado no dependa de si corre antes o
+#' después de `reparar_codificacion`. El perfil cuenta un invisible sólo donde
+#' la acción puede quitarlo.
 #' Una celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
 #' son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja [read.csv()]
 #' sin `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no la
@@ -4108,6 +4111,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   reparado_protegido <- .reparar_textos_seleccionados(protegido, tocar)
   diferencias <- .celdas_cambiadas(reparado_protegido, accion_reparada)
   if (any(diferencias)) {
+    # Una celda que la reparacion no puede tocar se deja a la accion: su
+    # control genuino se quita. Salvo que quitarlo la vuelva reparable: es la
+    # misma regla que para una celda nueva (`.accion_fabrica_secuencia()`), y
+    # sin ella "Mar" + U+0081 + "\u00c3\u00ada" daba otra cosa segun la accion
+    # corriera antes o despues de la reparacion.
     revertir <- vapply(which(diferencias), function(i) {
       j <- match(i, indices)
       if (isTRUE(proteger_conmutacion)) {
@@ -4115,7 +4123,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
           (!identical(
             .texto_para_operar(reparado[[i]]),
             .texto_para_operar(anterior[[i]])
-          ) || isTRUE(nuevas[[j]]))
+          ) || isTRUE(nuevas[[j]]) ||
+            .accion_fabrica_secuencia(anterior[[i]], protegido[[i]]))
       } else {
         FALSE
       }

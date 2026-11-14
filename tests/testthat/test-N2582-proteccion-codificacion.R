@@ -159,8 +159,13 @@ test_that("la evidencia de codificacion usa ejemplos distintos y un motivo ciert
 })
 
 test_that("la reparacion parcial queda lista y se puede seleccionar", {
+  # Una reparacion parcial verdadera: el signo de grado pegado delante impide
+  # reparar la primera letra rota y la segunda se repara. El ejemplo era un
+  # espacio duro suelto en el mismo lugar, que ahora se aparta y la celda se
+  # repara entera. Si el motor aprende a reparar entera tambien esta, hay que
+  # buscar otra parcial.
   parcial <- paste0(
-    "a", intToUtf8(0xA0L), intToUtf8(c(0xC3L, 0xA9L)),
+    "a", intToUtf8(0xB0L), intToUtf8(c(0xC3L, 0xA9L)),
     "l", intToUtf8(c(0xC3L, 0xA8L)), "ve"
   )
   datos <- data.frame(txt = parcial, stringsAsFactors = FALSE)
@@ -231,17 +236,22 @@ test_that("el plan cuenta lo que cada accion de texto puede cambiar junto a una 
       entra = paste0(" ", u(0xC2L, 0xADL, 0xD8L), "l|"),
       sale = paste0(u(0xC2L, 0xADL, 0xD8L), "l|")
     ),
-    # Un guion blando genuino delante de una comilla rota: quitarlo vuelve
-    # reparable la comilla, y la accion cruda le quitaba ademas su ultimo punto.
+    # Un guion blando genuino delante de una comilla rota. Quitarlo volvia
+    # reparable la comilla; ahora el guion blando suelto se aparta y la
+    # reparacion es la misma con el o sin el, asi que la proteccion no lo
+    # retiene y la accion lo quita. La comilla rota queda como estaba y sigue
+    # senalada, que es lo que el bloque comprueba despues.
     control_y_comilla = list(
       entra = paste0(u(0xADL, 0xE2L, 0x20ACL, 0x9DL), "&amp; ", u(0xC3L, 0xBCL)),
-      sale = paste0(u(0xADL, 0xE2L, 0x20ACL, 0x9DL), "&amp; ", u(0xC3L, 0xBCL))
+      sale = paste0(u(0xE2L, 0x20ACL, 0x9DL), "&amp; ", u(0xC3L, 0xBCL))
     ),
-    # Un espacio duro delante de dos letras rotas: normalizarlo cambia cuantas
-    # se reparan.
+    # Un espacio duro delante de dos letras rotas. Normalizarlo cambiaba
+    # cuantas se reparaban; ahora el espacio duro suelto ya no cambia lo que se
+    # repara, la proteccion no lo retiene y la accion lo normaliza. Las letras
+    # rotas quedan como estaban y siguen senaladas.
     espacio_duro = list(
       entra = paste0("a", u(0xA0L, 0xC5L, 0xBEL), "i", u(0xC5L, 0xBEL), "ek"),
-      sale = paste0("a", u(0xA0L, 0xC5L, 0xBEL), "i", u(0xC5L, 0xBEL), "ek")
+      sale = paste0("a ", u(0xC5L, 0xBEL), "i", u(0xC5L, 0xBEL), "ek")
     ),
     # El espacio del borde es lo que deja reconocer la letra rota: recortado,
     # la celda deja de estar senalada.
@@ -254,10 +264,12 @@ test_that("el plan cuenta lo que cada accion de texto puede cambiar junto a una 
       sale = paste0(" ", u(0xC2L, 0xA5L), "\nXT")
     ),
     # Un espacio duro delante de unas comillas rotas, la de cierre con un C1.
+    # Como en el caso anterior, el espacio duro suelto ya no cambia lo que se
+    # repara y la accion lo normaliza; las comillas rotas quedan como estaban.
     comillas_y_espacio_duro = list(
       entra = paste0("a", u(0xA0L, 0xE2L, 0x20ACL, 0x153L), "hola",
                      u(0xE2L, 0x20ACL, 0x9DL)),
-      sale = paste0("a", u(0xA0L, 0xE2L, 0x20ACL, 0x153L), "hola",
+      sale = paste0("a ", u(0xE2L, 0x20ACL, 0x153L), "hola",
                     u(0xE2L, 0x20ACL, 0x9DL))
     )
   )

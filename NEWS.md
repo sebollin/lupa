@@ -310,6 +310,30 @@
   `eliminar_controles_invisibles`. La protección reconoce un byte de
   continuación también como el carácter que Windows-1252 pone en su lugar (`€`
   por `0x80`). Era uno de los dos casos que la 0.1.1 declaraba sin cubrir.
+- Un espacio duro o un guion blando agregados después de la mala conversión
+  —el `&nbsp;` de una página web delante, detrás o entre palabras rotas— ya no
+  impiden reparar la celda entera. Con un espacio duro delante, «Şanlıurfa»
+  mal leída quedaba con la `Ş` rota, el registro decía `reparado` y el perfil
+  siguiente ya no la señalaba; ahora sale entera, como con un espacio común.
+- Texto bien escrito que la heurística tomaba por mojibake deja de señalarse y
+  de «repararse»: una palabra en mayúsculas terminada en `Ã` antes de un
+  espacio duro o de un signo que la volvería minúscula («IRMÃ» + espacio duro
+  + «DE» salía «IRMàDE»), y un ordinal antes de una comilla («3º”», «1º»»),
+  que además dejaba la celda protegida y su espacio duro sin normalizar. Una
+  mayúscula que sale de una comilla tipográfica («IRMÃ”» → «IRMÔ») se sigue
+  reparando: es también el mojibake de «AVÔ».
+- La «ŭ» y la «ĭ» leídas como `Å` o `Ä` más un guion blando, detrás de una
+  minúscula («ankaŭ»), se reconocen, se protegen de las acciones de invisibles
+  y se reparan. Sigue sin cubrir el otro caso que la 0.1.1 declaraba: «Š»
+  leída como `Å` más un espacio duro (y «Ġ», «Ơ»), porque «Å» + espacio duro +
+  una palabra es también noruego o sueco bien escrito.
+- Las acciones de invisibles ya no vuelven reparable, por su cuenta, una celda
+  que la reparación no puede tocar: quitar un control C1 suelto pegado a una
+  letra rota («Mar» + U+0081 + «Ã» + guion blando + «a») cambiaba el resultado
+  según la acción corriera antes o después de `reparar_codificacion`. Ahora la
+  celda queda como está y sigue señalada, y el plan no ofrece la acción por
+  ella. La 0.1.1 decía que esos controles se siguen quitando: se quitan salvo
+  en ese caso.
 - El plan cuenta, para cada acción de texto, las filas que la acción puede
   cambiar. Donde quitar un invisible o recortar el borde cambia lo que la
   reparación reconoce, la celda no se cuenta y la acción no se ofrece por ella,

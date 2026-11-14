@@ -263,7 +263,10 @@ perfil siguiente la sigue encontrando. Lo mismo si el motor no puede reparar
 la celda: sus letras rotas quedan como están. Los controles que la
 reparación deja como están, como un U+0081 suelto o un guion blando fuera de
 una letra rota, se diagnostican y se quitan, también en una celda con
-mojibake. El perfil cuenta un invisible sólo donde la acción puede quitarlo.
+mojibake, salvo que quitarlos vuelva reparable la celda: entonces la acción
+la deja como está, para que el resultado no dependa de si corre antes o
+después de \code{reparar_codificacion}. El perfil cuenta un invisible sólo donde
+la acción puede quitarlo.
 Una celda cuyo texto no se puede leer —declarada \code{bytes} con bytes que no
 son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja \code{\link[=read.csv]{read.csv()}}
 sin \code{fileEncoding} sobre un archivo latin1— no se transforma: el perfil no la
