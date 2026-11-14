@@ -24,6 +24,12 @@ options(width = 90)
 ## ---- instalar
 install.packages("lupa")
 
+## ---- instalar-runiverse
+install.packages(
+  "lupa",
+  repos = c("https://sebollin.r-universe.dev", "https://cloud.r-project.org")
+)
+
 ## ---- instalar-desarrollo
 # install.packages("pak")
 pak::pak("sebollin/lupa")

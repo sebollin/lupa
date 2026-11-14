@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use lupa, please cite it as below."
 type: software
-title: "lupa: Data Profiling and Quality Measurement"
+title: "lupa: Data Profiling and Quality Measurement for Tables and Databases"
 abstract: >-
   Profiles tabular data and measures its quality. Discovers structural
   patterns, implicit types, mixed date formats and reusable findings about

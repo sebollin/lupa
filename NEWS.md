@@ -70,6 +70,11 @@
   README lo dicen junto al DOI de Zenodo.
 - La portada del sitio vuelve a ser la misma que el README en castellano: le
   faltaban las insignias de CRAN y de Zenodo y la frase del DOI de Zenodo.
+- El título del paquete dice que perfila tablas y bases de datos: «Data
+  Profiling and Quality Measurement for Tables and Databases». La cita
+  (`citation("lupa")` y `CITATION.cff`) lleva el mismo.
+- Los dos README muestran también la instalación de la versión de desarrollo
+  desde r-universe, ya construida, además de la de GitHub.
 
 ## Rendimiento
 

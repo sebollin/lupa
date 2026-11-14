@@ -72,7 +72,13 @@ La versión publicada se instala desde CRAN:
 ```{r instalar, eval = FALSE}
 ```
 
-y la versión de desarrollo, desde GitHub:
+la versión de desarrollo, ya construida, desde
+[r-universe](https://sebollin.r-universe.dev/lupa):
+
+```{r instalar-runiverse, eval = FALSE}
+```
+
+o la misma versión de desarrollo, desde GitHub:
 
 ```{r instalar-desarrollo, eval = FALSE}
 ```

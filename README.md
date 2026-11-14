@@ -58,7 +58,17 @@ Install the released version from CRAN:
 install.packages("lupa")
 ```
 
-or the development version from GitHub:
+the development version, already built, from
+[r-universe](https://sebollin.r-universe.dev/lupa):
+
+``` r
+install.packages(
+  "lupa",
+  repos = c("https://sebollin.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+or the same development version from GitHub:
 
 ``` r
 # install.packages("pak")

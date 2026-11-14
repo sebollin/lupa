@@ -12,13 +12,13 @@ doi_cran <- if (identical(meta$Repository, "CRAN")) {
 
 bibentry(
   bibtype = "Manual",
-  title = "lupa: Data Profiling and Quality Measurement",
+  title = "lupa: Data Profiling and Quality Measurement for Tables and Databases",
   author = person("Sebastián", "Lucas"),
   year = "2026",
   note = paste("R package version", meta$Version),
   doi = doi_cran,
   textVersion = paste0(
-    "Lucas S (2026). lupa: Data Profiling and Quality Measurement. ",
+    "Lucas S (2026). lupa: Data Profiling and Quality Measurement for Tables and Databases. ",
     "R package version ", meta$Version, ".",
     if (!is.null(doi_cran)) paste0(" doi:", doi_cran, ".")
   )
