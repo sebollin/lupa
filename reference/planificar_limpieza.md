@@ -131,6 +131,17 @@ declara la acción cuando cuenta en una unidad propia, y sólo si no lo
 hace se hereda del hallazgo—. El registro informa `n_cambiadas` sobre
 los datos recibidos.
 
+Con un universo declarado, `n_afectadas` también cuenta lo que la acción
+va a cambiar. Las acciones por celda no tocan las filas que
+`aplicabilidad` deja fuera, y tampoco las cuentan. Una conversión de
+tipo cambia la columna entera —una columna tiene un solo tipo—, así que
+cuenta todos sus valores presentes: los del universo, los de fuera y los
+de las filas donde la regla no se pudo decidir. Las celdas vacías no se
+cuentan: fuera del universo están vacías por diseño, y en una columna de
+`columnas_opcionales` el universo son justamente las celdas con valor.
+Aplicada sola sobre los datos del perfil, la conversión registra en
+`n_cambiadas` lo que anunció.
+
 **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son
 ciertas.** La estimación se calcula sobre los datos que se perfilaron;
 el registro cuenta lo que pasó al aplicar. Si una acción anterior del

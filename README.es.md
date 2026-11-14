@@ -4,6 +4,8 @@ Perfilado y medición de calidad de datos con evidencia. Cada resultado
 declara su alcance y lo que no pudo medir.
 
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![Cobertura de las
+pruebas](https://codecov.io/gh/sebollin/lupa/graph/badge.svg)](https://app.codecov.io/gh/sebollin/lupa)
 [![CI de
 motores](https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&label=CI%20de%20motores)](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)
 [![Estado en
