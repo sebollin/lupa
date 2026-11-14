@@ -1569,10 +1569,20 @@
 #' con coma decimal, `12.500` se convierte en doce mil quinientos.
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
-#' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial —una celda que
-#' el motor repara sólo en parte— no se activa automáticamente: la acción queda
-#' `lista` con `aplicar = FALSE`, y se selecciona de forma explícita marcando
-#' `aplicar = TRUE`; entonces se aplican también las parciales. Una celda sin
+#' `reparado_parcialmente` o `no_se_pudo`: el de lo que la acción, tal como sale
+#' del plan, va a cambiar. Una reparación parcial —una celda que el motor repara
+#' sólo en parte— no se aplica automáticamente, pero tampoco frena la de las
+#' celdas que se reparan enteras. En una columna sin parciales, la acción sale
+#' activa —si nada más lo impide— y repara todas las celdas que el motor
+#' repara. En una columna con parciales y con celdas que se reparan enteras, la
+#' acción también sale activa, con `aplicar_parciales = FALSE` en
+#' `parametros`: repara las enteras, deja las
+#' parciales como están, `n_afectadas` cuenta sólo las enteras y la
+#' justificación dice cuántas parciales quedan; para aplicarlas también, se pone
+#' `aplicar_parciales = TRUE` en `parametros`. En una columna que sólo tiene
+#' parciales, la acción queda `lista` con `aplicar = FALSE` y
+#' `aplicar_parciales = TRUE`, y se selecciona de forma explícita marcando
+#' `aplicar = TRUE`; entonces se aplican las parciales. Una celda sin
 #' reparación local —con el carácter de reemplazo U+FFFD, o que el motor no
 #' pudo reparar— no frena la de las demás: queda como está y la justificación
 #' de la acción la cuenta. La estrategia se llama `reparar_codificacion` y no
@@ -2277,22 +2287,59 @@ planificar_limpieza <- function(perfil, datos = NULL,
       }
       n_parciales <- if (parcial && !is.na(n_parciales)) n_parciales else 0L
       reparable <- n_reparables > 0L || n_parciales > 0L
+      # Una celda parcial no apaga la reparacion de las que el motor repara
+      # enteras. Bastaba UNA parcial en la columna para que la accion saliera sin
+      # marcar, y con ella ninguna celda se reparaba con el plan por omision:
+      # medido sobre tablas generadas, una celda que paso de `no_se_pudo` a
+      # `reparado_parcialmente` dejo sin reparar otra de la misma columna que se
+      # repara entera. Una entera es igual de segura con o sin parciales al lado,
+      # asi que con alguna entera la accion se recomienda y se marca como en una
+      # columna sin parciales, con `aplicar_parciales = FALSE`: las parciales
+      # quedan como estan y la justificacion dice como pedirlas. Solo una columna
+      # sin ninguna entera deja la accion sin marcar, y marcarla aplica las
+      # parciales: es la seleccion explicita que describe la ayuda.
+      aplicar_parciales <- n_parciales > 0L && !(n_reparables > 0L)
       n_irreparables <- if ("n_codificacion_irreparable" %in% names(fila)) {
         fila$n_codificacion_irreparable[[1L]]
       } else 0L
       n_no_se_pudo <- if ("n_codificacion_no_se_pudo" %in% names(fila)) {
         fila$n_codificacion_no_se_pudo[[1L]]
       } else 0L
+      # El estado y el conteo son los de lo que la accion, tal como sale del
+      # plan, va a cambiar: `.reparar_codificacion()` publica en el registro el
+      # estado de lo aplicado, y `n_afectadas` tiene que ser lo que `aplicar()`
+      # cuenta en `n_cambiadas`.
       estado_reparacion <- if (reparable) {
-        if (parcial) "reparado_parcialmente" else "reparado"
+        if (aplicar_parciales) "reparado_parcialmente" else "reparado"
       } else if ("estado_codificacion_reparacion" %in% names(fila)) {
         as.character(fila$estado_codificacion_reparacion[[1L]])
       } else "no_se_pudo"
+      n_afectadas_reparacion <- n_reparables +
+        if (aplicar_parciales) n_parciales else 0L
       # Lo que la accion no toca: el hallazgo cuenta cada valor afectado una vez.
       n_sin_reparacion <- max(0L, fila$n_codificacion_rota[[1L]] -
         n_reparables - n_parciales)
-      puede_aplicar <- reparable && !parcial && identical(estado_columna, "lista")
-      recomendada <- reparable && !parcial
+      recomendada <- reparable && !aplicar_parciales
+      puede_aplicar <- recomendada && identical(estado_columna, "lista")
+      detalle_parciales <- if (parcial) {
+        conteo_parciales <- if (n_parciales > 0L) {
+          paste0(" (", n_parciales, ")")
+        } else ""
+        if (aplicar_parciales) {
+          paste0(
+            " Hay reparaciones parciales", conteo_parciales,
+            ": la acci\u00f3n queda sin activar y, si se activa, las aplica ",
+            "tambi\u00e9n."
+          )
+        } else {
+          paste0(
+            " Hay reparaciones parciales", conteo_parciales,
+            ": quedan como est\u00e1n y la acci\u00f3n repara s\u00f3lo los valores ",
+            "que se reparan enteros. Para aplicarlas tambi\u00e9n, poner ",
+            "`aplicar_parciales = TRUE` en `parametros`."
+          )
+        }
+      } else ""
       detalle_sin_reparacion <- if (n_sin_reparacion > 0L) {
         motivos <- character()
         if (n_irreparables > 0L) {
@@ -2316,12 +2363,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           paste0(
             "Prueba las codificaciones conocidas y se detiene cuando el texto ",
             "deja de parecer mojibake.",
-            if (parcial) paste0(
-              " Hay reparaciones parciales",
-              if (n_parciales > 0L) paste0(" (", n_parciales, ")"),
-              ": la acci\u00f3n queda sin activar y, si se activa, las aplica ",
-              "tambi\u00e9n."
-            ),
+            detalle_parciales,
             detalle_sin_reparacion
           )
         } else {
@@ -2337,12 +2379,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
             )
           }
         },
-        if (reparable) n_reparables + n_parciales else {
+        if (reparable) n_afectadas_reparacion else {
           fila$n_codificacion_irreparable[[1L]]
         }, FALSE,
-        # Una reparacion con parciales queda `lista` y SIN activar: `aplicar()`
-        # solo ejecuta acciones `lista`, y quedaba `informativa`, asi que la
-        # "seleccion explicita" que pide la ayuda -marcar `aplicar = TRUE`-
+        # Una reparacion solo de parciales queda `lista` y SIN activar:
+        # `aplicar()` solo ejecuta acciones `lista`, y quedaba `informativa`, asi
+        # que la "seleccion explicita" que pide la ayuda -marcar `aplicar = TRUE`-
         # abortaba. Activarla a mano aplica tambien las parciales: antes nunca se
         # aplicaban, y el registro publicaba `reparado_parcialmente` sobre una
         # celda que quedo intacta.
@@ -2351,7 +2393,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         parametros = list(codificacion_intermedia = "ftfy",
                           codificaciones = names(.ftfy_tablas_bytes),
                           max_iteraciones = 20L,
-                          aplicar_parciales = reparable && parcial),
+                          aplicar_parciales = aplicar_parciales),
         orden = 180L, estado_reparacion = estado_reparacion
       ))
     } else if (identical(tipo, "numero_como_texto") && !is.null(fila)) {

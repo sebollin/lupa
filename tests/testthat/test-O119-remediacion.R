@@ -213,10 +213,21 @@ test_that("el resumen impreso no llama celdas a la suma de las acciones", {
 test_that("activar la reparacion parcial aplica la parte parcial", {
   datos <- data.frame(t = c("Direcci\u00c3\u00b3n\ufffd", "Paysand\u00c3\u00ba", "ok"),
                       stringsAsFactors = FALSE)
+  # Una parcial ya no apaga la reparacion de las enteras de su columna: aca la
+  # accion sale con `aplicar_parciales = FALSE`, asi que activarla repara la
+  # entera y deja la parcial. La parte parcial se activa pidiendola en
+  # `parametros`.
   r <- .aplicar_O119(datos, "reparar_codificacion")
   skip_if_not(nrow(r$registro) > 0L)
+  expect_identical(r$datos$t, c(datos$t[[1L]], paste0("Paysand", intToUtf8(0xFAL)), "ok"))
+  plan <- suppressWarnings(planificar_limpieza(suppressWarnings(perfilar(datos)), datos))
+  plan <- .solo_O119(plan, "reparar_codificacion")
+  i <- which(plan$estrategia == "reparar_codificacion")
+  plan$parametros[[i]]$aplicar_parciales <- TRUE
+  r <- suppressWarnings(aplicar(plan, datos, permitir_eliminacion = TRUE))
   # Antes: la parcial quedaba intacta y el registro decia reparado_parcialmente.
-  expect_identical(r$datos$t[[1L]], "Direcci\u00f3n\ufffd")
+  expect_identical(r$datos$t[[1L]], paste0("Direcci", intToUtf8(0xF3L), "n", intToUtf8(0xFFFDL)))
+  expect_identical(as.numeric(r$registro$n_cambiadas), 2)
 })
 
 test_that("una accion ejecutada que es la recomendada no figura pendiente", {

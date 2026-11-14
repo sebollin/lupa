@@ -601,12 +601,18 @@ test_that("P3 conserva los controles genuinos fuera del mojibake", {
   fila_final <- perfil_final$columnas[
     perfil_final$columnas$columna == "texto", , drop = FALSE
   ]
-  expect_equal(fila_final$n_codificacion_rota, 3L)
+  # Una parcial ya no apaga la reparacion de las enteras de su columna: la
+  # primera y la tercera se reparan enteras y el plan por omision las repara;
+  # la segunda es parcial y queda rota, con los pares del mojibake enteros.
+  # Antes la parcial apagaba la accion y quedaban las 3 rotas.
+  expect_equal(fila_final$n_codificacion_rota, 1L)
   expect_equal(fila_final$n_controles_invisibles, 0L)
-  expect_true(grepl(
-    paste0("Mar", intToUtf8(0xC3L), intToUtf8(0xADL), "a"),
-    resultado$datos$texto[[1L]], fixed = TRUE
-  ))
+  expect_identical(
+    resultado$datos$texto,
+    c(paste0("Mar", intToUtf8(0xEDL), "a"),
+      strrep(paste0(intToUtf8(0xC3L), intToUtf8(0xADL)), 200),
+      strrep(intToUtf8(0xEDL), 200))
+  )
   expect_true(any(resultado$registro$estrategia ==
                    "eliminar_controles_invisibles"))
 })
@@ -950,10 +956,16 @@ test_that("las tablas generadas conservan la cuenta de cada accion de texto", {
             piezas$plan$estrategia == estrategia
         )
         if (length(indice_plan) == 1L) {
-          esperado_plan <- if (identical(campo, "n_codificacion_reparable")) {
-            esperado + as.integer(
-              fila$n_codificacion_reparable_parcialmente[[1L]]
-            )
+          # Una parcial ya no apaga la reparacion de las enteras de su columna:
+          # con alguna entera, la accion sale con `aplicar_parciales = FALSE` y
+          # el plan cuenta solo las enteras, que es lo que cambia; las parciales
+          # entran en la cuenta solo en una columna sin enteras.
+          parciales <- as.integer(
+            fila$n_codificacion_reparable_parcialmente[[1L]]
+          )
+          esperado_plan <- if (identical(campo, "n_codificacion_reparable") &&
+                               esperado == 0L) {
+            esperado + parciales
           } else {
             esperado
           }
@@ -962,6 +974,18 @@ test_that("las tablas generadas conservan la cuenta de cada accion de texto", {
             as.integer(esperado_plan),
             info = paste(columna, estrategia, "plan", sep = ":")
           )
+          # Pedidas en `parametros`, las parciales se aplican junto a las enteras.
+          if (identical(campo, "n_codificacion_reparable") && esperado > 0L &&
+              parciales > 0L) {
+            con_parciales <- piezas$plan[indice_plan, , drop = FALSE]
+            con_parciales$aplicar <- TRUE
+            con_parciales$parametros[[1L]]$aplicar_parciales <- TRUE
+            registro <- aplicar(con_parciales, datos)$registro
+            expect_equal(
+              as.integer(registro$n_cambiadas), as.integer(esperado + parciales),
+              info = paste(columna, estrategia, "aplicar_parciales", sep = ":")
+            )
+          }
         }
       }
     }

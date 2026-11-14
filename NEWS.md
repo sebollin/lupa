@@ -358,6 +358,18 @@
   celda queda como está y sigue señalada, y el plan no ofrece la acción por
   ella. La 0.1.1 decía que esos controles se siguen quitando: se quitan salvo
   en ese caso.
+- Una celda que la reparación de codificación arregla sólo en parte ya no deja
+  sin reparar a las demás de su columna. Bastaba una parcial para que
+  `reparar_codificacion` saliera sin marcar, y el plan por omisión no reparaba
+  ninguna celda, aunque las otras se repararan enteras. Ahora, si la columna
+  tiene celdas que se reparan enteras, la acción sale marcada con
+  `aplicar_parciales = FALSE`: repara ésas, deja las parciales como están,
+  `n_afectadas` cuenta sólo las enteras y la justificación dice cuántas
+  parciales quedan. Se piden poniendo `aplicar_parciales = TRUE` en
+  `parametros`. Una columna que sólo tiene parciales no cambia: la acción queda
+  `lista` sin marcar, y marcarla aplica las parciales. Quien marcaba la acción
+  a mano en una columna con las dos necesita ahora `aplicar_parciales = TRUE`
+  para aplicar también las parciales.
 - El plan cuenta, para cada acción de texto, las filas que la acción puede
   cambiar. Donde quitar un invisible o recortar el borde cambia lo que la
   reparación reconoce, la celda no se cuenta y la acción no se ofrece por ella,

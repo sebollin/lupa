@@ -241,10 +241,20 @@ texto con la convención decimal de la columna, como el resumen del perfil:
 con coma decimal, \code{12.500} se convierte en doce mil quinientos.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
-\code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial —una celda que
-el motor repara sólo en parte— no se activa automáticamente: la acción queda
-\code{lista} con \code{aplicar = FALSE}, y se selecciona de forma explícita marcando
-\code{aplicar = TRUE}; entonces se aplican también las parciales. Una celda sin
+\code{reparado_parcialmente} o \code{no_se_pudo}: el de lo que la acción, tal como sale
+del plan, va a cambiar. Una reparación parcial —una celda que el motor repara
+sólo en parte— no se aplica automáticamente, pero tampoco frena la de las
+celdas que se reparan enteras. En una columna sin parciales, la acción sale
+activa —si nada más lo impide— y repara todas las celdas que el motor
+repara. En una columna con parciales y con celdas que se reparan enteras, la
+acción también sale activa, con \code{aplicar_parciales = FALSE} en
+\code{parametros}: repara las enteras, deja las
+parciales como están, \code{n_afectadas} cuenta sólo las enteras y la
+justificación dice cuántas parciales quedan; para aplicarlas también, se pone
+\code{aplicar_parciales = TRUE} en \code{parametros}. En una columna que sólo tiene
+parciales, la acción queda \code{lista} con \code{aplicar = FALSE} y
+\code{aplicar_parciales = TRUE}, y se selecciona de forma explícita marcando
+\code{aplicar = TRUE}; entonces se aplican las parciales. Una celda sin
 reparación local —con el carácter de reemplazo U+FFFD, o que el motor no
 pudo reparar— no frena la de las demás: queda como está y la justificación
 de la acción la cuenta. La estrategia se llama \code{reparar_codificacion} y no

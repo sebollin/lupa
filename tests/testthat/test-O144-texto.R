@@ -275,7 +275,7 @@ test_that("H8: perfilar y detectar_claves cuentan igual los normalizados con la 
   expect_identical(.normalizados_o144(c("Cafe Central", con_tilde, "CAFE CENTRAL")), 1L)
 })
 
-test_that("H4: una celda irreparable no bloquea la reparacion y la parcial se selecciona marcando aplicar", {
+test_that("H4: una celda irreparable no bloquea la reparacion y la parcial se pide en sus parametros", {
   # `Canada` con enie y `Senor` con enie leidos una vez como CP1252, y una celda
   # con el caracter de reemplazo que ninguna reparacion local recupera.
   canada <- "Ca\u00c3\u00b1ada"
@@ -295,20 +295,32 @@ test_that("H4: una celda irreparable no bloquea la reparacion y la parcial se se
   expect_identical(r$datos$v, c("Ca\u00f1ada", "Ca\u00f1ada", "Se\u00f1or",
                                 "Montevideo", "Pe\ufffda"))
 
-  # Una reparacion de verdad parcial no se activa sola, pero se selecciona como
-  # dice la ayuda: marcando `aplicar`, sin reescribir `estado`.
+  # Una parcial ya no apaga la reparacion de las enteras de su columna. Con
+  # una celda que se repara entera al lado, la accion sale marcada con
+  # `aplicar_parciales = FALSE`: el plan por omision repara la entera y deja la
+  # parcial como esta. La parcial se selecciona pidiendola en `parametros`, sin
+  # reescribir `estado`; antes bastaba una parcial para que no se reparara
+  # ninguna celda de la columna.
   parcial <- data.frame(t = c("Direcci\u00c3\u00b3n\ufffd", "Paysand\u00c3\u00ba", "ok"),
                         stringsAsFactors = FALSE)
   plan <- suppressWarnings(planificar_limpieza(suppressWarnings(perfilar(parcial)), parcial))
   i <- which(plan$estrategia == "reparar_codificacion")
   expect_identical(length(i), 1L)
   expect_identical(as.character(plan$estado[[i]]), "lista")
-  expect_false(plan$aplicar[[i]])
-  plan$aplicar[] <- FALSE
-  plan$aplicar[[i]] <- TRUE
+  expect_true(plan$aplicar[[i]])
+  expect_false(isTRUE(plan$parametros[[i]]$aplicar_parciales))
+  expect_identical(as.numeric(plan$n_afectadas[[i]]), 1)
+  paysandu <- paste0("Paysand", intToUtf8(0xFAL))
+  direccion <- paste0("Direcci", intToUtf8(0xF3L), "n", intToUtf8(0xFFFDL))
   r <- suppressWarnings(aplicar(plan, parcial))
-  expect_identical(as.numeric(r$registro$n_cambiadas), 2)
-  expect_identical(r$datos$t, c("Direcci\u00f3n\ufffd", "Paysand\u00fa", "ok"))
+  reparacion <- r$registro[r$registro$estrategia == "reparar_codificacion", , drop = FALSE]
+  expect_identical(as.numeric(reparacion$n_cambiadas), 1)
+  expect_identical(r$datos$t, c(parcial$t[[1L]], paysandu, "ok"))
+  plan$parametros[[i]]$aplicar_parciales <- TRUE
+  r <- suppressWarnings(aplicar(plan, parcial))
+  reparacion <- r$registro[r$registro$estrategia == "reparar_codificacion", , drop = FALSE]
+  expect_identical(as.numeric(reparacion$n_cambiadas), 2)
+  expect_identical(r$datos$t, c(direccion, paysandu, "ok"))
 })
 
 test_that("bajo LC_CTYPE=C el texto UTF-8 sin marca no hace avisar a perfilar, planificar ni aplicar", {
