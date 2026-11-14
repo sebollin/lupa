@@ -245,7 +245,9 @@
   }
   normalizar <- configuracion$normalizar
   if (is.null(normalizar)) normalizar <- TRUE
-  normalizacion_resuelta <- tryCatch(
+  # Se resuelve solo para rechazar aca un perfil invalido: lo que se guarda
+  # es `normalizar` tal como llego.
+  tryCatch(
     .resolver_normalizacion(normalizar),
     error = function(e) {
     .detener("normalizar no describe un perfil v\u00e1lido: ",
@@ -272,7 +274,9 @@
   entidad <- instancia$entidad[[1L]]
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
-  x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  # Se pide la columna para que una que falta se rechace aca; el valor no
+  # hace falta, el texto sale de `.texto_fila_aproximada()`.
+  .obtener_columna_modelo(tabla, atributo, entidad)
   config <- instancia$configuracion
   textos <- .texto_fila_aproximada(
     .seleccionar_columnas(tabla, atributo), atributo, config$normalizar
@@ -1030,7 +1034,7 @@
   )
 }
 
-.configuraciones_especificacion <- function(meta, metrica) {
+.configuraciones_especificacion <- function(meta) {
   contrato <- meta$contrato
   if (!is.null(contrato) && identical(contrato$nombre, "escala")) {
     return(list(list(escala = do.call(escala, contrato$argumentos))))
@@ -1272,7 +1276,7 @@
       .detener("La metrica del catalogo no existe: ", nombre, ".", call. = FALSE)
     }
     declaracion <- attr(metrica, "declaracion", exact = TRUE)
-    configuraciones <- .configuraciones_especificacion(meta[[nombre]], metrica)
+    configuraciones <- .configuraciones_especificacion(meta[[nombre]])
     .validar_especificacion_metrica(meta[[nombre]], metrica, configuraciones)
     indices <- which(catalogo$metrica_lupa == nombre)
     indice <- indices[[1L]]
@@ -1786,15 +1790,6 @@
     especificaciones, .texto_especificacion_metrica, character(1L)
   )
   stats::setNames(textos, names(especificaciones))
-}
-
-.contrato_especificacion_catalogo <- function(especificacion, indice = 1L) {
-  pasos <- especificacion$pasos[[indice]]
-  contrato <- Filter(function(x) x$funcion %in% c(
-    "referencial", "vigencia", "escala"
-  ), pasos)
-  if (!length(contrato)) return(NULL)
-  contrato[[1L]]$objeto
 }
 
 .medir_especificacion_catalogo <- function(especificacion, indice = 1L) {

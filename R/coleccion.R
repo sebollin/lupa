@@ -1157,7 +1157,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   ))
   on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
   # Y los valores protegidos que lee cada tabla, para el mensaje del motor de
-  # las demas: ver `.valores_motor()`.
+  # las demas: ver `.activar_valores_motor()`.
   valores_motor_previos <- .activar_valores_motor()
   on.exit(.fijar_valores_motor(valores_motor_previos), add = TRUE)
   # Y cada mensaje del motor como llego, para volver a leerlo al final con todo
@@ -1786,7 +1786,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # la tabla base. El mensaje ya pasa por el piso con los valores que la
   # coleccion conocia al armarlo; aca se pasan los tres campos con todos los que
   # conocio al final -una vista perfilada antes que su tabla base-, que son
-  # pocos: los que el mensaje puede llevar (`.valores_motor()`).
+  # pocos: los que el mensaje puede llevar (`.activar_valores_motor()`).
   #
   # Y el aviso de consola es una salida mas: con la vista antes que su tabla
   # base, el objeto quedaba limpio y el aviso "El resumen SQL se calculo ...
@@ -2883,19 +2883,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   paste(partes, collapse = " ")
 }
 
-# Las combinaciones de un par que no se compararon porque una de sus columnas
-# no se pudo escribir en la consulta: una fila por combinacion, como las demas
-# podas, con el motivo de la guarda en `detalle`.
-.podas_no_escribibles_coleccion <- function(t1, t2, candidatas_1, candidatas_2,
-                                            omitidas_1, omitidas_2) {
-  .podas_columnas_fuera_coleccion(
-    t1, t2, candidatas_1, candidatas_2,
-    stats::setNames(rep("columna_no_escribible", length(omitidas_1)), omitidas_1),
-    stats::setNames(rep("columna_no_escribible", length(omitidas_2)), omitidas_2)
-  )
-}
-
-# Lo mismo para cualquier columna que la lectura dejo afuera: `fuera_1` y
+# Las podas de cualquier columna que la lectura dejo afuera: `fuera_1` y
 # `fuera_2` nombran cada columna con su motivo -`columna_no_escribible`,
 # `columna_sin_permiso` (la credencial no la puede leer) o
 # `columna_enmascarada` (llega con la mascara de SQL Server)-. Una fila por

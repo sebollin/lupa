@@ -67,12 +67,13 @@ test_that("la relacion aritmetica entre columnas de verdad sigue apareciendo", {
   ))
 })
 
-test_that("el camino por bloques elige las mismas columnas que el de memoria", {
+test_that("el detector de relaciones elige columnas con la regla de memoria", {
   # La regla estaba escrita dos veces y la del camino por bloques era mas debil:
   # un `is.numeric` pelado, que acepta fechas, `integer64` y columnas con
   # dimensiones. La misma tabla recibia dos conjuntos de columnas segun por donde
-  # se la perfilara.
-  bloques <- getFromNamespace(".relaciones_aritmeticas_bloques", "lupa")
+  # se la perfilara. Queda un solo detector, y elige con
+  # `.es_columna_aritmetica()`.
+  detector <- getFromNamespace(".detectar_aritmetica_columnas", "lupa")
   predicado <- getFromNamespace(".es_columna_aritmetica", "lupa")
 
   datos <- data.frame(num = c(1, 2, NA, 4))
@@ -80,12 +81,12 @@ test_that("el camino por bloques elige las mismas columnas que el de memoria", {
   datos$a <- I(array(1:16, dim = c(4L, 2L, 2L)))
   expect_false(predicado(datos$m))
   expect_false(predicado(datos$a))
-  # Con una sola columna elegible no hay par que comparar: lista vacia.
-  expect_length(bloques(datos), 0L)
+  # Con una sola columna elegible no hay par que comparar.
+  expect_identical(detector(datos)$alcance$pares_proporcionales_posibles, 0)
 
-  # Control: con dos columnas de verdad el gemelo sigue trabajando.
+  # Control: con dos columnas de verdad el detector arma el par.
   reales <- data.frame(a = c(1, 2, 3, 4), b = c(2, 4, 6, 8))
-  expect_gt(length(bloques(reales)), 0L)
+  expect_gt(detector(reales)$alcance$pares_proporcionales_posibles, 0)
 })
 
 test_that("un arreglo de tres dimensiones no publica cifras en otra unidad", {

@@ -81,25 +81,6 @@
   )
 }
 
-.matriz_capacidades_fuente_bloques_dbi <- function() {
-  data.frame(
-    driver = c("SQLite / RSQLite", "PostgreSQL 16 / RPostgres",
-      "PostgreSQL 9.3 / RPostgres", "MariaDB / RMariaDB",
-      "MySQL 8.4 / RMySQL", "DuckDB / duckdb",
-      "SQL Server 2022 / FreeTDS"),
-    motor = c("sqlite", "postgresql", "postgresql", "mariadb", "mysql",
-      "duckdb", "sqlserver"),
-    version = c("", "16", "9.3", "11.8", "8.4", "", "2022"),
-    retencion_driver = c(0, 0.168, 0.165, 0.088, 0.041, 0.86, 0.066),
-    dbfetch_incremental = c(TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, TRUE),
-    motivo_no_disponible = c(NA_character_, NA_character_, NA_character_,
-      NA_character_, NA_character_, .MOTIVO_DBI_FETCH_NO_INCREMENTAL,
-      NA_character_),
-    fuente = "matriz_retencion_driver_v2",
-    stringsAsFactors = FALSE
-  )
-}
-
 .nombre_tabla_catalogo_dbi <- function(tabla) {
   texto <- tryCatch(.texto_tabla_dbi(tabla), error = function(e) "")
   if (!length(texto) || is.na(texto)) "" else texto
@@ -329,7 +310,7 @@
                                campos = NULL, campos_sql = NULL,
                                prototipo = NULL, tipos = NULL,
                                orden_muestra = NULL, orden_sql = NULL,
-                               clave = NULL, dialecto = NULL,
+                               clave = NULL,
                                presupuesto = NULL, bloque_filas = 10000L,
                                snapshot_id = NULL) {
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
@@ -423,7 +404,6 @@
     pk, if (is.null(prototipo)) NULL else prototipo[posiciones_pk],
     if (is.null(tipos)) NULL else tipos[posiciones_pk]
   ))
-  pk_pos <- posiciones_pk
   pk_determinista <- !textual_pk || (
     all(colaciones$demostrada[pk]) && all(colaciones$determinista[pk])
   )
@@ -633,7 +613,6 @@
 }
 
 .familias_fuente_bloques_dbi <- function(metricas, campos, prototipo, tipos,
-                                         incluir_valores = TRUE,
                                          max_bytes_procesamiento =
                                            .MAX_BYTES_ESTADO_BLOQUES,
                                          columnas_binarias = character()) {
@@ -1595,9 +1574,7 @@
                                          incluir_valores = TRUE,
                                          max_bytes_procesamiento =
                                            .MAX_BYTES_ESTADO_BLOQUES,
-                                         tipos_motor = NULL,
-                                         columnas_binarias = character(),
-                                         sentinelas = NULL) {
+                                         columnas_binarias = character()) {
   metricas_acumuladores <- unique(c(
     metricas,
     if (isTRUE(incluir_valores) &&
@@ -1605,7 +1582,6 @@
   ))
   acumuladores <- .familias_fuente_bloques_dbi(
     metricas_acumuladores, fuente$campos, prototipo, tipos,
-    incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento,
     columnas_binarias = columnas_binarias
   )
@@ -1744,7 +1720,7 @@
   )
 }
 
-.cobertura_bloques_dbi <- function(metricas, campos, bloque_muestra) {
+.cobertura_bloques_dbi <- function(bloque_muestra) {
   cobertura <- .cobertura_dbi_vacia()
   familias_no_fusionables <- c(
     "patrones", "formatos_fecha", "dependencias", "hallazgos", "datos_personales"
@@ -1796,7 +1772,6 @@
 
 .verificar_identidad_row_locator_dbi <- function(conexion, fuente, locators,
                                                  bloque_filas = fuente$bloque_filas,
-                                                 presupuesto = NULL,
                                                  antes_segunda_pasada = NULL) {
   if (!identical(fuente$metodo_orden, "row_locator")) {
     return(list(estado = "no_aplica", identidad = NA,
@@ -1935,7 +1910,6 @@
     prototipo = preparacion$prototipo, tipos = preparacion$tipos,
     orden_muestra = preparacion$orden_muestra, orden_sql = preparacion$orden_sql,
     clave = preparacion$catalogo_cardinalidad,
-    dialecto = preparacion$dialecto,
     presupuesto = preparacion$presupuesto, bloque_filas = bloque_filas
   )
   plan <- .plan_bloques_dbi(
@@ -1958,9 +1932,7 @@
     bloque_filas, vigilante = vigilante,
     incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento,
-    tipos_motor = preparacion$esquema$tipos_motor,
-    columnas_binarias = preparacion$columnas_binarias_bloques,
-    sentinelas = argumentos[["sentinelas_numericos"]]
+    columnas_binarias = preparacion$columnas_binarias_bloques
   )
   # El recorrido no pasa por el presupuesto -sin el no hay perfil- pero viaja
   # al motor: se cuenta antes de las consultas que si pueden quedar afuera, para
@@ -2058,7 +2030,6 @@
                         is.null(recorrido$error)) {
     .verificar_identidad_row_locator_dbi(
       conexion, fuente, recorrido$locators, bloque_filas = bloque_filas,
-      presupuesto = preparacion$presupuesto,
       antes_segunda_pasada = argumentos$antes_segunda_pasada
     )
   } else list(
@@ -2081,8 +2052,8 @@
     }
   ), preparacion$campos))
   decisiones_costo <- .decisiones_costo_dbi(
-    conexion, preparacion$campos, agregados_costo,
-    preparacion$politica_costo, n_total, "tabla_completa",
+    preparacion$campos, agregados_costo,
+    preparacion$politica_costo, "tabla_completa",
     fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
   )
   presupuesto <- preparacion$presupuesto
@@ -2342,8 +2313,7 @@
   }
   rownames(columnas) <- NULL
   sql <- if (length(sql)) do.call(rbind, sql) else data.frame()
-  cobertura <- .cobertura_bloques_dbi(metricas, preparacion$campos,
-                                      preparacion$bloque_muestra)
+  cobertura <- .cobertura_bloques_dbi(preparacion$bloque_muestra)
   if (length(preparacion$esquema$ilegibles)) {
     cobertura <- rbind(cobertura, .cobertura_ilegibles_dbi(preparacion$esquema))
   }

@@ -286,36 +286,6 @@
   )
 }
 
-# Helper de contrato: escribe una lista de data frames por chunks, sin conocer
-# el motor. Los jueces lo usan para probar trailer, checksum y presupuesto.
-.escribir_spool_muestra_dbi <- function(chunks, path = tempfile(
-    "lupa-spool-muestra-", fileext = ".bin"), campos = character(),
-    muestra_id = "muestra-1", snapshot_id = "snapshot-1",
-    orden_id = "orden-1", max_bytes = Inf, backend = "prueba",
-    sql = NA_character_) {
-  max_bytes <- .validar_presupuesto_bytes_dbi(max_bytes, "max_bytes")
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  escritor <- .abrir_spool_muestra_dbi(
-    path, campos, muestra_id, snapshot_id, orden_id, max_bytes, backend, sql
-  )
-  if (!isTRUE(escritor$ok)) return(c(escritor, list(path = path)))
-  escritor$path <- path
-  for (datos in chunks) {
-    escritor <- .escribir_chunk_spool_muestra_dbi(escritor, datos)
-    if (!is.null(escritor$motivo)) break
-  }
-  salida <- .cerrar_spool_muestra_dbi(escritor)
-  salida$path <- path
-  if (isTRUE(salida$ok)) {
-    verificada <- .leer_spool_muestra_dbi(path, devolver_chunks = FALSE)
-    if (!isTRUE(verificada$ok)) {
-      salida$ok <- FALSE
-      salida$motivo <- verificada$motivo
-    }
-  }
-  salida
-}
-
 .leer_spool_muestra_dbi <- function(path, devolver_chunks = TRUE) {
   if (!file.exists(path)) {
     return(list(ok = FALSE, motivo = "spool_incompleto:trailer_ausente"))
@@ -658,7 +628,6 @@
     )
   }
   max_filas <- as.numeric(max_filas)
-  bloque_maximo <- bloque_filas
   backend <- backend %||% .BACKEND_SPOOL_MUESTRA_DBI
   path <- tempfile("lupa-spool-muestra-", fileext = ".bin")
   resultado <- NULL
@@ -875,7 +844,7 @@
   )
 }
 
-.muestra_id_spool_dbi <- function(consulta_id = NULL) {
+.muestra_id_spool_dbi <- function() {
   # `consulta_id` identifica una sentencia, no la relacion que esta
   # materializa. Un token nuevo por spool evita que dos selecciones distintas
   # compartan rotulo cuando DBI reutiliza el contador o las corridas coinciden
@@ -1010,108 +979,6 @@
   retenida
 }
 
-.resumen_muestra_desde_spool_dbi <- function(datos, campos, n_total,
-                                             metricas, materializacion,
-                                             muestreo, sql, consulta_id,
-                                             motivo_falla = NULL,
-                                             consulta_n = NULL) {
-  n_total_num <- .conteo_dbi(n_total)
-  n_conocido <- length(n_total_num) == 1L && is.finite(n_total_num)
-  motivo_n <- if (n_conocido) {
-    NA_character_
-  } else if (!is.null(consulta_n) && length(consulta_n$motivo) == 1L &&
-             !is.na(consulta_n$motivo) && nzchar(as.character(consulta_n$motivo))) {
-    as.character(consulta_n$motivo)
-  } else if (length(motivo_falla) == 1L && !is.na(motivo_falla) &&
-             nzchar(as.character(motivo_falla))) {
-    as.character(motivo_falla)
-  } else {
-    "No se pudo conocer `n` dentro del presupuesto de consultas."
-  }
-  estado_n <- if (n_conocido) "calculado" else "no_disponible"
-  filas <- lapply(campos, function(campo) .fila_resumen_dbi(campo, n_total_num))
-  columnas <- as.data.frame(do.call(rbind, lapply(filas, as.data.frame)),
-                            stringsAsFactors = FALSE)
-  if (is.null(datos)) datos <- data.frame()
-  perfil_columnas <- NULL
-  if (is.data.frame(attr(datos, "lupa_columnas_perfil", exact = TRUE))) {
-    perfil_columnas <- attr(datos, "lupa_columnas_perfil", exact = TRUE)
-  }
-  if (!is.null(perfil_columnas)) {
-    comunes <- intersect(names(columnas), names(perfil_columnas))
-    for (nombre in comunes) {
-      if (!identical(nombre, "n")) columnas[[nombre]] <- perfil_columnas[[nombre]]
-    }
-    columnas$n <- .conteo_dbi(n_total_num)
-    rownames(columnas) <- NULL
-  }
-  estado <- if (is.null(motivo_falla)) "observado_muestra" else "no_disponible"
-  motivo <- if (is.null(motivo_falla)) {
-    paste(
-      "Medido sobre la \u00fanica muestra materializada en el spool de sesi\u00f3n",
-      "cliente; todas las pasadas de esta salida leen esa relaci\u00f3n."
-    )
-  } else as.character(motivo_falla)
-  metadatos <- .metadatos_sql_dbi(
-    alcance = "muestra", universo = n_total_num,
-    tamano_muestra = if (is.null(muestreo)) NA_real_ else muestreo$filas_obtenidas,
-    fraccion = if (is.null(muestreo)) NA_real_ else muestreo$fraccion,
-    metodo = "spool_sesion_cliente", error_esperado = NA_character_,
-    id_consulta = consulta_id
-  )
-  metadatos$muestreo_regla <- if (is.null(muestreo)) {
-    list(disponible = FALSE)
-  } else muestreo
-  metadatos$fraccion_regla <- if (is.null(muestreo)) NA_real_ else
-    muestreo$fraccion
-  registros <- lapply(seq_along(campos), function(i) {
-    campo <- campos[[i]]
-    campos_metrica <- unlist(.CAMPOS_METRICA_DBI[metricas], use.names = FALSE)
-    if (!length(campos_metrica)) return(NULL)
-    motivo_metrica <- if (is.null(motivo_falla)) {
-      vapply(campos_metrica, function(nombre) {
-        .clasificar_metrica_muestreo_dbi(
-          nombre, metadatos$muestreo_regla, metadatos$fraccion_regla
-        )$motivo
-      }, character(1L))
-    } else {
-      rep_len(motivo, length(campos_metrica))
-    }
-    .registro_sql_dbi(
-      campo, campos_metrica, estado, motivo_metrica, sql,
-      metadatos = metadatos,
-      medicion = list(
-        consulta_id = consulta_id, etapa = "lectura_spool_muestra",
-        duracion_ms = NA_real_, n_filas_resultado = if (is.null(muestreo)) {
-          NA_real_
-        } else muestreo$filas_obtenidas,
-        bytes_resultado_r = materializacion$bytes, cpu_ms = NA_real_
-      )
-    )
-  })
-  sql_n <- .registro_sql_dbi(
-    campos, rep("n", length(campos)), estado_n, motivo_n,
-    if (is.null(muestreo)) NA_character_ else muestreo$sql_muestra,
-    metadatos = .metadatos_sql_dbi(
-      alcance = "tabla_completa", universo = n_total_num,
-      tamano_muestra = if (is.null(muestreo)) NA_real_ else muestreo$filas_obtenidas,
-      fraccion = if (is.null(muestreo)) NA_real_ else muestreo$fraccion,
-      metodo = "conteo_universo", error_esperado = "no_aplica",
-      id_consulta = if (is.null(muestreo)) NA_integer_ else muestreo$id_consulta_n
-    ),
-    medicion = list(
-      consulta_id = if (is.null(muestreo)) NA_integer_ else muestreo$id_consulta_n,
-      etapa = "conteo_filas"
-    )
-  )
-  sql <- if (length(Filter(Negate(is.null), registros))) {
-    do.call(rbind, c(list(sql_n), Filter(Negate(is.null), registros)))
-  } else sql_n
-  rownames(sql) <- NULL
-  list(columnas = columnas, sql = .marcar_nivel_sql_dbi(sql),
-       cobertura = .cobertura_dbi_vacia())
-}
-
 .perfil_muestra_spool_dbi <- function(conexion, tabla, preparacion,
                                       incluir_valores, bloque_filas,
                                       max_bytes_procesamiento,
@@ -1188,7 +1055,7 @@
   id_consulta_n <- if (!is.null(consulta_n)) {
     suppressWarnings(as.integer(consulta_n$consulta_id))
   } else NA_integer_
-  muestra_id <- .muestra_id_spool_dbi(id_consulta_n)
+  muestra_id <- .muestra_id_spool_dbi()
   snapshot_id <- paste0("spool-snapshot-", muestra_id)
   orden_id <- paste0("spool-ordinal-", .VERSION_SPOOL_MUESTRA_DBI)
   publico <- NULL
@@ -1566,7 +1433,6 @@
   )
   recorte_celdas <- is.finite(alcance$filas_por_celdas) &&
     alcance$filas_por_celdas < filas_base
-  recorte_bytes_prelectura <- FALSE
   recorte_bytes <- isTRUE(spool$truncada)
   recorte_procesamiento <- FALSE
   recorte_topes <- recorte_celdas || recorte_bytes
@@ -1801,7 +1667,7 @@
       proteger_spool <- .protege_argumentos(args)
       if (!is.null(perfil) && proteger_spool) {
         # Los valores protegidos de la muestra, para el mensaje del motor de las
-        # demas tablas de una coleccion: ver `.valores_motor()`.
+        # demas tablas de una coleccion: ver `.activar_valores_motor()`.
         tryCatch({
           protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
           .sumar_valores_motor(

@@ -1008,7 +1008,7 @@ transiciones_granularidad <- function() {
   resultado
 }
 
-.advertencia_agregacion <- function(medidas, destino, funcion) {
+.advertencia_agregacion <- function(destino, funcion) {
   if (destino != "conjuntoEntidades" || funcion != "promedio") {
     return(NA_character_)
   }
@@ -1637,9 +1637,7 @@ agregar <- function(medidas, destino,
       objeto_medible = .objeto_agregado(medidas, indices, destino),
       resultado = valor,
       agregacion = funcion,
-      advertencia_agregacion = .advertencia_agregacion(
-        medidas, destino, funcion
-      ),
+      advertencia_agregacion = .advertencia_agregacion(destino, funcion),
       stringsAsFactors = FALSE
     )
   })

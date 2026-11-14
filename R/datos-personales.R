@@ -1646,8 +1646,9 @@
 # Las copias que la coleccion encontro en OTRA tabla, para la tabla que se
 # vuelve a perfilar: ver `.copias_entre_tablas_coleccion()`. Fuera de esa
 # relectura esta vacio. Un estado de la llamada y no un argumento, como los
-# valores del motor de la coleccion (`.valores_motor()`): la clasificacion
-# corre dentro de `perfilar()` sobre la muestra que `perfilar_dbi()` lee.
+# valores del motor de la coleccion (`.activar_valores_motor()`): la
+# clasificacion corre dentro de `perfilar()` sobre la muestra que
+# `perfilar_dbi()` lee.
 .CONTEXTO_COPIAS <- new.env(parent = emptyenv())
 .CONTEXTO_COPIAS$externas <- NULL
 
@@ -1979,13 +1980,6 @@
     hallazgos[[length(hallazgos) + 1L]] <- hallazgo
   }
   hallazgos
-}
-
-.hallazgos_rango_nacimiento <- function(columnas, clasificacion,
-                                        fecha_referencia) {
-  .hallazgos_rango_fecha_personal(
-    columnas, clasificacion, fecha_referencia, "fecha_nacimiento"
-  )
 }
 
 # La proteccion no puede depender de que cada diagnostico recuerde llamar a un

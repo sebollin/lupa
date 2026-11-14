@@ -49,18 +49,6 @@ test_that("un maximo menor que el minimo no se publica", {
   expect_equal(perfil$resumen_tabla$columnas$maximo, 3)
 })
 
-test_that("la muestra no puede ser mayor que la tabla", {
-  # Pedir mil filas de una tabla de diez devuelve diez, y dividir por mil
-  # hundia todos los conteos: `n_validos` caia a cero sobre una columna llena.
-  expect_equal(as.numeric(.conteo_estimado_dbi(10, universo = 10,
-                                               tamano_muestra = 1000)), 10)
-  expect_equal(as.numeric(.conteo_estimado_dbi(10, universo = 10,
-                                               tamano_muestra = 10)), 10)
-  # Y donde si hay que extrapolar, se extrapola.
-  expect_equal(as.numeric(.conteo_estimado_dbi(50, universo = 1000,
-                                               tamano_muestra = 100)), 500)
-})
-
 .tipos_incomodos_perfil_sin_aviso <- function(...) {
   resultado_env <- new.env(parent = emptyenv())
   expect_silent(resultado_env$resultado <- perfilar_dbi(...))

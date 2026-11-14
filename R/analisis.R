@@ -858,7 +858,6 @@ print.analisis <- function(x, ...) {
   reemplazo <- "[valor protegido]"
   indices <- .indice_nombre(sensibles, names(datos))
   for (indice in unique(indices[!is.na(indices)])) {
-    nombre <- names(datos)[[indice]]
     x <- datos[[indice]]
     if (is.character(x) || is.factor(x)) {
       datos[[indice]] <- rep(reemplazo, NROW(x))
@@ -1230,10 +1229,6 @@ print.analisis <- function(x, ...) {
 
 .proteger_analisis <- function(x, datos = NULL) {
   sensibles <- .columnas_personales_protegidas(x$perfil)
-  parametros_plan_originales <- if (inherits(x$plan_limpieza, "data.frame") &&
-                                    is.list(x$plan_limpieza$parametros)) {
-    x$plan_limpieza$parametros
-  }
   # `datos` es la tabla original y llega por argumento porque `analizar()` por
   # omision NO la conserva: `x$datos` viene NULL, y sin ella los valores
   # identificantes no se pueden recuperar despues. La cosecha del perfil sola no

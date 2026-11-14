@@ -1071,7 +1071,6 @@
   }
   campos <- as.character(campos)
   en_latin1 <- !is.na(.indice_nombre(campos, anotado$latin1))
-  con_utf8 <- !is.na(.indice_nombre(campos, anotado$utf8))
   estrechas <- if (isTRUE(l10n_info()[["UTF-8"]])) {
     rep(FALSE, length(campos))
   } else {
@@ -1428,8 +1427,8 @@
 #
 # 3. El numero se lee como lo lee el piso (`.numeros_del_texto()`), y
 #    el mensaje pasa por el piso con los valores que la llamada conoce
-#    (`.valores_motor()`): lo permitido no alcanza cuando la celda citada se
-#    escribe con lo permitido.
+#    (`.activar_valores_motor()`): lo permitido no alcanza cuando la celda
+#    citada se escribe con lo permitido.
 #
 # Una condicion propia de la via DBI (`lupa_error_dbi`, `lupa_aviso_dbi`) ya
 # trae el mensaje del motor pasado por aca: su texto es del paquete y solo se le
@@ -1720,8 +1719,6 @@
 # en el mensaje, que es lo que el piso tapa. Dos formas distintas con la misma
 # huella -una en 2^52- solo pueden tapar de mas: nunca se deja de encontrar un
 # valor guardado.
-.valores_motor <- function() .CONTEXTO_MOTOR$valores
-
 .activar_valores_motor <- function() {
   previos <- .CONTEXTO_MOTOR$valores
   .CONTEXTO_MOTOR$valores <- .indice_valores_motor(character())
@@ -1751,16 +1748,6 @@
     )
   }
   invisible(NULL)
-}
-
-# Si cada valor esta guardado: con la misma huella que se guarda. Para las
-# pruebas, que ya no pueden mirar el texto.
-.valor_motor_guardado <- function(valores) {
-  indice <- .CONTEXTO_MOTOR$valores
-  valores <- as.character(valores)
-  if (is.null(indice) || !length(valores)) return(rep(FALSE, length(valores)))
-  huellas <- .huellas_claves_motor(.claves_motor(valores))
-  !is.na(huellas) & huellas %in% indice$huellas
 }
 
 # Y el mensaje CRUDO de cada error del motor que se publica
@@ -2148,7 +2135,7 @@
   identificadores <- as.character(identificadores)
   # Los valores que la llamada conoce y que pueden estar en el mensaje: un
   # nombre igual a uno de ellos no es un nombre permitido, y el mensaje pasa por
-  # el piso con ellos. Ver `.valores_motor()`.
+  # el piso con ellos. Ver `.activar_valores_motor()`.
   conocidos <- if (isTRUE(solo_comillas)) character() else {
     tryCatch(.valores_conocidos_en(texto), error = function(e) character())
   }
@@ -5643,30 +5630,6 @@
   forma
 }
 
-.contar_fuente_muestreada_dbi <- function(conexion, fuente, dialecto,
-                                          presupuesto, etapa = "lectura_muestra") {
-  if (is.null(fuente) || is.null(fuente$sql)) {
-    return(list(ok = FALSE, filas = NA_real_, consulta = NULL,
-                sql = NA_character_, motivo = "fuente_muestreada_ausente"))
-  }
-  alias <- .citar_identificador_dbi(conexion, "lupa_filas_muestra")
-  sql <- paste0(
-    "SELECT ", .conteo_sql_dbi("COUNT(*)", .senas_conexion_dbi(conexion)),
-    " AS ", alias, " FROM (", fuente$sql, ")",
-    dialecto$alias_tabla("lupa_conteo_muestra")
-  )
-  consulta <- .consultar_dbi(conexion, sql, presupuesto, etapa = etapa)
-  filas <- if (isTRUE(consulta$ok) && is.data.frame(consulta$datos) &&
-               nrow(consulta$datos)) {
-    suppressWarnings(as.numeric(consulta$datos[[1L]][[1L]]))
-  } else NA_real_
-  list(
-    ok = isTRUE(consulta$ok) && is.finite(filas), filas = filas,
-    consulta = consulta, sql = sql,
-    motivo = if (isTRUE(consulta$ok)) NA_character_ else consulta$motivo
-  )
-}
-
 .motivo_exito_muestreo_dbi <- function(forma) {
   if (is.null(forma) || is.null(forma$metodo)) return(NA_character_)
   if (identical(forma$metodo, "tablesample_system")) {
@@ -7416,24 +7379,6 @@
   numero <- suppressWarnings(as.numeric(primero))
   if (!length(numero) || is.na(numero)) return(NA_real_)
   numero
-}
-
-.conteo_estimado_dbi <- function(valor, universo, tamano_muestra) {
-  observado <- .numero_dbi(valor)
-  universo_numero <- .numero_dbi(universo)
-  muestra_numero <- .numero_dbi(tamano_muestra)
-  if (!is.finite(observado) || !is.finite(universo_numero) ||
-      !is.finite(muestra_numero) || muestra_numero <= 0) {
-    if (is.finite(universo_numero) && universo_numero == 0) {
-      return(.conteo_dbi(0))
-    }
-    return(NA_real_)
-  }
-  # Cuando la muestra cubre el universo no hay nada que extrapolar: el conteo
-  # observado ya es el del universo, y multiplicarlo por una razon mayor que
-  # uno inventaria filas que no existen.
-  if (muestra_numero >= universo_numero) return(.conteo_dbi(observado))
-  .conteo_dbi(round(observado / muestra_numero * universo_numero))
 }
 
 # Si el conteo que se guarda representa el numero del motor sin perder digitos.
@@ -10212,7 +10157,6 @@
                                     pedidas_numericas, presupuesto,
                                     incluir_valores, tipo_declarado,
                                     motivo_ilegible, universo,
-                                    aproximacion_mediana, mediana_escalar,
                                     decisiones_costo,
                                     como_numeric = FALSE) {
   if (!identical(universo, "tabla_completa")) return(NULL)
@@ -10619,7 +10563,7 @@
   decision$detalle$motivo
 }
 
-.decision_costo_dbi <- function(columna, conteos, politica,
+.decision_costo_dbi <- function(columna, politica,
                                 n_validos = NA_real_, n_distintos = NA_real_,
                                 alcance = "la tabla",
                                 fuente_cardinalidad_costo = NULL) {
@@ -10713,8 +10657,8 @@
   c(conservar, detalle = list(detalle))
 }
 
-.decisiones_costo_dbi <- function(conexion, columnas, agregados, politica,
-                                  n_total, universo = "tabla_completa",
+.decisiones_costo_dbi <- function(columnas, agregados, politica,
+                                  universo = "tabla_completa",
                                   fuentes_cardinalidad_costo = NULL) {
   salida <- vector("list", length(columnas))
   names(salida) <- columnas
@@ -10734,7 +10678,7 @@
       fuentes_cardinalidad_costo[[columna]]
     }
     salida[[columna]] <- .decision_costo_dbi(
-      columna, conteo, politica, validos, distintos, alcance,
+      columna, politica, validos, distintos, alcance,
       fuente_cardinalidad_costo = fuente
     )
   }
@@ -11418,8 +11362,7 @@
 
 .media_sql_dbi <- function(expr, senas = "", tabla_sql = NULL,
                             float8_seguro = FALSE,
-                            infinitos_como_numeric = FALSE,
-                            tipo = NA_character_) {
+                            infinitos_como_numeric = FALSE) {
   if (isTRUE(float8_seguro) &&
       grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
       length(tabla_sql) == 1L && !is.na(tabla_sql) && nzchar(tabla_sql)) {
@@ -11532,7 +11475,7 @@
   parte_media <- paste0(.media_sql_dbi(
     columna_sql, senas, tabla_sql = tabla_sql,
     float8_seguro = float8_seguro,
-    infinitos_como_numeric = infinitos_como_numeric, tipo = tipo
+    infinitos_como_numeric = infinitos_como_numeric
   ), " AS ", alias("media"))
   partes <- c(
     if (incluir_valores) paste0("MIN(", columna_sql, ") AS ", alias("minimo")),
@@ -11779,8 +11722,7 @@
 
 # La media de la ventana conserva las mismas promociones que `.media_sql_dbi()`.
 .media_ventana_sql_dbi <- function(expr, senas = "", float8_seguro = FALSE,
-                                   infinitos_como_numeric = FALSE,
-                                   tipo = NA_character_) {
+                                   infinitos_como_numeric = FALSE) {
   if (isTRUE(float8_seguro) &&
       grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
     lectura_numeric <- isTRUE(infinitos_como_numeric) ||
@@ -11889,7 +11831,7 @@
     paste0("AVG(CAST(", columna_desvio, " AS DOUBLE PRECISION))")
   } else .media_sql_dbi(
     columna_desvio, senas, infinitos_como_numeric = infinitos_como_numeric ||
-      numeric_exact, tipo = tipo
+      numeric_exact
   )
   media_sql <- if (isTRUE(centro_en_ventana)) NULL else {
     paste0("(SELECT ", media_expr, " FROM ", tabla_sql, ")")
@@ -11977,7 +11919,7 @@
   if (isTRUE(forzar_escalado)) {
     return(.desvio_columna_escalado_sqlserver_dbi(
       conexion, tabla_sql, columna_sql, alias, forma, presupuesto, metadatos,
-      centro = centro, tipo = tipo,
+      tipo = tipo,
       infinitos_como_numeric = infinitos_como_numeric, escala = escala
     ))
   }
@@ -11986,8 +11928,7 @@
     sql_centro <- paste0(
       "SELECT ", .media_sql_dbi(
         columna_sql, senas,
-        infinitos_como_numeric = infinitos_como_numeric || numeric_exact,
-        tipo = tipo
+        infinitos_como_numeric = infinitos_como_numeric || numeric_exact
       ), " AS ", alias("centro"),
       " FROM ", tabla_sql
     )
@@ -12003,8 +11944,7 @@
     paste0(
       "(SELECT ", .media_sql_dbi(
         columna_sql, senas,
-        infinitos_como_numeric = infinitos_como_numeric || numeric_exact,
-        tipo = tipo
+        infinitos_como_numeric = infinitos_como_numeric || numeric_exact
       ),
       " FROM ", tabla_sql, ")"
     )
@@ -12038,7 +11978,7 @@
   if (normal_fallo && (repliega_fallida || isTRUE(resultado$ok))) {
     escalado <- .desvio_columna_escalado_sqlserver_dbi(
       conexion, tabla_sql, columna_sql, alias, forma, presupuesto, metadatos,
-      centro = centro, tipo = tipo,
+      tipo = tipo,
       infinitos_como_numeric = infinitos_como_numeric, escala = escala
     )
     if (isTRUE(escalado$ok) || repliega_fallida) return(escalado)
@@ -12084,7 +12024,7 @@
 # y el resultado sigue siendo cero, nunca `NULL`.
 .desvio_columna_escalado_sqlserver_dbi <- function(
     conexion, tabla_sql, columna_sql, alias, forma, presupuesto, metadatos,
-    centro = NULL, tipo = NA_character_, infinitos_como_numeric = FALSE,
+    tipo = NA_character_, infinitos_como_numeric = FALSE,
     escala = NULL) {
   senas <- .senas_conexion_dbi(conexion)
   mysql <- .es_mysql_dbi(senas)
@@ -12711,7 +12651,7 @@
 
 .agregados_lote_con_biseccion_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, es_numerico, metricas,
-    incluir_valores, presupuesto, tamano_lote, numero, alias, forma,
+    incluir_valores, presupuesto, numero, alias, forma,
     etapa = "agregados", incluir_total = FALSE,
     tabla_total_sql = tabla_sql, columnas_float8_numeric = character(),
     infinitos_como_numeric = FALSE, centros_desvio = NULL,
@@ -12823,10 +12763,6 @@
       paste0("CAST(", nombres_sql[[campo]], " AS DOUBLE)")
     } else nombres_sql[[campo]]
   }
-  sqlserver <- grepl(
-    "sql server|microsoft sql|sqlserver|mssql", senas,
-    perl = TRUE, useBytes = TRUE
-  )
   tabla_agregados_sql <- tabla_sql
   centros_ventana <- list()
   if (isTRUE(ventana_desvio) && any(es_numerico)) {
@@ -12842,9 +12778,7 @@
         .media_ventana_sql_dbi(
           promedio_de(campo), senas,
           float8_seguro = campo %in% columnas_float8_numeric,
-          infinitos_como_numeric = exacta,
-          tipo = if (is.null(tipos_declarados)) NA_character_ else
-            tipos_declarados[[campo]] %||% NA_character_
+          infinitos_como_numeric = exacta
         ), " AS ", nombre
       )
     }, character(1L), USE.NAMES = FALSE)
@@ -12901,9 +12835,7 @@
           .media_sql_dbi(
             promedio_de(campo), senas, tabla_sql = tabla_agregados_sql,
             float8_seguro = campo %in% columnas_float8_numeric,
-            infinitos_como_numeric = exacta,
-            tipo = if (is.null(tipos_declarados)) NA_character_ else
-              tipos_declarados[[campo]] %||% NA_character_
+            infinitos_como_numeric = exacta
           ), " AS ",
           aliases$basicos$media
         ),
@@ -13574,13 +13506,7 @@
   }
 
   senas <- .senas_conexion_dbi(conexion)
-  sqlserver <- grepl(
-    "sql server|microsoft sql|sqlserver|mssql", senas,
-    perl = TRUE, useBytes = TRUE
-  )
   mysql <- .es_mysql_dbi(senas)
-  postgres_float8 <- grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
-    length(columnas_float8_numeric)
   tipos_por_nombre <- if (is.null(tipos_declarados)) {
     NULL
   } else {
@@ -13618,7 +13544,6 @@
   }
   metricas_consulta <- metricas_planas
   if (separar_desvio) metricas_consulta <- unique(c(metricas_consulta, "basicos"))
-  incluir_total_muestra <- !identical(tabla_total_sql, tabla_sql)
   numericas <- columnas[es_numerico]
   columnas_planas <- if ("validos" %in% metricas_planas) {
     columnas
@@ -13649,7 +13574,7 @@
       es_numerico_lote <- es_numerico[indices]
       resultado_lote <- .agregados_lote_con_biseccion_dbi(
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
-        metricas_consulta, incluir_valores, presupuesto, tamano_lote_planos, numero,
+        metricas_consulta, incluir_valores, presupuesto, numero,
         alias, forma, etapa,
         # El total va siempre en los agregados: sin `validos` se pedia aparte,
         # en una consulta que el plan no cuenta.
@@ -13806,7 +13731,7 @@
           resultado_desvio <- .agregados_lote_con_biseccion_dbi(
             conexion, tabla_sql, columnas_desvio, nombres_sql,
             es_numerico[indices_desvio], "desvio", incluir_valores,
-            presupuesto, tamano_lote_planos, numero, alias, forma,
+            presupuesto, numero, alias, forma,
             etapa = "desvio", incluir_total = FALSE,
             tabla_total_sql = tabla_total_sql,
             columnas_float8_numeric = columnas_desvio_exactas,
@@ -14008,7 +13933,7 @@
 # repliegue). Una sola fila vuelve por MAX y no se promedia.
 .mediana_escalada_dbi <- function(
     conexion, tabla_sql, columna_sql, alias, dialecto, n_validos,
-    presupuesto = NULL, escala = NULL) {
+    presupuesto = NULL) {
   n_validos <- .numero_dbi(n_validos)
   if (length(n_validos) != 1L || is.na(n_validos) ||
       !is.finite(n_validos) || n_validos < 1) {
@@ -14355,7 +14280,7 @@
       if (is.null(sql_escalada)) {
         return(.mediana_escalada_dbi(
           conexion, tabla_sql, columna_sql, alias, dialecto,
-          n_validos_mediana, presupuesto, escala = escala_mediana
+          n_validos_mediana, presupuesto
         ))
       }
       # Sin valores no hay centrales que promediar: no se paga otra consulta.
@@ -15379,8 +15304,8 @@
     finitas <- .magnitudes_finitas_dbi(
       conexion, tabla_sql, columna, columna_sql, prototipo, n_total, dialecto,
       pedidas_numericas, presupuesto, incluir_valores, tipo_declarado,
-      motivo_ilegible, universo, aproximacion_mediana, mediana_escalar,
-      decisiones_costo, como_numeric = infinitos_columna_como_numeric
+      motivo_ilegible, universo, decisiones_costo,
+      como_numeric = infinitos_columna_como_numeric
     )
     if (!is.null(finitas)) {
       for (campo in names(finitas$fila)) fila[[campo]] <- finitas$fila[[campo]]
@@ -16201,7 +16126,7 @@
     }
   }
   decisiones_costo <- .decisiones_costo_dbi(
-    conexion, campos_consolidados, agregados, politica_costo, n_total, universo,
+    campos_consolidados, agregados, politica_costo, universo,
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo
   )
   if (!is.null(presupuesto)) {
@@ -17784,7 +17709,7 @@
 # decidir (`.desvio_por_ventana_dbi()`, `.desvio_separado_dbi()`, las medianas
 # que dejan la consolidada). `emitidas` son las consultas ya pagadas -o, en el
 # plan, previstas- antes de los agregados.
-.plan_sql_dbi <- function(conexion, tabla, preparacion, es_numerico,
+.plan_sql_dbi <- function(conexion, preparacion, es_numerico,
                           incluir_valores, tope_muestra, emitidas,
                           catalogo_aviso = 0L,
                           decisiones_costo_resueltas = NULL) {
@@ -17794,11 +17719,11 @@
   # corrida medira lo que la politica explicita necesite, una sola vez.
   decisiones_costo <- if (is.null(decisiones_costo_resueltas)) {
     .decisiones_costo_dbi(
-      conexion, preparacion$campos,
+      preparacion$campos,
       list(conteos = stats::setNames(
         vector("list", length(preparacion$campos)), preparacion$campos
       )),
-      preparacion$politica_costo, preparacion$n_total, preparacion$universo,
+      preparacion$politica_costo, preparacion$universo,
       fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
     )
   } else {
@@ -18835,7 +18760,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
     conexion, preparacion, es_numerico, incluir_valores
   )
   plan <- .plan_sql_dbi(
-    conexion, tabla, preparacion, es_numerico, incluir_valores, tope_muestra,
+    conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = emitidas_plan,
     catalogo_aviso = .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
   )
@@ -18990,7 +18915,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
         prototipo = preparacion$prototipo, tipos = preparacion$tipos,
         orden_sql = preparacion$orden_sql,
         clave = preparacion$catalogo_cardinalidad,
-        dialecto = preparacion$dialecto, presupuesto = preparacion$presupuesto,
+        presupuesto = preparacion$presupuesto,
         bloque_filas = bloque_filas
       )
     } else {
@@ -19693,7 +19618,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     rellenos_columna = rellenos_columna
   )
   # Para el mensaje del motor de las demas tablas de una coleccion: ver
-  # `.valores_motor()`. Fuera de una coleccion no hace nada.
+  # `.activar_valores_motor()`. Fuera de una coleccion no hace nada.
   .sumar_valores_motor(c(bloque$valores_protegidos, no_confirmados),
                        fechas = bloque$valores_protegidos)
   if (isTRUE(fuera$completo)) {
@@ -20288,7 +20213,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 }
 
 .expresion_binaria_muestra_dbi <- function(
-    conexion, expr, alias, senas, prefijo = FALSE) {
+    expr, alias, senas, prefijo = FALSE) {
   if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
     return(paste0(
       "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CAST(octet_length(",
@@ -20351,7 +20276,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       expr <- .citar_identificador_dbi(conexion, campos[[i]])
       alias <- .citar_identificador_dbi(conexion, campos[[i]])
       .expresion_binaria_muestra_dbi(
-        conexion, expr, alias, senas, prefijo = binarios_prefijo[[i]]
+        expr, alias, senas, prefijo = binarios_prefijo[[i]]
       )
     }, character(1L))
   }
@@ -20414,7 +20339,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   tipos <- binaria$tipos
   binarios <- binaria$binarios
-  binarios_prefijo <- binaria$binarios_prefijo
   max_largo <- suppressWarnings(as.numeric(max_largo_valor_vocabulario))
   textos_largos <- vapply(seq_along(campos), function(i) {
     motor_texto && !binarios[[i]] &&
@@ -25164,7 +25088,7 @@ perfilar_dbi <- function(conexion, tabla,
   # forma del plan sea la del previo.
   aviso_catalogo <- .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
   plan <- .plan_sql_dbi(
-    conexion, tabla, preparacion, es_numerico, incluir_valores, tope_muestra,
+    conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = presupuesto$usadas - aviso_catalogo +
       .prueba_cte_mediana_plan_dbi(
         conexion, preparacion, es_numerico, incluir_valores
@@ -25659,7 +25583,7 @@ perfilar_dbi <- function(conexion, tabla,
   resumen$meta$costo_mediana <- presupuesto$proyeccion_mediana
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
     plan <- .plan_sql_dbi(
-      conexion, tabla, preparacion, es_numerico, incluir_valores,
+      conexion, preparacion, es_numerico, incluir_valores,
       tope_muestra, emitidas = consultas_antes_resumen,
       catalogo_aviso = aviso_catalogo,
       decisiones_costo_resueltas = resumen$meta$decisiones_costo

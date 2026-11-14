@@ -468,9 +468,6 @@
                                           cobertura, n, n_ausentes,
                                           columna_texto = columna,
                                           grupo_texto = grupo) {
-  otras <- grupo[
-    !(.nombres_para_operar(grupo) %in% .nombres_para_operar(columna))
-  ]
   otras_texto <- grupo_texto[
     !(.nombres_para_operar(grupo) %in% .nombres_para_operar(columna))
   ]

@@ -209,11 +209,6 @@
   datos[do.call(.orden_por_bytes, argumentos), , drop = FALSE]
 }
 
-.lsh_deduplicar <- function(datos, columnas) {
-  if (!nrow(datos) || !length(columnas)) return(datos)
-  datos[!duplicated(datos[columnas]), , drop = FALSE]
-}
-
 .lsh_normalizar_runs <- function(archivos, columnas_orden, directorio,
                                 prefijo, tamano = .TAMANO_CHUNK_LSH) {
   # Un spool de una fila larga puede llegar en chunks que estan ordenados
@@ -654,7 +649,7 @@
   )
 }
 
-.lsh_candidatos_externos <- function(runs_firmas, directorio, bandas,
+.lsh_candidatos_externos <- function(runs_firmas, directorio,
                                      max_cubeta, tamano = .TAMANO_CHUNK_LSH) {
   runs_firmas <- .lsh_ordenar_runs(
     runs_firmas, c("banda", "clave", "ordinal"), directorio,
@@ -1062,7 +1057,6 @@
 .lsh_comparar_candidatos <- function(acumulador, candidatos, lector, rango,
                                      metodo, umbral, nucleos, p,
                                      max_resultados, bloqueos = FALSE) {
-  estado <- acumulador$estado_familia
   acumulador_duplicados <- .nuevo_acumulador_duplicados(max_resultados, rango)
   comparados <- 0
   descartados_bloque <- 0
@@ -1241,7 +1235,7 @@
       estimacion$candidatos_previstos, conf$presupuesto_pares
     )
     candidatos <- .lsh_candidatos_externos(
-      runs_firmas, estado$directorio, conf$bandas, conf$max_cubeta,
+      runs_firmas, estado$directorio, conf$max_cubeta,
       as.integer(conf$chunk_qgramas %||% .TAMANO_CHUNK_LSH)
     )
     rango <- .lsh_rango_externo(estado, estado$directorio)

@@ -660,9 +660,9 @@ test_that("la proteccion admite objetos creados con esquemas anteriores", {
 
   clasificacion <- protegido$perfil$datos_personales[1L, , drop = FALSE]
   clasificacion$tipo <- "fecha_nacimiento"
-  expect_length(lupa:::.hallazgos_rango_nacimiento(
+  expect_length(lupa:::.hallazgos_rango_fecha_personal(
     protegido$perfil$columnas[0L, , drop = FALSE], clasificacion,
-    as.POSIXct("2026-01-01", tz = "UTC")
+    as.POSIXct("2026-01-01", tz = "UTC"), "fecha_nacimiento"
   ), 0L)
 })
 

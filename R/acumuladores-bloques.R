@@ -43,7 +43,7 @@
   )
 }
 
-.nuevo_entorno_acumulador <- function(familia, columna, tipo, configuracion,
+.nuevo_entorno_acumulador <- function(familia, configuracion,
                                       max_entradas = Inf,
                                       max_bytes = Inf,
                                       requiere_orden = FALSE,
@@ -98,7 +98,7 @@
     muestra_id, orden_id
   )
   acumulador <- .nuevo_entorno_acumulador(
-    familia, columna, tipo, configuracion, max_entradas, max_bytes,
+    familia, configuracion, max_entradas, max_bytes,
     requiere_orden, incluir_ausentes
   )
   es_indice <- familia %in% c("trazabilidad", "ejemplos", "muestra", "lsh")
@@ -488,26 +488,6 @@
     }
   }
   salida
-}
-
-.clave_identidad_R <- function(x) {
-  if (length(x) != 1L) {
-    .detener("La clave de identidad requiere un solo valor.", call. = FALSE)
-  }
-  es_integer64 <- inherits(x, "integer64")
-  es_na <- isTRUE(tryCatch(is.na(x), error = function(e) FALSE))
-  es_nan <- isTRUE(tryCatch(is.nan(x), error = function(e) FALSE))
-  clase <- class(x)
-  tipo <- if (length(clase)) paste(clase, collapse = "/") else typeof(x)
-  if (es_na && es_nan) {
-    return(list(tipo = tipo, clase = clase, categoria = "NaN",
-                valor = NA_real_))
-  }
-  if (es_na) {
-    return(list(tipo = tipo, clase = clase, categoria = "NA", valor = x))
-  }
-  if (!es_integer64 && is.double(x) && isTRUE(x == 0)) x <- 0
-  list(tipo = tipo, clase = clase, categoria = "valor", valor = x)
 }
 
 .append_typed_R <- function(x, valor) {
@@ -1955,7 +1935,6 @@
   aplica <- !is.na(bloque$aplicable) & bloque$aplicable
   if (!acumulador$incluir_ausentes) aplica <- aplica & !is.na(x)
   ordinales <- .ordinales_bloque(bloque)
-  indices <- which(aplica)
   ordinales <- ordinales[aplica]
   x <- x[aplica]
   if (!length(x)) {
@@ -3056,8 +3035,6 @@
       ".sobre_lsh_acumulador", mode = "function")) {
     return(.sobre_lsh_acumulador(acumulador))
   }
-  exacto <- identical(acumulador$estado, "iniciado") ||
-    identical(acumulador$estado, "finalizado")
   estado <- if (identical(acumulador$estado, "no_disponible")) {
     "no_disponible"
   } else if (identical(acumulador$estado, "truncado")) {
@@ -3497,41 +3474,6 @@
   if (!inherits(vigilante, "vigilante_bloques")) return(NULL)
   vigilante$eventos
 }
-
-.conteos_filas_duplicadas_bloques <- function(datos, k = NULL,
-                                              max_entradas = Inf,
-                                              max_bytes = Inf) {
-  datos <- .expandir_datos_identidad(datos)
-  bloques <- .particionar_bloques(nrow(datos), k = k)
-  bloques <- lapply(bloques, function(bloque) {
-    bloque$valores <- datos[bloque$valores, , drop = FALSE]
-    bloque
-  })
-  acumulador <- .iniciar_acumulador(
-    "filas", "data.frame", familia = "filas_distintos",
-    max_entradas = max_entradas, max_bytes = max_bytes,
-    requiere_orden = TRUE
-  )
-  resultado <- .ejecutar_acumulador_bloques(acumulador, bloques)$resultado
-  if (!identical(resultado$estado, "calculado")) return(resultado)
-  mapa <- resultado$resultado
-  frecuencias <- mapa$frecuencias
-  list(
-    filas_duplicadas = as.integer(sum(frecuencias - 1L)),
-    filas_en_grupos_duplicados = as.integer(sum(frecuencias[frecuencias > 1L])),
-    estado = resultado$estado,
-    exacto = resultado$exacto,
-    mapa = mapa,
-    sobre = resultado
-  )
-}
-
-# Nombres del contrato, deliberadamente internos y no exportados.
-iniciar <- function(...) .iniciar_acumulador(...)
-absorber <- function(acumulador, bloque) .absorber_acumulador(acumulador, bloque)
-fusionar <- function(acumulador, otro) .fusionar_acumuladores(acumulador, otro)
-finalizar <- function(acumulador) .finalizar_acumulador(acumulador)
-bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
 
 # ---------------------------------------------------------------------------
 # Etapa 2: familias de VALOR
@@ -4160,31 +4102,6 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
 }
 
 .relacion_proporcional_bloques <- .k_aritmetica_bloques
-
-.relaciones_aritmeticas_bloques <- function(datos, columnas = NULL,
-                                            k = NULL, ...) {
-  if (!inherits(datos, "data.frame") || ncol(datos) < 2L) {
-    return(list())
-  }
-  if (is.null(columnas)) {
-    # La MISMA regla que el camino en memoria, no un `is.numeric` pelado. Este
-    # gemelo elegia columnas con un criterio mas debil -aceptaba fechas,
-    # `integer64` y columnas con dimensiones-, asi que la misma tabla podia
-    # recibir dos conjuntos de columnas segun por que camino se la perfilara.
-    columnas <- which(vapply(datos, .es_columna_aritmetica, logical(1L)))
-  }
-  if (length(columnas) < 2L) return(list())
-  pares <- utils::combn(columnas, 2L, simplify = FALSE)
-  nombres <- names(datos)
-  salida <- lapply(pares, function(par) {
-    .k_aritmetica_bloques(datos[[par[[1L]]]], datos[[par[[2L]]]],
-                          k_bloques = k, ...)
-  })
-  names(salida) <- vapply(pares, function(par) {
-    paste(nombres[par], collapse = " ~ ")
-  }, character(1L))
-  salida
-}
 
 .ejecutar_valor_bloques <- function(x, k = NULL, tamano = 10000L,
                                     aplicable = NULL,

@@ -180,17 +180,17 @@ test_that("fusionar dos estados da el desvio del recorrido entero", {
     # La derecha empieza mas abajo: su centro es otro.
     y <- c(x[1:150], x[151:300] - 3.5)
     bloques <- partir(y)
-    izquierda <- lupa:::iniciar(
+    izquierda <- lupa:::.iniciar_acumulador(
       "x", "numeric", familia = "cuantitativos",
       configuracion = list(desvio = modo)
     )
-    derecha <- lupa:::iniciar(
+    derecha <- lupa:::.iniciar_acumulador(
       "x", "numeric", familia = "cuantitativos",
       configuracion = list(desvio = modo)
     )
-    lupa:::absorber(izquierda, bloques[[1L]])
-    lupa:::absorber(derecha, bloques[[2L]])
-    fusionada <- lupa:::finalizar(lupa:::fusionar(izquierda, derecha))
+    lupa:::.absorber_acumulador(izquierda, bloques[[1L]])
+    lupa:::.absorber_acumulador(derecha, bloques[[2L]])
+    fusionada <- lupa:::.finalizar_acumulador(lupa:::.fusionar_acumuladores(izquierda, derecha))
     expect_identical(fusionada$resultado$desvio, 0x1.fd4af469faa46p+0,
                      info = modo)
   }

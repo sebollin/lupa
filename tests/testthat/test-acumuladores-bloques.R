@@ -91,7 +91,9 @@ test_that("el mapa central usa la igualdad de R y conserva ordinales", {
   expect_true(any(is.na(mapa$representante) & !is.nan(mapa$representante)))
 })
 
-test_that("la clave de filas reproduce duplicated.data.frame por bloques", {
+test_that("la clave de filas reproduce duplicated.data.frame", {
+  # Las filas repetidas las cuenta `.conteos_filas_duplicadas()`: ninguna
+  # salida del paquete las cuenta por bloques.
   fixture <- data.frame(
     doble = c(-0, 0, hacer_nan_fixture(1L), hacer_nan_fixture(2L),
               NA_real_, NA_real_),
@@ -102,27 +104,23 @@ test_that("la clave de filas reproduce duplicated.data.frame por bloques", {
   esperado <- c(sum(referencia), sum(referencia | rev(
     base::duplicated.data.frame(fixture[rev(seq_len(nrow(fixture))), , drop = FALSE])
   )))
-  for (k in c(1L, 2L, 7L, 31L)) {
-    actual <- lupa:::.conteos_filas_duplicadas_bloques(fixture, k = k)
-    expect_identical(actual$filas_duplicadas, as.integer(esperado[[1L]]))
-    expect_identical(actual$filas_en_grupos_duplicados,
-                    as.integer(esperado[[2L]]))
-    expect_identical(actual$estado, "calculado")
-    expect_true(isTRUE(actual$exacto))
-  }
+  actual <- lupa:::.conteos_filas_duplicadas(fixture)
+  expect_identical(actual$filas_duplicadas, as.integer(esperado[[1L]]))
+  expect_identical(actual$filas_en_grupos_duplicados,
+                  as.integer(esperado[[2L]]))
 
   skip_if_not_installed("bit64")
   grande <- data.frame(
     x = bit64::as.integer64(c("9007199254740993", "9007199254740994",
                               "9007199254740993"))
   )
-  actual <- lupa:::.conteos_filas_duplicadas_bloques(grande, k = 2L)
+  actual <- lupa:::.conteos_filas_duplicadas(grande)
   expect_identical(actual$filas_duplicadas, 1L)
   expect_identical(actual$filas_en_grupos_duplicados, 2L)
 
   matriz <- data.frame(id = c(1, 2, 1))
   matriz$componentes <- I(cbind(c("x", "y", "x"), c(1, 2, 1)))
-  actual <- lupa:::.conteos_filas_duplicadas_bloques(matriz, k = 2L)
+  actual <- lupa:::.conteos_filas_duplicadas(matriz)
   expect_identical(actual$filas_duplicadas, 1L)
   expect_identical(actual$filas_en_grupos_duplicados, 2L)
 
@@ -130,14 +128,14 @@ test_that("la clave de filas reproduce duplicated.data.frame por bloques", {
     x = c(0.12345678901234567, 0.12345678901234568,
           0.12345678901234567)
   )
-  actual <- lupa:::.conteos_filas_duplicadas_bloques(alta_precision, k = 2L)
+  actual <- lupa:::.conteos_filas_duplicadas(alta_precision)
   expect_identical(actual$filas_duplicadas,
                    sum(base::duplicated.data.frame(alta_precision)))
 
   fechas <- data.frame(
     x = as.Date(c("2020-01-01", "2020-01-01", "2020-01-02"))
   )
-  actual <- lupa:::.conteos_filas_duplicadas_bloques(fechas, k = 2L)
+  actual <- lupa:::.conteos_filas_duplicadas(fechas)
   expect_identical(actual$filas_duplicadas,
                    sum(base::duplicated.data.frame(fechas)))
 })
@@ -145,24 +143,24 @@ test_that("la clave de filas reproduce duplicated.data.frame por bloques", {
 test_that("fusionar exige la configuracion y suma estados asociativos", {
   valores <- c(-10, -2, 0, 1, 20, 100)
   bloques <- partir_fixture_bloques(valores, 2L)
-  izquierda <- lupa:::iniciar(
+  izquierda <- lupa:::.iniciar_acumulador(
     "x", "numeric", familia = "cuantitativos",
     configuracion = list(contar_signos = TRUE)
   )
-  derecha <- lupa:::iniciar(
+  derecha <- lupa:::.iniciar_acumulador(
     "x", "numeric", familia = "cuantitativos",
     configuracion = list(contar_signos = TRUE)
   )
-  lupa:::absorber(izquierda, bloques[[1L]])
-  lupa:::absorber(derecha, bloques[[2L]])
-  fusionada <- lupa:::finalizar(lupa:::fusionar(izquierda, derecha))
+  lupa:::.absorber_acumulador(izquierda, bloques[[1L]])
+  lupa:::.absorber_acumulador(derecha, bloques[[2L]])
+  fusionada <- lupa:::.finalizar_acumulador(lupa:::.fusionar_acumuladores(izquierda, derecha))
   referencia <- ejecutar_fixture(valores, "cuantitativos", 1L,
                                  configuracion = list(contar_signos = TRUE))
   expect_equal(fusionada$resultado[names(referencia$resultado)],
                referencia$resultado, tolerance = 1e-14)
 
-  incompatible <- lupa:::iniciar("otra", "numeric", familia = "cuantitativos")
-  fallida <- lupa:::fusionar(izquierda, incompatible)
+  incompatible <- lupa:::.iniciar_acumulador("otra", "numeric", familia = "cuantitativos")
+  fallida <- lupa:::.fusionar_acumuladores(izquierda, incompatible)
   expect_identical(fallida$estado, "no_disponible")
   expect_match(fallida$fallo, "incompatible")
 })
@@ -170,15 +168,15 @@ test_that("fusionar exige la configuracion y suma estados asociativos", {
 test_that("la fusion del mapa conserva igualdad, frecuencias y ordinales", {
   valores <- c("b", "a", "b", "c", "a", "c")
   bloques <- partir_fixture_bloques(valores, 2L)
-  izquierda <- lupa:::iniciar(
+  izquierda <- lupa:::.iniciar_acumulador(
     "x", "character", familia = "distintos", requiere_orden = TRUE
   )
-  derecha <- lupa:::iniciar(
+  derecha <- lupa:::.iniciar_acumulador(
     "x", "character", familia = "distintos", requiere_orden = TRUE
   )
-  lupa:::absorber(izquierda, bloques[[1L]])
-  lupa:::absorber(derecha, bloques[[2L]])
-  fusionada <- lupa:::finalizar(lupa:::fusionar(izquierda, derecha))
+  lupa:::.absorber_acumulador(izquierda, bloques[[1L]])
+  lupa:::.absorber_acumulador(derecha, bloques[[2L]])
+  fusionada <- lupa:::.finalizar_acumulador(lupa:::.fusionar_acumuladores(izquierda, derecha))
   referencia <- ejecutar_fixture(valores, "distintos", 1L)
   expect_identical(fusionada$resultado, referencia$resultado)
 })
@@ -186,19 +184,19 @@ test_that("la fusion del mapa conserva igualdad, frecuencias y ordinales", {
 test_that("la fusion de filas conserva el conteo de grupos", {
   datos <- data.frame(x = c("a", "b", "a", "c", "b", "c"))
   bloques <- partir_fixture_bloques(datos$x, 2L)
-  izquierda <- lupa:::iniciar(
+  izquierda <- lupa:::.iniciar_acumulador(
     "fila", "data.frame", familia = "filas_distintos", requiere_orden = TRUE
   )
-  derecha <- lupa:::iniciar(
+  derecha <- lupa:::.iniciar_acumulador(
     "fila", "data.frame", familia = "filas_distintos", requiere_orden = TRUE
   )
   bloques <- lapply(bloques, function(bloque) {
     bloque$valores <- data.frame(x = bloque$valores)
     bloque
   })
-  lupa:::absorber(izquierda, bloques[[1L]])
-  lupa:::absorber(derecha, bloques[[2L]])
-  resultado <- lupa:::finalizar(lupa:::fusionar(izquierda, derecha))
+  lupa:::.absorber_acumulador(izquierda, bloques[[1L]])
+  lupa:::.absorber_acumulador(derecha, bloques[[2L]])
+  resultado <- lupa:::.finalizar_acumulador(lupa:::.fusionar_acumuladores(izquierda, derecha))
   expect_identical(resultado$resultado$filas_duplicadas, 3L)
   expect_identical(resultado$resultado$filas_en_grupos_duplicados, 6L)
 })
@@ -231,7 +229,7 @@ test_that("el vigilante registra bloques y la barrera de finalizar", {
   ejecucion <- lupa:::.ejecutar_vector_bloques(
     1:10, "cuantitativos", k = 2L
   )
-  acumulador <- lupa:::iniciar("x", "numeric", familia = "cuantitativos")
+  acumulador <- lupa:::.iniciar_acumulador("x", "numeric", familia = "cuantitativos")
   bloques <- partir_fixture_bloques(1:10, 2L)
   observada <- lupa:::.ejecutar_acumulador_bloques(
     acumulador, bloques, vigilante = vigilante

@@ -720,16 +720,6 @@
   )
 }
 
-.clave_medida_reporte <- function(id_medicion, id_medida,
-                                  metrica_instanciada) {
-  .clave_bytes(do.call(paste, c(
-    lapply(
-      list(id_medicion, id_medida, metrica_instanciada), .clave_bytes
-    ),
-    sep = "\r"
-  )))
-}
-
 # Las supresiones de TODO el informe, de todos los objetos que las declaran: los
 # desenlaces de cada evaluacion -y de la de un analisis- y las medidas que un
 # historico ya trae suprimidas. El historico se quedaba afuera, y

@@ -313,7 +313,7 @@ test_that("D7: la coleccion guarda huellas de los valores, no sus textos", {
           paste0(sample(LETTERS, 1L), paste(sample(letters, 8L), collapse = "")))
   }, character(1L))
   .sumar_valores_motor(nombres)
-  indice <- .valores_motor()
+  indice <- .CONTEXTO_MOTOR$valores
   bytes <- serialize(indice, NULL)
   # Ninguno de los textos queda guardado...
   expect_identical(sum(vapply(nombres[1:50], function(v) {

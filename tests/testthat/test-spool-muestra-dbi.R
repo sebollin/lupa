@@ -9,10 +9,20 @@ test_that("el spool verifica trailer, checksum y orden de sus chunks", {
     data.frame(id = 1:2, texto = c("a", "b"), stringsAsFactors = FALSE),
     data.frame(id = 3:4, texto = c("c", "d"), stringsAsFactors = FALSE)
   )
-  spool <- .escribir_spool_muestra_dbi(chunks, max_bytes = Inf)
-  on.exit(unlink(spool$path), add = TRUE)
+  # El spool se escribe con las mismas piezas que usa la materializacion de la
+  # muestra (abrir, un chunk por bloque, cerrar), sin un motor detras.
+  path <- tempfile("lupa-spool-muestra-", fileext = ".bin")
+  on.exit(unlink(path), add = TRUE)
+  escritor <- .abrir_spool_muestra_dbi(
+    path, character(), "muestra-1", "snapshot-1", "orden-1", Inf, "prueba"
+  )
+  escritor$path <- path
+  for (datos in chunks) {
+    escritor <- .escribir_chunk_spool_muestra_dbi(escritor, datos)
+  }
+  spool <- .cerrar_spool_muestra_dbi(escritor)
   expect_true(spool$ok)
-  leido <- .leer_spool_muestra_dbi(spool$path)
+  leido <- .leer_spool_muestra_dbi(path)
   expect_true(leido$ok)
   expect_equal(leido$n_filas, 4)
   expect_equal(leido$n_chunks, 2)
@@ -21,7 +31,7 @@ test_that("el spool verifica trailer, checksum y orden de sus chunks", {
   expect_identical(leido$trailer$checksum_payload, leido$checksum)
   expect_identical(leido$datos, do.call(rbind, chunks))
 
-  con <- file(spool$path, "rb")
+  con <- file(path, "rb")
   objetos <- list()
   repeat {
     objeto <- tryCatch(unserialize(con), error = function(e) NULL)
@@ -43,7 +53,7 @@ test_that("el spool verifica trailer, checksum y orden de sus chunks", {
 
   incompleto <- tempfile("lupa-spool-incompleto-", fileext = ".bin")
   on.exit(unlink(incompleto), add = TRUE)
-  bytes <- readBin(spool$path, "raw", n = file.info(spool$path)$size[[1L]] - 1L)
+  bytes <- readBin(path, "raw", n = file.info(path)$size[[1L]] - 1L)
   writeBin(bytes, incompleto)
   expect_identical(
     .leer_spool_muestra_dbi(incompleto, devolver_chunks = FALSE)$motivo,
@@ -64,9 +74,16 @@ test_that("el spool verifica trailer, checksum y orden de sus chunks", {
 })
 
 test_that("el presupuesto del spool se comprueba antes de escribir el chunk", {
-  chunks <- list(data.frame(id = seq_len(5L)))
-  spool <- .escribir_spool_muestra_dbi(chunks, max_bytes = 100L)
-  on.exit(unlink(spool$path), add = TRUE)
+  path <- tempfile("lupa-spool-muestra-", fileext = ".bin")
+  on.exit(unlink(path), add = TRUE)
+  escritor <- .abrir_spool_muestra_dbi(
+    path, character(), "muestra-1", "snapshot-1", "orden-1", 100, "prueba"
+  )
+  escritor$path <- path
+  escritor <- .escribir_chunk_spool_muestra_dbi(
+    escritor, data.frame(id = seq_len(5L))
+  )
+  spool <- .cerrar_spool_muestra_dbi(escritor)
   expect_false(spool$ok)
   expect_identical(spool$motivo,
                    "muestra_inestable:presupuesto_materializacion")

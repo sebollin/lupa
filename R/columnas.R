@@ -806,11 +806,6 @@
   range(restantes)
 }
 
-.sentinela_numerico_fuera_rango <- function(candidatos, rango) {
-  if (is.null(rango) || !length(candidatos)) return(FALSE)
-  any(candidatos < rango[[1L]] | candidatos > rango[[2L]])
-}
-
 # La guarda se decide POR CANDIDATO, no por columna. Decidirla por columna fue
 # el defecto siguiente: en `c(1:1500, rep(1501:1505, each = 200), rep(-9, 200))`
 # el `-9` cae fuera del rango y abre la guarda con razon, pero una vez abierta se
@@ -1098,20 +1093,6 @@
   # `.detectar_faltantes_disfrazados()` la normaliza igual antes de usarla.
   normalizados <- .numeros_na(sentinelas_numericos)
   normalizados[!(normalizados %in% descartados)]
-}
-
-.sentinela_numerico_es_moda_sobresaliente <- function(
-    valores, candidatos, secuencia_entera) {
-  if (!isTRUE(secuencia_entera$moda_sobresale)) return(FALSE)
-  presentes <- !is.na(valores) & is.finite(valores)
-  if (!length(candidatos) || !any(presentes)) return(FALSE)
-  frecuencias_candidatos <- vapply(candidatos, function(candidato) {
-    sum(presentes & valores == candidato)
-  }, numeric(1L))
-  distintos <- .sort_por_bytes(unique(valores[presentes]))
-  frecuencias <- tabulate(match(valores[presentes], distintos),
-                          nbins = length(distintos))
-  any(frecuencias_candidatos == max(frecuencias))
 }
 
 # Un valor centinela -el `9999` que quiere decir "no sabemos"- no se puede
@@ -3696,7 +3677,6 @@
   }
   n_presentes_fuera <- sum(!is.na(x) & !aplicable & !indeterminado_por_fila)
   n_presentes_indeterminadas <- sum(!is.na(x) & indeterminado_por_fila)
-  n_codificacion_invalida <- length(preparacion_texto$posiciones)
   # La identidad describe la representacion almacenada: los bytes invalidos
   # se pueden distinguir sin decodificarlos y no son faltantes. Los analisis
   # textuales tienen su propio alcance, declarado por

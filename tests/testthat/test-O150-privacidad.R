@@ -84,9 +84,9 @@ test_that("H1: la coleccion guarda los valores que el mensaje del motor lleva", 
   ))
   # Se guarda la huella y no el texto (D7); se pregunta con ella. Y el
   # control de que la pregunta no es vacia: el que si se guarda.
-  expect_false(.valor_motor_guardado("099 123 456"))
+  expect_identical(.valores_conocidos_en("099 123 456"), character())
   mensaje("099;123;456", "monto")
-  expect_true(.valor_motor_guardado("099;123;456"))
+  expect_identical(.valores_conocidos_en("099;123;456"), "099;123;456")
   # La seleccion pregunta por la forma del valor, para no correr la segunda
   # pasada valor por valor; nunca descarta uno del que la segunda pasada, con
   # toda palabra permitida, deja pasar algo. Sobre textos al azar con cifras,

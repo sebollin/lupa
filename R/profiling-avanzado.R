@@ -939,7 +939,6 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   # ya declaraba los 50, asi que las dos salidas del paquete se contradecian.
   # Declarado antes del recorte, y lo que no es UTF-8 valido no es una fecha en
   # ninguna sesion (`.texto_legible_recortado()`).
-  valores <- .texto_legible_recortado(x)
   # Un blanco es un valor PRESENTE que no llego a fecha, igual que un texto
   # ilegible: `trimws()` lo deja en `""` y el `nzchar()` lo descartaba de la
   # cuenta. No es una ausencia declarada -eso es `NA`, y se informa en

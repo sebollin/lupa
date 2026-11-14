@@ -589,12 +589,6 @@
     logical()
   }
   filas_con_ausentes_logica <- .filas_clave_con_ausentes(valores)
-  n_repeticiones <- if (pudo_comprobar_unicidad) {
-    sum(duplicadas$adelante)
-  } else {
-    NA_integer_
-  }
-  n_filas_colision <- if (!is.null(colisionan)) sum(colisionan) else NA_integer_
   n_filas_colision_con_ausentes <- if (length(colisionan) &&
       length(filas_con_ausentes_logica) == length(colisionan)) {
     sum(colisionan & filas_con_ausentes_logica)

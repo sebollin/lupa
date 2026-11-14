@@ -103,13 +103,13 @@ test_that("F-5 el mapa y absorber rechazan entradas no atomicas", {
     expect_null(mapa$resultado)
   }
 
-  acumulador <- lupa:::iniciar(
+  acumulador <- lupa:::.iniciar_acumulador(
     "x", "list", familia = "distintos", max_entradas = 10L
   )
-  acumulador <- lupa:::absorber(acumulador, list(
+  acumulador <- lupa:::.absorber_acumulador(acumulador, list(
     valores = valores, ordinal_inicio = 1, ordinal_fin = 4
   ))
-  resultado <- lupa:::finalizar(acumulador)
+  resultado <- lupa:::.finalizar_acumulador(acumulador)
   expect_identical(resultado$estado, "no_disponible")
   expect_identical(resultado$motivo, "entrada_no_soportada:no_atomica")
   expect_true(is.na(resultado$exacto))
