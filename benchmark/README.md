@@ -222,6 +222,20 @@ Imprime un resumen con las medianas y escribe
 `medir-referencias.csv`: una fila por medición y una `<funcion>_mediana` por
 caso.
 
+`medir_texto_numerico.R` mide `perfilar()` sobre tres tablas de texto numérico
+de 200.000 filas —diez columnas de decimales con coma, diez de importes con
+moneda y una mezcla de listas, códigos e importes— y el costo fijo sobre
+`datos_operativos` (40 llamadas). Es la medición que cita la entrada de
+rendimiento de `NEWS.md`: se corre una vez por versión, cada una instalada en
+su propia biblioteca, alternando, y se comparan las medianas por pares:
+
+```sh
+R_LIBS=<biblioteca de la version> Rscript benchmark/medir_texto_numerico.R <etiqueta> <corrida>
+```
+
+Agrega una fila por tabla a `benchmark/datos/medir-texto-numerico.csv`, con la
+versión, la fecha de armado del paquete medido, la etiqueta y la corrida.
+
 Los scripts siguientes son independientes de `verdad_raha.R` y no agregan
 dependencias al paquete:
 
