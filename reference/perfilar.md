@@ -1810,13 +1810,19 @@ regla del dominio ni autoriza una corrección. Los valores de texto que
 no forman UTF-8 válido tampoco se convierten: se cuentan, se excluyen de
 los análisis textuales y generan un hallazgo con sus posiciones. Los
 diagnósticos de invisibles incluyen controles C0/C1, espacios Unicode,
-marcas direccionales, BOM y otros caracteres de transporte. La evidencia
+marcas direccionales, BOM y otros caracteres de transporte: los
+operadores invisibles de la matemática (U+2061 a U+2064), los controles
+de formato en desuso (U+206A a U+206F), los rellenos del hangul (U+115F,
+U+1160, U+3164 y U+FFA0) y la etiqueta de idioma U+E0001. La evidencia
 los muestra como puntos de código; los espacios Unicode se detectan
-aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ se
-informan pero se conservan porque pueden ser semánticos. La comparación
-de duplicados con `normalizar = TRUE` aplica estas mismas clases sin
-borrar ZWJ/ZWNJ. El resto del texto se cita con sus caracteres, y no con
-los escapes de punto de código de
+aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ (en
+`n_invisibles_significativos`) y las etiquetas Unicode (U+E0020 a
+U+E007F, las que arman banderas como la de Escocia; sólo en
+`n_controles_invisibles`) se informan pero se conservan porque pueden
+ser semánticos. La comparación de duplicados con `normalizar = TRUE`
+aplica estas mismas clases sin borrar ZWJ/ZWNJ ni las etiquetas. El
+resto del texto se cita con sus caracteres, y no con los escapes de
+punto de código de
 [`encodeString()`](https://rdrr.io/r/base/encodeString.html), que
 dependen del locale: la evidencia es la misma bajo `C` y bajo un locale
 UTF-8, y el ejemplo que cita casa con el de la tabla de patrones.
@@ -2125,9 +2131,23 @@ sola lo cumple también una magnitud entera acotada cuando se cargan
 filas suficientes, y con esa condición sola el veredicto dependería de
 cuántas filas se leyeron; una numeración que se repite —un código de
 catálogo, una clave foránea— no se distingue por su forma de esa
-magnitud y no se trata como numeración. Es la misma regla que deciden
-`posible_identificador`, la guarda de los límites de Tukey, la de los
-patrones raros y la de Benford. Por eso un código de catálogo que se
+magnitud y no se trata como numeración. Esa condición de no repetirse es
+la misma en todas las reglas de numeración del perfil, y dentro de la
+fila la pregunta «¿es una numeración?» tiene una sola respuesta: una
+columna de enteros —guardada como entero, doble, `integer64` o texto que
+se lee número— que cubre al menos la mitad del tramo entre su mínimo y
+su máximo con cinco valores distintos o más, casi sin repetirse y sin un
+salto de escala ni una moda que sobresalga, o una secuencia `densa` con
+al menos un 90 % de valores distintos. Esa respuesta publica
+`posible_identificador`, apaga los límites de Tukey, hace que
+`tipo_declarado_distinto` no proponga convertir la columna a número y
+que `patron_raro` no cuente como desvío a los valores que sólo difieren
+del dominante en la cantidad de cifras —los `1` a `9` de una numeración
+que arranca en 1—; esto último vale también para una secuencia `densa`
+que no es numeración, porque un tramo lleno trae todos los largos.
+Benford la usa como una de sus razones para excluir una columna.
+`secuencia_entera_densa` mide la cobertura del tramo y no decide sola si
+la columna es un identificador. Por eso un código de catálogo que se
 repite —un `EstCod` de 1 a 284— recibe límites de Tukey y, con tres
 órdenes de magnitud, Benford, aunque se lo pase como texto o como
 factor: el paquete infiere número. Para eso está `columnas_codigo`.

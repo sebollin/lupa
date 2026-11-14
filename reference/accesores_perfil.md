@@ -58,8 +58,16 @@ la impresión del perfil los declara—; `n_filas()` devuelve el conteo de
 filas del alcance, o un vector nombrado con un conteo por tabla para una
 colección —los nombres son los de `resumen_coleccion$tabla`, en el orden
 de la tabla—. Devuelve `NA` con su motivo cuando el objeto no conoce el
-conteo. El significado de cada campo de `columnas()` se explica por
-familias en los detalles de
+conteo. Las tablas de `hallazgos()` y `cobertura()` llevan la clase
+`tabla_lupa` delante de `data.frame`, que sólo cambia cómo se imprimen:
+como la propuesta de
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md),
+la impresión no aborta con un nombre de columna que no es UTF-8 válido,
+que va adentro de sus columnas-lista (`trazabilidad`, `columnas`); los
+subconjuntos la conservan y
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) la quita.
+El significado de cada campo de `columnas()` se explica por familias en
+los detalles de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 `sql_perfil()` devuelve la tabla de consultas emitidas; sobre una
 colección incluye la identidad de la tabla y conserva las consultas

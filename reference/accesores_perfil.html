@@ -122,7 +122,13 @@ viajan en <code>x$perfil_muestra$cobertura_diagnosticos</code>, con el esquema d
 alcance, o un vector nombrado con un conteo por tabla para una colección
 —los nombres son los de <code>resumen_coleccion$tabla</code>, en el orden de la tabla—.
 Devuelve
-<code>NA</code> con su motivo cuando el objeto no conoce el conteo. El significado de
+<code>NA</code> con su motivo cuando el objeto no conoce el conteo. Las tablas de
+<code>hallazgos()</code> y <code>cobertura()</code> llevan la clase <code>tabla_lupa</code> delante de
+<code>data.frame</code>, que sólo cambia cómo se imprimen: como la propuesta de
+<code><a href="proponer_modelo.html">proponer_modelo()</a></code>, la impresión no aborta con un nombre de columna que no
+es UTF-8 válido, que va adentro de sus columnas-lista (<code>trazabilidad</code>,
+<code>columnas</code>); los subconjuntos la conservan y <code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> la quita.
+El significado de
 cada campo de <code>columnas()</code> se explica por familias en los detalles de
 <code><a href="perfilar.html">perfilar()</a></code>. <code>sql_perfil()</code> devuelve la tabla de consultas emitidas;
 sobre una colección incluye la identidad de la tabla y conserva las

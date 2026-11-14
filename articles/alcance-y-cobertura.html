@@ -549,6 +549,16 @@ edad, también llena su tramo cuando hay filas suficientes, pero repite
 valores. La unicidad sola tampoco alcanza, porque un monto también es
 casi único. El salto de escala devuelve las pruebas a una columna donde
 un dato malo abre un hueco.</p>
+<p>Hay un caso en que el salto de escala no descarta una numeración: la
+columna que llena su tramo con la densidad de
+<code>secuencia_entera_densa</code>, que se explica más abajo, y casi no
+repite valores. Ahí un bloque de números borrados abre un salto, pero
+con el tramo tan lleno ningún valor puede quedar fuera de los límites de
+Tukey. La respuesta es la misma con la columna guardada como entero,
+doble, <code>integer64</code> o texto que se lee como número, y es la
+que decide <code>posible_identificador</code>: a una numeración no se le
+propone convertirla a número, ni sus valores de una cifra cuentan como
+<code>patron_raro</code>.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">118</span><span class="op">)</span></span>
 <span><span class="va">numeraciones</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>

@@ -222,10 +222,15 @@ identical(nombres$nombre[[1]], jose_roto)
 - **Prueba varias codificaciones.** No se limita a latin-1: usa tablas
   congeladas. Deja en `estado_reparacion` uno de `reparado`,
   `reparado_parcialmente` o `no_se_pudo`.
-- **Una reparación parcial no se activa sola.** Si una celda sólo se
-  repara en parte, la acción queda `lista` con `aplicar = FALSE`. Se
-  elige marcando `aplicar = TRUE`, y entonces se aplican también las
-  parciales.
+- **Una reparación parcial no se aplica sola, ni frena a las demás.** Si
+  una celda sólo se repara en parte y en la columna hay otras que se
+  reparan enteras, la acción sale marcada con
+  `aplicar_parciales = FALSE`: repara las enteras, deja la parcial como
+  está, y `n_afectadas` cuenta sólo las enteras. Para aplicar también
+  las parciales, se pone `aplicar_parciales = TRUE` en `parametros`. Si
+  la columna sólo tiene parciales, la acción queda `lista` con
+  `aplicar = FALSE`; se elige marcando `aplicar = TRUE`, y entonces se
+  aplican las parciales.
 - **Una celda sin reparación no frena a las demás.** Una celda con el
   carácter de reemplazo U+FFFD, o que el motor no pudo reparar, queda
   como está. La justificación de la acción la cuenta.

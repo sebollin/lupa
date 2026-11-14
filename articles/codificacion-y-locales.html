@@ -309,11 +309,16 @@ latin-1: usa tablas congeladas. Deja en <code>estado_reparacion</code>
 uno de <code>reparado</code>, <code>reparado_parcialmente</code> o
 <code>no_se_pudo</code>.</li>
 <li>
-<strong>Una reparación parcial no se activa sola.</strong> Si una
-celda sólo se repara en parte, la acción queda <code>lista</code> con
-<code>aplicar = FALSE</code>. Se elige marcando
-<code>aplicar = TRUE</code>, y entonces se aplican también las
-parciales.</li>
+<strong>Una reparación parcial no se aplica sola, ni frena a las
+demás.</strong> Si una celda sólo se repara en parte y en la columna hay
+otras que se reparan enteras, la acción sale marcada con
+<code>aplicar_parciales = FALSE</code>: repara las enteras, deja la
+parcial como está, y <code>n_afectadas</code> cuenta sólo las enteras.
+Para aplicar también las parciales, se pone
+<code>aplicar_parciales = TRUE</code> en <code>parametros</code>. Si la
+columna sólo tiene parciales, la acción queda <code>lista</code> con
+<code>aplicar = FALSE</code>; se elige marcando
+<code>aplicar = TRUE</code>, y entonces se aplican las parciales.</li>
 <li>
 <strong>Una celda sin reparación no frena a las demás.</strong> Una
 celda con el carácter de reemplazo U+FFFD, o que el motor no pudo

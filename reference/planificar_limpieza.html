@@ -138,8 +138,8 @@ acción seleccionada, incluso cuando una falla y las siguientes continúan.
 <code>n_codificacion_normalizada</code> cuenta, por acción, las celdas cuya <strong>marca de
 codificación</strong> cambió: es el caso de una acción de texto sobre celdas
 <code>latin1</code>, cuyo valor se conserva y cuyos bytes no. No cuenta una celda sin
-marca cuyos bytes ya eran UTF-8 válido ni un texto ASCII, así que no
-depende del locale.
+marca cuyos bytes ya eran UTF-8 válido ni una celda que es o queda ASCII,
+así que no depende del locale.
 <code>n_no_reversibles</code> cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela <code>-999</code> que pasa a ausencia, un
 extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -185,7 +185,13 @@ fija la secuencia reproducible. La acción <code>reparar_codificacion</code>, cu
 seleccionada, tiene precedencia sobre las demás acciones de su misma columna:
 corre primero en esa columna para que las restantes reciban texto ya
 decodificado, aunque su <code>orden</code> editado sea mayor. No reordena acciones de
-otras columnas. Entre las acciones restantes, y entre empates, el desempate lo resuelve
+otras columnas. Del mismo modo, <code>decodificar_entidades_html</code> corre antes que
+<code>convertir_minusculas</code>, <code>convertir_titulo</code> y <code>convertir_mayusculas</code> de su
+columna aunque un <code>orden</code> editado la ponga detrás: una entidad con nombre
+distingue mayúsculas —<code>&amp;eacute;</code> es «é» y <code>&amp;Eacute;</code> es «É»—, y cambiar la
+caja antes de decodificar cambiaba la letra o dejaba la entidad sin leer
+(<code>&amp;Amp;</code>). Con el <code>orden</code> del plan ya corre antes y nada se mueve.
+Entre las acciones restantes, y entre empates, el desempate lo resuelve
 <code>id_accion</code>, no la posición de la fila: reordenar el plan no cambia el
 resultado. Y un grupo marcado como <code>elegida</code> sin ninguna acción activa se
 rechaza, porque no es ni una elección ni una omisión. <code>n_afectadas</code> es la estimación del perfil
@@ -212,17 +218,33 @@ Aplicada sola sobre los datos del perfil, la conversión registra en
 <p><strong><code>n_afectadas</code> y <code>n_cambiadas</code> pueden no coincidir, y las dos son ciertas.</strong>
 La estimación se calcula sobre los datos que se perfilaron; el registro
 cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
-esa columna, la posterior encuentra menos —o más— de lo estimado. La única
-excepción de precedencia es <code>reparar_codificacion</code>, que se adelanta a las
-demás acciones de su columna para que ninguna opere sobre mojibake. Por
+esa columna, la posterior encuentra menos —o más— de lo estimado. Las
+excepciones de precedencia son dos: <code>reparar_codificacion</code>, que se adelanta a
+las demás acciones de su columna para que ninguna opere sobre mojibake, y
+<code>decodificar_entidades_html</code>, que se adelanta a las conversiones de caja. Por
 ejemplo, con
 <code>convertir_sentinelas_numericos</code> (orden 110) convirtiendo tres <code>-999</code> en
 ausentes, <code>winsorizar_outliers</code> (orden 520) recorta dos valores donde el plan
 estimaba siete. No es un desvío que ocultar: <code>orden</code>, <code>n_afectadas</code> y
 <code>n_cambiadas</code> se publican los tres, y compararlos es la forma de ver el
 efecto de la composición. Sólo el caso extremo —la acción no produce <strong>ningún</strong>
-efecto —también cuando el plan no trae una estimación válida— se registra
-como <code>fallida</code> con su motivo.</p>
+efecto, también cuando el plan no trae una estimación válida— se registra
+como <code>fallida</code> con su motivo, salvo que una acción anterior del mismo plan ya
+haya hecho su trabajo: si la misma detección con que el plan contó la acción
+encontraba el problema en los datos que recibió <code>aplicar()</code> y ya no lo
+encuentra cuando a la acción le toca correr, la acción queda <code>ejecutada</code> con
+<code>n_cambiadas = 0</code> y sin <code>error</code>, y el resumen impreso no la cuenta entre las
+fallidas. Por ejemplo, <code>convertir_ausencias_textuales</code> (orden 100) vuelve
+ausentes las celdas en blanco y a <code>recortar_espacios</code> (orden 200) no le
+queda nada que recortar en ellas. Esa detección existe para las acciones de
+texto que el perfil cuenta con <code>n_espacios_borde</code>, <code>n_invisibles_eliminables</code>,
+<code>n_espacios_invisibles</code>, <code>n_entidades_html</code>, <code>n_separadores_en_campo</code> y
+<code>n_codificacion_reparable</code>: <code>recortar_espacios</code>,
+<code>eliminar_controles_invisibles</code>, <code>normalizar_espacios_invisibles</code>,
+<code>decodificar_entidades_html</code>, <code>reemplazar_separadores</code> y
+<code>reparar_codificacion</code>. Si el problema sigue en los datos y la acción no lo
+tocó, si nunca estuvo en los datos que recibió <code>aplicar()</code> —un plan aplicado
+a otra entrega— o si la acción no tiene esa detección, sigue <code>fallida</code>.</p>
 <p><strong>Esa comparación sólo lee composición cuando las dos cifras cuentan en la
 misma unidad.</strong> <code>n_afectadas</code> cuenta en la <code>unidad_conteo</code> que el plan
 declara y <code>n_cambiadas</code> cuenta lo que la acción tocó al aplicarse, que es
@@ -305,10 +327,20 @@ texto con la convención decimal de la columna, como el resumen del perfil:
 con coma decimal, <code>12.500</code> se convierte en doce mil quinientos.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en <code>estado_reparacion</code> uno de <code>reparado</code>,
-<code>reparado_parcialmente</code> o <code>no_se_pudo</code>. Una reparación parcial —una celda que
-el motor repara sólo en parte— no se activa automáticamente: la acción queda
-<code>lista</code> con <code>aplicar = FALSE</code>, y se selecciona de forma explícita marcando
-<code>aplicar = TRUE</code>; entonces se aplican también las parciales. Una celda sin
+<code>reparado_parcialmente</code> o <code>no_se_pudo</code>: el de lo que la acción, tal como sale
+del plan, va a cambiar. Una reparación parcial —una celda que el motor repara
+sólo en parte— no se aplica automáticamente, pero tampoco frena la de las
+celdas que se reparan enteras. En una columna sin parciales, la acción sale
+activa —si nada más lo impide— y repara todas las celdas que el motor
+repara. En una columna con parciales y con celdas que se reparan enteras, la
+acción también sale activa, con <code>aplicar_parciales = FALSE</code> en
+<code>parametros</code>: repara las enteras, deja las
+parciales como están, <code>n_afectadas</code> cuenta sólo las enteras y la
+justificación dice cuántas parciales quedan; para aplicarlas también, se pone
+<code>aplicar_parciales = TRUE</code> en <code>parametros</code>. En una columna que sólo tiene
+parciales, la acción queda <code>lista</code> con <code>aplicar = FALSE</code> y
+<code>aplicar_parciales = TRUE</code>, y se selecciona de forma explícita marcando
+<code>aplicar = TRUE</code>; entonces se aplican las parciales. Una celda sin
 reparación local —con el carácter de reemplazo U+FFFD, o que el motor no
 pudo reparar— no frena la de las demás: queda como está y la justificación
 de la acción la cuenta. La estrategia se llama <code>reparar_codificacion</code> y no
@@ -327,7 +359,17 @@ perfil siguiente la sigue encontrando. Lo mismo si el motor no puede reparar
 la celda: sus letras rotas quedan como están. Los controles que la
 reparación deja como están, como un U+0081 suelto o un guion blando fuera de
 una letra rota, se diagnostican y se quitan, también en una celda con
-mojibake. El perfil cuenta un invisible sólo donde la acción puede quitarlo.
+mojibake, salvo que quitarlos vuelva reparable la celda: entonces la acción
+la deja como está, para que el resultado no dependa de si corre antes o
+después de <code>reparar_codificacion</code>. El perfil cuenta un invisible entre los
+que se pueden eliminar (<code>n_invisibles_eliminables</code>) sólo donde la acción
+puede quitarlo; el control que la acción deja así sigue contando en
+<code>n_controles_invisibles</code>, y si es el único el hallazgo dice que ninguna
+acción del plan lo quita, en vez de recomendar quitarlo. La reparación
+devuelve el texto que codificaban los bytes, y si ese texto trae un
+invisible —el mojibake de un U+200B se repara a un U+200B— el plan no lo
+quita en la misma pasada: el perfil describe los datos que recibió. El perfil
+del resultado lo señala, y su plan lo quita.
 Una celda cuyo texto no se puede leer —declarada <code>bytes</code> con bytes que no
 son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja <code><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv()</a></code>
 sin <code>fileEncoding</code> sobre un archivo latin1— no se transforma: el perfil no la
@@ -357,8 +399,9 @@ valor es el mismo, pero los bytes no, así que el registro lo cuenta en
 <code>n_codificacion_normalizada</code> en vez de dejarlo implícito. Ese conteo es de
 recodificaciones, no de marcas: una celda sin marca cuyos bytes son UTF-8
 válido ya es UTF-8 y no cambia de codificación aunque la acción la devuelva
-marcada, y un texto ASCII se escribe igual en toda codificación —decodificar
-<code>Jos&amp;eacute;</code> cambia el valor, no la codificación—. No se convierte la
+marcada, y un texto ASCII, el de entrada o el que queda, se escribe igual en
+toda codificación —decodificar <code>Jos&amp;eacute;</code> o recortar un espacio duro del
+borde cambia el valor, no la codificación—. No se convierte la
 columna entera a propósito: eso tocaría celdas que el plan no declaró como
 cambiadas y haría mentir a <code>n_cambiadas</code> por el otro lado.
 Si se marca una acción que no está <code>lista</code>, <code>aplicar()</code> aborta antes de
@@ -375,15 +418,25 @@ lo retirado en <code>eliminados</code>; use <code>conservar_eliminados = FALSE</
 ese costo de memoria.</p>
 <p>Los hallazgos <code>controles_invisibles</code>, <code>entidades_html</code> y <code>separadores_en_campo</code>
 tienen acciones separadas. La detección de invisibles informa tanto los
-caracteres que se pueden normalizar como los ZWJ/ZWNJ significativos; la
-normalización actúa sobre un conjunto más pequeño que la detección. La acción
+caracteres que se pueden normalizar como los que pueden ser parte del texto
+—ZWJ/ZWNJ y las etiquetas Unicode que arman banderas—; la normalización actúa
+sobre un conjunto más pequeño que la detección. La acción
 <code>eliminar_controles_invisibles</code> quita controles C0/C1 que no son separadores
-y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
-ZWJ/ZWNJ. <code>normalizar_espacios_invisibles</code> colapsa espacios Unicode (incluido
+y los invisibles Unicode de transporte —también los operadores invisibles,
+los rellenos del hangul y la etiqueta de idioma U+E0001—, y se recomienda por
+defecto; conserva ZWJ/ZWNJ y las etiquetas de bandera.
+<code>normalizar_espacios_invisibles</code> colapsa espacios Unicode (incluido
 NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
 defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
 valores que eran distintos quedan iguales, el registro lo cuenta en
-<code>n_no_reversibles</code>. <code>decodificar_entidades_html</code> cubre las entidades
+<code>n_no_reversibles</code>. Corre antes que <code>recortar_espacios</code>, así que el espacio
+común que deja en el borde lo quita el recorte. Para <code>recortar_espacios</code> y
+para <code>n_espacios_borde</code>, un espacio al borde es todo blanco ASCII —espacio,
+tabulación, salto de línea, tabulación vertical, avance de página y retorno—
+y todo separador de Unicode, como el espacio duro (U+00A0) o el fino
+(U+202F): los mismos que recortan los validadores. El espacio duro que es la
+mitad de una letra mal convertida no se cuenta ni se recorta.
+<code>decodificar_entidades_html</code> cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
 activa sola porque un ampersand puede ser contenido legítimo. Decodifica
 <strong>una capa</strong>: un texto codificado dos veces —<code>&amp;amp;amp;</code>— queda en <code>&amp;amp;</code>,
@@ -399,7 +452,7 @@ U+2029 son de <code>normalizar_espacios_invisibles</code> y el control U+0085 de
 ningún byte de un carácter multibyte. Las tres acciones
 registran el número de valores cambiados. Una comparación aproximada con
 <code>normalizar = TRUE</code> usa estas mismas clases: colapsa espacios y omite basura
-de transporte, pero conserva ZWJ/ZWNJ.</p>
+de transporte, pero conserva ZWJ/ZWNJ y las etiquetas.</p>
 <p>Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 una dependencia exacta permite deducir un valor sin usar media, moda o un
 modelo externo, sigue siendo una regularidad aprendida de una sola entrega y

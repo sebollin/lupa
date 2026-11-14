@@ -265,8 +265,10 @@ attr(resultado$datos, "columnas_duplicadas_marcadas")
 El plan se puede editar antes de aplicar. Quitar una acción, corregir un
 parámetro o cambiar `n_afectadas` no altera la obligación de observar
 qué pasó. Si una acción seleccionada no cambia ningún valor, el registro
-dice `fallida` con su motivo. Lo dice incluso cuando el estimado está
-ausente (`NA`).
+dice `fallida` con su motivo, incluso cuando el estimado está ausente
+(`NA`). La excepción es una acción de texto cuyo problema ya resolvió
+una acción anterior del mismo plan: queda `ejecutada`, con
+`n_cambiadas = 0`.
 
 Las acciones destructivas nunca son recomendadas. Aunque las activemos
 en el plan,

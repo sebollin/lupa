@@ -83,8 +83,165 @@
   castellano: le faltaban las insignias de CRAN y de Zenodo y la frase
   del DOI de Zenodo.
 
+### Rendimiento
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  es varias veces más rápido sobre columnas de texto con comas, punto y
+  coma o barras. La detección de celdas con varios valores
+  (`celdas_multivaluadas`) mira la columna entera en cada paso: antes
+  preguntaba celda por celda si era un número escrito con coma decimal o
+  con miles (`1,5`, `$ 1.234,56`), y partía y clasificaba cada celda por
+  separado. Sobre 200.000 filas, en Linux,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  pasa de 337 a 58 segundos con diez columnas de decimales con coma, de
+  538 a 139 con diez de importes y de 165 a 44 con una mezcla de listas,
+  códigos e importes. Las respuestas no cambian.
+- Además,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  ya no pregunta celda por celda lo que una celda ASCII no puede
+  contestar. Declarar la codificación, bajar a minúsculas las letras
+  acentuadas, la tabla de descomposición y la protección de `ñ` y `ü`
+  recorren sólo las celdas con algún carácter no ASCII; las entidades
+  HTML se buscan sólo donde hay un `&`, y los controles e invisibles
+  sólo en las celdas que traen alguno: antes bastaba un símbolo de
+  moneda en la columna para que cada celda pasara por su propia
+  pregunta, unas 287.000 llamadas de un valor a expresiones regulares
+  sobre 200.000 importes, cada una con un costo fijo que en Windows es
+  de unos 47 microsegundos. El vocabulario de los casi duplicados se
+  normaliza una vez por valor distinto y no por fila, los faltantes
+  disfrazados se detectan una sola vez cuando no hay centinelas
+  declarados, y el conteo de distintos y la moda de una columna numérica
+  comparten el mismo mapa. Sobre las mismas tablas de 200.000 filas, en
+  Linux, esto le quita un 37 % al tiempo con importes, un 25 % a la
+  mezcla y un 8 % a los decimales, y un 18 % a perfilar mil filas por
+  veinte columnas. Las respuestas no cambian.
+
 ### Correcciones
 
+- [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  proponía como `lista` y no destructiva la conversión a número de una
+  columna con una celda que no es UTF-8 válido, y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  escribía `NA` en esa celda con el plan por omisión:
+  `c("12", "13", "14" + 0xFF, ...)` salía `12 13 NA ...`. Ahora la
+  conversión queda bloqueada, como ya quedaba la de formato regional, y
+  la celda no se toca. La 0.1.1 la bloqueaba; el defecto es posterior.
+- Una celda sin marca de codificación con un byte que no es UTF-8 válido
+  —lo que deja [`read.csv()`](https://rdrr.io/r/utils/read.table.html)
+  sin `fileEncoding` sobre un CSV en latin-1 o Windows-1252: el espacio
+  duro como separador de miles, un grado, un byte suelto— hacía abortar
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  entero en una sesión UTF-8 con «input string N is invalid UTF-8»
+  cuando la columna tenía números o fechas escritos como texto;
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  abortaba igual, y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  perdían la muestra con un aviso. Ahora el perfil describe el resto de
+  la columna, la celda queda contada en `n_codificacion_invalida` con su
+  hallazgo, y la evidencia de `tipo_declarado_distinto` dice que la
+  conversión no lee esa celda en vez de afirmar que no se pierde ningún
+  valor. Tampoco abortan ya
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  con una cadena así en `cadenas_ausencia`, ni
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  cuando la moda de una columna es una de ellas. Casi todo venía de la
+  0.1.1; con la notación científica y con un grado detrás de un número
+  abortaba además desde después.
+- La comparación de orden entre columnas lee una columna con bytes que
+  no son UTF-8 válido como el resto del perfil: en una sesión UTF-8 la
+  dejaba fuera sin declararlo en `meta$orden_columnas`, y bajo
+  `LC_ALL=C` contaba esas celdas como valores que no se pudieron
+  convertir y descartaba el par.
+- [`print()`](https://rdrr.io/r/base/print.html) de
+  [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  y de
+  [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  ya no aborta en una sesión UTF-8 cuando un nombre de columna trae, sin
+  marca, bytes que no son UTF-8 válido —lo que deja
+  [`data.table::fread()`](https://rdrr.io/pkg/data.table/man/fread.html)
+  sobre un CSV en latin-1 con encabezados acentuados—. El nombre viaja
+  dentro de sus columnas-lista y
+  [`print.data.frame()`](https://rdrr.io/r/base/print.dataframe.html) no
+  podía formatearlo: escribir `cobertura(p)` en la consola abortaba con
+  «invalid multibyte string». Las dos tablas llevan ahora la clase
+  `tabla_lupa` delante de `data.frame`, que las imprime como el resto de
+  las salidas del paquete, con el byte escapado (`ciudad\240`). Ningún
+  valor cambia, y
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html)
+  devuelve la tabla de siempre. Lo mismo con un subconjunto de
+  [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+  sin las columnas de la propuesta. Venía de la 0.1.1. Bajo un locale
+  que no puede representar un carácter, esas tablas escriben su punto de
+  código (`a<U+00F1>o`), como ya lo hacía
+  [`print()`](https://rdrr.io/r/base/print.html) del perfil.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  abortaban la tabla entera sobre una tabla con columnas de año, mes y
+  día cuya primera fila no formaba una fecha —un mes `0`, un 30 de
+  febrero, un `NA`—, porque la búsqueda de fechas partidas dejaba que R
+  adivinara el formato por el primer elemento;
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  perdía la muestra por lo mismo. Ahora lo que no es una fecha cuenta
+  como no válido y el resto de la búsqueda sigue.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  publica `no_evaluado`, y no `resuelto`, cuando un hallazgo de la tabla
+  —como `fecha_partida_columnas`— desaparece porque el perfil nuevo
+  declaró recortada esa búsqueda en `cobertura_diagnosticos`.
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  se detiene con `lupa_error_transaccion_dbi` cuando el motor deshace la
+  transacción del usuario mientras se consultan las columnas y los
+  permisos de una tabla, como ya hacían
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+  Antes seguía leyendo con `SELECT *`, fuera de la transacción, y podía
+  relacionar dos columnas enmascaradas.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  abortaba la tabla entera, con «subíndice fuera de los límites», cuando
+  una columna tenía listas escritas con dos delimitadores y las de uno
+  tenían una cantidad de valores que las del otro no tenían
+  (`"12, 15, 18"` con `"16; 17"`). Ahora publica `celdas_multivaluadas`
+  con los dos delimitadores y cuántas celdas tienen cada cantidad de
+  valores.
+- Un identificador numérico con huecos, como 3.159 valores entre 1 y
+  4.557 guardados como texto, recibía a la vez `posible_identificador`,
+  `tipo_declarado_distinto` (con la propuesta de convertirlo a número) y
+  `patron_raro` por sus valores de una cifra; el mismo identificador sin
+  huecos recibía sólo el primero. Dentro del perfil, la pregunta «¿es
+  una numeración?» tiene ahora una sola respuesta, la misma que deja a
+  una numeración fuera de los límites de Tukey: con ella sale
+  `posible_identificador`, no se propone la conversión a número y los
+  valores de una cifra no son un patrón raro. Una numeración guardada
+  como `integer64` se reconoce igual que guardada como doble.
+- [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  registra como `ejecutada`, con `n_cambiadas = 0` y sin `error`, una
+  acción de texto que no cambia nada porque una acción anterior del
+  mismo plan ya resolvió el problema que la motivó, como
+  `recortar_espacios` después de que `convertir_ausencias_textuales`
+  vació sus celdas. El resumen impreso no la cuenta entre las fallidas.
+  Antes quedaba `fallida` aunque los datos quedaran limpios. Si el
+  problema sigue en los datos, o nunca estuvo en los que recibe
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  la acción sigue `fallida`.
+- El plan por omisión ya no deja espacios al borde.
+  `normalizar_espacios_invisibles` corre antes que `recortar_espacios`,
+  y un espacio Unicode al borde —el duro (U+00A0), el fino (U+202F) y
+  los demás separadores de Unicode, además de la tabulación vertical y
+  el avance de página— cuenta en `n_espacios_borde` y lo quita
+  `recortar_espacios`, igual que en los validadores. Antes el recorte
+  corría primero y el espacio duro del borde se volvía un espacio común
+  que nadie quitaba, o el plan ni ofrecía el recorte: después de
+  aplicarlo, el perfil volvía a publicar `espacios_sobrantes`. El
+  espacio duro que es la mitad de una letra mal convertida se conserva.
+  La sugerencia del hallazgo ya no dice que alcanza con
+  [`trimws()`](https://rdrr.io/r/base/trimws.html), que no quita esos
+  espacios.
+- `n_codificacion_normalizada` ya no cuenta una celda que queda ASCII
+  después de la acción, como `a` con un espacio de ancho cero que se
+  quita: ya no tiene codificación que cambiar.
 - [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md):
   una conversión de tipo (`convertir_tipo`, `convertir_numero_regional`,
   `convertir_fecha_confirmada`) sobre una columna con `aplicabilidad` o
@@ -294,6 +451,74 @@
   continuación también como el carácter que Windows-1252 pone en su
   lugar (`€` por `0x80`). Era uno de los dos casos que la 0.1.1
   declaraba sin cubrir.
+- Un espacio duro o un guion blando agregados después de la mala
+  conversión —el `&nbsp;` de una página web delante, detrás o entre
+  palabras rotas— ya no impiden reparar la celda entera. Con un espacio
+  duro delante, «Şanlıurfa» mal leída quedaba con la `Ş` rota, el
+  registro decía `reparado` y el perfil siguiente ya no la señalaba;
+  ahora sale entera, como con un espacio común.
+- Texto bien escrito que la heurística tomaba por mojibake deja de
+  señalarse y de «repararse»: una palabra en mayúsculas terminada en `Ã`
+  antes de un espacio duro o de un signo que la volvería minúscula
+  («IRMÃ» + espacio duro
+  - «DE» salía «IRMàDE»), y un ordinal antes de una comilla («3º”»,
+    «1º»»), que además dejaba la celda protegida y su espacio duro sin
+    normalizar. Una mayúscula que sale de una comilla tipográfica
+    («IRMÃ”» → «IRMÔ») se sigue reparando: es también el mojibake de
+    «AVÔ».
+- La «ŭ» y la «ĭ» leídas como `Å` o `Ä` más un guion blando, detrás de
+  una minúscula («ankaŭ»), se reconocen, se protegen de las acciones de
+  invisibles y se reparan. Sigue sin cubrir el otro caso que la 0.1.1
+  declaraba: «Š» leída como `Å` más un espacio duro (y «Ġ», «Ơ»), porque
+  «Å» + espacio duro + una palabra es también noruego o sueco bien
+  escrito.
+- Las acciones de invisibles ya no vuelven reparable, por su cuenta, una
+  celda que la reparación no puede tocar: quitar un control C1 suelto
+  pegado a una letra rota («Mar» + U+0081 + «Ã» + guion blando + «a»)
+  cambiaba el resultado según la acción corriera antes o después de
+  `reparar_codificacion`. Ahora la celda queda como está y sigue
+  señalada, y el plan no ofrece la acción por ella. La 0.1.1 decía que
+  esos controles se siguen quitando: se quitan salvo en ese caso.
+- Una celda que la reparación de codificación arregla sólo en parte ya
+  no deja sin reparar a las demás de su columna. Bastaba una parcial
+  para que `reparar_codificacion` saliera sin marcar, y el plan por
+  omisión no reparaba ninguna celda, aunque las otras se repararan
+  enteras. Ahora, si la columna tiene celdas que se reparan enteras, la
+  acción sale marcada con `aplicar_parciales = FALSE`: repara ésas, deja
+  las parciales como están, `n_afectadas` cuenta sólo las enteras y la
+  justificación dice cuántas parciales quedan. Se piden poniendo
+  `aplicar_parciales = TRUE` en `parametros`. Una columna que sólo tiene
+  parciales no cambia: la acción queda `lista` sin marcar, y marcarla
+  aplica las parciales. Quien marcaba la acción a mano en una columna
+  con las dos necesita ahora `aplicar_parciales = TRUE` para aplicar
+  también las parciales.
+- Una celda marcada `latin1` y la misma celda en UTF-8 cuentan como un
+  solo valor también cuando traen uno de los cinco bytes que
+  Windows-1252 no define (0x81, 0x8D, 0x8F, 0x90, 0x9D). `n_distintos`,
+  las filas y las columnas duplicadas y `n_no_reversibles` las contaban
+  como dos —en una columna con las dos marcas, o entre una columna
+  `latin1` y su copia en UTF-8—, y daban la celda `latin1` por igual al
+  texto de cuatro letras `<81>`, que es otro dato. Ahora leen el texto
+  como lo leen las acciones de texto.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa, y `eliminar_controles_invisibles` quita, los operadores
+  invisibles de la matemática (U+2061 a U+2064), los controles de
+  formato en desuso (U+206A a U+206F), los rellenos del hangul (U+115F,
+  U+1160, U+3164 y U+FFA0) y la etiqueta de idioma U+E0001: ningún
+  contador los veía y ninguna acción los tocaba. Las etiquetas U+E0020 a
+  U+E007F, que arman las banderas de Inglaterra, Escocia y Gales,
+  cuentan entre los controles invisibles y se conservan; el hallazgo lo
+  dice.
+- El hallazgo `controles_invisibles` de una celda cuyo control ninguna
+  acción quita —porque sin él la celda se leería como una letra mal
+  convertida— ya no recomienda eliminarlo: dice que el plan no trae una
+  acción para eso.
+- [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  corre `decodificar_entidades_html` antes que `convertir_minusculas`,
+  `convertir_titulo` y `convertir_mayusculas` de su columna, aunque un
+  `orden` editado la ponga detrás: `jos&eacute;` pasaba a `Jos&Eacute;`
+  y se decodificaba con la E mayúscula, y `&amp;` quedaba en `&Amp;`.
+  Con el orden del plan ya era así.
 - El plan cuenta, para cada acción de texto, las filas que la acción
   puede cambiar. Donde quitar un invisible o recortar el borde cambia lo
   que la reparación reconoce, la celda no se cuenta y la acción no se

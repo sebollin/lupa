@@ -331,8 +331,10 @@ cédula exige saber cuál era, y eso no sale de los datos.</p>
 <p>El plan se puede editar antes de aplicar. Quitar una acción, corregir
 un parámetro o cambiar <code>n_afectadas</code> no altera la obligación
 de observar qué pasó. Si una acción seleccionada no cambia ningún valor,
-el registro dice <code>fallida</code> con su motivo. Lo dice incluso
-cuando el estimado está ausente (<code>NA</code>).</p>
+el registro dice <code>fallida</code> con su motivo, incluso cuando el
+estimado está ausente (<code>NA</code>). La excepción es una acción de
+texto cuyo problema ya resolvió una acción anterior del mismo plan:
+queda <code>ejecutada</code>, con <code>n_cambiadas = 0</code>.</p>
 <p>Las acciones destructivas nunca son recomendadas. Aunque las
 activemos en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
 <code>permitir_eliminacion = TRUE</code>. Lo retirado se conserva en

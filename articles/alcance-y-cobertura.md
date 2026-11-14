@@ -358,6 +358,16 @@ valores. La unicidad sola tampoco alcanza, porque un monto también es
 casi único. El salto de escala devuelve las pruebas a una columna donde
 un dato malo abre un hueco.
 
+Hay un caso en que el salto de escala no descarta una numeración: la
+columna que llena su tramo con la densidad de `secuencia_entera_densa`,
+que se explica más abajo, y casi no repite valores. Ahí un bloque de
+números borrados abre un salto, pero con el tramo tan lleno ningún valor
+puede quedar fuera de los límites de Tukey. La respuesta es la misma con
+la columna guardada como entero, doble, `integer64` o texto que se lee
+como número, y es la que decide `posible_identificador`: a una
+numeración no se le propone convertirla a número, ni sus valores de una
+cifra cuentan como `patron_raro`.
+
 ``` r
 
 set.seed(118)
