@@ -1992,9 +1992,10 @@
 # El separador decimal puede abrir el numero: `,5` es `0,5` y `.5` es `0.5`,
 # con la misma evidencia de convencion que su gemelo con el cero escrito.
 #
-# Los patrones se arman una vez y no en cada llamada: el lector tambien se
-# llama valor por valor (`.detectar_multivaluados()` pregunta por cada celda
-# con coma), y ahi lo que cuesta cada llamada se multiplica por las filas.
+# Los patrones se arman una vez y no en cada llamada: el lector se llama varias
+# veces por columna en cada perfil. Quien lo usa le pasa el vector entero y no
+# valor por valor: `.detectar_multivaluados()` lo llamaba una vez por cada celda
+# con coma, y en una columna de 200.000 decimales eso era casi todo el perfil.
 .unidad_detras_numero <- "[[:space:]]*(?:%|[[:alpha:]]*[[:lower:]])"
 .moneda_detras_numero <- paste0(
   "[[:space:]]+[[:upper:]]{3}|", .espacio_moneda_numero, .simbolo_moneda_numero
@@ -2393,30 +2394,57 @@
   stats::setNames(as.integer(salida), niveles)
 }
 
-.tipo_parte_multivaluada <- function(valor) {
-  if (grepl("^[+]?[0-9]+$", valor, perl = TRUE)) return("numerico")
-  if (grepl("^[[:alnum:]]+$", valor, perl = TRUE) &&
-      grepl("[[:alpha:]]", valor, perl = TRUE) &&
-      grepl("[0-9]", valor, perl = TRUE)) return("alfanumerico")
-  if (grepl("^[+]?[0-9]{4,8}[-./][0-9]+$", valor, perl = TRUE)) {
-    return("identificador")
-  }
-  "texto"
+# El tipo de cada parte, para un vector de partes: la deteccion pregunta por
+# todas las partes de la columna de una vez. Cada pregunta se hace solo sobre lo
+# que las anteriores no resolvieron, en el orden de siempre: entero,
+# alfanumerico (solo letras y digitos, con al menos uno de cada uno),
+# identificador con separador y, si no, texto.
+.tipo_parte_multivaluada <- function(valores) {
+  tipos <- rep("texto", length(valores))
+  if (!length(valores)) return(tipos)
+  numerico <- grepl("^[+]?[0-9]+$", valores, perl = TRUE)
+  tipos[numerico] <- "numerico"
+  pendientes <- which(!numerico)
+  alfanumerico <- pendientes[
+    grepl("^[[:alnum:]]+$", valores[pendientes], perl = TRUE)
+  ]
+  alfanumerico <- alfanumerico[
+    grepl("[[:alpha:]]", valores[alfanumerico], perl = TRUE)
+  ]
+  alfanumerico <- alfanumerico[
+    grepl("[0-9]", valores[alfanumerico], perl = TRUE)
+  ]
+  tipos[alfanumerico] <- "alfanumerico"
+  pendientes <- pendientes[tipos[pendientes] == "texto"]
+  identificador <- pendientes[grepl(
+    "^[+]?[0-9]{4,8}[-./][0-9]+$", valores[pendientes], perl = TRUE
+  )]
+  tipos[identificador] <- "identificador"
+  tipos
+}
+
+# Las partes recortadas de cada celda, en una pasada sobre todas las celdas.
+# Devuelve cuales valen como lista -al menos dos partes y ninguna vacia-, sus
+# partes en el orden de las celdas y cuantas partes tiene cada una.
+.partir_celdas_multivaluadas <- function(textos, delimitador) {
+  piezas <- strsplit(textos, delimitador, fixed = TRUE)
+  largos <- lengths(piezas)
+  partes <- trimws(unlist(piezas, use.names = FALSE))
+  celda <- rep.int(seq_along(textos), largos)
+  vacias <- tabulate(celda[!nzchar(partes)], nbins = length(textos))
+  validas <- largos >= 2L & vacias == 0L
+  list(
+    validas = validas,
+    partes = partes[validas[celda]],
+    largos = largos[validas]
+  )
 }
 
 .patron_partes_multivaluada <- function(valores, expandir = FALSE) {
-  # La tabla publica es la misma evidencia que usa el perfil; el vector por
-  # parte se conserva solo para comparar homogeneidad dentro de una celda.
-  # `proteger_datos_personales = FALSE` no es un descuido: `perfilar()` protege
-  # el perfil ENTERO despues, y ahi respeta la declaracion del usuario. Si se
-  # enmascarara tambien aca, `proteger_datos_personales = FALSE` dejaria de
-  # obedecerse y el paquete ignoraria lo que el usuario acaba de pedirle. La
-  # proteccion de `descubrir_patrones()` es para quien la llama suelta.
-  descubrir_patrones(
-    valores, distinguir_mayusculas = TRUE, expandir = expandir,
-    max_patrones = 100L, muestra = Inf, umbral_raro = 0,
-    proteger_datos_personales = FALSE
-  )
+  # El patron de cada parte, con la misma generalizacion que publica
+  # `descubrir_patrones()`: solo se compara la homogeneidad de las partes, asi
+  # que no hace falta su tabla. Se la armaba y se la descartaba, y en una
+  # columna de listas era la mitad del costo de esta comparacion.
   .generalizar_a_patron(
     valores, distinguir_mayusculas = TRUE, expandir = expandir
   )
@@ -2430,68 +2458,77 @@
   n_presentes <- sum(presentes)
   if (n_presentes < 2L) return(vacio)
 
+  # La columna se mira entera en cada pasada y no celda por celda: cada llamada
+  # chica a una expresion regular tiene un costo fijo -en Windows, decenas de
+  # microsegundos-, y una columna de 200.000 celdas con coma las multiplicaba
+  # por cientos de miles. No cambia ninguna respuesta. R elige como lee un
+  # vector mirando las marcas de codificacion de todos sus valores, pero las
+  # clases de estas expresiones son ASCII y la columna llega de
+  # `.texto_analizable()`, con todo lo que no es ASCII marcado UTF-8 y valido.
+  # Cada pregunta descarta un delimitador sin dejar rastro, asi que van de la
+  # mas barata a la mas cara.
+  maximo_celdas <- max(1L, floor(n_presentes / 2L))
+  # Las celdas sin ningun delimitador no dependen del delimitador que se mira:
+  # se leen una sola vez, la primera vez que hacen falta.
+  resto <- NULL
   candidatos <- list()
   for (delimitador in c(",", ";", "|")) {
     indices <- which(presentes & grepl(delimitador, textos, fixed = TRUE))
     if (!length(indices)) next
-    partes_por_celda <- lapply(indices, function(indice) {
-      partes <- trimws(strsplit(textos[[indice]], delimitador, fixed = TRUE)[[1L]])
-      if (length(partes) < 2L || any(!nzchar(partes))) character() else partes
-    })
-    validas <- lengths(partes_por_celda) >= 2L
-    if (!any(validas)) next
-    indices <- indices[validas]
-    partes_por_celda <- partes_por_celda[validas]
     if (delimitador == ",") {
       # No convertir un decimal o un separador de miles en una lista de
-      # valores: si la celda completa ya es un numero regional, se excluye.
-      numericas <- vapply(textos[indices], function(valor) {
-        .componentes_numero_texto(valor)$compatible
-      }, logical(1L))
+      # valores: si la celda completa ya es un numero regional, se excluye. Va
+      # antes de partir las celdas: en una columna de decimales con coma no
+      # queda ninguna, y no hay nada que partir.
+      numericas <- .componentes_numero_texto(textos[indices])$compatible
       indices <- indices[!numericas]
-      partes_por_celda <- partes_por_celda[!numericas]
+      if (!length(indices)) next
     }
-    if (!length(indices)) next
-    partes <- unlist(partes_por_celda, use.names = FALSE)
-    tipos <- vapply(partes, .tipo_parte_multivaluada, character(1L))
-    tipo_dominante <- unique(tipos)
+    division <- .partir_celdas_multivaluadas(textos[indices], delimitador)
+    if (!any(division$validas)) next
+    indices <- indices[division$validas]
+    # Si mas de la mitad de las celdas presentes traen el delimitador, es la
+    # forma de la columna y no una lista dentro de ella.
+    if (length(indices) > maximo_celdas) next
+    partes <- division$partes
+    tipo_dominante <- unique(.tipo_parte_multivaluada(partes))
     if (length(tipo_dominante) != 1L ||
         !tipo_dominante %in% c("numerico", "alfanumerico", "identificador")) {
       next
     }
-    patron_expandido <- .patron_partes_multivaluada(partes, expandir = TRUE)
-    patron_comprimido <- .patron_partes_multivaluada(partes, expandir = FALSE)
+    # Un entero se compara por su patron comprimido (`9+`), que admite largos
+    # parecidos; lo demas, por el expandido, que exige el mismo largo.
+    expandir <- tipo_dominante != "numerico"
+    patron_partes <- .patron_partes_multivaluada(partes, expandir = expandir)
     homogeneas <- if (tipo_dominante == "numerico") {
-      length(unique(patron_comprimido)) == 1L &&
+      length(unique(patron_partes)) == 1L &&
         (max(nchar(partes)) - min(nchar(partes)) <= 2L)
     } else {
-      length(unique(patron_expandido)) == 1L &&
+      length(unique(patron_partes)) == 1L &&
         length(unique(nchar(partes))) == 1L
     }
     if (!homogeneas) next
 
-    indices_resto <- which(presentes & !grepl(
-      "[,;|]", textos, perl = TRUE
-    ))
-    if (length(indices_resto)) {
+    if (is.null(resto)) {
+      indices_resto <- which(presentes & !grepl(
+        "[,;|]", textos, perl = TRUE
+      ))
       resto <- trimws(textos[indices_resto])
-      tipos_resto <- vapply(resto, .tipo_parte_multivaluada, character(1L))
-      resto <- resto[tipos_resto == tipo_dominante]
-      if (!length(resto)) next
-      patrones_resto <- .patron_partes_multivaluada(
-        resto, expandir = tipo_dominante != "numerico"
-      )
-      patrones_referencia <- if (tipo_dominante == "numerico") {
-        unique(patron_comprimido)
-      } else unique(patron_expandido)
-      if (!all(patrones_resto %in% patrones_referencia)) next
+      tipos_resto <- .tipo_parte_multivaluada(resto)
     }
-    if (length(indices) > max(1L, floor(n_presentes / 2L))) next
+    if (length(resto)) {
+      resto_dominante <- resto[tipos_resto == tipo_dominante]
+      if (!length(resto_dominante)) next
+      patrones_resto <- .patron_partes_multivaluada(
+        resto_dominante, expandir = expandir
+      )
+      if (!all(patrones_resto %in% unique(patron_partes))) next
+    }
     candidatos[[length(candidatos) + 1L]] <- list(
       delimitador = delimitador,
       indices = indices,
       n_celdas = length(indices),
-      valores_por_celda = table(lengths(partes_por_celda)),
+      valores_por_celda = table(division$largos),
       n_valores = length(partes)
     )
   }
@@ -2503,8 +2540,16 @@
   )))))
   frecuencias_valores <- stats::setNames(vapply(niveles, function(n) {
     sum(vapply(distribuciones, function(distribucion) {
-      valor <- distribucion[[as.character(n)]]
-      if (is.null(valor)) 0L else as.integer(valor)
+      # Una `table` aborta cuando se le pide un nombre que no tiene, en lugar
+      # de devolver `NULL`. Con listas de tres valores separadas por `,` y de
+      # dos separadas por `;`, la de `,` no tiene `2`, y `perfilar()` abortaba
+      # la tabla entera.
+      nombre <- as.character(n)
+      if (nombre %in% names(distribucion)) {
+        as.integer(distribucion[[nombre]])
+      } else {
+        0L
+      }
     }, integer(1L)))
   }, integer(1L)), as.character(niveles))
   list(list(

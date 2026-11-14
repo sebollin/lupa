@@ -71,8 +71,24 @@
 - La portada del sitio vuelve a ser la misma que el README en castellano: le
   faltaban las insignias de CRAN y de Zenodo y la frase del DOI de Zenodo.
 
+## Rendimiento
+
+- `perfilar()` es varias veces más rápido sobre columnas de texto con comas,
+  punto y coma o barras. La detección de celdas con varios valores
+  (`celdas_multivaluadas`) mira la columna entera en cada paso: antes preguntaba
+  celda por celda si era un número escrito con coma decimal o con miles (`1,5`,
+  `$ 1.234,56`), y partía y clasificaba cada celda por separado. Sobre 200.000
+  filas, en Linux, `perfilar()` pasa de 337 a 58 segundos con diez columnas de
+  decimales con coma, de 538 a 139 con diez de importes y de 165 a 44 con una
+  mezcla de listas, códigos e importes. Las respuestas no cambian.
+
 ## Correcciones
 
+- `perfilar()` abortaba la tabla entera, con «subíndice fuera de los límites»,
+  cuando una columna tenía listas escritas con dos delimitadores y las de uno
+  tenían una cantidad de valores que las del otro no tenían (`"12, 15, 18"` con
+  `"16; 17"`). Ahora publica `celdas_multivaluadas` con los dos delimitadores y
+  cuántas celdas tienen cada cantidad de valores.
 - `planificar_limpieza()`: una conversión de tipo (`convertir_tipo`,
   `convertir_numero_regional`, `convertir_fecha_confirmada`) sobre una columna
   con `aplicabilidad` o declarada en `columnas_opcionales` anuncia en
