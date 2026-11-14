@@ -2316,6 +2316,27 @@ print.perfil_coleccion <- function(x, ...) {
 # con `c_i` columnas por tabla, la suma de `c_i * c_j` sobre los pares dirigidos
 # `i != j` es `(sum c_i)^2 - sum c_i^2`.
 
+# Las columnas de una tabla de la coleccion y lo que la credencial lee de ellas
+# (`.columnas_tabla_dbi()`), o `NULL` si no se pudieron consultar. Esa funcion ya
+# resuelve adentro la falla del listado y la del catalogo -la "lectura de
+# siempre"- y deja salir a proposito una sola condicion:
+# `lupa_error_transaccion_dbi`, la de una transaccion que el motor deshizo. Esa
+# no es "no se pudo consultar": la lectura de la coleccion la tragaba, caia a
+# `SELECT *` ya fuera de la transaccion del usuario y comparaba columnas
+# enmascaradas -dos `xxxx` sin un valor comun salian relacionadas con cobertura
+# 1- mientras `perfilar_dbi()` y `perfilar_coleccion()`, con la misma falla, se
+# detenian, como promete `?perfilar_dbi`. Las tres consultas de la coleccion
+# pasan por aca.
+.columnas_tabla_coleccion <- function(conexion, referencia, catalogo = TRUE) {
+  tryCatch(
+    .columnas_tabla_dbi(conexion, referencia, catalogo = catalogo),
+    error = function(e) {
+      .repropagar_transaccion_dbi(e)
+      NULL
+    }
+  )
+}
+
 # Lee el ancho de cada tabla por metadatos. `dbListFields()` es la via
 # declarada por DBI y no ejecuta una consulta contra los datos; el
 # `SELECT * WHERE 1 = 0` queda como reserva para los drivers que no la
@@ -2330,13 +2351,9 @@ print.perfil_coleccion <- function(x, ...) {
     referencia <- coleccion$tablas$referencia[[k]]
     # Sin consultar el catalogo de permisos: con mil tablas son dos viajes mas
     # por tabla para una estimacion (ver `.columnas_tabla_dbi()`).
-    campos <- tryCatch(
-      .columnas_tabla_dbi(coleccion$conexion, referencia, catalogo = FALSE)$campos,
-      error = function(e) {
-        .repropagar_transaccion_dbi(e)
-        NULL
-      }
-    )
+    campos <- .columnas_tabla_coleccion(
+      coleccion$conexion, referencia, catalogo = FALSE
+    )$campos
     if (!is.null(campos) && length(campos)) return(as.numeric(length(campos)))
     tryCatch({
       esquema <- .traer_consulta_dbi(
@@ -2660,12 +2677,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # Las columnas de la tabla, tambien las que la credencial no puede leer: en
     # PostgreSQL `dbListFields()` no las lista, y una candidata que existe se
     # rechazaba como inexistente. La lectura la deja afuera y lo declara.
-    campos <- tryCatch(
-      .columnas_tabla_dbi(
-        coleccion$conexion, coleccion$tablas$referencia[[k]]
-      )$campos,
-      error = function(e) NULL
-    )
+    campos <- .columnas_tabla_coleccion(
+      coleccion$conexion, coleccion$tablas$referencia[[k]]
+    )$campos
     if (length(campos)) {
       # La misma regla que `orden` y que `orden_muestra` de `perfilar_dbi()`:
       # la grafia exacta primero y, si no esta, sin distinguir mayusculas, como
@@ -3025,10 +3039,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     if (exists(cache_key, envir = cache_campos, inherits = FALSE)) {
       return(get(cache_key, envir = cache_campos, inherits = FALSE))
     }
-    info <- tryCatch(
-      .columnas_tabla_dbi(conexion, referencia_de(identificador)),
-      error = function(e) NULL
-    )
+    info <- .columnas_tabla_coleccion(conexion, referencia_de(identificador))
     assign(cache_key, info, envir = cache_campos)
     info
   }

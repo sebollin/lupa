@@ -6163,9 +6163,14 @@
         en_rango <- valores$anio >= 1800L & valores$anio <= 2100L &
           valores$mes >= 1L & valores$mes <= 12L &
           valores$dia >= 1L & valores$dia <= 31L
+        # Con el formato dicho. Sin el, `as.Date()` lo adivina por el PRIMER
+        # elemento y, si ese no es una fecha, aborta: un mes `0` -el codigo
+        # habitual de "mes desconocido"-, un 30 de febrero o un `NA` en la
+        # primera fila (`sprintf()` lo escribe `  NA`) tiraban `perfilar()`
+        # entero. Es la forma de `R/fechas.R`: lo que no es fecha queda `NA`.
         fechas <- suppressWarnings(as.Date(sprintf(
           "%04d-%02d-%02d", valores$anio, valores$mes, valores$dia
-        )))
+        ), format = "%Y-%m-%d"))
         proporcion <- mean(en_rango[presentes] & !is.na(fechas[presentes]))
         if (is.finite(proporcion) && proporcion >= 0.8) {
           hallados <- c(hallados, paste0(

@@ -99,6 +99,20 @@
 
 ## Correcciones
 
+- `perfilar()` y `analizar()` abortaban la tabla entera sobre una tabla con
+  columnas de año, mes y día cuya primera fila no formaba una fecha —un mes
+  `0`, un 30 de febrero, un `NA`—, porque la búsqueda de fechas partidas dejaba
+  que R adivinara el formato por el primer elemento; `perfilar_dbi()` perdía
+  la muestra por lo mismo. Ahora lo que no es una fecha cuenta como no válido y
+  el resto de la búsqueda sigue.
+- `comparar_perfiles()` publica `no_evaluado`, y no `resuelto`, cuando un
+  hallazgo de la tabla —como `fecha_partida_columnas`— desaparece porque el
+  perfil nuevo declaró recortada esa búsqueda en `cobertura_diagnosticos`.
+- `relaciones_coleccion()` se detiene con `lupa_error_transaccion_dbi` cuando
+  el motor deshace la transacción del usuario mientras se consultan las
+  columnas y los permisos de una tabla, como ya hacían `perfilar_dbi()` y
+  `perfilar_coleccion()`. Antes seguía leyendo con `SELECT *`, fuera de la
+  transacción, y podía relacionar dos columnas enmascaradas.
 - `perfilar()` abortaba la tabla entera, con «subíndice fuera de los límites»,
   cuando una columna tenía listas escritas con dos delimitadores y las de uno
   tenían una cantidad de valores que las del otro no tenían (`"12, 15, 18"` con

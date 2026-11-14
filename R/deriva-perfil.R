@@ -739,7 +739,12 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       !es_texto(columnas_b$tipo_declarado[match(comunes, nombres_b)])
   ]
   if (!length(dejaron)) return(character())
-  as.vector(outer(dejaron, .diagnosticos_relacion_textual, paste))
+  # La clave sale de `.clave_declinacion_deriva()`, con el nombre como lo trae
+  # el perfil: la normalizacion no se aplica dos veces.
+  originales <- as.character(columnas_a$columna[match(dejaron, nombres_a)])
+  as.vector(outer(
+    originales, .diagnosticos_relacion_textual, .clave_declinacion_deriva
+  ))
 }
 
 # Las claves `columna tipo` que el perfil nuevo no evaluo porque se retiro o se
@@ -752,7 +757,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   hallazgos_a <- anterior$hallazgos
   columnas_hallazgo <- if (inherits(hallazgos_a, "data.frame") &&
                            all(c("columna", "tipo_hallazgo") %in% names(hallazgos_a))) {
-    ifelse(is.na(hallazgos_a$columna), "<tabla>", as.character(hallazgos_a$columna))
+    as.character(hallazgos_a$columna)
   } else character()
   tipos_hallazgo <- if (length(columnas_hallazgo)) {
     as.character(hallazgos_a$tipo_hallazgo)
@@ -796,7 +801,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
           .nombres_para_operar(as.character(valor_b))
         )))
         if (length(declarada_a) > 0L && !identical(declarada_a, declarada_b)) {
-          "<tabla>"
+          NA_character_
         } else character()
       },
       interruptor = if (isTRUE(as.logical(valor_a)[1L]) &&
@@ -821,8 +826,20 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   declinados
 }
 
+# La clave `columna tipo` con que se decide si un hallazgo se declino. Un
+# hallazgo de la tabla -`columna` NA- no es de ninguna columna y su clave no
+# puede ser la de una, se llame como se llame: la de una columna lleva `C`
+# delante y la de la tabla es `T`, la regla de `columna_llave` en
+# `.resumir_hallazgos_deriva()`. Antes cada sitio escribia la tabla como la
+# cadena `"<tabla>"`, y la cobertura de un diagnostico de la tabla -la busqueda
+# de fechas partidas recortada, con `columna = NA`- daba `"NA ..."`: no casaba,
+# y el hallazgo que el perfil nuevo no volvio a buscar salia `resuelto` con
+# severidad `ok`.
 .clave_declinacion_deriva <- function(columna, tipo) {
-  paste(.nombres_para_operar(columna), as.character(tipo))
+  columna <- .nombres_para_operar(columna)
+  paste(
+    ifelse(is.na(columna), "T", paste0("C", columna)), as.character(tipo)
+  )
 }
 
 # Si un hallazgo que desaparecio nombra una columna que el perfil nuevo ya no
@@ -1009,7 +1026,6 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       hallazgos <- hallazgos_retirados %||% perfil$hallazgos
       if (is.data.frame(hallazgos) && nrow(hallazgos)) {
         columnas_h <- as.character(hallazgos$columna)
-        columnas_h[is.na(columnas_h)] <- "<tabla>"
         return(.clave_declinacion_deriva(
           columnas_h, as.character(hallazgos$tipo_hallazgo)
         ))
@@ -1068,7 +1084,9 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   # importar el orden: la primera del grupo cambia si se reordenan las columnas
   # y el grupo sigue siendo el mismo. Los grupos se leen una vez; buscarlos por
   # hallazgo recorria todos los hallazgos en cada uno.
-  columna_clave <- ifelse(is.na(columna), "<tabla>", columna)
+  # Un hallazgo de la tabla no tiene columna, y su clave tampoco: la usa solo la
+  # guarda de columnas retiradas, que no mira los de la tabla.
+  columna_clave <- columna
   columna_llave <- vapply(seq_along(columna), function(i) {
     if (is.na(columna[[i]])) "T" else paste0("C", .clave_bytes(columna[[i]]))
   }, character(1L))
@@ -2390,8 +2408,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       )
     }
     clave_habilitada <- .clave_declinacion_deriva(
-      if (is.na(x$columna)) "<tabla>" else x$columna,
-      x$tipo_hallazgo
+      x$columna, x$tipo_hallazgo
     )
     argumento_nuevo <- if (clave_habilitada %in% habilitados_ahora) {
       names(habilitados_ahora)[match(clave_habilitada, habilitados_ahora)]
@@ -2491,8 +2508,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       next
     }
     clave_declinacion <- .clave_declinacion_deriva(
-      if (is.na(x$columna)) "<tabla>" else x$columna,
-      x$tipo_hallazgo
+      x$columna, x$tipo_hallazgo
     )
     # Un hallazgo de varias columnas tampoco se volvio a evaluar si la
     # cobertura del perfil nuevo declina su diagnostico sobre alguna de ellas:
