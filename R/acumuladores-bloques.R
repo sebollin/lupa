@@ -497,6 +497,60 @@
   tryCatch(c(unidos$a, unidos$b), error = function(e) NULL)
 }
 
+# Lo que dejan `cuantos` llamadas seguidas a `.append_typed_R()` con
+# `nuevos[[1]]`, `nuevos[[2]]`, ..., armado en una sola union. Agregar de a uno
+# copia el vector entero por cada valor nuevo, y en un bloque con miles de
+# distintos eso era cuadratico. Da lo mismo porque `c()` es asociativo en las
+# clases que el mapa compara de una vez -sin clase, `factor`, `Date`, `POSIXct`,
+# `difftime` e `integer64`-: `c(c(a, b), d)` y `c(a, b, d)` son el mismo vector
+# con los mismos atributos. El primer valor de un mapa vacio no pasa por `c()`
+# (`.append_typed_R()` lo devuelve tal cual), y aca tampoco. Con otra clase -una
+# subclase puede traer su propio `c()`-, o si `c()` falla, devuelve `NULL` y quien
+# llama agrega de a uno, como antes.
+.unir_representantes_R <- function(representantes, nuevos, cuantos) {
+  tomados <- seq_len(cuantos)
+  clase <- oldClass(nuevos)
+  if (is.null(clase) && is.null(oldClass(representantes))) {
+    # `nuevos[[i]]` no trae nombres y `nuevos[tomados]` si.
+    return(.append_typed_R(representantes, unname(nuevos[tomados])))
+  }
+  conocidas <- list("factor", c("ordered", "factor"), "Date",
+                    c("POSIXct", "POSIXt"), "difftime", "integer64")
+  conocida <- any(vapply(conocidas, identical, logical(1L), clase))
+  if (!conocida ||
+      (length(representantes) && !identical(oldClass(representantes), clase))) {
+    return(NULL)
+  }
+  elementos <- lapply(tomados, function(i) nuevos[[i]])
+  if (!length(representantes)) {
+    if (cuantos == 1L) return(elementos[[1L]])
+    return(tryCatch(do.call(c, elementos), error = function(e) NULL))
+  }
+  tryCatch(
+    do.call(c, c(list(representantes), elementos)),
+    error = function(e) NULL
+  )
+}
+
+# El primer ordinal de cada valor nuevo del bloque. Los ordinales de un bloque
+# crecen estrictamente (`.registrar_intervalo_bloque()` lo exige), asi que el
+# menor de cada valor es el de su primera aparicion, y `match()` lo encuentra en
+# una pasada. `min(ordinales[correspondencias == i])` recorria el bloque entero
+# por cada valor nuevo. Si los ordinales no vinieran ordenados, o algun valor no
+# apareciera, se calcula como antes.
+.primeros_ordinales_nuevos <- function(ordinales, correspondencias, n_nuevos) {
+  primera <- match(seq_len(n_nuevos), correspondencias)
+  if (anyNA(primera) ||
+      !isFALSE(is.unsorted(ordinales, strictly = TRUE))) {
+    return(vapply(
+      seq_len(n_nuevos), function(i) {
+        min(ordinales[correspondencias == i])
+      }, numeric(1L)
+    ))
+  }
+  as.numeric(ordinales[primera])
+}
+
 # Un controlador puede entregar la misma columna con otra clase en cada bloque:
 # RSQLite da `integer` a un bloque de valores chicos e `integer64` al que trae
 # uno que no entra en 32 bits. `c()` despacha por su primer argumento, y
@@ -2006,12 +2060,45 @@
       frecuencias_nuevas <- tabulate(
         correspondencias, nbins = length(nuevos)
       )
-      primeros_nuevos <- vapply(
-        seq_along(nuevos), function(i) {
-          min(ordinales[correspondencias == i])
-        }, numeric(1L)
+      primeros_nuevos <- .primeros_ordinales_nuevos(
+        ordinales, correspondencias, length(nuevos)
       )
       acumulador$estado_familia <- estado
+      # Los nuevos que caben en `max_entradas` se agregan de una vez si el
+      # estado con todos ellos no pasa de `max_bytes`. Agregar solo agranda el
+      # estado -cada vector suma un elemento y `object.size()` no baja con el
+      # largo-, asi que en ese caso ninguno de los pasos de a uno de abajo
+      # habria cortado por bytes, y el estado que queda es el mismo. Si pasa, el
+      # recorrido de a uno busca el valor donde corta, como siempre: una tabla
+      # que agota el tope lo sigue agotando en el mismo valor. Medir el estado
+      # entero y agrandarlo por cada valor nuevo era cuadratico en los
+      # distintos del bloque: un 10 a un 20 % de perfilar una tabla.
+      cabida <- min(
+        length(nuevos),
+        max(acumulador$max_entradas - length(estado$representantes), 0)
+      )
+      if (cabida > 0) {
+        tomados <- seq_len(cabida)
+        candidato <- estado
+        candidato$representantes <- .unir_representantes_R(
+          estado$representantes, nuevos, cabida
+        )
+        if (!is.null(candidato$representantes)) {
+          candidato$frecuencias <- c(
+            estado$frecuencias, frecuencias_nuevas[tomados]
+          )
+          candidato$primeros <- c(estado$primeros, primeros_nuevos[tomados])
+          acumulador$estado_familia <- candidato
+          if (.bytes_estado_acumulador(acumulador) <= acumulador$max_bytes) {
+            if (cabida == length(nuevos)) return(acumulador)
+            candidato$n_claves_omitidas <- candidato$n_claves_omitidas +
+              length(nuevos) - cabida
+            acumulador$estado_familia <- candidato
+            return(.marcar_tope_acumulador(acumulador, "entradas"))
+          }
+        }
+        acumulador$estado_familia <- estado
+      }
       for (i in seq_along(nuevos)) {
         if (length(estado$representantes) >= acumulador$max_entradas) {
           estado$n_claves_omitidas <- estado$n_claves_omitidas +

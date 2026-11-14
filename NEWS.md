@@ -101,6 +101,19 @@
   mapa. Sobre las mismas tablas de 200.000 filas, en Linux, esto le quita un
   37 % al tiempo con importes, un 25 % a la mezcla y un 8 % a los decimales, y
   un 18 % a perfilar mil filas por veinte columnas. Las respuestas no cambian.
+- Y `perfilar()` agrega de una vez los valores nuevos de cada bloque al mapa
+  de valores distintos —el que da `n_distintos` y la moda—: los agregaba de a
+  uno, copiando el vector, midiendo el estado entero con `object.size()` y
+  recorriendo el bloque para buscar la primera fila de cada uno. Sólo si el
+  estado pasaría el tope de memoria los recorre de a uno, y corta en el mismo
+  valor que antes. La columna se lee como número una vez para la secuencia,
+  los faltantes disfrazados y el resumen; la detección de listas pregunta sólo
+  si una celda con coma ya es un número en vez de descomponerla entera, y la
+  trazabilidad de `numero_como_texto`, `unidades_mixtas` y `monedas_mixtas` usa
+  la descomposición que ya hizo el perfil. Sobre las mismas tablas de 200.000
+  filas, en Linux, esto le quita otro 25 % al tiempo con decimales y con
+  importes y un 20 % a la mezcla, y un 23 % a perfilar mil filas por veinte
+  columnas. Las respuestas no cambian.
 
 ## Correcciones
 

@@ -392,7 +392,8 @@
       )
       identidades_sentinelas <- .identidades_sentinelas_texto(
         texto, sentinelas_numericos,
-        inferencia[["convencion_numero_texto"]], valores_leidos = valores
+        inferencia[["convencion_numero_texto"]], valores_leidos = valores,
+        recortado = TRUE
       )
       valores <- .centinelas_enteros_por_texto(
         texto, valores, sentinelas_numericos,
@@ -1859,6 +1860,40 @@
   partes
 }
 
+# Las celdas que nombra cada hallazgo de numeros escritos como texto, sobre la
+# descomposicion de `.componentes_numero_texto()`. La trazabilidad las pide con
+# `.mascara_trazas_numero()`.
+.mascaras_trazas_numero <- function(partes) {
+  list(
+    numero_como_texto = partes$compatible & partes$especial,
+    unidades_mixtas = partes$compatible & nzchar(partes$unidad),
+    monedas_mixtas = partes$compatible & nzchar(partes$moneda)
+  )
+}
+
+# El perfil descompone la columna para contar los numeros escritos como texto,
+# y la trazabilidad de `numero_como_texto`, `unidades_mixtas` y `monedas_mixtas`
+# la volvia a descomponer entera para nombrar las filas. Las mascaras viajan
+# con el texto sobre el que se armaron, como los `cache_` del diagnostico de
+# texto. Sin mascara si alguna celda presente quedo afuera de la
+# descomposicion: un vocabulario que no la cubre la deja en `NA`, y la
+# trazabilidad descompondria esa celda.
+.cache_trazas_numero <- function(textos, partes) {
+  if (anyNA(partes$compatible[!is.na(textos)])) return(NULL)
+  c(list(textos = textos), .mascaras_trazas_numero(partes))
+}
+
+# La mascara de un tipo: la del perfil si se armo sobre el mismo texto -la
+# descomposicion es celda por celda, asi que da lo mismo-, o la de una
+# descomposicion nueva.
+.mascara_trazas_numero <- function(cache, texto, tipo) {
+  if (is.list(cache) && identical(cache$textos, texto)) return(cache[[tipo]])
+  partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
+                     error = function(e) NULL)
+  if (is.null(partes)) return(NULL)
+  .mascaras_trazas_numero(partes)[[tipo]]
+}
+
 .analizar_codificacion_vocabulario <- function(textos, valores = NULL,
                                               max_iteraciones = 20L,
                                               con_cache = FALSE) {
@@ -2005,7 +2040,12 @@
   .espacio_moneda_numero, "(", .simbolo_moneda_numero, ")$"
 )
 
-.componentes_numero_texto <- function(x) {
+# La forma completa de un numero escrito como texto -`compatible`- y los
+# codigos de moneda de tres letras que la deciden: la primera parte de
+# `.componentes_numero_texto()`, que la usa tal cual. `.detectar_multivaluados()`
+# solo pregunta si una celda con coma ya es un numero regional, y armaba para
+# eso la descomposicion entera -unidad, moneda, evidencia de cada separador-.
+.compatibles_numero_texto <- function(x) {
   # La declaracion va antes de la primera primitiva. Sin ella, un
   # importe con el simbolo del euro en UTF-8 sin marca -un CSV leido sin
   # `encoding`- no casaba con `\\p{Sc}` bajo `C`: el perfil proponia
@@ -2032,7 +2072,6 @@
   compatible_coma <- !is.na(texto) & grepl(patron_coma, texto, perl = TRUE)
   compatible_punto <- !is.na(texto) & grepl(patron_punto, texto, perl = TRUE)
   compatible <- compatible_coma | compatible_punto
-  patron_prefijo <- .patron_prefijo_moneda_numero
   patron_codigo_prefijo <- "^[[:space:]]*([[:upper:]]{3})[[:space:]]+"
   codigo_prefijo <- compatible & grepl(
     patron_codigo_prefijo, texto, perl = TRUE
@@ -2068,6 +2107,25 @@
       codigo_delante[sin_moneda] <- ""
     }
   }
+  list(
+    texto = texto, compatible = compatible,
+    compatible_coma = compatible_coma, compatible_punto = compatible_punto,
+    codigo_prefijo = codigo_prefijo, codigo_sufijo = codigo_sufijo,
+    codigo_delante = codigo_delante, codigo_detras = codigo_detras
+  )
+}
+
+.componentes_numero_texto <- function(x) {
+  forma <- .compatibles_numero_texto(x)
+  texto <- forma$texto
+  compatible <- forma$compatible
+  compatible_coma <- forma$compatible_coma
+  compatible_punto <- forma$compatible_punto
+  codigo_prefijo <- forma$codigo_prefijo
+  codigo_sufijo <- forma$codigo_sufijo
+  codigo_delante <- forma$codigo_delante
+  codigo_detras <- forma$codigo_detras
+  patron_prefijo <- .patron_prefijo_moneda_numero
   moneda <- codigo_delante
   # El simbolo se publica tal como esta escrito, delante o detras: `$ 10` y
   # `20 $` son la misma moneda, y `$` y `U$S` son dos. `(?s)` deja que el resto
@@ -2464,7 +2522,7 @@
       # valores: si la celda completa ya es un numero regional, se excluye. Va
       # antes de partir las celdas: en una columna de decimales con coma no
       # queda ninguna, y no hay nada que partir.
-      numericas <- .componentes_numero_texto(textos[indices])$compatible
+      numericas <- .compatibles_numero_texto(textos[indices])$compatible
       indices <- indices[!numericas]
       if (!length(indices)) next
     }
@@ -2654,7 +2712,9 @@
   partes <- .componentes_numero_texto(textos)
   especiales <- presentes & partes$compatible & partes$especial
   if (!any(especiales)) return(vacio)
-  .interpretar_numeros_texto(partes, presentes, especiales, n_presentes)
+  salida <- .interpretar_numeros_texto(partes, presentes, especiales, n_presentes)
+  salida$cache_trazas_numero <- .cache_trazas_numero(textos, partes)
+  salida
 }
 
 .analizar_numeros_texto <- function(x, umbral_compatibilidad = 0.8,
@@ -2736,7 +2796,9 @@
   if (!any(especiales)) {
     return(vacio)
   }
-  .interpretar_numeros_texto(partes, presentes, especiales, n_presentes)
+  salida <- .interpretar_numeros_texto(partes, presentes, especiales, n_presentes)
+  salida$cache_trazas_numero <- .cache_trazas_numero(textos, partes)
+  salida
 }
 
 .codigos_espacios_invisibles <- c(
@@ -3441,9 +3503,12 @@
                                            sentinelas_numericos,
                                            sentinelas_declarados,
                                            cadenas_ausencia, aplicable,
-                                           nombre = NULL) {
+                                           nombre = NULL,
+                                           cuantitativos = NULL) {
+  # `cuantitativos` es la lectura de la columna como numero, si quien llama ya
+  # la hizo: ver `.perfilar_columna()`.
   valores_numericos <- .valores_numericos_secuencia(
-    x_analisis, inferencia, formatos
+    x_analisis, inferencia, formatos, cuantitativos = cuantitativos
   )
   # Una duracion (`difftime`) o una medida con unidad (`units`) es un numero con
   # una clase encima, y el detector ya la compara como numero. La guarda de la
@@ -3800,8 +3865,18 @@
   # leian `1.500` como 1,5 al lado de `numero_texto_convencion = "decimal_coma"`.
   # Ver `.leer_numeros_texto()`.
   inferencia$convencion_numero_texto <- numeros_texto$convencion
+  # La secuencia, los faltantes disfrazados y el resumen leian la columna como
+  # numero cada uno por su cuenta, con la misma llamada: en los tipos numericos
+  # los meses y el vocabulario de fechas que recibe el resumen no entran en la
+  # lectura. Se lee una vez y viaja, como en `.contexto_decisiones_columna()`.
+  # Con centinelas declarados el resumen los saca al leer, y lee aparte.
+  cuantitativos_columna <- if (as.character(inferencia$tipo) %in%
+                                 c("entero", "doble", "integer64")) {
+    .valores_cuantitativos(x_analisis_diagnostico, inferencia, formatos)
+  } else NULL
   secuencia_entera <- .resumen_secuencia_entera(
-    x_analisis_diagnostico, inferencia, formatos
+    x_analisis_diagnostico, inferencia, formatos,
+    cuantitativos = cuantitativos_columna
   )
   # Los desvios de `patron_raro` se deciden cuando la fila ya esta armada, mas
   # abajo: la numeracion se lee de ella.
@@ -3809,7 +3884,8 @@
   faltantes_disfrazados <- .faltantes_disfrazados_columna(
     x_analisis_diagnostico, inferencia, formatos, secuencia_entera,
     sentinelas_numericos,
-    sentinelas_declarados, cadenas_ausencia, aplicable, nombre = nombre
+    sentinelas_declarados, cadenas_ausencia, aplicable, nombre = nombre,
+    cuantitativos = cuantitativos_columna
   )
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
@@ -3843,7 +3919,8 @@
     x_analisis_diagnostico, inferencia, formatos, meses_texto = meses_texto,
     sentinelas_numericos = sentinelas_numericos,
     vocabulario = vocabulario_fecha,
-    valores_preparados = x_analisis_diagnostico
+    valores_preparados = x_analisis_diagnostico,
+    cuantitativos = if (!length(sentinelas_declarados)) cuantitativos_columna
   )
   # Declarada en `columnas_codigo`: ver `.resumen_codigo_declarado()`.
   if (isTRUE(codigo)) cuantitativo <- .resumen_codigo_declarado(cuantitativo)

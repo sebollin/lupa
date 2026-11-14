@@ -2374,10 +2374,15 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # leerla. La primera regla compara el decimal con la fraccion exacta del doble;
 # la segunda conserva los literales cortos cuya lectura de R coincide. El
 # resultado es la posicion del centinela declarado, o NA si no coincide.
+#
+# `recortado` lo pasa quien ya recorto el texto, como en
+# `.normalizar_numeros_texto()`: sin centinelas declarados la funcion devuelve
+# enseguida, y el recorte era todo su costo.
 .identidades_sentinelas_texto <- function(texto, sentinelas_numericos,
                                           convencion = NULL,
-                                          valores_leidos = NULL) {
-  texto <- trimws(as.character(texto))
+                                          valores_leidos = NULL,
+                                          recortado = FALSE) {
+  if (!recortado) texto <- trimws(as.character(texto))
   salida <- rep(NA_integer_, length(texto))
   if (!length(texto) || !length(sentinelas_numericos)) return(salida)
   if (is.null(valores_leidos)) {
@@ -2396,7 +2401,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   }
   indices <- which(candidatos)
   if (!length(indices)) return(salida)
-  normalizados <- .normalizar_numeros_texto(texto, convencion)
+  normalizados <- .normalizar_numeros_texto(texto, convencion, recortado = TRUE)
   piezas_texto <- lapply(normalizados[indices], .piezas_decimal_texto)
   piezas_sentinelas <- lapply(sentinelas_numericos, .piezas_decimal_doble)
   for (j in seq_along(sentinelas_numericos)) {

@@ -3580,28 +3580,16 @@
           which(cod$afectados)
       }
     },
-    numero_como_texto = if (is.null(texto_completo)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
-                         error = function(e) NULL)
-      if (is.null(partes)) NULL else which(
-        !is.na(texto_completo) & nzchar(texto_completo) & partes$compatible &
-          partes$especial
-      )
-    },
-    unidades_mixtas = if (is.null(texto_completo)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
-                         error = function(e) NULL)
-      if (is.null(partes)) NULL else which(
-        !is.na(texto_completo) & nzchar(texto_completo) & partes$compatible &
-          nzchar(partes$unidad)
-      )
-    },
+    numero_como_texto = ,
+    unidades_mixtas = ,
     monedas_mixtas = if (is.null(texto_completo)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
-                         error = function(e) NULL)
-      if (is.null(partes)) NULL else which(
-        !is.na(texto_completo) & nzchar(texto_completo) & partes$compatible &
-          nzchar(partes$moneda)
+      # La mascara del perfil si la armo sobre este mismo texto: ver
+      # `.cache_trazas_numero()`.
+      mascara <- .mascara_trazas_numero(
+        resultado$numeros_texto$cache_trazas_numero, texto_completo, tipo
+      )
+      if (is.null(mascara)) NULL else which(
+        !is.na(texto_completo) & nzchar(texto_completo) & mascara
       )
     },
     celdas_multivaluadas = if (is.null(resultado$multivaluados)) NULL else {
