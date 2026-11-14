@@ -393,11 +393,15 @@ locale.</p></dd>
 
 <dt id="arg-analizar-dependencias">analizar_dependencias<a class="anchor" aria-label="anchor" href="#arg-analizar-dependencias"></a></dt>
 <dd><p>Si se buscan dependencias funcionales entre
-pares de columnas. Se aplica una sola muestra común a toda la tabla.</p></dd>
+pares de columnas. Se aplica una sola muestra común a toda la tabla. Una
+dependencia publicada que no es exacta es además el hallazgo
+<code>relacion_funcional_columnas</code>, con las filas que la rompen.</p></dd>
 
 
 <dt id="arg-umbral-dependencia">umbral_dependencia<a class="anchor" aria-label="anchor" href="#arg-umbral-dependencia"></a></dt>
-<dd><p>Cumplimiento mínimo para informar una dependencia.</p></dd>
+<dd><p>Cumplimiento mínimo para informar una dependencia.
+Una informada con cumplimiento menor que 1 es también un hallazgo
+<code>relacion_funcional_columnas</code>.</p></dd>
 
 
 <dt id="arg-umbral-casi-clave-dependencia">umbral_casi_clave_dependencia<a class="anchor" aria-label="anchor" href="#arg-umbral-casi-clave-dependencia"></a></dt>
@@ -1295,6 +1299,23 @@ que cuentan filas también las traen: <code>posible_ausencia_estructural</code>,
 ausentes que caen donde la regla dice que la columna no corresponde, y
 <code>regla_silencia_ausencia</code>, las que la declaración del universo dejó de
 contar.
+<code>relacion_funcional_columnas</code> sale una vez por cada fila de <code>dependencias</code>
+que no es exacta —cumplimiento en <code>[umbral_dependencia, 1)</code>—, y una por
+sentido: <code>a -&gt; b</code> y <code>b -&gt; a</code> son dos hallazgos, porque en general los
+rompen filas distintas. <code>columna</code> es <code>"determinante,dependiente"</code>, la
+unidad es <code>fila</code>, <code>n_evaluados</code> y <code>n_afectados</code> son <code>n_evaluados</code> y
+<code>n_violaciones</code> de la dependencia, y la evidencia repite su cumplimiento y
+sus contradicciones. La traza enumera las filas que la rompen —las que
+tienen las dos columnas presentes y un dependiente distinto del más
+frecuente de su determinante; con empate en ese máximo, el que aparece
+primero en la tabla—, su total es <code>n_afectados</code> y lleva <code>columnas</code>. Si las
+dependencias se buscaron sobre una muestra, las filas son de la tabla
+(<code>alcance = "completo"</code>) cuando la dependencia se recalculó sobre ella, y
+de la muestra, en su posición de la tabla, cuando el presupuesto no
+alcanzó (<code>alcance = "muestra_dependencias"</code>, lo mismo que sus cifras).
+<code><a href="planificar_limpieza.html">planificar_limpieza()</a></code> no propone una acción para este hallazgo: va a
+<code>hallazgos_sin_accion</code>. Que la relación sea una regla del negocio lo sabe
+quien conoce los datos; si no lo es, no hay nada que corregir.
 Para <code>patron_raro</code>,
 el alcance puede ser <code>completo</code>, <code>muestra_patrones</code>,
 <code>patrones_parciales</code> o <code>muestra_patrones+patrones_parciales</code>. El resumen y

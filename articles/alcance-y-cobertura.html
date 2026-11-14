@@ -838,6 +838,9 @@ proporciones observadas entre columnas numéricas, no reglas del
 dominio.</li>
 <li>Encuentra <code>relacion_orden_columnas</code> entre columnas
 comparables, con el alcance de la comparación.</li>
+<li>Encuentra <code>relacion_funcional_columnas</code>: dependencias
+funcionales que casi se cumplen, con las filas que las rompen;
+observadas, no reglas del dominio.</li>
 <li>Encuentra claves, relaciones, dependencias y granularidades de
 medición que nunca fueron declaradas.</li>
 <li>Informa <code>casi_clave</code> cuando una columna no temporal tiene
@@ -869,7 +872,7 @@ autocontenidos.</li>
 <div class="section level2">
 <h2 id="el-vocabulario-completo-de-tipo_hallazgo">El vocabulario completo de <code>tipo_hallazgo</code><a class="anchor" aria-label="anchor" href="#el-vocabulario-completo-de-tipo_hallazgo"></a>
 </h2>
-<p>El paquete emite 59 nombres de <code>tipo_hallazgo</code>. Están en
+<p>El paquete emite 60 nombres de <code>tipo_hallazgo</code>. Están en
 castellano porque forman parte de la API pública: cambiar uno es un
 cambio incompatible.</p>
 <p>La lista se calcula a partir del código del paquete, al construir
@@ -907,19 +910,19 @@ coinciden, la página no se construye.</p>
 <span><span class="co">#&gt; coordenada_fuera_dominio                posible_identificador</span></span>
 <span><span class="co">#&gt; crs_no_declarado                        regla_silencia_ausencia</span></span>
 <span><span class="co">#&gt; dato_personal_posible                   relacion_aritmetica_columnas</span></span>
-<span><span class="co">#&gt; desviacion_benford                      relacion_orden_columnas</span></span>
-<span><span class="co">#&gt; duplicados_aproximados                  separadores_en_campo</span></span>
-<span><span class="co">#&gt; duplicados_exactos_columnas             tipo_compuesto_no_analizado</span></span>
-<span><span class="co">#&gt; duplicados_exactos_normalizados         tipo_declarado_distinto</span></span>
-<span><span class="co">#&gt; entidades_html                          tipos_geometria_mixtos</span></span>
-<span><span class="co">#&gt; espacios_sobrantes                      unidades_mixtas</span></span>
-<span><span class="co">#&gt; faltantes                               valor_concentrado</span></span>
-<span><span class="co">#&gt; faltantes_disfrazados                   valor_fuera_de_aplicabilidad</span></span>
-<span><span class="co">#&gt; fecha_fallecimiento_fuera_rango         valores_no_finitos</span></span>
-<span><span class="co">#&gt; fecha_nacimiento_fuera_rango            valores_subnormales</span></span>
-<span><span class="co">#&gt; fecha_partida_columnas                  variantes_equifrecuentes_vocabulario</span></span>
-<span><span class="co">#&gt; filas_duplicadas                        zona_horaria_fecha_hora</span></span>
-<span><span class="co">#&gt; formato_fecha_ambiguo</span></span></code></pre></div>
+<span><span class="co">#&gt; desviacion_benford                      relacion_funcional_columnas</span></span>
+<span><span class="co">#&gt; duplicados_aproximados                  relacion_orden_columnas</span></span>
+<span><span class="co">#&gt; duplicados_exactos_columnas             separadores_en_campo</span></span>
+<span><span class="co">#&gt; duplicados_exactos_normalizados         tipo_compuesto_no_analizado</span></span>
+<span><span class="co">#&gt; entidades_html                          tipo_declarado_distinto</span></span>
+<span><span class="co">#&gt; espacios_sobrantes                      tipos_geometria_mixtos</span></span>
+<span><span class="co">#&gt; faltantes                               unidades_mixtas</span></span>
+<span><span class="co">#&gt; faltantes_disfrazados                   valor_concentrado</span></span>
+<span><span class="co">#&gt; fecha_fallecimiento_fuera_rango         valor_fuera_de_aplicabilidad</span></span>
+<span><span class="co">#&gt; fecha_nacimiento_fuera_rango            valores_no_finitos</span></span>
+<span><span class="co">#&gt; fecha_partida_columnas                  valores_subnormales</span></span>
+<span><span class="co">#&gt; filas_duplicadas                        variantes_equifrecuentes_vocabulario</span></span>
+<span><span class="co">#&gt; formato_fecha_ambiguo                   zona_horaria_fecha_hora</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="qué-se-enmascara-y-con-qué-alcance">Qué se enmascara y con qué alcance<a class="anchor" aria-label="anchor" href="#qu%C3%A9-se-enmascara-y-con-qu%C3%A9-alcance"></a>

@@ -228,9 +228,11 @@ observaciones a 4 porque la tabla tiene 8 filas:</p>
 <span><span class="co">#&gt; 1</span></span></code></pre></div>
 <p><code><a href="../reference/perfilar.html">perfilar()</a></code> busca las mismas dependencias por su cuenta
 (<code>analizar_dependencias = TRUE</code>, el valor por omisión) y las
-deja en <code>perfil$dependencias</code>. Una dependencia exacta permite
-además imputar un valor faltante desde los propios datos, como se ve en
-<a href="limpiar-con-un-plan.html">6. Limpiar con un plan</a>.</p>
+deja en <code>perfil$dependencias</code>. Una que casi se cumple aparece
+además entre los hallazgos, como
+<code>relacion_funcional_columnas</code>, con las filas que la rompen en
+su <code>trazabilidad</code>. Una dependencia exacta permite además
+imputar un valor faltante desde los propios datos, como se ve en <a href="limpiar-con-un-plan.html">6. Limpiar con un plan</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="lo-que-se-cumple-no-es-una-regla">⚠️ Lo que se cumple no es una regla<a class="anchor" aria-label="anchor" href="#lo-que-se-cumple-no-es-una-regla"></a>

@@ -643,6 +643,9 @@ parte de su contrato:
   observadas entre columnas numéricas, no reglas del dominio.
 - Encuentra `relacion_orden_columnas` entre columnas comparables, con el
   alcance de la comparación.
+- Encuentra `relacion_funcional_columnas`: dependencias funcionales que
+  casi se cumplen, con las filas que las rompen; observadas, no reglas
+  del dominio.
 - Encuentra claves, relaciones, dependencias y granularidades de
   medición que nunca fueron declaradas.
 - Informa `casi_clave` cuando una columna no temporal tiene al menos 100
@@ -673,7 +676,7 @@ parte de su contrato:
 
 ## El vocabulario completo de `tipo_hallazgo`
 
-El paquete emite 59 nombres de `tipo_hallazgo`. Están en castellano
+El paquete emite 60 nombres de `tipo_hallazgo`. Están en castellano
 porque forman parte de la API pública: cambiar uno es un cambio
 incompatible.
 
@@ -714,19 +717,19 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 #> coordenada_fuera_dominio                posible_identificador
 #> crs_no_declarado                        regla_silencia_ausencia
 #> dato_personal_posible                   relacion_aritmetica_columnas
-#> desviacion_benford                      relacion_orden_columnas
-#> duplicados_aproximados                  separadores_en_campo
-#> duplicados_exactos_columnas             tipo_compuesto_no_analizado
-#> duplicados_exactos_normalizados         tipo_declarado_distinto
-#> entidades_html                          tipos_geometria_mixtos
-#> espacios_sobrantes                      unidades_mixtas
-#> faltantes                               valor_concentrado
-#> faltantes_disfrazados                   valor_fuera_de_aplicabilidad
-#> fecha_fallecimiento_fuera_rango         valores_no_finitos
-#> fecha_nacimiento_fuera_rango            valores_subnormales
-#> fecha_partida_columnas                  variantes_equifrecuentes_vocabulario
-#> filas_duplicadas                        zona_horaria_fecha_hora
-#> formato_fecha_ambiguo
+#> desviacion_benford                      relacion_funcional_columnas
+#> duplicados_aproximados                  relacion_orden_columnas
+#> duplicados_exactos_columnas             separadores_en_campo
+#> duplicados_exactos_normalizados         tipo_compuesto_no_analizado
+#> entidades_html                          tipo_declarado_distinto
+#> espacios_sobrantes                      tipos_geometria_mixtos
+#> faltantes                               unidades_mixtas
+#> faltantes_disfrazados                   valor_concentrado
+#> fecha_fallecimiento_fuera_rango         valor_fuera_de_aplicabilidad
+#> fecha_nacimiento_fuera_rango            valores_no_finitos
+#> fecha_partida_columnas                  valores_subnormales
+#> filas_duplicadas                        variantes_equifrecuentes_vocabulario
+#> formato_fecha_ambiguo                   zona_horaria_fecha_hora
 ```
 
 ## Qué se enmascara y con qué alcance

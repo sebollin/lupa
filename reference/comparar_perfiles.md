@@ -167,12 +167,13 @@ dejar de mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo
 apagó el diagnóstico con su argumento o retiró la declaración que lo
 habilita, cosa que se lee en `meta`:
 `casi_duplicados_vocabulario = FALSE`, `ausencia_estructural = FALSE`,
-`variantes_equifrecuentes_vocabulario = FALSE`, una `clave` retirada o
-declarada sobre otras columnas, una columna retirada de
-`columnas_sin_ceros`, `columnas_no_negativas`, `columnas_personales` o
-`aplicabilidad`, y `duplicados_aproximados` apagado o corrido sobre
-otras columnas —lo que corrió queda en `perfil$duplicados_aproximados`;
-si corrió sobre las mismas columnas con otros parámetros, la fila
+`variantes_equifrecuentes_vocabulario = FALSE`,
+`analizar_dependencias = FALSE`, una `clave` retirada o declarada sobre
+otras columnas, una columna retirada de `columnas_sin_ceros`,
+`columnas_no_negativas`, `columnas_personales` o `aplicabilidad`, y
+`duplicados_aproximados` apagado o corrido sobre otras columnas —lo que
+corrió queda en `perfil$duplicados_aproximados`; si corrió sobre las
+mismas columnas con otros parámetros, la fila
 `configuracion_duplicados_aproximados` lo declara—; la descripción
 nombra el argumento. Al revés, un hallazgo que aparece porque el perfil
 nuevo encendió o declaró lo que lo habilita sigue saliendo `aparecido`,
@@ -197,13 +198,19 @@ el diagnóstico haya recorrido todos sus valores. Cada argumento de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 tiene su lugar en la comparación: habilita un diagnóstico, es una vara
 —su cambio se declara en la fila `configuracion_umbrales`, que incluye
-los umbrales de las relaciones de orden y aritméticas entre columnas,
-los del vocabulario y `datos_personales_permitidos`,
-`validadores_personales`, `umbral_documento_verificado` y
-`muestra_validadores`—, tiene su propia fila de configuración, acota el
-trabajo y lo declara en `cobertura_diagnosticos`, o no cambia los
-hallazgos. Una vara que uno de los dos perfiles no registra —un perfil
-de una versión anterior— no se compara.
+los umbrales de las relaciones de orden y aritméticas entre columnas y
+de las dependencias funcionales, los del vocabulario y
+`datos_personales_permitidos`, `validadores_personales`,
+`umbral_documento_verificado` y `muestra_validadores`—, tiene su propia
+fila de configuración, acota el trabajo y lo declara en
+`cobertura_diagnosticos`, o no cambia los hallazgos. Una vara que uno de
+los dos perfiles no registra —un perfil de una versión anterior— no se
+compara. La comparación no sabe de versiones: un perfil guardado por una
+versión que todavía no emitía un tipo de hallazgo no lo trae, y
+comparado con uno nuevo de los mismos datos ese hallazgo sale
+`aparecido`. Pasa con `relacion_funcional_columnas` frente a un perfil
+anterior a ese hallazgo: una fila `aparecido` por cada dependencia casi
+exacta, en cada sentido.
 
 Los hallazgos que cuentan filas de la tabla y no pertenecen a una
 columna concreta tampoco se declaran resueltos si aparecieron o

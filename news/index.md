@@ -32,6 +32,25 @@
 
 ### Relaciones
 
+- Una dependencia funcional que casi se cumple es ahora el hallazgo
+  `relacion_funcional_columnas` (severidad `sospechoso`, unidad `fila`):
+  uno por cada fila de `perfil$dependencias` que no es exacta, y uno por
+  sentido, con `columna = "determinante,dependiente"`, `n_afectados`
+  igual a sus violaciones y, en la `trazabilidad`, las filas que la
+  rompen (las de la tabla si la dependencia se recalculó sobre ella; las
+  de la muestra, con `alcance = "muestra_dependencias"`, si no). Con
+  empate en la moda de un grupo, rompen las filas del valor que aparece
+  después.
+  [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  y `perfil$dependencias` no cambian, y el plan no propone una acción:
+  la relación es observada, no una regla del dominio.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md):
+  apagar `analizar_dependencias` o recortar la búsqueda publica esos
+  hallazgos como `no_evaluado`, y `umbral_dependencia` y
+  `umbral_casi_clave_dependencia` se declaran en
+  `configuracion_umbrales`. Comparar un perfil de una versión anterior
+  con uno nuevo de los mismos datos publica `aparecido` por cada
+  dependencia casi exacta, en cada sentido.
 - [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
   dice cuántas filas quedan huérfanas y cuáles. Cada par comparado
   publica `n_filas_huerfanas_tabla1`, `n_filas_huerfanas_tabla2`,

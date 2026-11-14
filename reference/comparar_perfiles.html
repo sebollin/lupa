@@ -204,7 +204,8 @@ severidad <code>sospechoso</code>, porque no se sabe si el hallazgo sigue: dejar
 mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo apagó el
 diagnóstico con su argumento o retiró la declaración que lo habilita, cosa
 que se lee en <code>meta</code>: <code>casi_duplicados_vocabulario = FALSE</code>,
-<code>ausencia_estructural = FALSE</code>, <code>variantes_equifrecuentes_vocabulario = FALSE</code>, una <code>clave</code> retirada o declarada sobre otras columnas, una columna
+<code>ausencia_estructural = FALSE</code>, <code>variantes_equifrecuentes_vocabulario = FALSE</code>, <code>analizar_dependencias = FALSE</code>, una <code>clave</code> retirada o declarada
+sobre otras columnas, una columna
 retirada de <code>columnas_sin_ceros</code>, <code>columnas_no_negativas</code>,
 <code>columnas_personales</code> o <code>aplicabilidad</code>, y <code>duplicados_aproximados</code> apagado o
 corrido sobre otras columnas —lo que corrió queda en
@@ -232,12 +233,18 @@ valores. Cada argumento de
 <code><a href="perfilar.html">perfilar()</a></code> tiene su lugar en la comparación:
 habilita un diagnóstico, es una vara —su cambio se declara en la fila
 <code>configuracion_umbrales</code>, que incluye los umbrales de las
-relaciones de orden y aritméticas entre columnas, los del vocabulario y
+relaciones de orden y aritméticas entre columnas y de las dependencias
+funcionales, los del vocabulario y
 <code>datos_personales_permitidos</code>, <code>validadores_personales</code>,
 <code>umbral_documento_verificado</code> y <code>muestra_validadores</code>—, tiene su propia fila
 de configuración, acota el trabajo y lo declara en <code>cobertura_diagnosticos</code>,
 o no cambia los hallazgos. Una vara que uno de los dos perfiles no registra
-—un perfil de una versión anterior— no se compara.</p>
+—un perfil de una versión anterior— no se compara.
+La comparación no sabe de versiones: un perfil guardado por una versión que
+todavía no emitía un tipo de hallazgo no lo trae, y comparado con uno nuevo
+de los mismos datos ese hallazgo sale <code>aparecido</code>. Pasa con
+<code>relacion_funcional_columnas</code> frente a un perfil anterior a ese hallazgo: una
+fila <code>aparecido</code> por cada dependencia casi exacta, en cada sentido.</p>
 <p>Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
 concreta tampoco se declaran resueltos si aparecieron o desaparecieron
 columnas entre las corridas: cambio el universo que define esas filas. En

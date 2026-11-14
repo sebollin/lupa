@@ -151,8 +151,11 @@ dependencias
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 busca las mismas dependencias por su cuenta
 (`analizar_dependencias = TRUE`, el valor por omisión) y las deja en
-`perfil$dependencias`. Una dependencia exacta permite además imputar un
-valor faltante desde los propios datos, como se ve en [6. Limpiar con un
+`perfil$dependencias`. Una que casi se cumple aparece además entre los
+hallazgos, como `relacion_funcional_columnas`, con las filas que la
+rompen en su `trazabilidad`. Una dependencia exacta permite además
+imputar un valor faltante desde los propios datos, como se ve en [6.
+Limpiar con un
 plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md).
 
 ## ⚠️ Lo que se cumple no es una regla

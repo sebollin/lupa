@@ -4,7 +4,13 @@ Busca pares ordenados `determinante -> dependiente`. El cumplimiento es
 la proporción de filas que coincide con el valor modal del dependiente
 para cada valor del determinante; por eso una dependencia aproximada
 señala directamente las filas minoritarias que pueden ser errores de
-carga.
+carga. Esta función no devuelve esas filas:
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+publica cada dependencia que no es exacta como el hallazgo
+`relacion_funcional_columnas`, con las filas que la rompen en su
+`trazabilidad`. El valor modal es el más frecuente; si dos empatan, el
+que aparece primero en la tabla, y las filas del otro son las que
+cuentan en `n_violaciones`.
 
 ## Usage
 

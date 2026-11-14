@@ -363,11 +363,15 @@ perfilar(
 - analizar_dependencias:
 
   Si se buscan dependencias funcionales entre pares de columnas. Se
-  aplica una sola muestra común a toda la tabla.
+  aplica una sola muestra común a toda la tabla. Una dependencia
+  publicada que no es exacta es además el hallazgo
+  `relacion_funcional_columnas`, con las filas que la rompen.
 
 - umbral_dependencia:
 
-  Cumplimiento mínimo para informar una dependencia.
+  Cumplimiento mínimo para informar una dependencia. Una informada con
+  cumplimiento menor que 1 es también un hallazgo
+  `relacion_funcional_columnas`.
 
 - umbral_casi_clave_dependencia:
 
@@ -1300,8 +1304,26 @@ cuentan como variantes. Los dos informativos que cuentan filas también
 las traen: `posible_ausencia_estructural`, las ausentes que caen donde
 la regla dice que la columna no corresponde, y
 `regla_silencia_ausencia`, las que la declaración del universo dejó de
-contar. Para `patron_raro`, el alcance puede ser `completo`,
-`muestra_patrones`, `patrones_parciales` o
+contar. `relacion_funcional_columnas` sale una vez por cada fila de
+`dependencias` que no es exacta —cumplimiento en
+`[umbral_dependencia, 1)`—, y una por sentido: `a -> b` y `b -> a` son
+dos hallazgos, porque en general los rompen filas distintas. `columna`
+es `"determinante,dependiente"`, la unidad es `fila`, `n_evaluados` y
+`n_afectados` son `n_evaluados` y `n_violaciones` de la dependencia, y
+la evidencia repite su cumplimiento y sus contradicciones. La traza
+enumera las filas que la rompen —las que tienen las dos columnas
+presentes y un dependiente distinto del más frecuente de su
+determinante; con empate en ese máximo, el que aparece primero en la
+tabla—, su total es `n_afectados` y lleva `columnas`. Si las
+dependencias se buscaron sobre una muestra, las filas son de la tabla
+(`alcance = "completo"`) cuando la dependencia se recalculó sobre ella,
+y de la muestra, en su posición de la tabla, cuando el presupuesto no
+alcanzó (`alcance = "muestra_dependencias"`, lo mismo que sus cifras).
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+no propone una acción para este hallazgo: va a `hallazgos_sin_accion`.
+Que la relación sea una regla del negocio lo sabe quien conoce los
+datos; si no lo es, no hay nada que corregir. Para `patron_raro`, el
+alcance puede ser `completo`, `muestra_patrones`, `patrones_parciales` o
 `muestra_patrones+patrones_parciales`. El resumen y el texto de
 evidencia de `patron_raro` muestran como maximo seis patrones, pero la
 trazabilidad conserva los nombres de todos los patrones raros hasta un
