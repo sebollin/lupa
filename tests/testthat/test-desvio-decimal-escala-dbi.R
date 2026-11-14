@@ -42,10 +42,12 @@ test_that("por bloques, un decimal de escala 0 por debajo de 2^53 publica su des
     },
     .package = "lupa"
   )
+  # Dos bloques (5 y 4 filas) ya son la via por bloques; con cinco la prueba,
+  # que corre en CRAN, tardaba el doble y fallaba igual sin el arreglo.
   perfil <- function(tipo) {
     tipo_d <<- tipo
     suppressWarnings(perfilar_dbi(
-      con, "t", bloque_filas = 2L, bloque_muestra = "solo_agregados",
+      con, "t", bloque_filas = 5L, bloque_muestra = "solo_agregados",
       proteger_datos_personales = FALSE, fecha = .dde_fecha
     ))
   }

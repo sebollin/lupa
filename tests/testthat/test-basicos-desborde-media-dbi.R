@@ -49,11 +49,11 @@ test_that("el desborde de la media de un HUGEINT no se lleva los demas basicos n
     expect_false(any(grepl(tope_u, sql$motivo, fixed = TRUE)), info = paste("incluir_valores =", incluir))
     # La columna chica de al lado no se entera.
     expect_identical(p$resumen_tabla$columnas$media[p$resumen_tabla$columnas$columna == "w"], 2)
+    # `incluir_valores = TRUE` es el valor por omision: ese perfil es el de abajo.
+    if (incluir) con_valores <- p
   }
   # Con valores, el maximo nombra la causa: es un entero ancho.
-  p <- suppressWarnings(perfilar_dbi(
-    con, "h", proteger_datos_personales = FALSE, bloque_muestra = "solo_agregados"
-  ))
+  p <- con_valores
   sql <- p$resumen_tabla$sql
   expect_match(sql$motivo[sql$columna == "v" & sql$metrica == "maximo"],
                "entero ancho", fixed = TRUE)

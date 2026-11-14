@@ -23,6 +23,8 @@ test_that("el control ve un .Internal() donde lo hay", {
 })
 
 test_that("ninguna funcion del paquete llama a .Internal()", {
+  # En CRAN lo mira el propio R CMD check (`.check_dotInternal()`), con un WARNING.
+  skip_on_cran()
   espacio <- asNamespace("lupa")
   nombres <- ls(espacio, all.names = TRUE)
   con_internal <- nombres[vapply(nombres, function(nombre) {
