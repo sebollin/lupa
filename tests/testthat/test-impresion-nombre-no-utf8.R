@@ -34,8 +34,13 @@ test_that("hallazgos() y cobertura() se imprimen con un nombre de columna que no
   datos <- .datos_nombre_no_utf8()
   clave <- names(datos)[[2L]]
   expect_false(validUTF8(clave))
-  perfil <- perfilar(datos, fecha = as.POSIXct("2026-01-15", tz = "UTC"),
-                     clave = clave)
+  # La clave del fixture repite valores y tiene un ausente: el aviso de la
+  # clave declarada es el de siempre y no es lo que se prueba aca.
+  expect_warning(
+    perfil <- perfilar(datos, fecha = as.POSIXct("2026-01-15", tz = "UTC"),
+                       clave = clave),
+    "no es \u00fanica"
+  )
 
   h <- hallazgos(perfil)
   # La tabla trae lo que abortaba: una clave de la traza con ese nombre.
@@ -59,8 +64,11 @@ test_that("hallazgos() y cobertura() se imprimen con un nombre de columna que no
 
 test_that("la clase de impresion no cambia ningun valor", {
   datos <- .datos_nombre_no_utf8()
-  perfil <- perfilar(datos, fecha = as.POSIXct("2026-01-15", tz = "UTC"),
-                     clave = names(datos)[[2L]])
+  expect_warning(
+    perfil <- perfilar(datos, fecha = as.POSIXct("2026-01-15", tz = "UTC"),
+                       clave = names(datos)[[2L]]),
+    "no es \u00fanica"
+  )
   h <- hallazgos(perfil)
   cb <- cobertura(perfil)
   expect_s3_class(h, "data.frame")
