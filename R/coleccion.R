@@ -903,7 +903,10 @@ print.coleccion_lupa <- function(x, ...) {
 #' vacía van a `cobertura_coleccion` con su motivo y su `como_resolverlo`. Un
 #' motor que rechaza un agregado —o una columna cuyo tipo no lo admite— va a
 #' `cobertura_metricas`, con una fila por columna y métrica, y deja además una
-#' línea de resumen en `cobertura_coleccion`. Esa cobertura por métrica **se
+#' línea de resumen en `cobertura_coleccion`. Una tabla cuyo catálogo de
+#' permisos no contestó se perfila con la lectura de siempre y deja una fila de
+#' alcance `permisos_columnas`: si tiene columnas enmascaradas, sus métricas
+#' describen la máscara. Esa cobertura por métrica **se
 #' calcula antes de descartar el perfil**, así que existe también con
 #' `conservar_perfiles = FALSE`. En bases institucionales los permisos parciales
 #' son el caso normal, no el borde.
@@ -1380,7 +1383,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         },
         cobertura_muestra = rbind(resumen$cobertura[
           resumen$cobertura$bloque == "perfil_muestra", , drop = FALSE
-        ], cobertura_filas_analizadas)
+        ], cobertura_filas_analizadas),
+        permisos_sin_consultar = resumen$meta$permisos_sin_consultar
       )
     }, error = function(e) e)
     if (inherits(piezas, "condition")) {
@@ -1439,6 +1443,13 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           "se necesita decidir cu\u00e1l valor representa al dato."
         )
       )
+    }
+
+    permisos_sin_consultar <- .cobertura_permisos_sin_consultar_coleccion(
+      piezas$permisos_sin_consultar, fila
+    )
+    if (!is.null(permisos_sin_consultar)) {
+      cobertura[[length(cobertura) + 1L]] <- permisos_sin_consultar
     }
 
     if (is.data.frame(piezas$sql) && nrow(piezas$sql)) {
@@ -1860,6 +1871,19 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       tryCatch(.texto_condicion_motor(w), error = function(e) NA_character_)
     }, character(1L)),
     stringsAsFactors = FALSE
+  )
+}
+
+# Lo que `perfilar_dbi()` declaro sobre el catalogo de permisos de una tabla
+# (`meta$permisos_sin_consultar`, ver `.columnas_tabla_dbi()`), subido a
+# `cobertura_coleccion` con el mismo motivo y el mismo remedio: sin conservar
+# los perfiles, la fila de la tabla se descartaba con ellos y la coleccion
+# publicaba como dato lo que podia ser una mascara, sin decirlo.
+.cobertura_permisos_sin_consultar_coleccion <- function(parte, fila) {
+  if (length(parte) != 1L || is.na(parte)) return(NULL)
+  .fila_cobertura_coleccion(
+    fila, "permisos_columnas", .motivo_permisos_sin_consultar_dbi(parte),
+    .remedio_permisos_sin_consultar_dbi()
   )
 }
 
@@ -2337,6 +2361,33 @@ print.perfil_coleccion <- function(x, ...) {
   )
 }
 
+# Las columnas de cada tabla de la coleccion (`.columnas_tabla_coleccion()`),
+# preguntadas una vez por tabla y recordadas por el consultor que las pregunto.
+# `relaciones_coleccion()` le pasa el mismo a la validacion de
+# `columnas_candidatas` y a su lector: antes cada uno preguntaba por su cuenta,
+# y en SQL Server eran dos consultas de catalogo mas por tabla declarada -cuatro
+# por par-, con la misma respuesta. Lo recordado viaja con el consultor y no
+# queda en el paquete: otra llamada arma otro y vuelve a preguntar. La clave es
+# la tabla declarada, no la grafia con que se la nombro.
+.consultor_columnas_coleccion <- function(coleccion) {
+  consultadas <- new.env(parent = emptyenv())
+  function(identificador) {
+    k <- .indice_identificador(identificador, coleccion$tablas$identificador)
+    clave <- .clave_cache_coleccion(
+      if (is.na(k)) identificador else coleccion$tablas$identificador[[k]]
+    )
+    if (exists(clave, envir = consultadas, inherits = FALSE)) {
+      return(get(clave, envir = consultadas, inherits = FALSE))
+    }
+    info <- .columnas_tabla_coleccion(
+      coleccion$conexion,
+      if (is.na(k)) identificador else coleccion$tablas$referencia[[k]]
+    )
+    assign(clave, info, envir = consultadas)
+    info
+  }
+}
+
 # Lee el ancho de cada tabla por metadatos. `dbListFields()` es la via
 # declarada por DBI y no ejecuta una consulta contra los datos; el
 # `SELECT * WHERE 1 = 0` queda como reserva para los drivers que no la
@@ -2646,7 +2697,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   )
 }
 
-.validar_columnas_candidatas_coleccion <- function(coleccion, columnas) {
+.validar_columnas_candidatas_coleccion <- function(
+    coleccion, columnas, columnas_de = .consultor_columnas_coleccion(coleccion)) {
   if (is.null(columnas)) return(NULL)
   if (!is.list(columnas) || is.null(names(columnas)) ||
       anyNA(names(columnas)) || any(!nzchar(names(columnas))) ||
@@ -2673,13 +2725,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         "` debe ser un vector de nombres no vac\u00edo.", call. = FALSE
       )
     }
-    k <- .indice_identificador(identificador, declaradas)
     # Las columnas de la tabla, tambien las que la credencial no puede leer: en
     # PostgreSQL `dbListFields()` no las lista, y una candidata que existe se
     # rechazaba como inexistente. La lectura la deja afuera y lo declara.
-    campos <- .columnas_tabla_coleccion(
-      coleccion$conexion, coleccion$tablas$referencia[[k]]
-    )$campos
+    campos <- columnas_de(identificador)$campos
     if (length(campos)) {
       # La misma regla que `orden` y que `orden_muestra` de `perfilar_dbi()`:
       # la grafia exacta primero y, si no esta, sin distinguir mayusculas, como
@@ -3014,7 +3063,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 }
 
 .lector_tablas_coleccion <- function(conexion, coleccion, muestra, orden,
-                                     tope_cache_mb, columnas_candidatas = NULL) {
+                                     tope_cache_mb, columnas_candidatas = NULL,
+                                     columnas_de = .consultor_columnas_coleccion(
+                                       coleccion
+                                     )) {
   cache <- new.env(parent = emptyenv())
   cache_rangos <- new.env(parent = emptyenv())
   bitacora <- list()
@@ -3032,17 +3084,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   # tabla, de la MISMA funcion que usa `perfilar_dbi()`
   # (`.columnas_tabla_dbi()`): resuelven el `orden` declarado, nombran las
   # columnas de un `SELECT *` y dicen cuales no se pueden leer o llegan
-  # enmascaradas.
-  cache_campos <- new.env(parent = emptyenv())
-  info_de <- function(identificador) {
-    cache_key <- .clave_cache_coleccion(identificador)
-    if (exists(cache_key, envir = cache_campos, inherits = FALSE)) {
-      return(get(cache_key, envir = cache_campos, inherits = FALSE))
-    }
-    info <- .columnas_tabla_coleccion(conexion, referencia_de(identificador))
-    assign(cache_key, info, envir = cache_campos)
-    info
-  }
+  # enmascaradas. Las pregunta el consultor que tambien uso la validacion de
+  # `columnas_candidatas` (`.consultor_columnas_coleccion()`).
+  info_de <- columnas_de
   campos_de <- function(identificador) {
     info <- info_de(identificador)
     if (is.null(info) || !length(info$campos)) NULL else info$campos
@@ -3421,6 +3465,16 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         paste(nota_lectura, nota_fuera)
       }
     }
+    # Si el catalogo no dijo cuales se leen o llegan enmascaradas, la lectura
+    # es la de siempre y su motivo lo dice: ver `.columnas_tabla_dbi()`.
+    nota_permisos <- .nota_permisos_sin_consultar_dbi(
+      if (is.null(info)) NA_character_ else info$permisos_sin_consultar
+    )
+    if (!is.na(nota_permisos)) {
+      nota_lectura <- if (is.na(nota_lectura)) nota_permisos else {
+        paste(nota_lectura, nota_permisos)
+      }
+    }
     columnas_lectura <- if (is.null(columnas_seleccionadas)) {
       character()
     } else {
@@ -3793,6 +3847,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' `columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—, y dos
 #' así parecerían relacionadas sin compartir un solo valor. Una columna de
 #' `orden` así deja la lectura sin `ORDER BY`, como la que no se puede escribir.
+#' Si el catálogo no contesta —un sinónimo, una tabla de otra base—, la tabla se
+#' lee como siempre y `meta$lecturas$motivo` lo declara: dos columnas
+#' enmascaradas se compararían como dato.
 #'
 #' **Los valores se leen como los lee [perfilar_dbi()].** RPostgres entrega `0`
 #' en toda celda `money`, y `MIN`/`MAX` de una columna `money` también: la
@@ -3992,8 +4049,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     }
     pares <- .validar_pares_coleccion(coleccion, pares, exigir = TRUE)
     orden <- .validar_orden_coleccion(coleccion, orden)
+    columnas_de <- .consultor_columnas_coleccion(coleccion)
     columnas_candidatas <- .validar_columnas_candidatas_coleccion(
-      coleccion, columnas_candidatas
+      coleccion, columnas_candidatas, columnas_de
     )
     muestra <- .validar_muestra_dbi(muestra)
   })
@@ -4017,7 +4075,8 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
 
   lector <- .lector_tablas_coleccion(
-    conexion, coleccion, muestra, orden, tope_cache_mb, columnas_candidatas
+    conexion, coleccion, muestra, orden, tope_cache_mb, columnas_candidatas,
+    columnas_de
   )
 
   encontradas <- list()

@@ -394,6 +394,17 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   .clave_bytes(.ordenar_por_bytes(valores))
 }
 
+# Una lista de la configuracion como la publican las filas `configuracion_*`:
+# sus elementos separados por `; `, y "ninguna" si esta vacia. Una lista vacia
+# es una politica declarada -`sentinelas_numericos = numeric(0)` apaga los
+# centinelas-, y los centinelas la publicaban como texto vacio: la fila decia
+# `modificado` sin decir a que. Las cuatro politicas que son listas la escriben
+# con esta funcion.
+.texto_lista_configuracion_deriva <- function(x) {
+  if (!length(x)) return("ninguna")
+  paste(unlist(x), collapse = "; ")
+}
+
 .configuracion_sentinelas_perfil <- function(perfil) {
   if (!"sentinelas_numericos" %in% names(perfil$meta)) return(NULL)
   # Un conjunto, no una secuencia: `c(999, -9)` y `c(-9, 999)` son la misma
@@ -840,6 +851,19 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   paste(
     ifelse(is.na(columna), "T", paste0("C", columna)), as.character(tipo)
   )
+}
+
+# Si el perfil nuevo declino el diagnostico de un hallazgo que desaparecio: lo
+# declina su clave, la de alguna de las columnas que nombra -`componentes`, las
+# de un hallazgo de varias- o la de la tabla. Una fila de cobertura sin columna
+# no dice que el diagnostico se salteo en una parte: dice que no se evaluo en
+# ninguna, y entonces tampoco en cada columna. Leida como "la tabla" y nada mas,
+# un grupo de columnas iguales contra una entrega sin filas -cuya cobertura
+# declina `columnas_duplicadas` con `columna = NA`, porque dos columnas vacias
+# coinciden sin que eso sea evidencia- salia `resuelto` con severidad `ok`.
+.hallazgo_declinado_deriva <- function(columna, componentes, tipo, declinados) {
+  columnas <- c(as.character(columna), as.character(componentes), NA_character_)
+  any(.clave_declinacion_deriva(columnas, tipo) %in% declinados)
 }
 
 # Si un hallazgo que desaparecio nombra una columna que el perfil nuevo ya no
@@ -1521,7 +1545,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
 #' su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado` con
 #' severidad `sospechoso`, porque no se sabe si el hallazgo sigue: dejar de
-#' mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo apagó el
+#' mirar no es lo mismo que arreglar. Una fila de esa cobertura sin columna
+#' declina el diagnóstico en toda la tabla, también en cada columna: un grupo de
+#' columnas iguales comparado con una entrega sin filas sale `no_evaluado`, no
+#' `resuelto`. Lo mismo si el perfil nuevo apagó el
 #' diagnóstico con su argumento o retiró la declaración que lo habilita, cosa
 #' que se lee en `meta`: `casi_duplicados_vocabulario = FALSE`,
 #' `ausencia_estructural = FALSE`, `variantes_equifrecuentes_vocabulario =
@@ -2121,7 +2148,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   texto_configuracion <- function(x) {
     if (is.null(x)) return(NA_character_)
     if (oculta(x)) return("[pol\u00edtica protegida]")
-    paste(unlist(x), collapse = "; ")
+    .texto_lista_configuracion_deriva(x)
   }
   if (sentinelas_ocultos) {
     agregar(
@@ -2174,8 +2201,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       NA_character_, "configuracion_cadenas_ausencia",
       if (ocultas) "no_comparable" else "modificado",
       if (ocultas) "sospechoso" else "error",
-      if (length(cadenas_a)) paste(cadenas_a, collapse = "; ") else "ninguna",
-      if (length(cadenas_b)) paste(cadenas_b, collapse = "; ") else "ninguna",
+      .texto_lista_configuracion_deriva(cadenas_a),
+      .texto_lista_configuracion_deriva(cadenas_b),
       descripcion = paste(
         "Cambi\u00f3 la lista de cadenas que se declaran como ausencia; se",
         "mantienen las comparaciones, pero las diferencias de faltantes y de",
@@ -2339,13 +2366,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   aplicabilidad_b <- .configuracion_aplicabilidad_perfil(actual)
   if (!is.null(aplicabilidad_a) && !is.null(aplicabilidad_b) &&
       !identical(aplicabilidad_a, aplicabilidad_b)) {
-    texto_aplicabilidad <- function(x) {
-      if (!length(x)) "ninguna" else paste(x, collapse = "; ")
-    }
     agregar(
       NA_character_, "configuracion_aplicabilidad", "modificado",
-      "error", texto_aplicabilidad(aplicabilidad_a),
-      texto_aplicabilidad(aplicabilidad_b),
+      "error", .texto_lista_configuracion_deriva(aplicabilidad_a),
+      .texto_lista_configuracion_deriva(aplicabilidad_b),
       descripcion = paste(
         "Cambiaron las columnas con regla de aplicabilidad; esa regla redefine",
         "el universo aplicable, as\u00ed que las diferencias de faltantes,",
@@ -2363,13 +2387,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   opcionales_b <- .configuracion_opcionales_perfil(actual)
   if (!is.null(opcionales_a) && !is.null(opcionales_b) &&
       !identical(opcionales_a, opcionales_b)) {
-    texto_opcionales <- function(x) {
-      if (!length(x)) "ninguna" else paste(x, collapse = "; ")
-    }
     agregar(
       NA_character_, "configuracion_columnas_opcionales", "modificado",
-      "error", texto_opcionales(opcionales_a),
-      texto_opcionales(opcionales_b),
+      "error", .texto_lista_configuracion_deriva(opcionales_a),
+      .texto_lista_configuracion_deriva(opcionales_b),
       descripcion = paste(
         "Cambiaron las columnas declaradas en `columnas_opcionales`; su",
         "universo de completitud son las celdas presentes, as\u00ed que las",
@@ -2522,10 +2543,9 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         .separar_nombres_columnas_historico(x$columna, sep = ",")
       }
     } else character()
-    declinado <- clave_declinacion %in% declinados_ahora ||
-      any(.clave_declinacion_deriva(
-        componentes, rep(x$tipo_hallazgo, length(componentes))
-      ) %in% declinados_ahora)
+    declinado <- .hallazgo_declinado_deriva(
+      x$columna, componentes, x$tipo_hallazgo, declinados_ahora
+    )
     # Los dos motivos de no evaluacion mandan a lugares distintos, y decir el
     # equivocado es peor que no decir ninguno: quien busque en
     # `cobertura_diagnosticos` un diagnostico que nunca se pidio no va a

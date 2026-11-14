@@ -383,7 +383,16 @@
     mascaras <- traer(sql_mascaras(TRUE))
     if (is.null(mascaras)) mascaras <- traer(sql_mascaras(FALSE))
   }
-  .interpretar_permisos_columnas_dbi(columnas, mascaras, proyectar = TRUE, sql = sql)
+  salida <- .interpretar_permisos_columnas_dbi(
+    columnas, mascaras, proyectar = TRUE, sql = sql
+  )
+  # Las columnas contestaron y las mascaras no: no se sabe cual llega
+  # enmascarada, y la lectura las toma a todas como dato. Se dice, no se calla
+  # (ver `.columnas_tabla_dbi()`).
+  if (!is.null(salida) && is.null(mascaras)) {
+    attr(salida, "mascaras_sin_respuesta") <- TRUE
+  }
+  salida
 }
 
 # MySQL y MariaDB entregan en `dbColumnInfo()` la clase de R para varias
@@ -525,6 +534,18 @@
 # `catalogo = FALSE` no consulta el catalogo: lo usa la estimacion de costo de
 # la coleccion, que con mil tablas no puede pagar dos viajes mas por tabla y
 # solo cuenta columnas.
+#
+# `permisos_sin_consultar` dice que parte del catalogo de permisos no contesto
+# en un motor que lo tiene -SQL Server y PostgreSQL-: `"columnas"` (no se sabe
+# cuales se leen ni cuales llegan enmascaradas) o `"mascaras"` (SQL Server dio
+# las columnas pero no `sys.masked_columns`); `NA` si contesto o si el motor no
+# tiene ese catalogo. Un sinonimo, una tabla de otra base o un catalogo que la
+# credencial no lee vuelven a la lectura de siempre, y ahi una columna
+# enmascarada se lee como dato: `perfilar_dbi()` publicaba `n_distintos = 1` de
+# la mascara y `relaciones_coleccion()` relacionaba dos mascaras con cobertura
+# 1, sin una palabra. La lectura no cambia -no hay de donde saber que esta
+# enmascarado-, pero las tres puertas lo declaran con el mismo motivo
+# (`.motivo_permisos_sin_consultar_dbi()`).
 .reconciliar_campos_catalogo_dbi <- function(listados, catalogo) {
   catalogo <- as.character(catalogo)
   if (length(catalogo) && all(!is.na(catalogo) & nzchar(catalogo))) {
@@ -558,7 +579,12 @@
     campos = listados, ilegibles = character(), enmascaradas = character(),
     mascaras = stats::setNames(character(), character()), proyectar = FALSE,
     catalogo = FALSE, sql_catalogo = NA_character_, tipos_motor = NULL,
-    tipo_objeto = NA_character_, error = error
+    tipo_objeto = NA_character_, error = error,
+    permisos_sin_consultar = if (isTRUE(catalogo) &&
+                                 .motor_permisos_columnas_dbi(conexion) %in%
+                                 c("sqlserver", "postgresql")) {
+      "columnas"
+    } else NA_character_
   )
   if (is.null(permisos)) return(vacio)
   catalogo <- permisos$columna
@@ -585,7 +611,10 @@
     catalogo = TRUE, sql_catalogo = attr(permisos, "sql"),
     tipos_motor = tipos_motor,
     tipo_objeto = attr(permisos, "tipo_objeto"),
-    error = if (length(campos)) NULL else error
+    error = if (length(campos)) NULL else error,
+    permisos_sin_consultar = if (isTRUE(attr(permisos, "mascaras_sin_respuesta"))) {
+      "mascaras"
+    } else NA_character_
   )
 }
 
@@ -624,6 +653,56 @@
   paste(
     "Perfilar con una credencial con permiso `UNMASK` sobre la columna o la",
     "base para medir sus valores; las dem\u00e1s columnas se midieron enteras."
+  )
+}
+
+# Por que no se sabe que columnas de la tabla se leen o llegan enmascaradas
+# (`permisos_sin_consultar`, ver `.columnas_tabla_dbi()`), dicho igual en
+# `perfilar_dbi()`, `perfilar_coleccion()` y `relaciones_coleccion()`.
+.motivo_permisos_sin_consultar_dbi <- function(parte) {
+  if (identical(parte, "mascaras")) {
+    return(paste(
+      "No se pudo consultar en el cat\u00e1logo del motor qu\u00e9 columnas de la",
+      "tabla llegan enmascaradas para esta credencial, as\u00ed que se leyeron",
+      "todas como dato: una columna enmascarada se mide como si la m\u00e1scara",
+      "fuera el valor."
+    ))
+  }
+  paste(
+    "No se pudieron consultar en el cat\u00e1logo del motor los permisos por",
+    "columna de la tabla, as\u00ed que se ley\u00f3 como siempre, sin saber qu\u00e9",
+    "columnas no puede leer la credencial ni cu\u00e1les llegan enmascaradas:",
+    "una columna enmascarada se mide como si la m\u00e1scara fuera el valor."
+  )
+}
+
+.remedio_permisos_sin_consultar_dbi <- function() {
+  paste(
+    "Lo medido vale si ninguna columna est\u00e1 enmascarada. Para que el",
+    "paquete lo sepa, perfilar la tabla base de la base actual -no un",
+    "sin\u00f3nimo ni una tabla de otra base- con una credencial que lea su",
+    "cat\u00e1logo (`sys.columns` y `sys.masked_columns` en SQL Server,",
+    "`pg_attribute` en PostgreSQL)."
+  )
+}
+
+# La fila de `resumen_tabla$cobertura` que lo declara, sobre la tabla y no sobre
+# una columna: no se sabe cual.
+.cobertura_permisos_sin_consultar_dbi <- function(parte, tabla) {
+  .registro_cobertura_dbi(
+    "resumen_tabla", tabla, "degradado",
+    .motivo_permisos_sin_consultar_dbi(parte),
+    .remedio_permisos_sin_consultar_dbi()
+  )
+}
+
+# La misma declaracion en una frase, para el motivo de una lectura de la
+# coleccion. `NA` si no hay nada que declarar.
+.nota_permisos_sin_consultar_dbi <- function(parte) {
+  if (length(parte) != 1L || is.na(parte)) return(NA_character_)
+  paste(
+    .motivo_permisos_sin_consultar_dbi(parte),
+    .remedio_permisos_sin_consultar_dbi()
   )
 }
 
@@ -16627,7 +16706,8 @@
       campos = columnas$campos, motivo = NA_character_,
       origen = if (isTRUE(columnas$catalogo)) "catalogo" else "dbListFields",
       columnas = columnas, tipos_motor = columnas$tipos_motor,
-      tipo_objeto = columnas$tipo_objeto
+      tipo_objeto = columnas$tipo_objeto,
+      permisos_sin_consultar = columnas$permisos_sin_consultar
     ))
   }
   campos <- if (is.null(columnas$error)) character() else columnas$error
@@ -16644,12 +16724,15 @@
     presupuesto, etapa = "esquema"
   )
   if (respaldo$ok && length(names(respaldo$datos))) {
+    # Un sinonimo suele llegar por aca: el controlador no lo lista y el
+    # catalogo de permisos tampoco lo ve.
     return(list(
       campos = names(respaldo$datos), origen = "select_cero_filas",
       motivo = paste0(
         "dbListFields() no sirvio (", motivo,
         "); los nombres se leyeron con una consulta de cero filas."
-      )
+      ),
+      permisos_sin_consultar = columnas$permisos_sin_consultar
     ))
   }
   .detener_dbi("lupa_error_campos_dbi", paste0(
@@ -21810,7 +21893,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
 .declarar_enmascaradas_dbi <- function(resultado, preparacion) {
   enmascaradas <- preparacion$enmascaradas
   resumen <- resultado$resumen_tabla
-  if (!length(enmascaradas) || is.null(resumen)) return(resultado)
+  if (is.null(resumen)) return(resultado)
+  # Y si el catalogo no dijo cuales llegan enmascaradas, eso tambien se declara:
+  # ver `.columnas_tabla_dbi()`. `meta$permisos_sin_consultar` -solo en ese
+  # caso- dice que parte no contesto; `perfilar_coleccion()` lo lee de ahi.
+  sin_consultar <- preparacion$lista_campos$permisos_sin_consultar
+  if (length(sin_consultar) == 1L && !is.na(sin_consultar)) {
+    resumen$cobertura <- rbind(
+      if (is.null(resumen$cobertura)) .cobertura_dbi_vacia() else resumen$cobertura,
+      .cobertura_permisos_sin_consultar_dbi(
+        sin_consultar,
+        if (is.null(resumen$meta$tabla)) NA_character_ else resumen$meta$tabla
+      )
+    )
+    resumen$meta$permisos_sin_consultar <- sin_consultar
+    resultado$resumen_tabla <- resumen
+  }
+  if (!length(enmascaradas)) return(resultado)
   otras <- setdiff(names(.CAMPOS_METRICA_DBI), "validos")
   campos_otros <- unlist(.CAMPOS_METRICA_DBI[otras], use.names = FALSE)
   mascaras <- preparacion$mascaras
@@ -23387,7 +23486,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' rechazada por un permiso de columna dejaría la conexión rota y la siguiente
 #' haría caer a R. Lo que el catálogo no ve —un sinónimo, una tabla de otra
 #' base, una tabla temporal— se intenta leer: el rechazo del motor se declara
-#' y la conexión sigue.
+#' y la conexión sigue. Y como entonces no se sabe qué columnas llegan
+#' enmascaradas, una fila `degradado` de `resumen_tabla$cobertura` sobre la tabla
+#' lo declara —también si sólo falló la consulta de `sys.masked_columns`—, y
+#' `resumen_tabla$meta$permisos_sin_consultar` dice qué parte no contestó (`"columnas"` o
+#' `"mascaras"`): una columna enmascarada de esa tabla se mide como si la
+#' máscara fuera el valor.
 #' Con enmascaramiento dinámico de SQL Server (`MASKED WITH`, 2016+) y una
 #' credencial sin `UNMASK` sobre la columna o la base, el motor devuelve la
 #' máscara y no el dato. La completitud de esa columna se publica —los no nulos

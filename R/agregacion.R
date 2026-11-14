@@ -553,6 +553,8 @@ transiciones_granularidad <- function() {
     #                            las tablas que si se midieron.
     #   muestra_no_disponible -> NO. Fallo la consulta de muestra y el resumen SQL
     #                            sobrevivio: la tabla puede aportar igual.
+    #   permisos_columnas     -> NO. Se perfilo; el catalogo no dijo que columnas
+    #                            no se leen o llegan enmascaradas.
     explican_la_tabla <- c("tabla", "tabla_vacia", "medicion_incompleta")
     con_motivo <- if (is.null(faltantes$alcance)) {
       faltantes

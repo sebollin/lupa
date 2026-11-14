@@ -145,6 +145,24 @@
 - `comparar_perfiles()` publica `no_evaluado`, y no `resuelto`, cuando un
   hallazgo de la tabla —como `fecha_partida_columnas`— desaparece porque el
   perfil nuevo declaró recortada esa búsqueda en `cobertura_diagnosticos`.
+- `comparar_perfiles()`: un grupo de columnas iguales comparado con una entrega
+  sin filas salía `resuelto` con severidad `ok`. La cobertura del perfil vacío
+  declina `columnas_duplicadas` sin nombrar columna, y eso ahora quiere decir
+  «en ninguna columna»: sale `no_evaluado`, como el hallazgo de una columna cuyo
+  diagnóstico se declinó. Y con `sentinelas_numericos = numeric(0)` en uno de
+  los perfiles, la fila `configuracion_sentinelas_numericos` publicaba la lista
+  vacía como `""`; ahora dice `ninguna`, como las demás políticas que son
+  listas.
+- `perfilar_dbi()`, `perfilar_coleccion()` y `relaciones_coleccion()`: si el
+  catálogo de permisos de SQL Server o PostgreSQL no contesta —un sinónimo, una
+  tabla de otra base, un catálogo que la credencial no lee—, la lectura sigue
+  siendo la de siempre, pero ahora se declara: una fila `degradado` en
+  `resumen_tabla$cobertura` (y `resumen_tabla$meta$permisos_sin_consultar`),
+  una fila de alcance `permisos_columnas` en `cobertura_coleccion` y el motivo
+  de la lectura en `meta$lecturas`. Una columna enmascarada de esa tabla se mide
+  como si la máscara fuera el valor, y antes no se decía. Con
+  `columnas_candidatas`, `relaciones_coleccion()` consultaba además el catálogo
+  dos veces por tabla; ahora la validación y la lectura comparten lo consultado.
 - `relaciones_coleccion()` se detiene con `lupa_error_transaccion_dbi` cuando
   el motor deshace la transacción del usuario mientras se consultan las
   columnas y los permisos de una tabla, como ya hacían `perfilar_dbi()` y

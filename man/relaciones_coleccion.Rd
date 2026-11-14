@@ -109,6 +109,9 @@ combinaciones quedan en \code{cobertura_podas} con motivo \code{columna_sin_perm
 \code{columna_enmascarada}: una columna enmascarada lee la máscara —\code{xxxx}—, y dos
 así parecerían relacionadas sin compartir un solo valor. Una columna de
 \code{orden} así deja la lectura sin \verb{ORDER BY}, como la que no se puede escribir.
+Si el catálogo no contesta —un sinónimo, una tabla de otra base—, la tabla se
+lee como siempre y \code{meta$lecturas$motivo} lo declara: dos columnas
+enmascaradas se compararían como dato.
 
 \strong{Los valores se leen como los lee \code{\link[=perfilar_dbi]{perfilar_dbi()}}.} RPostgres entrega \code{0}
 en toda celda \code{money}, y \code{MIN}/\code{MAX} de una columna \code{money} también: la
