@@ -66,8 +66,12 @@ la impresión no aborta con un nombre de columna que no es UTF-8 válido,
 que va adentro de sus columnas-lista (`trazabilidad`, `columnas`); los
 subconjuntos la conservan y
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) la quita.
-El significado de cada campo de `columnas()` se explica por familias en
-los detalles de
+La traen también los campos de donde salen —`perfil$hallazgos` y
+`perfil$cobertura_diagnosticos`, y los de `perfil_muestra` en un
+`perfil_dbi`— y el atributo `cobertura_diagnosticos` del plan de
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+así que imprimirlos directo tampoco aborta. El significado de cada campo
+de `columnas()` se explica por familias en los detalles de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 `sql_perfil()` devuelve la tabla de consultas emitidas; sobre una
 colección incluye la identidad de la tabla y conserva las consultas

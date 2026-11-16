@@ -19,13 +19,13 @@ Source:
 [`inst/CITATION`](https://github.com/sebollin/lupa/blob/main/inst/CITATION)
 
 Lucas S (2026). lupa: Data Profiling and Quality Measurement for Tables
-and Databases. R package version 0.1.1.9000.
+and Databases. R package version 0.1.2.
 
     @Manual{,
       title = {lupa: Data Profiling and Quality Measurement for Tables and Databases},
       author = {Sebastián Lucas},
       year = {2026},
-      note = {R package version 0.1.1.9000},
+      note = {R package version 0.1.2},
     }
 
 AGESIC (2020). Marco de trabajo para la Gestión de la Calidad de Datos

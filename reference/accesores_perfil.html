@@ -18,7 +18,7 @@ avisa, y lo que sigue calcula sobre nada."><meta property="og:image" content="ht
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.1.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -128,6 +128,10 @@ Devuelve
 <code><a href="proponer_modelo.html">proponer_modelo()</a></code>, la impresión no aborta con un nombre de columna que no
 es UTF-8 válido, que va adentro de sus columnas-lista (<code>trazabilidad</code>,
 <code>columnas</code>); los subconjuntos la conservan y <code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> la quita.
+La traen también los campos de donde salen —<code>perfil$hallazgos</code> y
+<code>perfil$cobertura_diagnosticos</code>, y los de <code>perfil_muestra</code> en un
+<code>perfil_dbi</code>— y el atributo <code>cobertura_diagnosticos</code> del plan de
+<code><a href="planificar_limpieza.html">planificar_limpieza()</a></code>, así que imprimirlos directo tampoco aborta.
 El significado de
 cada campo de <code>columnas()</code> se explica por familias en los detalles de
 <code><a href="perfilar.html">perfilar()</a></code>. <code>sql_perfil()</code> devuelve la tabla de consultas emitidas;

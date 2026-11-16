@@ -1,6 +1,6 @@
 # Changelog
 
-## lupa (development version)
+## lupa 0.1.2
 
 ### Trazabilidad
 
@@ -98,10 +98,10 @@
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   es entre seis y ocho veces más rápido sobre columnas de texto con
-  números. Sobre 200.000 filas, en Linux, pasa de 320 a 38 segundos con
-  diez columnas de decimales con coma, de 414 a 66 con diez de importes
-  con moneda y de 162 a 27 con una mezcla de listas, códigos e importes;
-  perfilar `datos_operativos` pasa de 0,125 a 0,117 segundos por
+  números. Sobre 200.000 filas, en Linux, pasa de 321 a 38 segundos con
+  diez columnas de decimales con coma, de 418 a 67 con diez de importes
+  con moneda y de 164 a 27 con una mezcla de listas, códigos e importes;
+  perfilar `datos_operativos` pasa de 0,128 a 0,119 segundos por
   llamada. Son medianas de tres corridas alternadas contra la 0.1.1, que
   rehace `benchmark/medir_texto_numerico.R`. Las respuestas no cambian.
   Lo que cambió:
@@ -133,10 +133,26 @@
   pierde arma grupos sólo con los valores de las celdas que cambiaron.
   Sobre una columna de dos millones de filas con 401 celdas que tocar,
   en Linux, reparar la codificación y quitar los controles pasa de 38 a
-  10 segundos.
+  10 segundos. Es el costo de las mismas acciones: con el plan por
+  omisión,
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  puede tardar más en total que con la 0.1.1, porque ahora aplica
+  reparaciones de codificación que la 0.1.1 dejaba sin marcar.
 
 ### Correcciones
 
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publicaba con estado `no_disponible` —«La consulta terminó sin un
+  valor para la métrica»— la moda de una columna de texto cuando esa
+  moda es la cadena vacía `""`, aunque el valor y su frecuencia salían
+  en `resumen_tabla$columnas` y
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  decía `moda = ""`: leía la cadena vacía como el `NULL` de SQL. Ahora
+  sale `calculado` (o `estimado` sobre una muestra del motor).
+- La descripción de `clave_con_ausentes` y de `clave_no_unica` nombra la
+  clave declarada como la muestra la consola (`ciudad\xa0`) cuando su
+  nombre no es UTF-8 válido: pegaba el byte crudo junto al texto del
+  paquete y la frase quedaba marcada UTF-8 sin serlo.
 - En
   [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
   dos textos iguales —tal cual o tras la normalización— publican
@@ -186,7 +202,13 @@
   las salidas del paquete, con el byte escapado (`ciudad\240`). Ningún
   valor cambia, y
   [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html)
-  devuelve la tabla de siempre. Lo mismo con un subconjunto de
+  devuelve la tabla sin la clase. La llevan también los campos de donde
+  salen —`p$hallazgos` y `p$cobertura_diagnosticos`, los de
+  `perfil_muestra` en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
+  y el atributo `cobertura_diagnosticos` del plan, adonde manda su
+  impresión: imprimirlos directo abortaba igual. Lo mismo con un
+  subconjunto de
   [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
   sin las columnas de la propuesta. Venía de la 0.1.1. Bajo un locale
   que no puede representar un carácter, esas tablas escriben su punto de
@@ -470,7 +492,8 @@
   que cubre todos los valores. `c("10", "12", "9", "15", "9,5")` se
   infería `entero` con compatibilidad 0,8 y el hallazgo decía «convertir
   dejaría 1 de 5 valores en NA» sobre una columna que el plan convertía
-  sin ningún `NA`.
+  sin ningún `NA`. Lo mismo con un número en notación científica entre
+  enteros (`1e5`, `1E+05`).
 - La evidencia de `tipo_declarado_distinto` dice «la conversión no
   pierde ningún valor» sólo cuando el plan propone una conversión
   `lista`. La decía sobre un entero que no entra en `integer`
@@ -578,11 +601,14 @@
   (`ÃŒ` seguido de un espacio): recortarlo dejaba la celda rota y sin
   señalar; se informa después de reparar.
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  cuenta el texto mal convertido que el motor no puede reparar también
-  cuando el valor se repite: `rep("Œ ", 10)` publicaba
-  `n_codificacion_no_se_pudo = 10`, `n_codificacion_rota = 0` y ningún
-  hallazgo. Repetir las filas de una columna multiplica los conteos y no
-  cambia los estados ni los hallazgos.
+  cuenta en `n_codificacion_rota` y en el hallazgo `codificacion_rota`
+  el texto mal convertido que el motor no puede reparar (`"Œ "`, una
+  letra seguida de U+0081). Antes quedaba sólo en
+  `n_codificacion_no_se_pudo`, suelto o repetido, y una columna sin
+  ninguna celda reparable no tenía hallazgo: `rep("Œ ", 10)` publicaba
+  `n_codificacion_no_se_pudo = 10`, `n_codificacion_rota = 0` y ninguno.
+  Repetir las filas de una columna multiplica los conteos y no cambia
+  los estados ni los hallazgos.
 - La evidencia de `codificacion_rota` cita valores distintos —repetía el
   mismo hasta cinco veces cuando el valor se repetía en la columna— y no
   dice «carácter de reemplazo» de un valor que no lo trae.
