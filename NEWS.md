@@ -83,10 +83,10 @@
 ## Rendimiento
 
 - `perfilar()` es entre seis y ocho veces más rápido sobre columnas de texto
-  con números. Sobre 200.000 filas, en Linux, pasa de 320 a 38 segundos con
-  diez columnas de decimales con coma, de 414 a 66 con diez de importes con
-  moneda y de 162 a 27 con una mezcla de listas, códigos e importes; perfilar
-  `datos_operativos` pasa de 0,125 a 0,117 segundos por llamada. Son medianas
+  con números. Sobre 200.000 filas, en Linux, pasa de 321 a 38 segundos con
+  diez columnas de decimales con coma, de 418 a 67 con diez de importes con
+  moneda y de 164 a 27 con una mezcla de listas, códigos e importes; perfilar
+  `datos_operativos` pasa de 0,128 a 0,119 segundos por llamada. Son medianas
   de tres corridas alternadas contra la 0.1.1, que rehace
   `benchmark/medir_texto_numerico.R`. Las respuestas no cambian. Lo que cambió:
   - la detección de celdas con varios valores (`celdas_multivaluadas`) mira la
