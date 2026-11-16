@@ -19,7 +19,12 @@ permissions: read-all
 
 jobs:
   motores:
-    runs-on: ubuntu-latest
+    # Fijado en 24.04: en `ubuntu-latest` (26.04 desde noviembre de 2026)
+    # `apt-get install libmysqlclient-dev`, que pide RMariaDB, arrastra
+    # `mysql-server`, y su script de instalacion intenta levantar MySQL en el
+    # puerto 3306 que ya ocupa el servicio `mariadb` de este trabajo: el paso de
+    # dependencias fallaba antes de correr nada.
+    runs-on: ubuntu-24.04
     name: ${{ matrix.motor }}
 
     strategy:
