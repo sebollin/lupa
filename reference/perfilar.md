@@ -91,7 +91,11 @@ perfilar(
 
   Máximo de filas usadas para patrones, inferencia de tipos, formatos de
   fecha y dependencias funcionales. Use `Inf` para analizar todas las
-  filas en esos análisis.
+  filas en esos análisis. La muestra se toma por posición, así que en
+  una tabla de más filas lo que se mide sobre ella depende del orden de
+  las filas: la misma tabla leída de una base sin `ORDER BY` puede dar
+  dos perfiles distintos en dos lecturas. Para un perfil reproducible,
+  leerla ordenada por una clave.
 
 - max_patrones:
 
