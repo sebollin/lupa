@@ -137,6 +137,13 @@
 
 ### Correcciones
 
+- En
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
+  dos textos iguales —tal cual o tras la normalización— publican
+  distancia 0. `stringdist` puede devolver ruido de coma flotante en
+  lugar del cero (3.3e-17 en macOS sobre arm64, y lo mismo en Linux con
+  un R compilado con multiplicación fusionada), y la evidencia del par
+  decía `distancia 0.0000000000000000333`.
 - Una celda sin marca de codificación con un byte que no es UTF-8 válido
   —lo que deja [`read.csv()`](https://rdrr.io/r/utils/read.table.html)
   sin `fileEncoding` sobre un CSV en latin-1 o Windows-1252: el espacio
