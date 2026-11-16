@@ -418,15 +418,24 @@
   en minúscula) y la conversión leía con otra (cualquier tramo de
   letras). Ahora es una sola: lo que acompaña a un número es una unidad
   (`%` o una abreviatura que termina en minúscula) o una moneda, y si
-  no, el valor no es un número. `12 KG`, `12A`, `1.5TB` y `850K` no
-  cuentan como números escritos como texto, y una columna que mezcla
-  esos valores con números no se convierte:
-  `c("1,5", "2,5", "3", "12 KG")` dejaba 12 donde decía `12 KG`.
+  no, el valor no se convierte. `12 KG`, `12A`, `1.5TB` y `850K` no
+  cuentan en `n_numeros_texto` ni en `proporcion_numeros_texto`, y una
+  columna que mezcla esos valores con números no se convierte:
+  `c("1,5", "2,5", "3", "12 KG")` dejaba 12 donde decía `12 KG`. Siguen
+  escritos como números, y junto a otros no apagan `numero_como_texto`
+  para la columna: el hallazgo nombra `1,5` y `2,5`, su evidencia cuenta
+  aparte los valores con un sufijo o un código que no se convierte, y la
+  conversión queda bloqueada mientras haya alguno.
 - Tres mayúsculas junto a un número son una moneda sólo si son un código
   ISO 4217, con la lista de
   [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md).
   `LEY 18331` se publicaba con `numero_texto_moneda = "LEY"` y se
-  convertía a 18331.
+  convertía a 18331. Como con el sufijo, `ABC 13` junto a `USD 12` no se
+  convierte ni apaga `numero_como_texto` para el importe.
+- `USD 12\nkg` —un código ISO 4217, un número y una unidad separados por
+  un salto de línea— se lee como `USD 12 kg`, igual que `$ 35\nkg`: la
+  moneda publicada era el valor entero y `monedas_mixtas` contaba una
+  moneda falsa por cada valor así.
 - En una columna que el perfil infiere como `identificador` (`101a`,
   `102a`), `convertir_numero_regional` queda `lista` sin activar:
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)

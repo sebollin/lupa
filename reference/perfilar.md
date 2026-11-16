@@ -2461,9 +2461,18 @@ una abreviatura alfabética que termina en minúscula; por eso `12 kg` y
 `13500 g` son unidades. Un valor con un sufijo en mayúsculas que no es
 un código de moneda (`12A`, `13B`, `500GB`, `1.5TB`) se trata como un
 código: no cuenta como número escrito como texto, tenga o no separador
-decimal, y el plan no propone convertirlo. Si hay más de una unidad
-observada, `unidades_mixtas` informa sus frecuencias y no convierte ni
-compara sus magnitudes. Una única unidad no genera ese hallazgo.
+decimal, y el plan no propone convertirlo. Lo mismo un número con tres
+mayúsculas que no son un código ISO 4217 (`ABC 13`). Junto a otros
+números, esos valores no apagan `numero_como_texto` para la columna:
+siguen escritos como números, y para decidir si la columna guarda
+números como texto cuentan como tales. No entran en `n_numeros_texto` ni
+en `proporcion_numeros_texto`, que cuentan lo que la conversión lee; la
+evidencia del hallazgo dice cuántos son, y la conversión de la columna
+queda sin marcar mientras haya alguno. En
+`c("1,5", "2,5", "3", "12 KG")` el hallazgo nombra `1,5` y `2,5`, y
+`12 KG` no se convierte. Si hay más de una unidad observada,
+`unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
+magnitudes. Una única unidad no genera ese hallazgo.
 `formatos_fecha_mixtos` compara representaciones dentro de una columna
 cuyo dominio es la fecha o la fecha-hora. Una fecha agregada adentro de
 una columna de horas del día —`12/02/2011 6:55 a.m.` entre valores
