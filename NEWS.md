@@ -360,7 +360,8 @@
 - Con un decimal entre enteros el tipo inferido es `doble`, que es el que cubre
   todos los valores. `c("10", "12", "9", "15", "9,5")` se infería `entero` con
   compatibilidad 0,8 y el hallazgo decía «convertir dejaría 1 de 5 valores en
-  NA» sobre una columna que el plan convertía sin ningún `NA`.
+  NA» sobre una columna que el plan convertía sin ningún `NA`. Lo mismo con
+  un número en notación científica entre enteros (`1e5`, `1E+05`).
 - La evidencia de `tipo_declarado_distinto` dice «la conversión no pierde
   ningún valor» sólo cuando el plan propone una conversión `lista`. La decía
   sobre un entero que no entra en `integer` (`3000000000`), sobre una columna
@@ -454,9 +455,12 @@
   protegidas. `espacios_sobrantes` deja de contar el espacio del borde que es lo
   que permite reconocer una letra rota (`ÃŒ` seguido de un espacio): recortarlo
   dejaba la celda rota y sin señalar; se informa después de reparar.
-- `perfilar()` cuenta el texto mal convertido que el motor no puede reparar
-  también cuando el valor se repite: `rep("Œ ", 10)` publicaba
-  `n_codificacion_no_se_pudo = 10`, `n_codificacion_rota = 0` y ningún hallazgo.
+- `perfilar()` cuenta en `n_codificacion_rota` y en el hallazgo
+  `codificacion_rota` el texto mal convertido que el motor no puede reparar
+  (`"Œ "`, una letra seguida de U+0081). Antes quedaba sólo en
+  `n_codificacion_no_se_pudo`, suelto o repetido, y una columna sin ninguna
+  celda reparable no tenía hallazgo: `rep("Œ ", 10)` publicaba
+  `n_codificacion_no_se_pudo = 10`, `n_codificacion_rota = 0` y ninguno.
   Repetir las filas de una columna multiplica los conteos y no cambia los
   estados ni los hallazgos.
 - La evidencia de `codificacion_rota` cita valores distintos —repetía el mismo
