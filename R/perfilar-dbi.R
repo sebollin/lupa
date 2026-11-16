@@ -22017,10 +22017,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
         .CAMPOS_DEL_VALOR_DBI[[nombre]],
       names(columnas)
     )
+    # Lo que el motor no devolvio llega como `NA`: el `NULL` de SQL. La cadena
+    # vacia es un valor -una columna de texto con 60 `""` y 40 `"a"` tiene moda
+    # `""`, y `perfilar()` la publica asi-. Exigir `nzchar()` la leia como "sin
+    # valor": la moda salia publicada y su estado la negaba, `no_disponible`
+    # con "la consulta termino sin un valor". El paquete no rellena con `""`
+    # ningun campo del resumen; la ausencia se arma siempre con `NA`.
     any(vapply(campos, function(campo) {
       valor <- columnas[[campo]][[j]]
-      length(valor) == 1L && !is.na(valor) &&
-        (!is.character(valor) || nzchar(valor))
+      length(valor) == 1L && !is.na(valor)
     }, logical(1L)))
   }
   numero <- function(campo, j) {

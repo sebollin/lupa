@@ -73,9 +73,12 @@ test_that("la clase de impresion no cambia ningun valor", {
   cb <- cobertura(perfil)
   expect_s3_class(h, "data.frame")
   expect_s3_class(cb, "data.frame")
-  # Es la tabla del perfil, con otra impresion: `as.data.frame()` la devuelve.
-  expect_identical(as.data.frame(h), perfil$hallazgos)
-  expect_identical(as.data.frame(cb), perfil$cobertura_diagnosticos)
+  # Es la tabla del perfil: el campo ya la guarda con la clase, y
+  # `as.data.frame()` da la misma tabla sin ella.
+  expect_identical(h, perfil$hallazgos)
+  expect_identical(cb, perfil$cobertura_diagnosticos)
+  expect_identical(as.data.frame(h), as.data.frame(perfil$hallazgos))
+  expect_identical(as.data.frame(cb), as.data.frame(perfil$cobertura_diagnosticos))
   # La propuesta sigue siendo una propuesta, y su subconjunto sin el contrato
   # sigue sin serlo.
   propuesta <- proponer_modelo(perfil, datos)

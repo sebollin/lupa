@@ -3106,13 +3106,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # acciones y concluia que lo demas estaba bien, cuando lo que habia pasado es
   # que sobre esa columna no se miro. La cobertura viaja con el plan para que
   # ese silencio sea visible desde la misma puerta donde se decide que limpiar.
-  attr(resultado, "cobertura_diagnosticos") <- if (
+  # Con la clase de impresion del perfil: la impresion del plan manda a leer
+  # este atributo, y un nombre de columna que no es UTF-8 hacia abortar
+  # `print()` justo ahi. Un perfil guardado antes de que sus tablas la trajeran
+  # la recibe aca.
+  attr(resultado, "cobertura_diagnosticos") <- .tabla_lupa(if (
     inherits(perfil$cobertura_diagnosticos, "data.frame")
   ) {
     perfil$cobertura_diagnosticos
   } else {
     .cobertura_diagnosticos_vacia()
-  }
+  })
   ambiguos <- .hallazgos_sin_accion_por_columna_ambigua(
     perfil, grupos = grupos_duplicadas
   )

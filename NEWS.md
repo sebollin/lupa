@@ -112,10 +112,23 @@
   sólo las celdas que pueden traerlos, y la cuenta de lo que una acción pierde
   arma grupos sólo con los valores de las celdas que cambiaron. Sobre una
   columna de dos millones de filas con 401 celdas que tocar, en Linux, reparar
-  la codificación y quitar los controles pasa de 38 a 10 segundos.
+  la codificación y quitar los controles pasa de 38 a 10 segundos. Es el
+  costo de las mismas acciones: con el plan por omisión, `aplicar()` puede
+  tardar más en total que con la 0.1.1, porque ahora aplica reparaciones de
+  codificación que la 0.1.1 dejaba sin marcar.
 
 ## Correcciones
 
+- `perfilar_dbi()` publicaba con estado `no_disponible` —«La consulta terminó
+  sin un valor para la métrica»— la moda de una columna de texto cuando esa
+  moda es la cadena vacía `""`, aunque el valor y su frecuencia salían en
+  `resumen_tabla$columnas` y `perfilar()` decía `moda = ""`: leía la cadena
+  vacía como el `NULL` de SQL. Ahora sale `calculado` (o `estimado` sobre una
+  muestra del motor).
+- La descripción de `clave_con_ausentes` y de `clave_no_unica` nombra la clave
+  declarada como la muestra la consola (`ciudad\xa0`) cuando su nombre no es
+  UTF-8 válido: pegaba el byte crudo junto al texto del paquete y la frase
+  quedaba marcada UTF-8 sin serlo.
 - En `detectar_duplicados_aproximados()`, dos textos iguales —tal cual o tras
   la normalización— publican distancia 0. `stringdist` puede devolver ruido
   de coma flotante en lugar del cero (3.3e-17 en macOS sobre arm64, y lo mismo
@@ -146,8 +159,12 @@
   consola abortaba con «invalid multibyte string». Las dos tablas llevan ahora
   la clase `tabla_lupa` delante de `data.frame`, que las imprime como el resto
   de las salidas del paquete, con el byte escapado (`ciudad\240`). Ningún valor
-  cambia, y `as.data.frame()` devuelve la tabla de siempre. Lo mismo con un
-  subconjunto de `proponer_modelo()` sin las columnas de la propuesta. Venía de
+  cambia, y `as.data.frame()` devuelve la tabla sin la clase. La llevan también
+  los campos de donde salen —`p$hallazgos` y `p$cobertura_diagnosticos`, los de
+  `perfil_muestra` en `perfilar_dbi()`— y el atributo `cobertura_diagnosticos`
+  del plan, adonde manda su impresión: imprimirlos directo abortaba igual. Lo
+  mismo con un subconjunto de `proponer_modelo()` sin las columnas de la
+  propuesta. Venía de
   la 0.1.1. Bajo un locale que no puede representar un carácter, esas tablas
   escriben su punto de código (`a<U+00F1>o`), como ya lo hacía `print()` del
   perfil.

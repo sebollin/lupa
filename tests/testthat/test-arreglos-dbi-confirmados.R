@@ -724,14 +724,13 @@ test_that("el motivo del decimal ancho queda dentro de la via del spool", {
     normal$resumen_tabla$sql$columna == "texto" &
       normal$resumen_tabla$sql$metrica == "moda", , drop = FALSE
   ]
-  expect_identical(as.character(fila$estado), "no_disponible")
-  expect_identical(
-    as.character(fila$motivo),
-    paste(
-      "La consulta termin\u00f3 sin un valor para la m\u00e9trica; no se",
-      "publica como calculada."
-    )
-  )
+  # Una cadena vacia es un valor: su moda es "" y sale calculada, como en
+  # `perfilar()`. Esta mitad esperaba `no_disponible`, que era leer la cadena
+  # vacia como el `NULL` de SQL; el motivo de lo que el motor no devuelve lo
+  # sigue fijando el `maximo` del decimal ancho, arriba.
+  expect_identical(as.character(fila$estado), "calculado")
+  columnas <- normal$resumen_tabla$columnas
+  expect_identical(columnas$moda[columnas$columna == "texto"], "")
 })
 
 # El desvio que el motor calcula en una pasada desborda con valores de mas de

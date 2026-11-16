@@ -294,6 +294,10 @@ as_tibble.perfil <- function(x, ...) {
 #'   [proponer_modelo()], la impresión no aborta con un nombre de columna que no
 #'   es UTF-8 válido, que va adentro de sus columnas-lista (`trazabilidad`,
 #'   `columnas`); los subconjuntos la conservan y `as.data.frame()` la quita.
+#'   La traen también los campos de donde salen —`perfil$hallazgos` y
+#'   `perfil$cobertura_diagnosticos`, y los de `perfil_muestra` en un
+#'   `perfil_dbi`— y el atributo `cobertura_diagnosticos` del plan de
+#'   [planificar_limpieza()], así que imprimirlos directo tampoco aborta.
 #'   El significado de
 #'   cada campo de `columnas()` se explica por familias en los detalles de
 #'   [perfilar()]. `sql_perfil()` devuelve la tabla de consultas emitidas;
@@ -373,6 +377,25 @@ cobertura <- function(x, ...) {
     class(x) <- c("tabla_lupa", class(x))
   }
   x
+}
+
+# La clase la ponian solo los accesores, y quien imprimia el campo directo
+# -`p$hallazgos`, `p$cobertura_diagnosticos`, o `attr(plan,
+# "cobertura_diagnosticos")`, que es adonde manda la impresion del plan- seguia
+# recibiendo un `data.frame` y la consola abortaba con el mismo nombre. La
+# tabla se guarda ya con la clase, en las salidas: aca para el perfil -la de
+# `perfilar()`, que tambien es `perfil_muestra` en `perfilar_dbi()`- y en el
+# plan, que la copia del perfil. Solo cambia la clase: los valores, la marca y
+# los bytes de cada celda son los mismos, y los accesores la siguen poniendo
+# para un perfil guardado antes de esto.
+.publicar_tablas_perfil <- function(perfil) {
+  if (!is.list(perfil)) return(perfil)
+  for (campo in c("hallazgos", "cobertura_diagnosticos")) {
+    if (is.data.frame(perfil[[campo]])) {
+      perfil[[campo]] <- .tabla_lupa(perfil[[campo]])
+    }
+  }
+  perfil
 }
 
 #' @export

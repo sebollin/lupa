@@ -3857,5 +3857,6 @@ perfilar <- function(datos,
     if (proteger_datos_personales) .proteger_perfil(estructura, datos) else estructura,
     activa = proteger_datos_personales
   )
-  estructura
+  # Despues de la proteccion, que puede rehacer las tablas.
+  .publicar_tablas_perfil(estructura)
 }

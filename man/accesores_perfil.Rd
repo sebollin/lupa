@@ -48,6 +48,10 @@ Devuelve
 \code{\link[=proponer_modelo]{proponer_modelo()}}, la impresión no aborta con un nombre de columna que no
 es UTF-8 válido, que va adentro de sus columnas-lista (\code{trazabilidad},
 \code{columnas}); los subconjuntos la conservan y \code{as.data.frame()} la quita.
+La traen también los campos de donde salen —\code{perfil$hallazgos} y
+\code{perfil$cobertura_diagnosticos}, y los de \code{perfil_muestra} en un
+\code{perfil_dbi}— y el atributo \code{cobertura_diagnosticos} del plan de
+\code{\link[=planificar_limpieza]{planificar_limpieza()}}, así que imprimirlos directo tampoco aborta.
 El significado de
 cada campo de \code{columnas()} se explica por familias en los detalles de
 \code{\link[=perfilar]{perfilar()}}. \code{sql_perfil()} devuelve la tabla de consultas emitidas;

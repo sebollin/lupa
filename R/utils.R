@@ -1860,6 +1860,13 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
       estructura$resumen_tabla$columnas
     )
   }
+  # La muestra es un perfil de `perfilar()`, y sus tablas se imprimen igual que
+  # las de ese perfil aunque las guardas de salida las hayan rehecho.
+  if (is.list(estructura) && is.list(estructura$perfil_muestra)) {
+    estructura$perfil_muestra <- .publicar_tablas_perfil(
+      estructura$perfil_muestra
+    )
+  }
   class(estructura) <- "perfil_dbi"
   estructura
 }

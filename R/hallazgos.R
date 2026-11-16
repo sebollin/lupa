@@ -6385,7 +6385,17 @@
       length(clave_declarada) &&
       !anyNA(.indice_nombre(clave_declarada, names(datos))) &&
       nrow(datos)) {
-    clave_texto <- .marcar_utf8_textos(clave_declarada)
+    # El nombre entra a una FRASE, no a un campo que se cruce con los datos
+    # -para eso estan `columna` y la traza, que lo guardan byte por byte-. Un
+    # nombre sin marca que no es UTF-8 -`fread()` sobre un CSV latin-1- se pegaba
+    # crudo junto al texto del paquete, que va marcado UTF-8, y `paste0()` marcaba
+    # la frase entera: la `descripcion` decia ser UTF-8 con un byte `a0` suelto
+    # adentro. Se rinde como lo muestra la consola, `ciudad\xa0`, igual que los
+    # niveles de `clasificar_variables()`, y lo declarado `bytes` a su forma
+    # imprimible; lo que ya es UTF-8 valido queda igual.
+    clave_texto <- .marcar_utf8_textos(
+      .publicar_sin_marca_ilegible(.texto_publicable(clave_declarada))
+    )
     valores_clave <- .seleccionar_columnas(datos, clave_declarada)
     filas_con_ausentes <- .filas_clave_con_ausentes(valores_clave)
     nombre_clave <- if (length(clave_declarada) == 1L) {
