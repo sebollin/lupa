@@ -548,6 +548,11 @@
   )
   iguales <- as.logical(iguales[validos])
   iguales[is.na(iguales)] <- FALSE
+  # Dos textos iguales estan a distancia 0 por construccion. `stringdist` puede
+  # devolver ruido de coma flotante en vez del cero -3.3e-17 en macOS arm64, y
+  # en Linux cuando se compila con multiplicacion fusionada-, y ese ruido se
+  # publicaba en la evidencia del par.
+  lote$distancia[iguales] <- 0
   if (is.null(iguales_originales)) iguales_originales <- iguales
   if (length(iguales_originales) != length(fila_1)) {
     .detener("La igualdad del texto original debe contener una entrada por par.",

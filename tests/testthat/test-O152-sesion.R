@@ -409,14 +409,9 @@ test_that("H7: con scipen negativo las cifras publicadas como texto no salen en 
 
 test_that("H7: un duplicado aproximado publica su distancia y su umbral sin exponente", {
   skip_if_not_installed("stringdist")
-  # En macOS arm64 la distancia de dos textos iguales sale 3.3e-17 (ruido de coma
-  # flotante de stringdist) y se publica con exponente, aunque el par exacto
-  # deberia valer 0 por construccion. Mientras eso no se corrija, esta prueba no
-  # corre ahi.
-  if (identical(Sys.info()[["sysname"]], "Darwin") &&
-      identical(Sys.info()[["machine"]], "arm64")) {
-    skip("macOS arm64: la distancia de un par exacto no es 0")
-  }
+  # En macOS arm64 la distancia de dos textos iguales salia 3.3e-17 (ruido de
+  # coma flotante de stringdist); ahora el par igual vale 0 por construccion
+  # (test-distancia-par-igual-sin-ruido.R lo prueba con el ruido imitado).
   anterior <- options(scipen = -9)
   on.exit(options(anterior), add = TRUE)
   pares <- detectar_duplicados_aproximados(
