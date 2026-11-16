@@ -2200,6 +2200,15 @@ que termina en minúscula; por eso \verb{12 kg} y \verb{13500 g} son unidades. U
 con un sufijo en mayúsculas que no es un código de moneda (\verb{12A}, \verb{13B},
 \verb{500GB}, \verb{1.5TB}) se trata como un código: no cuenta como número escrito
 como texto, tenga o no separador decimal, y el plan no propone convertirlo.
+Lo mismo un número con tres mayúsculas que no son un código ISO 4217
+(\verb{ABC 13}). Junto a otros números, esos valores no apagan
+\code{numero_como_texto} para la columna: siguen escritos como números, y para
+decidir si la columna guarda números como texto cuentan como tales. No entran
+en \code{n_numeros_texto} ni en \code{proporcion_numeros_texto}, que cuentan lo que la
+conversión lee; la evidencia del hallazgo dice cuántos son, y la conversión
+de la columna queda sin marcar mientras haya alguno. En
+\code{c("1,5", "2,5", "3", "12 KG")} el hallazgo nombra \verb{1,5} y \verb{2,5}, y \verb{12 KG}
+no se convierte.
 Si hay más de una unidad observada, \code{unidades_mixtas} informa sus
 frecuencias y no convierte ni compara sus magnitudes. Una única unidad no
 genera ese hallazgo.

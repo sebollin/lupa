@@ -5367,7 +5367,8 @@
           # Los meses escritos que la inferencia ya leyo: sin ellos se volvian a
           # detectar, una pasada entera sobre la columna por segunda vez.
           meses_texto = attr(resultado$inferencia$formatos_fecha, "meses_texto",
-                             exact = TRUE)
+                             exact = TRUE),
+          numeros_texto = resultado$numeros_texto
         )
       } else character()
       sin_perdida <- isTRUE(compatible == 1) && !is.null(riesgos_conversion) &&
@@ -5749,7 +5750,9 @@
     # solo tiene sentido sobre una magnitud. Las unidades y las monedas mezcladas
     # salen de la misma lectura de la columna como cantidad, y se omiten con ella.
     # Se declara en `cobertura_diagnosticos`, solo si alguno habria salido.
-    lectura_numerica <- .fila_con_numeros_como_texto(fila) ||
+    lectura_numerica <- .fila_con_numeros_como_texto(
+      fila, resultado$numeros_texto
+    ) ||
       length(resultado$numeros_texto$unidades) > 1L ||
       length(resultado$numeros_texto$monedas) > 1L
     if (codigo_declarado && lectura_numerica) {
@@ -5767,7 +5770,8 @@
         )
       )
     }
-    if (!codigo_declarado && .fila_con_numeros_como_texto(fila)) {
+    if (!codigo_declarado &&
+        .fila_con_numeros_como_texto(fila, resultado$numeros_texto)) {
       agregar(.nuevo_hallazgo(
         nombre, "numero_como_texto", "sospechoso",
         if (isTRUE(fila$numero_texto_ambiguo)) {

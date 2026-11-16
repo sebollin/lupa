@@ -2019,18 +2019,32 @@
 .moneda_detras_numero <- paste0(
   "[[:space:]]+[[:upper:]]{3}|", .espacio_moneda_numero, .simbolo_moneda_numero
 )
-.forma_numero_texto <- function(numero) {
+.forma_numero_texto <- function(numero, unidad = .unidad_detras_numero) {
   paste0(
     "^(?:", .moneda_delante_numero, "[+-]?", numero, "(?:",
-    .unidad_detras_numero, ")?|[+-]?", numero, "(?:", .unidad_detras_numero,
+    unidad, ")?|[+-]?", numero, "(?:", unidad,
     "|", .moneda_detras_numero, ")?)$"
   )
 }
-.patron_coma_numero_texto <- .forma_numero_texto(
-  "(?:(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?|,[0-9]+)"
+.numero_coma_texto <- "(?:(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?|,[0-9]+)"
+.numero_punto_texto <- "(?:(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?|\\.[0-9]+)"
+.patron_coma_numero_texto <- .forma_numero_texto(.numero_coma_texto)
+.patron_punto_numero_texto <- .forma_numero_texto(.numero_punto_texto)
+
+# La misma forma con lo que la conversion rechaza: un tramo de letras que
+# termina en mayuscula en el lugar de la unidad (`12 KG`, `850K`, `1.5TB`), y
+# -como en la forma de arriba- cualquier codigo de tres mayusculas, que
+# `.compatibles_numero_texto()` descarta si no es ISO 4217 (`ABC 13`). Esos
+# valores no se convierten, porque convertirlos perderia lo que los acompana;
+# pero siguen escritos como numeros, y para decidir si la columna guarda numeros
+# como texto cuentan como tales. Se pregunta solo por los valores que la forma
+# de arriba no acepto: ver `.numeros_sin_conversion()`.
+.sufijo_sin_conversion_numero <- "[[:space:]]*[[:alpha:]]*[[:upper:]]"
+.patron_coma_numero_sin_conversion <- .forma_numero_texto(
+  .numero_coma_texto, .sufijo_sin_conversion_numero
 )
-.patron_punto_numero_texto <- .forma_numero_texto(
-  "(?:(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?|\\.[0-9]+)"
+.patron_punto_numero_sin_conversion <- .forma_numero_texto(
+  .numero_punto_texto, .sufijo_sin_conversion_numero
 )
 .patron_prefijo_moneda_numero <- paste0("^[[:space:]]*", .moneda_delante_numero)
 .patron_simbolo_prefijo_numero <- paste0(
@@ -2072,20 +2086,26 @@
   compatible_coma <- !is.na(texto) & grepl(patron_coma, texto, perl = TRUE)
   compatible_punto <- !is.na(texto) & grepl(patron_punto, texto, perl = TRUE)
   compatible <- compatible_coma | compatible_punto
+  # El resto de la extraccion cruza un salto de linea interno con `(?s)`, como
+  # la del simbolo en `.componentes_numero_texto()`: la forma completa acepta
+  # `USD 12\nkg` -el espacio entre el numero y la unidad puede ser un salto-, y
+  # sin `(?s)` el `.*` no llegaba al final, el reemplazo no ocurria y la
+  # validacion ISO recibia el texto entero, que no es un codigo: el valor
+  # dejaba de ser un numero.
   patron_codigo_prefijo <- "^[[:space:]]*([[:upper:]]{3})[[:space:]]+"
   codigo_prefijo <- compatible & grepl(
     patron_codigo_prefijo, texto, perl = TRUE
   )
   codigo_delante <- rep("", length(texto))
   codigo_delante[codigo_prefijo] <- sub(
-    paste0(patron_codigo_prefijo, ".*$"), "\\1", texto[codigo_prefijo],
+    paste0("(?s)", patron_codigo_prefijo, ".*$"), "\\1", texto[codigo_prefijo],
     perl = TRUE
   )
   patron_codigo_sufijo <- "[[:space:]]+([[:upper:]]{3})$"
   codigo_sufijo <- compatible & grepl(patron_codigo_sufijo, texto, perl = TRUE)
   codigo_detras <- rep("", length(texto))
   codigo_detras[codigo_sufijo] <- sub(
-    paste0("^.*", patron_codigo_sufijo), "\\1", texto[codigo_sufijo],
+    paste0("(?s)^.*", patron_codigo_sufijo), "\\1", texto[codigo_sufijo],
     perl = TRUE
   )
   # Tres mayusculas son una moneda solo si son un codigo ISO 4217, con la lista
@@ -2613,8 +2633,21 @@
 # repeticion: las dos tienen que dar el mismo veredicto sobre los mismos
 # valores, o la misma columna se describiria distinto segun por que camino se
 # la miro.
+#
+# Un valor con la forma de un numero y un sufijo que no es una unidad o un
+# codigo que no es ISO 4217 (`12 KG`, `ABC 13`) no se convierte, pero sigue
+# escrito como un numero. Para decidir si la columna guarda numeros como texto
+# cuenta como tal: entra en `proporcion_forma`, la proporcion con que se decide
+# `numero_como_texto` (`.fila_con_numeros_como_texto()`). No entra en
+# `proporcion`, la de los valores que la conversion lee, que es la que publica
+# `proporcion_numeros_texto` y la que leen la frase de `tipo_declarado_distinto`
+# y el motivo del plan; y `seguro` queda falso mientras haya alguno. Su numero se
+# mira contra la convencion como el de cualquier otro valor. Sin contarlo, un
+# solo `12 KG` entre cuatro valores dejaba la proporcion en 0,75 y apagaba el
+# hallazgo de la columna entera, tambien para `1,5` y `2,5`, que son numeros.
 .interpretar_numeros_texto <- function(partes, presentes, especiales,
                                       n_presentes) {
+  sin_conversion <- .numeros_sin_conversion(partes, presentes)
   hay_evidencia_coma <- any(partes$evidencia_coma[presentes])
   hay_evidencia_punto <- any(partes$evidencia_punto[presentes])
   convencion <- if (hay_evidencia_coma && hay_evidencia_punto) {
@@ -2635,6 +2668,14 @@
     sin_separadores = partes$compatible,
     partes$compatible
   )
+  if (!is.null(sin_conversion)) {
+    compatibles_convencion <- compatibles_convencion | switch(
+      convencion,
+      decimal_coma = sin_conversion$coma,
+      decimal_punto = sin_conversion$punto,
+      sin_conversion$forma
+    )
+  }
   ambiguos <- convencion %in% c("ambigua", "mixta") |
     any(presentes & !compatibles_convencion)
   unidades <- unique(partes$unidad[presentes & partes$compatible])
@@ -2646,16 +2687,35 @@
   moneda_consistente <- length(monedas_no_vacias) <= 1L &&
     !(length(monedas_no_vacias) && any(!nzchar(monedas)))
   compatibles <- sum(presentes & partes$compatible)
+  n_sin_conversion <- if (is.null(sin_conversion)) 0L else
+    sum(presentes & sin_conversion$forma)
+  evidencia <- paste(
+    .comillas_sin_locale(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
+    collapse = "; "
+  )
+  if (n_sin_conversion > 0L) {
+    evidencia <- paste0(
+      evidencia, "; ", .miles_trabajo(n_sin_conversion),
+      if (n_sin_conversion == 1L) {
+        " valor lleva un sufijo o un c\u00f3digo que no es una unidad ni una moneda y no se convierte: "
+      } else {
+        " valores llevan un sufijo o un c\u00f3digo que no es una unidad ni una moneda y no se convierten: "
+      },
+      paste(.comillas_sin_locale(utils::head(unique(
+        partes$texto[presentes & sin_conversion$forma]
+      ), 3L), quote = '"'), collapse = "; ")
+    )
+  }
   list(
     n = sum(especiales),
     proporcion = if (n_presentes) compatibles / n_presentes else NA_real_,
+    proporcion_forma = if (n_presentes) {
+      (compatibles + n_sin_conversion) / n_presentes
+    } else NA_real_,
     ambiguo = isTRUE(ambiguos),
     seguro = compatibles == n_presentes && !isTRUE(ambiguos) &&
       unidad_consistente && moneda_consistente,
-    evidencia = paste(
-      .comillas_sin_locale(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
-      collapse = "; "
-    ),
+    evidencia = evidencia,
     unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
     moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
     convencion = convencion,
@@ -2665,16 +2725,50 @@
   )
 }
 
+# Los valores presentes con la forma de un numero que la conversion no lee
+# porque lo que los acompana no es una unidad ni una moneda: ver
+# `.patron_coma_numero_sin_conversion`. Se pregunta solo por los que no son
+# `compatible`, y una vez por texto distinto: en una columna sin ninguno no
+# cuesta nada y devuelve `NULL`.
+.numeros_sin_conversion <- function(partes, presentes) {
+  candidatos <- which(presentes & !partes$compatible)
+  if (!length(candidatos)) return(NULL)
+  textos <- partes$texto[candidatos]
+  valores <- unique(textos)
+  en_coma <- grepl(.patron_coma_numero_sin_conversion, valores, perl = TRUE)
+  en_punto <- grepl(.patron_punto_numero_sin_conversion, valores, perl = TRUE)
+  if (!any(en_coma | en_punto)) return(NULL)
+  posicion <- match(textos, valores)
+  coma <- punto <- rep(FALSE, length(presentes))
+  coma[candidatos] <- en_coma[posicion]
+  punto[candidatos] <- en_punto[posicion]
+  list(coma = coma, punto = punto, forma = coma | punto)
+}
+
 # Si el perfil lee la columna como numeros escritos como texto: hay alguno con
 # separador regional, unidad o moneda, y al menos el 80 % de los valores
-# presentes responde a esa forma. Es la condicion con que se publica
+# presentes responde a esa forma o a la de un numero con un sufijo o un codigo
+# que no se convierte (`12 KG`, `ABC 13`). Es la condicion con que se publica
 # `numero_como_texto`, y por eso la que manda la conversion del plan por la via
 # regional. La preguntan el hallazgo, su cobertura y la frase de
 # `tipo_declarado_distinto` (`.riesgos_conversion_tipo()`), que tiene que decir
-# lo mismo que ese plan.
-.fila_con_numeros_como_texto <- function(fila) {
+# lo mismo que ese plan; las tres en el perfil, con el analisis de la columna a
+# mano.
+#
+# La proporcion es `proporcion_forma` del analisis (`numeros_texto`, ver
+# `.interpretar_numeros_texto()`), no `proporcion_numeros_texto`: esa cuenta
+# solo lo que la conversion lee, y con ella un `12 KG` entre cuatro valores
+# apagaba el hallazgo para los otros tres. Un analisis que no llego a
+# interpretar la columna no trae `proporcion_forma`; entonces decide la fila, y
+# su `n_numeros_texto` es cero o `NA`.
+.fila_con_numeros_como_texto <- function(fila, numeros_texto) {
   n <- fila[["n_numeros_texto"]]
-  proporcion <- fila[["proporcion_numeros_texto"]]
+  proporcion <- if (is.list(numeros_texto) &&
+                    length(numeros_texto[["proporcion_forma"]]) == 1L) {
+    numeros_texto[["proporcion_forma"]]
+  } else {
+    fila[["proporcion_numeros_texto"]]
+  }
   length(n) == 1L && isTRUE(n > 0L) && length(proporcion) == 1L &&
     is.finite(proporcion) && proporcion >= 0.8
 }

@@ -294,12 +294,15 @@ print.inferencia_tipo <- function(x, ...) {
 #   sin que ninguno choque no pierde nada, y el plan la deja `lista`.
 #
 # `meses_texto`, los meses escritos que la inferencia ya leyo, para no volver a
-# detectarlos.
+# detectarlos. `numeros_texto`, el analisis de los numeros escritos como texto
+# de la columna, con el que el perfil decidio `numero_como_texto`: ver
+# `.fila_con_numeros_como_texto()`.
 #
 # Devuelve las frases para la evidencia, vacio si no hay ninguna, y `NULL` si no
 # puede saberlo -sin la columna-: entonces la evidencia no afirma nada.
 .riesgos_conversion_tipo <- function(x, fila, formatos = NULL,
-                                     meses_texto = NULL) {
+                                     meses_texto = NULL,
+                                     numeros_texto = NULL) {
   tipo <- as.character(fila$tipo_inferido[[1L]])
   numero <- tipo %in% c("entero", "doble", "integer64")
   fecha <- tipo %in% c("fecha", "fecha-hora")
@@ -398,8 +401,10 @@ print.inferencia_tipo <- function(x, ...) {
     # formato regional. El perfil ya lo midio: son los valores que le faltan a
     # `proporcion_numeros_texto` para llegar a 1, y con uno solo la conversion
     # regional no se ejecuta. La frase decia "no pierde ningun valor" al lado
-    # de esa accion bloqueada.
-    if (.fila_con_numeros_como_texto(fila) &&
+    # de esa accion bloqueada. Un numero con un sufijo o un codigo que no se
+    # convierte (`12 KG`) tampoco esta en esa proporcion: la conversion regional
+    # no lo lee.
+    if (.fila_con_numeros_como_texto(fila, numeros_texto) &&
         isTRUE(fila[["proporcion_numeros_texto"]] < 1)) {
       riesgos <- c(riesgos, paste0(
         "hay valores presentes que no responden al formato num\u00e9rico ",

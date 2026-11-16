@@ -247,7 +247,13 @@ test_that("tres mayusculas son una moneda solo si son un codigo ISO 4217", {
   expect_identical(as.integer(mezcla$fila$n_numeros_texto), 3L)
   expect_identical(as.numeric(mezcla$fila$proporcion_numeros_texto), 0.75)
   expect_false("monedas_mixtas" %in% mezcla$hallazgos)
-  expect_identical(nrow(mezcla$conversion), 0L)
+  # La columna se sigue informando como importes -los tres en dolares son
+  # numeros escritos como texto-, pero no se convierte: si el plan propone la
+  # conversion, la propone bloqueada y sin marcar, por el valor que no se lee.
+  # Antes el valor rechazado apagaba el hallazgo de la columna entera.
+  expect_true(all(as.character(mezcla$conversion$estado) == "bloqueada"))
+  expect_false(any(mezcla$conversion$aplicar))
+  expect_identical(mezcla$aplicado, c("USD 10", "LEY 20", "USD 30", "USD 40"))
 })
 
 test_that("un sufijo en minusculas sigue siendo una unidad", {
