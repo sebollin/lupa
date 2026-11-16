@@ -77,7 +77,11 @@ reproducibles; se normaliza a UTC.}
 
 \item{muestra}{Máximo de filas usadas para patrones, inferencia de tipos,
 formatos de fecha y dependencias funcionales. Use \code{Inf} para analizar todas
-las filas en esos análisis.}
+las filas en esos análisis.
+La muestra se toma por posición, así que en una tabla de más filas lo
+que se mide sobre ella depende del orden de las filas: la misma tabla
+leída de una base sin \verb{ORDER BY} puede dar dos perfiles distintos en dos
+lecturas. Para un perfil reproducible, leerla ordenada por una clave.}
 
 \item{max_patrones}{Máximo de patrones mostrados por columna.}
 

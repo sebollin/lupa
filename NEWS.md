@@ -75,6 +75,10 @@
   (`citation("lupa")` y `CITATION.cff`) lleva el mismo.
 - Los dos README muestran también la instalación de la versión de desarrollo
   desde r-universe, ya construida, además de la de GitHub.
+- La ayuda de `perfilar()` dice que la muestra se toma por posición: en una
+  tabla de más filas que `muestra`, lo que se mide sobre ella depende del orden
+  de las filas, y la misma tabla leída de una base sin `ORDER BY` puede dar dos
+  perfiles distintos.
 
 ## Rendimiento
 
@@ -103,6 +107,12 @@
     distinto y no por fila, la columna se lee como número una vez para la
     secuencia, los faltantes disfrazados y el resumen, y los faltantes
     disfrazados se detectan una sola vez cuando no hay centinelas declarados.
+- `aplicar()` es más rápido sobre columnas grandes con pocas celdas que
+  cambiar. Quitar controles invisibles y normalizar espacios Unicode recorren
+  sólo las celdas que pueden traerlos, y la cuenta de lo que una acción pierde
+  arma grupos sólo con los valores de las celdas que cambiaron. Sobre una
+  columna de dos millones de filas con 401 celdas que tocar, en Linux, reparar
+  la codificación y quitar los controles pasa de 38 a 10 segundos.
 
 ## Correcciones
 

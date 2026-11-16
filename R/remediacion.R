@@ -4293,7 +4293,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # se arma ningun grupo. Partir la columna entera costaba por columna y por
   # accion, y este paquete ya se cuido de eso en el resumen cuantitativo.
   comparables <- !is.na(despues)
-  repetidos <- comparables &
+  # Y entre esos, solo los grupos con alguna celda que la accion cambio: en un
+  # grupo sin cambios cada celda vale lo que valia, y todas valian lo mismo, asi
+  # que no colapso nada. Sobre una columna de numeros que se repiten -cuatro
+  # millones de filas, unos pocos cientos de celdas cambiadas- la particion de
+  # todos los repetidos era la mayor parte de cada accion de `aplicar()`.
+  claves_cambiadas <- unique(despues[cambiadas & comparables])
+  if (!length(claves_cambiadas)) return(perdidas)
+  repetidos <- comparables & despues %in% claves_cambiadas &
     (duplicated(despues) | duplicated(despues, fromLast = TRUE))
   candidatos <- which(repetidos)
   if (length(candidatos)) {
@@ -4445,6 +4452,23 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
        )))
 }
 
+# Aplica `f` -la transformacion de una celda presente- solo a las celdas con
+# algun byte que casa con `bytes_posibles`; en las demas `f` devolveria la celda
+# tal cual, porque no trae ninguno de los codigos que cambia, y quedan como
+# estan. Se pregunta por bytes y sin traducir, como `.patron_bytes_codigos()`:
+# una celda `latin1` con un 0xA0 suelto tambien casa con un byte no ASCII.
+# Recorrer la columna entera con `vapply()` costaba por fila y no por celda que
+# cambia: sobre cuatro millones de filas con una sola celda que tocar, quitar los
+# controles era la mayor parte de `aplicar()`.
+.transformar_celdas_posibles <- function(v, f, bytes_posibles) {
+  posibles <- which(!is.na(v) &
+                      grepl(bytes_posibles, v, perl = TRUE, useBytes = TRUE))
+  if (length(posibles)) {
+    v[posibles] <- vapply(v[posibles], f, character(1L), USE.NAMES = FALSE)
+  }
+  v
+}
+
 .quitar_controles_invisibles <- function(x, proteccion = NULL) {
   if (!is.character(x) && !is.factor(x)) {
     .detener("La eliminaci\u00f3n de controles invisibles requiere una columna de texto.",
@@ -4457,14 +4481,15 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # con UTF-8, tres de siete valores se volvian `"NA"` al aplicar una accion
   # marcada como recomendada. No tocarlo tambien es una respuesta, y es la
   # unica honesta cuando no se puede leer el contenido.
-  transformar <- function(v) vapply(v, function(texto) {
-    if (is.na(texto)) return(NA_character_)
+  # Un control que se quita es un byte de 0 a 8, de 14 a 31 o de 127 en adelante:
+  # una celda de ASCII imprimible, tabulaciones y saltos no trae ninguno.
+  transformar <- function(v) .transformar_celdas_posibles(v, function(texto) {
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
     conservar <- !.codigos_control_eliminable(codigos)
     if (all(conservar)) return(texto)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
-  }, character(1L), USE.NAMES = FALSE)
+  }, "[^\\x09-\\x0D\\x20-\\x7E]")
   enmascarar <- function(texto, consumidos) {
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
@@ -4492,15 +4517,15 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
          call. = FALSE)
   }
   anterior <- as.character(x)
-  transformar <- function(v) vapply(v, function(texto) {
-    if (is.na(texto)) return(NA_character_)
+  # Los espacios Unicode no son ASCII: una celda ASCII no trae ninguno.
+  transformar <- function(v) .transformar_celdas_posibles(v, function(texto) {
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
     afectados <- codigos %in% .codigos_espacios_invisibles
     if (!any(afectados)) return(texto)
     codigos[afectados] <- 32L
     paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
-  }, character(1L), USE.NAMES = FALSE)
+  }, "[^\\x00-\\x7F]")
   enmascarar <- function(texto, consumidos) {
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
