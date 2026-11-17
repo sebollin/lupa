@@ -1871,6 +1871,125 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   estructura
 }
 
+# El tipo de cada columna tal como lo declara el motor o su controlador al leer
+# el esquema -`DESCRIBE` en DuckDB, el tipo del catalogo donde se lee, el de
+# `dbColumnInfo()` sobre la consulta de cero filas-: no depende de las filas.
+# El tipo del perfil de muestra si: RSQLite decide el de una columna `NUMERIC`
+# por las primeras filas que trae, y la misma tabla salia `entero` con cien
+# filas y `doble` con todas.
+#
+# Y el cotejamiento de cada columna, donde el motor lo dice sin otra consulta
+# (`.cotejamientos_sql_tabla()`): sin el, la cardinalidad de un texto no se
+# puede comparar entre dos entregas, porque `COLLATE NOCASE` cuenta `a` y `A`
+# como uno y `BINARY` como dos sobre los mismos bytes.
+.sellar_tipos_motor_dbi <- function(estructura, preparacion) {
+  tipos <- if (is.list(preparacion)) preparacion$tipos else NULL
+  if (!is.list(estructura) || !is.list(estructura$resumen_tabla) ||
+      !length(tipos) || is.null(names(tipos))) {
+    return(estructura)
+  }
+  estructura$resumen_tabla$meta$tipos_motor <- data.frame(
+    columna = names(tipos), tipo = as.character(unname(tipos)),
+    stringsAsFactors = FALSE
+  )
+  duckdb <- preparacion$esquema$sql_tabla
+  sqlite <- attr(preparacion$catalogo_cardinalidad, "sql_tabla", exact = TRUE)
+  cotejamientos <- if (length(duckdb)) {
+    .cotejamientos_sql_tabla(duckdb, names(tipos), "predeterminado")
+  } else if (length(sqlite)) {
+    .cotejamientos_sql_tabla(sqlite, names(tipos), "binary")
+  }
+  if (length(cotejamientos) && any(!is.na(cotejamientos))) {
+    estructura$resumen_tabla$meta$cotejamientos <- data.frame(
+      columna = names(cotejamientos), cotejamiento = unname(cotejamientos),
+      stringsAsFactors = FALSE
+    )
+  }
+  estructura
+}
+
+# El cotejamiento de cada columna, leido del `CREATE TABLE` que el motor guarda:
+# `COLLATE <nombre>` en la definicion de la columna, o el predeterminado del
+# motor. Se parte la lista de definiciones en sus comas de primer nivel -no las
+# de `DECIMAL(10, 2)` ni las de un nombre entre comillas- y se toma el primer
+# nombre de cada una. `NA` donde no se puede saber.
+.cotejamientos_sql_tabla <- function(sql, campos, predeterminado) {
+  salida <- stats::setNames(rep(NA_character_, length(campos)), campos)
+  if (length(sql) != 1L || is.na(sql) || !nzchar(sql) || !length(campos)) {
+    return(salida)
+  }
+  inicio <- regexpr("(", sql, fixed = TRUE, useBytes = TRUE)
+  if (inicio < 1L) return(salida)
+  caracteres <- strsplit(substring(sql, inicio + 1L), "", fixed = TRUE)[[1L]]
+  partes <- character()
+  actual <- character()
+  nivel <- 0L
+  cierre <- ""
+  for (caracter in caracteres) {
+    if (nzchar(cierre)) {
+      actual <- c(actual, caracter)
+      if (identical(caracter, cierre)) cierre <- ""
+      next
+    }
+    if (caracter %in% c("\"", "'", "`", "[")) {
+      cierre <- if (identical(caracter, "[")) "]" else caracter
+      actual <- c(actual, caracter)
+      next
+    }
+    if (identical(caracter, "(")) nivel <- nivel + 1L
+    if (identical(caracter, ")")) {
+      if (nivel == 0L) break
+      nivel <- nivel - 1L
+    }
+    if (identical(caracter, ",") && nivel == 0L) {
+      partes <- c(partes, paste(actual, collapse = ""))
+      actual <- character()
+      next
+    }
+    actual <- c(actual, caracter)
+  }
+  partes <- trimws(c(partes, paste(actual, collapse = "")))
+  quitar <- function(x) gsub("^[\"'`\\[]|[\"'`\\]]$", "", x)
+  claves <- .minusculas_ascii(.nombres_para_operar(as.character(campos)))
+  for (parte in partes[nzchar(partes)]) {
+    nombre <- if (substr(parte, 1L, 1L) %in% c("\"", "'", "`", "[")) {
+      cierre <- if (substr(parte, 1L, 1L) == "[") "]" else substr(parte, 1L, 1L)
+      fin <- regexpr(cierre, substring(parte, 2L), fixed = TRUE, useBytes = TRUE)
+      if (fin < 1L) next
+      substr(parte, 2L, fin)
+    } else {
+      sub("[[:space:]].*$", "", parte)
+    }
+    posicion <- match(.minusculas_ascii(.nombres_para_operar(nombre)), claves)
+    if (is.na(posicion)) next
+    # Sin `(?i)`: la caja se pliega con `.regex_sin_caja()`, que no depende
+    # del locale.
+    cotejamiento <- regmatches(parte, regexpr(
+      .regex_sin_caja("\\bcollate[[:space:]]+[^[:space:],)]+"), parte, perl = TRUE
+    ))
+    salida[[posicion]] <- if (length(cotejamiento)) {
+      .minusculas_ascii(quitar(sub(
+        .regex_sin_caja("^collate[[:space:]]+"), "", cotejamiento, perl = TRUE
+      )))
+    } else predeterminado
+  }
+  salida
+}
+
+
+# La fecha de la corrida, cuando se declara, en el resumen SQL: es el unico
+# bloque que existe siempre, tambien sin muestra. Es la misma que `perfilar()`
+# pone en la muestra, normalizada con la misma regla.
+.sellar_fecha_perfil_dbi <- function(estructura, fecha) {
+  if (is.null(fecha) || !is.list(estructura) ||
+      !is.list(estructura$resumen_tabla)) {
+    return(estructura)
+  }
+  estructura$resumen_tabla$meta$fecha_hora <- fecha
+  estructura$resumen_tabla$meta$fecha_declarada <- TRUE
+  estructura
+}
+
 .zona_horaria_origen <- function(x) {
   if (!inherits(x, "POSIXt")) return(NA_character_)
   zona <- attr(x, "tzone", exact = TRUE)

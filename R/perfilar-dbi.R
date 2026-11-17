@@ -17006,10 +17006,29 @@
 .tipos_declarados_duckdb_dbi <- function(
     conexion, tabla_sql, campos, tipos, presupuesto) {
   if (!inherits(conexion, "duckdb_connection")) return(tipos)
-  consulta <- .consultar_dbi(
-    conexion, paste0("DESCRIBE ", tabla_sql), presupuesto,
-    etapa = "esquema"
-  )
+  # En la misma consulta, el `CREATE TABLE` de `duckdb_tables()`: `DESCRIBE`
+  # no muestra el cotejamiento (`VARCHAR COLLATE NOCASE` sale `VARCHAR`), y la
+  # comparacion de entregas lo necesita para saber si dos conteos de distintos
+  # de un texto cuentan igual. Si la forma combinada falla, la de siempre.
+  piezas <- .piezas_tabla_cardinalidad_dbi(tabla_sql)
+  literal <- function(x) as.character(DBI::dbQuoteString(conexion, x))
+  sql_tabla <- if (!is.na(piezas$tabla)) {
+    paste0(
+      "SELECT column_name, column_type, (SELECT sql FROM duckdb_tables() ",
+      "WHERE table_name = ", literal(piezas$tabla),
+      if (!is.na(piezas$esquema)) paste0(" AND schema_name = ", literal(piezas$esquema)) else "",
+      " LIMIT 1) AS lupa_sql_tabla FROM (DESCRIBE ", tabla_sql, ")"
+    )
+  }
+  consulta <- if (!is.null(sql_tabla)) {
+    .consultar_dbi(conexion, sql_tabla, presupuesto, etapa = "esquema")
+  }
+  if (!isTRUE(consulta$ok)) {
+    consulta <- .consultar_dbi(
+      conexion, paste0("DESCRIBE ", tabla_sql), presupuesto,
+      etapa = "esquema"
+    )
+  }
   if (!isTRUE(consulta$ok) || !is.data.frame(consulta$datos)) return(tipos)
   datos <- consulta$datos
   if (!all(c("column_name", "column_type") %in% names(datos))) return(tipos)
@@ -17022,6 +17041,9 @@
     if (!is.na(posicion)) salida[[i]] <- as.character(datos$column_type[[posicion]])
   }
   names(salida) <- campos
+  if ("lupa_sql_tabla" %in% names(datos) && nrow(datos)) {
+    attr(salida, "sql_tabla") <- as.character(datos$lupa_sql_tabla[[1L]])
+  }
   salida
 }
 
@@ -17137,6 +17159,7 @@
     return(list(
       campos = campos, campos_sql = campos_sql, prototipo = prototipo,
       tipos = tipos, tipos_motor = tipos_motor, sql = sql,
+      sql_tabla = attr(tipos, "sql_tabla", exact = TRUE),
       ilegibles = no_representables, motivos = motivos_no_representables,
       sondeo = FALSE, no_representables = no_representables
     ))
@@ -17193,6 +17216,7 @@
     campos = legibles, campos_sql = legibles_sql, prototipo = prototipo,
     tipos = tipos,
     tipos_motor = if (all(is.na(tipos_motor))) NULL else tipos_motor,
+    sql_tabla = attr(tipos, "sql_tabla", exact = TRUE),
     sql = .sql_esquema_dbi(tabla_sql, legibles_sql),
     ilegibles = unique(c(no_representables, names(motivos))),
     motivos = c(motivos_no_representables, motivos), sondeo = TRUE,
@@ -22710,6 +22734,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
         campos <- intersect(.CAMPOS_VALOR_MUESTRA_DBI, names(perfil$columnas))
         for (campo in campos) perfil$columnas[[campo]][] <- NA
       }
+      # El vocabulario son valores de celda: sin ellos, el componente queda
+      # vacio y `meta$incluir_valores` dice por que.
+      if (is.data.frame(perfil$general$vocabulario)) {
+        perfil$general$vocabulario <- perfil$general$vocabulario[0, , drop = FALSE]
+      }
       perfil$meta$incluir_valores <- FALSE
     }
   }
@@ -25062,6 +25091,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   motores compatibles se representan como
 #'   `largo:md5` durante la lectura y el perfil publica sus largos originales;
 #'   el contenido no se conserva.
+#'   `resumen_tabla$meta$tipos_motor` guarda el tipo de cada columna como lo
+#'   declara el motor o su controlador al leer el esquema, que no depende de las
+#'   filas leídas, y en SQLite y DuckDB `resumen_tabla$meta$cotejamientos` el
+#'   cotejamiento de cada columna, leído del `CREATE TABLE` en la misma consulta
+#'   de la clave o del tipo: `binary`/`predeterminado` o el de su `COLLATE`.
+#'   Una `fecha` declarada queda también en `resumen_tabla$meta$fecha_hora`, con
+#'   `resumen_tabla$meta$fecha_declarada = TRUE`, aunque no haya muestra
+#'   (`bloque_muestra = "solo_agregados"`); sin `fecha`, esos campos no están.
 #' @export
 #' @seealso [plan_perfilado_dbi()], [perfilar()]
 #'
@@ -25128,6 +25165,21 @@ perfilar_dbi <- function(conexion, tabla,
   .argumento_dbi(.validar_argumentos_para_perfilar(
     argumentos_muestra, propios = .ARGUMENTOS_PROPIOS_DBI
   ))
+  # `fecha` viaja a `perfilar()` para la muestra, y sin muestra
+  # -`bloque_muestra = "solo_agregados"`- se validaba y se descartaba: el objeto
+  # no la guardaba en ningun lado. Se sella tambien en `resumen_tabla$meta`, por
+  # cada salida de la funcion.
+  fecha_corrida <- if ("fecha" %in% names(argumentos_muestra)) {
+    .fecha_argumento_utc(argumentos_muestra[["fecha"]])
+  }
+  # Y el tipo que declara el motor por columna, que no depende de las filas
+  # leidas: la comparacion de entregas lo necesita para no tomar por cambio de
+  # tipo lo que es un cambio de la muestra (`preparacion` se resuelve al salir).
+  con_fecha <- function(x) {
+    .sellar_tipos_motor_dbi(
+      .sellar_fecha_perfil_dbi(x, fecha_corrida), preparacion
+    )
+  }
   # Sin proteccion, el mensaje del motor se publica entero: antes de la primera
   # lectura, y hasta la salida. Ver `.protege_mensaje_motor()`.
   .fijar_proteccion_motor(
@@ -25327,7 +25379,7 @@ perfilar_dbi <- function(conexion, tabla,
           orden_publico$motivo
       }
     }
-    return(resultado)
+    return(con_fecha(resultado))
   }
   preparacion$presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
   preparacion$presupuesto$umbral_bytes_aviso_derrame_estimado <-
@@ -25347,7 +25399,7 @@ perfilar_dbi <- function(conexion, tabla,
     )
     if (isTRUE(attr(resultado, "epilogo_aplicado_dbi", exact = TRUE))) {
       attr(resultado, "epilogo_aplicado_dbi") <- NULL
-      return(resultado)
+      return(con_fecha(resultado))
     }
     # Un controlador sin lectura incremental demostrada -DuckDB, o uno que no
     # esta en la matriz- deja todas las metricas `no_disponible`, a proposito:
@@ -25374,7 +25426,7 @@ perfilar_dbi <- function(conexion, tabla,
       columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
       sentinelas_numericos = sentinelas_numericos
     )
-    return(.agregar_cobertura_politicas_muestra_dbi(
+    return(con_fecha(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
       sentinelas_numericos = sentinelas_numericos,
@@ -25384,7 +25436,7 @@ perfilar_dbi <- function(conexion, tabla,
         conexion, tabla, preparacion$campos, preparacion$tipos,
         .texto_anotado_desde_dbi(conexion, texto_previo)
       )
-    ))
+    )))
   }
   presupuesto <- preparacion$presupuesto
   presupuesto$avisar_costo_distintos <- avisar_costo_distintos
@@ -26403,7 +26455,7 @@ perfilar_dbi <- function(conexion, tabla,
       estructura, incluir_valores = incluir_valores
     )
   estructura <- .sellar_perfil_dbi(estructura)
-  estructura
+  con_fecha(estructura)
 }
 
 .texto_clave_dbi <- function(clave) {

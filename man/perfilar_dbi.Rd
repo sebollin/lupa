@@ -411,6 +411,14 @@ corta. En \code{muestra_motor} o bajo \code{bloque_filas}, las columnas binarias
 motores compatibles se representan como
 \code{largo:md5} durante la lectura y el perfil publica sus largos originales;
 el contenido no se conserva.
+\code{resumen_tabla$meta$tipos_motor} guarda el tipo de cada columna como lo
+declara el motor o su controlador al leer el esquema, que no depende de las
+filas leídas, y en SQLite y DuckDB \code{resumen_tabla$meta$cotejamientos} el
+cotejamiento de cada columna, leído del \verb{CREATE TABLE} en la misma consulta
+de la clave o del tipo: \code{binary}/\code{predeterminado} o el de su \code{COLLATE}.
+Una \code{fecha} declarada queda también en \code{resumen_tabla$meta$fecha_hora}, con
+\code{resumen_tabla$meta$fecha_declarada = TRUE}, aunque no haya muestra
+(\code{bloque_muestra = "solo_agregados"}); sin \code{fecha}, esos campos no están.
 }
 \description{
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación

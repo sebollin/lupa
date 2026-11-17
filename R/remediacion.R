@@ -169,13 +169,19 @@
 .marcas_del_plan <- function(nombres) {
   nombres <- as.character(nombres)
   if (!length(nombres)) return(logical())
-  base <- .nombres_make_names(nombres)
   candidatas <- c(
-    ".fila_duplicada", ".grupo_duplicado",
-    paste0(".ausente_", base), paste0(".outlier_", base)
+    ".fila_duplicada", ".grupo_duplicado", .marcas_de_columna(nombres)
   )
   !is.na(nombres) &
     .nombres_para_operar(nombres) %in% .nombres_para_operar(candidatas)
+}
+
+# Las marcas que el plan agrega SOBRE una columna -`marcar_filas_ausentes` y
+# `marcar_outliers`-, con el nombre que les da: la misma regla para reconocerlas
+# en la tabla, en la deriva y en el diagnostico de ausencia estructural.
+.marcas_de_columna <- function(columnas) {
+  base <- .nombres_make_names(as.character(columnas))
+  c(paste0(".ausente_", base), paste0(".outlier_", base))
 }
 
 # Una accion que agrega una marca cuya columna YA esta en la tabla no puede

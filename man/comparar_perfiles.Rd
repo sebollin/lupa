@@ -7,7 +7,12 @@
 comparar_perfiles(anterior, actual, umbral_cambio = 0.05, umbral_error = 0.2)
 }
 \arguments{
-\item{anterior, actual}{Objetos producidos por \code{\link[=perfilar]{perfilar()}}.}
+\item{anterior, actual}{Objetos producidos por \code{\link[=perfilar]{perfilar()}},
+\code{\link[=perfilar_dbi]{perfilar_dbi()}} o \code{\link[=analizar]{analizar()}}. De un análisis se compara su perfil,
+\verb{$perfil}: sus mediciones y su evaluación tienen su propia serie en
+\code{\link[=historico_calidad]{historico_calidad()}}. Un objeto de \code{perfilar_dbi()} tiene que traer su
+perfil de muestra (\code{bloque_muestra = "con_muestra"}, el valor por omisión):
+sin él no hay tipos de columna ni nada medido sobre las filas, y se rechaza.}
 
 \item{umbral_cambio}{Diferencia mínima para considerar significativo un
 cambio de proporción, cardinalidad o rango relativo. Cinco puntos
@@ -24,9 +29,29 @@ para que la serie sea exportable sin ocultar diferencias.
 El atributo \code{campos_protegidos} declara lo que no se comparó porque la
 protección de datos personales lo tapa: un data frame con \code{columna},
 \code{campo} y \code{lado} —\code{anterior} o \code{actual}—, la misma forma que usa
-\code{\link[=comparar_equivalencia]{comparar_equivalencia()}}. El único campo que puede figurar es
-\code{rango}. Está siempre, vacío si no hay nada que declarar, y \code{rbind()} une
-los de todas las derivas.
+\code{\link[=comparar_equivalencia]{comparar_equivalencia()}}. Los campos que pueden figurar son \code{rango} y
+\code{vocabulario}. Está siempre, vacío si no hay nada que declarar, y \code{rbind()}
+une los de todas las derivas.
+
+\code{universo_anterior} y \code{universo_actual} dicen de qué filas sale la cifra de
+cada lado: \code{"tabla_completa"} —un perfil en memoria, una muestra que cubre
+la tabla o un agregado SQL calculado sobre la tabla entera—, \code{"muestra"}
+—sólo las filas leídas, o los patrones y el tipo inferido que \code{\link[=perfilar]{perfilar()}}
+buscó en una \code{muestra} menor que la tabla— o \code{"mixto"} —los faltantes de un
+objeto de \code{\link[=perfilar_dbi]{perfilar_dbi()}} cuya muestra no cubre la tabla: los \code{NULL} que
+cuenta el motor más los faltantes disfrazados estimados sobre la muestra—.
+Las columnas presentes son las del esquema. El conteo de filas es de la
+tabla entera: el total de la fuente o el de un perfil que la cubre; sin
+ninguno de los dos —el presupuesto de consultas no alcanzó para el
+\verb{COUNT(*)}— la fila \code{filas} sale \code{no_comparable}, porque lo que queda es el
+tamaño de la muestra. El tipo declarado y la unidad salen de la clase con
+que R leyó las filas: de un perfil que no cubre la tabla se rotulan
+\code{muestra}, salvo que el tipo que declara el motor respalde el cambio. Son
+\code{NA} en las filas de configuración, en la fila \code{muestra} y en las que
+declaran algo que no se comparó. Un hallazgo se rotula con las filas del perfil; el
+diagnóstico que trabaja sobre una submuestra lo declara en
+\code{cobertura_diagnosticos}. \code{rbind()} une una deriva guardada antes de que
+existieran estas columnas con ellas en \code{NA}.
 }
 \description{
 Compara entregas sin exigir que tengan las mismas columnas. Devuelve cambios
@@ -37,17 +62,23 @@ un objeto de datos filtrable.
 Los patrones se comparan sobre el resumen acotado que conserva cada perfil,
 no sobre los valores originales ni una distribución completa. Si las dos
 corridas usaron configuraciones de patrones diferentes, se informa un error
-de comparabilidad y esa parte de la comparación se omite.
+de comparabilidad y esa parte de la comparación se omite. Dos perfiles que
+buscaron sus patrones en todas las filas de la tabla tienen la misma
+configuración aunque declaren otra \code{muestra}: con 400 filas, el \code{1e5} de
+\code{\link[=perfilar]{perfilar()}} y el \code{Inf} que \code{\link[=perfilar_dbi]{perfilar_dbi()}} le pasa a su muestra miden lo
+mismo. La fila publica lo declarado.
 
 Un perfil DBI con \code{meta$origen_dbi$muestreo} o con
 \code{meta$alcance$universo_id = "muestra_motor"} describe una muestra de la tabla
 fuente. Si uno de los perfiles es de ese tipo, las filas se comparan con
 \code{filas_totales_fuente} cuando está disponible, pero rangos, cardinalidades,
-patrones y hallazgos no se interpretan como cambios de la tabla completa. La
-proporción de faltantes sí se estima sobre las filas observadas y se compara;
-los extremos, las cardinalidades y los conteos absolutos que dependen del
-universo completo quedan fuera. La salida agrega una fila \code{muestra / no_comparable} y deja fuera esos aspectos; una muestra distinta no se
-convierte en un cambio ni en un hallazgo resuelto.
+patrones y hallazgos de la muestra no se interpretan como cambios de la tabla
+completa. La proporción de faltantes sí se estima sobre las filas observadas y
+se compara, con \code{universo = "muestra"}. La salida agrega una fila \code{muestra / no_comparable}, cuya evidencia dice cómo se leyó cada lado —el método y si la
+lectura es reproducible—, y deja fuera esos aspectos; una muestra distinta no
+se convierte en un cambio ni en un hallazgo resuelto. Con el objeto entero de
+\code{\link[=perfilar_dbi]{perfilar_dbi()}}, esos aspectos se toman del resumen SQL: ver la sección
+siguiente.
 
 Los nombres de columnas y las configuraciones que contienen texto del usuario
 se comparan por sus bytes, no por la marca de codificación ni por la
@@ -66,9 +97,11 @@ columna, los hallazgos, el alcance del resumen y las configuraciones
 declaradas —no los valores uno por uno—: la columna \code{aspecto} del resultado
 nombra, fila por fila, qué se comparó, y es la enumeración viva. \strong{Un cambio de texto que no
 altera ninguna propiedad medida no aparece}: por ejemplo, si la moda de una
-columna pasa de \code{"Basico"} a \code{"Casico"} —mismo largo, misma forma de patrón,
-mismos conteos—, la comparación devuelve cero filas. Por eso el remedio ante
-una relectura sospechosa no es confiar en la comparación para detectarla.
+columna de texto libre pasa de \code{"Basico"} a \code{"Casico"} —mismo largo, misma
+forma de patrón, mismos conteos—, la comparación devuelve cero filas. En una
+columna categórica sí aparece, porque su vocabulario se compara (ver más
+abajo), pero sólo ahí. Por eso el remedio ante una relectura sospechosa no es
+confiar en la comparación para detectarla.
 
 El remedio es una línea, \code{saveRDS(perfil, archivo, version = 2)}, porque ese
 formato no anota codificación nativa y por lo tanto no traduce nada. La
@@ -82,6 +115,41 @@ un valor, no una propiedad medida, y cambia con cualquier corrimiento normal de
 los datos, así que compararla llenaría la deriva de filas que no son deterioro.
 Quien necesite detectar una relectura corrompida tiene el remedio de una línea
 que está dos párrafos más abajo, que la evita en lugar de detectarla.
+
+El \strong{vocabulario} de una columna categórica sí se compara: el conjunto de sus
+valores, que \code{\link[=perfilar]{perfilar()}} guarda en \code{general$vocabulario} para las columnas de
+texto o factor de hasta 20 valores distintos. Una entrega que cambia todos sus
+valores con la misma forma —\code{A}/\code{B} por \code{X}/\code{Y}, en las mismas proporciones—
+no mueve la cardinalidad, los faltantes ni los patrones, y salía sin ninguna
+fila. La fila \code{vocabulario / modificado} nombra los valores que aparecieron y
+los que desaparecieron con su proporción, y \code{delta} es la proporción de filas
+que llevan valores que la otra entrega no tenía, la mayor de las dos
+direcciones: \code{sospechoso} desde \code{umbral_cambio}, \code{error} desde \code{umbral_error},
+y \code{ok} por debajo, sin dejar de publicarse. Por \strong{decisión}, el corrimiento
+de proporciones entre valores que siguen en las dos entregas no gradúa la
+fila —sólo se informa en la evidencia, como distancia de variación total—:
+la misma distribución de cuatro categorías remuestreada en 200 filas lo mueve
+0,06 de mediana, y esa alarma sería del azar; por eso dos valores que
+intercambian su peso sin que aparezca ni desaparezca ninguno no dan fila.
+No se compara el vocabulario de una columna con cardinalidad alta —con el
+mismo criterio que su hallazgo \code{alta_cardinalidad}— ni el de una cuyos valores
+son todos distintos, que es un identificador y renueva sus valores en cada
+entrega; si un lado tiene más de 20 valores, la fila dice \code{no_comparable}
+con severidad \code{ok}. Un perfil sin \code{general$vocabulario} —de una versión
+anterior— se declara con la fila de campos ausentes, y el de una columna
+protegida o sin valores publicados (\code{incluir_valores = FALSE}) no se guarda y
+se declara en \code{campos_protegidos}.
+
+Las \strong{marcas del plan de limpieza} —\code{.fila_duplicada}, \code{.grupo_duplicado},
+\verb{.ausente_<columna>} y \verb{.outlier_<columna>}, que agrega \code{\link[=aplicar]{aplicar()}}— se
+reconocen con la regla del plan: por su nombre exacto y su columna en la misma
+tabla, no por el punto inicial. Una marca que aparece o desaparece se publica
+con severidad \code{ok}, porque la tabla cambió de forma por la limpieza que se
+pidió y no por la entrega, y un hallazgo sobre una marca —los \code{NA} de
+\code{.grupo_duplicado} significan que la fila no está en ningún grupo— también,
+con la razón en la descripción. Una columna del usuario con exactamente uno de
+esos nombres se trata como marca, como ya hace el plan; una marca renombrada
+en el plan se trata como columna.
 
 Entre las propiedades comparadas está la \strong{unidad} en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
@@ -195,6 +263,68 @@ ese caso se publica \code{no_comparable}, con severidad \code{error}, y se nombr
 columnas cambiadas. Con las mismas columnas, el veredicto \code{resuelto} se
 conserva.
 }
+\section{Perfiles de una base de datos}{
+
+Un objeto de \code{\link[=perfilar_dbi]{perfilar_dbi()}} trae dos bloques con universos distintos: el
+resumen SQL (\code{resumen_tabla}), que calcula el motor, y el perfil de muestra
+(\code{perfil_muestra}), que calcula R sobre las filas leídas. Con \code{muestra = Inf}
+—el valor por omisión— la muestra cubre la tabla y la comparación es la
+misma que entre sus dos perfiles de muestra.
+
+Si la muestra de algún lado no cubre la tabla, cada aspecto se toma del
+universo más amplio que lo mide. El rango de las columnas numéricas y la
+cardinalidad salen del resumen SQL cuando la cifra tiene estado \code{calculado}
+sobre la tabla completa en los dos lados; del lado de un perfil en memoria,
+de ese perfil. Los faltantes conservan su definición —los \code{NULL} y los
+disfrazados—: los primeros los cuenta el motor sobre la tabla y los segundos
+se estiman sobre la muestra, porque el resumen SQL no reconoce centinelas ni
+cadenas de ausencia; por eso \strong{un faltante disfrazado que entra en filas que
+la muestra no lee no aparece}, y la fila \code{muestra} lo dice. Las dos partes
+se suman sólo si miden sobre el mismo denominador: con una declaración de
+aplicabilidad o de columnas opcionales —que el resumen SQL no aplica— queda la
+estimación de la muestra, rotulada \code{muestra}. Los patrones, los hallazgos y el
+tipo inferido sólo los mide la muestra, y no se comparan como cambios de la
+tabla. Los extremos de una fecha —también la que se guarda como texto— se
+compararían si el resumen SQL los calculara en los dos lados; no los calcula,
+y la fila \code{rango / no_comparable} lo dice con el motivo
+\code{sin_cifra_sql:el_resumen_sql_no_calcula_minimo_fecha_ni_maximo_fecha}. El
+vocabulario tampoco: el resumen SQL no guarda valores, y sus columnas se
+declaran en una fila \code{vocabulario / no_comparable} con el motivo
+\code{sin_cifra_sql:el_resumen_sql_no_guarda_valores}.
+
+Una cifra SQL que en algún lado no se calculó sobre la tabla completa
+—\code{no_disponible}, \code{no_solicitado}, \code{omitido_por_costo}, \code{estimado_motor}
+(también contra otra estimación del motor), las de
+\code{universo = "muestra_motor"}— no se compara: una fila \code{no_comparable} por
+aspecto, con \code{columna} en \code{NA}, nombra en \code{evidencia} cada columna con su
+motivo, \verb{estado_sql:<anterior>_vs_<actual>} o
+\verb{universo_distinto:<anterior>_vs_<actual>}, con lo que el motor dijo de la
+cifra y, si un lado no la pidió, la métrica de \code{perfilar_dbi()} que falta
+(por ejemplo \code{basicos} para el rango). La que la protección omitió se declara
+en \code{campos_protegidos}.
+
+El rango y la cardinalidad del resumen SQL se comparan sólo entre columnas de
+la misma familia de tipo —número, texto, fecha, lógico—: un booleano contra un
+entero \code{0/1}, o un entero que pasa a texto con las mismas cifras, no tienen un
+rango que comparar, y el motivo es \verb{tipo_distinto:<anterior>_vs_<actual>}; la
+fila de \code{tipo_declarado} ya dice el cambio.
+
+La cardinalidad de una columna de texto sólo se compara entre dos objetos del
+mismo controlador cuya columna tiene el mismo cotejamiento: el motor cuenta
+valores distintos con el cotejamiento de la columna —que puede ignorar
+mayúsculas o acentos— y R por bytes, y los mismos datos con \verb{COLLATE NOCASE} y
+con \verb{COLLATE BINARY} darían una deriva falsa. \code{\link[=perfilar_dbi]{perfilar_dbi()}} lee el
+cotejamiento de cada columna en SQLite y en DuckDB (\code{meta$cotejamientos} del
+resumen); en otro motor, o contra un perfil en memoria, la cardinalidad de
+texto se declara \code{no_comparable} con el motivo
+\code{cotejamiento_no_verificado:...}, y con cotejamientos distintos,
+\verb{cotejamiento_distinto:<anterior>_vs_<actual>}.
+
+Para comparar una entrega en la base con otra en un archivo, conviene leer el
+archivo con los tipos de la base: un número entero en un CSV se relee como
+entero, y el cambio de tipo se publica aunque los datos sean los mismos.
+}
+
 \examples{
 anterior <- perfilar(data.frame(codigo = c("AA1", "AA2")),
                      fecha = as.POSIXct("2026-01-01", tz = "UTC"))

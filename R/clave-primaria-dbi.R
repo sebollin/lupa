@@ -167,9 +167,15 @@
         # "no pude preguntar" llegan iguales. Pidiendo todo, cero filas
         # significa que la tabla no esta y filas sin ningun `pk > 0` significa
         # que no tiene clave. Son dos respuestas distintas.
+        # Y en la misma consulta, el `CREATE TABLE` de la tabla: es lo unico que
+        # dice el cotejamiento de cada columna (`COLLATE NOCASE`), y con el la
+        # comparacion de entregas sabe si dos conteos de distintos de un texto
+        # cuentan igual (`.cotejamientos_sql_tabla()`). No es otra consulta.
         paste0(
           "SELECT name AS column_name, pk AS ordinal_position, ",
-          "\"notnull\" AS column_notnull ",
+          "\"notnull\" AS column_notnull, ",
+          "(SELECT sql FROM sqlite_master WHERE type IN ('table', 'view') ",
+          "AND name = ", .texto_sql_clave(tabla), ") AS lupa_sql_tabla ",
           "FROM pragma_table_info(", .texto_sql_clave(tabla), ") ",
           "ORDER BY pk"
         )
@@ -766,6 +772,17 @@
     ))
   }
   datos <- respuesta$datos
+  resultado <- .interpretar_clave_primaria_dbi(datos, via, motor, vacio)
+  # El `CREATE TABLE` que trajo la consulta de SQLite viaja en un atributo: no
+  # es parte de la clave, y `perfilar_dbi()` lo lee de ahi.
+  if (inherits(datos, "data.frame") && nrow(datos) &&
+      "lupa_sql_tabla" %in% names(datos)) {
+    attr(resultado, "sql_tabla") <- as.character(datos$lupa_sql_tabla[[1L]])
+  }
+  resultado
+}
+
+.interpretar_clave_primaria_dbi <- function(datos, via, motor, vacio) {
   if (!inherits(datos, "data.frame") || !nrow(datos)) {
     if (identical(via$nombre, "pragma")) {
       # Cero filas pidiendo todas las columnas: la tabla no esta.

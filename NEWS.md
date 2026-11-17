@@ -1,5 +1,56 @@
 # lupa (development version)
 
+## Comparar entregas
+
+- `comparar_perfiles()` acepta objetos de `perfilar_dbi()`. Antes había que
+  pasar `$perfil_muestra`, y lo que la muestra no leía no se comparaba: un
+  aumento de faltantes en filas fuera de la muestra no aparecía, y dos muestras
+  de las mismas filas podían dar una deriva de faltantes. Ahora, cuando la
+  muestra de un lado no cubre la tabla, el rango de las columnas numéricas y la
+  cardinalidad salen del resumen SQL de tabla entera, y los faltantes suman los
+  `NULL` que cuenta el motor y los disfrazados estimados sobre la muestra. Lo
+  que no se puede comparar se declara en una fila `no_comparable` por aspecto,
+  con su motivo: una cifra que un lado no calculó sobre la tabla entera, el
+  rango o la cardinalidad entre tipos distintos, la cardinalidad de un texto con
+  otro cotejamiento (que `perfilar_dbi()` lee en SQLite y DuckDB), las filas sin
+  el total de la fuente. Ninguna fila se rotula como de tabla entera si su
+  cifra sale de la muestra, y `tipo_inferido` no se compara entre muestras. Un
+  objeto de `perfilar_dbi()` sin muestra se rechaza nombrando `bloque_muestra`.
+- **Cambio de esquema:** toda deriva trae dos columnas nuevas,
+  `universo_anterior` y `universo_actual`, que dicen si la cifra de cada lado
+  describe la tabla entera (`"tabla_completa"`), sólo las filas leídas
+  (`"muestra"`) o la combinación de las dos (`"mixto"`); son `NA` en las filas
+  de configuración. `rbind()` une una deriva guardada antes con ellas en `NA`.
+- `comparar_perfiles()` compara el vocabulario de las columnas categóricas: una
+  entrega que cambiaba todos sus valores por otros de la misma forma (`A` y `B`
+  por `X` e `Y`) salía sin ninguna fila. `perfilar()` guarda en
+  `general$vocabulario` los valores y su frecuencia en las columnas de texto o
+  `factor` de hasta 20 valores distintos (no las protegidas ni las de valores
+  todos distintos), y la fila `vocabulario` se gradúa por la proporción de
+  filas con valores que la otra entrega no tenía. Contra un perfil anterior,
+  sin ese campo, se declara no comparable.
+- `comparar_perfiles()` reconoce las marcas que agrega `aplicar()`
+  (`.fila_duplicada`, `.grupo_duplicado`, `.ausente_<columna>`,
+  `.outlier_<columna>`): comparar antes y después de limpiar ya no las publica
+  como columnas nuevas con severidad `error`. Y `perfilar()` ya no informa como
+  `posible_ausencia_estructural` la ausencia de una columna explicada por su
+  propia marca.
+- `comparar_perfiles()` acepta objetos de `analizar()` y compara su perfil.
+- Dos perfiles que buscaron sus patrones en toda la tabla ya no se declaran
+  `configuracion_patrones / no_comparable` porque declaren otra `muestra`: con
+  los valores por omisión (`1e5` en `perfilar()`, `Inf` en `perfilar_dbi()`)
+  una base contra un archivo nunca comparaba patrones.
+- `comparar_equivalencia()` aplica la misma regla a las cifras de
+  `perfilar_dbi()`: una cifra sin valor, medida sobre otras filas o de otro modo
+  que la del otro lado sale `no_comparable` con el motivo. La misma tabla en
+  `tabla_completa` y en `muestra_motor` publicaba `n_validos` 3000 contra 400
+  como `materialmente_distinto`, y dos muestras independientes de la misma tabla
+  se comparaban como si fueran las mismas filas.
+- `perfilar_dbi()` guarda la `fecha` declarada en `resumen_tabla$meta`, también
+  con `bloque_muestra = "solo_agregados"`, donde antes se validaba y se
+  descartaba, y el tipo que declara el motor para cada columna
+  (`resumen_tabla$meta$tipos_motor`).
+
 ## Correcciones
 
 - `perfilar_dbi()` cuenta `NaN` igual que `perfilar()`. En DuckDB y PostgreSQL,

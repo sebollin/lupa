@@ -215,7 +215,8 @@ cambios[cambios$aspecto == "hallazgo", c("columna", "cambio", "valor_anterior", 
 ```
 
 - Los faltantes disfrazados de `cedula` y `sexo` quedaron `resuelto`.
-- Los hallazgos `aparecido` en `.grupo_duplicado` son la huella de la marca. Esa columna
+- Los hallazgos `aparecido` en `.grupo_duplicado` son la huella de la marca, y salen con
+  severidad `ok`: el paquete reconoce las columnas que agrega `aplicar()`. Esa columna
   sólo tiene valor en las filas duplicadas, así que el perfil la encuentra casi vacía y
   con un único valor.
 - `filas_duplicadas` queda `no_comparable`, porque la tabla ganó las columnas de marca.

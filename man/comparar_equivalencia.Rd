@@ -100,6 +100,27 @@ valor distinto: no dan ninguno, porque no hay zona que comparar contra UTC.
 Los extremos de fecha \strong{sí} se siguen comparando: al guardarse como texto
 la columna pierde la zona y los instantes que denota son realmente otros,
 que es lo más importante que hay para informar en ese caso.
+
+Si uno de los lados es un objeto de \code{\link[=perfilar_dbi]{perfilar_dbi()}}, cada cifra de su
+resumen SQL lleva un estado y un alcance (\code{resumen_tabla$sql}), y una cifra
+que no se puede comparar con la del otro lado no se compara: queda en la
+tabla con veredicto \code{no_comparable}. El motivo es
+\verb{estado_sql:<anterior>_vs_<actual>} si alguna no tiene valor —el presupuesto
+de consultas agotado la deja \code{no_disponible}— o se midió de otro modo
+—\code{calculado} contra \code{estimado_motor}—, y
+\verb{universo_distinto:<anterior>_vs_<actual>} si se midieron sobre filas
+distintas: la misma tabla en \code{universo = "tabla_completa"} y en
+\code{"muestra_motor"} cuenta 3000 filas en \code{n} y 400 en \code{n_validos}, y esa
+diferencia no es del dato. Un perfil en memoria cuenta sobre la tabla entera,
+salvo que sea la muestra de una base. Dos cifras medidas igual —también dos
+estimaciones del mismo motor— se comparan como siempre, salvo que sean de
+muestras: dos muestras independientes —dos \code{muestra_motor} de la misma tabla,
+o la muestra de una base contra otra— no describen las mismas filas, y salen
+\code{no_comparable} con el motivo \code{universo_distinto:muestras_independientes},
+salvo que los dos objetos declaren la misma muestra (el mismo \code{checksum} de
+la materialización, o la misma consulta de una muestra reproducible). La que
+la protección omitió se declara en \code{campos_protegidos}. Entre perfiles en
+memoria o frames \code{columnas} no hay estado que leer y nada de esto se aplica.
 }
 \examples{
 anterior <- data.frame(

@@ -5,6 +5,10 @@
 # "debe ser un objeto producido por perfilar()". Ninguno de los dos mensajes
 # decia lo unico que el usuario necesita: que el perfil esta adentro, en
 # `$perfil_muestra`. No es una cifra que mienta, es una salida sin salida.
+#
+# Desde que `comparar_perfiles()` toma cada aspecto del universo que lo mide,
+# acepta el objeto entero, y su puerta solo rechaza el que no trae muestra:
+# sin ella no hay tipos ni lo que se mide sobre las filas. Dice como pedirla.
 
 # Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
 # NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
@@ -33,15 +37,17 @@ test_that("reportar dice que el perfil de un DBI esta en perfil_muestra", {
   expect_no_error(reportar(perfil_dbi$perfil_muestra, archivo = archivo))
 })
 
-test_that("comparar_perfiles nombra el argumento y el camino", {
+test_that("comparar_perfiles acepta el objeto y nombra el camino si no hay muestra", {
   perfil_dbi <- .o15_perfil_dbi()
   otro <- perfilar(data.frame(a = 1:10, b = rep(letters[1:5], 2),
                               stringsAsFactors = FALSE))
-  expect_error(comparar_perfiles(otro, perfil_dbi),
-               "actual$perfil_muestra", fixed = TRUE)
-  expect_error(comparar_perfiles(perfil_dbi, otro),
-               "anterior$perfil_muestra", fixed = TRUE)
+  expect_no_error(comparar_perfiles(otro, perfil_dbi))
+  expect_no_error(comparar_perfiles(perfil_dbi, otro))
   expect_no_error(comparar_perfiles(otro, perfil_dbi$perfil_muestra))
+  sin_muestra <- perfil_dbi
+  sin_muestra$perfil_muestra <- NULL
+  expect_error(comparar_perfiles(otro, sin_muestra), "`actual`", fixed = TRUE)
+  expect_error(comparar_perfiles(sin_muestra, otro), "bloque_muestra", fixed = TRUE)
 })
 
 test_that("una lista cualquiera sigue dando el mensaje de siempre", {

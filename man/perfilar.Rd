@@ -1085,7 +1085,13 @@ grupo no se puede leer suelto —vacío, repetido en la tabla, con espacios
 al borde o con \code{=}, \verb{;}, \verb{,} o comillas—, la evidencia cita todos los
 nombres entre comillas, y el que se repite lleva su posición:
 \verb{"X" (columna 1) = "X" (columna 2)}. Sin filas no hay hallazgo ni filas en
-\code{general}: la cobertura declara que no se compararon. Cuando el camino
+\code{general}: la cobertura declara que no se compararon.
+\code{general$vocabulario} guarda los valores y su frecuencia de las columnas de
+texto o factor con hasta 20 valores distintos —\code{columna}, \code{valor},
+\code{frecuencia}, \code{proporcion}, del más frecuente al menos—, contados sobre el
+universo aplicable y todas las filas; no las de cardinalidad alta ni las de
+valores todos distintos, y con la protección, tampoco las protegidas. Es lo
+que \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara como vocabulario. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por

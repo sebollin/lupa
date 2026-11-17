@@ -5208,6 +5208,20 @@
   perfil$patrones <- protegidos$patrones
   perfil$dependencias <- protegidos$dependencias
   perfil$hallazgos <- protegidos$hallazgos
+  # El vocabulario de una columna protegida son sus valores: no se guarda. El
+  # barrido general de mas abajo alcanza al resto del componente, pero solo con
+  # los valores identificantes, y una columna protegida de valores cortos
+  # quedaba publicada entera.
+  vocabulario <- perfil$general$vocabulario
+  if (is.data.frame(vocabulario) && nrow(vocabulario)) {
+    tapadas <- .nombres_para_operar(as.character(vocabulario$columna)) %in%
+      .nombres_para_operar(.columnas_personales_protegidas(perfil))
+    if (any(tapadas)) {
+      vocabulario <- vocabulario[!tapadas, , drop = FALSE]
+      rownames(vocabulario) <- NULL
+      perfil$general$vocabulario <- vocabulario
+    }
+  }
   # La magnitud de Benford y el `log10(max/min)` de la cobertura, solo de las
   # columnas PROTEGIDAS: de una con clasificacion debil se publican el minimo y
   # el maximo, y su cociente no oculta nada. Se tapaban las de toda columna con

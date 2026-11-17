@@ -771,8 +771,14 @@
     mejor_det <- NULL
     mejor_nombre <- NA_character_
     mejor_indice <- NA_integer_
+    # La marca que el plan agrega sobre la columna -`.ausente_<x>`- es su
+    # ausencia escrita en otra columna: medido, despues de `aplicar()`
+    # publicaba que `.ausente_Ozone` "predice la presencia de `Ozone` en 100 %"
+    # y "explica 37 de las 37 ausencias". No es una estructura del dato.
+    propias <- .nombres_para_operar(.marcas_de_columna(columna))
     for (det in determinantes) {
       if (det$indice == indices[[k]]) next
+      if (.nombres_para_operar(nombres[[det$indice]]) %in% propias) next
       ajuste <- .determinacion_ausencia(presentes[[k]], det)
       if (is.null(ajuste)) ajuste <- .determinacion_umbral(presentes[[k]], det)
       if (is.null(ajuste)) next

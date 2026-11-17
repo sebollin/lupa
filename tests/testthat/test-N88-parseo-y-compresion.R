@@ -169,8 +169,14 @@ test_that("el ejemplo de la moda que la documentacion afirma sigue siendo cierto
   # `?comparar_perfiles` dice que un cambio de texto que no altera ninguna
   # propiedad medida no aparece, y da este caso. Una cifra publicada sin
   # reproductor envejece en silencio; este es su reproductor.
+  #
+  # El ejemplo es de texto libre: desde que se compara el vocabulario de las
+  # columnas categoricas, el mismo cambio en una de pocos valores si aparece, y
+  # la ayuda lo dice. Aca la columna tiene veinticinco valores distintos, mas de
+  # los que el perfil guarda como vocabulario.
   hacer <- function(valor) suppressWarnings(perfilar(
-    data.frame(x = c(rep(valor, 5L), "otro"), stringsAsFactors = FALSE),
+    data.frame(x = c(rep(valor, 5L), sprintf("otro%02d", 1:24)),
+               stringsAsFactors = FALSE),
     fecha = as.POSIXct("2026-09-17", tz = "UTC"),
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   ))
@@ -180,4 +186,14 @@ test_that("el ejemplo de la moda que la documentacion afirma sigue siendo cierto
   expect_identical(actual$columnas$moda[[1L]], "Casico")
   deriva <- suppressWarnings(as.data.frame(comparar_perfiles(anterior, actual)))
   expect_identical(nrow(deriva), 0L)
+  # Y la otra mitad de la frase: en una columna categorica el cambio aparece.
+  categorica <- function(valor) suppressWarnings(perfilar(
+    data.frame(x = c(rep(valor, 5L), "otro"), stringsAsFactors = FALSE),
+    fecha = as.POSIXct("2026-09-17", tz = "UTC"),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  deriva <- suppressWarnings(as.data.frame(comparar_perfiles(
+    categorica("Basico"), categorica("Casico")
+  )))
+  expect_identical(deriva$aspecto, "vocabulario")
 })

@@ -6,13 +6,19 @@
 
 #' @export
 rbind.deriva_perfil <- function(..., deparse.level = 1) {
-  resultado <- .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+  # Una deriva guardada antes de que existieran las columnas de universo no las
+  # trae, y `rbind()` de base aborta con columnas distintas: se agregan en `NA`,
+  # que es lo que dicen sobre esas filas -no se sabe de que filas salieron-.
+  objetos <- lapply(list(...), .completar_universo_deriva)
+  resultado <- do.call(
+    .unir_con_marca_sin_proteger, c(objetos, list(deparse.level = deparse.level))
+  )
   # Lo que no se comparo por la proteccion se declara en un atributo, y
   # `rbind()` conserva solo el del primer objeto: unir dos derivas callaba lo que
   # declaraba la segunda. Se unen los de todas, como la marca de proteccion.
   declarados <- Filter(
     function(x) inherits(x, "data.frame"),
-    lapply(list(...), function(objeto) {
+    lapply(objetos, function(objeto) {
       attr(objeto, "campos_protegidos", exact = TRUE)
     })
   )
@@ -34,6 +40,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     fecha_anterior = as.POSIXct(character(), tz = "UTC"),
     fecha_actual = as.POSIXct(character(), tz = "UTC"),
     descripcion = character(), evidencia = character(),
+    universo_anterior = character(), universo_actual = character(),
     stringsAsFactors = FALSE
   )
   resultado$severidad <- factor(
@@ -48,16 +55,23 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   if (!inherits(x, "perfil") || !inherits(x$columnas, "data.frame") ||
       !is.list(x$patrones) || !inherits(x$hallazgos, "data.frame") ||
       is.null(x$meta$fecha_hora)) {
-    if (inherits(x, "perfil_dbi")) {
-      .detener(
-        "`", nombre, "` es un objeto de `perfilar_dbi()`: para comparar dos ",
-        "entregas: pasar su perfil de muestra, `", nombre, "$perfil_muestra`. ",
-        "El resumen SQL de la tabla completa no es un perfil.",
-        call. = FALSE
-      )
-    }
-    .detener("`", nombre, "` debe ser un objeto producido por perfilar().",
-         call. = FALSE)
+    .detener(
+      "`", nombre, "` debe ser un objeto producido por perfilar() o por ",
+      "perfilar_dbi().", call. = FALSE
+    )
+  }
+  x
+}
+
+# Las columnas que dicen de que filas sale la cifra de cada lado. Viajan en las
+# filas y no en un atributo por la misma razon que la configuracion del
+# historico: un atributo no sobrevive a `write.csv()`.
+.CAMPOS_UNIVERSO_DERIVA <- c("universo_anterior", "universo_actual")
+
+.completar_universo_deriva <- function(x) {
+  if (!inherits(x, "data.frame")) return(x)
+  for (campo in setdiff(.CAMPOS_UNIVERSO_DERIVA, names(x))) {
+    x[[campo]] <- rep(NA_character_, nrow(x))
   }
   x
 }
@@ -955,13 +969,24 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       actual = setdiff(campos, nombres_b)
     )
   })
+  # El vocabulario no esta en `columnas` sino en `general`, que un
+  # perfil de una version anterior no trae: sin el, la deriva de vocabulario se
+  # declara no comparable en vez de callarse.
+  ausentes$vocabulario <- list(
+    anterior = if (is.data.frame(anterior$general$vocabulario)) {
+      character()
+    } else "general$vocabulario",
+    actual = if (is.data.frame(actual$general$vocabulario)) {
+      character()
+    } else "general$vocabulario"
+  )
   falta_alguno <- vapply(
     ausentes,
     function(x) length(x$anterior) > 0L || length(x$actual) > 0L,
     logical(1)
   )
   list(
-    comparables = names(requeridos)[!falta_alguno],
+    comparables = names(ausentes)[!falta_alguno],
     ausentes = ausentes[falta_alguno]
   )
 }
@@ -985,16 +1010,35 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     total <- numero(muestreo$filas_totales_fuente)
   }
   observado <- numero(meta$filas_analizadas)
+  # Una lectura cuya cobertura no se pudo saber -sin el `COUNT(*)` de la fuente,
+  # `tabla_completa = NA`- no cubre la tabla para la comparacion: medido, con el
+  # presupuesto agotado antes del conteo, sus 100 filas se publicaban como las
+  # filas de la tabla.
+  cobertura_desconocida <- is.list(muestreo) &&
+    length(muestreo$tabla_completa) == 1L && is.na(muestreo$tabla_completa) &&
+    !is.finite(total)
   es_muestra <- es_dbi && (
-    isTRUE(meta$muestreo) ||
+    isTRUE(meta$muestreo) || cobertura_desconocida ||
       (is.list(muestreo) && identical(muestreo$tabla_completa, FALSE)) ||
       (is.list(meta$alcance) &&
        identical(meta$alcance$universo_id, "muestra_motor")) ||
       identical(meta$alcance, "tabla_muestreada")
   )
+  # Como se leyo, para que la fila `muestra` diga si las dos lecturas eran la
+  # misma: otro metodo o una lectura no reproducible son otra muestra aunque
+  # tengan las mismas filas.
+  texto <- function(x) {
+    if (is.null(x) || length(x) != 1L || is.na(x)) NA_character_ else
+      as.character(x)
+  }
+  reproducible <- if (is.list(muestreo)) muestreo$reproducible else NULL
   list(
     es_dbi = es_dbi, es_muestra = isTRUE(es_muestra),
-    filas_totales_fuente = total, filas_observadas = observado
+    filas_totales_fuente = total, filas_observadas = observado,
+    metodo = if (is.list(muestreo)) texto(muestreo$metodo) else NA_character_,
+    reproducible = if (is.logical(reproducible) && length(reproducible) == 1L) {
+      reproducible
+    } else NA
   )
 }
 
@@ -1413,13 +1457,586 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   )
 }
 
+# ---- Las dos capas de un perfil de una base ----------------------------------
+#
+# Un objeto de `perfilar_dbi()` trae dos universos: el resumen SQL, que el motor
+# calcula sobre la tabla, y el perfil de muestra, que R calcula sobre las filas
+# leidas. Pedir solo la muestra -como pedia esta funcion- tenia dos defectos
+# medidos. Con 3000 filas nuevas que traian la mitad de `monto` en NULL y una
+# muestra de 500 ordenada por `id`, la comparacion de las dos muestras no
+# publicaba nada de los faltantes -la muestra era la misma de enero- aunque el
+# resumen SQL de los dos lados los tenia exactos. Y el MISMO contenido entregado
+# dos veces en otro orden publicaba deriva de faltantes en 12 de 25 corridas con
+# `muestra = 100`: la proporcion de dos muestras chicas contra un umbral de
+# cinco puntos. Cada aspecto se toma ahora del universo mas amplio que lo mide.
+#
+# Y no se convierte el resumen SQL en un perfil: medido, marcar la muestra como
+# tabla entera para reusar la comparacion callaba esos mismos faltantes y
+# convertia el ruido del muestreo de patrones y hallazgos en deriva (19 de 25).
+
+# Que describe cada aspecto: el esquema y el conteo de la tabla, o lo que se
+# midio sobre las filas que el perfil vio.
+# El tipo y la unidad no son del esquema: salen de la clase con que R leyo las
+# filas, y RSQLite decide la de una columna `NUMERIC` por las primeras que
+# trae. Un lado que no cubre la tabla los rotula `muestra`; el tipo declarado,
+# salvo que lo respalde el tipo del motor (ver `.tipo_declarado_deriva()`). Las
+# filas, sin el total de la fuente, tampoco son de la tabla: ver la fila
+# `filas`.
+.ASPECTOS_ESQUEMA_DERIVA <- c("columna", "filas")
+.ASPECTOS_FILAS_DERIVA <- c(
+  "tipo_declarado", "tipo_inferido", "unidad", "faltantes", "cardinalidad",
+  "alcance_resumen", "rango", "proteccion", "patron", "vocabulario", "hallazgo",
+  "severidad_hallazgo"
+)
+
+# Los estados con que el resumen SQL declara que una cifra no tiene valor.
+# `no_aplica` no esta: dice que la cifra no existe para esa columna -el maximo
+# de un texto-, que es lo mismo que un `NA` de memoria y se trata como tal.
+.ESTADOS_SQL_SIN_VALOR <- c(
+  "no_disponible", "no_solicitado", "no_medido", "omitido_por_costo",
+  "omitido_por_privacidad", "omitida", "sin_valores"
+)
+
+# Una cifra del resumen SQL con su estado y su alcance, leidos de
+# `resumen_tabla$sql`. La fila que manda es la que ya elige la corroboracion
+# -la ultima medida-; si no hay ninguna medida, la ultima, para poder decir por
+# que no hay valor. `estado = NA` si el resumen no registra esa cifra.
+.cifra_sql_dbi <- function(resumen, columna, metrica) {
+  cifra <- list(valor = NA, estado = NA_character_, alcance = NA_character_)
+  if (!is.list(resumen) || !is.data.frame(resumen$columnas) ||
+      !metrica %in% names(resumen$columnas)) {
+    return(cifra)
+  }
+  clave <- .nombres_para_operar(columna)
+  indice <- match(clave, .nombres_para_operar(as.character(resumen$columnas$columna)))
+  if (is.na(indice)) return(cifra)
+  cifra$valor <- resumen$columnas[[metrica]][[indice]]
+  sql <- resumen$sql
+  if (!is.data.frame(sql) ||
+      !all(c("columna", "metrica", "estado") %in% names(sql))) {
+    return(cifra)
+  }
+  fila <- .estado_corroborable_dbi(sql, columna, metrica)
+  if (is.null(fila)) {
+    filas <- which(.nombres_para_operar(as.character(sql$columna)) %in% clave &
+                     as.character(sql$metrica) == metrica)
+    if (!length(filas)) return(cifra)
+    fila <- filas[[length(filas)]]
+  }
+  cifra$estado <- as.character(sql$estado[[fila]])
+  if ("alcance" %in% names(sql)) cifra$alcance <- as.character(sql$alcance[[fila]])
+  if ("motivo" %in% names(sql)) cifra$motivo <- as.character(sql$motivo[[fila]])
+  cifra
+}
+
+# La regla, en un solo lugar, de cuando dos cifras SQL se pueden comparar. La
+# usan la deriva y `comparar_equivalencia()`. Devuelve `NA` si se pueden comparar
+# y, si no, el motivo: `estado_sql:<anterior>_vs_<actual>` cuando alguna no tiene
+# valor o no se midio igual -`calculado` contra `estimado_motor`- y
+# `universo_distinto:<anterior>_vs_<actual>` cuando se midieron sobre filas
+# distintas -la tabla entera contra la muestra de `muestra_motor`-. Con
+# `exigir_tabla`, ademas, las dos tienen que estar calculadas sobre la tabla
+# entera: la deriva afirma cambios de la tabla, y dos estimaciones -dos muestras
+# del motor, dos HyperLogLog- no la describen. `comparar_equivalencia()` no lo
+# exige: compara datos, y dos cifras medidas igual se comparan.
+.motivo_cifras_sql_no_comparables <- function(anterior, actual,
+                                              exigir_tabla = TRUE) {
+  etiqueta <- function(x) if (length(x) != 1L || is.na(x)) "sin_estado" else x
+  estado_a <- anterior$estado
+  estado_b <- actual$estado
+  # Sin la cifra en algun lado, decide el valor, como entre dos perfiles.
+  if (identical(estado_a, "no_aplica") || identical(estado_b, "no_aplica")) {
+    return(NA_character_)
+  }
+  motivo_estado <- paste0(
+    "estado_sql:", etiqueta(estado_a), "_vs_", etiqueta(estado_b)
+  )
+  if (is.na(estado_a) || is.na(estado_b) ||
+      any(c(estado_a, estado_b) %in% .ESTADOS_SQL_SIN_VALOR)) {
+    return(motivo_estado)
+  }
+  if (!identical(anterior$alcance, actual$alcance)) {
+    return(paste0(
+      "universo_distinto:", etiqueta(anterior$alcance), "_vs_",
+      etiqueta(actual$alcance)
+    ))
+  }
+  # Dos cifras de muestra describen las mismas filas solo si son la MISMA
+  # muestra: medido, dos `muestra_motor` de la misma tabla daban siete
+  # `materialmente_distinto` en `comparar_equivalencia()`. Lo dice la identidad
+  # que el objeto declara de su muestra (`muestra`); sin ella, son dos muestras.
+  if (!identical(anterior$alcance, "tabla_completa")) {
+    identidad_a <- anterior$muestra
+    identidad_b <- actual$muestra
+    if (length(identidad_a) != 1L || length(identidad_b) != 1L ||
+        is.na(identidad_a) || !identical(identidad_a, identidad_b)) {
+      return("universo_distinto:muestras_independientes")
+    }
+  }
+  if (!identical(estado_a, estado_b)) return(motivo_estado)
+  if (exigir_tabla && !(identical(estado_a, "calculado") &&
+                        identical(anterior$alcance, "tabla_completa"))) {
+    return(motivo_estado)
+  }
+  NA_character_
+}
+
+# Si los patrones de un perfil se buscaron en todas las filas de la tabla. Una
+# `muestra` declarada mayor que la tabla -`1e5` de `perfilar()` contra `Inf` de
+# `perfilar_dbi()`- no cambia nada de lo que se midio.
+.patrones_cubren_tabla <- function(perfil, muestra = .informacion_muestra_deriva(perfil)) {
+  numero <- function(x) {
+    if (is.null(x) || length(x) != 1L || is.na(x)) return(NA_real_)
+    suppressWarnings(as.numeric(x))
+  }
+  efectiva <- numero(perfil$meta$muestra_efectiva)
+  filas <- numero(perfil$meta$filas_totales)
+  !isTRUE(muestra$es_muestra) && isTRUE(efectiva >= filas)
+}
+
+# Lo que la deriva necesita saber de cada lado: su perfil, su resumen SQL si es
+# un objeto de `perfilar_dbi()`, si sus filas son la tabla entera y con que
+# controlador se leyo.
+.lado_deriva <- function(x, nombre) {
+  resumen <- NULL
+  # Un analisis lleva su perfil adentro, y eso es lo que se compara: lo demas
+  # -mediciones, evaluacion, tablero- tiene su propia serie en
+  # `historico_calidad()`.
+  if (inherits(x, "analisis") && !inherits(x, "perfil")) {
+    x <- x$perfil
+    nombre <- paste0(nombre, "$perfil")
+  }
+  if (inherits(x, "perfil_dbi")) {
+    if (is.null(x$perfil_muestra)) {
+      .detener(
+        "`", nombre, "` es un objeto de `perfilar_dbi()` sin perfil de muestra ",
+        "(`bloque_muestra = \"solo_agregados\"`, o la muestra no se pudo leer): ",
+        "no trae los tipos de sus columnas ni lo que se mide sobre las filas. ",
+        "Volver a perfilar con `bloque_muestra = \"con_muestra\"`.",
+        call. = FALSE
+      )
+    }
+    if (is.list(x$resumen_tabla) && is.data.frame(x$resumen_tabla$columnas)) {
+      resumen <- x$resumen_tabla
+    }
+    x <- x$perfil_muestra
+    nombre <- paste0(nombre, "$perfil_muestra")
+  }
+  perfil <- .validar_perfil_deriva(x, nombre)
+  muestra <- .informacion_muestra_deriva(perfil)
+  origen <- perfil$meta$origen_dbi
+  conexion <- if (is.list(origen) && is.list(origen$conexion)) {
+    as.character(origen$conexion$clase_conexion)
+  } else character()
+  list(
+    perfil = perfil, resumen = resumen, muestra = muestra,
+    cubre = !isTRUE(muestra$es_muestra),
+    patrones_cubren = .patrones_cubren_tabla(perfil, muestra),
+    conexion = if (length(conexion)) conexion[[1L]] else NA_character_
+  )
+}
+
+# El universo de la cifra de un lado en una fila de la deriva. Lo que describe
+# el esquema o el conteo de la tabla es de la tabla entera; lo que se mide sobre
+# las filas, de las filas que el perfil vio. Los patrones y el tipo inferido se
+# buscan ademas sobre la `muestra` de `perfilar()`, que puede ser menor que la
+# tabla en memoria. Configuraciones y la fila `muestra`: `NA`.
+.universo_fila_deriva <- function(aspecto, lado, indice = NA_integer_) {
+  if (aspecto %in% .ASPECTOS_ESQUEMA_DERIVA) return("tabla_completa")
+  if (!aspecto %in% .ASPECTOS_FILAS_DERIVA) return(NA_character_)
+  if (!isTRUE(lado$cubre)) return("muestra")
+  if (identical(aspecto, "patron") && !isTRUE(lado$patrones_cubren)) {
+    return("muestra")
+  }
+  if (identical(aspecto, "tipo_inferido") && length(indice) == 1L &&
+      !is.na(indice)) {
+    muestreado <- lado$perfil$columnas[["muestreado_tipo_inferido"]]
+    if (!is.null(muestreado) && isTRUE(as.logical(muestreado[[indice]]))) {
+      return("muestra")
+    }
+  }
+  "tabla_completa"
+}
+
+# La cifra de tabla entera de un lado: la del resumen SQL si el lado es de una
+# base -aunque su muestra cubra la tabla, para que las dos entregas se cuenten
+# con el mismo motor-, la del perfil si sus filas son la tabla entera, y `NULL`
+# si no hay ninguna.
+.cifra_tabla_lado_deriva <- function(lado, columna, metrica, fila) {
+  if (!is.null(lado$resumen)) return(.cifra_sql_dbi(lado$resumen, columna, metrica))
+  if (!isTRUE(lado$cubre)) return(NULL)
+  valor <- if (metrica %in% names(fila)) fila[[metrica]][[1L]] else NA
+  list(
+    valor = valor,
+    estado = if (length(valor) != 1L || is.na(valor)) "no_aplica" else "calculado",
+    alcance = "tabla_completa"
+  )
+}
+
+# La proporcion de faltantes de un lado, con la definicion de lupa: los `NULL`
+# y los disfrazados. Si las filas del lado son la tabla entera, la del perfil.
+# Si es una muestra de una base, los `NULL` los cuenta el motor sobre toda la
+# tabla y los disfrazados se estiman sobre la muestra, porque el resumen SQL no
+# reconoce centinelas ni cadenas de ausencia: un faltante disfrazado que entra
+# en filas que la muestra no lee no se ve. Las dos partes se suman solo si miden
+# sobre el mismo denominador; una declaracion de aplicabilidad lo achica en la
+# muestra, y entonces queda la estimacion de la muestra entera.
+.faltantes_lado_deriva <- function(lado, fila, columna) {
+  propio <- fila[["prop_faltantes_totales"]]
+  estimado <- list(
+    valor = propio, universo = if (isTRUE(lado$cubre)) "tabla_completa" else "muestra",
+    nulos = NA_real_, disfrazados = NA_real_
+  )
+  if (isTRUE(lado$cubre) || is.null(lado$resumen)) return(estimado)
+  nulos <- .cifra_sql_dbi(lado$resumen, columna, "prop_faltantes")
+  de_tabla <- is.na(.motivo_cifras_sql_no_comparables(nulos, nulos)) &&
+    is.numeric(nulos$valor) && isTRUE(is.finite(nulos$valor))
+  disfrazados <- .valor_columna_deriva(fila, "prop_faltantes_disfrazados")
+  # El denominador tiene que ser el mismo en las dos partes, medido del lado
+  # SQL: el resumen del motor no aplica `aplicabilidad` ni `columnas_opcionales`
+  # (`?perfilar_dbi`), asi que con una regla declarada sus `NULL` cuentan filas
+  # que la regla excluye. Medido: 2900 filas fuera del universo daban
+  # `faltantes 0 -> 0,9667 / error` rotulado `mixto`. Que la muestra no tenga
+  # filas excluidas no lo arregla: la tabla si las tiene.
+  declaradas <- .nombres_para_operar(as.character(c(
+    lado$perfil$meta$declaracion_aplicabilidad, lado$perfil$meta$columnas_opcionales
+  )))
+  mismo_denominador <- !(.nombres_para_operar(columna) %in% declaradas) && isTRUE(
+    .valor_columna_deriva(fila, "n_aplicables") == .valor_columna_deriva(fila, "n")
+  )
+  if (!de_tabla || !is.finite(disfrazados) || !mismo_denominador) {
+    return(estimado)
+  }
+  list(
+    valor = nulos$valor + disfrazados, universo = "mixto",
+    nulos = nulos$valor, disfrazados = disfrazados
+  )
+}
+
+# Severidad, evidencia y descripcion de un cambio de faltantes o de
+# cardinalidad, para las dos capas: la regla es una sola aunque la cifra venga
+# del perfil o del resumen SQL.
+.cambio_metrica_deriva <- function(aspecto, anterior, actual, umbral_cambio,
+                                   umbral_error, distintos = list(NA, NA)) {
+  delta <- actual - anterior
+  # Con tolerancia, como `detectar_deriva_calidad()` en `historico.R` y
+  # `tablero-calidad.R` con los pesos. Sin ella la resta en coma flotante
+  # decide el veredicto: 0,65 -> 0,70 da 0,049999999999999933 y
+  # 0,70 -> 0,75 da 0,050000000000000044, asi que dos pares que publican
+  # el mismo `delta = 0,05` recibian veredictos distintos. El comentario
+  # de `historico.R` ya decia que compararlo con tolerancia en un archivo
+  # y sin ella en otro no es una decision sino una inconsistencia, y este
+  # archivo era el otro.
+  significativo <- .alcanza_umbral_deriva(delta, umbral_cambio)
+  # Que bajen los faltantes es una mejora, y por eso queda `ok`. La
+  # cardinalidad no tiene una direccion buena: la regla del signo valia
+  # igual para las dos, y un `id_tramite` unico que pasaba a tener la mitad
+  # repetida -tasa de 1 a 0,5, diez umbrales- salia `ok` con
+  # `significativo = TRUE`, mientras el arreglo inverso salia
+  # `sospechoso`. Un cambio significativo de cardinalidad es sospechoso en
+  # los dos sentidos, como el del rango, que tampoco tiene direccion.
+  severidad <- if (!significativo) {
+    "ok"
+  } else if (aspecto == "cardinalidad") {
+    "sospechoso"
+  } else if (delta < 0) {
+    "ok"
+  } else if (.alcanza_umbral_deriva(delta, umbral_error)) {
+    "error"
+  } else {
+    "sospechoso"
+  }
+  evidencia <- if (aspecto == "cardinalidad") {
+    paste0(
+      "Valores distintos: ", distintos[[1L]], " -> ", distintos[[2L]],
+      "; tasas: ", .formatear_decimal_publicado(anterior, 4L),
+      " -> ", .formatear_decimal_publicado(actual, 4L)
+    )
+  } else {
+    paste0(
+      "Cambio de ", .formatear_decimal_publicado(delta, 4L, signo = TRUE),
+      " en escala [0, 1]."
+    )
+  }
+  descripcion <- if (aspecto == "faltantes") {
+    "Cambi\u00f3 la proporci\u00f3n de faltantes de la columna."
+  } else {
+    "Cambi\u00f3 la tasa de valores distintos de la columna."
+  }
+  list(
+    delta = delta, significativo = significativo, severidad = severidad,
+    evidencia = evidencia, descripcion = descripcion
+  )
+}
+
+# La fila de un cambio de rango, para las dos capas. `NULL` si no cambio.
+.cambio_rango_deriva <- function(rango_a, rango_b, umbral_cambio) {
+  if ((is.null(rango_a) && is.null(rango_b)) ||
+      (!is.null(rango_a) && !is.null(rango_b) &&
+       .rangos_iguales_deriva(rango_a, rango_b))) {
+    return(NULL)
+  }
+  magnitud <- .magnitud_rango(rango_a, rango_b)
+  significativo <- .alcanza_umbral_deriva(magnitud, umbral_cambio)
+  list(
+    severidad = if (significativo) "sospechoso" else "ok",
+    anterior = if (is.null(rango_a)) NA_character_ else rango_a$texto,
+    actual = if (is.null(rango_b)) NA_character_ else rango_b$texto,
+    magnitud = magnitud, significativo = significativo
+  )
+}
+
+# El rango numerico de tabla entera de un lado: del resumen SQL, o del perfil
+# que cubre la tabla. Las fechas no: el resumen SQL no calcula sus extremos, y
+# del otro lado quedarian comparadas contra nada.
+.rango_tabla_lado_deriva <- function(lado, minimo, maximo, fila, fechas = FALSE) {
+  if (is.null(lado$resumen)) {
+    if (!fechas) {
+      fila$minimo_fecha <- NA_character_
+      fila$maximo_fecha <- NA_character_
+    }
+    return(.rango_perfil(fila))
+  }
+  if (fechas) {
+    return(.rango_perfil(data.frame(
+      minimo = NA_real_, maximo = NA_real_,
+      minimo_fecha = as.character(minimo$valor),
+      maximo_fecha = as.character(maximo$valor), stringsAsFactors = FALSE
+    )))
+  }
+  .rango_perfil(data.frame(
+    minimo = suppressWarnings(as.numeric(minimo$valor)),
+    maximo = suppressWarnings(as.numeric(maximo$valor)),
+    minimo_fecha = NA_character_, maximo_fecha = NA_character_,
+    stringsAsFactors = FALSE
+  ))
+}
+
+# El motivo de una cifra SQL no comparable, con lo que el motor dijo de ella y,
+# si un lado no la pidio, la metrica de `perfilar_dbi()` que falta: medido, un
+# lado sin `basicos` dejaba el cambio de rango en
+# `estado_sql:no_solicitado_vs_calculado`, sin decir que faltaba pedir.
+.motivo_tabla_deriva <- function(motivo, anterior, actual, cifras) {
+  if (is.na(motivo)) return(motivo)
+  extra <- character()
+  lados <- list(anterior = anterior, actual = actual)
+  for (lado in names(lados)) {
+    cifra <- lados[[lado]]
+    if (identical(cifra$estado, "no_solicitado")) {
+      grupo <- names(.CAMPOS_METRICA_DBI)[vapply(
+        .CAMPOS_METRICA_DBI, function(x) any(cifras %in% x), logical(1L)
+      )]
+      extra <- c(extra, paste0(
+        "el lado ", lado, " no pidi\u00f3 ",
+        paste(cifras, collapse = " ni "),
+        if (length(grupo)) paste0(": falta la m\u00e9trica `", grupo[[1L]], "`") else ""
+      ))
+    } else if (length(cifra$motivo) == 1L && !is.na(cifra$motivo) &&
+               isTRUE(cifra$estado %in% .ESTADOS_SQL_SIN_VALOR)) {
+      extra <- c(extra, paste0(lado, ": ", cifra$motivo))
+    }
+  }
+  if (!length(extra)) return(motivo)
+  paste0(motivo, " (", paste(unique(extra), collapse = "; "), ")")
+}
+
+# Que es una columna para el vocabulario: la regla que usan el perfil, para
+# decidir que guarda, y la deriva, para decidir que compara.
+.clase_vocabulario <- function(columnas, indice, umbral_alta_cardinalidad) {
+  fila <- columnas[indice, , drop = FALSE]
+  distintos <- .valor_columna_deriva(fila, "n_distintos")
+  if (!isTRUE(.almacenamiento_caracter_equivalencia(columnas, indice)) ||
+      !isTRUE(distintos >= 1)) {
+    return("no_aplica")
+  }
+  tasa <- .valor_columna_deriva(fila, "tasa_distintos")
+  umbral <- suppressWarnings(as.numeric(umbral_alta_cardinalidad))
+  alta <- length(umbral) == 1L && isTRUE(tasa > umbral) &&
+    distintos >= .min_distintos_alta_cardinalidad
+  if (alta || (distintos >= 2 && isTRUE(tasa >= 1))) return("identificador")
+  if (distintos > .MAX_VALORES_VOCABULARIO) return("abierto")
+  "vocabulario"
+}
+
+# El vocabulario de una columna en un lado de la deriva, y si se puede comparar.
+# Se compara el de las columnas de texto o factor que el perfil guardo y que no
+# tienen la cardinalidad alta con que el perfil ya decide su hallazgo
+# `alta_cardinalidad` -tasa de distintos sobre `umbral_alta_cardinalidad`, con
+# al menos `.min_distintos_alta_cardinalidad` valores-, ni todos sus valores
+# distintos: en una columna de casi todos valores distintos cada entrega trae
+# valores nuevos por naturaleza, y compararlos seria una alarma por entrega.
+# Medido: con trece filas y despues tres, `cedula` e `id_tramite` -tres valores,
+# menos de diez- entraban como vocabulario. `estado` es `comparable`,
+# `identificador` (cardinalidad alta o todos distintos), `abierto` (mas valores
+# que los que se guardan, sin ser identificador), `protegido` (la proteccion o
+# `incluir_valores = FALSE` no lo guardan) o `no_aplica` (no es texto, o no
+# tiene valores).
+.vocabulario_lado_deriva <- function(perfil, indice) {
+  fila <- perfil$columnas[indice, , drop = FALSE]
+  clase <- .clase_vocabulario(
+    perfil$columnas, indice, perfil$meta$umbral_alta_cardinalidad
+  )
+  distintos <- .valor_columna_deriva(fila, "n_distintos")
+  if (!identical(clase, "vocabulario")) {
+    return(list(estado = clase, distintos = distintos))
+  }
+  protegido <- "dato_personal_protegido" %in% names(fila) &&
+    isTRUE(as.logical(fila[["dato_personal_protegido"]][[1L]]))
+  if (protegido || isFALSE(perfil$meta$incluir_valores)) {
+    return(list(estado = "protegido", distintos = distintos))
+  }
+  vocabulario <- perfil$general$vocabulario
+  tabla <- vocabulario[
+    .nombres_para_operar(as.character(vocabulario$columna)) %in%
+      .nombres_para_operar(as.character(fila[["columna"]][[1L]])), ,
+    drop = FALSE
+  ]
+  # Con la columna guardada y sin filas, sus valores se agruparon en mas de los
+  # que se guardan: es un dominio abierto.
+  if (!nrow(tabla)) return(list(estado = "abierto", distintos = distintos))
+  list(estado = "comparable", distintos = distintos, tabla = tabla)
+}
+
+# El cambio de vocabulario entre dos lados. Se gradua por la proporcion de las
+# filas que llevan valores que el otro lado no tenia -la mayor de las dos
+# direcciones-, no por el corrimiento de proporciones entre los valores que
+# siguen: medido, la misma distribucion de cuatro categorias remuestreada en
+# 200 filas corre la distancia de variacion total 0,06 de mediana de una
+# entrega a la otra, y pasa `umbral_cambio` en 31 de 50: esa alarma seria del
+# azar. Que un valor aparezca o desaparezca con peso no lo es: la misma prueba
+# no publico ninguna fila de vocabulario. `NULL` si no cambio el conjunto
+# de valores.
+.cambio_vocabulario_deriva <- function(anterior, actual, umbral_cambio,
+                                       umbral_error) {
+  clave_a <- .nombres_para_operar(anterior$valor)
+  clave_b <- .nombres_para_operar(actual$valor)
+  aparecidos <- !clave_b %in% clave_a
+  desaparecidos <- !clave_a %in% clave_b
+  if (!any(aparecidos) && !any(desaparecidos)) return(NULL)
+  masa_aparecida <- sum(actual$proporcion[aparecidos])
+  masa_desaparecida <- sum(anterior$proporcion[desaparecidos])
+  masa <- max(masa_aparecida, masa_desaparecida)
+  claves <- unique(c(clave_a, clave_b))
+  proporcion <- function(tabla, clave) {
+    p <- tabla$proporcion[match(claves, clave)]
+    p[is.na(p)] <- 0
+    p
+  }
+  distancia <- sum(abs(proporcion(anterior, clave_a) - proporcion(actual, clave_b))) / 2
+  significativo <- .alcanza_umbral_deriva(masa, umbral_cambio)
+  severidad <- if (!significativo) {
+    "ok"
+  } else if (.alcanza_umbral_deriva(masa, umbral_error)) {
+    "error"
+  } else {
+    "sospechoso"
+  }
+  fmt <- function(x) .formatear_decimal_publicado(x, 4L)
+  valores <- function(tabla, cuales) {
+    if (!any(cuales)) return("ninguno")
+    paste0(tabla$valor[cuales], " (", fmt(tabla$proporcion[cuales]), ")",
+           collapse = " | ")
+  }
+  list(
+    severidad = severidad, significativo = significativo, masa = masa,
+    anterior = paste(anterior$valor, collapse = " | "),
+    actual = paste(actual$valor, collapse = " | "),
+    evidencia = paste0(
+      "Aparecieron: ", valores(actual, aparecidos), ". Desaparecieron: ",
+      valores(anterior, desaparecidos), ". Proporci\u00f3n de filas con valores que ",
+      "la otra entrega no ten\u00eda: ", fmt(masa_aparecida), " en la actual y ",
+      fmt(masa_desaparecida), " en la anterior; distancia de variaci\u00f3n total ",
+      "entre las dos distribuciones: ", fmt(distancia), "."
+    )
+  )
+}
+
+# El cotejamiento de una columna en un lado (`NA` si no se leyo).
+.cotejamiento_lado_deriva <- function(lado, columna) {
+  tabla <- if (is.list(lado$resumen)) lado$resumen$meta$cotejamientos else NULL
+  if (!is.data.frame(tabla) || !nrow(tabla)) return(NA_character_)
+  indice <- match(.nombres_para_operar(columna),
+                  .nombres_para_operar(as.character(tabla$columna)))
+  if (is.na(indice)) NA_character_ else as.character(tabla$cotejamiento[[indice]])
+}
+
+# El tipo de una columna como lo declara el motor de un lado (`NA` si el lado
+# no es de una base o no lo guarda).
+.tipo_motor_lado_deriva <- function(lado, columna) {
+  tipos <- if (is.list(lado$resumen)) lado$resumen$meta$tipos_motor else NULL
+  if (!is.data.frame(tipos) || !nrow(tipos)) return(NA_character_)
+  indice <- match(.nombres_para_operar(columna),
+                  .nombres_para_operar(as.character(tipos$columna)))
+  if (is.na(indice)) NA_character_ else as.character(tipos$tipo[[indice]])
+}
+
+# Que dice un cambio de `tipo_declarado` y de que filas sale. Si los dos lados
+# cubren la tabla, el tipo del perfil es el de la tabla, como siempre. Si no, el
+# del perfil es el de las filas leidas: entre dos entregas del mismo
+# controlador, el tipo que declara el motor decide -igual, no hay cambio de
+# tipo; distinto, el cambio es de la tabla-; si no hay tipo del motor, la fila
+# queda rotulada `muestra`.
+.tipo_declarado_deriva <- function(lado_a, lado_b, nombre_a, nombre_b) {
+  if (isTRUE(lado_a$cubre) && isTRUE(lado_b$cubre)) {
+    return(list(omitir = FALSE, universo = NULL, evidencia = ""))
+  }
+  motor_a <- .tipo_motor_lado_deriva(lado_a, nombre_a)
+  motor_b <- .tipo_motor_lado_deriva(lado_b, nombre_b)
+  mismo <- !is.na(motor_a) && !is.na(motor_b) &&
+    identical(lado_a$conexion, lado_b$conexion)
+  if (mismo && identical(.minusculas_ascii(motor_a), .minusculas_ascii(motor_b))) {
+    return(list(omitir = TRUE))
+  }
+  universo <- function(lado) {
+    if (mismo || isTRUE(lado$cubre)) "tabla_completa" else "muestra"
+  }
+  list(
+    omitir = FALSE, universo = c(universo(lado_a), universo(lado_b)),
+    evidencia = if (mismo) {
+      paste0("Tipo que declara el motor: ", motor_a, " -> ", motor_b, ".")
+    } else ""
+  )
+}
+
+# La familia de tipo de una columna, para no comparar extremos ni conteos de
+# distintos entre representaciones distintas: un booleano contra un entero 0/1,
+# un texto contra una fecha o un entero. Medido: DuckDB `BOOLEAN` contra
+# SQLite `INTEGER` con los mismos valores publicaba `rango [0, 1] -> NA /
+# sospechoso`, y un `INTEGER` que pasa a `TEXT` con las mismas cifras, lo mismo.
+.familia_tipo_deriva <- function(tipo) {
+  tipo <- if (length(tipo) == 1L) as.character(tipo) else NA_character_
+  if (is.na(tipo)) return(NA_character_)
+  if (tipo %in% c("entero", "doble", "integer64")) return("numero")
+  if (tipo %in% c("texto", "factor", "factor-ordenado")) return("texto")
+  if (tipo %in% c("fecha", "fecha-hora")) return("fecha")
+  tipo
+}
+
+# Como se leyo cada lado, para la evidencia de la fila `muestra`.
+.texto_lectura_deriva <- function(muestra) {
+  if (!isTRUE(muestra$es_dbi)) return("perfil en memoria")
+  metodo <- if (is.na(muestra$metodo)) "m\u00e9todo sin declarar" else muestra$metodo
+  if (isTRUE(muestra$reproducible)) {
+    paste0(metodo, " (reproducible)")
+  } else if (isFALSE(muestra$reproducible)) {
+    paste0(metodo, " (no reproducible)")
+  } else {
+    metodo
+  }
+}
+
 #' Comparar dos perfiles y detectar deriva estructural
 #'
 #' Compara entregas sin exigir que tengan las mismas columnas. Devuelve cambios
 #' de esquema, tipos, faltantes, cardinalidad, rango, patrones y hallazgos como
 #' un objeto de datos filtrable.
 #'
-#' @param anterior,actual Objetos producidos por [perfilar()].
+#' @param anterior,actual Objetos producidos por [perfilar()],
+#'   [perfilar_dbi()] o [analizar()]. De un análisis se compara su perfil,
+#'   `$perfil`: sus mediciones y su evaluación tienen su propia serie en
+#'   [historico_calidad()]. Un objeto de `perfilar_dbi()` tiene que traer su
+#'   perfil de muestra (`bloque_muestra = "con_muestra"`, el valor por omisión):
+#'   sin él no hay tipos de columna ni nada medido sobre las filas, y se rechaza.
 #' @param umbral_cambio Diferencia mínima para considerar significativo un
 #'   cambio de proporción, cardinalidad o rango relativo. Cinco puntos
 #'   porcentuales evita elevar variaciones pequeñas a hallazgo.
@@ -1433,26 +2050,52 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #'   El atributo `campos_protegidos` declara lo que no se comparó porque la
 #'   protección de datos personales lo tapa: un data frame con `columna`,
 #'   `campo` y `lado` —`anterior` o `actual`—, la misma forma que usa
-#'   [comparar_equivalencia()]. El único campo que puede figurar es
-#'   `rango`. Está siempre, vacío si no hay nada que declarar, y `rbind()` une
-#'   los de todas las derivas.
+#'   [comparar_equivalencia()]. Los campos que pueden figurar son `rango` y
+#'   `vocabulario`. Está siempre, vacío si no hay nada que declarar, y `rbind()`
+#'   une los de todas las derivas.
+#'
+#'   `universo_anterior` y `universo_actual` dicen de qué filas sale la cifra de
+#'   cada lado: `"tabla_completa"` —un perfil en memoria, una muestra que cubre
+#'   la tabla o un agregado SQL calculado sobre la tabla entera—, `"muestra"`
+#'   —sólo las filas leídas, o los patrones y el tipo inferido que [perfilar()]
+#'   buscó en una `muestra` menor que la tabla— o `"mixto"` —los faltantes de un
+#'   objeto de [perfilar_dbi()] cuya muestra no cubre la tabla: los `NULL` que
+#'   cuenta el motor más los faltantes disfrazados estimados sobre la muestra—.
+#'   Las columnas presentes son las del esquema. El conteo de filas es de la
+#'   tabla entera: el total de la fuente o el de un perfil que la cubre; sin
+#'   ninguno de los dos —el presupuesto de consultas no alcanzó para el
+#'   `COUNT(*)`— la fila `filas` sale `no_comparable`, porque lo que queda es el
+#'   tamaño de la muestra. El tipo declarado y la unidad salen de la clase con
+#'   que R leyó las filas: de un perfil que no cubre la tabla se rotulan
+#'   `muestra`, salvo que el tipo que declara el motor respalde el cambio. Son
+#'   `NA` en las filas de configuración, en la fila `muestra` y en las que
+#'   declaran algo que no se comparó. Un hallazgo se rotula con las filas del perfil; el
+#'   diagnóstico que trabaja sobre una submuestra lo declara en
+#'   `cobertura_diagnosticos`. `rbind()` une una deriva guardada antes de que
+#'   existieran estas columnas con ellas en `NA`.
 #'
 #' @details
 #' Los patrones se comparan sobre el resumen acotado que conserva cada perfil,
 #' no sobre los valores originales ni una distribución completa. Si las dos
 #' corridas usaron configuraciones de patrones diferentes, se informa un error
-#' de comparabilidad y esa parte de la comparación se omite.
+#' de comparabilidad y esa parte de la comparación se omite. Dos perfiles que
+#' buscaron sus patrones en todas las filas de la tabla tienen la misma
+#' configuración aunque declaren otra `muestra`: con 400 filas, el `1e5` de
+#' [perfilar()] y el `Inf` que [perfilar_dbi()] le pasa a su muestra miden lo
+#' mismo. La fila publica lo declarado.
 #'
 #' Un perfil DBI con `meta$origen_dbi$muestreo` o con
 #' `meta$alcance$universo_id = "muestra_motor"` describe una muestra de la tabla
 #' fuente. Si uno de los perfiles es de ese tipo, las filas se comparan con
 #' `filas_totales_fuente` cuando está disponible, pero rangos, cardinalidades,
-#' patrones y hallazgos no se interpretan como cambios de la tabla completa. La
-#' proporción de faltantes sí se estima sobre las filas observadas y se compara;
-#' los extremos, las cardinalidades y los conteos absolutos que dependen del
-#' universo completo quedan fuera. La salida agrega una fila `muestra /
-#' no_comparable` y deja fuera esos aspectos; una muestra distinta no se
-#' convierte en un cambio ni en un hallazgo resuelto.
+#' patrones y hallazgos de la muestra no se interpretan como cambios de la tabla
+#' completa. La proporción de faltantes sí se estima sobre las filas observadas y
+#' se compara, con `universo = "muestra"`. La salida agrega una fila `muestra /
+#' no_comparable`, cuya evidencia dice cómo se leyó cada lado —el método y si la
+#' lectura es reproducible—, y deja fuera esos aspectos; una muestra distinta no
+#' se convierte en un cambio ni en un hallazgo resuelto. Con el objeto entero de
+#' [perfilar_dbi()], esos aspectos se toman del resumen SQL: ver la sección
+#' siguiente.
 #'
 #' Los nombres de columnas y las configuraciones que contienen texto del usuario
 #' se comparan por sus bytes, no por la marca de codificación ni por la
@@ -1471,9 +2114,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' declaradas —no los valores uno por uno—: la columna `aspecto` del resultado
 #' nombra, fila por fila, qué se comparó, y es la enumeración viva. **Un cambio de texto que no
 #' altera ninguna propiedad medida no aparece**: por ejemplo, si la moda de una
-#' columna pasa de `"Basico"` a `"Casico"` —mismo largo, misma forma de patrón,
-#' mismos conteos—, la comparación devuelve cero filas. Por eso el remedio ante
-#' una relectura sospechosa no es confiar en la comparación para detectarla.
+#' columna de texto libre pasa de `"Basico"` a `"Casico"` —mismo largo, misma
+#' forma de patrón, mismos conteos—, la comparación devuelve cero filas. En una
+#' columna categórica sí aparece, porque su vocabulario se compara (ver más
+#' abajo), pero sólo ahí. Por eso el remedio ante una relectura sospechosa no es
+#' confiar en la comparación para detectarla.
 #'
 #' El remedio es una línea, `saveRDS(perfil, archivo, version = 2)`, porque ese
 #' formato no anota codificación nativa y por lo tanto no traduce nada. La
@@ -1487,6 +2132,41 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' los datos, así que compararla llenaría la deriva de filas que no son deterioro.
 #' Quien necesite detectar una relectura corrompida tiene el remedio de una línea
 #' que está dos párrafos más abajo, que la evita en lugar de detectarla.
+#'
+#' El **vocabulario** de una columna categórica sí se compara: el conjunto de sus
+#' valores, que [perfilar()] guarda en `general$vocabulario` para las columnas de
+#' texto o factor de hasta 20 valores distintos. Una entrega que cambia todos sus
+#' valores con la misma forma —`A`/`B` por `X`/`Y`, en las mismas proporciones—
+#' no mueve la cardinalidad, los faltantes ni los patrones, y salía sin ninguna
+#' fila. La fila `vocabulario / modificado` nombra los valores que aparecieron y
+#' los que desaparecieron con su proporción, y `delta` es la proporción de filas
+#' que llevan valores que la otra entrega no tenía, la mayor de las dos
+#' direcciones: `sospechoso` desde `umbral_cambio`, `error` desde `umbral_error`,
+#' y `ok` por debajo, sin dejar de publicarse. Por **decisión**, el corrimiento
+#' de proporciones entre valores que siguen en las dos entregas no gradúa la
+#' fila —sólo se informa en la evidencia, como distancia de variación total—:
+#' la misma distribución de cuatro categorías remuestreada en 200 filas lo mueve
+#' 0,06 de mediana, y esa alarma sería del azar; por eso dos valores que
+#' intercambian su peso sin que aparezca ni desaparezca ninguno no dan fila.
+#' No se compara el vocabulario de una columna con cardinalidad alta —con el
+#' mismo criterio que su hallazgo `alta_cardinalidad`— ni el de una cuyos valores
+#' son todos distintos, que es un identificador y renueva sus valores en cada
+#' entrega; si un lado tiene más de 20 valores, la fila dice `no_comparable`
+#' con severidad `ok`. Un perfil sin `general$vocabulario` —de una versión
+#' anterior— se declara con la fila de campos ausentes, y el de una columna
+#' protegida o sin valores publicados (`incluir_valores = FALSE`) no se guarda y
+#' se declara en `campos_protegidos`.
+#'
+#' Las **marcas del plan de limpieza** —`.fila_duplicada`, `.grupo_duplicado`,
+#' `.ausente_<columna>` y `.outlier_<columna>`, que agrega [aplicar()]— se
+#' reconocen con la regla del plan: por su nombre exacto y su columna en la misma
+#' tabla, no por el punto inicial. Una marca que aparece o desaparece se publica
+#' con severidad `ok`, porque la tabla cambió de forma por la limpieza que se
+#' pidió y no por la entrega, y un hallazgo sobre una marca —los `NA` de
+#' `.grupo_duplicado` significan que la fila no está en ningún grupo— también,
+#' con la razón en la descripción. Una columna del usuario con exactamente uno de
+#' esos nombres se trata como marca, como ya hace el plan; una marca renombrada
+#' en el plan se trata como columna.
 #'
 #' Entre las propiedades comparadas está la **unidad** en la que la columna
 #' publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
@@ -1601,6 +2281,66 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' columnas cambiadas. Con las mismas columnas, el veredicto `resuelto` se
 #' conserva.
 #'
+#' @section Perfiles de una base de datos:
+#' Un objeto de [perfilar_dbi()] trae dos bloques con universos distintos: el
+#' resumen SQL (`resumen_tabla`), que calcula el motor, y el perfil de muestra
+#' (`perfil_muestra`), que calcula R sobre las filas leídas. Con `muestra = Inf`
+#' —el valor por omisión— la muestra cubre la tabla y la comparación es la
+#' misma que entre sus dos perfiles de muestra.
+#'
+#' Si la muestra de algún lado no cubre la tabla, cada aspecto se toma del
+#' universo más amplio que lo mide. El rango de las columnas numéricas y la
+#' cardinalidad salen del resumen SQL cuando la cifra tiene estado `calculado`
+#' sobre la tabla completa en los dos lados; del lado de un perfil en memoria,
+#' de ese perfil. Los faltantes conservan su definición —los `NULL` y los
+#' disfrazados—: los primeros los cuenta el motor sobre la tabla y los segundos
+#' se estiman sobre la muestra, porque el resumen SQL no reconoce centinelas ni
+#' cadenas de ausencia; por eso **un faltante disfrazado que entra en filas que
+#' la muestra no lee no aparece**, y la fila `muestra` lo dice. Las dos partes
+#' se suman sólo si miden sobre el mismo denominador: con una declaración de
+#' aplicabilidad o de columnas opcionales —que el resumen SQL no aplica— queda la
+#' estimación de la muestra, rotulada `muestra`. Los patrones, los hallazgos y el
+#' tipo inferido sólo los mide la muestra, y no se comparan como cambios de la
+#' tabla. Los extremos de una fecha —también la que se guarda como texto— se
+#' compararían si el resumen SQL los calculara en los dos lados; no los calcula,
+#' y la fila `rango / no_comparable` lo dice con el motivo
+#' `sin_cifra_sql:el_resumen_sql_no_calcula_minimo_fecha_ni_maximo_fecha`. El
+#' vocabulario tampoco: el resumen SQL no guarda valores, y sus columnas se
+#' declaran en una fila `vocabulario / no_comparable` con el motivo
+#' `sin_cifra_sql:el_resumen_sql_no_guarda_valores`.
+#'
+#' Una cifra SQL que en algún lado no se calculó sobre la tabla completa
+#' —`no_disponible`, `no_solicitado`, `omitido_por_costo`, `estimado_motor`
+#' (también contra otra estimación del motor), las de
+#' `universo = "muestra_motor"`— no se compara: una fila `no_comparable` por
+#' aspecto, con `columna` en `NA`, nombra en `evidencia` cada columna con su
+#' motivo, `estado_sql:<anterior>_vs_<actual>` o
+#' `universo_distinto:<anterior>_vs_<actual>`, con lo que el motor dijo de la
+#' cifra y, si un lado no la pidió, la métrica de `perfilar_dbi()` que falta
+#' (por ejemplo `basicos` para el rango). La que la protección omitió se declara
+#' en `campos_protegidos`.
+#'
+#' El rango y la cardinalidad del resumen SQL se comparan sólo entre columnas de
+#' la misma familia de tipo —número, texto, fecha, lógico—: un booleano contra un
+#' entero `0/1`, o un entero que pasa a texto con las mismas cifras, no tienen un
+#' rango que comparar, y el motivo es `tipo_distinto:<anterior>_vs_<actual>`; la
+#' fila de `tipo_declarado` ya dice el cambio.
+#'
+#' La cardinalidad de una columna de texto sólo se compara entre dos objetos del
+#' mismo controlador cuya columna tiene el mismo cotejamiento: el motor cuenta
+#' valores distintos con el cotejamiento de la columna —que puede ignorar
+#' mayúsculas o acentos— y R por bytes, y los mismos datos con `COLLATE NOCASE` y
+#' con `COLLATE BINARY` darían una deriva falsa. [perfilar_dbi()] lee el
+#' cotejamiento de cada columna en SQLite y en DuckDB (`meta$cotejamientos` del
+#' resumen); en otro motor, o contra un perfil en memoria, la cardinalidad de
+#' texto se declara `no_comparable` con el motivo
+#' `cotejamiento_no_verificado:...`, y con cotejamientos distintos,
+#' `cotejamiento_distinto:<anterior>_vs_<actual>`.
+#'
+#' Para comparar una entrega en la base con otra en un archivo, conviene leer el
+#' archivo con los tipos de la base: un número entero en un CSV se relee como
+#' entero, y el cambio de tipo se publica aunque los datos sean los mismos.
+#'
 #' @export
 #' @seealso [perfilar()], [detectar_deriva_calidad()], [reportar()],
 #'   [comparar_equivalencia()]
@@ -1613,8 +2353,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' comparar_perfiles(anterior, actual)
 comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
                               umbral_error = 0.20) {
-  anterior <- .validar_perfil_deriva(anterior, "anterior")
-  actual <- .validar_perfil_deriva(actual, "actual")
+  lado_a <- .lado_deriva(anterior, "anterior")
+  lado_b <- .lado_deriva(actual, "actual")
+  anterior <- lado_a$perfil
+  actual <- lado_b$perfil
   .exigir_orden_temporal(
     anterior$meta$fecha_hora, actual$meta$fecha_hora, "comparar_perfiles()",
     declaradas = isTRUE(anterior$meta$fecha_declarada) &&
@@ -1639,16 +2381,33 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   fecha_actual <- .fecha_utc(actual$meta$fecha_hora)
   mapa_a <- .mapa_columnas_perfil(anterior)
   mapa_b <- .mapa_columnas_perfil(actual)
-  muestra_a <- .informacion_muestra_deriva(anterior)
-  muestra_b <- .informacion_muestra_deriva(actual)
+  muestra_a <- lado_a$muestra
+  muestra_b <- lado_b$muestra
   muestra_no_comparable <- isTRUE(muestra_a$es_muestra) ||
     isTRUE(muestra_b$es_muestra)
+  # Con la muestra de algun lado que no cubre la tabla, lo que la muestra no
+  # puede afirmar sale de las cifras de tabla entera, si los dos lados las
+  # tienen: el resumen SQL de una base, o el perfil cuyas filas son la tabla.
+  capa_tabla <- muestra_no_comparable &&
+    (!is.null(lado_a$resumen) || lado_a$cubre) &&
+    (!is.null(lado_b$resumen) || lado_b$cubre)
+  no_comparables_tabla <- list(
+    cardinalidad = character(), rango = character(), vocabulario = character()
+  )
   cambios <- list()
   k <- 0L
   agregar <- function(columna, aspecto, cambio, severidad, valor_anterior,
                       valor_actual, delta = NA_real_, cambio_relativo = NA_real_,
-                      significativo = TRUE, descripcion, evidencia = "") {
+                      significativo = TRUE, descripcion, evidencia = "",
+                      universo = NULL) {
     k <<- k + 1L
+    if (is.null(universo)) {
+      clave <- if (length(columna) && !is.na(columna)) columna else NA_character_
+      universo <- c(
+        .universo_fila_deriva(aspecto, lado_a, mapa_a$indice[match(clave, mapa_a$clave)]),
+        .universo_fila_deriva(aspecto, lado_b, mapa_b$indice[match(clave, mapa_b$clave)])
+      )
+    }
     original <- if (length(columna) && !is.na(columna)) {
       indice <- match(columna, c(mapa_a$clave, mapa_b$clave))
       if (!is.na(indice)) {
@@ -1663,6 +2422,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       cambio_relativo = cambio_relativo, significativo = significativo,
       fecha_anterior = fecha_anterior, fecha_actual = fecha_actual,
       descripcion = descripcion, evidencia = evidencia,
+      universo_anterior = universo[[1L]], universo_actual = universo[[2L]],
       stringsAsFactors = FALSE
     )
   }
@@ -1673,16 +2433,32 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       if (is.finite(muestra_a$filas_observadas)) muestra_a$filas_observadas else NA,
       if (is.finite(muestra_b$filas_observadas)) muestra_b$filas_observadas else NA,
       significativo = FALSE,
-      descripcion = paste(
-        "Al menos uno de los perfiles DBI fue calculado sobre una muestra;",
-        "sus rangos, cardinalidades, patrones y hallazgos no se comparan como",
-        "cambios de la tabla fuente."
-      ),
+      descripcion = if (capa_tabla) {
+        paste(
+          "Al menos uno de los perfiles DBI fue calculado sobre una muestra;",
+          "sus patrones, hallazgos, vocabularios, extremos de fechas y tipos",
+          "inferidos no se comparan como cambios de la tabla fuente. El rango",
+          "num\u00e9rico y la cardinalidad salen del resumen SQL de la tabla",
+          "entera cuando sus cifras se pueden comparar -si no, una fila",
+          "`no_comparable` dice por qu\u00e9-, y los",
+          "faltantes suman los NULL que cuenta el motor y los disfrazados",
+          "estimados sobre las filas le\u00eddas: un faltante disfrazado que entra",
+          "en filas que la muestra no lee no aparece."
+        )
+      } else {
+        paste(
+          "Al menos uno de los perfiles DBI fue calculado sobre una muestra;",
+          "sus rangos, cardinalidades, patrones y hallazgos no se comparan como",
+          "cambios de la tabla fuente."
+        )
+      },
       evidencia = paste0(
         "Filas observadas: ", .texto_numero_deriva(muestra_a$filas_observadas),
         " -> ", .texto_numero_deriva(muestra_b$filas_observadas), "; total de",
         " la fuente: ", .texto_numero_deriva(muestra_a$filas_totales_fuente),
-        " -> ", .texto_numero_deriva(muestra_b$filas_totales_fuente), "."
+        " -> ", .texto_numero_deriva(muestra_b$filas_totales_fuente),
+        "; lectura: ", .texto_lectura_deriva(muestra_a), " -> ",
+        .texto_lectura_deriva(muestra_b), "."
       )
     )
   }
@@ -1696,6 +2472,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     agregar(
       NA_character_, aspecto, "no_comparable", "error",
       texto_lado(lados$anterior), texto_lado(lados$actual),
+      universo = c(NA_character_, NA_character_),
       descripcion = paste0(
         "Uno de los dos perfiles no trae los campos que esta versi\u00f3n necesita ",
         "para comparar ", gsub("_", " ", aspecto, fixed = TRUE),
@@ -1712,18 +2489,42 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 
   desaparecidas <- setdiff(mapa_a$clave, mapa_b$clave)
   aparecidas <- setdiff(mapa_b$clave, mapa_a$clave)
+  # Las marcas que agrega `aplicar()` -`.fila_duplicada`, `.grupo_duplicado`,
+  # `.ausente_<x>`, `.outlier_<x>`- se reconocen con la regla del plan, por su
+  # nombre exacto y su columna en la misma tabla. Comparar antes y despues de
+  # limpiar publicaba cada una como "Aparecio una columna", severidad `error`:
+  # la alarma era la limpieza que el usuario pidio. La fila queda -la tabla si
+  # cambio de forma- con severidad `ok`.
+  marcas_a <- mapa_a$clave[.marcas_del_plan(mapa_a$original)]
+  marcas_b <- mapa_b$clave[.marcas_del_plan(mapa_b$original)]
+  evidencia_marca <- paste(
+    "Es una marca del plan de limpieza: la agrega `aplicar()` y no es una",
+    "columna de la entrega. No se comparan sus m\u00e9tricas."
+  )
   for (columna in desaparecidas) {
+    marca <- columna %in% marcas_a
     agregar(
-      columna, "columna", "desaparecida", "error", columna, NA_character_,
-      descripcion = "La columna desapareci\u00f3 de la entrega actual.",
-      evidencia = "No se comparan sus m\u00e9tricas, patrones ni rango."
+      columna, "columna", "desaparecida", if (marca) "ok" else "error",
+      columna, NA_character_,
+      descripcion = if (marca) {
+        "Desapareci\u00f3 una marca que agrega el plan de limpieza."
+      } else "La columna desapareci\u00f3 de la entrega actual.",
+      evidencia = if (marca) evidencia_marca else {
+        "No se comparan sus m\u00e9tricas, patrones ni rango."
+      }
     )
   }
   for (columna in aparecidas) {
+    marca <- columna %in% marcas_b
     agregar(
-      columna, "columna", "aparecida", "error", NA_character_, columna,
-      descripcion = "Apareci\u00f3 una columna que no estaba en la entrega anterior.",
-      evidencia = "No existe una base anterior para sus m\u00e9tricas."
+      columna, "columna", "aparecida", if (marca) "ok" else "error",
+      NA_character_, columna,
+      descripcion = if (marca) {
+        "Apareci\u00f3 una marca que agrega el plan de limpieza."
+      } else "Apareci\u00f3 una columna que no estaba en la entrega anterior.",
+      evidencia = if (marca) evidencia_marca else {
+        "No existe una base anterior para sus m\u00e9tricas."
+      }
     )
   }
 
@@ -1751,6 +2552,17 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
     for (campo in tipos_comparables) {
       if (!.distinto_deriva(a[[campo]], b[[campo]])) next
+      universo_tipo <- NULL
+      evidencia_tipo <- ""
+      if (identical(campo, "tipo_declarado")) {
+        tipo <- .tipo_declarado_deriva(
+          lado_a, lado_b, mapa_a$original[match(columna, mapa_a$clave)],
+          mapa_b$original[match(columna, mapa_b$clave)]
+        )
+        if (isTRUE(tipo$omitir)) next
+        universo_tipo <- tipo$universo
+        evidencia_tipo <- tipo$evidencia
+      }
       # La unidad tiene DOS casos y no uno, y tratarlos igual publicaba una
       # afirmacion falsa. Con unidad en los dos lados -`m` contra `km`-, el mismo
       # numero significa otra cosa y eso es `error`. Con `NA` en uno de los dos,
@@ -1791,9 +2603,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       }
       agregar(
         columna, campo, "modificado", severidad, a[[campo]], b[[campo]],
-        descripcion = descripcion
+        descripcion = descripcion, evidencia = evidencia_tipo,
+        universo = universo_tipo
       )
     }
+    nombre_a <- mapa_a$original[match(columna, mapa_a$clave)]
+    nombre_b <- mapa_b$original[match(columna, mapa_b$clave)]
     for (especificacion in list(
       c(campo = "prop_faltantes_totales", aspecto = "faltantes"),
       c(campo = "tasa_distintos", aspecto = "cardinalidad")
@@ -1801,57 +2616,96 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       campo <- especificacion[["campo"]]
       aspecto <- especificacion[["aspecto"]]
       if (!aspecto %in% campos$comparables) next
-      if (.distinto_deriva(a[[campo]], b[[campo]])) {
-        delta <- b[[campo]] - a[[campo]]
-        # Con tolerancia, como `detectar_deriva_calidad()` en `historico.R` y
-        # `tablero-calidad.R` con los pesos. Sin ella la resta en coma flotante
-        # decide el veredicto: 0,65 -> 0,70 da 0,049999999999999933 y
-        # 0,70 -> 0,75 da 0,050000000000000044, asi que dos pares que publican
-        # el mismo `delta = 0,05` recibian veredictos distintos. El comentario
-        # de `historico.R` ya decia que compararlo con tolerancia en un archivo
-        # y sin ella en otro no es una decision sino una inconsistencia, y este
-        # archivo era el otro.
-        significativo <- .alcanza_umbral_deriva(delta, umbral_cambio)
-        # Que bajen los faltantes es una mejora, y por eso queda `ok`. La
-        # cardinalidad no tiene una direccion buena: la regla del signo valia
-        # igual para las dos, y un `id_tramite` unico que pasaba a tener la mitad
-        # repetida -tasa de 1 a 0,5, diez umbrales- salia `ok` con
-        # `significativo = TRUE`, mientras el arreglo inverso salia
-        # `sospechoso`. Un cambio significativo de cardinalidad es sospechoso en
-        # los dos sentidos, como el del rango, que tampoco tiene direccion.
-        severidad <- if (!significativo) {
-          "ok"
-        } else if (aspecto == "cardinalidad") {
-          "sospechoso"
-        } else if (delta < 0) {
-          "ok"
-        } else if (.alcanza_umbral_deriva(delta, umbral_error)) {
-          "error"
+      valor_a <- a[[campo]]
+      valor_b <- b[[campo]]
+      distintos <- list(a$n_distintos, b$n_distintos)
+      universo <- NULL
+      partes <- NULL
+      if (muestra_no_comparable && identical(aspecto, "faltantes")) {
+        faltantes_a <- .faltantes_lado_deriva(lado_a, a, nombre_a)
+        faltantes_b <- .faltantes_lado_deriva(lado_b, b, nombre_b)
+        valor_a <- faltantes_a$valor
+        valor_b <- faltantes_b$valor
+        universo <- c(faltantes_a$universo, faltantes_b$universo)
+        if ("mixto" %in% universo) partes <- list(faltantes_a, faltantes_b)
+      }
+      if (capa_tabla && identical(aspecto, "cardinalidad")) {
+        tasa_a <- .cifra_tabla_lado_deriva(lado_a, nombre_a, "tasa_distintos", a)
+        tasa_b <- .cifra_tabla_lado_deriva(lado_b, nombre_b, "tasa_distintos", b)
+        familia_a <- .familia_tipo_deriva(a$tipo_declarado)
+        familia_b <- .familia_tipo_deriva(b$tipo_declarado)
+        motivo <- if (!identical(familia_a, familia_b)) {
+          paste0("tipo_distinto:", familia_a, "_vs_", familia_b)
         } else {
-          "sospechoso"
-        }
-        evidencia <- if (aspecto == "cardinalidad") {
-          paste0(
-            "Valores distintos: ", a$n_distintos, " -> ", b$n_distintos,
-            "; tasas: ", .formatear_decimal_publicado(a[[campo]], 4L),
-            " -> ", .formatear_decimal_publicado(b[[campo]], 4L)
-          )
-        } else {
-          paste0(
-            "Cambio de ", .formatear_decimal_publicado(delta, 4L, signo = TRUE),
-            " en escala [0, 1]."
+          .motivo_tabla_deriva(
+            .motivo_cifras_sql_no_comparables(tasa_a, tasa_b), tasa_a, tasa_b,
+            c("n_distintos", "tasa_distintos")
           )
         }
-        descripcion <- if (aspecto == "faltantes") {
-          "Cambi\u00f3 la proporci\u00f3n de faltantes de la columna."
-        } else {
-          "Cambi\u00f3 la tasa de valores distintos de la columna."
+        # El motor cuenta los distintos de un texto con el cotejamiento de la
+        # columna, que puede ignorar mayusculas o acentos, y R por bytes. Medido:
+        # los mismos correos en una columna `COLLATE NOCASE` de SQLite daban
+        # tasa 0,5 contra 1 de un CSV, y contra la misma tabla con `COLLATE
+        # BINARY` en el mismo motor, tambien; nada en las cifras lo distingue de
+        # un cambio real. Se compara solo entre dos entregas del mismo
+        # controlador cuyo cotejamiento se leyo y es el mismo
+        # (`meta$cotejamientos`); no publicarla nunca perdia, medido, 20 de 20
+        # cambios reales en DuckDB.
+        if (is.na(motivo) && identical(familia_a, "texto")) {
+          cotejamiento_a <- .cotejamiento_lado_deriva(lado_a, nombre_a)
+          cotejamiento_b <- .cotejamiento_lado_deriva(lado_b, nombre_b)
+          motivo <- if (!identical(lado_a$conexion, lado_b$conexion)) {
+            "cotejamiento_no_verificado:texto_contado_por_motores_distintos"
+          } else if (is.na(cotejamiento_a) || is.na(cotejamiento_b)) {
+            "cotejamiento_no_verificado:el_motor_no_declara_el_cotejamiento_de_la_columna"
+          } else if (!identical(cotejamiento_a, cotejamiento_b)) {
+            paste0("cotejamiento_distinto:", cotejamiento_a, "_vs_", cotejamiento_b)
+          } else NA_character_
+        }
+        if (!is.na(motivo)) {
+          no_comparables_tabla$cardinalidad <- c(
+            no_comparables_tabla$cardinalidad, paste0(nombre_a, ": ", motivo)
+          )
+          next
+        }
+        valor_a <- tasa_a$valor
+        valor_b <- tasa_b$valor
+        distintos <- list(
+          .cifra_tabla_lado_deriva(lado_a, nombre_a, "n_distintos", a)$valor,
+          .cifra_tabla_lado_deriva(lado_b, nombre_b, "n_distintos", b)$valor
+        )
+        universo <- c("tabla_completa", "tabla_completa")
+      }
+      if (.distinto_deriva(valor_a, valor_b)) {
+        cambio <- .cambio_metrica_deriva(
+          aspecto, valor_a, valor_b, umbral_cambio, umbral_error, distintos
+        )
+        evidencia <- cambio$evidencia
+        if (!is.null(partes)) {
+          texto_parte <- function(x) {
+            if (identical(x$universo, "mixto")) {
+              paste0(
+                "NULL del motor ", .formatear_decimal_publicado(x$nulos, 4L),
+                " + disfrazados en la muestra ",
+                .formatear_decimal_publicado(x$disfrazados, 4L)
+              )
+            } else {
+              paste0(
+                if (identical(x$universo, "muestra")) "muestra " else "tabla entera ",
+                .formatear_decimal_publicado(x$valor, 4L)
+              )
+            }
+          }
+          evidencia <- paste0(
+            evidencia, " Anterior: ", texto_parte(partes[[1L]]), "; actual: ",
+            texto_parte(partes[[2L]]), "."
+          )
         }
         agregar(
-          columna, aspecto, "modificado", severidad, a[[campo]], b[[campo]],
-          delta = delta, significativo = significativo,
-          descripcion = descripcion,
-          evidencia = evidencia
+          columna, aspecto, "modificado", cambio$severidad, valor_a, valor_b,
+          delta = cambio$delta, significativo = cambio$significativo,
+          descripcion = cambio$descripcion,
+          evidencia = evidencia, universo = universo
         )
       }
     }
@@ -1931,30 +2785,191 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
           )
         }
       } else {
-        rango_a <- .rango_perfil(a)
-        rango_b <- .rango_perfil(b)
-        if ((!is.null(rango_a) || !is.null(rango_b)) &&
-            (is.null(rango_a) || is.null(rango_b) ||
-             !.rangos_iguales_deriva(rango_a, rango_b))) {
-          magnitud <- .magnitud_rango(rango_a, rango_b)
-          significativo <- .alcanza_umbral_deriva(magnitud, umbral_cambio)
+        rango <- .cambio_rango_deriva(.rango_perfil(a), .rango_perfil(b), umbral_cambio)
+        if (!is.null(rango)) {
           agregar(
-            columna, "rango", "modificado",
-            if (significativo) "sospechoso" else "ok",
-            if (is.null(rango_a)) NA_character_ else rango_a$texto,
-            if (is.null(rango_b)) NA_character_ else rango_b$texto,
-            cambio_relativo = magnitud, significativo = significativo,
+            columna, "rango", "modificado", rango$severidad, rango$anterior,
+            rango$actual, cambio_relativo = rango$magnitud,
+            significativo = rango$significativo,
             descripcion = "Cambi\u00f3 el rango observado de la columna."
           )
         }
       }
+      if (capa_tabla) {
+        # El rango numerico de la tabla entera, de las cifras SQL. Lo que la
+        # proteccion omitio se declara como el rango protegido de arriba.
+        minimo_a <- .cifra_tabla_lado_deriva(lado_a, nombre_a, "minimo", a)
+        maximo_a <- .cifra_tabla_lado_deriva(lado_a, nombre_a, "maximo", a)
+        minimo_b <- .cifra_tabla_lado_deriva(lado_b, nombre_b, "minimo", b)
+        maximo_b <- .cifra_tabla_lado_deriva(lado_b, nombre_b, "maximo", b)
+        privado <- c(
+          any(c(minimo_a$estado, maximo_a$estado) %in% "omitido_por_privacidad") ||
+            (is.null(lado_a$resumen) && protegido_a),
+          any(c(minimo_b$estado, maximo_b$estado) %in% "omitido_por_privacidad") ||
+            (is.null(lado_b$resumen) && protegido_b)
+        )
+        familia_a <- .familia_tipo_deriva(a$tipo_declarado)
+        familia_b <- .familia_tipo_deriva(b$tipo_declarado)
+        # Una fecha guardada como texto tambien: el perfil la lee como fecha y
+        # publica sus extremos, y el motor la cuenta como texto.
+        con_fecha <- function(fila) {
+          "minimo_fecha" %in% names(fila) && !is.na(fila[["minimo_fecha"]][[1L]])
+        }
+        fechas <- identical(familia_a, familia_b) &&
+          (identical(familia_a, "fecha") || (con_fecha(a) && con_fecha(b)))
+        if (fechas) {
+          # Los extremos de una fecha son `minimo_fecha` y `maximo_fecha`. El
+          # resumen SQL no los calcula -la columna sale `no_aplica`-, y sin esto
+          # un cambio real del maximo de fecha pasaba callado: lo que no se
+          # compara se declara.
+          minimo_a <- .cifra_tabla_lado_deriva(lado_a, nombre_a, "minimo_fecha", a)
+          maximo_a <- .cifra_tabla_lado_deriva(lado_a, nombre_a, "maximo_fecha", a)
+          minimo_b <- .cifra_tabla_lado_deriva(lado_b, nombre_b, "minimo_fecha", b)
+          maximo_b <- .cifra_tabla_lado_deriva(lado_b, nombre_b, "maximo_fecha", b)
+        }
+        motivo <- if (!identical(familia_a, familia_b)) {
+          paste0("tipo_distinto:", familia_a, "_vs_", familia_b)
+        } else if (fechas && (is.na(minimo_a$estado) || is.na(minimo_b$estado) ||
+                              is.na(maximo_a$estado) || is.na(maximo_b$estado))) {
+          "sin_cifra_sql:el_resumen_sql_no_calcula_minimo_fecha_ni_maximo_fecha"
+        } else {
+          motivo_minimo <- .motivo_tabla_deriva(
+            .motivo_cifras_sql_no_comparables(minimo_a, minimo_b), minimo_a,
+            minimo_b, if (fechas) "minimo_fecha" else c("minimo", "maximo")
+          )
+          if (is.na(motivo_minimo)) {
+            .motivo_tabla_deriva(
+              .motivo_cifras_sql_no_comparables(maximo_a, maximo_b), maximo_a,
+              maximo_b, if (fechas) "maximo_fecha" else c("minimo", "maximo")
+            )
+          } else motivo_minimo
+        }
+        if (any(privado)) {
+          campos_protegidos <- rbind(campos_protegidos, data.frame(
+            columna = nombre_a, campo = "rango",
+            lado = c("anterior", "actual")[privado], stringsAsFactors = FALSE
+          ))
+        } else if (!is.na(motivo)) {
+          no_comparables_tabla$rango <- c(
+            no_comparables_tabla$rango, paste0(nombre_a, ": ", motivo)
+          )
+        } else {
+          rango <- .cambio_rango_deriva(
+            .rango_tabla_lado_deriva(lado_a, minimo_a, maximo_a, a, fechas),
+            .rango_tabla_lado_deriva(lado_b, minimo_b, maximo_b, b, fechas),
+            umbral_cambio
+          )
+          if (!is.null(rango)) {
+            agregar(
+              columna, "rango", "modificado", rango$severidad, rango$anterior,
+              rango$actual, cambio_relativo = rango$magnitud,
+              significativo = rango$significativo,
+              descripcion = "Cambi\u00f3 el rango observado de la columna.",
+              universo = c("tabla_completa", "tabla_completa")
+            )
+          }
+        }
+      }
     }
+  }
+  # El vocabulario de las columnas categoricas. Va despues de las columnas
+  # porque su hueco en la capa SQL se declara con los de rango y cardinalidad.
+  if ("vocabulario" %in% campos$comparables) {
+    for (columna in comunes) {
+      indice_a <- mapa_a$indice[match(columna, mapa_a$clave)]
+      indice_b <- mapa_b$indice[match(columna, mapa_b$clave)]
+      nombre_a <- mapa_a$original[match(columna, mapa_a$clave)]
+      vocabulario_a <- .vocabulario_lado_deriva(anterior, indice_a)
+      vocabulario_b <- .vocabulario_lado_deriva(actual, indice_b)
+      estados <- c(vocabulario_a$estado, vocabulario_b$estado)
+      # Una columna que no es texto en algun lado ya tiene su fila de tipo; un
+      # identificador no tiene vocabulario, y su cambio lo dice la
+      # cardinalidad; una de dominio abierto en los dos, tampoco.
+      if (any(estados %in% c("no_aplica", "identificador")) ||
+          all(estados == "abierto")) next
+      if ("protegido" %in% estados) {
+        campos_protegidos <- rbind(campos_protegidos, data.frame(
+          columna = nombre_a, campo = "vocabulario",
+          lado = c("anterior", "actual")[estados == "protegido"],
+          stringsAsFactors = FALSE
+        ))
+        next
+      }
+      # Un lado de muestra no describe el vocabulario de la tabla. Con la capa
+      # SQL se declara, porque el resumen del motor no guarda valores; sin ella
+      # lo declara la fila `muestra`.
+      if (muestra_no_comparable) {
+        if (capa_tabla) {
+          no_comparables_tabla$vocabulario <- c(
+            no_comparables_tabla$vocabulario,
+            paste0(nombre_a, ": sin_cifra_sql:el_resumen_sql_no_guarda_valores")
+          )
+        }
+        next
+      }
+      if (!all(estados == "comparable")) {
+        agregar(
+          columna, "vocabulario", "no_comparable", "ok", NA_character_,
+          NA_character_, significativo = FALSE,
+          descripcion = paste(
+            "El vocabulario de la columna no se compara: en un lado tiene m\u00e1s",
+            "de", .MAX_VALORES_VOCABULARIO, "valores distintos y el perfil no",
+            "guarda sus valores."
+          ),
+          evidencia = paste0(
+            "Valores distintos: ", .texto_numero_deriva(vocabulario_a$distintos),
+            " -> ", .texto_numero_deriva(vocabulario_b$distintos), "."
+          )
+        )
+        next
+      }
+      cambio <- .cambio_vocabulario_deriva(
+        vocabulario_a$tabla, vocabulario_b$tabla, umbral_cambio, umbral_error
+      )
+      if (is.null(cambio)) next
+      agregar(
+        columna, "vocabulario", "modificado", cambio$severidad,
+        cambio$anterior, cambio$actual, delta = cambio$masa,
+        significativo = cambio$significativo,
+        descripcion = paste(
+          "Cambi\u00f3 el vocabulario de la columna: aparecieron valores que la",
+          "entrega anterior no ten\u00eda o desaparecieron valores que ten\u00eda."
+        ),
+        evidencia = cambio$evidencia
+      )
+    }
+  }
+  # Lo que el resumen SQL no permite comparar se declara, una fila por aspecto:
+  # sin ella, una cifra `no_disponible` en un lado se leia como "no cambio".
+  for (aspecto in names(no_comparables_tabla)) {
+    if (!length(no_comparables_tabla[[aspecto]])) next
+    agregar(
+      NA_character_, aspecto, "no_comparable", "sospechoso", NA_character_,
+      NA_character_, significativo = FALSE,
+      descripcion = paste0(
+        "En estas columnas la cifra de tabla entera no se puede comparar entre ",
+        "los dos lados; esa parte no se compara. La evidencia dice por qu\u00e9."
+      ),
+      evidencia = paste(no_comparables_tabla[[aspecto]], collapse = "; "),
+      universo = c(NA_character_, NA_character_)
+    )
   }
 
   config_a <- .configuracion_patrones_perfil(anterior)
   config_b <- .configuracion_patrones_perfil(actual)
+  # La `muestra` declarada no es lo que se midio: con 400 filas, `1e5` -la de
+  # `perfilar()`- e `Inf` -la que `perfilar_dbi()` le pasa- buscan los patrones
+  # en las mismas 400, y la fila declaraba las corridas no comparables, con
+  # severidad `error`, sobre los mismos datos. Si las dos muestras cubren la
+  # tabla, la cobertura es la misma. La fila publica lo declarado.
+  cubierta <- function(config, lado) {
+    if (isTRUE(lado$patrones_cubren)) config$muestra <- Inf
+    config
+  }
   patrones_comparables <- !is.null(config_a) && !is.null(config_b) &&
-    isTRUE(all.equal(config_a, config_b, check.attributes = FALSE))
+    (isTRUE(all.equal(config_a, config_b, check.attributes = FALSE)) ||
+       isTRUE(all.equal(cubierta(config_a, lado_a), cubierta(config_b, lado_b),
+                        check.attributes = FALSE)))
   if (!patrones_comparables) {
     agregar(
       NA_character_, "configuracion_patrones", "no_comparable", "error",
@@ -2220,13 +3235,41 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # no publicaba nada del crecimiento, aunque el perfil lo trae y la propia
   # evidencia de otras filas lo imprimia. Perder filas es sospechoso; ganarlas se
   # declara sin alarma.
+  #
+  # Sin el total de la fuente, las filas de un perfil de muestra son las de la
+  # muestra, no las de la tabla: medido, con `max_consultas = 12` -alcanza para
+  # la muestra y no para el `COUNT(*)`- se publicaba `filas 2000 -> 100 /
+  # sospechoso` rotulado `tabla_completa`, y el 100 era el tamano de la muestra.
   filas_a <- if (is.finite(muestra_a$filas_totales_fuente)) {
     muestra_a$filas_totales_fuente
-  } else anterior$meta$filas_totales
+  } else if (isTRUE(lado_a$cubre)) anterior$meta$filas_totales else NA_real_
   filas_b <- if (is.finite(muestra_b$filas_totales_fuente)) {
     muestra_b$filas_totales_fuente
-  } else actual$meta$filas_totales
-  if (is.numeric(filas_a) && is.numeric(filas_b) && length(filas_a) == 1L &&
+  } else if (isTRUE(lado_b$cubre)) actual$meta$filas_totales else NA_real_
+  sin_total <- c(
+    !isTRUE(lado_a$cubre) && !is.finite(muestra_a$filas_totales_fuente),
+    !isTRUE(lado_b$cubre) && !is.finite(muestra_b$filas_totales_fuente)
+  )
+  if (any(sin_total)) {
+    agregar(
+      NA_character_, "filas", "no_comparable", "sospechoso",
+      filas_a, filas_b, significativo = FALSE,
+      universo = c(NA_character_, NA_character_),
+      descripcion = paste(
+        "El total de filas de la fuente no se midi\u00f3 en un lado: su perfil solo",
+        "conoce las filas de su muestra, y no se comparan como filas de la tabla."
+      ),
+      evidencia = paste0(
+        "Sin `COUNT(*)` de la fuente en el lado ",
+        paste(c("anterior", "actual")[sin_total], collapse = " y el "),
+        "; filas de su muestra: ",
+        paste(c(
+          if (sin_total[[1L]]) .texto_numero_deriva(muestra_a$filas_observadas),
+          if (sin_total[[2L]]) .texto_numero_deriva(muestra_b$filas_observadas)
+        ), collapse = " y "), "."
+      )
+    )
+  } else if (is.numeric(filas_a) && is.numeric(filas_b) && length(filas_a) == 1L &&
       length(filas_b) == 1L && !is.na(filas_a) && !is.na(filas_b) &&
       filas_a != filas_b) {
     agregar(
@@ -2617,20 +3660,58 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     }
   }
 
+  # Un hallazgo sobre una marca del plan no describe los datos: el `NA` de
+  # `.grupo_duplicado` es "la fila no esta en ningun grupo", y despues de
+  # `aplicar()` la deriva publicaba sus "faltantes" como hallazgo aparecido con
+  # severidad `error`. Es el mismo motivo por el que el plan no propone acciones
+  # sobre las marcas. La fila queda, con severidad `ok`.
+  marcas <- c(
+    mapa_a$original[.marcas_del_plan(mapa_a$original)],
+    mapa_b$original[.marcas_del_plan(mapa_b$original)]
+  )
+  if (length(marcas) && length(cambios)) {
+    claves_marca <- .nombres_para_operar(marcas)
+    cambios <- lapply(cambios, function(x) {
+      if (x$aspecto[[1L]] %in% c("hallazgo", "severidad_hallazgo") &&
+          !is.na(x$columna[[1L]]) &&
+          .nombres_para_operar(as.character(x$columna[[1L]])) %in% claves_marca) {
+        x$severidad <- "ok"
+        x$descripcion <- paste(
+          x$descripcion, "La columna es una marca que agrega el plan de",
+          "limpieza, no un dato de la entrega."
+        )
+      }
+      x
+    })
+  }
+
   if (muestra_no_comparable && length(cambios)) {
     # La fila `muestra` y los cambios estructurales/configuraciones siguen
     # siendo observables. Lo que depende de los valores vistos queda declarado
     # en vez de presentarse como una deriva de la tabla fuente.
+    # El tipo inferido tambien: lo mide la muestra, y la ayuda lo dice. Medido:
+    # dos muestras de la misma tabla en otro orden daban `tipo_inferido entero
+    # -> texto / error`.
     aspectos_no_comparables <- c(
-      "cardinalidad", "alcance_resumen", "rango", "patron",
-      "hallazgo", "severidad_hallazgo"
+      "tipo_inferido", "cardinalidad", "alcance_resumen", "rango", "patron",
+      "vocabulario", "hallazgo", "severidad_hallazgo"
     )
+    # Lo que salio del resumen SQL o de un perfil de tabla entera queda: no
+    # describe la muestra.
     cambios <- cambios[!vapply(
-      cambios, function(x) x$aspecto[[1L]] %in% aspectos_no_comparables,
+      cambios, function(x) {
+        x$aspecto[[1L]] %in% aspectos_no_comparables &&
+          "muestra" %in% c(x$universo_anterior[[1L]], x$universo_actual[[1L]])
+      },
       logical(1L)
     )]
   }
 
+  if (capa_tabla) {
+    campos_protegidos <- campos_protegidos[
+      !duplicated(campos_protegidos), , drop = FALSE
+    ]
+  }
   rownames(campos_protegidos) <- NULL
   if (!length(cambios)) {
     resultado <- .deriva_perfil_vacia()
@@ -2869,6 +3950,69 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   .detalle_proteccion_campo_equivalencia(
     columnas$detalle_proteccion_personal[[indice]], campo
   )
+}
+
+# El estado y el alcance de cada cifra de un lado, para la regla de
+# `.motivo_cifras_sql_no_comparables()`. Un `perfil_dbi` los trae en
+# `resumen_tabla$sql`; un perfil de memoria cuenta sobre sus filas, que son la
+# tabla salvo que sea la muestra de una base. Un frame suelto no dice nada, y
+# devuelve `NULL`: se compara como siempre.
+.cifras_equivalencia <- function(x) {
+  if (inherits(x, "perfil_dbi")) {
+    resumen <- x$resumen_tabla
+    muestra <- .identidad_muestra_equivalencia(x)
+    # En `muestra_motor` todo el resumen sale de la muestra del motor, tambien
+    # lo que no deja fila en `sql` -la mediana, el desvio y la moda que no se
+    # pidieron como metricas se calculan sobre el spool-. Medido: dos muestras
+    # de la misma tabla seguian dando cuatro `materialmente_distinto` por esas
+    # cifras.
+    de_muestra <- identical(as.character(resumen$meta$universo), "muestra_motor")
+    return(function(columna, campo) {
+      cifra <- .cifra_sql_dbi(resumen, columna, campo)
+      if (is.na(cifra$estado) && de_muestra && campo %in% names(resumen$columnas)) {
+        cifra$estado <- "observado_muestra"
+        cifra$alcance <- "muestra"
+      }
+      cifra$muestra <- muestra
+      if (is.na(cifra$estado)) NULL else cifra
+    })
+  }
+  if (inherits(x, "perfil")) {
+    alcance <- if (isTRUE(.informacion_muestra_deriva(x)$es_muestra)) {
+      "muestra"
+    } else "tabla_completa"
+    muestra <- .identidad_muestra_equivalencia(x)
+    return(function(columna, campo) {
+      list(valor = NA, estado = "calculado", alcance = alcance, muestra = muestra)
+    })
+  }
+  NULL
+}
+
+# Que muestra describen las cifras de un objeto, si el objeto lo declara: el
+# `checksum` de la materializacion de `muestra_motor` -las mismas filas leidas-,
+# o la consulta de una muestra reproducible -el mismo orden unico sobre la misma
+# tabla-. `NA` si no lo declara: dos muestras sin identidad son independientes.
+.identidad_muestra_equivalencia <- function(x) {
+  texto <- function(v) {
+    if (length(v) == 1L && !is.na(v) && nzchar(as.character(v))) as.character(v) else NA_character_
+  }
+  if (inherits(x, "perfil_dbi")) {
+    muestreo <- x$resumen_tabla$meta$muestreo
+    if (is.list(muestreo)) {
+      identidad <- texto(muestreo$checksum)
+      if (!is.na(identidad)) return(paste0("checksum:", identidad))
+      if (isTRUE(muestreo$reproducible)) {
+        return(texto(paste0("sql:", muestreo$sql)))
+      }
+    }
+    return(NA_character_)
+  }
+  muestreo <- x$meta$origen_dbi$muestreo
+  if (is.list(muestreo) && isTRUE(muestreo$reproducible)) {
+    return(texto(paste0("sql:", muestreo$sql_muestra)))
+  }
+  NA_character_
 }
 
 .columnas_equivalencia <- function(x, nombre) {
@@ -3127,6 +4271,27 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' la columna pierde la zona y los instantes que denota son realmente otros,
 #' que es lo más importante que hay para informar en ese caso.
 #'
+#' Si uno de los lados es un objeto de [perfilar_dbi()], cada cifra de su
+#' resumen SQL lleva un estado y un alcance (`resumen_tabla$sql`), y una cifra
+#' que no se puede comparar con la del otro lado no se compara: queda en la
+#' tabla con veredicto `no_comparable`. El motivo es
+#' `estado_sql:<anterior>_vs_<actual>` si alguna no tiene valor —el presupuesto
+#' de consultas agotado la deja `no_disponible`— o se midió de otro modo
+#' —`calculado` contra `estimado_motor`—, y
+#' `universo_distinto:<anterior>_vs_<actual>` si se midieron sobre filas
+#' distintas: la misma tabla en `universo = "tabla_completa"` y en
+#' `"muestra_motor"` cuenta 3000 filas en `n` y 400 en `n_validos`, y esa
+#' diferencia no es del dato. Un perfil en memoria cuenta sobre la tabla entera,
+#' salvo que sea la muestra de una base. Dos cifras medidas igual —también dos
+#' estimaciones del mismo motor— se comparan como siempre, salvo que sean de
+#' muestras: dos muestras independientes —dos `muestra_motor` de la misma tabla,
+#' o la muestra de una base contra otra— no describen las mismas filas, y salen
+#' `no_comparable` con el motivo `universo_distinto:muestras_independientes`,
+#' salvo que los dos objetos declaren la misma muestra (el mismo `checksum` de
+#' la materialización, o la misma consulta de una muestra reproducible). La que
+#' la protección omitió se declara en `campos_protegidos`. Entre perfiles en
+#' memoria o frames `columnas` no hay estado que leer y nada de esto se aplica.
+#'
 #' @name comparar_equivalencia
 #' @usage comparar_equivalencia(anterior, actual, tolerancia)
 #' @export
@@ -3151,6 +4316,11 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     )
   }
   tolerancia <- as.numeric(tolerancia)
+  # Solo cuando entra un objeto de una base: entre dos perfiles de memoria o dos
+  # frames no hay estado que leer, y la comparacion es la de siempre.
+  regla_sql <- inherits(anterior, "perfil_dbi") || inherits(actual, "perfil_dbi")
+  cifras_anterior <- if (regla_sql) .cifras_equivalencia(anterior)
+  cifras_actual <- if (regla_sql) .cifras_equivalencia(actual)
   anterior <- .columnas_equivalencia(anterior, "anterior")
   actual <- .columnas_equivalencia(actual, "actual")
   mapa_anterior <- data.frame(
@@ -3360,6 +4530,44 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
           campo
         )
         next
+      }
+      # Una cifra del resumen SQL que no tiene valor, o que se midio sobre otras
+      # filas o de otro modo que la del otro lado, no se compara: medido, la
+      # misma tabla en `tabla_completa` y en `muestra_motor` publicaba
+      # `n_validos` 3000 contra 400 como `materialmente_distinto`, y con el
+      # presupuesto de consultas agotado, todo `no_comparable` sin decir por que.
+      cifra_a <- if (is.function(cifras_anterior)) {
+        cifras_anterior(columna, campo)
+      }
+      cifra_b <- if (is.function(cifras_actual)) {
+        cifras_actual(mapa_actual$original[[indice_b]], campo)
+      }
+      if (!is.null(cifra_a) && !is.null(cifra_b)) {
+        privado <- c(
+          identical(cifra_a$estado, "omitido_por_privacidad"),
+          identical(cifra_b$estado, "omitido_por_privacidad")
+        )
+        if (any(privado)) {
+          campos_protegidos <- rbind(campos_protegidos, data.frame(
+            columna = columna, campo = campo,
+            lado = c("anterior", "actual")[privado], stringsAsFactors = FALSE
+          ))
+          next
+        }
+        motivo_sql <- .motivo_cifras_sql_no_comparables(
+          cifra_a, cifra_b, exigir_tabla = FALSE
+        )
+        if (!is.na(motivo_sql)) {
+          k <- k + 1L
+          salida[[k]] <- list(
+            columna = columna, campo = campo,
+            valor_anterior = a, valor_actual = b,
+            diferencia_normalizada = NA_real_,
+            veredicto = "no_comparable", motivo = motivo_sql,
+            tipo_eje = tipo_eje[[1L]], tolerancia = tolerancia
+          )
+          next
+        }
       }
       a_comparable <- .valor_comparable_equivalencia(
         anterior, campo, indice_a
