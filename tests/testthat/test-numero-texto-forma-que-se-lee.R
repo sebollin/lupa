@@ -73,10 +73,13 @@ test_that("lo que la muestra no vio y no tiene la forma de un numero no entra al
       c("099.123.456", "099.123.457", "099.123.458")
     ),
     hexadecimal = caso_fuera(
-      c("1234,56", "2345,67"), c("0x1A", "0x1B", "0x1C")
+      c("1234,56", "2345,67"),
+      c("0x1A", "0x1B", "0x1C", "0x1D", "0x1E", "0x1F",
+        "0xA", "0xB", "0xC", "0xD")
     ),
     punto_final = caso_fuera(
-      c("1234,56", "2345,67"), c("5.", "6.", "7.")
+      c("1234,56", "2345,67"),
+      c("5.", "6.", "7.", "8.", "9.", "10.", "11.", "12.")
     )
   )
   for (nombre in names(casos)) {

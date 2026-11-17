@@ -1,8 +1,36 @@
+.valores_fecha_muestra <- function(dos_columnas = FALSE) {
+  meses <- c("ene", "feb", "mar", "abr", "may", "jun",
+             "jul", "ago", "sep", "oct", "nov", "dic")
+  for (i in 0:10000) {
+    candidatos <- c(
+      sprintf("%02d/%02d/%04d", (i %% 28L) + 1L, (i %% 12L) + 1L,
+              2023L + (i %% 3L)),
+      sprintf("%04d/%02d/%02d", 2023L + (i %% 3L), (i %% 12L) + 1L,
+              (i %% 28L) + 1L),
+      paste0((i %% 28L) + 1L, "-", meses[(i %% 12L) + 1L], "-",
+             2020L + (i %% 4L)),
+      sprintf("%04d-%02d-%02d", 2022L + (i %% 3L), 13L + (i %% 3L),
+              (i %% 28L) + 1L),
+      c("hola", "sin fecha", "desconocido", "xx", "n/a")[(i %% 5L) + 1L]
+    )
+    valores <- c(rep("2024-01-01", 95L), candidatos)
+    prueba <- if (dos_columnas) {
+      data.frame(
+        inicio = valores, fin = rep("2025-01-01", 100L),
+        stringsAsFactors = FALSE
+      )
+    } else {
+      data.frame(fecha = valores, stringsAsFactors = FALSE)
+    }
+    indices <- lupa:::.indices_huella_tabla(prueba, 20L)$indices
+    if (!any(indices > 95L)) return(valores)
+  }
+  NULL
+}
+
 test_that("el resumen de fechas declara lo que descarta la muestra", {
-  valores <- c(
-    rep("2024-01-01", 95L),
-    "01/01/2023", "2023/12/31", "1-ene-2022", "2022-13-99", "hola"
-  )
+  valores <- .valores_fecha_muestra()
+  expect_false(is.null(valores))
   perfil <- perfilar(
     data.frame(fecha = valores, stringsAsFactors = FALSE),
     muestra = 20L, analizar_dependencias = FALSE,
@@ -89,10 +117,8 @@ test_that("el resumen numerico declara conversiones descartadas de la muestra", 
 })
 
 test_that("el analisis temporal declara fechas que el formato muestreado no parsea", {
-  valores <- c(
-    rep("2024-01-01", 95L),
-    "01/01/2023", "2023/12/31", "1-ene-2022", "2022-13-99", "hola"
-  )
+  valores <- .valores_fecha_muestra()
+  expect_false(is.null(valores))
   datos <- data.frame(fecha = valores, stringsAsFactors = FALSE)
   perfil <- perfilar(
     datos, muestra = 20L, analizar_dependencias = FALSE,
@@ -111,10 +137,8 @@ test_that("el analisis temporal declara fechas que el formato muestreado no pars
 })
 
 test_that("la relacion de orden no compara columnas con conversion parcial", {
-  valores <- c(
-    rep("2024-01-01", 95L),
-    "01/01/2023", "2023/12/31", "1-ene-2022", "2022-13-99", "hola"
-  )
+  valores <- .valores_fecha_muestra(dos_columnas = TRUE)
+  expect_false(is.null(valores))
   perfil <- perfilar(
     data.frame(inicio = valores, fin = rep("2025-01-01", 100L)),
     muestra = 20L, analizar_dependencias = FALSE,

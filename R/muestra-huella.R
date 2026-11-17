@@ -1,6 +1,6 @@
 # Seleccion determinista de filas por contenido y numero de aparicion.
 
-.METODO_MUESTRA_HUELLA <- "huella_v1"
+.METODO_MUESTRA_HUELLA <- "huella_v2"
 .D16_HUELLA <- 65536
 .D32_HUELLA <- 4294967296
 .SEMILLA_HUELLA_FILA_1 <- 0x243f6a88
@@ -38,14 +38,31 @@
 
   modulo_1 <- .MODULO_TEXTO_HUELLA_1
   modulo_2 <- .MODULO_TEXTO_HUELLA_2
-  pesos_1 <- (as.numeric(posiciones) * 40503 + 17) %% modulo_1
-  terminos_1 <- ((flujo + 1) * pesos_1 + (flujo %% 251) * 8191 + 97) %% modulo_1
+  posiciones <- as.numeric(posiciones) - 1
+  flujo <- as.numeric(flujo)
+  # El termino de cada byte depende solo de su posicion (desde cero), de su
+  # valor y de la semilla: la clave es posicion * 256 + byte. Asi el hash de un
+  # valor no cambia con los otros valores de la columna. Al reducir a 32 bits,
+  # posiciones que difieren en 2^24 coinciden para el mismo byte.
+  posiciones <- posiciones %% 16777216
+  claves <- posiciones * 256 + flujo
+  largo_tabla <- max(longitudes) * 256
+  usar_tabla <- max(longitudes) <= 16777216 && largo_tabla < length(flujo)
+  termino <- function(semilla, modulo) {
+    if (usar_tabla) {
+      claves_tabla <- seq_len(largo_tabla) - 1
+      tabla <- .mezclar32_lsh(.suma_mod32_huella(claves_tabla, semilla)) %% modulo
+      tabla[claves + 1]
+    } else {
+      .mezclar32_lsh(.suma_mod32_huella(claves, semilla)) %% modulo
+    }
+  }
+  terminos_1 <- termino(semilla_1, modulo_1)
   sumas_1 <- rowsum(terminos_1, grupos, reorder = FALSE)[, 1L]
   base_1 <- (sumas_1 + (longitudes %% modulo_1) * 65521 +
     (as.numeric(semilla_1) %% modulo_1)) %% modulo_1
 
-  pesos_2 <- (as.numeric(posiciones) * 49157 + 23) %% modulo_2
-  terminos_2 <- ((flujo + 3) * pesos_2 + (flujo %% 239) * 12289 + 193) %% modulo_2
+  terminos_2 <- termino(semilla_2, modulo_2)
   sumas_2 <- rowsum(terminos_2, grupos, reorder = FALSE)[, 1L]
   base_2 <- (sumas_2 + (longitudes %% modulo_2) * 65519 +
     (as.numeric(semilla_2) %% modulo_2)) %% modulo_2

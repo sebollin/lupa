@@ -1,0 +1,22 @@
+test_that("los topes grandes conservan el valor y llegan al resolver", {
+  testthat::skip_on_cran()
+  tope <- 2^31 + 1
+  expect_silent(valor <- lupa:::.validar_limite_duplicados(tope, "tope"))
+  expect_type(valor, "double")
+  expect_identical(valor, tope)
+
+  datos <- data.frame(x = seq_len(3L), y = letters[seq_len(3L)])
+  for (argumento in c("max_bytes_muestra", "max_celdas_muestra")) {
+    alcance <- expect_silent(lupa:::.resolver_muestra_perfilado(
+      datos, muestra = 3L,
+      max_celdas_muestra = if (argumento == "max_celdas_muestra") tope else Inf,
+      max_bytes_muestra = if (argumento == "max_bytes_muestra") tope else Inf
+    ))
+    expect_identical(alcance[[argumento]], tope)
+    if (argumento == "max_bytes_muestra") {
+      expect_lte(alcance$bytes_muestra, tope)
+    } else {
+      expect_lte(alcance$celdas_efectivas, tope)
+    }
+  }
+})

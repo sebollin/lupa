@@ -292,8 +292,8 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   max_trabajo_vocabulario = list(clase = "limite"),
   max_trabajo_dependencias = list(clase = "limite"),
   max_largo_valor_vocabulario = list(clase = "limite"),
-  max_celdas_muestra = list(clase = "limite"),
-  max_bytes_muestra = list(clase = "limite"),
+  max_celdas_muestra = list(clase = "politica", fila = "configuracion_patrones"),
+  max_bytes_muestra = list(clase = "politica", fila = "configuracion_patrones"),
   avisar_costo_tabla_ancha = list(clase = "sin_hallazgo"),
   umbral_celdas_aviso_tabla_ancha = list(clase = "sin_hallazgo")
 )
@@ -309,11 +309,21 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 
 .configuracion_patrones_perfil <- function(perfil) {
   campos <- c(
-    "muestra", "max_patrones", "distinguir_mayusculas", "expandir",
-    "umbral_patron_raro"
+    "muestra", "muestra_efectiva", "max_celdas_muestra",
+    "max_bytes_muestra", "max_patrones", "distinguir_mayusculas",
+    "expandir", "umbral_patron_raro"
   )
   if (!all(campos %in% names(perfil$meta))) return(NULL)
-  perfil$meta[campos]
+  configuracion <- perfil$meta[campos]
+  efectiva <- suppressWarnings(as.numeric(configuracion$muestra_efectiva))
+  total <- suppressWarnings(as.numeric(perfil$meta$filas_totales))
+  if (length(efectiva) == 1L && length(total) == 1L &&
+      is.finite(efectiva) && is.finite(total) && efectiva >= total) {
+    # El crecimiento de una tabla completa no cambia la politica de patrones;
+    # solo un recorte efectivo debe distinguir la configuracion.
+    configuracion$muestra_efectiva <- Inf
+  }
+  configuracion
 }
 
 # La normalizacion es la cuarta politica que redefine lo que se mide, y la

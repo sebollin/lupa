@@ -243,7 +243,7 @@ test_that("patron_raro declara cuando no hay dominante suficiente", {
 
 test_that("la trazabilidad de patrones muestreados declara su alcance", {
   valores <- rep("AA-111", 2000L)
-  valores[c(1980L, 2000L)] <- c("S/0006", "Q:0018")
+  valores[c(1980L, 2000L)] <- c("S/0002", "Q:0004")
   datos <- data.frame(cod = valores)
   indices_muestra <- lupa:::.indices_huella_tabla(datos, 100L)$indices
   expect_true(all(c(1980L, 2000L) %in% indices_muestra))
@@ -338,7 +338,7 @@ test_that("la presentacion de patrones raros no recorta la trazabilidad", {
 })
 
 test_that("el alcance conserva muestreo y recorte de patrones", {
-  raros <- c("k", "x0002", "0012x", "x-0008", "0005", "A-I", "x_0006")
+  raros <- c("b", "x0001", "1x", "x-x", "1", "X-X", "b_a")
   valores <- rep("AB", 200L)
   valores[seq(1L, 13L, by = 2L)] <- raros
   datos <- data.frame(codigo = valores)

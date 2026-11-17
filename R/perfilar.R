@@ -248,6 +248,7 @@
     ))
     cabe_entera <- bytes_tabla <= max_bytes_muestra
   }
+  candidato_entero_medido <- is.finite(bytes_tabla)
   if (!cabe_entera && is.null(huella) && filas_totales > 1) {
     # Los topes recortan una tabla que no supera `muestra`: las filas que
     # quedan se eligen con la misma huella de los valores, no por posicion,
@@ -262,7 +263,34 @@
   bytes_sonda <- NA_real_
   bytes_vacios <- NA_real_
   filas_por_bytes <- Inf
-  if (is.finite(max_bytes_muestra) && filas_solicitadas > 0 && !cabe_entera) {
+  bytes_candidata <- NA_real_
+  if (filas_totales > 0 && !cabe_entera && is.finite(max_bytes_muestra)) {
+    bytes_candidata <- if (candidato_entero_medido) {
+      bytes_tabla
+    } else {
+      as.numeric(utils::object.size(
+        .muestra_tabla_datos(
+          datos, filas_candidatas, indices_muestra = indices_huella
+        )
+      ))
+    }
+  }
+  candidata_cabe <- !filas_totales || is.infinite(max_bytes_muestra) ||
+    cabe_entera || bytes_candidata <= max_bytes_muestra
+  if (!cabe_entera && !candidata_cabe) {
+    # La busqueda solo compara prefijos de menos de n filas, cuyo peso se
+    # verifica no decreciente al agregar filas.
+    filas_candidatas <- min(filas_candidatas, filas_totales - 1)
+  }
+  filas_estimadas <- filas_candidatas
+  if (is.finite(max_bytes_muestra) && filas_totales > 0 &&
+      !cabe_entera && !candidata_cabe) {
+    if (filas_candidatas < 1) {
+      .detener(
+        "`max_bytes_muestra` no permite materializar una fila de la muestra.",
+        call. = FALSE
+      )
+    }
     datos_vacios <- .muestra_tabla_datos(datos, 0L)
     bytes_vacios <- as.numeric(utils::object.size(datos_vacios))
     if (bytes_vacios > max_bytes_muestra) {
@@ -274,7 +302,7 @@
         call. = FALSE
       )
     }
-    filas_sonda <- min(filas_solicitadas, 100)
+    filas_sonda <- min(filas_candidatas, 100)
     datos_sonda <- .muestra_tabla_datos(
       datos, filas_sonda, indices_muestra = indices_huella
     )
@@ -287,7 +315,7 @@
     filas_por_bytes <- floor(
       max(0, as.numeric(max_bytes_muestra) - bytes_vacios) / bytes_por_fila
     )
-    filas_candidatas <- min(filas_candidatas, filas_por_bytes)
+    filas_estimadas <- min(filas_candidatas, filas_por_bytes)
   }
 
   if (filas_totales > 0 && filas_candidatas < 1) {
@@ -297,18 +325,34 @@
     )
   }
 
-  # La estimación de bytes sólo elige el rango; esta búsqueda comprueba el
-  # objeto materializado y evita que el redondeo de la sonda viole el tope.
+  # La estimacion solo elige el punto de entrada; las cotas se comprueban
+  # siempre sobre el objeto materializado.
   bytes_muestra <- if (!filas_totales) {
     as.numeric(utils::object.size(.muestra_tabla_datos(datos, 0L)))
   } else if (is.infinite(max_bytes_muestra)) {
     NA_real_
-  } else if (cabe_entera) {
-    bytes_tabla
+  } else if (cabe_entera || candidata_cabe) {
+    if (cabe_entera) bytes_tabla else bytes_candidata
   } else {
     lo <- 0
     hi <- as.integer(floor(filas_candidatas))
-    valido <- 0L
+    inicio <- as.integer(floor(filas_estimadas))
+    inicio <- max(0L, min(inicio, hi))
+    if (inicio == 0L) {
+      bytes_inicio <- bytes_vacios
+    } else {
+      bytes_inicio <- as.numeric(utils::object.size(
+        .muestra_tabla_datos(
+          datos, inicio, indices_muestra = indices_huella
+        )
+      ))
+    }
+    if (bytes_inicio <= max_bytes_muestra) {
+      lo <- inicio
+    } else {
+      hi <- inicio - 1L
+    }
+    valido <- lo
     while (lo <= hi) {
       medio <- floor((lo + hi) / 2)
       bytes_medio <- as.numeric(utils::object.size(
@@ -2081,9 +2125,12 @@
 #'   el umbral y el nuevo alcance. `Inf` desactiva este tope.
 #' @param max_bytes_muestra Maximo de bytes de la muestra materializada que
 #'   alimenta los diagnosticos que muestrean filas. Por defecto es `512 MiB`.
-#'   Si la tabla no supera `muestra` y cabe entera, se lee entera; si no, el
-#'   tamaño se estima sobre una sonda de hasta cien filas y se comprueba
-#'   sobre la muestra efectiva; si la cota reduce el alcance,
+#'   Si la tabla no supera `muestra` y cabe entera, se lee entera. Si no, la
+#'   muestra es el prefijo más largo de la huella que cabe en este tope y en
+#'   `max_celdas_muestra`: primero se mide el candidato entero y, sólo si no
+#'   cabe, una sonda de hasta cien filas elige por dónde empezar una búsqueda
+#'   que comprueba cada tamaño sobre el objeto materializado; si la cota reduce
+#'   el alcance,
 #'   `cobertura_diagnosticos` informa los bytes observados y el umbral. `Inf`
 #'   desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:
 #'   son parte de lo que se materializa —y el paquete los trata como datos, por

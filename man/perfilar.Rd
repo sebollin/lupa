@@ -1051,9 +1051,12 @@ el umbral y el nuevo alcance. \code{Inf} desactiva este tope.}
 
 \item{max_bytes_muestra}{Maximo de bytes de la muestra materializada que
 alimenta los diagnosticos que muestrean filas. Por defecto es \verb{512 MiB}.
-Si la tabla no supera \code{muestra} y cabe entera, se lee entera; si no, el
-tamaño se estima sobre una sonda de hasta cien filas y se comprueba
-sobre la muestra efectiva; si la cota reduce el alcance,
+Si la tabla no supera \code{muestra} y cabe entera, se lee entera. Si no, la
+muestra es el prefijo más largo de la huella que cabe en este tope y en
+\code{max_celdas_muestra}: primero se mide el candidato entero y, sólo si no
+cabe, una sonda de hasta cien filas elige por dónde empezar una búsqueda
+que comprueba cada tamaño sobre el objeto materializado; si la cota reduce
+el alcance,
 \code{cobertura_diagnosticos} informa los bytes observados y el umbral. \code{Inf}
 desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:
 son parte de lo que se materializa —y el paquete los trata como datos, por

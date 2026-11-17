@@ -183,12 +183,26 @@ test_that("una fecha que dos lecturas aceptan entra en la traza del anio corto",
 fuera_de_la_muestra <- 2:10
 
 test_that("el anio corto se traza sobre la columna entera, no sobre lo que vio la muestra", {
-  # 380 `01/12/20`, 10 `13/01/20` y 10 `12/31/20`, con una muestra de 20: la
-  # muestra ve `12/31/20` y no `13/01/20`, asi que solo publica `%m/%d/%y`,
-  # pero las 400 filas tienen el anio con dos cifras.
-  datos <- fechas(
-    rep("01/12/20", 380L), rep("13/01/20", 10L), rep("12/31/20", 10L)
-  )
+  # 380 `01/12/20`, que se lee de las dos maneras, 10 de una fecha que solo se
+  # lee dia/mes (el dia pasa de 12) y 10 de una que solo se lee mes/dia, con
+  # una muestra de 20: la muestra ve la de mes/dia y no la de dia/mes, asi que
+  # solo publica `%m/%d/%y`, pero las 400 filas tienen el anio con dos cifras.
+  # Las dos fechas se eligen por el valor: el primer par cuyas filas de dia/mes
+  # quedan todas fuera de la muestra y alguna de mes/dia adentro.
+  dia_mes <- sprintf("%02d/%02d/20", rep(13:28, each = 12L), rep(1:12, 16L))
+  mes_dia <- sprintf("%02d/%02d/20", rep(1:12, 16L), rep(13:28, each = 12L))
+  datos <- NULL
+  for (i in seq_along(dia_mes)) {
+    prueba <- fechas(
+      rep("01/12/20", 380L), rep(dia_mes[[i]], 10L), rep(mes_dia[[i]], 10L)
+    )
+    indices <- lupa:::.indices_huella_tabla(prueba, 20L)$indices
+    if (!any(indices %in% 381:390) && any(indices %in% 391:400)) {
+      datos <- prueba
+      break
+    }
+  }
+  expect_false(is.null(datos))
   indices_muestra <- lupa:::.indices_huella_tabla(datos, 20L)$indices
   expect_false(any(indices_muestra %in% 381:390))
   expect_true(any(indices_muestra %in% 391:400))

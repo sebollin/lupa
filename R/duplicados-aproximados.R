@@ -3,7 +3,13 @@
       (!is.infinite(x) && x != floor(x))) {
     .detener("`", nombre, "` debe ser un entero positivo o Inf.", call. = FALSE)
   }
-  if (is.infinite(x)) Inf else as.integer(x)
+  if (is.infinite(x)) {
+    Inf
+  } else if (x <= .Machine$integer.max) {
+    as.integer(x)
+  } else {
+    as.double(x)
+  }
 }
 
 # Jaro-Winkler y las distancias de edicion fueron concebidas para nombres,

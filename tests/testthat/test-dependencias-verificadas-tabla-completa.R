@@ -14,13 +14,13 @@ panel_alineado <- function() {
   d <- data.frame(entidad = entidad, categoria = categoria,
                   stringsAsFactors = FALSE)
   d <- rbind(d, data.frame(entidad = "E0051", categoria = "A"))
-  # Cincuenta filas de 25 entidades, elegidas para quedar fuera de las 100
+  # Cincuenta filas de 26 entidades, elegidas para quedar fuera de las 100
   # prioridades menores de la tabla nueva. La relacion completa queda por
   # debajo de 0,995 aunque la muestra la vea exacta.
   corregidas <- c(
-    3420, 3405, 5912, 5989, 1931, 1930, 4091, 4151, 1548, 1471,
+    3420, 3405, 5912, 5989, 1931, 1930, 4091, 4151, 1, 1471,
     1183, 1107, 2876, 2822, 1208, 1246, 291, 273, 4066, 3997,
-    1920, 1813, 4211, 4249, 5748, 5658, 2522, 2535, 3664, 3684,
+    2, 1813, 4211, 4249, 5748, 5658, 2522, 2535, 3664, 3684,
     4817, 4833, 187, 172, 1015, 1011, 467, 437, 3204, 3240,
     2699, 2653, 4385, 4345, 2474, 2426, 3766, 3826, 4464, 4467
   )

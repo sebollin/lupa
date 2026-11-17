@@ -29,10 +29,21 @@ testthat::skip_on_cran()
   h$evidencia[h$tipo_hallazgo == tipo]
 }
 
+.o14_datos_patron_raro <- function() {
+  posiciones <- seq(1L, 10000L, by = 1000L)
+  for (raro in sprintf("c-%02d", 2:99)) {
+    g <- rep("C001", 10000L)
+    g[posiciones] <- raro
+    datos <- data.frame(g = g, stringsAsFactors = FALSE)
+    indices <- lupa:::.indices_huella_tabla(datos, 100L)$indices
+    if (any(indices %in% posiciones)) return(datos)
+  }
+  NULL
+}
+
 test_that("un patron raro medido sobre la muestra lo declara en la evidencia", {
-  g <- rep("C001", 10000L)
-  g[seq(1L, 10000L, by = 1000L)] <- "c-02"
-  datos <- data.frame(g = g, stringsAsFactors = FALSE)
+  datos <- .o14_datos_patron_raro()
+  expect_false(is.null(datos))
   muestreado <- perfilar(datos, muestra = 100)
   evidencia <- .o14_evidencia(muestreado, "patron_raro")
   # La premisa: la muestra ve el patron raro.

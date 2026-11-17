@@ -15,7 +15,7 @@
   periódica se ve en la proporción que tiene, y agregar filas conserva la mayor
   parte de la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
   `clave`, agregar o quitar una columna cambia la muestra. `meta$muestra_huella`
-  declara el método (`huella_v1`) y las columnas que entraron; las que no se
+  declara el método (`huella_v2`) y las columnas que entraron; las que no se
   reducen a un valor por fila (listas, matrices) quedan fuera. Una tabla que
   se lee entera da los mismos hallazgos y las mismas cifras que antes; sólo
   cambia el orden de los ejemplos que cita una evidencia, que ahora sigue el
@@ -26,13 +26,19 @@
   su propia muestra de `muestra_asociacion` filas (10.000 por omisión).
 - Una tabla que no supera `muestra` y cabe en `max_celdas_muestra` y en
   `max_bytes_muestra` se lee entera sin medir antes una sonda; entonces
-  `meta$bytes_sonda` queda en `NA`. Antes, una columna `factor` con muchos
-  niveles hacía que las 100 filas de la sonda parecieran pesar como miles,
-  porque cada subconjunto arrastra todos los niveles, y la tabla se recortaba
-  sin necesidad: 50.000 filas con un factor de 50.000 niveles se perfilaban
-  sobre 16.631, con 512 MB de tope para una tabla de 4 MB. Cuando un tope sí
-  recorta una tabla que no supera `muestra`, todos los diagnósticos miran las
-  mismas filas, elegidas por la huella, y `meta$muestra_huella` lo declara.
+  `meta$bytes_sonda` queda en `NA`. Cuando un tope recorta, la muestra es el
+  prefijo más largo de la huella que cabe en los dos topes: primero se mide el
+  candidato entero, y la sonda de cien filas sólo elige por dónde empezar la
+  búsqueda cuando el candidato no cabe. Antes la sonda fijaba el techo, y una
+  columna `factor` con muchos niveles hacía que sus 100 filas parecieran pesar
+  como miles, porque cada subconjunto arrastra todos los niveles (lo mismo con
+  textos largos repetidos): 50.000 filas con un factor de 50.000 niveles se
+  perfilaban sobre 16.631, con 512 MB de tope para una tabla de 4 MB, y una de
+  60.000 × 20 sobre 14.733 cuando el tope de celdas permitía 50.000. Ahora la
+  primera se lee entera y la segunda llega a las 50.000, también con más filas
+  que `muestra`. Cuando un tope recorta una tabla que no supera `muestra`, todos
+  los diagnósticos miran las mismas filas, elegidas por la huella, y
+  `meta$muestra_huella` lo declara.
 - `analizar()` calcula esa selección una sola vez y la comparten todos sus
   diagnósticos, y las funciones de diagnóstico llamadas solas
   (`descubrir_patrones()`, `inferir_tipo()`, `detectar_formatos_fecha()`,
@@ -97,6 +103,12 @@
   `configuracion_patrones / no_comparable` porque declaren otra `muestra`: con
   los valores por omisión (`1e5` en `perfilar()`, `Inf` en `perfilar_dbi()`)
   una base contra un archivo nunca comparaba patrones.
+- `configuracion_patrones` compara también `max_celdas_muestra`,
+  `max_bytes_muestra` y la muestra efectiva. Un hallazgo que aparecía o
+  desaparecía porque un tope cambió las filas de la muestra salía `nuevo` o
+  `resuelto` sin una fila de configuración que lo explicara. Una tabla leída
+  entera cuenta como muestra `Inf`: una tabla que crece sin que la muestra deje
+  filas afuera no cambia la configuración.
 - `comparar_equivalencia()` aplica la misma regla a las cifras de
   `perfilar_dbi()`: una cifra sin valor, medida sobre otras filas o de otro modo
   que la del otro lado sale `no_comparable` con el motivo. La misma tabla en
@@ -135,6 +147,12 @@
 
 ## Correcciones
 
+- Los límites que se dan como enteros (`max_celdas_muestra`,
+  `max_bytes_muestra`, `umbral_celdas_aviso_tabla_ancha`, `max_filas_huerfanas`
+  y los de `detectar_duplicados_aproximados()`) aceptan valores mayores que
+  2^31 - 1. Antes se convertían en `NA` con un aviso de coerción, y
+  `perfilar(max_bytes_muestra = 2^31 + 1)` abortaba con «valor ausente donde
+  TRUE/FALSE es necesario».
 - Las relaciones aritméticas entre columnas ya no se publican como cumplidas
   escondiendo las filas que no las cumplen. Con datos redondeados la constante
   se lee de los datos, y una lectura gruesa podía correrse lo justo para
