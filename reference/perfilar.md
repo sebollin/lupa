@@ -997,19 +997,21 @@ perfilar(
   cifra explica al menos una fila más: la de más filas dentro menos
   cifras —cinco cifras más que solo se tragan dos filas rotas de
   importes grandes no se pagan, y una que explica una fila sana sí—,
-  entre las que explican al menos `umbral` de las filas de la mejor y
-  con al menos una fila por cifra. La recíproca corta también es una
-  constante corta: `y ~= x / 7` cuesta la cifra del 7, como `k` cuesta
-  las suyas, y le gana a `0.143`, que dejaba afuera filas sanas; con
-  costos iguales gana la forma directa, y una recíproca que termina se
-  escribe como ese decimal (`1/0.4` es `2.5`). En un empate gana la más
-  larga solo si cada fila que agrega está en el cuarto de mayor magnitud
-  de las que explica o a menos de dos medios cuantos de la corta, no
-  pierde ninguna de las de la corta que le quede a menos de esa
-  distancia, y la corta no explica exactas las suyas: un truncado falla
-  primero las filas grandes y deja afuera otras por un pelo, y una fila
-  rota en el medio no compra una cifra. Una que explica más filas que
-  otra igual de corta o más y pierde algunas de las de esa paga dos
+  entre las que explican al menos `umbral` de las filas de la mejor —o
+  el 80 % si las explican exactas— y con al menos una fila por cifra. La
+  recíproca corta también es una constante corta: `y ~= x / 7` cuesta la
+  cifra del 7, como `k` cuesta las suyas, y le gana a `0.143`, que
+  dejaba afuera filas sanas; con costos iguales gana la forma directa, y
+  una recíproca que termina se escribe como ese decimal (`1/0.4` es
+  `2.5`). En un empate —también contra una recíproca que solo ahorra la
+  cifra de la división frente a una directa más larga que la contiene—
+  gana la más larga solo si cada fila que agrega está en el cuarto de
+  mayor magnitud de las que explica o a menos de dos medios cuantos de
+  la corta, no pierde ninguna de las de la corta que le quede a menos de
+  esa distancia, y la corta no explica exactas las suyas: un truncado
+  falla primero las filas grandes y deja afuera otras por un pelo, y una
+  fila rota en el medio no compra una cifra. Una que explica más filas
+  que otra igual de corta o más y pierde algunas de las de esa paga dos
   veces cada fila que pierde, salvo que alguna de las que solo explica
   ella le quede cerca a la otra. Y una corta que explica exactas todas
   sus filas no la gana ninguna más larga que las contiene: con
@@ -1020,32 +1022,35 @@ perfilar(
   otra más larga si explica casi todas las filas que esa deja a más de
   dos medios cuantos —todas salvo `1 - umbral`, y al menos dos— sin
   perder ninguna de las que esa explica, como un tipo de cambio largo
-  contra su truncado. Si las dos columnas admiten esa lectura, con
-  soporte las dos y la tolerancia de una el doble o más que la de la
-  otra en la misma columna, se comparan con la fina —una fila que solo
-  cae adentro con la gruesa no cuenta— y la gruesa gana solo si explica
-  más filas y paga sus cifras, contadas en la fina —las de su forma
-  corta, directa o recíproca—; si no, la de la constante claramente más
-  corta (`1.22` y no `0.8196...`), la que tiene soporte —con cotas
-  parecidas, contado en las filas que la gruesa explica con la fina—, la
-  que explica más filas pagando sus cifras y la de la resolución más
-  fina, en ese orden. Con cotas parecidas, cada una cuenta las filas que
-  explica con su propia tolerancia, salvo la franja entre las dos: ahí
-  la gruesa cuenta sólo si su redondeo la explica mejor que las rotas
-  que caen justo afuera de su ventana, medidas con la constante de más
-  cifras de las dos —en `y = round(x / 1.105)` en enteros la franja es
-  redondeo de `y`, uno de cada diez residuos, y `x ~= y * 1.105` la
-  acusaba; en `y = round(1.22 * x)` con rotas por una unidad, la fila de
-  la franja es una rota más—; las filas fuera de la retícula de alguna
-  de las dos no cuentan para ninguna, y en la gruesa cuentan como
-  explicadas las que caen justo en su medio cuanto, un empate del
-  redondeo: `y = round(0.9 * x)` se lee `y ~= x * 0.9` sin acusar las
-  filas que R redondea al par; con una tolerancia el doble de la otra
-  esos empates no cuentan, porque ahí cae una fila corrida un cuanto.
-  Con todo igual, la de menos cifras, la que acusa más y la directa
-  (`y ~= x * 3.75` y no `x ~= y / 3.75`). La que la tolerancia relativa
-  reconoce y ninguna resolución explica se descarta, se cuenta en
-  `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto` y
+  contra su truncado. Si las dos columnas admiten esa lectura y la
+  tolerancia de una es el doble o más que la de la otra en la misma
+  columna, se comparan con la fina —una fila que solo cae adentro con la
+  gruesa no cuenta, y si la fina no alcanza el criterio pero concentra
+  en su ventana los pares distintos no nulos que la gruesa explica por
+  encima de la cota de azar, la gruesa tampoco se acepta cuando calla
+  todas las filas o la fina es exacta—; con soporte las dos, la gruesa
+  gana solo si explica más filas y paga sus cifras, contadas en la fina
+  —las de su forma corta, directa o recíproca—; si no, la de la
+  constante claramente más corta (`1.22` y no `0.8196...`), la que tiene
+  soporte —con cotas parecidas, contado en las filas que la gruesa
+  explica con la fina—, la que explica más filas pagando sus cifras y la
+  de la resolución más fina, en ese orden. Con cotas parecidas, cada una
+  cuenta las filas que explica con su propia tolerancia, salvo la franja
+  entre las dos: ahí la gruesa cuenta sólo si su redondeo la explica
+  mejor que las rotas que caen justo afuera de su ventana, medidas con
+  la constante de más cifras de las dos —en `y = round(x / 1.105)` en
+  enteros la franja es redondeo de `y`, uno de cada diez residuos, y
+  `x ~= y * 1.105` la acusaba; en `y = round(1.22 * x)` con rotas por
+  una unidad, la fila de la franja es una rota más—; las filas fuera de
+  la retícula de alguna de las dos no cuentan para ninguna, y en la
+  gruesa cuentan como explicadas las que caen justo en su medio cuanto,
+  un empate del redondeo: `y = round(0.9 * x)` se lee `y ~= x * 0.9` sin
+  acusar las filas que R redondea al par; con una tolerancia el doble de
+  la otra esos empates no cuentan, porque ahí cae una fila corrida un
+  cuanto. Con todo igual, la de menos cifras, la que acusa más y la
+  directa (`y ~= x * 3.75` y no `x ~= y / 3.75`). La que la tolerancia
+  relativa reconoce y ninguna resolución explica se descarta, se cuenta
+  en `meta$aritmetica_columnas$proporcionalidades_descartadas_cuanto` y
   deja una fila en `cobertura_diagnosticos` con la relación y el motivo;
   si la resolución de alguna de las dos columnas es compatible con la
   relación, se publica con la tolerancia relativa. Lo mismo vale para
