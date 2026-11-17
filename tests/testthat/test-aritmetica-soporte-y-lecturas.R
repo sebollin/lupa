@@ -800,3 +800,168 @@ test_that("la rival que traga una rota y pierde sanas no gana el cambio", {
   expect_length(r$h, 1L)
   expect_identical(r$h[[1L]]$trazabilidad[[1L]]$indices_fila, rota)
 })
+
+test_that("una reciproca que solo ahorra la cifra de la division empata con la directa entera", {
+  skip_on_cran()
+  # y = round(x * 39.8734, 2) en 25 filas sanas: `1/0.02508` ahorra solo una
+  # cifra frente a su decimal directo `39.873` y dejaba afuera la fila 8
+  # (x = 0.75, y = 29.91) por un pelo. `39.8734` explica las 25 sin perder
+  # ninguna.
+  x_cent <- c(28L, 53L, 49L, 16L, 69L, 77L, 64L, 75L, 100L, 15L, 30L, 14L, 6L,
+              82L, 38L, 73L, 68L, 16L, 7L, 15L, 91L, 50L, 54L, 33L, 29L)
+  y_cent <- (398734L * x_cent + 5000L) %/% 10000L
+  expect_true(all(abs(10000L * y_cent - 398734L * x_cent) <= 5000L))
+  r <- prop_de(data.frame(x = x_cent / 100, y = y_cent / 100))
+  expect_length(r$h, 1L)
+  expect_match(r$h[[1L]]$descripcion, "y ~= x * 39.8734 ", fixed = TRUE,
+               useBytes = TRUE)
+  expect_equal(r$h[[1L]]$n_afectados, 0)
+})
+
+test_that("una constante exacta en las filas sanas no se descarta por el piso de una larga que traga rotas", {
+  skip_on_cran()
+  # y = x / 4 en 20 filas con tres rotas por cinco centavos: `1/3.99995`
+  # explicaba 18 filas (16 sanas y dos rotas) y subia el piso a 18, dejando
+  # afuera a `1/4` (17 sanas exactas) y acusando la sana 18.
+  x1 <- c(5705, 1502, 1644, 1724, 3065, 2293, 9654, 1558, 8045, 6522,
+          7342, 3691, 1510, 6952, 486, 1715, 376, 9205, 4429, 7043)
+  y1_cent <- 25 * x1
+  rotas1 <- c(3L, 7L, 9L)
+  y1_cent[rotas1] <- y1_cent[rotas1] + 5
+  expect_identical(which(y1_cent != 25 * x1), rotas1)
+  k1 <- lupa:::.constante_por_intervalos_aritmetica(x1, y1_cent / 100, 0.025, 0.25)
+  expect_identical(as.vector(k1), 0.25)
+  expect_identical(attr(k1, "cifras"), 1L)
+  r1 <- prop_de(data.frame(x = x1, y = y1_cent / 100))
+  expect_length(r1$h, 0L)
+
+  # Lo mismo con importes grandes e y = 3.75 * x: `3.75000000018` explicaba 18
+  # filas (16 sanas y dos rotas) y acusaba la sana 4.
+  x2 <- c(131918469, 44496973, 52028630, 160195871, 6565510, 137873294,
+          104026207, 45904400, 113866661, 86862171, 14809644, 116895062,
+          50384664, 134793257, 137723479, 89135147, 143579009, 157268029,
+          49621968, 70075776)
+  y2 <- 3.75 * x2
+  rotas2 <- c(5L, 17L, 18L)
+  y2[rotas2] <- y2[rotas2] + 0.05
+  k2 <- lupa:::.constante_por_intervalos_aritmetica(x2, y2, 0.025, 3.75)
+  expect_identical(as.vector(k2), 3.75)
+  r2 <- prop_de(data.frame(x = x2, y = y2))
+  expect_length(r2$h, 0L)
+})
+
+test_that("la lectura gruesa no suplanta a la fina cuando la fina concentra las filas sin alcanzar el criterio", {
+  skip_on_cran()
+  # x = 1:20 e y = round(x * 0.22, 2) con tres rotas: la lectura de y explica
+  # 17 de 20 (0,85 < 0,9), y la de x -22 veces mas gruesa- publicaba
+  # `x ~= y * 4.5` sin filas discrepantes o `4.435` callando una rota.
+  x <- 1:20
+  y_cent <- 22L * x
+  y1 <- y_cent / 100
+  y1[c(11L, 12L, 14L)] <- y1[c(11L, 12L, 14L)] + 0.05
+  expect_length(prop_de(data.frame(x = x, y = y1))$h, 0L)
+
+  y2 <- y_cent / 100
+  y2[c(4L, 10L, 16L)] <- y2[c(4L, 10L, 16L)] + 0.20
+  expect_length(prop_de(data.frame(x = x, y = y2))$h, 0L)
+
+  # Y con una respuesta truncada `trunc(cant * 39.8734)` y dos rotas (+20): la
+  # lectura de `cant` con `0.025` (tolerancia 40 veces mas ancha) las callaba.
+  cant <- c(5L, 19L, 38L, 13L, 28L, 53L, 44L, 2L, 31L, 58L, 11L, 47L, 22L, 9L,
+            35L, 60L, 16L, 41L, 25L, 7L, 50L, 14L, 33L, 56L, 18L, 45L, 29L, 4L,
+            39L, 52L, 12L, 48L, 21L, 8L, 36L, 59L, 15L, 42L, 26L, 6L)
+  y_tr <- (398734L * cant) %/% 10000L
+  y_tr[c(5L, 22L)] <- y_tr[c(5L, 22L)] + 20L
+  expect_length(prop_de(data.frame(cant = cant, y = y_tr))$h, 0L)
+})
+
+test_that("no se callan tablas con rotas senaladas cuando la gruesa o la larga no pierden sanas", {
+  skip_on_cran()
+  # y = round(x / 11, 2) en 20 filas con tres rotas por cinco centavos: la
+  # lectura de y queda en 17 de 20 (< 0,9), pero la de x con `k = 11` alcanza
+  # 18 de 20 y senala dos de las tres rotas sin acusar ninguna sana.
+  x1 <- c(758, 40860, 13130, 2574, 109127, 6852, 4845, 4063, 15195, 1166,
+          5595, 7207, 36954, 2275, 6928, 2575, 2463, 1541, 26990, 2714)
+  y1_cent <- (100 * x1 + 5) %/% 11
+  rotas1 <- c(7L, 17L, 19L)
+  y1_cent[rotas1] <- y1_cent[rotas1] + 5
+  r1 <- prop_de(data.frame(x = x1, y = y1_cent / 100))
+  expect_length(r1$h, 1L)
+  if (length(r1$h)) {
+    expect_identical(r1$h[[1L]]$trazabilidad[[1L]]$indices_fila, c(17L, 19L))
+  }
+
+  # y = 0.4 * x sobre multiplos de 0,5 en 20 filas con tres rotas (+0,05): la
+  # constante que alcanza 18 de 20 contiene las 17 sanas enteras y senala dos
+  # rotas sin acusar sanas.
+  x2 <- c(597, 216, 65, 260.5, 915.5, 523, 688, 752, 90.5, 376.5,
+          859.5, 743, 5, 126.5, 948.5, 178.5, 829, 921.5, 905, 929.5)
+  y2 <- 0.4 * x2
+  rotas2 <- c(3L, 12L, 15L)
+  y2[rotas2] <- y2[rotas2] + 0.05
+  r2 <- prop_de(data.frame(x = x2, y = y2))
+  expect_length(r2$h, 1L)
+  if (length(r2$h)) {
+    expect_identical(r2$h[[1L]]$trazabilidad[[1L]]$indices_fila, c(3L, 12L))
+  }
+})
+
+test_that("la lectura gruesa verdadera no se descarta cuando la fina solo cubre una subreticula o un truncado sano", {
+  skip_on_cran()
+  # Horas a centavos con un cuarto de las filas en cuartos de hora e
+  # y = round(4 * x) (100 filas sanas): la lectura inversa fina solo cubre las
+  # 31 filas de los cuartos (< 0,8), y la directa gruesa publica `y ~= x * 4`
+  # sin filas discrepantes.
+  x1_cent <- c(28202L, 31159L, 6272L, 79073L, 450L, 5476L, 16426L, 8125L,
+               97770L, 56325L, 81901L, 36980L, 20825L, 46763L, 65959L, 90925L,
+               43750L, 25063L, 2071L, 4389L, 4959L, 78300L, 11020L, 35292L,
+               402L, 44990L, 92527L, 23749L, 65985L, 60687L, 86199L, 20700L,
+               57742L, 72866L, 36050L, 17791L, 9325L, 39750L, 52250L, 52980L,
+               10175L, 34661L, 17829L, 3852L, 98475L, 67451L, 89309L, 80475L,
+               70927L, 81103L, 79750L, 48188L, 45283L, 75300L, 60204L, 19701L,
+               44948L, 24642L, 68995L, 3728L, 80751L, 87137L, 15809L, 88475L,
+               26788L, 64425L, 97216L, 93318L, 84664L, 54875L, 97700L, 40559L,
+               87239L, 58150L, 28961L, 38025L, 25994L, 85949L, 55L, 18526L,
+               90900L, 88163L, 44888L, 23300L, 39774L, 12021L, 58553L, 39175L,
+               33350L, 29375L, 68391L, 75050L, 22513L, 67860L, 1548L, 70750L,
+               35295L, 98008L, 77925L, 26846L)
+  x1 <- x1_cent / 100
+  y1 <- round(4 * x1)
+  r1 <- prop_de(data.frame(x = x1, y = y1))
+  expect_length(r1$h, 1L)
+  if (length(r1$h)) {
+    expect_match(r1$h[[1L]]$descripcion, "y ~= x * 4 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_equal(r1$h[[1L]]$n_afectados, 0)
+  }
+
+  # Importes a centavos con un quinto en cuartos e y = round(0.4 * x, 1) con
+  # tres filas rotas (+0,5): la directa gruesa publica `y ~= x * 0.4` y senala
+  # exactamente las tres rotas.
+  x2_cent <- c(19554L, 38150L, 15486L, 52525L, 82264L, 63450L, 60586L, 74452L,
+               90378L, 34396L, 73004L, 9950L, 68703L, 39515L, 90875L, 41759L,
+               87162L, 35556L, 43305L, 68211L, 37475L, 27694L, 27750L, 47693L,
+               93645L, 71146L, 15335L, 89775L, 88401L, 32289L, 45857L, 33743L,
+               6648L, 63119L, 34618L, 65970L, 80634L, 92949L, 31281L, 45620L,
+               80160L, 16342L, 83850L, 82303L, 10250L, 63393L, 1578L, 84171L,
+               16446L, 99874L, 6525L, 22925L, 17475L, 55787L, 92762L, 37454L,
+               24240L, 86094L, 87249L, 40077L, 22225L, 37790L, 96880L, 98225L,
+               92271L, 56236L, 91403L, 41514L, 56475L, 14257L, 12739L, 16992L,
+               31575L, 45375L, 15953L, 84622L, 60911L, 16600L, 11548L, 36938L,
+               33917L, 63550L, 29600L, 27588L, 93997L, 95013L, 21992L, 20309L,
+               94526L, 463L, 59650L, 76979L, 76783L, 1043L, 19794L, 2129L,
+               73587L, 82313L, 73084L, 86048L)
+  x2 <- x2_cent / 100
+  y2 <- round(0.4 * x2, 1)
+  rotas2 <- c(45L, 67L, 95L)
+  y2[rotas2] <- y2[rotas2] + 0.5
+  r2 <- prop_de(data.frame(x = x2, y = y2))
+  expect_length(r2$h, 1L)
+  if (length(r2$h)) {
+    expect_match(r2$h[[1L]]$descripcion, "y ~= x * 0.4 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_identical(r2$h[[1L]]$trazabilidad[[1L]]$indices_fila, rotas2)
+  }
+})
+
+

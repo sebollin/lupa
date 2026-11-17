@@ -81,6 +81,20 @@
 
 ## Correcciones
 
+- Las relaciones aritméticas entre columnas ya no se publican como cumplidas
+  escondiendo las filas que no las cumplen. Con datos redondeados la constante
+  se lee de los datos, y una lectura gruesa podía correrse lo justo para
+  tragarse las filas rotas: con un IVA del 22 % en 20 filas y tres rotas salía
+  `x ~= y * 4.5` «en todas las filas», y con un tipo de cambio truncado,
+  `cant ~= y * 0.025`. Ahora esa lectura no se publica cuando una más fina
+  explica al menos el 80 % de las filas y deja las rotas afuera. Un tipo de
+  cambio de cuatro decimales se lee directo (`y ~= x * 39.8734`), y no como la
+  recíproca corta que acusaba una fila sana (`y ~= x / 0.02508`); y constantes
+  como `3.99995` o `3.75000000018`, que acusaban una fila sana y callaban dos
+  rotas, no se publican cuando la relación no alcanza el criterio. Medido sobre
+  más de 20.000 tablas de constantes, redondeos y truncados: ninguna relación
+  sana deja de publicarse y ninguna fila sana nueva queda acusada.
+
 - La limpieza por omisión ya no destruye letras rotas que el detector no
   reconoce. «Škoda» leída como latin-1 es `Å`, un espacio duro y `koda`: el
   detector no la ve, y `normalizar_espacios_invisibles` cambiaba el espacio

@@ -853,11 +853,14 @@ todas las filas, y \code{k} es la constante en la que cada cifra explica al meno
 una fila más: la de más filas dentro menos cifras —cinco cifras más que
 solo se tragan dos filas rotas de importes grandes no se pagan, y una que
 explica una fila sana sí—, entre las que explican al menos \code{umbral} de las
-filas de la mejor y con al menos una fila por cifra. La recíproca corta
+filas de la mejor —o el 80 \% si las explican exactas— y con al menos una
+fila por cifra. La recíproca corta
 también es una constante corta: \verb{y ~= x / 7} cuesta la cifra del 7, como
 \code{k} cuesta las suyas, y le gana a \code{0.143}, que dejaba afuera filas sanas;
 con costos iguales gana la forma directa, y una recíproca que termina se
-escribe como ese decimal (\code{1/0.4} es \code{2.5}). En un empate gana la
+escribe como ese decimal (\code{1/0.4} es \code{2.5}). En un empate —también contra
+una recíproca que solo ahorra la cifra de la división frente a una directa
+más larga que la contiene— gana la
 más larga solo si cada fila que agrega está en el cuarto de mayor
 magnitud de las que explica o a menos de dos medios cuantos de la corta, no
 pierde ninguna de las de la corta que le quede a menos de esa distancia,
@@ -876,9 +879,13 @@ redondeo y después el más cercano a la constante de mínimos cuadrados
 si explica casi todas las filas que esa deja a más de dos medios cuantos
 —todas salvo \code{1 - umbral}, y al menos dos— sin perder ninguna de las que
 esa explica, como un tipo de cambio largo contra su truncado. Si las dos
-columnas admiten esa lectura, con soporte las dos y la tolerancia de una el
+columnas admiten esa lectura y la tolerancia de una es el
 doble o más que la de la otra en la misma columna, se comparan con la fina
-—una fila que solo cae adentro con la gruesa no cuenta— y la gruesa gana
+—una fila que solo cae adentro con la gruesa no cuenta, y si la fina no
+alcanza el criterio pero concentra en su ventana los pares distintos no
+nulos que la gruesa explica por encima de la cota de azar, la gruesa
+tampoco se acepta cuando calla todas las filas o la fina es exacta—; con
+soporte las dos, la gruesa gana
 solo si explica más filas y paga sus cifras, contadas en la fina —las de
 su forma corta, directa o recíproca—; si no, la de la constante claramente
 más corta (\code{1.22} y no \verb{0.8196...}), la que tiene soporte —con cotas

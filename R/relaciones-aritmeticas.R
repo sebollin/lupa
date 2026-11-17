@@ -1028,7 +1028,7 @@
                                             .Machine$double.xmin))
     if (!.cumple_criterio_aritmetica(mean(
       abs(r - esperado_mediana) <= 2 * cota * relativa_base
-    ), umbral)) {
+    ), min(umbral, 0.8))) {
       return(no_alcanza)
     }
   }
@@ -1050,7 +1050,18 @@
   if (!.cumple_criterio_aritmetica(mean(cumple), umbral) ||
       sum(cumple & barrido[comparables]) < attr(constante, "cifras")) {
     if (solo_consistencia) return(no_aplica)
-    return(no_alcanza)
+    if (!.cumple_criterio_aritmetica(mean(cumple), min(umbral, 0.8))) {
+      return(no_alcanza)
+    }
+    exacta <- any(cumple) &&
+      all(abs(r[cumple] - esperado[cumple]) <= 8 * .Machine$double.eps *
+            pmax(1, abs(r[cumple]), abs(esperado[cumple])))
+    return(list(
+      aplica = TRUE, alcanza = FALSE, cota = cota, cuanto = cuanto$cuanto,
+      constante = as.vector(constante),
+      cifras = attr(constante, "cifras", exact = TRUE),
+      mediana = mediana, cumple = cumple, exacta = exacta
+    ))
   }
   if (solo_consistencia) return(list(aplica = FALSE, alcanza = FALSE, consistente = TRUE))
   if (guardado) {
@@ -1111,11 +1122,15 @@
   # que lo alcanzan: con `y = round(x * 0.012345, 2)` sobre x de 100 a 1000,
   # `1/81` -dos cifras y la division- explicaba 25 de 30 y le ganaba por
   # cifras a `0.012345`, que explicaba las 27 sanas, y la relacion se callaba.
+  # Salvo que una constante explique exactas todas sus filas desde 0,8 del
+  # mejor: con 17 sanas exactas de 20 y tres rotas, una constante larga que
+  # se traga dos rotas llegaba a 18 y el piso dejaba afuera a la exacta.
+  piso_exacto <- max(max(conteo) - 16L, 0.8 * max(conteo))
   piso <- max(max(conteo) - 16L, umbral * max(conteo))
   if (max(conteo) >= umbral * length(base)) {
     piso <- max(piso, umbral * length(base) - 1e-9)
   }
-  tramos <- which(conteo >= piso & conteo > 0L)
+  tramos <- which(conteo >= piso_exacto & conteo > 0L)
   tramos <- tramos[tramos < length(puntos)]
   inferior <- puntos[tramos]
   superior <- puntos[tramos + 1L]
@@ -1138,14 +1153,38 @@
     cifras_reciproca[is.finite(recuperada) & recuperada >= inferior &
                        recuperada <= superior] <- k
   }
+  cifras_directa <- cifras
   reciproca <- cifras_reciproca < cifras
   forma_reciproca <- signif(1 / centro, pmin(cifras_reciproca, 15L))
   cifras <- pmin(cifras, cifras_reciproca)
-  distancia <- pmax(0, inferior - referencia, referencia - superior)
-  puntaje <- conteo[tramos] - cifras
-  preferencia <- .orden_por_bytes(-puntaje, -conteo[tramos], cifras, distancia)
   constantes <- ifelse(reciproca, 1 / forma_reciproca,
                        ifelse(cifras <= 15L, signif(centro, cifras), centro))
+  en_piso <- conteo[tramos] >= piso
+  if (!all(en_piso)) {
+    es_exacta <- vapply(seq_along(tramos), function(j) {
+      if (en_piso[[j]] || cifras[[j]] > 15L) return(en_piso[[j]])
+      desvio_j <- abs(respuesta - base * constantes[[j]])
+      cubre_j <- desvio_j <= holgura
+      any(cubre_j) &&
+        all(desvio_j[cubre_j] <= 8 * .Machine$double.eps *
+              pmax(1, abs(respuesta[cubre_j]),
+                   abs(base[cubre_j] * constantes[[j]])))
+    }, logical(1L))
+    tramos <- tramos[es_exacta]
+    inferior <- inferior[es_exacta]
+    superior <- superior[es_exacta]
+    centro <- centro[es_exacta]
+    cifras_directa <- cifras_directa[es_exacta]
+    cifras <- cifras[es_exacta]
+    reciproca <- reciproca[es_exacta]
+    forma_reciproca <- forma_reciproca[es_exacta]
+    constantes <- constantes[es_exacta]
+    en_piso <- en_piso[es_exacta]
+  }
+  distancia <- pmax(0, inferior - referencia, referencia - superior)
+  puntaje <- conteo[tramos] - cifras
+  preferencia <- .orden_por_bytes(!en_piso, -puntaje, -conteo[tramos], cifras,
+                                  distancia)
   elegido <- preferencia[[1L]]
   # **El empate se lo lleva la mas larga solo si sus filas de mas son las de
   # mayor magnitud.** Una constante truncada falla primero las filas de mayor
@@ -1156,7 +1195,17 @@
   # las 20 filas contra 19 de `0.01`, una cifra por una fila, y se publicaba
   # sin filas acusadas. Tampoco la compra la rota de la fila mas grande si la
   # corta explica exactas todas las demas: un truncado no deja residuos cero.
-  empate <- which(puntaje == puntaje[[elegido]])
+  # Una reciproca que solo ahorra una cifra frente a su decimal directo
+  # -la cifra de la division: `1/0.02508` frente a `39.873`- empata con una
+  # directa que explica todas sus filas y agrega las mayores que ella deja
+  # justo afuera (`39.8734`).
+  empate <- which(en_piso &
+                    (puntaje == puntaje[[elegido]] |
+                       (reciproca[[elegido]] &
+                          cifras_directa[[elegido]] == cifras[[elegido]] + 1L &
+                          !reciproca &
+                          conteo[tramos] > conteo[tramos][[elegido]] &
+                          puntaje == puntaje[[elegido]] - 1L)))
   if (length(empate) > 1L) {
     corta <- empate[.orden_por_bytes(cifras[empate], distancia[empate])[[1L]]]
     desvio_corta <- abs(respuesta - base * constantes[[corta]])
@@ -1187,6 +1236,13 @@
       gana <- cubre & !cubre_corta
       pierde <- cubre_corta & !cubre & desvio_larga <= semiancho + holgura
       if (!any(gana) || any(pierde)) return(FALSE)
+      if (puntaje[[j]] < puntaje[[corta]]) {
+        return(!any(cubre_corta & !cubre) &&
+                 all(desvio_corta[gana] <= semiancho + holgura[gana]) &&
+                 all(abs(base[gana]) >=
+                       stats::quantile(abs(base[cubre]), 0.75,
+                                       names = FALSE, type = 1)))
+      }
       all(desvio_corta[gana] <= semiancho + holgura[gana] |
             abs(base[gana]) >=
               stats::quantile(abs(base[cubre]), 0.75, names = FALSE, type = 1))
@@ -1207,7 +1263,7 @@
   # que `0.9144`, la verdadera, deja a mas de un cuanto, y perdia dos sanas.
   repeat {
     cubre_elegida <- abs(respuesta - base * constantes[[elegido]]) <= holgura
-    rivales <- which(cifras <= cifras[[elegido]] &
+    rivales <- which(en_piso & cifras <= cifras[[elegido]] &
                        conteo[tramos] < conteo[tramos][[elegido]])
     gana_rival <- vapply(rivales, function(j) {
       desvio_rival <- abs(respuesta - base * constantes[[j]])
@@ -1231,7 +1287,7 @@
   # `0.21999992` y la tercera no. Pedir dos, o pagar con filas las cifras de
   # mas, no las distinguia.
   repeat {
-    mas <- which(conteo[tramos] > conteo[tramos][[elegido]])
+    mas <- which(en_piso & conteo[tramos] > conteo[tramos][[elegido]])
     if (!length(mas)) break
     # Con el margen del doble: una rota justo un cuanto entero afuera no es
     # lejana, y el redondeo no la vuelve lejana o cercana al azar.
@@ -1254,20 +1310,28 @@
   # que las contiene**, ni por puntaje ni por las lejanas: un truncado no deja
   # residuos cero, y lo que la larga agrega son rotas. Con x en medios e
   # `y = 0.18 * x` exacto a centavos, `1/5.555` -cuatro cifras- se tragaba las
-  # tres rotas grandes y le ganaba por un punto a `0.18`, que las acusa.
+  # tres rotas grandes y le ganaba por un punto a `0.18`, que las acusa. Y si
+  # la exacta corta quedo debajo del piso porque una larga se corrio para
+  # tragarse rotas, le gana por puntaje cuando la larga pierde alguna de sus
+  # filas sanas o se traga todas las filas de la tabla.
   cubre_elegida <- abs(respuesta - base * constantes[[elegido]]) <= holgura
   exacta_contenida <- vapply(seq_along(tramos), function(j) {
     if (cifras[[j]] >= cifras[[elegido]]) return(FALSE)
+    if (!en_piso[[j]] && puntaje[[j]] < puntaje[[elegido]]) return(FALSE)
     desvio_j <- abs(respuesta - base * constantes[[j]])
     cubre_j <- desvio_j <= holgura
-    any(cubre_j) && !any(cubre_j & !cubre_elegida) &&
+    any(cubre_j) &&
+      (if (en_piso[[j]]) !any(cubre_j & !cubre_elegida)
+       else any(cubre_j & !cubre_elegida) || all(cubre_elegida)) &&
       all(desvio_j[cubre_j] <= 8 * .Machine$double.eps *
             pmax(1, abs(respuesta[cubre_j]),
                  abs(base[cubre_j] * constantes[[j]])))
   }, logical(1L))
   if (any(exacta_contenida)) {
     exactas <- which(exacta_contenida)
-    elegido <- exactas[[which.min(match(exactas, preferencia))]]
+    orden_ex <- .orden_por_bytes(-puntaje[exactas], -conteo[tramos[exactas]],
+                                 cifras[exactas], distancia[exactas])
+    elegido <- exactas[[orden_ex[[1L]]]]
   }
   # El centro del tramo lo fijan las filas de los extremos; los minimos
   # cuadrados de las filas que explica, todas.
@@ -1479,7 +1543,7 @@
         )
         consistente <- consistente || isTRUE(lectura$consistente)
         if (lectura$alcanza) return(lectura)
-        if (lectura$aplica) resultado$aplica <- TRUE
+        if (lectura$aplica && !resultado$aplica) resultado <- lectura
       }
       resultado$consistente <- consistente
       resultado
@@ -1577,8 +1641,61 @@
       list(filas = filas, cifras = cifras, explicadas = explicadas,
            en_reticula = en_reticula_f)
     }
-    if (lectura_directa$alcanza) elegida <- lectura_directa
-    if (lectura_inversa$alcanza) {
+    # Si la lectura fina no alcanza el criterio pero explica al menos 0,8 de
+    # las filas comparables, la gruesa -el doble o mas de tolerancia- no la
+    # suplanta cuando los pares distintos no nulos que la gruesa explica caen
+    # en la ventana fina por encima de la cota de azar, salvo que en la fina
+    # esas filas sean un truncado o piso sano (un cuanto de un solo lado) o que
+    # la gruesa senale filas rotas conservando las cifras de la fina: si no, la
+    # columna calculada es la fina y la gruesa solo se trago las filas rotas.
+    activas <- base[comparables] != 0 & respuesta[comparables] != 0 &
+      !duplicated(sprintf("%.17g|%.17g",
+                          as.double(base[comparables]),
+                          as.double(respuesta[comparables])))
+    en_fina_no_alcanza <- function(gruesa, fina, invertida_fina, veces) {
+      if (fina$alcanza || is.null(fina$cumple) || veces < 2) return(FALSE)
+      n_g <- sum(gruesa$cumple & activas)
+      dentro <- sum(fina$cumple & gruesa$cumple & activas)
+      if (dentro < fina$cifras || !.reticula_no_es_azar(n_g, dentro, veces)) {
+        return(FALSE)
+      }
+      if (!all(gruesa$cumple)) {
+        if (!isTRUE(fina$exacta)) return(FALSE)
+        paso_f <- 10^(floor(log10(abs(fina$constante))) - fina$cifras + 1L)
+        if (abs(1 / gruesa$constante - fina$constante) < 0.5 * paso_f) {
+          return(FALSE)
+        }
+      }
+      r_f <- if (invertida_fina) base[comparables] else respuesta[comparables]
+      b_f <- if (invertida_fina) respuesta[comparables] else base[comparables]
+      en_ret_f <- .en_resolucion_aritmetica(r_f, fina$cuanto)
+      if (!all(en_ret_f[gruesa$cumple])) return(TRUE)
+      idx <- gruesa$cumple & is.finite(b_f) & is.finite(r_f) & b_f != 0
+      if (!any(idx)) return(TRUE)
+      b_i <- as.double(b_f[idx])
+      r_i <- as.double(r_f[idx])
+      holg_i <- fina$cota + 8 * .Machine$double.eps *
+        pmax(1, abs(r_i), abs(b_i * fina$mediana))
+      cabe_trunca <- function(r_mod) {
+        a <- (r_mod - holg_i) / b_i
+        d <- (r_mod + holg_i) / b_i
+        max(pmin(a, d)) <= min(pmax(a, d))
+      }
+      !cabe_trunca(r_i + fina$cota) &&
+        !cabe_trunca(r_i + ifelse(r_i >= 0, fina$cota, -fina$cota))
+    }
+    if (lectura_directa$alcanza &&
+        (lectura_inversa$alcanza || is.null(lectura_inversa$cota) ||
+         !en_fina_no_alcanza(lectura_directa, lectura_inversa, TRUE,
+                             cota_comun(lectura_directa, FALSE) /
+                               cota_comun(lectura_inversa, TRUE)))) {
+      elegida <- lectura_directa
+    }
+    if (lectura_inversa$alcanza &&
+        (!is.null(elegida) || is.null(lectura_directa$cota) ||
+         !en_fina_no_alcanza(lectura_inversa, lectura_directa, FALSE,
+                             cota_comun(lectura_inversa, TRUE) /
+                               cota_comun(lectura_directa, FALSE)))) {
       cota_d <- if (!is.null(elegida)) cota_comun(lectura_directa, FALSE)
       cota_i <- cota_comun(lectura_inversa, TRUE)
       soporte_d <- !is.null(elegida) && con_soporte(lectura_directa, FALSE)
