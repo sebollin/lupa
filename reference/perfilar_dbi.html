@@ -1139,13 +1139,10 @@ información el motor los describe como números —<code>minimo = 17956</code>�
 <code>DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)</code> la columna
 se declara temporal y <code>perfilar_dbi()</code> no le aplica agregados
 cuantitativos, y lo dice.</p></li>
-<li><p><strong><code>NaN</code> en duckdb y PostgreSQL.</strong> Ambos motores pueden conservar <code>NaN</code>,
-pero <code>perfilar_dbi()</code> lo lleva a la misma regla que <code><a href="perfilar.html">perfilar()</a></code>: cuenta
-como faltante, no cuenta como válido, distinto ni moda, y queda fuera de
-mínimo, máximo, media, mediana y desvío. Una columna sólo de <code>NaN</code> queda
-<code>sin_valores</code>, con moda <code>NA</code> y frecuencia 0. El hallazgo
-<code>valores_no_finitos</code> se conserva. SQLite ya entrega <code>NaN</code> como <code>NULL</code>;
-SQL Server, MySQL y MariaDB no lo guardan.</p></li>
+<li><p><strong><code>NaN</code> en duckdb.</strong> duckdb conserva <code>NaN</code> como un valor: lo cuenta como
+presente y distinto, y responde <code>MAX</code> y <code>AVG</code> con <code>NaN</code>. En R, <code>NaN</code> cuenta
+como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
+respondió con <code>NaN</code> no se publica: queda <code>no_disponible</code> con su motivo.</p></li>
 <li><p><strong>Infinitos.</strong> SQLite, PostgreSQL y duckdb admiten <code>Inf</code> y <code>-Inf</code> en una
 columna de punto flotante, y el motor los cuenta en <code>MIN</code>, <code>MAX</code>, <code>AVG</code> y
 el orden de la mediana. Los estadísticos de magnitud se calculan sólo con
