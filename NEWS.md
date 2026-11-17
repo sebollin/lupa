@@ -16,9 +16,11 @@
   parte de la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
   `clave`, agregar o quitar una columna cambia la muestra. `meta$muestra_huella`
   declara el método (`huella_v1`) y las columnas que entraron; las que no se
-  reducen a un valor por fila (listas, matrices) quedan fuera. Las tablas de
-  hasta `muestra` filas no cambian; con más filas, el perfil puede diferir del
-  de la versión anterior porque mira otras filas.
+  reducen a un valor por fila (listas, matrices) quedan fuera. En las tablas
+  de hasta `muestra` filas los hallazgos y las cifras no cambian; sólo cambia
+  `meta$bytes_sonda`, el tamaño de las 100 filas con que se estima cuánto ocupa
+  la muestra, porque esas filas son otras. Con más filas, el perfil puede
+  diferir del de la versión anterior porque mira otras filas.
 - `analizar()` calcula esa selección una sola vez y la comparten todos sus
   diagnósticos, y las funciones de diagnóstico llamadas solas
   (`descubrir_patrones()`, `inferir_tipo()`, `detectar_formatos_fecha()`,
