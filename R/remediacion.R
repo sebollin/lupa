@@ -1648,6 +1648,15 @@
 #' `decodificar_entidades_html`, que no viene marcada, la decodifica después de
 #' la reparación y, sola, deja esa celda como está.
 #'
+#' Lo que el detector no puede decidir tampoco se destruye. Un espacio duro o un
+#' guion blando después de `Ä`, `Å` o `Æ` puede ser el segundo byte de una letra
+#' rota (`Ġ`, `ĭ`, `Š`, `ŭ` u `Ơ` leídas como latin-1) o un texto legítimo (`PÅ`
+#' seguido de un espacio duro): las acciones que normalizan invisibles y las que
+#' cambian mayúsculas y minúsculas no tocan ese byte, y `controles_invisibles`
+#' avisa que hay celdas que no se pudieron decidir. Normalizarlo dejaría la letra
+#' sin reparación posible. Un espacio duro después de otra letra, como en
+#' `JOSÉ PÉREZ`, se normaliza como siempre.
+#'
 #' Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y la
 #' convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la acción
 #' toca sólo las celdas que cambia, una columna `latin1` puede quedar con marcas
@@ -3932,7 +3941,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   .ftfy_mascara_candidatos(trabajo)
 }
 
-.reparar_textos_seleccionados <- function(textos, seleccion) {
+.reparar_textos_seleccionados <- function(textos, seleccion,
+                                         usar_extensiones = TRUE) {
   salida <- textos
   if (!length(textos) || length(seleccion) != length(textos) ||
       !any(seleccion, na.rm = TRUE)) {
@@ -3944,9 +3954,24 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   candidatos <- .ftfy_mascara_para_texto(
     textos[indices], trabajo = trabajo[indices]
   )
+  if (!isTRUE(usar_extensiones)) {
+    candidatos <- .ftfy_mascara_candidatos(
+      trabajo[indices], usar_extensiones = FALSE
+    )
+  }
   if (!any(candidatos)) return(salida)
   posiciones <- indices[candidatos]
-  reparados <- .analizar_codificacion(trabajo[posiciones])$reparados
+  if (isTRUE(usar_extensiones)) {
+    reparados <- .analizar_codificacion(trabajo[posiciones])$reparados
+  } else {
+    resultados <- lapply(
+      trabajo[posiciones], .ftfy_reparar_uno,
+      usar_extensiones_inicial = FALSE
+    )
+    reparados <- vapply(
+      resultados, function(resultado) resultado$texto, character(1L)
+    )
+  }
   validos <- !is.na(reparados)
   if (any(validos)) salida[posiciones[validos]] <- reparados[validos]
   salida
@@ -3955,6 +3980,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .proteccion_texto_valores <- function(valores, codificacion = NULL) {
   trabajo <- .texto_para_operar(valores)
   candidatos <- .ftfy_mascara_para_texto(valores, trabajo = trabajo)
+  posiciones_ambiguas <- lapply(trabajo, .ftfy_posiciones_ambiguas)
   mascaras <- vector("list", length(valores))
   indices <- which(candidatos)
   if (length(indices)) {
@@ -4004,7 +4030,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     }
     mascaras[indices] <- calculadas
   }
-  list(candidatos = candidatos, mascaras = mascaras)
+  list(
+    candidatos = candidatos, mascaras = mascaras,
+    posiciones_ambiguas = posiciones_ambiguas
+  )
 }
 
 # El perfil usa la misma puerta que la accion para contar una celda: la misma
@@ -4038,7 +4067,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else if (length(proteccion$candidatos) == length(textos)) {
     proteccion <- list(
       candidatos = proteccion$candidatos[indices],
-      mascaras = proteccion$mascaras[indices]
+      mascaras = proteccion$mascaras[indices],
+      posiciones_ambiguas = proteccion$posiciones_ambiguas[indices]
     )
   }
   textos_candidatos <- textos[indices]
@@ -4092,12 +4122,25 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!any(tocar)) return(resultado(nuevo, tocar))
   indices <- which(tocar & !is.na(anterior))
   if (!length(indices)) return(resultado(nuevo, tocar))
+  posiciones_ambiguas <- if (!is.null(proteccion) &&
+                              is.list(proteccion$posiciones_ambiguas) &&
+                              length(proteccion$posiciones_ambiguas) ==
+                              length(anterior)) {
+    proteccion$posiciones_ambiguas
+  } else {
+    lapply(.texto_para_operar(anterior), .ftfy_posiciones_ambiguas)
+  }
   candidatos <- if (!is.null(proteccion) &&
                     length(proteccion$candidatos) == length(anterior)) {
     proteccion$candidatos[indices]
   } else {
     .ftfy_mascara_para_texto(anterior[indices])
   }
+  ambiguas_en_indices <- vapply(indices, function(i) {
+    posiciones <- posiciones_ambiguas[[i]]
+    length(posiciones) > 0L && any(posiciones)
+  }, logical(1L), USE.NAMES = FALSE)
+  candidatos <- candidatos | ambiguas_en_indices
   nuevas <- logical(length(indices))
   indices_nuevas <- which(!candidatos)
   if (length(indices_nuevas) && identical(revisar_nuevas, "siempre")) {
@@ -4127,6 +4170,15 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       .texto_para_operar(anterior),
       solo = tocar
     )
+  }
+  for (i in indices) {
+    posiciones <- posiciones_ambiguas[[i]]
+    if (!length(posiciones)) next
+    mascara <- consumidos[[i]]
+    if (length(mascara) != length(posiciones)) {
+      mascara <- rep(FALSE, length(posiciones))
+    }
+    consumidos[[i]] <- mascara | posiciones
   }
   protegido <- nuevo
   proteger_entera <- rep(FALSE, length(indices))
@@ -4177,7 +4229,12 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       enmascarar(reparado[[i]], mascara)
     )[[1L]]
   }
-  reparado_protegido <- .reparar_textos_seleccionados(protegido, tocar)
+  # El orden posterior usa las reglas base: una extension que solo existe para
+  # reconocer la celda original no debe convertir la accion elegida en una
+  # reparacion implicita despues de que la accion haya cambiado otra parte.
+  reparado_protegido <- .reparar_textos_seleccionados(
+    protegido, tocar, usar_extensiones = FALSE
+  )
   diferencias <- .celdas_cambiadas(reparado_protegido, accion_reparada)
   if (any(diferencias)) {
     # Una celda que la reparacion no puede tocar se deja a la accion: su

@@ -2983,6 +2983,8 @@
     espacio = rep(FALSE, n), significativo = rep(FALSE, n),
     separador = rep(FALSE, n)
   )
+  ambiguo <- rep(FALSE, n)
+  attr(salida, "ambiguo") <- ambiguo
   if (!n) return(salida)
   # Las cinco preguntas miran solo controles, invisibles y separadores de linea:
   # una celda que no trae ninguno contesta que no a todas, y no hace falta
@@ -3019,9 +3021,11 @@
       .codigos_control_invisible(codigos) & (!consumidos | solo_c1)
     )
     proteccion <- list(
-      candidatos = .ftfy_mascara_candidatos(texto),
-      mascaras = list(consumidos)
+      candidatos = .ftfy_mascara_proteccion(texto),
+      mascaras = list(consumidos),
+      posiciones_ambiguas = list(.ftfy_posiciones_ambiguas(texto))
     )
+    ambiguo[[i]] <- any(proteccion$posiciones_ambiguas[[1L]])
     candidato_inicial <- proteccion$candidatos
     texto_desde_codigos <- function(valores) {
       paste0(intToUtf8(valores, multiple = TRUE), collapse = "")
@@ -3063,6 +3067,7 @@
       )
     }
   }
+  attr(salida, "ambiguo") <- ambiguo
   salida
 }
 
@@ -3422,6 +3427,12 @@
   eliminables <- mapear_resultado(invisibles$eliminable)
   espacios_invisibles <- mapear_resultado(invisibles$espacio)
   significativos <- mapear_resultado(invisibles$significativo)
+  ambiguos <- attr(invisibles, "ambiguo")
+  if (!is.logical(ambiguos) || length(ambiguos) != length(
+    vocabulario_predicados$valores
+  )) {
+    ambiguos <- rep(FALSE, length(vocabulario_predicados$valores))
+  }
   # Las etiquetas cuentan entre los controles y no tienen accion; el hallazgo
   # las explica aparte. Se buscan solo en las celdas que ya traen un control.
   etiquetas_unicas <- invisibles$control
@@ -3442,7 +3453,8 @@
   invisibles_cache <- list(
     control = controles, eliminable = eliminables,
     espacio = espacios_invisibles, significativo = significativos,
-    separador = saltos
+    separador = saltos,
+    ambiguo = mapear_resultado(ambiguos)
   )
 
   list(

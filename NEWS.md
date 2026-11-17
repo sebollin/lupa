@@ -81,6 +81,22 @@
 
 ## Correcciones
 
+- La limpieza por omisión ya no destruye letras rotas que el detector no
+  reconoce. «Škoda» leída como latin-1 es `Å`, un espacio duro y `koda`: el
+  detector no la ve, y `normalizar_espacios_invisibles` cambiaba el espacio
+  duro por uno común, con lo que la letra quedaba sin reparación posible, ni
+  siquiera volviendo a leer el origen; lo mismo con el guion blando de una `ŭ`.
+  Ahora un espacio duro o un guion blando después de `Ä`, `Å` o `Æ`, que pueden
+  formar `Ġ`, `ĭ`, `Š`, `ŭ` u `Ơ`, no se toca, y `controles_invisibles` avisa
+  que esas celdas no se pudieron decidir. En un texto nórdico con `Å` seguida de
+  un espacio duro, ese espacio queda sin normalizar. Después de cualquier otra
+  letra, como en `JOSÉ PÉREZ`, se normaliza como antes.
+- Las acciones que cambian mayúsculas y minúsculas usan la misma protección que
+  las de invisibles: con `reparar_codificacion` desmarcada,
+  `convertir_minusculas` cambiaba `MÃœNCHEN` (una `Ü` rota) a `mÃŒnchen`, que
+  reparado después daba otra letra. Y tratan `Ș`/`ș` y `Ț`/`ț` del rumano, que
+  quedaban con caja mixta.
+
 - `perfilar_dbi()` cuenta `NaN` igual que `perfilar()`. En DuckDB y PostgreSQL,
   que guardan `NaN` en una columna de punto flotante, lo contaba como un valor
   presente y distinto: una columna toda `NaN` salía con `n_validos` igual al

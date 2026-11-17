@@ -3496,14 +3496,18 @@
         invisibles <<- cache
       } else {
         vocabulario <- .vocabulario_texto(texto, .umbral_vocabulario_barato)
-        invisibles <<- .predicados_invisibles(vocabulario$valores)
+        calculados <- .predicados_invisibles(vocabulario$valores)
+        ambiguos <- attr(calculados, "ambiguo")
         if (isTRUE(vocabulario$usar)) {
-          invisibles <<- lapply(invisibles, function(mascara) {
+          calculados <- lapply(calculados, function(mascara) {
             resultado <- mascara[vocabulario$indices]
             resultado[is.na(resultado)] <- FALSE
             resultado
           })
+          ambiguos <- ambiguos[vocabulario$indices]
         }
+        attr(calculados, "ambiguo") <- ambiguos
+        invisibles <<- calculados
       }
     }
     invisibles
@@ -5597,6 +5601,12 @@
       solo_significativos <- (hay(significativos) || hay(etiquetas)) &&
         !hay(eliminables) && !hay(espacios)
       con_etiquetas <- solo_significativos && hay(etiquetas)
+      cache_invisibles <- resultado$diagnostico_texto$cache_invisibles
+      ambiguos <- if (is.list(cache_invisibles) &&
+                      is.logical(cache_invisibles$ambiguo)) {
+        sum(cache_invisibles$ambiguo, na.rm = TRUE)
+      } else 0
+      hay_ambiguos <- isTRUE(ambiguos > 0)
       # Y puede no haber nada de eso: el control se conto pero la accion no lo
       # quita, porque es parte de una letra mal convertida o porque sin el la
       # celda se leeria como una. El hallazgo recomendaba eliminarlo con un plan
@@ -5614,7 +5624,13 @@
       agregar(.nuevo_hallazgo(
         nombre, "controles_invisibles",
         if (solo_significativos) "sospechoso" else "error",
-        if (con_etiquetas) {
+        if (hay_ambiguos) {
+          paste(
+            "Hay invisibles junto a un byte que puede iniciar una letra de dos",
+            "bytes. El detector no puede decidir si son texto legitimo o el",
+            "segundo byte de una letra rota; la limpieza los deja como estan."
+          )
+        } else if (con_etiquetas) {
           paste(
             "Los \u00fanicos caracteres invisibles son de los que forman parte de",
             "una secuencia: etiquetas Unicode, que arman banderas como la de",
@@ -5643,7 +5659,13 @@
           )
         },
         resultado$diagnostico_texto$evidencia_controles_invisibles,
-        if (con_etiquetas) {
+        if (hay_ambiguos) {
+          paste(
+            "Revisar esas celdas y corregirlas en la fuente o a mano: quitar o",
+            "normalizar el invisible podria destruir el segundo byte de una",
+            "letra rota que el detector no puede decidir."
+          )
+        } else if (con_etiquetas) {
           paste(
             "Mirar entre qu\u00e9 caracteres est\u00e1n: si forman un emoji o ligan",
             "una escritura que lo requiere, no hay nada que hacer; si separan",

@@ -268,6 +268,71 @@ names(.ftfy_tablas_bytes) <- c(
   }
   salida | reemplazos
 }
+.ftfy_invisibles_ambiguos <- c(0xA0L, 0xADL)
+.ftfy_pares_invisibles_ambiguos <- c(
+  "C4 A0" = intToUtf8(0x120L),
+  "C4 AD" = intToUtf8(0x12DL),
+  "C5 A0" = intToUtf8(0x160L),
+  "C5 AD" = intToUtf8(0x16DL),
+  "C6 A0" = intToUtf8(0x1A0L)
+)
+.ftfy_claves_pares_invisibles_ambiguos <- paste(
+  vapply(strsplit(names(.ftfy_pares_invisibles_ambiguos), " ", fixed = TRUE),
+         function(par) strtoi(par[[1L]], 16L), integer(1L)),
+  vapply(strsplit(names(.ftfy_pares_invisibles_ambiguos), " ", fixed = TRUE),
+         function(par) strtoi(par[[2L]], 16L), integer(1L)),
+  sep = ":"
+)
+.ftfy_pares_signos_caja_ambiguos <- c(
+  "C4 8C" = intToUtf8(0x10CL),
+  "C4 9C" = intToUtf8(0x11CL),
+  "C4 8A" = intToUtf8(0x10AL),
+  "C4 9A" = intToUtf8(0x11AL),
+  "C4 8E" = intToUtf8(0x10EL),
+  "C4 9E" = intToUtf8(0x11EL),
+  "C4 9F" = intToUtf8(0x11FL),
+  "C5 8C" = intToUtf8(0x14CL),
+  "C5 9C" = intToUtf8(0x15CL),
+  "C5 8A" = intToUtf8(0x14AL),
+  "C5 9A" = intToUtf8(0x15AL),
+  "C5 8E" = intToUtf8(0x14EL),
+  "C5 9E" = intToUtf8(0x15EL),
+  "C5 9F" = intToUtf8(0x15FL)
+)
+.ftfy_claves_pares_signos_caja_ambiguos <- {
+  pares <- do.call(rbind, lapply(
+    strsplit(names(.ftfy_pares_signos_caja_ambiguos), " ", fixed = TRUE),
+    function(par) strtoi(par, 16L)
+  ))
+  segundos <- .ftfy_tablas_bytes[["sloppy-windows-1252"]][pares[, 2L] - 0x7fL]
+  paste(pares[, 1L], segundos, sep = ":")
+}
+.ftfy_bytes_desde_codigos <- function(codigos) {
+  tabla <- .ftfy_tablas_bytes[["sloppy-windows-1252"]]
+  ifelse(codigos < 0x100L, codigos, match(codigos, tabla) + 127L)
+}
+.ftfy_posiciones_ambiguas <- function(texto) {
+  if (length(texto) != 1L || is.na(texto)) return(logical())
+  codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+  n <- length(codigos)
+  salida <- logical(n)
+  if (n < 2L) return(salida)
+  bytes <- .ftfy_bytes_desde_codigos(codigos)
+  claves <- paste(bytes[-n], codigos[-1L], sep = ":")
+  invisibles <- claves %in% .ftfy_claves_pares_invisibles_ambiguos
+  signos_caja <- claves %in% .ftfy_claves_pares_signos_caja_ambiguos
+  posiciones <- which(invisibles | signos_caja)
+  if (length(posiciones)) salida[c(posiciones, posiciones + 1L)] <- TRUE
+  salida
+}
+.ftfy_mascara_proteccion <- function(x, usar_extensiones = TRUE) {
+  salida <- .ftfy_mascara_candidatos(x, usar_extensiones = usar_extensiones)
+  if (!length(x)) return(salida)
+  ambiguas <- vapply(x, function(texto) {
+    any(.ftfy_posiciones_ambiguas(texto))
+  }, logical(1L), USE.NAMES = FALSE)
+  salida | ambiguas
+}
 .ftfy_umbral_mascara_lcs <- 256L
 .ftfy_mascara_lcs <- function(entrada, salida) {
   n <- length(entrada)
@@ -1007,13 +1072,11 @@ names(.ftfy_tablas_bytes) <- c(
 # ("PER\u00da" + espacio duro saldria con una letra arabe). Un control C1
 # suelto no se aparta: la bateria de ftfy deja sin reparar la letra rota que lo
 # tiene pegado delante ("A" + U+0081 + "\u00c3\u00b1o"), y el motor la sigue.
-.ftfy_invisibles_sueltos <- c(0xa0L, 0xadL)
 .ftfy_posiciones_sueltas <- function(cps) {
   # Cada punto se lee como el byte que la mala conversion dejo: el mismo hasta
   # U+00FF (latin-1) y el de Windows-1252 para sus signos, como en
   # `.ftfy_representaciones_continuacion`.
-  tabla <- .ftfy_tablas_bytes[["sloppy-windows-1252"]]
-  bytes <- ifelse(cps < 0x100L, cps, match(cps, tabla) + 127L)
+  bytes <- .ftfy_bytes_desde_codigos(cps)
   n <- length(bytes)
   sueltas <- logical(n)
   i <- 1L
@@ -1039,7 +1102,7 @@ names(.ftfy_tablas_bytes) <- c(
         next
       }
     }
-    if (!largo && cps[[i]] %in% .ftfy_invisibles_sueltos) sueltas[[i]] <- TRUE
+    if (!largo && cps[[i]] %in% .ftfy_invisibles_ambiguos) sueltas[[i]] <- TRUE
     i <- i + 1L
   }
   sueltas
@@ -1049,7 +1112,7 @@ names(.ftfy_tablas_bytes) <- c(
   if (!is.null(paso) || !isTRUE(apartar_sueltos)) return(paso)
   cps <- utf8ToInt(texto)
   if (anyNA(cps) || any(cps == 1L) ||
-      !any(cps %in% .ftfy_invisibles_sueltos)) {
+      !any(cps %in% .ftfy_invisibles_ambiguos)) {
     return(NULL)
   }
   sueltas <- .ftfy_posiciones_sueltas(cps)
