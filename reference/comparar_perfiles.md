@@ -15,7 +15,18 @@ comparar_perfiles(anterior, actual, umbral_cambio = 0.05, umbral_error = 0.2)
 - anterior, actual:
 
   Objetos producidos por
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  o
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md).
+  De un análisis se compara su perfil, `$perfil`: sus mediciones y su
+  evaluación tienen su propia serie en
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md).
+  Un objeto de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  tiene que traer su perfil de muestra
+  (`bloque_muestra = "con_muestra"`, el valor por omisión): sin él no
+  hay tipos de columna ni nada medido sobre las filas, y se rechaza.
 
 - umbral_cambio:
 
@@ -38,9 +49,35 @@ atributo `campos_protegidos` declara lo que no se comparó porque la
 protección de datos personales lo tapa: un data frame con `columna`,
 `campo` y `lado` —`anterior` o `actual`—, la misma forma que usa
 [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md).
-El único campo que puede figurar es `rango`. Está siempre, vacío si no
-hay nada que declarar, y [`rbind()`](https://rdrr.io/r/base/cbind.html)
-une los de todas las derivas.
+Los campos que pueden figurar son `rango` y `vocabulario`. Está siempre,
+vacío si no hay nada que declarar, y
+[`rbind()`](https://rdrr.io/r/base/cbind.html) une los de todas las
+derivas.
+
+`universo_anterior` y `universo_actual` dicen de qué filas sale la cifra
+de cada lado: `"tabla_completa"` —un perfil en memoria, una muestra que
+cubre la tabla o un agregado SQL calculado sobre la tabla entera—,
+`"muestra"` —sólo las filas leídas, o los patrones y el tipo inferido
+que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+buscó en una `muestra` menor que la tabla— o `"mixto"` —los faltantes de
+un objeto de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+cuya muestra no cubre la tabla: los `NULL` que cuenta el motor más los
+faltantes disfrazados estimados sobre la muestra—. Las columnas
+presentes son las del esquema. El conteo de filas es de la tabla entera:
+el total de la fuente o el de un perfil que la cubre; sin ninguno de los
+dos —el presupuesto de consultas no alcanzó para el `COUNT(*)`— la fila
+`filas` sale `no_comparable`, porque lo que queda es el tamaño de la
+muestra. El tipo declarado y la unidad salen de la clase con que R leyó
+las filas: de un perfil que no cubre la tabla se rotulan `muestra`,
+salvo que el tipo que declara el motor respalde el cambio. Son `NA` en
+las filas de configuración, en la fila `muestra` y en las que declaran
+algo que no se comparó. Un hallazgo se rotula con las filas del perfil;
+el diagnóstico que trabaja sobre una submuestra lo declara en
+`cobertura_diagnosticos`. [`rbind()`](https://rdrr.io/r/base/cbind.html)
+une una deriva guardada antes de que existieran estas columnas con ellas
+en `NA`.
 
 ## Details
 
@@ -48,19 +85,28 @@ Los patrones se comparan sobre el resumen acotado que conserva cada
 perfil, no sobre los valores originales ni una distribución completa. Si
 las dos corridas usaron configuraciones de patrones diferentes, se
 informa un error de comparabilidad y esa parte de la comparación se
-omite.
+omite. Dos perfiles que buscaron sus patrones en todas las filas de la
+tabla tienen la misma configuración aunque declaren otra `muestra`: con
+400 filas, el `1e5` de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+el `Inf` que
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+le pasa a su muestra miden lo mismo. La fila publica lo declarado.
 
 Un perfil DBI con `meta$origen_dbi$muestreo` o con
 `meta$alcance$universo_id = "muestra_motor"` describe una muestra de la
 tabla fuente. Si uno de los perfiles es de ese tipo, las filas se
 comparan con `filas_totales_fuente` cuando está disponible, pero rangos,
-cardinalidades, patrones y hallazgos no se interpretan como cambios de
-la tabla completa. La proporción de faltantes sí se estima sobre las
-filas observadas y se compara; los extremos, las cardinalidades y los
-conteos absolutos que dependen del universo completo quedan fuera. La
-salida agrega una fila `muestra / no_comparable` y deja fuera esos
-aspectos; una muestra distinta no se convierte en un cambio ni en un
-hallazgo resuelto.
+cardinalidades, patrones y hallazgos de la muestra no se interpretan
+como cambios de la tabla completa. La proporción de faltantes sí se
+estima sobre las filas observadas y se compara, con
+`universo = "muestra"`. La salida agrega una fila
+`muestra / no_comparable`, cuya evidencia dice cómo se leyó cada lado
+—el método y si la lectura es reproducible—, y deja fuera esos aspectos;
+una muestra distinta no se convierte en un cambio ni en un hallazgo
+resuelto. Con el objeto entero de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+esos aspectos se toman del resumen SQL: ver la sección siguiente.
 
 Los nombres de columnas y las configuraciones que contienen texto del
 usuario se comparan por sus bytes, no por la marca de codificación ni
@@ -80,11 +126,12 @@ cada columna, los hallazgos, el alcance del resumen y las
 configuraciones declaradas —no los valores uno por uno—: la columna
 `aspecto` del resultado nombra, fila por fila, qué se comparó, y es la
 enumeración viva. **Un cambio de texto que no altera ninguna propiedad
-medida no aparece**: por ejemplo, si la moda de una columna pasa de
-`"Basico"` a `"Casico"` —mismo largo, misma forma de patrón, mismos
-conteos—, la comparación devuelve cero filas. Por eso el remedio ante
-una relectura sospechosa no es confiar en la comparación para
-detectarla.
+medida no aparece**: por ejemplo, si la moda de una columna de texto
+libre pasa de `"Basico"` a `"Casico"` —mismo largo, misma forma de
+patrón, mismos conteos—, la comparación devuelve cero filas. En una
+columna categórica sí aparece, porque su vocabulario se compara (ver más
+abajo), pero sólo ahí. Por eso el remedio ante una relectura sospechosa
+no es confiar en la comparación para detectarla.
 
 El remedio es una línea, `saveRDS(perfil, archivo, version = 2)`, porque
 ese formato no anota codificación nativa y por lo tanto no traduce nada.
@@ -102,6 +149,48 @@ corrimiento normal de los datos, así que compararla llenaría la deriva
 de filas que no son deterioro. Quien necesite detectar una relectura
 corrompida tiene el remedio de una línea que está dos párrafos más
 abajo, que la evita en lugar de detectarla.
+
+El **vocabulario** de una columna categórica sí se compara: el conjunto
+de sus valores, que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+guarda en `general$vocabulario` para las columnas de texto o factor de
+hasta 20 valores distintos. Una entrega que cambia todos sus valores con
+la misma forma —`A`/`B` por `X`/`Y`, en las mismas proporciones— no
+mueve la cardinalidad, los faltantes ni los patrones, y salía sin
+ninguna fila. La fila `vocabulario / modificado` nombra los valores que
+aparecieron y los que desaparecieron con su proporción, y `delta` es la
+proporción de filas que llevan valores que la otra entrega no tenía, la
+mayor de las dos direcciones: `sospechoso` desde `umbral_cambio`,
+`error` desde `umbral_error`, y `ok` por debajo, sin dejar de
+publicarse. Por **decisión**, el corrimiento de proporciones entre
+valores que siguen en las dos entregas no gradúa la fila —sólo se
+informa en la evidencia, como distancia de variación total—: la misma
+distribución de cuatro categorías remuestreada en 200 filas lo mueve
+0,06 de mediana, y esa alarma sería del azar; por eso dos valores que
+intercambian su peso sin que aparezca ni desaparezca ninguno no dan
+fila. No se compara el vocabulario de una columna con cardinalidad alta
+—con el mismo criterio que su hallazgo `alta_cardinalidad`— ni el de una
+cuyos valores son todos distintos, que es un identificador y renueva sus
+valores en cada entrega; si un lado tiene más de 20 valores, la fila
+dice `no_comparable` con severidad `ok`. Un perfil sin
+`general$vocabulario` —de una versión anterior— se declara con la fila
+de campos ausentes, y el de una columna protegida o sin valores
+publicados (`incluir_valores = FALSE`) no se guarda y se declara en
+`campos_protegidos`.
+
+Las **marcas del plan de limpieza** —`.fila_duplicada`,
+`.grupo_duplicado`, `.ausente_<columna>` y `.outlier_<columna>`, que
+agrega
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)—
+se reconocen con la regla del plan: por su nombre exacto y su columna en
+la misma tabla, no por el punto inicial. Una marca que aparece o
+desaparece se publica con severidad `ok`, porque la tabla cambió de
+forma por la limpieza que se pidió y no por la entrega, y un hallazgo
+sobre una marca —los `NA` de `.grupo_duplicado` significan que la fila
+no está en ningún grupo— también, con la razón en la descripción. Una
+columna del usuario con exactamente uno de esos nombres se trata como
+marca, como ya hace el plan; una marca renombrada en el plan se trata
+como columna.
 
 Entre las propiedades comparadas está la **unidad** en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos
@@ -222,6 +311,74 @@ define esas filas. En ese caso se publica `no_comparable`, con severidad
 `error`, y se nombran las columnas cambiadas. Con las mismas columnas,
 el veredicto `resuelto` se conserva.
 
+## Perfiles de una base de datos
+
+Un objeto de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+trae dos bloques con universos distintos: el resumen SQL
+(`resumen_tabla`), que calcula el motor, y el perfil de muestra
+(`perfil_muestra`), que calcula R sobre las filas leídas. Con
+`muestra = Inf` —el valor por omisión— la muestra cubre la tabla y la
+comparación es la misma que entre sus dos perfiles de muestra.
+
+Si la muestra de algún lado no cubre la tabla, cada aspecto se toma del
+universo más amplio que lo mide. El rango de las columnas numéricas y la
+cardinalidad salen del resumen SQL cuando la cifra tiene estado
+`calculado` sobre la tabla completa en los dos lados; del lado de un
+perfil en memoria, de ese perfil. Los faltantes conservan su definición
+—los `NULL` y los disfrazados—: los primeros los cuenta el motor sobre
+la tabla y los segundos se estiman sobre la muestra, porque el resumen
+SQL no reconoce centinelas ni cadenas de ausencia; por eso **un faltante
+disfrazado que entra en filas que la muestra no lee no aparece**, y la
+fila `muestra` lo dice. Las dos partes se suman sólo si miden sobre el
+mismo denominador: con una declaración de aplicabilidad o de columnas
+opcionales —que el resumen SQL no aplica— queda la estimación de la
+muestra, rotulada `muestra`. Los patrones, los hallazgos y el tipo
+inferido sólo los mide la muestra, y no se comparan como cambios de la
+tabla. Los extremos de una fecha —también la que se guarda como texto—
+se compararían si el resumen SQL los calculara en los dos lados; no los
+calcula, y la fila `rango / no_comparable` lo dice con el motivo
+`sin_cifra_sql:el_resumen_sql_no_calcula_minimo_fecha_ni_maximo_fecha`.
+El vocabulario tampoco: el resumen SQL no guarda valores, y sus columnas
+se declaran en una fila `vocabulario / no_comparable` con el motivo
+`sin_cifra_sql:el_resumen_sql_no_guarda_valores`.
+
+Una cifra SQL que en algún lado no se calculó sobre la tabla completa
+—`no_disponible`, `no_solicitado`, `omitido_por_costo`, `estimado_motor`
+(también contra otra estimación del motor), las de
+`universo = "muestra_motor"`— no se compara: una fila `no_comparable`
+por aspecto, con `columna` en `NA`, nombra en `evidencia` cada columna
+con su motivo, `estado_sql:<anterior>_vs_<actual>` o
+`universo_distinto:<anterior>_vs_<actual>`, con lo que el motor dijo de
+la cifra y, si un lado no la pidió, la métrica de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+que falta (por ejemplo `basicos` para el rango). La que la protección
+omitió se declara en `campos_protegidos`.
+
+El rango y la cardinalidad del resumen SQL se comparan sólo entre
+columnas de la misma familia de tipo —número, texto, fecha, lógico—: un
+booleano contra un entero `0/1`, o un entero que pasa a texto con las
+mismas cifras, no tienen un rango que comparar, y el motivo es
+`tipo_distinto:<anterior>_vs_<actual>`; la fila de `tipo_declarado` ya
+dice el cambio.
+
+La cardinalidad de una columna de texto sólo se compara entre dos
+objetos del mismo controlador cuya columna tiene el mismo cotejamiento:
+el motor cuenta valores distintos con el cotejamiento de la columna —que
+puede ignorar mayúsculas o acentos— y R por bytes, y los mismos datos
+con `COLLATE NOCASE` y con `COLLATE BINARY` darían una deriva falsa.
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+lee el cotejamiento de cada columna en SQLite y en DuckDB
+(`meta$cotejamientos` del resumen); en otro motor, o contra un perfil en
+memoria, la cardinalidad de texto se declara `no_comparable` con el
+motivo `cotejamiento_no_verificado:...`, y con cotejamientos distintos,
+`cotejamiento_distinto:<anterior>_vs_<actual>`.
+
+Para comparar una entrega en la base con otra en un archivo, conviene
+leer el archivo con los tipos de la base: un número entero en un CSV se
+relee como entero, y el cambio de tipo se publica aunque los datos sean
+los mismos.
+
 ## See also
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
@@ -249,8 +406,12 @@ comparar_perfiles(anterior, actual)
 #> 1       Apareció una columna que no estaba en la entrega anterior.
 #> 2                             Apareció un patrón de formato nuevo.
 #> 3 Cambió la proporción de un patrón de formato que sigue presente.
-#>                                        evidencia
-#> 1 No existe una base anterior para sus métricas.
-#> 2                      Proporción actual: 0.5000
-#> 3                  Proporción: 1.0000 -> 0.5000.
+#>                                        evidencia universo_anterior
+#> 1 No existe una base anterior para sus métricas.    tabla_completa
+#> 2                      Proporción actual: 0.5000    tabla_completa
+#> 3                  Proporción: 1.0000 -> 0.5000.    tabla_completa
+#>   universo_actual
+#> 1  tabla_completa
+#> 2  tabla_completa
+#> 3  tabla_completa
 ```

@@ -59,13 +59,14 @@ deriva[, c("columna", "aspecto", "cambio", "severidad")]
 #> 5           canal cardinalidad modificado sospechoso
 #> 6           monto    faltantes modificado         ok
 #> 7           monto        rango modificado         ok
-#> 8  codigo_usuario       patron modificado sospechoso
+#> 8           canal  vocabulario modificado sospechoso
 #> 9  codigo_usuario       patron modificado sospechoso
-#> 10          canal       patron modificado sospechoso
+#> 10 codigo_usuario       patron modificado sospechoso
 #> 11          canal       patron modificado sospechoso
-#> 12 codigo_usuario     hallazgo  aparecido sospechoso
-#> 13       sucursal     hallazgo  aparecido sospechoso
-#> 14          monto     hallazgo   resuelto         ok
+#> 12          canal       patron modificado sospechoso
+#> 13 codigo_usuario     hallazgo  aparecido sospechoso
+#> 14       sucursal     hallazgo  aparecido sospechoso
+#> 15          monto     hallazgo   resuelto         ok
 ```
 
 Cada fila es un cambio, y `aspecto` dice de qué tipo. La columna nueva

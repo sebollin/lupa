@@ -518,6 +518,16 @@ recuperación de una muestra corta. En `muestra_motor` o bajo
 `bloque_filas`, las columnas binarias de motores compatibles se
 representan como `largo:md5` durante la lectura y el perfil publica sus
 largos originales; el contenido no se conserva.
+`resumen_tabla$meta$tipos_motor` guarda el tipo de cada columna como lo
+declara el motor o su controlador al leer el esquema, que no depende de
+las filas leídas, y en SQLite y DuckDB
+`resumen_tabla$meta$cotejamientos` el cotejamiento de cada columna,
+leído del `CREATE TABLE` en la misma consulta de la clave o del tipo:
+`binary`/`predeterminado` o el de su `COLLATE`. Una `fecha` declarada
+queda también en `resumen_tabla$meta$fecha_hora`, con
+`resumen_tabla$meta$fecha_declarada = TRUE`, aunque no haya muestra
+(`bloque_muestra = "solo_agregados"`); sin `fecha`, esos campos no
+están.
 
 ## Details
 

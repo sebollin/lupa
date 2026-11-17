@@ -115,6 +115,30 @@ al guardarse como texto la columna pierde la zona y los instantes que
 denota son realmente otros, que es lo más importante que hay para
 informar en ese caso.
 
+Si uno de los lados es un objeto de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+cada cifra de su resumen SQL lleva un estado y un alcance
+(`resumen_tabla$sql`), y una cifra que no se puede comparar con la del
+otro lado no se compara: queda en la tabla con veredicto
+`no_comparable`. El motivo es `estado_sql:<anterior>_vs_<actual>` si
+alguna no tiene valor —el presupuesto de consultas agotado la deja
+`no_disponible`— o se midió de otro modo —`calculado` contra
+`estimado_motor`—, y `universo_distinto:<anterior>_vs_<actual>` si se
+midieron sobre filas distintas: la misma tabla en
+`universo = "tabla_completa"` y en `"muestra_motor"` cuenta 3000 filas
+en `n` y 400 en `n_validos`, y esa diferencia no es del dato. Un perfil
+en memoria cuenta sobre la tabla entera, salvo que sea la muestra de una
+base. Dos cifras medidas igual —también dos estimaciones del mismo
+motor— se comparan como siempre, salvo que sean de muestras: dos
+muestras independientes —dos `muestra_motor` de la misma tabla, o la
+muestra de una base contra otra— no describen las mismas filas, y salen
+`no_comparable` con el motivo
+`universo_distinto:muestras_independientes`, salvo que los dos objetos
+declaren la misma muestra (el mismo `checksum` de la materialización, o
+la misma consulta de una muestra reproducible). La que la protección
+omitió se declara en `campos_protegidos`. Entre perfiles en memoria o
+frames `columnas` no hay estado que leer y nada de esto se aplica.
+
 ## See also
 
 [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),

@@ -79,7 +79,12 @@ un objeto de datos filtrable.</p>
 
 
 <dl><dt id="arg-anterior-actual">anterior, actual<a class="anchor" aria-label="anchor" href="#arg-anterior-actual"></a></dt>
-<dd><p>Objetos producidos por <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
+<dd><p>Objetos producidos por <code><a href="perfilar.html">perfilar()</a></code>,
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> o <code><a href="analizar.html">analizar()</a></code>. De un análisis se compara su perfil,
+<code>$perfil</code>: sus mediciones y su evaluación tienen su propia serie en
+<code><a href="historico_calidad.html">historico_calidad()</a></code>. Un objeto de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> tiene que traer su
+perfil de muestra (<code>bloque_muestra = "con_muestra"</code>, el valor por omisión):
+sin él no hay tipos de columna ni nada medido sobre las filas, y se rechaza.</p></dd>
 
 
 <dt id="arg-umbral-cambio">umbral_cambio<a class="anchor" aria-label="anchor" href="#arg-umbral-cambio"></a></dt>
@@ -102,25 +107,50 @@ para que la serie sea exportable sin ocultar diferencias.
 El atributo <code>campos_protegidos</code> declara lo que no se comparó porque la
 protección de datos personales lo tapa: un data frame con <code>columna</code>,
 <code>campo</code> y <code>lado</code> —<code>anterior</code> o <code>actual</code>—, la misma forma que usa
-<code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code>. El único campo que puede figurar es
-<code>rango</code>. Está siempre, vacío si no hay nada que declarar, y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> une
-los de todas las derivas.</p>
+<code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code>. Los campos que pueden figurar son <code>rango</code> y
+<code>vocabulario</code>. Está siempre, vacío si no hay nada que declarar, y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>
+une los de todas las derivas.</p>
+<p><code>universo_anterior</code> y <code>universo_actual</code> dicen de qué filas sale la cifra de
+cada lado: <code>"tabla_completa"</code> —un perfil en memoria, una muestra que cubre
+la tabla o un agregado SQL calculado sobre la tabla entera—, <code>"muestra"</code>
+—sólo las filas leídas, o los patrones y el tipo inferido que <code><a href="perfilar.html">perfilar()</a></code>
+buscó en una <code>muestra</code> menor que la tabla— o <code>"mixto"</code> —los faltantes de un
+objeto de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> cuya muestra no cubre la tabla: los <code>NULL</code> que
+cuenta el motor más los faltantes disfrazados estimados sobre la muestra—.
+Las columnas presentes son las del esquema. El conteo de filas es de la
+tabla entera: el total de la fuente o el de un perfil que la cubre; sin
+ninguno de los dos —el presupuesto de consultas no alcanzó para el
+<code>COUNT(*)</code>— la fila <code>filas</code> sale <code>no_comparable</code>, porque lo que queda es el
+tamaño de la muestra. El tipo declarado y la unidad salen de la clase con
+que R leyó las filas: de un perfil que no cubre la tabla se rotulan
+<code>muestra</code>, salvo que el tipo que declara el motor respalde el cambio. Son
+<code>NA</code> en las filas de configuración, en la fila <code>muestra</code> y en las que
+declaran algo que no se comparó. Un hallazgo se rotula con las filas del perfil; el
+diagnóstico que trabaja sobre una submuestra lo declara en
+<code>cobertura_diagnosticos</code>. <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> une una deriva guardada antes de que
+existieran estas columnas con ellas en <code>NA</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Los patrones se comparan sobre el resumen acotado que conserva cada perfil,
 no sobre los valores originales ni una distribución completa. Si las dos
 corridas usaron configuraciones de patrones diferentes, se informa un error
-de comparabilidad y esa parte de la comparación se omite.</p>
+de comparabilidad y esa parte de la comparación se omite. Dos perfiles que
+buscaron sus patrones en todas las filas de la tabla tienen la misma
+configuración aunque declaren otra <code>muestra</code>: con 400 filas, el <code>1e5</code> de
+<code><a href="perfilar.html">perfilar()</a></code> y el <code>Inf</code> que <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> le pasa a su muestra miden lo
+mismo. La fila publica lo declarado.</p>
 <p>Un perfil DBI con <code>meta$origen_dbi$muestreo</code> o con
 <code>meta$alcance$universo_id = "muestra_motor"</code> describe una muestra de la tabla
 fuente. Si uno de los perfiles es de ese tipo, las filas se comparan con
 <code>filas_totales_fuente</code> cuando está disponible, pero rangos, cardinalidades,
-patrones y hallazgos no se interpretan como cambios de la tabla completa. La
-proporción de faltantes sí se estima sobre las filas observadas y se compara;
-los extremos, las cardinalidades y los conteos absolutos que dependen del
-universo completo quedan fuera. La salida agrega una fila <code>muestra / no_comparable</code> y deja fuera esos aspectos; una muestra distinta no se
-convierte en un cambio ni en un hallazgo resuelto.</p>
+patrones y hallazgos de la muestra no se interpretan como cambios de la tabla
+completa. La proporción de faltantes sí se estima sobre las filas observadas y
+se compara, con <code>universo = "muestra"</code>. La salida agrega una fila <code>muestra / no_comparable</code>, cuya evidencia dice cómo se leyó cada lado —el método y si la
+lectura es reproducible—, y deja fuera esos aspectos; una muestra distinta no
+se convierte en un cambio ni en un hallazgo resuelto. Con el objeto entero de
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, esos aspectos se toman del resumen SQL: ver la sección
+siguiente.</p>
 <p>Los nombres de columnas y las configuraciones que contienen texto del usuario
 se comparan por sus bytes, no por la marca de codificación ni por la
 intercalación del locale.</p>
@@ -136,9 +166,11 @@ columna, los hallazgos, el alcance del resumen y las configuraciones
 declaradas —no los valores uno por uno—: la columna <code>aspecto</code> del resultado
 nombra, fila por fila, qué se comparó, y es la enumeración viva. <strong>Un cambio de texto que no
 altera ninguna propiedad medida no aparece</strong>: por ejemplo, si la moda de una
-columna pasa de <code>"Basico"</code> a <code>"Casico"</code> —mismo largo, misma forma de patrón,
-mismos conteos—, la comparación devuelve cero filas. Por eso el remedio ante
-una relectura sospechosa no es confiar en la comparación para detectarla.</p>
+columna de texto libre pasa de <code>"Basico"</code> a <code>"Casico"</code> —mismo largo, misma
+forma de patrón, mismos conteos—, la comparación devuelve cero filas. En una
+columna categórica sí aparece, porque su vocabulario se compara (ver más
+abajo), pero sólo ahí. Por eso el remedio ante una relectura sospechosa no es
+confiar en la comparación para detectarla.</p>
 <p>El remedio es una línea, <code>saveRDS(perfil, archivo, version = 2)</code>, porque ese
 formato no anota codificación nativa y por lo tanto no traduce nada. La
 persistencia propia del paquete —<code><a href="guardar_historico.html">guardar_historico()</a></code> y
@@ -150,6 +182,39 @@ un valor, no una propiedad medida, y cambia con cualquier corrimiento normal de
 los datos, así que compararla llenaría la deriva de filas que no son deterioro.
 Quien necesite detectar una relectura corrompida tiene el remedio de una línea
 que está dos párrafos más abajo, que la evita en lugar de detectarla.</p>
+<p>El <strong>vocabulario</strong> de una columna categórica sí se compara: el conjunto de sus
+valores, que <code><a href="perfilar.html">perfilar()</a></code> guarda en <code>general$vocabulario</code> para las columnas de
+texto o factor de hasta 20 valores distintos. Una entrega que cambia todos sus
+valores con la misma forma —<code>A</code>/<code>B</code> por <code>X</code>/<code>Y</code>, en las mismas proporciones—
+no mueve la cardinalidad, los faltantes ni los patrones, y salía sin ninguna
+fila. La fila <code>vocabulario / modificado</code> nombra los valores que aparecieron y
+los que desaparecieron con su proporción, y <code>delta</code> es la proporción de filas
+que llevan valores que la otra entrega no tenía, la mayor de las dos
+direcciones: <code>sospechoso</code> desde <code>umbral_cambio</code>, <code>error</code> desde <code>umbral_error</code>,
+y <code>ok</code> por debajo, sin dejar de publicarse. Por <strong>decisión</strong>, el corrimiento
+de proporciones entre valores que siguen en las dos entregas no gradúa la
+fila —sólo se informa en la evidencia, como distancia de variación total—:
+la misma distribución de cuatro categorías remuestreada en 200 filas lo mueve
+0,06 de mediana, y esa alarma sería del azar; por eso dos valores que
+intercambian su peso sin que aparezca ni desaparezca ninguno no dan fila.
+No se compara el vocabulario de una columna con cardinalidad alta —con el
+mismo criterio que su hallazgo <code>alta_cardinalidad</code>— ni el de una cuyos valores
+son todos distintos, que es un identificador y renueva sus valores en cada
+entrega; si un lado tiene más de 20 valores, la fila dice <code>no_comparable</code>
+con severidad <code>ok</code>. Un perfil sin <code>general$vocabulario</code> —de una versión
+anterior— se declara con la fila de campos ausentes, y el de una columna
+protegida o sin valores publicados (<code>incluir_valores = FALSE</code>) no se guarda y
+se declara en <code>campos_protegidos</code>.</p>
+<p>Las <strong>marcas del plan de limpieza</strong> —<code>.fila_duplicada</code>, <code>.grupo_duplicado</code>,
+<code>.ausente_&lt;columna&gt;</code> y <code>.outlier_&lt;columna&gt;</code>, que agrega <code><a href="planificar_limpieza.html">aplicar()</a></code>— se
+reconocen con la regla del plan: por su nombre exacto y su columna en la misma
+tabla, no por el punto inicial. Una marca que aparece o desaparece se publica
+con severidad <code>ok</code>, porque la tabla cambió de forma por la limpieza que se
+pidió y no por la entrega, y un hallazgo sobre una marca —los <code>NA</code> de
+<code>.grupo_duplicado</code> significan que la fila no está en ningún grupo— también,
+con la razón en la descripción. Una columna del usuario con exactamente uno de
+esos nombres se trata como marca, como ya hace el plan; una marca renombrada
+en el plan se trata como columna.</p>
 <p>Entre las propiedades comparadas está la <strong>unidad</strong> en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
 con los mismos valores y la unidad cambiada de <code>m</code> a <code>km</code> son un cambio real
@@ -256,6 +321,64 @@ columnas cambiadas. Con las mismas columnas, el veredicto <code>resuelto</code> 
 conserva.</p>
     </div>
     <div class="section level2">
+    <h2 id="perfiles-de-una-base-de-datos">Perfiles de una base de datos<a class="anchor" aria-label="anchor" href="#perfiles-de-una-base-de-datos"></a></h2>
+
+
+<p>Un objeto de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> trae dos bloques con universos distintos: el
+resumen SQL (<code>resumen_tabla</code>), que calcula el motor, y el perfil de muestra
+(<code>perfil_muestra</code>), que calcula R sobre las filas leídas. Con <code>muestra = Inf</code>
+—el valor por omisión— la muestra cubre la tabla y la comparación es la
+misma que entre sus dos perfiles de muestra.</p>
+<p>Si la muestra de algún lado no cubre la tabla, cada aspecto se toma del
+universo más amplio que lo mide. El rango de las columnas numéricas y la
+cardinalidad salen del resumen SQL cuando la cifra tiene estado <code>calculado</code>
+sobre la tabla completa en los dos lados; del lado de un perfil en memoria,
+de ese perfil. Los faltantes conservan su definición —los <code>NULL</code> y los
+disfrazados—: los primeros los cuenta el motor sobre la tabla y los segundos
+se estiman sobre la muestra, porque el resumen SQL no reconoce centinelas ni
+cadenas de ausencia; por eso <strong>un faltante disfrazado que entra en filas que
+la muestra no lee no aparece</strong>, y la fila <code>muestra</code> lo dice. Las dos partes
+se suman sólo si miden sobre el mismo denominador: con una declaración de
+aplicabilidad o de columnas opcionales —que el resumen SQL no aplica— queda la
+estimación de la muestra, rotulada <code>muestra</code>. Los patrones, los hallazgos y el
+tipo inferido sólo los mide la muestra, y no se comparan como cambios de la
+tabla. Los extremos de una fecha —también la que se guarda como texto— se
+compararían si el resumen SQL los calculara en los dos lados; no los calcula,
+y la fila <code>rango / no_comparable</code> lo dice con el motivo
+<code>sin_cifra_sql:el_resumen_sql_no_calcula_minimo_fecha_ni_maximo_fecha</code>. El
+vocabulario tampoco: el resumen SQL no guarda valores, y sus columnas se
+declaran en una fila <code>vocabulario / no_comparable</code> con el motivo
+<code>sin_cifra_sql:el_resumen_sql_no_guarda_valores</code>.</p>
+<p>Una cifra SQL que en algún lado no se calculó sobre la tabla completa
+—<code>no_disponible</code>, <code>no_solicitado</code>, <code>omitido_por_costo</code>, <code>estimado_motor</code>
+(también contra otra estimación del motor), las de
+<code>universo = "muestra_motor"</code>— no se compara: una fila <code>no_comparable</code> por
+aspecto, con <code>columna</code> en <code>NA</code>, nombra en <code>evidencia</code> cada columna con su
+motivo, <code>estado_sql:&lt;anterior&gt;_vs_&lt;actual&gt;</code> o
+<code>universo_distinto:&lt;anterior&gt;_vs_&lt;actual&gt;</code>, con lo que el motor dijo de la
+cifra y, si un lado no la pidió, la métrica de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> que falta
+(por ejemplo <code>basicos</code> para el rango). La que la protección omitió se declara
+en <code>campos_protegidos</code>.</p>
+<p>El rango y la cardinalidad del resumen SQL se comparan sólo entre columnas de
+la misma familia de tipo —número, texto, fecha, lógico—: un booleano contra un
+entero <code>0/1</code>, o un entero que pasa a texto con las mismas cifras, no tienen un
+rango que comparar, y el motivo es <code>tipo_distinto:&lt;anterior&gt;_vs_&lt;actual&gt;</code>; la
+fila de <code>tipo_declarado</code> ya dice el cambio.</p>
+<p>La cardinalidad de una columna de texto sólo se compara entre dos objetos del
+mismo controlador cuya columna tiene el mismo cotejamiento: el motor cuenta
+valores distintos con el cotejamiento de la columna —que puede ignorar
+mayúsculas o acentos— y R por bytes, y los mismos datos con <code>COLLATE NOCASE</code> y
+con <code>COLLATE BINARY</code> darían una deriva falsa. <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> lee el
+cotejamiento de cada columna en SQLite y en DuckDB (<code>meta$cotejamientos</code> del
+resumen); en otro motor, o contra un perfil en memoria, la cardinalidad de
+texto se declara <code>no_comparable</code> con el motivo
+<code>cotejamiento_no_verificado:...</code>, y con cotejamientos distintos,
+<code>cotejamiento_distinto:&lt;anterior&gt;_vs_&lt;actual&gt;</code>.</p>
+<p>Para comparar una entrega en la base con otra en un archivo, conviene leer el
+archivo con los tipos de la base: un número entero en un CSV se relee como
+entero, y el cambio de tipo se publica aunque los datos sean los mismos.</p>
+    </div>
+    <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="perfilar.html">perfilar()</a></code>, <code><a href="detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>, <code><a href="reportar.html">reportar()</a></code>,
 <code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code></p></div>
@@ -280,10 +403,14 @@ conserva.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1       Apareció una columna que no estaba en la entrega anterior.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                             Apareció un patrón de formato nuevo.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3 Cambió la proporción de un patrón de formato que sigue presente.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                        evidencia</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 No existe una base anterior para sus métricas.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                      Proporción actual: 0.5000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                  Proporción: 1.0000 -&gt; 0.5000.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                        evidencia universo_anterior</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 No existe una base anterior para sus métricas.    tabla_completa</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                      Proporción actual: 0.5000    tabla_completa</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                  Proporción: 1.0000 -&gt; 0.5000.    tabla_completa</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   universo_actual</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1  tabla_completa</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2  tabla_completa</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3  tabla_completa</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

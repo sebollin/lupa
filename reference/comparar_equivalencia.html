@@ -176,6 +176,26 @@ valor distinto: no dan ninguno, porque no hay zona que comparar contra UTC.
 Los extremos de fecha <strong>sí</strong> se siguen comparando: al guardarse como texto
 la columna pierde la zona y los instantes que denota son realmente otros,
 que es lo más importante que hay para informar en ese caso.</p>
+<p>Si uno de los lados es un objeto de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, cada cifra de su
+resumen SQL lleva un estado y un alcance (<code>resumen_tabla$sql</code>), y una cifra
+que no se puede comparar con la del otro lado no se compara: queda en la
+tabla con veredicto <code>no_comparable</code>. El motivo es
+<code>estado_sql:&lt;anterior&gt;_vs_&lt;actual&gt;</code> si alguna no tiene valor —el presupuesto
+de consultas agotado la deja <code>no_disponible</code>— o se midió de otro modo
+—<code>calculado</code> contra <code>estimado_motor</code>—, y
+<code>universo_distinto:&lt;anterior&gt;_vs_&lt;actual&gt;</code> si se midieron sobre filas
+distintas: la misma tabla en <code>universo = "tabla_completa"</code> y en
+<code>"muestra_motor"</code> cuenta 3000 filas en <code>n</code> y 400 en <code>n_validos</code>, y esa
+diferencia no es del dato. Un perfil en memoria cuenta sobre la tabla entera,
+salvo que sea la muestra de una base. Dos cifras medidas igual —también dos
+estimaciones del mismo motor— se comparan como siempre, salvo que sean de
+muestras: dos muestras independientes —dos <code>muestra_motor</code> de la misma tabla,
+o la muestra de una base contra otra— no describen las mismas filas, y salen
+<code>no_comparable</code> con el motivo <code>universo_distinto:muestras_independientes</code>,
+salvo que los dos objetos declaren la misma muestra (el mismo <code>checksum</code> de
+la materialización, o la misma consulta de una muestra reproducible). La que
+la protección omitió se declara en <code>campos_protegidos</code>. Entre perfiles en
+memoria o frames <code>columnas</code> no hay estado que leer y nada de esto se aplica.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

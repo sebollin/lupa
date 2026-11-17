@@ -322,17 +322,20 @@ perfil_despues <- perfilar(resultado$datos)
 cambios <- comparar_perfiles(perfil, perfil_despues)
 cambios[cambios$aspecto == "hallazgo", c("columna", "cambio", "valor_anterior", "valor_actual")]
 #>             columna        cambio        valor_anterior valor_actual
-#> 10 .grupo_duplicado     aparecido                  <NA>    constante
-#> 11 .grupo_duplicado     aparecido                  <NA>    faltantes
-#> 12           cedula      resuelto faltantes_disfrazados         <NA>
-#> 13             sexo      resuelto faltantes_disfrazados         <NA>
-#> 14             <NA> no_comparable      filas_duplicadas         <NA>
+#> 11 .grupo_duplicado     aparecido                  <NA>    constante
+#> 12 .grupo_duplicado     aparecido                  <NA>    faltantes
+#> 13           cedula      resuelto faltantes_disfrazados         <NA>
+#> 14             sexo      resuelto faltantes_disfrazados         <NA>
+#> 15             <NA> no_comparable      filas_duplicadas         <NA>
 ```
 
 - Los faltantes disfrazados de `cedula` y `sexo` quedaron `resuelto`.
 - Los hallazgos `aparecido` en `.grupo_duplicado` son la huella de la
-  marca. Esa columna sólo tiene valor en las filas duplicadas, así que
-  el perfil la encuentra casi vacía y con un único valor.
+  marca, y salen con severidad `ok`: el paquete reconoce las columnas
+  que agrega
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
+  Esa columna sólo tiene valor en las filas duplicadas, así que el
+  perfil la encuentra casi vacía y con un único valor.
 - `filas_duplicadas` queda `no_comparable`, porque la tabla ganó las
   columnas de marca. Con otro conjunto de columnas no se puede decidir
   si las filas repetidas se resolvieron.

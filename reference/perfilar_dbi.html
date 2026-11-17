@@ -570,7 +570,15 @@ conserva los bytes del spool. <code>meta$muestreo$reintentos</code> y
 corta. En <code>muestra_motor</code> o bajo <code>bloque_filas</code>, las columnas binarias de
 motores compatibles se representan como
 <code>largo:md5</code> durante la lectura y el perfil publica sus largos originales;
-el contenido no se conserva.</p>
+el contenido no se conserva.
+<code>resumen_tabla$meta$tipos_motor</code> guarda el tipo de cada columna como lo
+declara el motor o su controlador al leer el esquema, que no depende de las
+filas leídas, y en SQLite y DuckDB <code>resumen_tabla$meta$cotejamientos</code> el
+cotejamiento de cada columna, leído del <code>CREATE TABLE</code> en la misma consulta
+de la clave o del tipo: <code>binary</code>/<code>predeterminado</code> o el de su <code>COLLATE</code>.
+Una <code>fecha</code> declarada queda también en <code>resumen_tabla$meta$fecha_hora</code>, con
+<code>resumen_tabla$meta$fecha_declarada = TRUE</code>, aunque no haya muestra
+(<code>bloque_muestra = "solo_agregados"</code>); sin <code>fecha</code>, esos campos no están.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
