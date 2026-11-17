@@ -178,16 +178,20 @@ test_that("una fecha que dos lecturas aceptan entra en la traza del anio corto",
   expect_equal(mixtos$n_filas_formas_dominantes, 10)
 })
 
-# Con `muestra = 20` sobre 300 filas, la muestra toma las filas 1, 17, 32, 48,
-# 64, 80, 95, 111, 127, 143, 158, 174, 190, 206, 221, 237, 253, 269, 284 y 300:
-# lo que se escribe en las filas 2 a 10 no lo ve.
+# Las filas 2 a 10 forman la variante con guiones del caso siguiente. Su
+# ausencia de la muestra se comprueba por el valor, no por una rejilla.
 fuera_de_la_muestra <- 2:10
 
 test_that("el anio corto se traza sobre la columna entera, no sobre lo que vio la muestra", {
-  # 380 `01/12/20`, 10 `13/06/20` y 10 `06/30/20`, con una muestra de 20: la
-  # muestra solo publica `%m/%d/%y`, pero las 400 filas tienen el anio con
-  # dos cifras y ninguna admite otra lectura.
-  datos <- fechas(rep("01/12/20", 380), rep("13/06/20", 10), rep("06/30/20", 10))
+  # 380 `01/12/20`, 10 `13/01/20` y 10 `12/31/20`, con una muestra de 20: la
+  # muestra ve `12/31/20` y no `13/01/20`, asi que solo publica `%m/%d/%y`,
+  # pero las 400 filas tienen el anio con dos cifras.
+  datos <- fechas(
+    rep("01/12/20", 380L), rep("13/01/20", 10L), rep("12/31/20", 10L)
+  )
+  indices_muestra <- lupa:::.indices_huella_tabla(datos, 20L)$indices
+  expect_false(any(indices_muestra %in% 381:390))
+  expect_true(any(indices_muestra %in% 391:400))
   expect_no_warning(
     perfil <- perfilar_fechas(datos, muestra = 20),
     class = "lupa_trazabilidad_incoherente"
@@ -205,12 +209,16 @@ test_that("el anio corto se traza sobre la columna entera, no sobre lo que vio l
 })
 
 test_that("la lectura ambigua y los formatos mixtos nombran filas que la muestra no vio", {
-  valores <- rep("2024-01-15", 300)
-  valores[101:160] <- "03/04/2021"
-  # Otra escritura ambigua, solo en filas que la muestra no toma.
-  valores[fuera_de_la_muestra] <- "05-06-2021"
+  valores <- rep("2024-08-15", 300L)
+  valores[101:160] <- "10/05/2021"
+  # Otra escritura ambigua, solo en filas que la huella no toma.
+  valores[fuera_de_la_muestra] <- "05-03-2021"
+  datos <- fechas(valores)
+  indices_muestra <- lupa:::.indices_huella_tabla(datos, 20L)$indices
+  expect_true(any(indices_muestra %in% 101:160))
+  expect_false(any(indices_muestra %in% fuera_de_la_muestra))
   expect_no_warning(
-    perfil <- perfilar_fechas(fechas(valores), muestra = 20),
+    perfil <- perfilar_fechas(datos, muestra = 20),
     class = "lupa_trazabilidad_incoherente"
   )
   formatos <- perfil$formatos_fecha$fecha

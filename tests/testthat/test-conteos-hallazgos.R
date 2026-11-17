@@ -243,9 +243,12 @@ test_that("patron_raro declara cuando no hay dominante suficiente", {
 
 test_that("la trazabilidad de patrones muestreados declara su alcance", {
   valores <- rep("AA-111", 2000L)
-  valores[c(1980L, 2000L)] <- c("S/D", "MAL-5")
+  valores[c(1980L, 2000L)] <- c("S/0006", "Q:0018")
+  datos <- data.frame(cod = valores)
+  indices_muestra <- lupa:::.indices_huella_tabla(datos, 100L)$indices
+  expect_true(all(c(1980L, 2000L) %in% indices_muestra))
   perfil <- perfilar(
-    data.frame(cod = valores), muestra = 100L,
+    datos, muestra = 100L,
     analizar_dependencias = FALSE
   )
   hallazgo <- perfil$hallazgos[
@@ -255,7 +258,7 @@ test_that("la trazabilidad de patrones muestreados declara su alcance", {
   expect_equal(hallazgo$n_evaluados, 100)
   expect_equal(hallazgo$n_afectados, 2)
   expect_equal(hallazgo$trazabilidad[[1L]]$alcance, "muestra_patrones")
-  expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, c(1980L, 2000L))
+  expect_setequal(hallazgo$trazabilidad[[1L]]$indices_fila, c(1980L, 2000L))
 })
 
 test_that("patron_raro separa patrones raros de patrones intermedios", {
@@ -335,11 +338,14 @@ test_that("la presentacion de patrones raros no recorta la trazabilidad", {
 })
 
 test_that("el alcance conserva muestreo y recorte de patrones", {
-  raros <- c("x", "x1", "1x", "x-x", "1", "X-X", "x_x")
+  raros <- c("k", "x0002", "0012x", "x-0008", "0005", "A-I", "x_0006")
   valores <- rep("AB", 200L)
   valores[seq(1L, 13L, by = 2L)] <- raros
+  datos <- data.frame(codigo = valores)
+  indices_muestra <- lupa:::.indices_huella_tabla(datos, 100L)$indices
+  expect_true(all(seq(1L, 13L, by = 2L) %in% indices_muestra))
   perfil <- perfilar(
-    data.frame(codigo = valores), muestra = 100L,
+    datos, muestra = 100L,
     analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
   )
   hallazgo <- perfil$hallazgos[
