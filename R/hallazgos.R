@@ -3252,7 +3252,17 @@
   analizados <- attr(resultado$patrones, "analizados")
   muestreado <- isTRUE(attr(resultado$patrones, "muestreado"))
   base <- if (muestreado && is.finite(analizados)) {
-    unique(as.integer(round(seq.int(1, total, length.out = analizados))))
+    indices_muestra <- resultado$indices_muestra
+    total_muestra <- resultado$total_muestra
+    if (!is.null(indices_muestra) &&
+        (is.null(total_muestra) || identical(as.numeric(total_muestra),
+                                              as.numeric(total))) &&
+        is.numeric(indices_muestra) && !anyNA(indices_muestra) &&
+        all(indices_muestra >= 1L) && all(indices_muestra <= total)) {
+      as.integer(indices_muestra)
+    } else {
+      unique(as.integer(round(seq.int(1, total, length.out = analizados))))
+    }
   } else {
     seq_len(total)
   }

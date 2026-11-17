@@ -535,7 +535,9 @@
 #' `n_filas_fecha_civil_distinta_utc` cuenta igual en las dos clases.
 #'
 #' @param x Vector de texto, fechas o fechas-hora.
-#' @param muestra Máximo de valores que se analizan.
+#' @param muestra Máximo de valores que se analizan. Si el vector supera ese
+#' limite, la muestra se elige por una huella determinista del valor canonico y
+#' su numero de aparicion, independiente del orden de entrada.
 #'
 #' @return Data frame con formato, frecuencia, proporción, estado, granularidad
 #'   (`"dia"` o `"mes"`) y conteos de casos inequívocos y ambiguos. Los

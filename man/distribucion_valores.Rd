@@ -28,7 +28,10 @@ con \code{estado = "codigo_declarado"}, como \code{mediana} en el perfil.}
 
 \item{probabilidades}{Probabilidades de los cuantiles, en \verb{[0, 1]}.}
 
-\item{muestra}{Máximo de filas por columna; \code{Inf} desactiva el muestreo.}
+\item{muestra}{Máximo de filas por columna; \code{Inf} desactiva el muestreo. Si
+una columna supera ese limite, se eligen sus valores por una huella
+determinista del valor canonico y su numero de aparicion, independiente del
+orden de entrada.}
 
 \item{proteger_datos_personales}{Si se ocultan valores de columnas cuya
 clasificación activa protección automática. \code{FALSE} por omisión; véase

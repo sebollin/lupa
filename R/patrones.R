@@ -27,8 +27,9 @@
 #' mayúscula ni minúscula —árabe, CJK— cuenta como `a`.
 #'
 #' El cálculo aplica reemplazos vectorizados sobre el vector completo. Si el
-#' vector supera `muestra`, usa una muestra sistemática reproducible y registra
-#' esa decisión en los atributos del resultado.
+#' vector supera `muestra`, usa las prioridades de la huella canonica del valor
+#' y su numero de aparicion, y registra esa decision en los atributos del
+#' resultado.
 #'
 #' @param x Vector que se convertirá a texto.
 #' @param proteger_datos_personales Si los ejemplos se enmascaran cuando la
@@ -40,7 +41,9 @@
 #' @param max_patrones Número máximo de patrones que se muestran: un entero
 #'   positivo, o `Inf` para mostrarlos todos.
 #' @param na.rm Si es `TRUE`, excluye los valores ausentes.
-#' @param muestra Máximo de valores que se analizan.
+#' @param muestra Máximo de valores que se analizan. Si el vector supera ese
+#' limite, la muestra se elige por una huella determinista del valor canonico y
+#' su numero de aparicion, independiente del orden de entrada.
 #' @param umbral_raro Frecuencia máxima de un patrón raro, usada para conservar
 #'   un resumen acotado de patrones raros para los hallazgos. La frontera es
 #'   inclusiva: un patrón no dominante con exactamente esa proporción es raro.

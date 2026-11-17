@@ -156,7 +156,7 @@ test_that("con tres valores en un grupo rompen las dos minorias", {
   h <- .rf_esperar_coherente(perfil, datos)
   directa <- h[h$columna == "codigo,departamento", , drop = FALSE]
   expect_identical(directa$trazabilidad[[1L]]$indices_fila, c(10L, 20L, 30L))
-  expect_match(directa$evidencia, '"MO" -> "Montevideo" | "Salto" | "Rivera"',
+  expect_match(directa$evidencia, '"MO" -> "Montevideo" | "Rivera" | "Salto"',
                fixed = TRUE)
 })
 
@@ -184,9 +184,7 @@ test_that("con muestra, las filas son de la tabla si se verifico y de la muestra
   expect_identical(nrow(h), 1L)
   traza <- h$trazabilidad[[1L]]
   expect_identical(traza$alcance, "muestra_dependencias")
-  filas_muestra <- lupa:::.muestrear_filas_dispersas(
-    n, attr(de_muestra$dependencias, "filas_analizadas")
-  )$valores
+  filas_muestra <- lupa:::.indices_huella_tabla(datos, 1000L)$indices
   esperadas <- filas_muestra[.rf_a_mano(
     datos$codigo[filas_muestra], datos$departamento[filas_muestra]
   )]

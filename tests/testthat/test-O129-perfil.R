@@ -234,26 +234,22 @@ test_that("H5: perfilar_por() traduce tambien indices_unidades a la tabla origin
   expect_setequal(unidades, h$trazabilidad[[j]]$indices_unidades)
 })
 
-test_that("H6: patron_raro sobre una muestra sin hallazgo deja fila de cobertura", {
-  cod <- sprintf("%04d", 1:200)
-  raras <- c(3, 50, 77, 101, 150, 199)
+test_that("H6: patron_raro alcanza una rareza periodica fuera de la rejilla", {
+  n <- 19961L
+  k <- 500L
+  cod <- sprintf("%05d", seq_len(n))
+  raras <- seq.int(2L, n, by = 40L)
   cod[raras] <- paste0("X", seq_along(raras))
-  # A mano: ninguna fila rara cae en la rejilla de `muestra = 67`.
-  rejilla <- unique(as.integer(round(seq.int(1, 200, length.out = 67))))
+  # La rejilla de paso 40 visita un solo residuo y no toca estas filas.
+  rejilla <- unique(as.integer(round(seq.int(1, n, length.out = k))))
   expect_length(intersect(raras, rejilla), 0L)
-  p <- perfilar(data.frame(cod = cod), muestra = 67)
-  expect_false("patron_raro" %in% hallazgos(p)$tipo_hallazgo)
-  cobertura <- p$cobertura_diagnosticos
-  # Antes: cobertura vacia, un perfil "limpio" sobre una enumeracion parcial.
-  fila <- cobertura[cobertura$diagnostico == "patron_raro" &
-                      cobertura$columna == "cod", ]
-  expect_equal(nrow(fila), 1L)
-  expect_match(fila$motivo, "67 de 200", fixed = TRUE)
-  # Sin muestreo no hay fila: se emite el hallazgo con las seis filas.
-  completo <- perfilar(data.frame(cod = cod), muestra = Inf)
-  h <- hallazgos(completo)
-  expect_equal(h$n_afectados[h$tipo_hallazgo == "patron_raro"], 6)
-  expect_false("patron_raro" %in% completo$cobertura_diagnosticos$diagnostico)
+  p <- perfilar(data.frame(cod = cod), muestra = k,
+                fecha = "2026-01-01", analizar_dependencias = FALSE)
+  h <- hallazgos(p)
+  expect_true("patron_raro" %in% h$tipo_hallazgo)
+  fila <- h[h$tipo_hallazgo == "patron_raro", , drop = FALSE]
+  expect_equal(fila$n_evaluados, k)
+  expect_match(fila$evidencia, "X", fixed = TRUE)
 })
 
 test_that("H7: n_evaluados de patron_raro es el universo de su proporcion_dominante", {

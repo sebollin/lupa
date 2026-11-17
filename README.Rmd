@@ -202,8 +202,8 @@ automated check that looks for `error` must also read `cobertura()`: zero
 errors with unevaluated diagnostics is not a clean profile.
 
 Counts (rows, missing values, distinct values, exact duplicates and summaries)
-use every row; patterns, types and date formats are inferred from a systematic
-sample of up to `r muestra_perfilar` rows (`muestra`). The guide
+use every row; patterns, types and date formats are inferred from a sample of up
+to `r muestra_perfilar` rows (`muestra`) that does not depend on the order of the rows. The guide
 [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) (*Reading a profile*)
 explains each column of the findings, keys, disagreements between columns and
 the glossary.

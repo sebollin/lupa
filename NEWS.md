@@ -1,5 +1,33 @@
 # lupa (development version)
 
+## Perfilado
+
+- La muestra de `perfilar()` ya no depende del orden de las filas. Con más filas
+  que `muestra` (100.000 por omisión), los patrones, los tipos, los formatos de
+  fecha, las escalas y las dependencias se calculaban sobre una muestra
+  sistemática por posición: la misma tabla leída de una base sin `ORDER BY`
+  daba otro perfil (en una tabla real, 15 diferencias en `patron_raro` y
+  `relacion_funcional_columnas`), una rareza periódica que caía entre los pasos
+  de la rejilla no se veía nunca, y agregar un 10 % de filas al final cambiaba
+  el 91 % de la muestra. Ahora se usan las filas de menor prioridad según un
+  hash determinista de los valores de cada fila y de su número de aparición: el
+  perfil es el mismo con las filas y las columnas en cualquier orden, la rareza
+  periódica se ve en la proporción que tiene, y agregar filas conserva la mayor
+  parte de la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
+  `clave`, agregar o quitar una columna cambia la muestra. `meta$muestra_huella`
+  declara el método (`huella_v1`) y las columnas que entraron; las que no se
+  reducen a un valor por fila (listas, matrices) quedan fuera. Las tablas de
+  hasta `muestra` filas no cambian; con más filas, el perfil puede diferir del
+  de la versión anterior porque mira otras filas.
+- `analizar()` calcula esa selección una sola vez y la comparten todos sus
+  diagnósticos, y las funciones de diagnóstico llamadas solas
+  (`descubrir_patrones()`, `inferir_tipo()`, `detectar_formatos_fecha()`,
+  `clasificar_variables()`, `distribucion_valores()`, `detectar_asociaciones()`)
+  usan la misma regla. El costo de `perfilar()` y de `analizar()` es el de
+  antes; una llamada directa a una de esas funciones sobre millones de valores
+  distintos tarda más, porque calcula la huella (13 s con 2.000.000 de textos
+  distintos).
+
 ## Comparar entregas
 
 - `comparar_perfiles()` acepta objetos de `perfilar_dbi()`. Antes había que

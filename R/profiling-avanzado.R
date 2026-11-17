@@ -396,7 +396,10 @@
 #'   con `estado = "codigo_declarado"`, como `mediana` en el perfil.
 #' @param max_valores Máximo de valores mostrados por columna.
 #' @param probabilidades Probabilidades de los cuantiles, en `[0, 1]`.
-#' @param muestra Máximo de filas por columna; `Inf` desactiva el muestreo.
+#' @param muestra Máximo de filas por columna; `Inf` desactiva el muestreo. Si
+#'   una columna supera ese limite, se eligen sus valores por una huella
+#'   determinista del valor canonico y su numero de aparicion, independiente del
+#'   orden de entrada.
 #' @param proteger_datos_personales Si se ocultan valores de columnas cuya
 #'   clasificación activa protección automática. `FALSE` por omisión; véase
 #'   [perfilar()]. Con
@@ -446,6 +449,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   # `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
   max_valores <- .validar_entero_positivo(max_valores, "max_valores")
+  muestra_original <- muestra
   limite <- .validar_muestra(muestra)
   if (!is.numeric(probabilidades) || !length(probabilidades) ||
       anyNA(probabilidades) || any(!is.finite(probabilidades)) ||
@@ -479,8 +483,11 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   for (i in seq_along(datos)) {
     nombre <- names(datos)[[i]]
     en_universo <- .columna_en_universo(datos[[i]], .universo, i)
+    muestra_columna <- if (length(en_universo$frecuencias) == nrow(datos)) {
+      muestra_original
+    } else limite
     resumen <- .frecuencias_columna(
-      en_universo$frecuencias, max_valores, limite,
+      en_universo$frecuencias, max_valores, muestra_columna,
       .nombres_para_operar(nombre) %in% .nombres_para_operar(personales)
     )
     if (!is.null(resumen$tabla) && nrow(resumen$tabla)) {
@@ -506,7 +513,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
     x <- en_universo$magnitud
     if (is.numeric(x) && !.es_columna_compuesta(x) &&
         !inherits(x, c("Date", "POSIXt", "integer64"))) {
-      muestra_x <- .muestrear_vector(x, limite)
+      muestra_x <- .muestrear_vector(
+        x, if (length(x) == nrow(datos)) muestra_original else limite
+      )
       finitos <- muestra_x$valores[is.finite(muestra_x$valores)]
       if (length(finitos)) {
         protegida <- .nombres_para_operar(nombre) %in%
@@ -685,7 +694,10 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #' @param datos Tabla que se desea examinar.
 #' @param dependencias Resultado opcional de [detectar_dependencias()].
 #' @param umbral Valor mínimo en `[0, 1]` que se informa.
-#' @param muestra Máximo común de filas; `Inf` desactiva el muestreo.
+#' @param muestra Máximo común de filas; `Inf` desactiva el muestreo. Cuando la
+#'   tabla supera ese limite, las filas se eligen por una huella determinista de
+#'   sus valores canonicos y numeros de aparicion, independiente del orden de
+#'   entrada.
 #' @param max_columnas Máximo de columnas analizables.
 #' @param max_niveles Máximo de niveles para tratar una columna como categórica.
 #' @param max_pares Máximo de asociaciones devueltas después de ordenar.
@@ -728,12 +740,26 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       !is.finite(umbral) || umbral < 0 || umbral > 1) {
     .detener("`umbral` debe ser una proporci\u00f3n finita en [0, 1].", call. = FALSE)
   }
+  muestra_original <- muestra
   limite <- .validar_muestra(muestra)
   max_columnas <- .validar_entero_positivo(max_columnas, "max_columnas")
   max_niveles <- .validar_entero_positivo(max_niveles, "max_niveles")
   max_pares <- .validar_entero_positivo(max_pares, "max_pares")
   columnas_compuestas <- vapply(datos, .es_columna_compuesta, logical(1L))
-  muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
+  indices_muestra <- .indices_precalculados_muestra(
+    muestra_original, nrow(datos)
+  )
+  if (is.null(indices_muestra) || length(indices_muestra) < limite) {
+    indices_muestra <- .indices_huella_tabla(datos, limite)$indices
+    muestra <- .muestra_con_indices(
+      limite, indices_muestra, n_total = nrow(datos)
+    )
+  } else {
+    muestra <- muestra_original
+  }
+  muestreo <- .muestrear_vector(
+    seq_len(nrow(datos)), muestra
+  )
   muestra_datos <- datos[muestreo$valores, , drop = FALSE]
   tipos <- vapply(seq_along(muestra_datos), function(i) {
     if (columnas_compuestas[[i]]) return(NA_character_)

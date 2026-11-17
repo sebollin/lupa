@@ -373,6 +373,47 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     .detener("`argumentos_perfil` no puede reemplazar argumentos coordinados por analizar().",
          call. = FALSE)
   }
+  # Todos los diagnosticos muestreados de `analizar()` comparten la misma
+  # prioridad de filas. Se calcula sobre la entrada ya normalizada por
+  # `perfilar()` y se conserva una sola vez: los consumidores reciben prefijos
+  # de esa seleccion si tienen un presupuesto menor (asociaciones, por ejemplo).
+  # Asi agregar cada diagnostico no vuelve a hashear la tabla completa.
+  limite_muestra <- .validar_muestra(muestra)
+  limite_asociacion <- .validar_muestra(muestra_asociacion)
+  tabla_muestra <- .normalizar_columnas_entrada(
+    .marcar_utf8_tabla(.tabla_base(datos))
+  )
+  n_muestra <- nrow(tabla_muestra)
+  limites_finitos <- c(limite_muestra, limite_asociacion)
+  limites_finitos <- limites_finitos[is.finite(limites_finitos)]
+  limite_compartido <- if (length(limites_finitos)) {
+    max(limites_finitos)
+  } else Inf
+  clave_muestra <- if ("clave" %in% names(argumentos_perfil)) {
+    argumentos_perfil$clave
+  } else NULL
+  huella_compartida <- if (is.finite(limite_compartido) &&
+                            n_muestra > limite_compartido) {
+    .indices_huella_tabla(
+      tabla_muestra, limite_compartido, columnas = clave_muestra
+    )
+  } else NULL
+  muestra_compartida <- function(limite) {
+    if (!is.finite(limite) || is.null(huella_compartida) ||
+        n_muestra <= limite) return(limite)
+    cantidad <- min(as.numeric(limite), n_muestra)
+    metadata <- huella_compartida[c(
+      "metodo", "k", "columnas", "columnas_omitidas", "columnas_fuera"
+    )]
+    metadata$k <- cantidad
+    .muestra_con_indices(
+      cantidad,
+      huella_compartida$indices[seq_len(as.integer(cantidad))],
+      n_total = n_muestra, huella = metadata
+    )
+  }
+  muestra_para_perfilar <- muestra_compartida(limite_muestra)
+  muestra_para_asociacion <- muestra_compartida(limite_asociacion)
   .validar_bandera_proteccion(proteger_datos_personales)
   logicos <- c(
     conservar_datos, medir_propuesta, conservar_detalle_medicion
@@ -411,7 +452,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     # declara en `meta$entrada_convertida`. Pasarle la copia ya convertida hacia
     # que el perfil aparentara haber recibido una tabla.
     datos = entrada_para_perfilar, nombre = nombre, fecha = fecha,
-    muestra = muestra,
+    muestra = muestra_para_perfilar,
     proteger_datos_personales = proteger_datos_personales
   ), argumentos_perfil)
   perfil <- do.call(perfilar, argumentos)
@@ -429,13 +470,13 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   # El universo declarado en `argumentos_perfil` gobierna tambien las
   # distribuciones. Ver `.universo_declarado_analisis()`.
   distribuciones <- distribucion_valores(
-    datos, perfil, max_valores, probabilidades, muestra,
+    datos, perfil, max_valores, probabilidades, muestra_para_perfilar,
     proteger_datos_personales,
     .universo = .universo_declarado_analisis(datos, argumentos_perfil)
   )
   variables <- clasificar_variables(
     datos, perfil, metadatos_variables,
-    muestra = muestra,
+    muestra = muestra_para_perfilar,
     proteger_datos_personales = proteger_datos_personales
   )
   metodo_asociacion_numerica <- .elegir_opcion(metodo_asociacion_numerica)
@@ -448,7 +489,8 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     datos, perfil$meta[["columnas_codigo"]]
   )
   asociaciones <- detectar_asociaciones(
-    datos_asociaciones, perfil$dependencias, umbral_asociacion, muestra_asociacion,
+    datos_asociaciones, perfil$dependencias, umbral_asociacion,
+    muestra_para_asociacion,
     max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
     metodo_numerico = metodo_asociacion_numerica,
     sentinelas_numericos = perfil$meta[["sentinelas_numericos"]]

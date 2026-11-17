@@ -194,14 +194,22 @@
 
 .evidencia_dependencia <- function(resumen, max_ejemplos = 5L) {
   if (!length(resumen$grupos_conflicto)) return("")
-  ejemplos <- utils::head(resumen$grupos_conflicto, max_ejemplos)
+  representantes <- vapply(resumen$grupos_conflicto, function(grupo) {
+    which(resumen$grupo == grupo)[[1L]]
+  }, integer(1L))
+  orden <- .orden_por_bytes(
+    resumen$x[representantes], resumen$grupos_conflicto
+  )
+  ejemplos <- utils::head(resumen$grupos_conflicto[orden], max_ejemplos)
   paste(vapply(ejemplos, function(grupo) {
     indices <- which(resumen$grupo == grupo)
+    valores <- unique(resumen$y[indices])
+    valores <- valores[.orden_por_bytes(valores)]
     paste0(
       .comillas_sin_locale(.bytes_de_clave_relacion(resumen$x[[indices[[1L]]]]), quote = '"'),
       " -> ",
       paste(.comillas_sin_locale(
-        .bytes_de_clave_relacion(unique(resumen$y[indices])), quote = '"'
+        .bytes_de_clave_relacion(valores), quote = '"'
       ), collapse = " | ")
   )
   }, character(1L)), collapse = "; ")
@@ -434,6 +442,11 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                    proteger_datos_personales = FALSE,
                                    columnas_personales = character(),
                                    sentinelas_numericos = NULL) {
+  limite_muestra <- .validar_muestra(muestra)
+  if (is.data.frame(datos) && nrow(datos) > limite_muestra) {
+    huella <- .indices_huella_tabla(datos, limite_muestra)
+    muestra <- .muestra_con_indices(limite_muestra, huella$indices)
+  }
   .detectar_dependencias_interno(
     datos, umbral = umbral, muestra = muestra, max_columnas = max_columnas,
     umbral_casi_constante = umbral_casi_constante,
@@ -540,7 +553,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   nombres <- names(datos)
   # Una muestra que no se alinea con datos periodicos: ver
   # `.muestrear_filas_dispersas()`.
-  muestreo <- .muestrear_filas_dispersas(nrow(datos), limite)
+  muestreo <- .muestrear_filas_dispersas(nrow(datos), muestra)
   # `as.data.frame()` antes de recortar: sobre un objeto `sf`, seleccionar
   # columnas vuelve a pegar la geometria que `seleccion` habia excluido, y
   # entonces `muestra_datos` queda con mas columnas que `seleccion`. Ademas de
@@ -804,7 +817,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # El tope aplicado se conserva: sin el, quien ve columnas omitidas no puede
   # saber contra que se recortaron ni que valor pasar para evitarlo.
   attr(resultado, "max_columnas") <- as.integer(max_columnas)
-  attr(resultado, "seleccion_posicional") <- TRUE
+  attr(resultado, "seleccion_posicional") <- !isTRUE(muestreo$muestreado)
   attr(resultado, "umbral") <- umbral
   # Las cifras de una dependencia que el presupuesto no dejo recalcular son de
   # la muestra, y sus filas tambien: el alcance lo dice.
@@ -896,19 +909,14 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
 
 # **Lo que la muestra publica se verifica sobre la tabla.** Los descartes por
 # casi-clave y casi-constante ya se verificaban sobre la columna completa; el
-# cumplimiento de lo que se publicaba, no. Y una muestra puede mostrar lo que la
-# tabla contradice: la sistematica, a paso fijo, que se usaba antes de
-# `.muestrear_filas_dispersas()`, se alineaba con los datos periodicos cuando el
-# paso caia justo en el periodo. Medido entonces, un panel
-# mensual de 50.000 entidades al que le faltan sus ultimas 5 filas -599.995, paso
-# 6 exacto- toma solo los meses 1 y 7, y publicaba `entidad -> categoria` exacta
-# con las 5.000 filas de los meses 3 y 4 que la contradicen (cumplimiento real
-# 0,9917, por debajo de 0,995); con 600.000 filas el paso deriva y no publicaba
-# nada. Cada par publicado se recalcula sobre las filas completas y sale con esas
-# cifras, o no sale si ya no alcanza el criterio. El costo es una pasada por par
-# publicado, y se acota con el mismo `max_trabajo` de la busqueda, en filas-par:
-# lo que no entra conserva las cifras de la muestra y lo dice
-# `verificadas_tabla_completa`.
+# cumplimiento de lo que se publicaba, no. Una muestra por huella tambien puede
+# ver una relacion exacta que la tabla contradice: sus prioridades dependen de
+# los valores y del numero de aparicion, no de que una rareza periodica caiga en
+# una rejilla de posiciones. Cada par publicado se recalcula sobre las filas
+# completas y sale con esas cifras, o no sale si ya no alcanza el criterio. El
+# costo es una pasada por par publicado, y se acota con el mismo `max_trabajo`
+# de la busqueda, en filas-par: lo que no entra conserva las cifras de la
+# muestra y lo dice `verificadas_tabla_completa`.
 .verificar_dependencias_tabla_completa <- function(filas, pares, datos, muestreo,
                                                    umbral, min_observaciones,
                                                    max_ejemplos, max_trabajo,

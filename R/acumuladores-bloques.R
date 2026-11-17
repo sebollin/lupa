@@ -4269,7 +4269,7 @@
 # La presentación (head, primeros ejemplos) se decide una vez, sobre el estado
 # completo, después de absorber todos los bloques.
 
-.indices_muestra_globales <- function(n, muestra) {
+.indices_muestra_globales <- function(n, muestra, indices = NULL, x = NULL) {
   if (!is.numeric(n) || length(n) != 1L || is.na(n) || !is.finite(n) ||
       n < 0 || n != floor(n)) {
     .detener("`n` debe ser un entero no negativo y conocido.", call. = FALSE)
@@ -4278,18 +4278,30 @@
   limite <- .validar_muestra(muestra)
   if (!n || !limite) return(integer())
   limite <- min(n, limite)
+  precalculados <- indices %||% .indices_precalculados_muestra(muestra, n)
+  if (!is.null(precalculados)) {
+    if (length(precalculados) < limite) {
+      .detener("La muestra precalculada no cubre el limite solicitado.",
+               call. = FALSE)
+    }
+    return(as.integer(precalculados[seq_len(as.integer(limite))]))
+  }
   if (n <= limite) return(seq_len(as.integer(n)))
-  unique(as.integer(round(seq.int(1L, n, length.out = limite))))
+  if (is.null(x)) {
+    .detener("El vector es necesario para calcular la huella de la muestra.",
+         call. = FALSE)
+  }
+  .indices_huella_vector(x, limite)
 }
 
 .indices_muestra_bloque <- function(ordinal_inicio, ordinal_fin,
-                                    n, muestra) {
+                                    n, muestra, x = NULL) {
   if (length(ordinal_inicio) != 1L || length(ordinal_fin) != 1L ||
       is.na(ordinal_inicio) || is.na(ordinal_fin) ||
       ordinal_inicio < 1L || ordinal_fin < ordinal_inicio - 1L) {
     .detener("El intervalo del bloque no es v\u00e1lido.", call. = FALSE)
   }
-  indices <- .indices_muestra_globales(n, muestra)
+  indices <- .indices_muestra_globales(n, muestra, x = x)
   if (!length(indices) || ordinal_fin < ordinal_inicio) return(integer())
   as.integer(indices[indices >= ordinal_inicio & indices <= ordinal_fin])
 }
@@ -4301,7 +4313,7 @@
 .bloques_de_vector_muestreados <- function(x, muestra, k = NULL,
                                            tamano = 10000L) {
   n <- length(x)
-  indices_globales <- .indices_muestra_globales(n, muestra)
+  indices_globales <- .indices_muestra_globales(n, muestra, x = x)
   bloques <- .particionar_bloques(n, k = k, tamano = tamano)
   lapply(bloques, function(bloque) {
     seleccionados <- if (length(indices_globales)) {
@@ -4310,6 +4322,11 @@
           indices_globales <= bloque$ordinal_fin
       ]
     } else integer()
+    if (length(seleccionados) > 1L) {
+      seleccionados <- seleccionados[
+        .orden_por_bytes(seleccionados, method = "radix")
+      ]
+    }
     bloque$valores <- x[seleccionados]
     bloque$ordinales <- as.numeric(seleccionados)
     # `ordinal_inicio`/`ordinal_fin` siguen describiendo el bloque de la
@@ -4322,7 +4339,7 @@
 .muestrear_vector_bloques <- function(x, muestra, k = NULL,
                                       tamano = 10000L) {
   n <- length(x)
-  indices <- .indices_muestra_globales(n, muestra)
+  indices <- .indices_muestra_globales(n, muestra, x = x)
   if (length(indices) == n) {
     # Además de ser más barato, esto conserva exactamente la representación
     # que devuelve `.muestrear_vector()` cuando no hay muestreo.
@@ -4335,13 +4352,30 @@
     bloque$ordinales
   }), use.names = FALSE)
   aplicados <- as.integer(aplicados)
-  if (!identical(aplicados, indices)) {
+  precalculados <- !is.null(.indices_precalculados_muestra(muestra, n))
+  if (precalculados) {
+    orden_aplicados <- .orden_por_bytes(aplicados, method = "radix")
+    orden_indices <- .orden_por_bytes(indices, method = "radix")
+    if (!identical(as.integer(aplicados[orden_aplicados]),
+                   as.integer(indices[orden_indices]))) {
+      .detener("La particion no reprodujo las filas de la muestra.",
+               call. = FALSE)
+    }
+    return(list(
+      valores = x[indices], total = n,
+      analizados = length(indices), muestreado = TRUE
+    ))
+  }
+  orden_aplicados <- .orden_por_bytes(aplicados, method = "radix")
+  orden_indices <- .orden_por_bytes(indices, method = "radix")
+  if (!identical(as.integer(aplicados[orden_aplicados]),
+                 as.integer(indices[orden_indices]))) {
     .detener("La partici\u00f3n no reprodujo los \u00edndices globales de la muestra.",
          call. = FALSE)
   }
   list(
-    valores = x[aplicados], total = n,
-    analizados = length(aplicados), muestreado = TRUE
+    valores = x[indices], total = n,
+    analizados = length(indices), muestreado = TRUE
   )
 }
 
@@ -4355,7 +4389,7 @@
     fuente_id = "memoria", snapshot_id = "memoria",
     universo_id = "tabla_completa", muestra_id = "muestra_memoria",
     orden_id = "orden_entrada", max_bytes = Inf, vigilante = NULL) {
-  indices <- .indices_muestra_globales(length(x), muestra)
+  indices <- .indices_muestra_globales(length(x), muestra, x = x)
   bloques <- .bloques_de_vector_muestreados(
     x, muestra, k = k, tamano = tamano
   )

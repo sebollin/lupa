@@ -1633,14 +1633,29 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
       call. = FALSE
     )
   }
-  floor(muestra)
+  # La muestra compartida puede llevar atributos internos con los indices de
+  # huella. Las funciones publicas deben conservar solo el limite numerico:
+  # esos indices son posiciones de la entrada y no parte del resultado.
+  as.numeric(floor(muestra))
 }
 
 .muestrear_vector <- function(x, muestra) {
+  indices_precalculados <- .indices_precalculados_muestra(muestra, length(x))
   limite_solicitado <- .validar_muestra(muestra)
 
   total <- length(x)
   limite <- min(total, limite_solicitado)
+  if (!is.null(indices_precalculados)) {
+    if (length(indices_precalculados) < limite) {
+      .detener("La muestra precalculada no cubre el limite solicitado.",
+               call. = FALSE)
+    }
+    indices <- indices_precalculados[seq_len(limite)]
+    return(list(
+      valores = x[indices], total = total,
+      analizados = length(indices), muestreado = total > limite
+    ))
+  }
   if (total <= limite) {
     return(list(
       valores = x,
@@ -1650,7 +1665,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
     ))
   }
 
-  indices <- unique(as.integer(round(seq.int(1, total, length.out = limite))))
+  indices <- .indices_huella_vector(x, limite)
   list(
     valores = x[indices],
     total = total,
@@ -1659,19 +1674,37 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   )
 }
 
-# Una muestra de filas que no se alinea con una periodicidad de los datos. La
-# sistematica de `.muestrear_vector()` toma filas a paso fijo, y un paso que cae
-# justo en el periodo de un panel toma siempre los mismos meses: con 599.995
-# filas y 1e5 de muestra, solo los meses 1 y 7 de cada doce. Aca la tabla se
-# parte en `limite` tramos consecutivos -los de la sistematica- y de cada uno
-# se toma una fila en una posicion que sale de un hash del numero de tramo: el
-# mismo hash entero biyectivo y determinista de las firmas MinHash
-# (`.hash_lsh()`), que no usa el generador de numeros aleatorios de R ni su
-# estado. Conserva lo que la sistematica tenia -una fila por tramo, repartida
-# en toda la tabla, la misma muestra en cada corrida- y la fase de cada fila
-# dentro del periodo queda repartida en vez de fija. Cuesta lo que la muestra,
-# no lo que la tabla.
+# Una muestra de vector se ordena por la huella canonica de sus valores y por
+# el numero de aparicion de las copias. Si el llamador ya calculo indices para
+# una tabla, `.muestrear_vector()` los conserva; si no, `.indices_huella_vector()`
+# aplica la misma prioridad al vector completo. Asi la funcion directa y el
+# camino de `perfilar()` comparten una sola regla y no dependen de una rejilla
+# de posiciones.
 .muestrear_filas_dispersas <- function(total, muestra) {
+  indices_muestra <- attr(muestra, "indices_muestra", exact = TRUE)
+  if (!is.null(indices_muestra)) {
+    limite <- min(total, .validar_muestra(muestra))
+    if (length(indices_muestra) < limite) {
+      .detener("La muestra precalculada no cubre el limite solicitado.",
+           call. = FALSE)
+    }
+    return(list(
+      valores = as.integer(indices_muestra[seq_len(limite)]),
+      total = total, analizados = limite, muestreado = total > limite
+    ))
+  }
+  indices_precalculados <- .indices_precalculados_muestra(muestra, total)
+  if (!is.null(indices_precalculados)) {
+    limite <- min(total, .validar_muestra(muestra))
+    if (length(indices_precalculados) < limite) {
+      .detener("La muestra precalculada no cubre el limite solicitado.",
+               call. = FALSE)
+    }
+    return(list(
+      valores = indices_precalculados[seq_len(limite)], total = total,
+      analizados = limite, muestreado = total > limite
+    ))
+  }
   limite <- min(total, .validar_muestra(muestra))
   if (total <= limite) {
     return(list(

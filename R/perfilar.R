@@ -148,11 +148,13 @@
   salida
 }
 
-.muestra_tabla_datos <- function(datos, filas) {
+.muestra_tabla_datos <- function(datos, filas, indices_muestra = NULL) {
   indices <- if (!length(filas) || !is.finite(filas) || filas >= nrow(datos)) {
     seq_len(nrow(datos))
   } else if (filas == 0) {
     integer()
+  } else if (!is.null(indices_muestra)) {
+    as.integer(indices_muestra[seq_len(min(filas, length(indices_muestra)))])
   } else {
     .muestrear_vector(seq_len(nrow(datos)), filas)$valores
   }
@@ -161,7 +163,9 @@
 
 .resolver_muestra_perfilado <- function(datos, muestra,
                                         max_celdas_muestra,
-                                        max_bytes_muestra) {
+                                        max_bytes_muestra,
+                                        clave = NULL) {
+  muestra_original <- muestra
   muestra <- .validar_muestra(muestra)
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
@@ -173,6 +177,50 @@
   filas_totales <- as.numeric(nrow(datos))
   columnas_totales <- as.numeric(ncol(datos))
   filas_solicitadas <- min(filas_totales, as.numeric(muestra))
+  columnas_huella <- if (is.null(clave)) NULL else {
+    if (!is.character(clave) || !length(clave) || anyNA(clave) ||
+        !all(nzchar(clave))) {
+      .detener(
+        "`clave` debe ser un vector de nombres de columna sin NA.",
+        call. = FALSE
+      )
+    }
+    indices_clave <- .indice_nombre(clave, names(datos))
+    faltantes <- clave[is.na(indices_clave)]
+    if (length(faltantes)) {
+      .detener(
+        "`clave` nombra columnas que no est\u00e1n en los datos: ",
+        paste(faltantes, collapse = ", "),
+        ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    names(datos)[indices_clave]
+  }
+  indices_precalculados <- if (filas_totales > filas_solicitadas) {
+    .indices_precalculados_muestra(muestra_original, nrow(datos))
+  } else NULL
+  huella_precalculada <- attr(muestra_original, "huella_muestra", exact = TRUE)
+  huella <- if (filas_totales > filas_solicitadas &&
+                !is.null(indices_precalculados) &&
+                length(indices_precalculados) >= filas_solicitadas) {
+    # `analizar()` puede haber calculado una huella que cubre tambien el
+    # presupuesto de asociaciones. La seleccion para este perfil es su prefijo;
+    # la prioridad no se vuelve a calcular y el metadata conserva el k propio.
+    if (is.list(huella_precalculada)) {
+      c(list(indices = indices_precalculados), huella_precalculada)
+    } else {
+      list(
+        indices = indices_precalculados,
+        metodo = .METODO_MUESTRA_HUELLA, k = filas_solicitadas,
+        columnas = columnas_huella %||% names(datos),
+        columnas_omitidas = character(), columnas_fuera = character()
+      )
+    }
+  } else if (filas_totales > filas_solicitadas) {
+    .indices_huella_tabla(datos, muestra, columnas = columnas_huella)
+  } else NULL
+  indices_huella <- if (is.null(huella)) NULL else huella$indices
   celdas_solicitadas <- filas_solicitadas * columnas_totales
   filas_por_celdas <- if (!columnas_totales) {
     Inf
@@ -203,7 +251,9 @@
       )
     }
     filas_sonda <- min(filas_solicitadas, 100)
-    datos_sonda <- .muestra_tabla_datos(datos, filas_sonda)
+    datos_sonda <- .muestra_tabla_datos(
+      datos, filas_sonda, indices_muestra = indices_huella
+    )
     bytes_sonda <- as.numeric(utils::object.size(datos_sonda))
     bytes_por_fila <- max(
       (bytes_sonda - bytes_vacios) / filas_sonda,
@@ -236,7 +286,9 @@
     while (lo <= hi) {
       medio <- floor((lo + hi) / 2)
       bytes_medio <- as.numeric(utils::object.size(
-        .muestra_tabla_datos(datos, medio)
+        .muestra_tabla_datos(
+          datos, medio, indices_muestra = indices_huella
+        )
       ))
       if (is.infinite(max_bytes_muestra) || bytes_medio <= max_bytes_muestra) {
         valido <- medio
@@ -246,7 +298,9 @@
       }
     }
     filas_candidatas <- valido
-    as.numeric(utils::object.size(.muestra_tabla_datos(datos, filas_candidatas)))
+    as.numeric(utils::object.size(.muestra_tabla_datos(
+      datos, filas_candidatas, indices_muestra = indices_huella
+    )))
   }
   if (filas_totales > 0 && filas_candidatas < 1) {
     .detener(
@@ -270,6 +324,12 @@
     max_celdas_muestra = max_celdas_muestra,
     max_bytes_muestra = max_bytes_muestra,
     recortada = recortada,
+    indices_muestra = if (is.null(indices_huella)) NULL else {
+      indices_huella[seq_len(as.integer(filas_efectivas))]
+    },
+    huella = if (is.null(huella)) NULL else huella[c(
+      "metodo", "k", "columnas", "columnas_omitidas", "columnas_fuera"
+    )],
     motivos = .motivos_muestra_perfilado(list(
       filas_solicitadas = filas_solicitadas,
       filas_efectivas = filas_efectivas,
@@ -1762,10 +1822,16 @@
 #' @param muestra Máximo de filas usadas para patrones, inferencia de tipos,
 #'   formatos de fecha y dependencias funcionales. Use `Inf` para analizar todas
 #'   las filas en esos análisis.
-#'   La muestra se toma por posición, así que en una tabla de más filas lo
-#'   que se mide sobre ella depende del orden de las filas: la misma tabla
-#'   leída de una base sin `ORDER BY` puede dar dos perfiles distintos en dos
-#'   lecturas. Para un perfil reproducible, leerla ordenada por una clave.
+#'   Si la tabla tiene más filas, se usan las de menor prioridad según un hash
+#'   determinista de los valores de cada fila y de su número de aparición (para
+#'   que las filas repetidas pesen lo que pesan en la tabla). La muestra no
+#'   depende del orden de las filas ni del de las columnas: la misma tabla
+#'   leída de una base sin `ORDER BY` da el mismo perfil. Los nombres de las
+#'   columnas entran en el hash; con `clave`, sólo las columnas de la clave, de
+#'   modo que agregar o quitar otras columnas entre dos entregas no cambia la
+#'   muestra, y sin `clave` sí la cambia. Las columnas que no se reducen a un
+#'   valor por fila (listas, matrices) quedan fuera del hash, y
+#'   `meta$muestra_huella` declara el método y las columnas que entraron.
 #' @param max_patrones Máximo de patrones mostrados por columna.
 #' @param distinguir_mayusculas Si se distinguen mayúsculas y minúsculas.
 #' @param expandir Si se emite un token por carácter en los patrones.
@@ -2982,12 +3048,20 @@ perfilar <- function(datos,
   # Un nivel `NA` de un factor es un faltante, y un `POSIXlt` es el instante
   # de un `POSIXct`. Ver `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
+  muestra_original <- muestra
   muestra <- .validar_muestra(muestra)
   alcance_muestra <- .resolver_muestra_perfilado(
-    datos, muestra, max_celdas_muestra, max_bytes_muestra
+    datos, muestra_original, max_celdas_muestra, max_bytes_muestra, clave = clave
   )
   muestra_diagnosticos <- if (nrow(datos)) {
-    alcance_muestra$filas_efectivas
+    if (is.null(alcance_muestra$indices_muestra)) {
+      alcance_muestra$filas_efectivas
+    } else {
+      .muestra_con_indices(
+        alcance_muestra$filas_efectivas, alcance_muestra$indices_muestra,
+        n_total = nrow(datos)
+      )
+    }
   } else {
     1
   }
@@ -3811,6 +3885,9 @@ perfilar <- function(datos,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
     normalizacion_fusiones = normalizacion_fusiones
   )
+  if (!is.null(alcance_muestra$huella)) {
+    meta$muestra_huella <- alcance_muestra$huella
+  }
   # Una clave plenamente verificada no cambia el objeto histórico: su presencia
   # ya queda en `trazabilidad$localizador`. Cuando hay algo que impide llamarla
   # garantía, la explicación queda junto a esa trazabilidad y no depende de que

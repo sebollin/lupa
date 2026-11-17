@@ -264,10 +264,12 @@
 #' @param metadatos Declaraciones opcionales por columna.
 #' @param max_niveles Máximo de niveles guardados en cada lista.
 #' @param muestra Máximo de valores usados para enumerar niveles no declarados;
-#'   los niveles ausentes de factores y metadatos se verifican sobre toda la
+#'   si la columna supera ese limite, se eligen por una huella determinista del
+#'   valor canonico y su numero de aparicion, independiente del orden. Los
+#'   niveles ausentes de factores y metadatos se verifican sobre toda la
 #'   columna, y `n_niveles_observados` cuenta los valores distintos de la
 #'   columna entera, con o sin `perfil`. `niveles_muestreados` dice si la lista
-#'   de niveles salió de una muestra.
+#'   de niveles salio de una muestra.
 #' @param proteger_datos_personales Si se ocultan niveles concretos de columnas
 #'   cuya clasificación activa protección automática. Véase [perfilar()]. Con
 #'   `perfil`, se respeta la clasificación de ese perfil; sin `perfil`, se
@@ -301,6 +303,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   datos <- .tabla_base(datos)
   if (!is.null(metadatos)) metadatos <- .tabla_base(metadatos)
   max_niveles <- .validar_entero_positivo(max_niveles, "max_niveles")
+  muestra_original <- muestra
   limite <- .validar_muestra(muestra)
   .validar_bandera_proteccion(proteger_datos_personales)
   metadatos <- .normalizar_metadatos_variables(metadatos, names(datos))
@@ -377,7 +380,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
       as.character(meta$niveles[[1L]])
     } else if (is.factor(x)) levels(x) else character()
     guardar_niveles <- propuesta$escala %in% c("nominal", "ordinal", "binaria")
-    muestreo <- .muestrear_vector(x, limite)
+    muestreo <- .muestrear_vector(x, muestra_original)
     # Rendido ANTES de analizar, no despues: `.texto_analizable()` marca UTF-8
     # lo declarado `bytes` -a proposito- y entonces la declaracion ya no esta
     # cuando estos niveles se publican. Rendirlos al sellar la tabla no alcanza

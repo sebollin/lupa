@@ -4265,12 +4265,16 @@
       isTRUE(.decision_identificador_numerico(fila)$parece),
     umbral_patron_raro
   )
+  indices_muestra <- attr(muestra, "indices_muestra", exact = TRUE)
+  total_muestra <- attr(muestra, "total_muestra", exact = TRUE)
 
   list(
     fila = fila,
     inferencia = inferencia,
     formatos = formatos,
     patrones = patrones,
+    indices_muestra = indices_muestra,
+    total_muestra = total_muestra,
     secuencia_entera = secuencia_entera,
     casi_clave = casi_clave,
     faltantes_disfrazados = faltantes_disfrazados,

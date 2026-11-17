@@ -1,13 +1,10 @@
 # O12. Lo que la muestra fabrica no se publica como propiedad de la tabla, y
 # una columna constante de fecha-hora no acusa al paquete.
 #
-#   * Las dependencias se buscan sobre una muestra sistematica, y los descartes
-#     por casi-clave se decidian sobre ESA muestra. Con los datos agrupados en
-#     filas consecutivas -`1,1,2,2,...`- la muestra toma una fila por grupo, el
-#     determinante parece una clave y se descarta con el motivo "casi_clave",
-#     que en la tabla es falso. La tabla de dependencias salia vacia y se leia
-#     como "no hay dependencias", cuando con `muestra = Inf` la dependencia
-#     aparecia con su violacion.
+#   * Las dependencias se buscan sobre una muestra comun de filas completas. La
+#     prioridad por contenido y aparicion evita que las filas agrupadas en
+#     corridas consecutivas hagan parecer una clave a un determinante que no lo
+#     es: la dependencia se conserva para verificarla sobre la tabla completa.
 #
 #   * La traza del hallazgo `constante` comparaba el texto del vector contra el
 #     de la moda; en fecha-hora la moda publicada lleva la zona y el vector no,
@@ -28,7 +25,7 @@ testthat::skip_on_cran()
   datos
 }
 
-test_that("un descarte que solo produce la muestra se declara como tal", {
+test_that("la muestra de dependencias no fabrica una casi-clave por bloques", {
   datos <- .o12_agrupada()
   # La premisa: sobre la tabla completa la dependencia existe.
   completa <- detectar_dependencias(datos, muestra = Inf)
@@ -37,17 +34,20 @@ test_that("un descarte que solo produce la muestra se declara como tal", {
   muestreada <- detectar_dependencias(datos, muestra = 1000)
   expect_true(attr(muestreada, "muestreado"))
   descartadas <- attr(muestreada, "columnas_descartadas")
-  expect_identical(
-    descartadas$motivo[descartadas$columna == "grupo"],
-    "casi_clave_solo_en_muestra"
-  )
+  expect_false(any(
+    descartadas$columna == "grupo" &
+      descartadas$motivo == "casi_clave_solo_en_muestra"
+  ))
 
   perfil <- perfilar(datos, muestra = 1000, analizar_dependencias = TRUE)
-  cobertura <- perfil$cobertura_diagnosticos
-  fila <- cobertura[cobertura$diagnostico == "dependencias_funcionales", , drop = FALSE]
-  expect_equal(nrow(fila), 1L)
-  expect_match(fila$motivo, "grupo (casi_clave_solo_en_muestra)", fixed = TRUE)
-  expect_match(fila$motivo, "no significa que no las haya", fixed = TRUE)
+  relacion <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "relacion_funcional_columnas", ,
+    drop = FALSE
+  ]
+  expect_true(any(grepl("grupo -> valor", relacion$descripcion, fixed = TRUE)))
+  expect_false(any(
+    perfil$cobertura_diagnosticos$diagnostico == "dependencias_funcionales"
+  ))
 })
 
 test_that("una clave de verdad sigue descartada como clave, sin aviso", {

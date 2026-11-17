@@ -12,7 +12,9 @@ que da \code{tibble[, "f"]}— se rechaza: se pasa la columna, \code{tabla[["f"]
 
 \item{umbral}{Proporción mínima para asignar un tipo implícito.}
 
-\item{muestra}{Máximo de valores que se analizan.}
+\item{muestra}{Máximo de valores que se analizan. Si el vector supera ese
+limite, la muestra se elige por una huella determinista del valor canonico y
+su numero de aparicion, independiente del orden de entrada.}
 }
 \value{
 Lista de clase \code{inferencia_tipo} con \code{tipo}, \code{proporcion}, conteos,

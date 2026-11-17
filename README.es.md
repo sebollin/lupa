@@ -226,7 +226,8 @@ errores con diagnósticos sin evaluar no es un perfil limpio.
 
 Los conteos (filas, faltantes, valores distintos, duplicados exactos y resúmenes)
 usan todas las filas; los patrones, los tipos y los formatos de fecha se infieren
-sobre una muestra sistemática de hasta 100.000 filas (`muestra`). La guía
+sobre una muestra de hasta 100.000 filas (`muestra`) que no depende del
+orden de las filas. La guía
 [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html)
 explica cada columna de los hallazgos, las claves, las discordancias entre
 columnas y el glosario.

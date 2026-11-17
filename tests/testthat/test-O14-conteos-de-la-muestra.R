@@ -48,7 +48,12 @@ test_that("los formatos de fecha contados sobre la muestra lo declaran", {
   muestreado <- perfilar(datos, muestra = 100)
   evidencia <- .o14_evidencia(muestreado, "formatos_fecha_mixtos")
   expect_length(evidencia, 1L)
-  expect_match(evidencia, "(50)", fixed = TRUE)
+  # Los conteos son de la muestra de 100 y no de la columna de 10.000: suman
+  # el tamano de la muestra, cualquiera sea su reparto entre los dos formatos.
+  conteos <- as.numeric(regmatches(evidencia, gregexpr("(?<=\\()[0-9]+(?=\\))",
+                                                       evidencia, perl = TRUE))[[1L]])
+  expect_length(conteos, 2L)
+  expect_equal(sum(conteos), 100)
   expect_match(evidencia, "los conteos son de la muestra", fixed = TRUE)
 
   archivo <- tempfile(fileext = ".html")

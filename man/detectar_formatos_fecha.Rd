@@ -9,7 +9,9 @@ detectar_formatos_fecha(x, muestra = 1e+05)
 \arguments{
 \item{x}{Vector de texto, fechas o fechas-hora.}
 
-\item{muestra}{Máximo de valores que se analizan.}
+\item{muestra}{Máximo de valores que se analizan. Si el vector supera ese
+limite, la muestra se elige por una huella determinista del valor canonico y
+su numero de aparicion, independiente del orden de entrada.}
 }
 \value{
 Data frame con formato, frecuencia, proporción, estado, granularidad

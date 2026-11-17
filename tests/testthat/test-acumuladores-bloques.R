@@ -484,22 +484,30 @@ test_that("los patrones por bloques son identicos a la pasada unica", {
   }
 })
 
-test_that("la muestra sistematica usa indices globales en todos los bloques", {
+test_that("la muestra por prioridad usa los mismos indices en todos los bloques", {
   n <- 150000L
-  indices <- lupa:::.indices_muestra_globales(n, 100000L)
+  datos <- data.frame(
+    id = seq_len(n), grupo = rep(seq_len(n / 2L), each = 2L)
+  )
+  huella <- lupa:::.indices_huella_tabla(datos, 100000L)
+  muestra <- lupa:::.muestra_con_indices(100000L, huella$indices)
+  indices <- lupa:::.indices_muestra_globales(n, muestra)
   expect_identical(length(indices), 100000L)
   for (k in c(1L, 2L, 7L, 31L)) {
     actual <- lupa:::.muestrear_vector_bloques(
-      seq_len(n), 100000L, k = k
+      seq_len(n), muestra, k = k
     )
-    referencia <- lupa:::.muestrear_vector(seq_len(n), 100000L)
+    referencia <- lupa:::.muestrear_vector(seq_len(n), muestra)
     expect_identical(actual, referencia)
     bloques <- lupa:::.bloques_de_vector_muestreados(
-      seq_len(n), 100000L, k = k
+      seq_len(n), muestra, k = k
     )
     aplicados <- unlist(lapply(bloques, function(bloque) bloque$ordinales),
                         use.names = FALSE)
-    expect_identical(as.integer(aplicados), indices)
+    expect_identical(
+      as.integer(aplicados[lupa:::.orden_por_bytes(aplicados)]),
+      as.integer(indices[lupa:::.orden_por_bytes(indices)])
+    )
   }
 })
 

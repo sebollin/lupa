@@ -23,7 +23,10 @@ detectar_asociaciones(
 
 \item{umbral}{Valor mínimo en \verb{[0, 1]} que se informa.}
 
-\item{muestra}{Máximo común de filas; \code{Inf} desactiva el muestreo.}
+\item{muestra}{Máximo común de filas; \code{Inf} desactiva el muestreo. Cuando la
+tabla supera ese limite, las filas se eligen por una huella determinista de
+sus valores canonicos y numeros de aparicion, independiente del orden de
+entrada.}
 
 \item{max_columnas}{Máximo de columnas analizables.}
 

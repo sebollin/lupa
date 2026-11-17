@@ -78,10 +78,16 @@ reproducibles; se normaliza a UTC.}
 \item{muestra}{Máximo de filas usadas para patrones, inferencia de tipos,
 formatos de fecha y dependencias funcionales. Use \code{Inf} para analizar todas
 las filas en esos análisis.
-La muestra se toma por posición, así que en una tabla de más filas lo
-que se mide sobre ella depende del orden de las filas: la misma tabla
-leída de una base sin \verb{ORDER BY} puede dar dos perfiles distintos en dos
-lecturas. Para un perfil reproducible, leerla ordenada por una clave.}
+Si la tabla tiene más filas, se usan las de menor prioridad según un hash
+determinista de los valores de cada fila y de su número de aparición (para
+que las filas repetidas pesen lo que pesan en la tabla). La muestra no
+depende del orden de las filas ni del de las columnas: la misma tabla
+leída de una base sin \verb{ORDER BY} da el mismo perfil. Los nombres de las
+columnas entran en el hash; con \code{clave}, sólo las columnas de la clave, de
+modo que agregar o quitar otras columnas entre dos entregas no cambia la
+muestra, y sin \code{clave} sí la cambia. Las columnas que no se reducen a un
+valor por fila (listas, matrices) quedan fuera del hash, y
+\code{meta$muestra_huella} declara el método y las columnas que entraron.}
 
 \item{max_patrones}{Máximo de patrones mostrados por columna.}
 

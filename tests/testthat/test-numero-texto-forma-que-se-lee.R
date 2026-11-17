@@ -55,12 +55,29 @@ test_that("un entero con los miles de la convencion de la columna es un importe"
 })
 
 test_that("lo que la muestra no vio y no tiene la forma de un numero no entra al resumen", {
-  # `.muestrear_vector()` reparte la muestra: con `muestra = 2` sobre tres
-  # filas mira la primera y la tercera, y la del medio queda afuera.
+  # La fila ajena se elige fuera de las dos prioridades menores. Asi el caso
+  # conserva la promesa aunque cambie el orden fisico de las tres filas.
+  caso_fuera <- function(buenos, candidatos) {
+    for (malo in candidatos) {
+      valores <- c(buenos, malo)
+      indices <- lupa:::.indices_huella_tabla(
+        data.frame(v = valores, stringsAsFactors = FALSE), 2L
+      )$indices
+      if (!(length(valores) %in% indices)) return(valores)
+    }
+    stop("no se encontro una fila fuera de la muestra", call. = FALSE)
+  }
   casos <- list(
-    telefono = c("1.234,56", "099.123.456", "2.345,67"),
-    hexadecimal = c("1234,56", "0x1A", "2345,67"),
-    punto_final = c("1234,56", "5.", "2345,67")
+    telefono = caso_fuera(
+      c("1.234,56", "2.345,67"),
+      c("099.123.456", "099.123.457", "099.123.458")
+    ),
+    hexadecimal = caso_fuera(
+      c("1234,56", "2345,67"), c("0x1A", "0x1B", "0x1C")
+    ),
+    punto_final = caso_fuera(
+      c("1234,56", "2345,67"), c("5.", "6.", "7.")
+    )
   )
   for (nombre in names(casos)) {
     f <- .fila_forma(casos[[nombre]], muestra = 2)

@@ -70,7 +70,9 @@
 #' @param x Vector que se desea examinar. Una tabla —también la de una columna
 #'   que da `tibble[, "f"]`— se rechaza: se pasa la columna, `tabla[["f"]]`.
 #' @param umbral Proporción mínima para asignar un tipo implícito.
-#' @param muestra Máximo de valores que se analizan.
+#' @param muestra Máximo de valores que se analizan. Si el vector supera ese
+#' limite, la muestra se elige por una huella determinista del valor canonico y
+#' su numero de aparicion, independiente del orden de entrada.
 #'
 #' @return Lista de clase `inferencia_tipo` con `tipo`, `proporcion`, conteos,
 #'   candidatos evaluados y, cuando corresponde, formatos de fecha. `n_analizados`

@@ -13,7 +13,10 @@ testthat::skip_on_cran()
 test_that("el hallazgo por grupo declara sobre cuantos valores se midio", {
   fechas <- as.Date("2020-01-01") + 0:499
   texto <- format(fechas, "%Y-%m-%d")
-  texto[293L] <- format(fechas[293L], "%d/%m/%Y")
+  # Diez filas raras (el 2 % del grupo): la muestra de 100 ve alguna sin
+  # depender de en que posiciones cae.
+  raras <- c(12L, 41L, 71L, 117L, 205L, 293L, 333L, 388L, 450L, 499L)
+  texto[raras] <- format(fechas[raras], "%d/%m/%Y")
   datos <- data.frame(
     g = c(rep("A", 500L), rep("B", 500L)),
     f = c(texto, format(fechas, "%Y-%m-%d")),

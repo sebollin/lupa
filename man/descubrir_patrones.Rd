@@ -27,7 +27,9 @@ positivo, o \code{Inf} para mostrarlos todos.}
 
 \item{na.rm}{Si es \code{TRUE}, excluye los valores ausentes.}
 
-\item{muestra}{Máximo de valores que se analizan.}
+\item{muestra}{Máximo de valores que se analizan. Si el vector supera ese
+limite, la muestra se elige por una huella determinista del valor canonico y
+su numero de aparicion, independiente del orden de entrada.}
 
 \item{umbral_raro}{Frecuencia máxima de un patrón raro, usada para conservar
 un resumen acotado de patrones raros para los hallazgos. La frontera es
@@ -73,8 +75,9 @@ mayúscula ni minúscula —árabe, CJK— cuenta como \code{a}.
 }
 \details{
 El cálculo aplica reemplazos vectorizados sobre el vector completo. Si el
-vector supera \code{muestra}, usa una muestra sistemática reproducible y registra
-esa decisión en los atributos del resultado.
+vector supera \code{muestra}, usa las prioridades de la huella canonica del valor
+y su numero de aparicion, y registra esa decision en los atributos del
+resultado.
 }
 \examples{
 descubrir_patrones(
