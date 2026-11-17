@@ -8,7 +8,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -58,6 +58,14 @@
       <small>Source: <a href="https://github.com/sebollin/lupa/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="lupa-development-version">lupa (development version)<a class="anchor" aria-label="anchor" href="#lupa-development-version"></a></h2>
+<div class="section level3">
+<h3 id="correcciones-development-version">Correcciones<a class="anchor" aria-label="anchor" href="#correcciones-development-version"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> cuenta <code>NaN</code> igual que <code><a href="../reference/perfilar.html">perfilar()</a></code>. En DuckDB y PostgreSQL, que guardan <code>NaN</code> en una columna de punto flotante, lo contaba como un valor presente y distinto: una columna toda <code>NaN</code> salía con <code>n_validos</code> igual al total y la moda <code>no_disponible</code>, mientras que en memoria salía <code>sin_valores</code>. Ahora cuenta como faltante, no entra en los distintos, la moda ni el mínimo, el máximo, la media, la mediana o el desvío, y el hallazgo <code>valores_no_finitos</code> se conserva. SQLite ya lo entregaba como <code>NULL</code>, y SQL Server, MySQL y MariaDB no lo guardan. Los infinitos no cambian.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.2" id="lupa-012">lupa 0.1.2<a class="anchor" aria-label="anchor" href="#lupa-012"></a></h2>
 <div class="section level3">
