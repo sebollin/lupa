@@ -1160,27 +1160,8 @@
   constantes <- ifelse(reciproca, 1 / forma_reciproca,
                        ifelse(cifras <= 15L, signif(centro, cifras), centro))
   en_piso <- conteo[tramos] >= piso
-  if (!all(en_piso)) {
-    es_exacta <- vapply(seq_along(tramos), function(j) {
-      if (en_piso[[j]] || cifras[[j]] > 15L) return(en_piso[[j]])
-      desvio_j <- abs(respuesta - base * constantes[[j]])
-      cubre_j <- desvio_j <= holgura
-      any(cubre_j) &&
-        all(desvio_j[cubre_j] <= 8 * .Machine$double.eps *
-              pmax(1, abs(respuesta[cubre_j]),
-                   abs(base[cubre_j] * constantes[[j]])))
-    }, logical(1L))
-    tramos <- tramos[es_exacta]
-    inferior <- inferior[es_exacta]
-    superior <- superior[es_exacta]
-    centro <- centro[es_exacta]
-    cifras_directa <- cifras_directa[es_exacta]
-    cifras <- cifras[es_exacta]
-    reciproca <- reciproca[es_exacta]
-    forma_reciproca <- forma_reciproca[es_exacta]
-    constantes <- constantes[es_exacta]
-    en_piso <- en_piso[es_exacta]
-  }
+  # Los tramos inferiores se conservan: `exacta_contenida` los verifica contra
+  # el elegido final, despues de resolver los empates y rivales del piso.
   distancia <- pmax(0, inferior - referencia, referencia - superior)
   puntaje <- conteo[tramos] - cifras
   preferencia <- .orden_por_bytes(!en_piso, -puntaje, -conteo[tramos], cifras,
@@ -1648,12 +1629,16 @@
     # esas filas sean un truncado o piso sano (un cuanto de un solo lado) o que
     # la gruesa senale filas rotas conservando las cifras de la fina: si no, la
     # columna calculada es la fina y la gruesa solo se trago las filas rotas.
-    activas <- base[comparables] != 0 & respuesta[comparables] != 0 &
-      !duplicated(sprintf("%.17g|%.17g",
-                          as.double(base[comparables]),
-                          as.double(respuesta[comparables])))
+    # Los pares distintos solo se necesitan si una lectura llega a esta guarda.
+    activas <- NULL
     en_fina_no_alcanza <- function(gruesa, fina, invertida_fina, veces) {
       if (fina$alcanza || is.null(fina$cumple) || veces < 2) return(FALSE)
+      if (is.null(activas)) {
+        activas <<- base[comparables] != 0 & respuesta[comparables] != 0 &
+          !duplicated(sprintf("%.17g|%.17g",
+                              as.double(base[comparables]),
+                              as.double(respuesta[comparables])))
+      }
       n_g <- sum(gruesa$cumple & activas)
       dentro <- sum(fina$cumple & gruesa$cumple & activas)
       if (dentro < fina$cifras || !.reticula_no_es_azar(n_g, dentro, veces)) {
