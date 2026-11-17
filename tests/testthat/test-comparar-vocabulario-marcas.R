@@ -244,9 +244,14 @@ test_that("una columna del usuario sigue explicando una ausencia", {
   perfil <- suppressWarnings(suppressMessages(perfilar(datos, fecha = .cvm_enero)))
   expect_true(any(perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural" &
                     perfil$hallazgos$columna %in% "razon_social"))
-  # La que si es su marca, la silencia.
+  # La que si es su marca -la que deja aplicar()-, la silencia.
   datos$.ausente_tipo <- NULL
-  datos$.ausente_razon_social <- is.na(datos$razon_social)
+  perfil <- suppressWarnings(suppressMessages(perfilar(datos, fecha = .cvm_enero)))
+  plan <- suppressWarnings(suppressMessages(planificar_limpieza(perfil, datos)))
+  plan$aplicar <- plan$estrategia == "marcar_filas_ausentes" &
+    plan$columna %in% "razon_social"
+  datos <- suppressWarnings(suppressMessages(aplicar(plan, datos)))$datos
+  expect_true(".ausente_razon_social" %in% names(datos))
   datos$tipo <- NULL
   perfil <- suppressWarnings(suppressMessages(perfilar(datos, fecha = .cvm_enero)))
   expect_false(any(perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"))

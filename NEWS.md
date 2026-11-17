@@ -55,14 +55,29 @@
   `general$vocabulario` los valores y su frecuencia en las columnas de texto o
   `factor` de hasta 20 valores distintos (no las protegidas ni las de valores
   todos distintos), y la fila `vocabulario` se gradúa por la proporción de
-  filas con valores que la otra entrega no tenía. Contra un perfil anterior,
-  sin ese campo, se declara no comparable.
+  filas de la entrega (con sus faltantes) que llevan valores que la otra no
+  tenía. Un valor que está en una sola entrega no gradúa la fila si sus
+  apariciones pueden haber caído todas de un lado por azar, y se nombra en la
+  evidencia; un vocabulario que cambió sólo en espacios del borde o en
+  mayúsculas y minúsculas (lo que deja `recortar_espacios`) sale `ok` y lo
+  dice; un faltante disfrazado (`"NA"` escrito, un centinela) no cuenta como
+  valor, porque ya se informa en los faltantes. Las columnas con valores de más
+  de 64 caracteres no guardan vocabulario. Contra un perfil anterior, sin ese
+  campo, se declara no comparable.
 - `comparar_perfiles()` reconoce las marcas que agrega `aplicar()`
   (`.fila_duplicada`, `.grupo_duplicado`, `.ausente_<columna>`,
   `.outlier_<columna>`): comparar antes y después de limpiar ya no las publica
-  como columnas nuevas con severidad `error`. Y `perfilar()` ya no informa como
+  como columnas nuevas con severidad `error`, y `perfilar()` ya no informa como
   `posible_ausencia_estructural` la ausencia de una columna explicada por su
-  propia marca.
+  propia marca. Las reconoce por el atributo `marcas_limpieza` que deja
+  `aplicar()` (y que `perfilar()` guarda en `general$marcas_limpieza`), no por
+  el nombre: una columna del usuario llamada `.fila_duplicada` sigue siendo del
+  usuario. El atributo se pierde si la tabla pasa por un CSV o por un `merge()`,
+  y entonces las marcas vuelven a contarse como columnas.
+- Con `proteger_datos_personales = TRUE`, el vocabulario de una columna que no
+  es personal no guarda un valor protegido de seis caracteres o más copiado de
+  una columna personal; los más cortos, como un centinela compartido, se
+  publican como hasta ahora.
 - `comparar_perfiles()` acepta objetos de `analizar()` y compara su perfil.
 - Dos perfiles que buscaron sus patrones en toda la tabla ya no se declaran
   `configuracion_patrones / no_comparable` porque declaren otra `muestra`: con

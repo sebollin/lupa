@@ -84,7 +84,13 @@ quedan bloqueados.
 copia de \code{datos}. Verifica que cada columna siga siendo identificable y que
 las conversiones sean completas antes de sustituirla. Devuelve los datos
 nuevos junto con un registro de las acciones y sus parámetros. El mismo
-registro queda en el atributo \code{registro_limpieza} de los datos resultantes.
+registro queda en el atributo \code{registro_limpieza} de los datos resultantes,
+y las marcas que agregó —\code{.fila_duplicada}, \code{.grupo_duplicado},
+\verb{.ausente_<columna>}, \verb{.outlier_<columna>}— en el atributo
+\code{marcas_limpieza}, una fila por marca con la columna que marca (\code{NA} en las
+de filas repetidas), sumadas a las que ya traían los datos. Es lo que
+\code{\link[=perfilar]{perfilar()}} y \code{\link[=comparar_perfiles]{comparar_perfiles()}} leen para reconocerlas: una columna
+con uno de esos nombres que no está en el atributo es del usuario.
 
 Las alternativas para un mismo hallazgo comparten \code{grupo}; las acciones
 independientes usan \code{NA}. Como máximo una alternativa de cada grupo puede

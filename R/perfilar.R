@@ -2793,9 +2793,22 @@
 #'   `general$vocabulario` guarda los valores y su frecuencia de las columnas de
 #'   texto o factor con hasta 20 valores distintos —`columna`, `valor`,
 #'   `frecuencia`, `proporcion`, del más frecuente al menos—, contados sobre el
-#'   universo aplicable y todas las filas; no las de cardinalidad alta ni las de
-#'   valores todos distintos, y con la protección, tampoco las protegidas. Es lo
-#'   que [comparar_perfiles()] compara como vocabulario. Cuando el camino
+#'   universo aplicable y todas las filas, sin los que el perfil cuenta como
+#'   faltantes disfrazados —`"NA"` escrito, un centinela—, que ya están en
+#'   `n_faltantes_disfrazados`; no las de cardinalidad alta, ni las de
+#'   valores todos distintos, ni las que tienen algún valor de más de 64
+#'   caracteres, que son texto y no categorías. Con la protección, tampoco las
+#'   protegidas ni las que repiten un valor identificante de una protegida —de
+#'   seis caracteres o más, el mismo piso del resto de la protección, también
+#'   con otra caja o espacios en los bordes—, que se nombran en
+#'   `general$vocabulario_protegido`. Un valor más corto que se comparte
+#'   —`S/D`, `VIH`— se sigue publicando en la otra columna.
+#'   Es lo que [comparar_perfiles()] compara como vocabulario.
+#'   `general$marcas_limpieza` está cuando los datos traen el atributo
+#'   `marcas_limpieza` que deja [aplicar()]: las marcas que agregó el plan, con
+#'   la columna que marca. Una marca así no explica la ausencia de su propia
+#'   columna en `posible_ausencia_estructural`; una columna del usuario con el
+#'   mismo nombre, sí. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
@@ -3049,6 +3062,10 @@ perfilar <- function(datos,
     )
     datos <- as.data.frame(datos, stringsAsFactors = FALSE)
   }
+  # Las marcas de `aplicar()` se leen antes de normalizar la tabla, que la
+  # rehace: el atributo es lo unico que las distingue de una columna del
+  # usuario con el mismo nombre.
+  marcas_limpieza <- .marcas_limpieza_tabla(datos)
   # Antes de cualquier analisis: las columnas de texto que no declaran su
   # codificacion la declaran. Ver `.marcar_utf8_tabla()`.
   datos <- .marcar_utf8_tabla(datos)
@@ -3612,7 +3629,8 @@ perfilar <- function(datos,
       trazador_tiempos, "ausencia_estructural",
       .diagnosticar_ausencia_estructural(
         datos, nombres, resultados, aplicabilidad_resuelta,
-        umbral_faltantes_error, nombres_texto = nombres_texto
+        umbral_faltantes_error, nombres_texto = nombres_texto,
+        marcas = marcas_limpieza
       )
     )
     if (nrow(estructural$cobertura)) {
@@ -3924,9 +3942,14 @@ perfilar <- function(datos,
   columnas <- .callar_moda_sin_empate(columnas)
   # En `general` y no como componente propio: la lista de componentes del
   # perfil es parte de su forma publicada.
+  # Solo si hay alguna: el perfil de una tabla sin marcas no cambia.
+  if (nrow(marcas_limpieza)) general$marcas_limpieza <- marcas_limpieza
   general$vocabulario <- .vocabulario_perfil(
     datos, nombres, columnas, aplicabilidad_resuelta$mascaras,
-    umbral_alta_cardinalidad
+    umbral_alta_cardinalidad,
+    disfrazados = lapply(resultados, function(resultado) {
+      resultado$faltantes_disfrazados$mascara
+    })
   )
   estructura <- list(
     general = general,
@@ -3970,6 +3993,8 @@ perfilar <- function(datos,
 # Veinte, como la tabla de frecuencias de `analizar()` (`max_valores = 20`): es
 # lo que el paquete ya publica de una columna, y acota lo que el perfil crece.
 .MAX_VALORES_VOCABULARIO <- 20L
+# Y valores de hasta 64 caracteres: los de una categoria son cortos.
+.MAX_LARGO_VALOR_VOCABULARIO <- 64L
 
 .vocabulario_vacio <- function() {
   data.frame(
@@ -3986,7 +4011,7 @@ perfilar <- function(datos,
 # sobre los distintos: medido, sobre un millon de filas, 0,03 s contra 0,44 s de
 # la tabla de frecuencias de `analizar()`.
 .vocabulario_perfil <- function(datos, nombres, columnas, mascaras,
-                                umbral_alta_cardinalidad) {
+                                umbral_alta_cardinalidad, disfrazados = NULL) {
   partes <- list()
   for (i in seq_along(nombres)) {
     # Un identificador no se guarda: sus valores son las filas, y la moda de
@@ -3995,6 +4020,16 @@ perfilar <- function(datos,
     if (!identical(clase, "vocabulario")) next
     x <- datos[[i]]
     if (!is.atomic(x) && !is.factor(x)) next
+    # Lo que el perfil cuenta como faltante disfrazado -una cadena de ausencia
+    # como `"NA"` o un centinela- no es un valor del vocabulario: la deriva ya
+    # lo informa en `faltantes`, y contarlo tambien como valor nuevo duplicaba
+    # la senal. Medido: `"NA"` de texto en 2 de 10 filas salia a la vez como
+    # faltante disfrazado y como `vocabulario / error`.
+    disfrazado <- if (length(disfrazados) >= i) disfrazados[[i]] else NULL
+    if (is.logical(disfrazado) && length(disfrazado) == length(x) &&
+        any(disfrazado, na.rm = TRUE)) {
+      x[which(disfrazado)] <- NA
+    }
     aplicable <- if (length(mascaras) >= i) mascaras[[i]] else NULL
     if (!is.null(aplicable) && length(aplicable) == length(x) && !all(aplicable)) {
       x <- x[as.logical(aplicable)]

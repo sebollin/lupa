@@ -118,14 +118,34 @@ que está dos párrafos más abajo, que la evita en lugar de detectarla.
 
 El \strong{vocabulario} de una columna categórica sí se compara: el conjunto de sus
 valores, que \code{\link[=perfilar]{perfilar()}} guarda en \code{general$vocabulario} para las columnas de
-texto o factor de hasta 20 valores distintos. Una entrega que cambia todos sus
+texto o factor de hasta 20 valores distintos de hasta 64 caracteres. Un
+faltante disfrazado —\code{"NA"} escrito, un centinela— no es un valor del
+vocabulario: la comparación lo informa en los faltantes y no lo cuenta dos
+veces. Una entrega que cambia todos sus
 valores con la misma forma —\code{A}/\code{B} por \code{X}/\code{Y}, en las mismas proporciones—
 no mueve la cardinalidad, los faltantes ni los patrones, y salía sin ninguna
 fila. La fila \code{vocabulario / modificado} nombra los valores que aparecieron y
 los que desaparecieron con su proporción, y \code{delta} es la proporción de filas
 que llevan valores que la otra entrega no tenía, la mayor de las dos
-direcciones: \code{sospechoso} desde \code{umbral_cambio}, \code{error} desde \code{umbral_error},
-y \code{ok} por debajo, sin dejar de publicarse. Por \strong{decisión}, el corrimiento
+direcciones, sobre \strong{todas} las filas de la entrega, con sus faltantes: un
+valor cambiado en 1 de 1000 filas pesa 0,001 aunque las otras 999 falten.
+\code{sospechoso} desde \code{umbral_cambio}, \code{error} desde \code{umbral_error},
+y \code{ok} por debajo, sin dejar de publicarse.
+
+Un valor que está en una sola entrega \strong{no cuenta para la severidad si puede
+faltar de la otra por azar}: con \code{k} filas del valor, \code{n} filas en la
+entrega donde aparece y \code{m} en la otra, si las dos salen de la misma
+población las \code{k} caen todas del mismo lado con probabilidad
+\code{(n / (n + m))^k}; por encima de 0,01 el valor se nombra en la evidencia
+—«puede faltar del otro lado por azar»— y no gradúa la fila. Medido sobre
+réplicas de una misma población —30 contra 300 filas con una categoría del
+5 \%, 40 contra 40 con dos del 4 y el 6 \%—, la fila pasa de \code{ok} en menos del
+1 \% de ellas. El precio está entre entregas chicas: una categoría nueva real
+del 10 \% llega a \code{sospechoso} en menos de una de cada diez entregas de 40
+filas por lado, y en todas desde 200. Si los dos vocabularios son el mismo
+salvo espacios en los bordes y mayúsculas —lo que deja \code{recortar_espacios}—,
+la fila sale \code{ok} y la evidencia dice que el vocabulario cambió sólo de
+forma. Por \strong{decisión}, el corrimiento
 de proporciones entre valores que siguen en las dos entregas no gradúa la
 fila —sólo se informa en la evidencia, como distancia de variación total—:
 la misma distribución de cuatro categorías remuestreada en 200 filas lo mueve
@@ -134,22 +154,33 @@ intercambian su peso sin que aparezca ni desaparezca ninguno no dan fila.
 No se compara el vocabulario de una columna con cardinalidad alta —con el
 mismo criterio que su hallazgo \code{alta_cardinalidad}— ni el de una cuyos valores
 son todos distintos, que es un identificador y renueva sus valores en cada
-entrega; si un lado tiene más de 20 valores, la fila dice \code{no_comparable}
-con severidad \code{ok}. Un perfil sin \code{general$vocabulario} —de una versión
+entrega, ni el de una con valores de más de 64 caracteres, que es texto.
+\strong{Límite declarado}: el vocabulario se guarda hasta 20 valores distintos. Si
+un lado tiene más de 20, la fila dice \code{no_comparable} con severidad \code{ok}; si
+los dos tienen más de 20 no hay fila de vocabulario, así que una columna de
+21 valores que reemplaza uno solo de ellos, o todos por otros de la misma
+forma, puede no dar ninguna fila. Un perfil sin \code{general$vocabulario} —de una versión
 anterior— se declara con la fila de campos ausentes, y el de una columna
 protegida o sin valores publicados (\code{incluir_valores = FALSE}) no se guarda y
 se declara en \code{campos_protegidos}.
 
 Las \strong{marcas del plan de limpieza} —\code{.fila_duplicada}, \code{.grupo_duplicado},
-\verb{.ausente_<columna>} y \verb{.outlier_<columna>}, que agrega \code{\link[=aplicar]{aplicar()}}— se
-reconocen con la regla del plan: por su nombre exacto y su columna en la misma
-tabla, no por el punto inicial. Una marca que aparece o desaparece se publica
+\verb{.ausente_<columna>} y \verb{.outlier_<columna>}— se reconocen por lo que deja
+\code{\link[=aplicar]{aplicar()}}, no por el nombre: el atributo \code{marcas_limpieza} de sus datos
+nombra cada marca que agregó, y \code{\link[=perfilar]{perfilar()}} lo guarda en
+\code{general$marcas_limpieza}. Una marca que aparece o desaparece se publica
 con severidad \code{ok}, porque la tabla cambió de forma por la limpieza que se
 pidió y no por la entrega, y un hallazgo sobre una marca —los \code{NA} de
 \code{.grupo_duplicado} significan que la fila no está en ningún grupo— también,
-con la razón en la descripción. Una columna del usuario con exactamente uno de
-esos nombres se trata como marca, como ya hace el plan; una marca renombrada
-en el plan se trata como columna.
+con la razón en la descripción. Una columna del usuario con uno de esos
+nombres es una columna del usuario: si desaparece, es \code{error}, como
+cualquiera. El atributo sobrevive a quedarse con algunas filas
+(\code{datos[filas, ]}, \code{head()}, ordenar), a \code{rbind()} y a cambiar o quitar una
+columna con \verb{$<-} o \verb{[[<-}; lo pierden la selección de columnas con \code{[}
+(\code{datos[, columnas]}, \code{datos[columnas]}), \code{cbind()}, \code{merge()}, \code{subset()},
+\code{transform()} y un viaje por CSV. Sin el atributo, las marcas se comparan
+como columnas del usuario —ruido, no silencio—; por eso conviene perfilar
+el objeto que devolvió \code{aplicar()}.
 
 Entre las propiedades comparadas está la \strong{unidad} en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas

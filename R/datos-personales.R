@@ -2047,6 +2047,16 @@
   gsub("^[[:space:]]+|[[:space:]]+$", "", x, useBytes = TRUE)
 }
 
+# La forma de un texto sin espacios en los bordes ni caja ASCII, para comparar
+# dos valores que solo difieren en eso. Con `trimws()` abortaba sobre un valor
+# latin-1 sin marca -medido en seis pruebas de la proteccion-: se recorta en
+# bytes y despues se arma la clave por bytes, como la de los nombres, que vale
+# entre sesiones y bajo C. En ese orden: la clave escapa los bytes que no son
+# UTF-8 y un espacio escapado ya no se recorta.
+.clave_forma_texto <- function(x) {
+  .minusculas_ascii(.nombres_para_operar(.recortar_bytes(as.character(x))))
+}
+
 # La forma de fecha que cuenta para decidir si una columna es de fechas y, en
 # una que lo es, que valores salen del piso: la fecha sola de `.es_fecha_sola()`,
 # la del ano en dos cifras -"16/01/95"- y la compacta AAAAMMDD -"19950116"-,
@@ -5168,6 +5178,36 @@
 }
 
 
+# El vocabulario de una columna NO protegida que repite un valor identificante
+# de una protegida -el piso de siempre, `.valores_identificantes()`: seis
+# caracteres o mas, sin los marcadores de ausencia del catalogo- no se guarda,
+# y `general$vocabulario_protegido` la nombra para que la comparacion la
+# declare como protegida. El barrido general ya tapaba esos valores, pero
+# dejaba en el vocabulario filas `[valor protegido]` que la comparacion
+# confrontaba como si fueran valores. Se comparan sin espacios en los bordes ni
+# caja. Un valor corto -`VIH`, `S/D`- queda debajo del piso y se publica en la
+# otra columna, como todo el vocabulario corto que se comparte: `S/D` es el
+# "sin dato" de `sexo` y no dice nada de la cedula.
+.retirar_vocabulario_con_valores_protegidos <- function(perfil, valores) {
+  vocabulario <- perfil$general$vocabulario
+  if (!length(valores) || !is.data.frame(vocabulario) || !nrow(vocabulario)) {
+    return(perfil)
+  }
+  tapados <- unique(.clave_forma_texto(valores))
+  columnas <- unique(as.character(
+    vocabulario$columna[.clave_forma_texto(vocabulario$valor) %in% tapados]
+  ))
+  if (!length(columnas)) return(perfil)
+  vocabulario <- vocabulario[!as.character(vocabulario$columna) %in% columnas, ,
+                             drop = FALSE]
+  rownames(vocabulario) <- NULL
+  perfil$general$vocabulario <- vocabulario
+  perfil$general$vocabulario_protegido <- unique(c(
+    perfil$general$vocabulario_protegido, columnas
+  ))
+  perfil
+}
+
 .proteger_perfil <- function(perfil, datos = NULL) {
   valores_perfil <- .valores_perfil_protegidos(
     perfil$columnas, perfil$patrones, perfil$datos_personales, perfil$meta,
@@ -5234,6 +5274,10 @@
   valores <- valores[!is.na(valores) & nzchar(valores)]
   valores <- valores[.orden_por_bytes(nchar(valores, type = "bytes"), decreasing = TRUE,
                            method = "radix")]
+  perfil <- .retirar_vocabulario_con_valores_protegidos(
+    perfil,
+    .valores_identificantes(valores, .fechas_que_identifican(datos, sensibles))
+  )
   perfil <- .proteger_meta_y_cobertura(perfil, sensibles, valores)
   # `meta` describe la CORRIDA, no los datos: la version del paquete, los
   # umbrales, la configuracion. Ya tiene su propio paso dirigido y por columna

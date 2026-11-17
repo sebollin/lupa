@@ -643,7 +643,8 @@
 .diagnosticar_ausencia_estructural <- function(datos, nombres, resultados,
                                                aplicabilidad_resuelta,
                                                umbral_faltantes_error,
-                                               nombres_texto = NULL) {
+                                               nombres_texto = NULL,
+                                               marcas = NULL) {
   if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(nombres)
   vacio <- list(
     hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia()
@@ -771,11 +772,19 @@
     mejor_det <- NULL
     mejor_nombre <- NA_character_
     mejor_indice <- NA_integer_
-    # La marca que el plan agrega sobre la columna -`.ausente_<x>`- es su
+    # La marca que `aplicar()` agrego sobre la columna -`.ausente_<x>`- es su
     # ausencia escrita en otra columna: medido, despues de `aplicar()`
     # publicaba que `.ausente_Ozone` "predice la presencia de `Ozone` en 100 %"
-    # y "explica 37 de las 37 ausencias". No es una estructura del dato.
-    propias <- .nombres_para_operar(.marcas_de_columna(columna))
+    # y "explica 37 de las 37 ausencias". No es una estructura del dato. Se
+    # reconoce por el atributo que deja `aplicar()`, no por el nombre: una
+    # columna del usuario llamada asi si es una estructura del dato, y callarla
+    # era silenciar un hallazgo.
+    propias <- if (is.data.frame(marcas) && nrow(marcas)) {
+      .nombres_para_operar(marcas$marca[
+        !is.na(marcas$columna) &
+          .nombres_para_operar(marcas$columna) %in% .nombres_para_operar(columna)
+      ])
+    } else character()
     for (det in determinantes) {
       if (det$indice == indices[[k]]) next
       if (.nombres_para_operar(nombres[[det$indice]]) %in% propias) next

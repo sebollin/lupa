@@ -1102,9 +1102,22 @@ nombres entre comillas, y el que se repite lleva su posición:
 \code{general$vocabulario} guarda los valores y su frecuencia de las columnas de
 texto o factor con hasta 20 valores distintos —\code{columna}, \code{valor},
 \code{frecuencia}, \code{proporcion}, del más frecuente al menos—, contados sobre el
-universo aplicable y todas las filas; no las de cardinalidad alta ni las de
-valores todos distintos, y con la protección, tampoco las protegidas. Es lo
-que \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara como vocabulario. Cuando el camino
+universo aplicable y todas las filas, sin los que el perfil cuenta como
+faltantes disfrazados —\code{"NA"} escrito, un centinela—, que ya están en
+\code{n_faltantes_disfrazados}; no las de cardinalidad alta, ni las de
+valores todos distintos, ni las que tienen algún valor de más de 64
+caracteres, que son texto y no categorías. Con la protección, tampoco las
+protegidas ni las que repiten un valor identificante de una protegida —de
+seis caracteres o más, el mismo piso del resto de la protección, también
+con otra caja o espacios en los bordes—, que se nombran en
+\code{general$vocabulario_protegido}. Un valor más corto que se comparte
+—\code{S/D}, \code{VIH}— se sigue publicando en la otra columna.
+Es lo que \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara como vocabulario.
+\code{general$marcas_limpieza} está cuando los datos traen el atributo
+\code{marcas_limpieza} que deja \code{\link[=aplicar]{aplicar()}}: las marcas que agregó el plan, con
+la columna que marca. Una marca así no explica la ausencia de su propia
+columna en \code{posible_ausencia_estructural}; una columna del usuario con el
+mismo nombre, sí. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por

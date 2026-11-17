@@ -176,6 +176,69 @@
     .nombres_para_operar(nombres) %in% .nombres_para_operar(candidatas)
 }
 
+# Las marcas que agrego `aplicar()`, en el atributo `marcas_limpieza` de los
+# datos: una fila por marca, con la columna que marca (`NA` en las de filas
+# repetidas). El nombre no alcanza: medido, una columna del usuario llamada
+# `.ausente_x` callaba el `posible_ausencia_estructural` de `x`, y una llamada
+# `.fila_duplicada` que desaparecia salia `ok`. Lo que el atributo no sobrevive
+# -un `merge()`, `cbind()`, la seleccion de columnas con `[`, un CSV- deja la
+# columna como del usuario: ruido, no silencio.
+.marcas_limpieza_vacias <- function() {
+  data.frame(marca = character(), columna = character(), stringsAsFactors = FALSE)
+}
+
+.marcas_limpieza_registro <- function(registro) {
+  if (!is.data.frame(registro) || !nrow(registro) ||
+      !all(c("estado", "estrategia", "columna", "parametros") %in% names(registro))) {
+    return(.marcas_limpieza_vacias())
+  }
+  filas <- list()
+  for (i in seq_len(nrow(registro))) {
+    if (!identical(as.character(registro$estado[[i]]), "ejecutada")) next
+    parametros <- registro$parametros[[i]]
+    if (!is.list(parametros)) next
+    for (campo in intersect(names(parametros), .parametros_nombre_de_columna)) {
+      marca <- as.character(parametros[[campo]])
+      if (length(marca) != 1L || is.na(marca)) next
+      base <- if (identical(as.character(registro$estrategia[[i]]),
+                            "marcar_filas_duplicadas")) {
+        NA_character_
+      } else as.character(registro$columna[[i]])
+      filas[[length(filas) + 1L]] <- data.frame(
+        marca = marca, columna = base, stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (!length(filas)) return(.marcas_limpieza_vacias())
+  do.call(rbind, filas)
+}
+
+.marcas_limpieza_tabla <- function(datos) {
+  marcas <- attr(datos, "marcas_limpieza", exact = TRUE)
+  if (!is.data.frame(marcas) || !nrow(marcas) ||
+      !all(c("marca", "columna") %in% names(marcas))) {
+    return(.marcas_limpieza_vacias())
+  }
+  marcas <- data.frame(
+    marca = as.character(marcas$marca), columna = as.character(marcas$columna),
+    stringsAsFactors = FALSE
+  )
+  presentes <- .nombres_para_operar(marcas$marca) %in%
+    .nombres_para_operar(as.character(names(datos)))
+  marcas <- marcas[presentes & !is.na(marcas$marca), , drop = FALSE]
+  rownames(marcas) <- NULL
+  marcas
+}
+
+.unir_marcas_limpieza <- function(previas, nuevas, nombres) {
+  marcas <- rbind(previas, nuevas)
+  marcas <- marcas[!duplicated(.nombres_para_operar(marcas$marca)) &
+                     .nombres_para_operar(marcas$marca) %in%
+                     .nombres_para_operar(as.character(nombres)), , drop = FALSE]
+  rownames(marcas) <- NULL
+  marcas
+}
+
 # Las marcas que el plan agrega SOBRE una columna -`marcar_filas_ausentes` y
 # `marcar_outliers`-, con el nombre que les da: la misma regla para reconocerlas
 # en la tabla, en la deriva y en el diagnostico de ausencia estructural.
@@ -1417,7 +1480,13 @@
 #' copia de `datos`. Verifica que cada columna siga siendo identificable y que
 #' las conversiones sean completas antes de sustituirla. Devuelve los datos
 #' nuevos junto con un registro de las acciones y sus parámetros. El mismo
-#' registro queda en el atributo `registro_limpieza` de los datos resultantes.
+#' registro queda en el atributo `registro_limpieza` de los datos resultantes,
+#' y las marcas que agregó —`.fila_duplicada`, `.grupo_duplicado`,
+#' `.ausente_<columna>`, `.outlier_<columna>`— en el atributo
+#' `marcas_limpieza`, una fila por marca con la columna que marca (`NA` en las
+#' de filas repetidas), sumadas a las que ya traían los datos. Es lo que
+#' [perfilar()] y [comparar_perfiles()] leen para reconocerlas: una columna
+#' con uno de esos nombres que no está en el atributo es del usuario.
 #'
 #' Las alternativas para un mismo hallazgo comparten `grupo`; las acciones
 #' independientes usan `NA`. Como máximo una alternativa de cada grupo puede
@@ -6105,6 +6174,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   if (!inherits(datos, "data.frame")) {
     .detener("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
+  # Las marcas que dejo un `aplicar()` anterior siguen siendo marcas.
+  marcas_previas <- .marcas_limpieza_tabla(datos)
   if (!is.logical(permitir_eliminacion) || length(permitir_eliminacion) != 1L ||
       is.na(permitir_eliminacion) || !is.logical(conservar_eliminados) ||
       length(conservar_eliminados) != 1L || is.na(conservar_eliminados)) {
@@ -6335,6 +6406,13 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   registro <- if (length(registros)) do.call(rbind, registros) else .registro_vacio()
   rownames(registro) <- NULL
   attr(salida, "registro_limpieza") <- registro
+  # Que columnas son marcas, dicho por quien las creo: la comparacion de
+  # entregas y el diagnostico de ausencia lo leen de aca y no del nombre, que
+  # una columna del usuario puede tener. Solo si hay alguna.
+  marcas <- .unir_marcas_limpieza(
+    marcas_previas, .marcas_limpieza_registro(registro), names(salida)
+  )
+  if (nrow(marcas)) attr(salida, "marcas_limpieza") <- marcas
   # Una accion asigna con `datos[[indice]] <- ...`, que es `[[<-.data.frame`: R
   # copia la tabla y la data.table vuelve sin espacio reservado -`truelength` 0-
   # y con la autorreferencia rota, asi que el primer `:=` del usuario avisaba

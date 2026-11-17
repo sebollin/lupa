@@ -1854,6 +1854,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   alta <- length(umbral) == 1L && isTRUE(tasa > umbral) &&
     distintos >= .min_distintos_alta_cardinalidad
   if (alta || (distintos >= 2 && isTRUE(tasa >= 1))) return("identificador")
+  # Un texto con valores largos no es una categoria -es texto libre-, y sus
+  # valores son los que mas pesan: medido, 20 columnas de 20 valores de diez mil
+  # caracteres llevaban el perfil de 1,7 a 5,7 MB, el 74 % en el vocabulario.
+  largo <- .valor_columna_deriva(fila, "longitud_maxima")
+  if (isTRUE(largo > .MAX_LARGO_VALOR_VOCABULARIO)) return("texto_largo")
   if (distintos > .MAX_VALORES_VOCABULARIO) return("abierto")
   "vocabulario"
 }
@@ -1880,8 +1885,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   if (!identical(clase, "vocabulario")) {
     return(list(estado = clase, distintos = distintos))
   }
-  protegido <- "dato_personal_protegido" %in% names(fila) &&
-    isTRUE(as.logical(fila[["dato_personal_protegido"]][[1L]]))
+  protegido <- ("dato_personal_protegido" %in% names(fila) &&
+    isTRUE(as.logical(fila[["dato_personal_protegido"]][[1L]]))) ||
+    .nombres_para_operar(as.character(fila[["columna"]][[1L]])) %in%
+      .nombres_para_operar(as.character(perfil$general$vocabulario_protegido))
   if (protegido || isFALSE(perfil$meta$incluir_valores)) {
     return(list(estado = "protegido", distintos = distintos))
   }
@@ -1903,51 +1910,109 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # siguen: medido, la misma distribucion de cuatro categorias remuestreada en
 # 200 filas corre la distancia de variacion total 0,06 de mediana de una
 # entrega a la otra, y pasa `umbral_cambio` en 31 de 50: esa alarma seria del
-# azar. Que un valor aparezca o desaparezca con peso no lo es: la misma prueba
-# no publico ninguna fila de vocabulario. `NULL` si no cambio el conjunto
-# de valores.
-.cambio_vocabulario_deriva <- function(anterior, actual, umbral_cambio,
-                                       umbral_error) {
+# azar. `NULL` si no cambio el conjunto de valores.
+#
+# Tres reglas mas, cada una medida:
+#
+# * El denominador son TODAS las filas de cada entrega (`n_anterior`,
+#   `n_actual`), con sus faltantes, como dice la ayuda. Sobre los valores
+#   presentes, un valor cambiado en 1 de 1000 filas -las otras 999 faltantes-
+#   salia `error` con `delta` 1.
+# * Un valor que esta en un solo lado puede faltar del otro solo por azar si
+#   es raro y el otro lado es chico. Con la probabilidad de azar sobre 0,01
+#   -ver el calculo abajo- el valor no cuenta para la severidad y sigue
+#   nombrado en la evidencia. Igual con los desaparecidos. Medido: una entrega
+#   de 30 filas contra otra de 300 de la misma poblacion, con una categoria
+#   del 5 %, daba `sospechoso` en el 14 % de las replicas.
+# * Si los dos vocabularios son el mismo salvo espacios en los bordes y
+#   mayusculas, cambio la forma y no los valores: la fila sale `ok` y lo dice.
+#   Medido: aplicar `recortar_espacios`, que el propio plan recomienda,
+#   publicaba un `error` de vocabulario con `delta` 1.
+.cambio_vocabulario_deriva <- function(anterior, actual, n_anterior, n_actual,
+                                       umbral_cambio, umbral_error) {
   clave_a <- .nombres_para_operar(anterior$valor)
   clave_b <- .nombres_para_operar(actual$valor)
   aparecidos <- !clave_b %in% clave_a
   desaparecidos <- !clave_a %in% clave_b
   if (!any(aparecidos) && !any(desaparecidos)) return(NULL)
-  masa_aparecida <- sum(actual$proporcion[aparecidos])
-  masa_desaparecida <- sum(anterior$proporcion[desaparecidos])
+  filas <- function(n, tabla) {
+    n <- suppressWarnings(as.numeric(n))
+    if (length(n) == 1L && is.finite(n) && n > 0) n else sum(tabla$frecuencia)
+  }
+  n_anterior <- filas(n_anterior, anterior)
+  n_actual <- filas(n_actual, actual)
+  proporcion_a <- anterior$frecuencia / n_anterior
+  proporcion_b <- actual$frecuencia / n_actual
+  # Un valor que esta en un solo lado puede faltar del otro por azar. Si las
+  # dos entregas salen de la misma poblacion, cada una de sus `k` filas cae en
+  # el lado donde aparecio con probabilidad `n_ese_lado / (n_anterior +
+  # n_actual)`: que caigan todas ahi tiene probabilidad esa fraccion a la `k`.
+  # Por encima de 0,01 el valor no cuenta para la severidad. Estimar `p` con
+  # la proporcion del lado donde aparecio -`(1 - p)^n_otro`- la infla, porque
+  # se lo mira justo por faltar del otro lado: con 40 filas por lado, 2 a 3 %
+  # de las replicas de una misma poblacion daban alarma.
+  total <- n_anterior + n_actual
+  azar_b <- (n_actual / total)^actual$frecuencia > 0.01
+  azar_a <- (n_anterior / total)^anterior$frecuencia > 0.01
+  masa_aparecida <- sum(proporcion_b[aparecidos])
+  masa_desaparecida <- sum(proporcion_a[desaparecidos])
   masa <- max(masa_aparecida, masa_desaparecida)
+  forma <- .clave_forma_texto
+  solo_forma <- setequal(forma(anterior$valor), forma(actual$valor))
+  contada <- if (solo_forma) 0 else max(
+    sum(proporcion_b[aparecidos & !azar_b]),
+    sum(proporcion_a[desaparecidos & !azar_a])
+  )
   claves <- unique(c(clave_a, clave_b))
-  proporcion <- function(tabla, clave) {
-    p <- tabla$proporcion[match(claves, clave)]
+  repartida <- function(proporcion, clave) {
+    p <- proporcion[match(claves, clave)]
     p[is.na(p)] <- 0
     p
   }
-  distancia <- sum(abs(proporcion(anterior, clave_a) - proporcion(actual, clave_b))) / 2
-  significativo <- .alcanza_umbral_deriva(masa, umbral_cambio)
+  distancia <- sum(abs(repartida(proporcion_a, clave_a) -
+                         repartida(proporcion_b, clave_b))) / 2
+  significativo <- .alcanza_umbral_deriva(contada, umbral_cambio)
   severidad <- if (!significativo) {
     "ok"
-  } else if (.alcanza_umbral_deriva(masa, umbral_error)) {
+  } else if (.alcanza_umbral_deriva(contada, umbral_error)) {
     "error"
   } else {
     "sospechoso"
   }
   fmt <- function(x) .formatear_decimal_publicado(x, 4L)
-  valores <- function(tabla, cuales) {
+  valores <- function(tabla, proporcion, cuales, azar) {
     if (!any(cuales)) return("ninguno")
-    paste0(tabla$valor[cuales], " (", fmt(tabla$proporcion[cuales]), ")",
-           collapse = " | ")
+    paste0(
+      tabla$valor[cuales], " (", fmt(proporcion[cuales]),
+      ifelse(azar[cuales], ", puede faltar del otro lado por azar", ""), ")",
+      collapse = " | "
+    )
+  }
+  evidencia <- paste0(
+    "Aparecieron: ", valores(actual, proporcion_b, aparecidos, azar_b),
+    ". Desaparecieron: ", valores(anterior, proporcion_a, desaparecidos, azar_a),
+    ". Proporci\u00f3n de filas con valores que la otra entrega no ten\u00eda: ",
+    fmt(masa_aparecida), " en la actual y ", fmt(masa_desaparecida),
+    " en la anterior; distancia de variaci\u00f3n total entre las dos ",
+    "distribuciones: ", fmt(distancia), "."
+  )
+  if (solo_forma) {
+    evidencia <- paste(
+      "El vocabulario cambi\u00f3 solo de forma -espacios en los bordes o",
+      "may\u00fasculas-: cada valor nuevo es uno anterior escrito de otra manera.",
+      evidencia
+    )
+  } else if (any(aparecidos & azar_b) || any(desaparecidos & azar_a)) {
+    evidencia <- paste(
+      evidencia, "Los valores que pueden faltar por azar -raros, frente a una",
+      "entrega chica- no cuentan para la severidad."
+    )
   }
   list(
     severidad = severidad, significativo = significativo, masa = masa,
     anterior = paste(anterior$valor, collapse = " | "),
     actual = paste(actual$valor, collapse = " | "),
-    evidencia = paste0(
-      "Aparecieron: ", valores(actual, aparecidos), ". Desaparecieron: ",
-      valores(anterior, desaparecidos), ". Proporci\u00f3n de filas con valores que ",
-      "la otra entrega no ten\u00eda: ", fmt(masa_aparecida), " en la actual y ",
-      fmt(masa_desaparecida), " en la anterior; distancia de variaci\u00f3n total ",
-      "entre las dos distribuciones: ", fmt(distancia), "."
-    )
+    evidencia = evidencia
   )
 }
 
@@ -2135,14 +2200,34 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #'
 #' El **vocabulario** de una columna categórica sí se compara: el conjunto de sus
 #' valores, que [perfilar()] guarda en `general$vocabulario` para las columnas de
-#' texto o factor de hasta 20 valores distintos. Una entrega que cambia todos sus
+#' texto o factor de hasta 20 valores distintos de hasta 64 caracteres. Un
+#' faltante disfrazado —`"NA"` escrito, un centinela— no es un valor del
+#' vocabulario: la comparación lo informa en los faltantes y no lo cuenta dos
+#' veces. Una entrega que cambia todos sus
 #' valores con la misma forma —`A`/`B` por `X`/`Y`, en las mismas proporciones—
 #' no mueve la cardinalidad, los faltantes ni los patrones, y salía sin ninguna
 #' fila. La fila `vocabulario / modificado` nombra los valores que aparecieron y
 #' los que desaparecieron con su proporción, y `delta` es la proporción de filas
 #' que llevan valores que la otra entrega no tenía, la mayor de las dos
-#' direcciones: `sospechoso` desde `umbral_cambio`, `error` desde `umbral_error`,
-#' y `ok` por debajo, sin dejar de publicarse. Por **decisión**, el corrimiento
+#' direcciones, sobre **todas** las filas de la entrega, con sus faltantes: un
+#' valor cambiado en 1 de 1000 filas pesa 0,001 aunque las otras 999 falten.
+#' `sospechoso` desde `umbral_cambio`, `error` desde `umbral_error`,
+#' y `ok` por debajo, sin dejar de publicarse.
+#'
+#' Un valor que está en una sola entrega **no cuenta para la severidad si puede
+#' faltar de la otra por azar**: con `k` filas del valor, `n` filas en la
+#' entrega donde aparece y `m` en la otra, si las dos salen de la misma
+#' población las `k` caen todas del mismo lado con probabilidad
+#' `(n / (n + m))^k`; por encima de 0,01 el valor se nombra en la evidencia
+#' —«puede faltar del otro lado por azar»— y no gradúa la fila. Medido sobre
+#' réplicas de una misma población —30 contra 300 filas con una categoría del
+#' 5 %, 40 contra 40 con dos del 4 y el 6 %—, la fila pasa de `ok` en menos del
+#' 1 % de ellas. El precio está entre entregas chicas: una categoría nueva real
+#' del 10 % llega a `sospechoso` en menos de una de cada diez entregas de 40
+#' filas por lado, y en todas desde 200. Si los dos vocabularios son el mismo
+#' salvo espacios en los bordes y mayúsculas —lo que deja `recortar_espacios`—,
+#' la fila sale `ok` y la evidencia dice que el vocabulario cambió sólo de
+#' forma. Por **decisión**, el corrimiento
 #' de proporciones entre valores que siguen en las dos entregas no gradúa la
 #' fila —sólo se informa en la evidencia, como distancia de variación total—:
 #' la misma distribución de cuatro categorías remuestreada en 200 filas lo mueve
@@ -2151,22 +2236,33 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' No se compara el vocabulario de una columna con cardinalidad alta —con el
 #' mismo criterio que su hallazgo `alta_cardinalidad`— ni el de una cuyos valores
 #' son todos distintos, que es un identificador y renueva sus valores en cada
-#' entrega; si un lado tiene más de 20 valores, la fila dice `no_comparable`
-#' con severidad `ok`. Un perfil sin `general$vocabulario` —de una versión
+#' entrega, ni el de una con valores de más de 64 caracteres, que es texto.
+#' **Límite declarado**: el vocabulario se guarda hasta 20 valores distintos. Si
+#' un lado tiene más de 20, la fila dice `no_comparable` con severidad `ok`; si
+#' los dos tienen más de 20 no hay fila de vocabulario, así que una columna de
+#' 21 valores que reemplaza uno solo de ellos, o todos por otros de la misma
+#' forma, puede no dar ninguna fila. Un perfil sin `general$vocabulario` —de una versión
 #' anterior— se declara con la fila de campos ausentes, y el de una columna
 #' protegida o sin valores publicados (`incluir_valores = FALSE`) no se guarda y
 #' se declara en `campos_protegidos`.
 #'
 #' Las **marcas del plan de limpieza** —`.fila_duplicada`, `.grupo_duplicado`,
-#' `.ausente_<columna>` y `.outlier_<columna>`, que agrega [aplicar()]— se
-#' reconocen con la regla del plan: por su nombre exacto y su columna en la misma
-#' tabla, no por el punto inicial. Una marca que aparece o desaparece se publica
+#' `.ausente_<columna>` y `.outlier_<columna>`— se reconocen por lo que deja
+#' [aplicar()], no por el nombre: el atributo `marcas_limpieza` de sus datos
+#' nombra cada marca que agregó, y [perfilar()] lo guarda en
+#' `general$marcas_limpieza`. Una marca que aparece o desaparece se publica
 #' con severidad `ok`, porque la tabla cambió de forma por la limpieza que se
 #' pidió y no por la entrega, y un hallazgo sobre una marca —los `NA` de
 #' `.grupo_duplicado` significan que la fila no está en ningún grupo— también,
-#' con la razón en la descripción. Una columna del usuario con exactamente uno de
-#' esos nombres se trata como marca, como ya hace el plan; una marca renombrada
-#' en el plan se trata como columna.
+#' con la razón en la descripción. Una columna del usuario con uno de esos
+#' nombres es una columna del usuario: si desaparece, es `error`, como
+#' cualquiera. El atributo sobrevive a quedarse con algunas filas
+#' (`datos[filas, ]`, `head()`, ordenar), a `rbind()` y a cambiar o quitar una
+#' columna con `$<-` o `[[<-`; lo pierden la selección de columnas con `[`
+#' (`datos[, columnas]`, `datos[columnas]`), `cbind()`, `merge()`, `subset()`,
+#' `transform()` y un viaje por CSV. Sin el atributo, las marcas se comparan
+#' como columnas del usuario —ruido, no silencio—; por eso conviene perfilar
+#' el objeto que devolvió `aplicar()`.
 #'
 #' Entre las propiedades comparadas está la **unidad** en la que la columna
 #' publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
@@ -2490,13 +2586,21 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   desaparecidas <- setdiff(mapa_a$clave, mapa_b$clave)
   aparecidas <- setdiff(mapa_b$clave, mapa_a$clave)
   # Las marcas que agrega `aplicar()` -`.fila_duplicada`, `.grupo_duplicado`,
-  # `.ausente_<x>`, `.outlier_<x>`- se reconocen con la regla del plan, por su
-  # nombre exacto y su columna en la misma tabla. Comparar antes y despues de
-  # limpiar publicaba cada una como "Aparecio una columna", severidad `error`:
-  # la alarma era la limpieza que el usuario pidio. La fila queda -la tabla si
-  # cambio de forma- con severidad `ok`.
-  marcas_a <- mapa_a$clave[.marcas_del_plan(mapa_a$original)]
-  marcas_b <- mapa_b$clave[.marcas_del_plan(mapa_b$original)]
+  # `.ausente_<x>`, `.outlier_<x>`- se reconocen por lo que el perfil registro
+  # de la tabla (`general$marcas_limpieza`, del atributo que deja `aplicar()`),
+  # no por el nombre: una columna del usuario llamada `.fila_duplicada` que
+  # desaparecia salia `ok`. Comparar antes y despues de limpiar publicaba cada
+  # marca como "Aparecio una columna", severidad `error`: la alarma era la
+  # limpieza que el usuario pidio. La fila queda -la tabla si cambio de forma-
+  # con severidad `ok`.
+  marcas_perfil <- function(perfil, mapa) {
+    marcas <- perfil$general$marcas_limpieza
+    if (!is.data.frame(marcas) || !nrow(marcas)) return(character())
+    mapa$clave[.nombres_para_operar(mapa$original) %in%
+                 .nombres_para_operar(as.character(marcas$marca))]
+  }
+  marcas_a <- marcas_perfil(anterior, mapa_a)
+  marcas_b <- marcas_perfil(actual, mapa_b)
   evidencia_marca <- paste(
     "Es una marca del plan de limpieza: la agrega `aplicar()` y no es una",
     "columna de la entrega. No se comparan sus m\u00e9tricas."
@@ -2885,7 +2989,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       # Una columna que no es texto en algun lado ya tiene su fila de tipo; un
       # identificador no tiene vocabulario, y su cambio lo dice la
       # cardinalidad; una de dominio abierto en los dos, tampoco.
-      if (any(estados %in% c("no_aplica", "identificador")) ||
+      if (any(estados %in% c("no_aplica", "identificador", "texto_largo")) ||
           all(estados == "abierto")) next
       if ("protegido" %in% estados) {
         campos_protegidos <- rbind(campos_protegidos, data.frame(
@@ -2924,7 +3028,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         next
       }
       cambio <- .cambio_vocabulario_deriva(
-        vocabulario_a$tabla, vocabulario_b$tabla, umbral_cambio, umbral_error
+        vocabulario_a$tabla, vocabulario_b$tabla,
+        .valor_columna_deriva(anterior$columnas[indice_a, , drop = FALSE], "n"),
+        .valor_columna_deriva(actual$columnas[indice_b, , drop = FALSE], "n"),
+        umbral_cambio, umbral_error
       )
       if (is.null(cambio)) next
       agregar(
@@ -3666,8 +3773,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # severidad `error`. Es el mismo motivo por el que el plan no propone acciones
   # sobre las marcas. La fila queda, con severidad `ok`.
   marcas <- c(
-    mapa_a$original[.marcas_del_plan(mapa_a$original)],
-    mapa_b$original[.marcas_del_plan(mapa_b$original)]
+    mapa_a$original[match(marcas_a, mapa_a$clave)],
+    mapa_b$original[match(marcas_b, mapa_b$clave)]
   )
   if (length(marcas) && length(cambios)) {
     claves_marca <- .nombres_para_operar(marcas)
