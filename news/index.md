@@ -22,9 +22,11 @@
   `clave`, agregar o quitar una columna cambia la muestra.
   `meta$muestra_huella` declara el método (`huella_v1`) y las columnas
   que entraron; las que no se reducen a un valor por fila (listas,
-  matrices) quedan fuera. Las tablas de hasta `muestra` filas no
-  cambian; con más filas, el perfil puede diferir del de la versión
-  anterior porque mira otras filas.
+  matrices) quedan fuera. En las tablas de hasta `muestra` filas los
+  hallazgos y las cifras no cambian; sólo cambia `meta$bytes_sonda`, el
+  tamaño de las 100 filas con que se estima cuánto ocupa la muestra,
+  porque esas filas son otras. Con más filas, el perfil puede diferir
+  del de la versión anterior porque mira otras filas.
 - [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   calcula esa selección una sola vez y la comparten todos sus
   diagnósticos, y las funciones de diagnóstico llamadas solas
@@ -79,18 +81,38 @@
   guarda en `general$vocabulario` los valores y su frecuencia en las
   columnas de texto o `factor` de hasta 20 valores distintos (no las
   protegidas ni las de valores todos distintos), y la fila `vocabulario`
-  se gradúa por la proporción de filas con valores que la otra entrega
-  no tenía. Contra un perfil anterior, sin ese campo, se declara no
-  comparable.
+  se gradúa por la proporción de filas de la entrega (con sus faltantes)
+  que llevan valores que la otra no tenía. Un valor que está en una sola
+  entrega no gradúa la fila si sus apariciones pueden haber caído todas
+  de un lado por azar, y se nombra en la evidencia; un vocabulario que
+  cambió sólo en espacios del borde o en mayúsculas y minúsculas (lo que
+  deja `recortar_espacios`) sale `ok` y lo dice; un faltante disfrazado
+  (`"NA"` escrito, un centinela) no cuenta como valor, porque ya se
+  informa en los faltantes. Las columnas con valores de más de 64
+  caracteres no guardan vocabulario. Contra un perfil anterior, sin ese
+  campo, se declara no comparable.
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
   reconoce las marcas que agrega
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   (`.fila_duplicada`, `.grupo_duplicado`, `.ausente_<columna>`,
   `.outlier_<columna>`): comparar antes y después de limpiar ya no las
-  publica como columnas nuevas con severidad `error`. Y
+  publica como columnas nuevas con severidad `error`, y
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   ya no informa como `posible_ausencia_estructural` la ausencia de una
-  columna explicada por su propia marca.
+  columna explicada por su propia marca. Las reconoce por el atributo
+  `marcas_limpieza` que deja
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  (y que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  guarda en `general$marcas_limpieza`), no por el nombre: una columna
+  del usuario llamada `.fila_duplicada` sigue siendo del usuario. El
+  atributo se pierde si la tabla pasa por un CSV o por un
+  [`merge()`](https://rdrr.io/r/base/merge.html), y entonces las marcas
+  vuelven a contarse como columnas.
+- Con `proteger_datos_personales = TRUE`, el vocabulario de una columna
+  que no es personal no guarda un valor protegido de seis caracteres o
+  más copiado de una columna personal; los más cortos, como un centinela
+  compartido, se publican como hasta ahora.
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
   acepta objetos de
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
@@ -116,6 +138,39 @@
   `bloque_muestra = "solo_agregados"`, donde antes se validaba y se
   descartaba, y el tipo que declara el motor para cada columna
   (`resumen_tabla$meta$tipos_motor`).
+
+### Limpieza
+
+- `clave_no_unica` tiene acción:
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  propone `marcar_claves_duplicadas`, que agrega `.clave_duplicada` y
+  marca todas las filas que colisionan en la clave declarada, sin
+  eliminar filas ni cambiar valores. La marca se calcula sobre los datos
+  que entrega
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  después de las demás acciones: dos claves que quedan iguales al
+  recortar espacios salen marcadas, y una fila que quedó sola tras
+  desduplicar, no.
+- [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  acepta el resultado de
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  solo o con el perfil y el plan: qué acciones corrieron, cuáles
+  fallaron y por qué, cuántas celdas cambió cada una y qué filas o
+  columnas se retiraron, cada cifra por separado.
+  [`summary()`](https://rdrr.io/r/base/summary.html) del resultado da
+  esa tabla por acción y columna.
+- Las acciones de celda sobre una columna `factor` la devuelven
+  `factor`, y no `character`: los niveles se limpian en su orden, los
+  que se funden quedan en el lugar del primero, y se conservan los
+  niveles sin uso y un nivel `NA` explícito. Un factor ordenado conserva
+  su orden salvo que la limpieza funda dos niveles no contiguos;
+  entonces queda sin orden y la justificación lo dice. Si todos sus
+  valores pasan a faltantes, queda como texto.
+- [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md),
+  y por ella
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  agrega al final `asociacion_con_signo`, el coeficiente con su
+  dirección; las columnas que ya publicaba no cambian.
 
 ### Correcciones
 

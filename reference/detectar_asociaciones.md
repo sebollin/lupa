@@ -2,9 +2,11 @@
 
 Calcula Pearson —o Spearman, si se pide— entre numéricas, V de Cramér
 entre categóricas y eta cuadrado entre una categórica y una numérica.
-Las medidas se informan en `[0, 1]`: la correlación usa su valor
-absoluto. La tabla declara el método, su supuesto, el soporte y el
-posible muestreo; no presenta significancia estadística.
+Las medidas se informan en `[0, 1]`: la columna `asociacion` conserva el
+valor absoluto de la correlación, y `asociacion_con_signo` agrega su
+coeficiente con signo para pares numéricos. La tabla declara el método,
+su supuesto, el soporte y el posible muestreo; no presenta significancia
+estadística.
 
 ## Usage
 
@@ -116,8 +118,8 @@ detectar_asociaciones(d, umbral = 0)
 #> 1 Las columnas numéricas se tratan como cuantitativas; la escala no queda confirmada.
 #> 2            La columna numérica se trata como cuantitativa y la otra como categoría.
 #> 3            La columna numérica se trata como cuantitativa y la otra como categoría.
-#>    asociacion n_pares
-#> 1 1.000000000      20
-#> 2 0.007518797      20
-#> 3 0.007518797      20
+#>    asociacion n_pares asociacion_con_signo
+#> 1 1.000000000      20                    1
+#> 2 0.007518797      20                   NA
+#> 3 0.007518797      20                   NA
 ```

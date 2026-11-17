@@ -467,9 +467,9 @@ perfilar(
   el paquete deriva** de un nombre de columna: el que propone el plan en
   `nombres_propuestos` —con
   [`make.names()`](https://rdrr.io/r/base/make.names.html) y en
-  snake_case— y las marcas `.ausente_<nombre>` y `.outlier_<nombre>` que
-  crean sus acciones. Barridos como texto de los datos, con «Segundo»
-  protegido en `Primer Nombre` la evidencia diría
+  snake_case— y las marcas `.ausente_<nombre>`, `.outlier_<nombre>` y
+  `.clave_duplicada` que crean sus acciones. Barridos como texto de los
+  datos, con «Segundo» protegido en `Primer Nombre` la evidencia diría
   `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan propondría
   ese nombre y
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
@@ -1281,40 +1281,53 @@ en `general`: la cobertura declara que no se compararon.
 `general$vocabulario` guarda los valores y su frecuencia de las columnas
 de texto o factor con hasta 20 valores distintos —`columna`, `valor`,
 `frecuencia`, `proporcion`, del más frecuente al menos—, contados sobre
-el universo aplicable y todas las filas; no las de cardinalidad alta ni
-las de valores todos distintos, y con la protección, tampoco las
-protegidas. Es lo que
+el universo aplicable y todas las filas, sin los que el perfil cuenta
+como faltantes disfrazados —`"NA"` escrito, un centinela—, que ya están
+en `n_faltantes_disfrazados`; no las de cardinalidad alta, ni las de
+valores todos distintos, ni las que tienen algún valor de más de 64
+caracteres, que son texto y no categorías. Con la protección, tampoco
+las protegidas ni las que repiten un valor identificante de una
+protegida —de seis caracteres o más, el mismo piso del resto de la
+protección, también con otra caja o espacios en los bordes—, que se
+nombran en `general$vocabulario_protegido`. Un valor más corto que se
+comparte —`S/D`, `VIH`— se sigue publicando en la otra columna. Es lo
+que
 [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
-compara como vocabulario. Cuando el camino no puede conocer un conteo,
-informa NA, nunca cero. La columna de lista `trazabilidad` distingue
-`disponible`, `truncada`, `no_aplica` y `no_disponible`; cuando
-corresponde conserva índices de fila acotados por `max_filas_hallazgo`,
-el total conocido y el alcance. En `clave_con_ausentes`, cuenta las
-filas con al menos un componente ausente y su traza enumera esas filas.
-En `clave_no_unica`, cuenta las filas que participan en colisiones entre
-claves completas y su traza excluye las filas incompletas; ambas
-unidades son `fila`. Así, una colisión entre ausentes no aparece como
-una repetición que refute la unicidad. `casi_duplicados_vocabulario`,
-donde la traza mezcla filas de formas variantes con filas de la forma
-dominante, conserva además `n_filas_formas_variantes` y
-`n_filas_formas_dominantes` con el reparto completo, y
-`mostrados_formas_variantes` y `mostrados_formas_dominantes` con el
-reparto de lo que sobrevivió al truncado. En los tres diagnósticos de
-unidad `valor_distinto` las filas de las formas variantes se entregan
-primero —en `mayusculas_inconsistentes` y `normalizacion_unicode`, la
-forma dominante de cada grupo es la guardada más veces—, de modo que el
-truncado no se lleve lo accionable. En los tres hallazgos de unidad
-`formato` (`formatos_fecha_mixtos`, `formato_fecha_ambiguo` y
-`anio_de_dos_digitos`), `n_afectados` cuenta formatos y la traza enumera
-filas; por eso su total no se compara con `n_afectados`. La traza se
-arma sobre la columna entera aunque la tabla de formatos, la evidencia y
-`n_afectados` sean de una muestra, y puede nombrar filas escritas en
-formatos que la muestra no llegó a ver; esa segunda lectura se hace sólo
-cuando alguno de los tres hallazgos sale, una vez por columna.
-`anio_de_dos_digitos` traza toda fila cuya escritura sólo admite
-lecturas con el año de dos cifras, incluidas las que dos lecturas
-probadas aceptan y por eso no cuenta el `n` de ninguna; su total puede
-ser mayor que la suma de los `n` de `formatos_fecha`.
+compara como vocabulario. `general$marcas_limpieza` está cuando los
+datos traen el atributo `marcas_limpieza` que deja
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md):
+las marcas que agregó el plan, con la columna que marca. Una marca así
+no explica la ausencia de su propia columna en
+`posible_ausencia_estructural`; una columna del usuario con el mismo
+nombre, sí. Cuando el camino no puede conocer un conteo, informa NA,
+nunca cero. La columna de lista `trazabilidad` distingue `disponible`,
+`truncada`, `no_aplica` y `no_disponible`; cuando corresponde conserva
+índices de fila acotados por `max_filas_hallazgo`, el total conocido y
+el alcance. En `clave_con_ausentes`, cuenta las filas con al menos un
+componente ausente y su traza enumera esas filas. En `clave_no_unica`,
+cuenta las filas que participan en colisiones entre claves completas y
+su traza excluye las filas incompletas; ambas unidades son `fila`. Así,
+una colisión entre ausentes no aparece como una repetición que refute la
+unicidad. `casi_duplicados_vocabulario`, donde la traza mezcla filas de
+formas variantes con filas de la forma dominante, conserva además
+`n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
+completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
+con el reparto de lo que sobrevivió al truncado. En los tres
+diagnósticos de unidad `valor_distinto` las filas de las formas
+variantes se entregan primero —en `mayusculas_inconsistentes` y
+`normalizacion_unicode`, la forma dominante de cada grupo es la guardada
+más veces—, de modo que el truncado no se lleve lo accionable. En los
+tres hallazgos de unidad `formato` (`formatos_fecha_mixtos`,
+`formato_fecha_ambiguo` y `anio_de_dos_digitos`), `n_afectados` cuenta
+formatos y la traza enumera filas; por eso su total no se compara con
+`n_afectados`. La traza se arma sobre la columna entera aunque la tabla
+de formatos, la evidencia y `n_afectados` sean de una muestra, y puede
+nombrar filas escritas en formatos que la muestra no llegó a ver; esa
+segunda lectura se hace sólo cuando alguno de los tres hallazgos sale,
+una vez por columna. `anio_de_dos_digitos` traza toda fila cuya
+escritura sólo admite lecturas con el año de dos cifras, incluidas las
+que dos lecturas probadas aceptan y por eso no cuenta el `n` de ninguna;
+su total puede ser mayor que la suma de los `n` de `formatos_fecha`.
 `formato_fecha_ambiguo` traza toda fila escrita en una lectura que la
 columna entera no puede resolver (si la columna entera las resuelve
 todas, las celdas que admiten dos o más de las lecturas que cita).

@@ -59,7 +59,7 @@ deriva[, c("columna", "aspecto", "cambio", "severidad")]
 #> 5           canal cardinalidad modificado sospechoso
 #> 6           monto    faltantes modificado         ok
 #> 7           monto        rango modificado         ok
-#> 8           canal  vocabulario modificado sospechoso
+#> 8           canal  vocabulario modificado         ok
 #> 9  codigo_usuario       patron modificado sospechoso
 #> 10 codigo_usuario       patron modificado sospechoso
 #> 11          canal       patron modificado sospechoso

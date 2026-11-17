@@ -31,7 +31,8 @@ reportar(
 
   Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
-  `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
+  `deriva_calidad`, `plan_limpieza`, `resultado_limpieza` o
+  `duplicados_aproximados`.
 
 - archivo:
 
@@ -95,6 +96,11 @@ reportar(
   conserva, y su seccion lo declara: sin la tabla, una variante de un
   valor protegido escrita en otra columna puede quedar a la vista. Para
   la proteccion completa, el perfil se arma con la proteccion activa.
+
+  Un `resultado_limpieza` agrega una seccion con las acciones ejecutadas
+  y fallidas, el motivo de cada falla, los cambios contados por accion y
+  columna, y las filas y columnas retiradas. Se puede pasar solo o junto
+  al perfil y el plan que lo originaron.
 
 ## Value
 

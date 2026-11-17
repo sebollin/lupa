@@ -148,7 +148,9 @@ escritura</strong> —recortar espacios, quitar un invisible de transporte,
 reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar y
 no cuentan, <strong>salvo cuando la normalización fusiona valores que eran
 distintos</strong>: ahí lo que los separaba no queda en ningún lado y esas celdas
-sí se cuentan. El criterio se mide sobre el resultado, no por el nombre de
+sí se cuentan. La marca de una clave declarada corre al final y se mide
+sobre la tabla que entrega <code>aplicar()</code>, después de recortes de texto y
+eliminaciones; el criterio se mide sobre el resultado, no por el nombre de
 la acción: quitar un guion suave de <code>PRO&lt;U+00AD&gt;DUCTO-A</code> no pierde nada,
 y quitar un espacio de ancho cero que distinguía dos claves fusiona las
 dos.
@@ -159,8 +161,13 @@ comprobación del efecto observa <code>n_cambiadas</code> aunque <code>n_afectad
 <code>fallida</code>, porque la ausencia de efecto es observable sin depender de la
 estimación.
 Si una columna de entrada es un factor, las acciones que transforman su
-texto devuelven una columna <code>character</code>: no se reconstruyen los niveles
-originales, porque una limpieza puede introducir valores nuevos.
+texto reconstruyen el factor con niveles limpios en el orden original;
+conservan niveles sin uso y un nivel <code>NA</code> explícito, una fusión ocupa el
+lugar del primer nivel y los niveles que pasan a faltantes desaparecen. Un
+factor ordenado sigue ordenado sólo cuando las fusiones son contiguas; una
+fusión no contigua lo deja sin orden y lo declara en el registro. Una
+estrategia que convierte el tipo lo declara en la justificación y devuelve
+el tipo convertido; si todos los niveles pasan a faltantes, devuelve texto.
 Los atributos de cada columna —la etiqueta de variable que deja <code>haven</code>—
 sobreviven a las acciones que la reescriben, a las conversiones de tipo y a
 las que quitan filas; quitar filas de un <code>data.table</code> conserva su clave.</p>
@@ -171,7 +178,13 @@ las que quitan filas; quitar filas de un <code>data.table</code> conserva su cla
 copia de <code>datos</code>. Verifica que cada columna siga siendo identificable y que
 las conversiones sean completas antes de sustituirla. Devuelve los datos
 nuevos junto con un registro de las acciones y sus parámetros. El mismo
-registro queda en el atributo <code>registro_limpieza</code> de los datos resultantes.</p>
+registro queda en el atributo <code>registro_limpieza</code> de los datos resultantes,
+y las marcas que agregó —<code>.fila_duplicada</code>, <code>.grupo_duplicado</code>,
+<code>.ausente_&lt;columna&gt;</code>, <code>.outlier_&lt;columna&gt;</code>— en el atributo
+<code>marcas_limpieza</code>, una fila por marca con la columna que marca (<code>NA</code> en las
+de filas repetidas), sumadas a las que ya traían los datos. Es lo que
+<code><a href="perfilar.html">perfilar()</a></code> y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> leen para reconocerlas: una columna
+con uno de esos nombres que no está en el atributo es del usuario.</p>
 <p>Las alternativas para un mismo hallazgo comparten <code>grupo</code>; las acciones
 independientes usan <code>NA</code>. Como máximo una alternativa de cada grupo puede
 tener <code>aplicar == TRUE</code>, invariante que <code>aplicar()</code> vuelve a validar. No se
@@ -283,11 +296,17 @@ lo dicen en su justificación y el registro las cuantifica en
 <code>n_no_reversibles</code>; leer <code>destructiva = FALSE</code> no significa que no se haya
 perdido nada, sino que el paquete pudo recomendar la acción sin conocer el
 dominio.
-Sobre una columna <strong>factor</strong> las acciones por celda devuelven texto: el
-resultado no puede ser un factor incompleto, así que el orden declarado y los
-niveles sin observaciones no se conservan. La justificación de la acción lo
-dice, y si el factor es ordenado la acción queda recomendada pero <strong>sin
-activar</strong>, porque conservar el orden es una decisión del dominio.</p>
+Sobre una columna <strong>factor</strong> las acciones por celda trabajan sobre texto y
+reconstruyen el factor: los niveles quedan limpios y en el orden original,
+los niveles declarados sin uso se conservan, una fusión ocupa el lugar del
+primer nivel y un nivel que se vuelve faltante desaparece. Un nivel <code>NA</code>
+explícito (<code>exclude = NULL</code>) se conserva. Un factor ordenado conserva su
+orden si la fusión es contigua; si funde niveles no contiguos, queda como
+factor sin orden y el registro lo declara. La acción queda recomendada pero
+<strong>sin activar</strong>, porque conservar el orden es una decisión del dominio. Si
+una estrategia convierte el tipo de la columna, no puede conservar el factor
+y la justificación lo declara; si todos sus niveles pasan a faltantes, el
+resultado queda como texto para no crear un factor sin niveles.</p>
 <p>Tres atributos del plan declaran lo que el plan no cubre.
 <code>cobertura_diagnosticos</code> trae los diagnósticos que el perfil no pudo
 evaluar, para que leer tres acciones no se confunda con "lo demás está
@@ -539,18 +558,25 @@ repetida, junto a la primera. Marcar no elimina filas. Con las dos columnas
 incluidas, las marcas distinguen la primera aparición de las repetidas, pero
 no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 posterior sigue contando duplicadas. Para saber si los duplicados siguen en
-la tabla hay que quitar las columnas de marca antes de perfilarla.</p>
+la tabla hay que quitar las columnas de marca antes de perfilarla.
+<code>marcar_claves_duplicadas</code> añade <code>.clave_duplicada</code> y marca todas las filas
+que participan en una colisión de la clave declarada, incluso cuando sus
+demás valores no son iguales. Conserva las filas y no cambia sus celdas; una
+clave compuesta se evalúa sólo entre sus filas completas.</p>
 <p>Al volver a planificar sobre lo aplicado, el plan no propone acciones sobre
 las marcas que agrega —<code>.fila_duplicada</code>, <code>.grupo_duplicado</code>,
-<code>.ausente_&lt;columna&gt;</code> y <code>.outlier_&lt;columna&gt;</code>—: sus hallazgos quedan en
+<code>.clave_duplicada</code>, <code>.ausente_&lt;columna&gt;</code> y <code>.outlier_&lt;columna&gt;</code>—: sus hallazgos quedan en
 <code>hallazgos_sin_accion</code> con ese motivo, porque el <code>NA</code> de <code>.grupo_duplicado</code>
 significa que la fila no participa de ningún grupo y no una ausencia. Una
 acción cuya columna de marca ya existe en los datos queda <code>bloqueada</code>:
-<code>aplicar()</code> no puede volver a crearla.</p>
+un plan nuevo no vuelve a recomendar crearla. Un plan anterior que se aplica
+otra vez recalcula <code>.clave_duplicada</code> sobre la entrega final y reutiliza su
+columna, por lo que la corrida es idempotente.</p>
 <p>El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
-Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y
-deja los cambios de esquema para el final. Esto evita perder la evidencia
+Primero marca duplicados exactos sin borrar, luego normaliza ausencias y
+texto, y deja los cambios de esquema para el final; la marca de la clave
+declarada corre después de todas esas acciones. Esto evita perder la evidencia
 original, permite imputar antes de convertir tipos y mantiene identificables
 las columnas durante todo el plan. Las eliminaciones nunca se activan por
 defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.

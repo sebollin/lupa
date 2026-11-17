@@ -485,8 +485,9 @@ cual —y no como <code>[valor protegido]_nombre</code>— en los hallazgos sin 
 plan y en la SQL. Lo mismo los <strong>nombres que el paquete deriva</strong> de un
 nombre de
 columna: el que propone el plan en <code>nombres_propuestos</code> —con
-<code><a href="https://rdrr.io/r/base/make.names.html" class="external-link">make.names()</a></code> y en snake_case— y las marcas <code>.ausente_&lt;nombre&gt;</code> y
-<code>.outlier_&lt;nombre&gt;</code> que crean sus acciones. Barridos como texto de los
+<code><a href="https://rdrr.io/r/base/make.names.html" class="external-link">make.names()</a></code> y en snake_case— y las marcas <code>.ausente_&lt;nombre&gt;</code>,
+<code>.outlier_&lt;nombre&gt;</code> y <code>.clave_duplicada</code> que crean sus acciones. Barridos como
+texto de los
 datos, con «Segundo» protegido en <code>Primer Nombre</code> la evidencia diría
 <code>"Segundo Nombre" -&gt; "[valor protegido].Nombre"</code>, el plan propondría ese
 nombre y <code><a href="planificar_limpieza.html">aplicar()</a></code> se lo pondría a la columna en los datos del usuario.
@@ -1278,9 +1279,22 @@ nombres entre comillas, y el que se repite lleva su posición:
 <code>general$vocabulario</code> guarda los valores y su frecuencia de las columnas de
 texto o factor con hasta 20 valores distintos —<code>columna</code>, <code>valor</code>,
 <code>frecuencia</code>, <code>proporcion</code>, del más frecuente al menos—, contados sobre el
-universo aplicable y todas las filas; no las de cardinalidad alta ni las de
-valores todos distintos, y con la protección, tampoco las protegidas. Es lo
-que <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> compara como vocabulario. Cuando el camino
+universo aplicable y todas las filas, sin los que el perfil cuenta como
+faltantes disfrazados —<code>"NA"</code> escrito, un centinela—, que ya están en
+<code>n_faltantes_disfrazados</code>; no las de cardinalidad alta, ni las de
+valores todos distintos, ni las que tienen algún valor de más de 64
+caracteres, que son texto y no categorías. Con la protección, tampoco las
+protegidas ni las que repiten un valor identificante de una protegida —de
+seis caracteres o más, el mismo piso del resto de la protección, también
+con otra caja o espacios en los bordes—, que se nombran en
+<code>general$vocabulario_protegido</code>. Un valor más corto que se comparte
+—<code>S/D</code>, <code>VIH</code>— se sigue publicando en la otra columna.
+Es lo que <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> compara como vocabulario.
+<code>general$marcas_limpieza</code> está cuando los datos traen el atributo
+<code>marcas_limpieza</code> que deja <code><a href="planificar_limpieza.html">aplicar()</a></code>: las marcas que agregó el plan, con
+la columna que marca. Una marca así no explica la ausencia de su propia
+columna en <code>posible_ausencia_estructural</code>; una columna del usuario con el
+mismo nombre, sí. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 <code>trazabilidad</code> distingue <code>disponible</code>, <code>truncada</code>, <code>no_aplica</code> y
 <code>no_disponible</code>; cuando corresponde conserva índices de fila acotados por

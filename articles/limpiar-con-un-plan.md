@@ -322,11 +322,11 @@ perfil_despues <- perfilar(resultado$datos)
 cambios <- comparar_perfiles(perfil, perfil_despues)
 cambios[cambios$aspecto == "hallazgo", c("columna", "cambio", "valor_anterior", "valor_actual")]
 #>             columna        cambio        valor_anterior valor_actual
-#> 11 .grupo_duplicado     aparecido                  <NA>    constante
-#> 12 .grupo_duplicado     aparecido                  <NA>    faltantes
-#> 13           cedula      resuelto faltantes_disfrazados         <NA>
-#> 14             sexo      resuelto faltantes_disfrazados         <NA>
-#> 15             <NA> no_comparable      filas_duplicadas         <NA>
+#> 10 .grupo_duplicado     aparecido                  <NA>    constante
+#> 11 .grupo_duplicado     aparecido                  <NA>    faltantes
+#> 12           cedula      resuelto faltantes_disfrazados         <NA>
+#> 13             sexo      resuelto faltantes_disfrazados         <NA>
+#> 14             <NA> no_comparable      filas_duplicadas         <NA>
 ```
 
 - Los faltantes disfrazados de `cedula` y `sexo` quedaron `resuelto`.

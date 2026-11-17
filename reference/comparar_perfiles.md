@@ -154,43 +154,79 @@ El **vocabulario** de una columna categórica sí se compara: el conjunto
 de sus valores, que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 guarda en `general$vocabulario` para las columnas de texto o factor de
-hasta 20 valores distintos. Una entrega que cambia todos sus valores con
-la misma forma —`A`/`B` por `X`/`Y`, en las mismas proporciones— no
-mueve la cardinalidad, los faltantes ni los patrones, y salía sin
-ninguna fila. La fila `vocabulario / modificado` nombra los valores que
-aparecieron y los que desaparecieron con su proporción, y `delta` es la
-proporción de filas que llevan valores que la otra entrega no tenía, la
-mayor de las dos direcciones: `sospechoso` desde `umbral_cambio`,
-`error` desde `umbral_error`, y `ok` por debajo, sin dejar de
-publicarse. Por **decisión**, el corrimiento de proporciones entre
-valores que siguen en las dos entregas no gradúa la fila —sólo se
-informa en la evidencia, como distancia de variación total—: la misma
-distribución de cuatro categorías remuestreada en 200 filas lo mueve
-0,06 de mediana, y esa alarma sería del azar; por eso dos valores que
-intercambian su peso sin que aparezca ni desaparezca ninguno no dan
-fila. No se compara el vocabulario de una columna con cardinalidad alta
-—con el mismo criterio que su hallazgo `alta_cardinalidad`— ni el de una
-cuyos valores son todos distintos, que es un identificador y renueva sus
-valores en cada entrega; si un lado tiene más de 20 valores, la fila
-dice `no_comparable` con severidad `ok`. Un perfil sin
-`general$vocabulario` —de una versión anterior— se declara con la fila
-de campos ausentes, y el de una columna protegida o sin valores
-publicados (`incluir_valores = FALSE`) no se guarda y se declara en
+hasta 20 valores distintos de hasta 64 caracteres. Un faltante
+disfrazado —`"NA"` escrito, un centinela— no es un valor del
+vocabulario: la comparación lo informa en los faltantes y no lo cuenta
+dos veces. Una entrega que cambia todos sus valores con la misma forma
+—`A`/`B` por `X`/`Y`, en las mismas proporciones— no mueve la
+cardinalidad, los faltantes ni los patrones, y salía sin ninguna fila.
+La fila `vocabulario / modificado` nombra los valores que aparecieron y
+los que desaparecieron con su proporción, y `delta` es la proporción de
+filas que llevan valores que la otra entrega no tenía, la mayor de las
+dos direcciones, sobre **todas** las filas de la entrega, con sus
+faltantes: un valor cambiado en 1 de 1000 filas pesa 0,001 aunque las
+otras 999 falten. `sospechoso` desde `umbral_cambio`, `error` desde
+`umbral_error`, y `ok` por debajo, sin dejar de publicarse.
+
+Un valor que está en una sola entrega **no cuenta para la severidad si
+puede faltar de la otra por azar**: con `k` filas del valor, `n` filas
+en la entrega donde aparece y `m` en la otra, si las dos salen de la
+misma población las `k` caen todas del mismo lado con probabilidad
+`(n / (n + m))^k`; por encima de 0,01 el valor se nombra en la evidencia
+—«puede faltar del otro lado por azar»— y no gradúa la fila. Medido
+sobre réplicas de una misma población —30 contra 300 filas con una
+categoría del 5 %, 40 contra 40 con dos del 4 y el 6 %—, la fila pasa de
+`ok` en menos del 1 % de ellas. El precio está entre entregas chicas:
+una categoría nueva real del 10 % llega a `sospechoso` en menos de una
+de cada diez entregas de 40 filas por lado, y en todas desde 200. Si los
+dos vocabularios son el mismo salvo espacios en los bordes y mayúsculas
+—lo que deja `recortar_espacios`—, la fila sale `ok` y la evidencia dice
+que el vocabulario cambió sólo de forma. Por **decisión**, el
+corrimiento de proporciones entre valores que siguen en las dos entregas
+no gradúa la fila —sólo se informa en la evidencia, como distancia de
+variación total—: la misma distribución de cuatro categorías
+remuestreada en 200 filas lo mueve 0,06 de mediana, y esa alarma sería
+del azar; por eso dos valores que intercambian su peso sin que aparezca
+ni desaparezca ninguno no dan fila. No se compara el vocabulario de una
+columna con cardinalidad alta —con el mismo criterio que su hallazgo
+`alta_cardinalidad`— ni el de una cuyos valores son todos distintos, que
+es un identificador y renueva sus valores en cada entrega, ni el de una
+con valores de más de 64 caracteres, que es texto. **Límite declarado**:
+el vocabulario se guarda hasta 20 valores distintos. Si un lado tiene
+más de 20, la fila dice `no_comparable` con severidad `ok`; si los dos
+tienen más de 20 no hay fila de vocabulario, así que una columna de 21
+valores que reemplaza uno solo de ellos, o todos por otros de la misma
+forma, puede no dar ninguna fila. Un perfil sin `general$vocabulario`
+—de una versión anterior— se declara con la fila de campos ausentes, y
+el de una columna protegida o sin valores publicados
+(`incluir_valores = FALSE`) no se guarda y se declara en
 `campos_protegidos`.
 
 Las **marcas del plan de limpieza** —`.fila_duplicada`,
-`.grupo_duplicado`, `.ausente_<columna>` y `.outlier_<columna>`, que
-agrega
-[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)—
-se reconocen con la regla del plan: por su nombre exacto y su columna en
-la misma tabla, no por el punto inicial. Una marca que aparece o
-desaparece se publica con severidad `ok`, porque la tabla cambió de
-forma por la limpieza que se pidió y no por la entrega, y un hallazgo
-sobre una marca —los `NA` de `.grupo_duplicado` significan que la fila
-no está en ningún grupo— también, con la razón en la descripción. Una
-columna del usuario con exactamente uno de esos nombres se trata como
-marca, como ya hace el plan; una marca renombrada en el plan se trata
-como columna.
+`.grupo_duplicado`, `.ausente_<columna>` y `.outlier_<columna>`— se
+reconocen por lo que deja
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+no por el nombre: el atributo `marcas_limpieza` de sus datos nombra cada
+marca que agregó, y
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
+guarda en `general$marcas_limpieza`. Una marca que aparece o desaparece
+se publica con severidad `ok`, porque la tabla cambió de forma por la
+limpieza que se pidió y no por la entrega, y un hallazgo sobre una marca
+—los `NA` de `.grupo_duplicado` significan que la fila no está en ningún
+grupo— también, con la razón en la descripción. Una columna del usuario
+con uno de esos nombres es una columna del usuario: si desaparece, es
+`error`, como cualquiera. El atributo sobrevive a quedarse con algunas
+filas (`datos[filas, ]`, [`head()`](https://rdrr.io/r/utils/head.html),
+ordenar), a [`rbind()`](https://rdrr.io/r/base/cbind.html) y a cambiar o
+quitar una columna con `$<-` o `[[<-`; lo pierden la selección de
+columnas con `[` (`datos[, columnas]`, `datos[columnas]`),
+[`cbind()`](https://rdrr.io/r/base/cbind.html),
+[`merge()`](https://rdrr.io/r/base/merge.html),
+[`subset()`](https://rdrr.io/r/base/subset.html),
+[`transform()`](https://rdrr.io/r/base/transform.html) y un viaje por
+CSV. Sin el atributo, las marcas se comparan como columnas del usuario
+—ruido, no silencio—; por eso conviene perfilar el objeto que devolvió
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
 
 Entre las propiedades comparadas está la **unidad** en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos

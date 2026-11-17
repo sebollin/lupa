@@ -98,7 +98,8 @@ de incorporarlo al documento.</p>
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Objetos adicionales de clase <code>analisis</code>, <code>perfil</code>, <code>medicion</code>,
 <code>evaluacion_calidad</code>, <code>historico_calidad</code>, <code>deriva_perfil</code>,
-<code>deriva_calidad</code>, <code>plan_limpieza</code> o <code>duplicados_aproximados</code>.</p></dd>
+<code>deriva_calidad</code>, <code>plan_limpieza</code>, <code>resultado_limpieza</code> o
+<code>duplicados_aproximados</code>.</p></dd>
 
 
 <dt id="arg-archivo">archivo<a class="anchor" aria-label="anchor" href="#arg-archivo"></a></dt>
@@ -155,7 +156,11 @@ evaluacion. Un perfil -o un analisis que no conserva la tabla- armado con
 la proteccion desactivada se vuelve a proteger con lo que conserva, y su
 seccion lo declara: sin la tabla, una variante de un valor protegido
 escrita en otra columna puede quedar a la vista. Para la proteccion
-completa, el perfil se arma con la proteccion activa.</p></dd>
+completa, el perfil se arma con la proteccion activa.</p>
+<p>Un <code>resultado_limpieza</code> agrega una seccion con las acciones ejecutadas y
+fallidas, el motivo de cada falla, los cambios contados por accion y
+columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
+perfil y el plan que lo originaron.</p></dd>
 
 </dl></div>
     <div class="section level2">
