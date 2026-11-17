@@ -111,15 +111,6 @@
   reparado después daba otra letra. Y tratan `Ș`/`ș` y `Ț`/`ț` del rumano, que
   quedaban con caja mixta.
 
-- `perfilar_dbi()` cuenta `NaN` igual que `perfilar()`. En DuckDB y PostgreSQL,
-  que guardan `NaN` en una columna de punto flotante, lo contaba como un valor
-  presente y distinto: una columna toda `NaN` salía con `n_validos` igual al
-  total y la moda `no_disponible`, mientras que en memoria salía `sin_valores`.
-  Ahora cuenta como faltante, no entra en los distintos, la moda ni el mínimo,
-  el máximo, la media, la mediana o el desvío, y el hallazgo
-  `valores_no_finitos` se conserva. SQLite ya lo entregaba como `NULL`, y SQL
-  Server, MySQL y MariaDB no lo guardan. Los infinitos no cambian.
-
 # lupa 0.1.2
 
 ## Trazabilidad
