@@ -307,7 +307,7 @@
 <span><span class="co">#&gt; 13    EVT011         NULL</span></span></code></pre></div>
 <p>El aviso es parte de la respuesta: <code>datos_operativos</code> tiene una fila duplicada, así que ninguna clave puede ser única, y el perfil lo registra como hallazgo <code>clave_no_unica</code> de severidad <code>error</code>.</p>
 <p>Lo que no se pudo medir queda registrado, nunca contado como cero. Por eso una automatización que busca <code>error</code> tiene que leer también <code><a href="reference/accesores_perfil.html">cobertura()</a></code>: cero errores con diagnósticos sin evaluar no es un perfil limpio.</p>
-<p>Los conteos (filas, faltantes, valores distintos, duplicados exactos y resúmenes) usan todas las filas; los patrones, los tipos y los formatos de fecha se infieren sobre una muestra sistemática de hasta 100.000 filas (<code>muestra</code>). La guía <a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a> explica cada columna de los hallazgos, las claves, las discordancias entre columnas y el glosario.</p>
+<p>Los conteos (filas, faltantes, valores distintos, duplicados exactos y resúmenes) usan todas las filas; los patrones, los tipos y los formatos de fecha se infieren sobre una muestra de hasta 100.000 filas (<code>muestra</code>) que no depende del orden de las filas. La guía <a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a> explica cada columna de los hallazgos, las claves, las discordancias entre columnas y el glosario.</p>
 </div>
 <div class="section level2">
 <h2 id="dónde-se-ubica">Dónde se ubica<a class="anchor" aria-label="anchor" href="#d%C3%B3nde-se-ubica"></a>

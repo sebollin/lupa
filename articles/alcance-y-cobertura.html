@@ -188,10 +188,10 @@ SQL usan el universo elegido</td>
 <p><code>Inf</code> en <code>muestra</code> o en
 <code>muestra_validadores</code> vuelve completo ese paso. La muestra
 que <code><a href="../reference/perfilar.html">perfilar()</a></code> toma por su cuenta es determinista y sin
-azar: a paso fijo para patrones, tipos y formatos, y para las
-dependencias una fila por tramo de la tabla, en una posición fijada por
-un hash, que no se alinea con datos periódicos. Por eso el perfil se
-rehace igual sobre los mismos datos.</p>
+azar: son las filas de menor prioridad según un hash de sus valores, la
+misma para patrones, tipos, formatos y dependencias. No depende del
+orden de las filas ni se alinea con datos periódicos, así que la misma
+tabla, leída en cualquier orden, da el mismo perfil.</p>
 <p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> tiene otro punto de partida: el universo
 por omisión es <code>"tabla_completa"</code> y <code>muestra</code> vale
 <code>Inf</code>. Los agregados SQL se calculan sobre toda la tabla. El

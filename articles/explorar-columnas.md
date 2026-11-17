@@ -434,10 +434,11 @@ entorno, están en el artículo [Evidencia y
 rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 La muestra que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-toma por su cuenta es determinista y sin azar —a paso fijo para
-patrones, tipos y formatos; para las dependencias, una fila por tramo de
-la tabla en una posición fijada por un hash, que no se alinea con datos
-periódicos—: sobre los mismos datos, el mismo perfil se rehace igual.
+toma por su cuenta es determinista y sin azar: son las filas de menor
+prioridad según un hash de sus valores, la misma para patrones, tipos,
+formatos y dependencias. No depende del orden de las filas ni se alinea
+con datos periódicos, así que la misma tabla, leída en cualquier orden,
+da el mismo perfil.
 
 ## 📄 Compartir el análisis
 

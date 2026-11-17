@@ -45,11 +45,13 @@ clasificar_variables(
 
 - muestra:
 
-  Máximo de valores usados para enumerar niveles no declarados; los
+  Máximo de valores usados para enumerar niveles no declarados; si la
+  columna supera ese limite, se eligen por una huella determinista del
+  valor canonico y su numero de aparicion, independiente del orden. Los
   niveles ausentes de factores y metadatos se verifican sobre toda la
   columna, y `n_niveles_observados` cuenta los valores distintos de la
   columna entera, con o sin `perfil`. `niveles_muestreados` dice si la
-  lista de niveles salió de una muestra.
+  lista de niveles salio de una muestra.
 
 - proteger_datos_personales:
 

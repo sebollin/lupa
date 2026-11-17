@@ -45,11 +45,11 @@ uno.
 `Inf` en `muestra` o en `muestra_validadores` vuelve completo ese paso.
 La muestra que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-toma por su cuenta es determinista y sin azar: a paso fijo para
-patrones, tipos y formatos, y para las dependencias una fila por tramo
-de la tabla, en una posición fijada por un hash, que no se alinea con
-datos periódicos. Por eso el perfil se rehace igual sobre los mismos
-datos.
+toma por su cuenta es determinista y sin azar: son las filas de menor
+prioridad según un hash de sus valores, la misma para patrones, tipos,
+formatos y dependencias. No depende del orden de las filas ni se alinea
+con datos periódicos, así que la misma tabla, leída en cualquier orden,
+da el mismo perfil.
 
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 tiene otro punto de partida: el universo por omisión es

@@ -111,7 +111,10 @@ con <code>estado = "codigo_declarado"</code>, como <code>mediana</code> en el pe
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
-<dd><p>Máximo de filas por columna; <code>Inf</code> desactiva el muestreo.</p></dd>
+<dd><p>Máximo de filas por columna; <code>Inf</code> desactiva el muestreo. Si
+una columna supera ese limite, se eligen sus valores por una huella
+determinista del valor canonico y su numero de aparicion, independiente del
+orden de entrada.</p></dd>
 
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>

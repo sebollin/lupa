@@ -45,7 +45,10 @@ distribucion_valores(
 
 - muestra:
 
-  Máximo de filas por columna; `Inf` desactiva el muestreo.
+  Máximo de filas por columna; `Inf` desactiva el muestreo. Si una
+  columna supera ese limite, se eligen sus valores por una huella
+  determinista del valor canonico y su numero de aparicion,
+  independiente del orden de entrada.
 
 - proteger_datos_personales:
 

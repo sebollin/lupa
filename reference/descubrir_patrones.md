@@ -48,7 +48,9 @@ descubrir_patrones(
 
 - muestra:
 
-  Máximo de valores que se analizan.
+  Máximo de valores que se analizan. Si el vector supera ese limite, la
+  muestra se elige por una huella determinista del valor canonico y su
+  numero de aparicion, independiente del orden de entrada.
 
 - umbral_raro:
 
@@ -95,8 +97,9 @@ eso quedan fuera del hallazgo.
 ## Details
 
 El cálculo aplica reemplazos vectorizados sobre el vector completo. Si
-el vector supera `muestra`, usa una muestra sistemática reproducible y
-registra esa decisión en los atributos del resultado.
+el vector supera `muestra`, usa las prioridades de la huella canonica
+del valor y su numero de aparicion, y registra esa decision en los
+atributos del resultado.
 
 ## See also
 

@@ -2,6 +2,46 @@
 
 ## lupa (development version)
 
+### Perfilado
+
+- La muestra de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  ya no depende del orden de las filas. Con más filas que `muestra`
+  (100.000 por omisión), los patrones, los tipos, los formatos de fecha,
+  las escalas y las dependencias se calculaban sobre una muestra
+  sistemática por posición: la misma tabla leída de una base sin
+  `ORDER BY` daba otro perfil (en una tabla real, 15 diferencias en
+  `patron_raro` y `relacion_funcional_columnas`), una rareza periódica
+  que caía entre los pasos de la rejilla no se veía nunca, y agregar un
+  10 % de filas al final cambiaba el 91 % de la muestra. Ahora se usan
+  las filas de menor prioridad según un hash determinista de los valores
+  de cada fila y de su número de aparición: el perfil es el mismo con
+  las filas y las columnas en cualquier orden, la rareza periódica se ve
+  en la proporción que tiene, y agregar filas conserva la mayor parte de
+  la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
+  `clave`, agregar o quitar una columna cambia la muestra.
+  `meta$muestra_huella` declara el método (`huella_v1`) y las columnas
+  que entraron; las que no se reducen a un valor por fila (listas,
+  matrices) quedan fuera. Las tablas de hasta `muestra` filas no
+  cambian; con más filas, el perfil puede diferir del de la versión
+  anterior porque mira otras filas.
+- [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  calcula esa selección una sola vez y la comparten todos sus
+  diagnósticos, y las funciones de diagnóstico llamadas solas
+  ([`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md),
+  [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md),
+  [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md),
+  [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md),
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+  [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md))
+  usan la misma regla. El costo de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  es el de antes; una llamada directa a una de esas funciones sobre
+  millones de valores distintos tarda más, porque calcula la huella (13
+  s con 2.000.000 de textos distintos).
+
 ### Comparar entregas
 
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)

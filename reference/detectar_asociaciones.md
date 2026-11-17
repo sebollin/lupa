@@ -39,7 +39,10 @@ detectar_asociaciones(
 
 - muestra:
 
-  Máximo común de filas; `Inf` desactiva el muestreo.
+  Máximo común de filas; `Inf` desactiva el muestreo. Cuando la tabla
+  supera ese limite, las filas se eligen por una huella determinista de
+  sus valores canonicos y numeros de aparicion, independiente del orden
+  de entrada.
 
 - max_columnas:
 
