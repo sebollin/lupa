@@ -10233,16 +10233,23 @@
   )
 }
 
+# Un tipo que el motor declara como decimal exacto (`NUMERIC`, `DECIMAL`), en
+# cualquier caja. El patron se arma con las dos cajas de cada letra: sin
+# `ignore.case`, que depende del locale.
+.tipo_decimal_exacto_dbi <- function(tipo) {
+  grepl(.regex_sin_caja("numeric|decimal"), as.character(tipo),
+        perl = TRUE, useBytes = TRUE)
+}
+
 .tipo_puede_nan_dbi <- function(tipo, prototipo = NULL, conexion = NULL) {
   texto <- if (length(tipo) == 1L && !is.na(tipo)) as.character(tipo) else ""
-  if (grepl("numeric|decimal", texto, ignore.case = TRUE, perl = TRUE,
-            useBytes = TRUE) && !is.null(conexion) &&
+  if (.tipo_decimal_exacto_dbi(texto) && !is.null(conexion) &&
       grepl("duckdb", .senas_conexion_dbi(conexion), fixed = TRUE,
             useBytes = TRUE)) {
     return(FALSE)
   }
-  if (grepl("double|float|real|numeric|decimal", texto,
-            ignore.case = TRUE, perl = TRUE, useBytes = TRUE)) return(TRUE)
+  if (grepl(.regex_sin_caja("double|float|real|numeric|decimal"), texto,
+            perl = TRUE, useBytes = TRUE)) return(TRUE)
   is.double(prototipo) &&
     !inherits(prototipo, c("Date", "POSIXct", "POSIXlt"))
 }
@@ -10268,10 +10275,8 @@
       NA_character_
     nan <- .literal_nan_dbi(
       conexion,
-      como_numeric = grepl(
-        "numeric|decimal", as.character(tipo),
-        ignore.case = TRUE, perl = TRUE, useBytes = TRUE
-      ) || .es_lectura_double_exacta_dbi(campos_sql[[i]])
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(campos_sql[[i]])
     )
     paste0(
       "SUM(CASE WHEN ", campos_sql[[i]], " = ", nan,
@@ -12859,8 +12864,7 @@
     }
     .excluir_nan_sql_dbi(
       conexion, columna,
-      como_numeric = grepl("numeric|decimal", as.character(tipo),
-                           ignore.case = TRUE, perl = TRUE, useBytes = TRUE) ||
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
         .es_lectura_double_exacta_dbi(columna)
     )
   }
@@ -13396,10 +13400,8 @@
     }
     .excluir_nan_sql_dbi(
       conexion, columna,
-      como_numeric = grepl(
-        "numeric|decimal", as.character(tipo),
-        ignore.case = TRUE, perl = TRUE, useBytes = TRUE
-      ) || .es_lectura_double_exacta_dbi(columna)
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna)
     )
   }
   alias_por_columna <- vapply(seq_along(lote), function(i) {
@@ -13711,10 +13713,8 @@
         !.tipo_puede_nan_dbi(tipo, conexion = conexion)) return(columna)
     .excluir_nan_sql_dbi(
       conexion, columna,
-      como_numeric = grepl(
-        "numeric|decimal", as.character(tipo),
-        ignore.case = TRUE, perl = TRUE, useBytes = TRUE
-      ) || .es_lectura_double_exacta_dbi(columna)
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna)
     )
   }
   conteo <- conteo_inicial
@@ -14440,10 +14440,8 @@
       .tipo_puede_nan_dbi(tipo_operacion, prototipo, conexion)) {
     columna_sql <- .excluir_nan_sql_dbi(
       conexion, columna_sql,
-      como_numeric = grepl(
-        "numeric|decimal", as.character(tipo_operacion),
-        ignore.case = TRUE, perl = TRUE, useBytes = TRUE
-      ) || .es_lectura_double_exacta_dbi(columna_sql)
+      como_numeric = .tipo_decimal_exacto_dbi(tipo_operacion) ||
+        .es_lectura_double_exacta_dbi(columna_sql)
     )
   }
   registros <- list()
@@ -16313,10 +16311,8 @@
     }
     .excluir_nan_sql_dbi(
       conexion, columna,
-      como_numeric = grepl(
-        "numeric|decimal", as.character(tipo),
-        ignore.case = TRUE, perl = TRUE, useBytes = TRUE
-      ) || .es_lectura_double_exacta_dbi(columna)
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna)
     )
   }
   campos_sql_nan <- vapply(
