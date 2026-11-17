@@ -94,6 +94,28 @@
   descartaba, y el tipo que declara el motor para cada columna
   (`resumen_tabla$meta$tipos_motor`).
 
+## Limpieza
+
+- `clave_no_unica` tiene acción: `planificar_limpieza()` propone
+  `marcar_claves_duplicadas`, que agrega `.clave_duplicada` y marca todas las
+  filas que colisionan en la clave declarada, sin eliminar filas ni cambiar
+  valores. La marca se calcula sobre los datos que entrega `aplicar()`, después
+  de las demás acciones: dos claves que quedan iguales al recortar espacios
+  salen marcadas, y una fila que quedó sola tras desduplicar, no.
+- `reportar()` acepta el resultado de `aplicar()`, solo o con el perfil y el
+  plan: qué acciones corrieron, cuáles fallaron y por qué, cuántas celdas
+  cambió cada una y qué filas o columnas se retiraron, cada cifra por separado.
+  `summary()` del resultado da esa tabla por acción y columna.
+- Las acciones de celda sobre una columna `factor` la devuelven `factor`, y no
+  `character`: los niveles se limpian en su orden, los que se funden quedan en
+  el lugar del primero, y se conservan los niveles sin uso y un nivel `NA`
+  explícito. Un factor ordenado conserva su orden salvo que la limpieza funda
+  dos niveles no contiguos; entonces queda sin orden y la justificación lo
+  dice. Si todos sus valores pasan a faltantes, queda como texto.
+- `detectar_asociaciones()`, y por ella `analizar()`, agrega al final
+  `asociacion_con_signo`, el coeficiente con su dirección; las columnas que ya
+  publicaba no cambian.
+
 ## Correcciones
 
 - Las relaciones aritméticas entre columnas ya no se publican como cumplidas

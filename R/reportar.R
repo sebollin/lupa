@@ -1153,6 +1153,60 @@
   )
 }
 
+.seccion_resultado_limpieza <- function(x, max_filas) {
+  resumen_acciones <- .resumen_resultado_limpieza(x)
+  indicadores <- data.frame(
+    indicador = c(
+      "Acciones registradas", "Acciones ejecutadas", "Acciones fallidas",
+      "Celdas cambiadas", "Filas marcadas", "Filas retiradas",
+      "Columnas retiradas"
+    ),
+    valor = c(
+      nrow(resumen_acciones),
+      sum(resumen_acciones$estado == "ejecutada", na.rm = TRUE),
+      sum(resumen_acciones$estado == "fallida", na.rm = TRUE),
+      sum(resumen_acciones$n_cambiadas, na.rm = TRUE),
+      sum(resumen_acciones$n_filas_marcadas, na.rm = TRUE),
+      sum(resumen_acciones$n_filas_eliminadas, na.rm = TRUE),
+      sum(resumen_acciones$n_columnas_eliminadas, na.rm = TRUE)
+    ),
+    stringsAsFactors = FALSE
+  )
+  retiradas <- resumen_acciones[c(
+    "id_accion", "columna", "estrategia", "n_filas_eliminadas",
+    "n_columnas_eliminadas"
+  )]
+  retiradas <- retiradas[
+    retiradas$n_filas_eliminadas > 0 | retiradas$n_columnas_eliminadas > 0,
+    , drop = FALSE
+  ]
+  seccion_retiradas <- if (!nrow(retiradas)) {
+    ""
+  } else {
+    titulo <- if (any(retiradas$n_filas_eliminadas > 0) &&
+                 any(retiradas$n_columnas_eliminadas > 0)) {
+      "Filas y columnas retiradas"
+    } else if (any(retiradas$n_filas_eliminadas > 0)) {
+      "Filas retiradas"
+    } else {
+      "Columnas retiradas"
+    }
+    paste0("<h3>", titulo, "</h3>", .html_tabla(retiradas, max_filas))
+  }
+  paste0(
+    "<section><h2>Resultado de limpieza</h2>",
+    "<p>Este resultado registra lo que ocurri\u00f3 al aplicar el plan; no es una ",
+    "propuesta y no vuelve a ejecutar acciones.</p>",
+    .html_tabla(indicadores, Inf),
+    "<h3>Acciones y cambios</h3>",
+    "<p>La tabla indica qu\u00e9 acciones se ejecutaron, cu\u00e1les fallaron y el motivo ",
+    "de cada falla.</p>",
+    .html_tabla(resumen_acciones, max_filas),
+    seccion_retiradas,
+    "</section>"
+  )
+}
+
 .html_huecos_plan <- function(x, max_filas) {
   partes <- character()
   # Las TRES declaraciones de lo que el plan no cubre (`?planificar_limpieza`).
@@ -1256,7 +1310,7 @@
   )
   asociaciones <- paste0(
     "<section><h2>Asociaciones entre columnas</h2>",
-    "<p class=\"nota\">M\u00e9todo y soporte se declaran por par; el resultado no implica causalidad.</p>",
+    "<p class=\"nota\">M\u00e9todo y soporte se declaran por par; el resultado no implica causalidad. En pares num\u00e9ricos, `asociacion` es la magnitud y `asociacion_con_signo` muestra la direcci\u00f3n.</p>",
     "<h3>Alcance y recortes</h3>", .html_tabla(alcance_asociaciones, Inf),
     "<h3>Asociaciones informadas</h3>",
     .html_tabla(x$asociaciones, max_filas), "</section>"
@@ -1334,7 +1388,7 @@
   clases <- c(
     "analisis", "perfil", "medicion", "evaluacion_calidad", "historico_calidad",
     "deriva_perfil", "deriva_calidad", "plan_limpieza",
-    "duplicados_aproximados"
+    "duplicados_aproximados", "resultado_limpieza"
   )
   coincidencias <- clases[vapply(clases, inherits, logical(1L), x = x)]
   if (length(coincidencias)) coincidencias[[1L]] else NA_character_
@@ -1360,9 +1414,9 @@
       for (elemento in x) recorrer(elemento)
     } else {
       .detener(
-      "Cada objeto debe ser un an\u00e1lisis, perfil, medici\u00f3n, evaluacion_calidad, ",
+        "Cada objeto debe ser un an\u00e1lisis, perfil, medici\u00f3n, evaluacion_calidad, ",
         "historico_calidad, deriva_perfil, deriva_calidad, plan_limpieza o ",
-        "duplicados_aproximados.",
+        "duplicados_aproximados o resultado_limpieza.",
         call. = FALSE
       )
     }
@@ -1458,7 +1512,8 @@
     plan_limpieza = .seccion_plan(x, max_filas),
     duplicados_aproximados = .seccion_duplicados_aproximados(
       x, max_filas, proteger_datos_personales
-    )
+    ),
+    resultado_limpieza = .seccion_resultado_limpieza(x, max_filas)
   )
   if (nzchar(nota)) seccion <- sub("</h2>", paste0("</h2>", nota), seccion, fixed = TRUE)
   seccion
@@ -1618,7 +1673,8 @@
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
 #'   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
-#'   `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
+#'   `deriva_calidad`, `plan_limpieza`, `resultado_limpieza` o
+#'   `duplicados_aproximados`.
 #' @param archivo Ruta de salida. De forma predeterminada crea un archivo en
 #'   `tempdir()`. Una ruta que ya es un directorio se rechaza.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
@@ -1657,6 +1713,11 @@
 #'   seccion lo declara: sin la tabla, una variante de un valor protegido
 #'   escrita en otra columna puede quedar a la vista. Para la proteccion
 #'   completa, el perfil se arma con la proteccion activa.
+#'
+#'   Un `resultado_limpieza` agrega una seccion con las acciones ejecutadas y
+#'   fallidas, el motivo de cada falla, los cambios contados por accion y
+#'   columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
+#'   perfil y el plan que lo originaron.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.
 #' @export

@@ -54,9 +54,10 @@ del perfil.
 \description{
 Calcula Pearson —o Spearman, si se pide— entre numéricas, V de Cramér entre
 categóricas y eta cuadrado entre una categórica y una numérica. Las medidas se
-informan en \verb{[0, 1]}: la correlación usa su valor absoluto. La tabla declara
-el método, su supuesto, el soporte y el posible muestreo; no presenta
-significancia estadística.
+informan en \verb{[0, 1]}: la columna \code{asociacion} conserva el valor absoluto de
+la correlación, y \code{asociacion_con_signo} agrega su coeficiente con signo para
+pares numéricos. La tabla declara el método, su supuesto, el soporte y el
+posible muestreo; no presenta significancia estadística.
 }
 \details{
 \code{metodo_numerico = "spearman"} mide asociación \strong{monótona} sobre los rangos

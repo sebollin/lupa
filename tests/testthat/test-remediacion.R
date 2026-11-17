@@ -276,13 +276,14 @@ test_that("las conversiones recomendadas no pierden identidad", {
   expect_equal(sum(resultado$registro$n_no_reversibles), 0)
 })
 
-test_that("recortar espacios devuelve texto para una columna factor", {
+test_that("recortar espacios conserva el factor y limpia sus niveles", {
   datos <- data.frame(x = factor(c(" A", "B ", " A")))
   plan <- planificar_limpieza(perfilar(datos))
   resultado <- aplicar(plan, datos)$datos
 
-  expect_type(resultado$x, "character")
-  expect_identical(resultado$x, c("A", "B", "A"))
+  expect_s3_class(resultado$x, "factor")
+  expect_identical(levels(resultado$x), c("A", "B"))
+  expect_identical(as.character(resultado$x), c("A", "B", "A"))
 })
 
 test_that("la aplicación rechaza deriva de esquema y planes inválidos", {

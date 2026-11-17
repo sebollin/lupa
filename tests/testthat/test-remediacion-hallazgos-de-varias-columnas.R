@@ -56,10 +56,9 @@ test_that("una relacion de orden rota tambien dice sus columnas", {
 })
 
 test_that("un hallazgo de la tabla no habla de 'esta columna'", {
-  d <- data.frame(a = rep(1:10, each = 20), b = rep(1:19, length.out = 200),
-                  v = seq_len(200) / 7)
-  r <- sin_accion_de(d, clave = c("a", "b"))
-  fila <- r$sin_accion[r$sin_accion$hallazgo == "clave_no_unica", ]
+  d <- data.frame(a = c(1, NA, 2), b = 1:3)
+  r <- sin_accion_de(d, clave = "a")
+  fila <- r$sin_accion[r$sin_accion$hallazgo == "clave_con_ausentes", ]
   expect_equal(nrow(fila), 1L)
   expect_match(fila$motivo, "de la tabla y no de una columna", fixed = TRUE)
   expect_false(grepl("esta columna", fila$motivo, fixed = TRUE))

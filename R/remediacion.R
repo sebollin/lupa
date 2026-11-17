@@ -160,8 +160,9 @@
 }
 
 # Las columnas de una tabla que son marcas que agrega el propio plan:
-# `.fila_duplicada`, `.grupo_duplicado`, y `.ausente_<x>` y `.outlier_<x>` de una
-# columna `x` de la misma tabla. Volver a planificar sobre lo aplicado -el idioma
+# `.fila_duplicada`, `.grupo_duplicado`, `.clave_duplicada`, y `.ausente_<x>` y
+# `.outlier_<x>` de una columna `x` de la misma tabla. Volver a planificar sobre
+# lo aplicado -el idioma
 # documentado `plan$aplicar <- plan$recomendada`, una y otra vez- trataba la
 # marca como dato: recomendaba `marcar_filas_ausentes` sobre `.grupo_duplicado`,
 # cuyo `NA` significa "no participa de ningun grupo", y publicaba cinco filas
@@ -170,7 +171,8 @@
   nombres <- as.character(nombres)
   if (!length(nombres)) return(logical())
   candidatas <- c(
-    ".fila_duplicada", ".grupo_duplicado", .marcas_de_columna(nombres)
+    ".fila_duplicada", ".grupo_duplicado", ".clave_duplicada",
+    .marcas_de_columna(nombres)
   )
   !is.na(nombres) &
     .nombres_para_operar(nombres) %in% .nombres_para_operar(candidatas)
@@ -1055,15 +1057,12 @@
 # respetar el universo aplicable: se aplican y despues se devuelven a su valor
 # las celdas de fuera.
 #
-# Este comentario decia que conservan la clase de la columna, y sobre un FACTOR
-# no es cierto: todas devuelven texto -`.resultado_texto()` lo decide en un solo
-# lugar, a proposito, para no dejar un factor incompleto-. La afirmacion falsa
-# se quedo escrita mientras el plan recomendaba y ACTIVABA `recortar_espacios`
-# sobre un factor ordenado, publicando `destructiva = FALSE`; la columna volvia
-# `character`, sin orden y sin los niveles sin observaciones. Lo que el usuario
-# lee ahora lo dice: ver `.declarar_texto_en_columna_factor()`. Las conversiones de
-# tipo no estan aca porque no se pueden aplicar a medias -una columna tiene un
-# solo tipo-, y para ellas el plan declara el alcance real.
+# Las acciones de celda trabajan sobre el texto, pero una columna factor se
+# reconstruye despues de la transformacion: asi los niveles limpios siguen el
+# orden original, las fusiones ocupan el lugar del primer nivel y no se agregan
+# niveles que no aparecen en el resultado. Las conversiones de tipo no estan
+# aca porque no se pueden aplicar a medias -una columna tiene un solo tipo-, y
+# para ellas el plan declara el alcance real.
 .estrategias_por_celda <- c(
   "convertir_ausencias_textuales", "recortar_espacios",
   "eliminar_controles_invisibles", "normalizar_espacios_invisibles",
@@ -1109,7 +1108,10 @@
   # decision es suya.
   if (!nrow(plan)) return(plan)
   for (j in seq_len(nrow(plan))) {
-    if (!plan$estrategia[[j]] %in% .estrategias_por_celda) next
+    estrategia <- as.character(plan$estrategia[[j]])
+    if (!estrategia %in% c(.estrategias_por_celda, .estrategias_cambio_de_tipo)) {
+      next
+    }
     columna <- plan$columna[[j]]
     if (is.na(columna)) next
     fila <- .fila_perfil(perfil, columna)
@@ -1120,12 +1122,27 @@
     }
     ordenado <- identical(as.character(fila$tipo_declarado[[1L]]),
                           "factor-ordenado")
+    if (estrategia %in% .estrategias_cambio_de_tipo) {
+      plan$justificacion[[j]] <- paste0(
+        plan$justificacion[[j]],
+        " La columna es un factor y esta conversi\u00f3n cambia el tipo: no puede ",
+        "conservar el factor; el resultado queda con el tipo convertido."
+      )
+      next
+    }
     plan$justificacion[[j]] <- paste0(
       plan$justificacion[[j]],
       " La columna es un factor", if (ordenado) " ordenado" else "",
-      " y la acci\u00f3n devuelve texto: ",
-      if (ordenado) "el orden declarado y " else "",
-      "los niveles sin observaciones no se conservan.",
+      " y la acci\u00f3n trabaja sobre su texto y devuelve texto antes de ",
+      "reconstruir el factor: se conservan ",
+      if (ordenado) "el orden declarado, " else "",
+      "los niveles limpios en el orden original; los niveles declarados sin uso ",
+      "se conservan, los niveles que se funden ocupan el lugar del primero y ",
+      "los que la limpieza vuelve faltantes desaparecen. Si la ",
+      "estrategia convierte el tipo de la columna, no puede conservar el factor ",
+      "y el resultado queda con el tipo convertido. Si un factor ordenado funde ",
+      "niveles no contiguos, el resultado queda como factor sin orden y el ",
+      "registro lo declara; si son contiguos, conserva el orden.",
       if (ordenado) {
         paste0(
           " Queda recomendada pero sin activar: conservar el orden es una ",
@@ -1426,11 +1443,17 @@
   viejo <- anterior[[columna]]
   nuevo <- ejecutada$datos[[columna]]
   sin_restaurar <- nuevo
-  # Los ejecutores de texto devuelven `character` aunque la entrada sea factor;
-  # asignar el factor directo lo convertiria en sus codigos numericos.
+  # Los ejecutores de texto devuelven un factor reconstruido cuando la entrada
+  # era factor. Para restaurar una celda fuera del universo hay que volver a
+  # texto antes de asignar: el nivel puede no estar entre los que quedaron en
+  # el resultado transformado y la asignacion directa la convertiria en `NA`.
+  if (is.factor(nuevo)) nuevo <- as.character(nuevo)
   restaurar <- viejo[fuera]
-  if (is.factor(restaurar) && !is.factor(nuevo)) restaurar <- as.character(restaurar)
+  if (is.factor(restaurar)) restaurar <- as.character(restaurar)
   nuevo[fuera] <- restaurar
+  if (is.factor(original[[columna]]) && is.character(nuevo)) {
+    nuevo <- .con_atributos_de(original[[columna]], nuevo)
+  }
   ejecutada$datos[[columna]] <- nuevo
   # Tambien cuenta la celda ausente que paso a tener valor: es el cambio de la
   # imputacion, y `.celdas_cambiadas()` solo mira las que tenian valor. Sin esto
@@ -1605,11 +1628,17 @@
 #' `n_no_reversibles`; leer `destructiva = FALSE` no significa que no se haya
 #' perdido nada, sino que el paquete pudo recomendar la acción sin conocer el
 #' dominio.
-#' Sobre una columna **factor** las acciones por celda devuelven texto: el
-#' resultado no puede ser un factor incompleto, así que el orden declarado y los
-#' niveles sin observaciones no se conservan. La justificación de la acción lo
-#' dice, y si el factor es ordenado la acción queda recomendada pero **sin
-#' activar**, porque conservar el orden es una decisión del dominio.
+#' Sobre una columna **factor** las acciones por celda trabajan sobre texto y
+#' reconstruyen el factor: los niveles quedan limpios y en el orden original,
+#' los niveles declarados sin uso se conservan, una fusión ocupa el lugar del
+#' primer nivel y un nivel que se vuelve faltante desaparece. Un nivel `NA`
+#' explícito (`exclude = NULL`) se conserva. Un factor ordenado conserva su
+#' orden si la fusión es contigua; si funde niveles no contiguos, queda como
+#' factor sin orden y el registro lo declara. La acción queda recomendada pero
+#' **sin activar**, porque conservar el orden es una decisión del dominio. Si
+#' una estrategia convierte el tipo de la columna, no puede conservar el factor
+#' y la justificación lo declara; si todos sus niveles pasan a faltantes, el
+#' resultado queda como texto para no crear un factor sin niveles.
 #'
 #' Tres atributos del plan declaran lo que el plan no cubre.
 #' `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
@@ -1873,19 +1902,26 @@
 #' no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 #' posterior sigue contando duplicadas. Para saber si los duplicados siguen en
 #' la tabla hay que quitar las columnas de marca antes de perfilarla.
+#' `marcar_claves_duplicadas` añade `.clave_duplicada` y marca todas las filas
+#' que participan en una colisión de la clave declarada, incluso cuando sus
+#' demás valores no son iguales. Conserva las filas y no cambia sus celdas; una
+#' clave compuesta se evalúa sólo entre sus filas completas.
 #'
 #' Al volver a planificar sobre lo aplicado, el plan no propone acciones sobre
 #' las marcas que agrega —`.fila_duplicada`, `.grupo_duplicado`,
-#' `.ausente_<columna>` y `.outlier_<columna>`—: sus hallazgos quedan en
+#' `.clave_duplicada`, `.ausente_<columna>` y `.outlier_<columna>`—: sus hallazgos quedan en
 #' `hallazgos_sin_accion` con ese motivo, porque el `NA` de `.grupo_duplicado`
 #' significa que la fila no participa de ningún grupo y no una ausencia. Una
 #' acción cuya columna de marca ya existe en los datos queda `bloqueada`:
-#' `aplicar()` no puede volver a crearla.
+#' un plan nuevo no vuelve a recomendar crearla. Un plan anterior que se aplica
+#' otra vez recalcula `.clave_duplicada` sobre la entrega final y reutiliza su
+#' columna, por lo que la corrida es idempotente.
 #'
 #' El orden operativo se aparta deliberadamente de la secuencia dimensional
 #' frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
-#' Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y
-#' deja los cambios de esquema para el final. Esto evita perder la evidencia
+#' Primero marca duplicados exactos sin borrar, luego normaliza ausencias y
+#' texto, y deja los cambios de esquema para el final; la marca de la clave
+#' declarada corre después de todas esas acciones. Esto evita perder la evidencia
 #' original, permite imputar antes de convertir tipos y mantiene identificables
 #' las columnas durante todo el plan. Las eliminaciones nunca se activan por
 #' defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.
@@ -1985,7 +2021,9 @@
 #'   reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar y
 #'   no cuentan, **salvo cuando la normalización fusiona valores que eran
 #'   distintos**: ahí lo que los separaba no queda en ningún lado y esas celdas
-#'   sí se cuentan. El criterio se mide sobre el resultado, no por el nombre de
+#'   sí se cuentan. La marca de una clave declarada corre al final y se mide
+#'   sobre la tabla que entrega `aplicar()`, después de recortes de texto y
+#'   eliminaciones; el criterio se mide sobre el resultado, no por el nombre de
 #'   la acción: quitar un guion suave de `PRO<U+00AD>DUCTO-A` no pierde nada,
 #'   y quitar un espacio de ancho cero que distinguía dos claves fusiona las
 #'   dos.
@@ -1996,8 +2034,13 @@
 #'   `fallida`, porque la ausencia de efecto es observable sin depender de la
 #'   estimación.
 #'   Si una columna de entrada es un factor, las acciones que transforman su
-#'   texto devuelven una columna `character`: no se reconstruyen los niveles
-#'   originales, porque una limpieza puede introducir valores nuevos.
+#'   texto reconstruyen el factor con niveles limpios en el orden original;
+#'   conservan niveles sin uso y un nivel `NA` explícito, una fusión ocupa el
+#'   lugar del primer nivel y los niveles que pasan a faltantes desaparecen. Un
+#'   factor ordenado sigue ordenado sólo cuando las fusiones son contiguas; una
+#'   fusión no contigua lo deja sin orden y lo declara en el registro. Una
+#'   estrategia que convierte el tipo lo declara en la justificación y devuelve
+#'   el tipo convertido; si todos los niveles pasan a faltantes, devuelve texto.
 #'   Los atributos de cada columna —la etiqueta de variable que deja `haven`—
 #'   sobreviven a las acciones que la reescriben, a las conversiones de tipo y a
 #'   las que quitan filas; quitar filas de un `data.table` conserva su clave.
@@ -2714,6 +2757,30 @@ planificar_limpieza <- function(perfil, datos = NULL,
         recomendacion_grupo = if (recomendar) "convertir_tipo" else NA_character_,
         destructiva = (base_tipo_seguro && !recomendar) ||
           .perdida_medida(comprobacion_tipo)
+      ))
+    } else if (identical(tipo, "clave_no_unica")) {
+      clave <- if (is.list(perfil$meta$clave)) {
+        as.character(perfil$meta$clave$columnas)
+      } else {
+        as.character(perfil$meta$declaracion_clave)
+      }
+      nombre_marca <- ".clave_duplicada"
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        NA_character_, tipo, "marcar_claves_duplicadas", TRUE,
+        paste0(
+          "La marca conserva todas las filas y se\u00f1ala las que participan en ",
+          "una colisi\u00f3n de la clave declarada (",
+          .pegar_texto(clave, collapse = ", "),
+          "). No elimina filas ni reemplaza sus valores; permite revisar los ",
+          "casos antes de decidir si la clave es incorrecta o si hay una carga ",
+          "duplicada."
+        ), .n_afectadas_del_hallazgo(hallazgo, fila), TRUE,
+        parametros = list(clave = clave, columna_marca = nombre_marca),
+        # La marca describe la tabla que recibe quien consume el resultado,
+        # no la tabla perfilada: debe correr despues de toda accion que cambie
+        # celdas o quite filas. 1000 queda por encima de todos los ordenes de
+        # acciones publicados por este planificador.
+        orden = 1000L, unidad_conteo = "fila"
       ))
     } else if (identical(tipo, "filas_duplicadas")) {
       n_participantes <- perfil$general$filas_en_grupos_duplicados
@@ -5003,7 +5070,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .resultado_texto <- function(original, nuevo) {
   if (!is.factor(original)) return(nuevo)
   # Las acciones pueden introducir valores fuera de los niveles originales;
-  # el contrato devuelve texto y no un factor incompleto.
+  # el ejecutor devuelve texto para que `.con_atributos_de()` reconstruya el
+  # factor completo, en vez de crear uno incompleto.
   as.character(nuevo)
 }
 
@@ -5490,6 +5558,33 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   datos
 }
 
+.filas_claves_duplicadas <- function(datos, clave) {
+  if (!length(clave)) {
+    .detener("La accion de clave duplicada necesita al menos una columna de clave.",
+             call. = FALSE)
+  }
+  valores <- .seleccionar_columnas(datos, clave)
+  con_ausentes <- .filas_clave_con_ausentes(valores)
+  if (is.null(con_ausentes)) {
+    .detener(
+      "No se pudo comprobar la clave declarada para marcar sus colisiones.",
+      call. = FALSE
+    )
+  }
+  completas <- which(!con_ausentes)
+  marca <- rep(FALSE, nrow(datos))
+  if (!length(completas)) return(marca)
+  duplicadas <- .filas_duplicadas_base(valores[completas, , drop = FALSE])
+  if (is.null(duplicadas)) {
+    .detener(
+      "No se pudo comparar la clave declarada para marcar sus colisiones.",
+      call. = FALSE
+    )
+  }
+  marca[completas] <- duplicadas$adelante | duplicadas$atras
+  marca
+}
+
 # Cuantos valores CAMBIARON de verdad, que es lo que `n_cambiadas` promete.
 #
 # Las dos conversiones devolvian `sum(!is.na(x))` -los presentes-, y catorce
@@ -5543,7 +5638,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # aplicaban otros y el registro publicaba los editados como aplicados; medido-.
 # Se aplica el mapa `nombres_esperados` -> `nombres_propuestos`;
 # una columna que no estaba en el plan conserva su nombre, y eso incluye las
-# marcas que el propio plan agrega -`.fila_duplicada`-, que snake_case renombraba.
+# marcas que el propio plan agrega -`.fila_duplicada` y `.clave_duplicada`-, que
+# snake_case renombraba.
 # Sin el mapa -un plan armado a mano- se calcula como antes.
 .nombres_segun_plan <- function(anteriores, estrategia, parametros) {
   esperados <- parametros$nombres_esperados
@@ -5589,20 +5685,150 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # original. Los ejecutores empiezan con `as.character()`, que los descarta, y
 # `recortar_espacios` -recomendada y activa por omision- borraba la etiqueta de
 # variable que deja `haven` en las seis filas, tambien en las que no toco;
-# medido. La clase y los niveles se copian solo si el tipo no
-# cambio y la columna no era un factor: un factor vuelve como texto, que es el
-# contrato escrito.
+# medido. Un factor se reconstruye con los valores transformados: los niveles
+# se recorren en el orden original, una fusion conserva el lugar del primero y
+# los niveles que no aparecen en el resultado no se agregan.
+.reconstruir_factor <- function(original, nuevo) {
+  if (!is.factor(original) || !is.character(nuevo) ||
+      length(nuevo) != length(original)) {
+    return(nuevo)
+  }
+  codigos <- as.integer(original)
+  niveles_originales <- levels(original)
+  transformados <- as.character(nuevo)
+  niveles_salida <- character()
+  nivel_na_salida <- FALSE
+  posicion_na_salida <- NA_integer_
+
+  agregar_nivel <- function(nivel) {
+    if (is.na(nivel)) {
+      if (!nivel_na_salida) {
+        nivel_na_salida <<- TRUE
+        posicion_na_salida <<- length(niveles_salida) + 1L
+      }
+      return(invisible(NULL))
+    }
+    if (!any(niveles_salida == nivel)) {
+      niveles_salida <<- c(niveles_salida, nivel)
+    }
+    invisible(NULL)
+  }
+
+  # Se usa el codigo del factor, no `as.character(original)`: para un factor
+  # construido con `exclude = NULL`, el nivel `NA` y una ausencia verdadera se
+  # ven iguales como texto pero no tienen el mismo codigo.
+  for (indice_nivel in seq_along(niveles_originales)) {
+    nivel <- niveles_originales[[indice_nivel]]
+    indices <- which(!is.na(codigos) & codigos == indice_nivel)
+    if (is.na(nivel)) {
+      agregar_nivel(NA_character_)
+      next
+    }
+    if (!length(indices)) {
+      # El universo declarado tambien incluye niveles sin uso.
+      agregar_nivel(nivel)
+      next
+    }
+    valores <- transformados[indices]
+    valores <- valores[!is.na(valores)]
+    for (valor in valores[!duplicated(valores)]) agregar_nivel(valor)
+  }
+
+  # Una accion hecha a mano puede producir un valor que no se vio en la
+  # correspondencia por nivel. No se lo convierte silenciosamente en `NA`.
+  presentes <- transformados[!is.na(transformados)]
+  for (valor in presentes[!duplicated(presentes)]) agregar_nivel(valor)
+
+  if (!length(niveles_salida) && !nivel_na_salida) {
+    # Un factor sin niveles no puede representar el resultado. Queda texto
+    # para que la limpieza no fabrique un objeto degenerado.
+    return(transformados)
+  }
+  niveles <- niveles_salida
+  if (nivel_na_salida) {
+    niveles <- append(niveles, NA_character_, after = posicion_na_salida - 1L)
+  }
+  codigos_salida <- rep(NA_integer_, length(transformados))
+  for (i in seq_along(transformados)) {
+    codigo <- codigos[[i]]
+    if (is.na(codigo)) next
+    nivel_original <- niveles_originales[[codigo]]
+    if (is.na(nivel_original)) {
+      codigos_salida[[i]] <- posicion_na_salida
+    } else if (!is.na(transformados[[i]])) {
+      codigos_salida[[i]] <- match(transformados[[i]], niveles)
+    }
+  }
+  ordenado <- is.ordered(original)
+  if (ordenado && length(niveles_salida)) {
+    # Si un nivel de salida recibe valores de niveles originales separados por
+    # otro nivel declarado, el orden ya no se puede inferir.
+    for (nivel in niveles_salida) {
+      indices <- which(!is.na(transformados) & transformados == nivel)
+      fuentes <- unique(codigos[indices])
+      fuentes <- fuentes[!is.na(fuentes)]
+      if (length(fuentes) > 1L &&
+          length(fuentes) != max(fuentes) - min(fuentes) + 1L) {
+        ordenado <- FALSE
+        break
+      }
+    }
+  }
+  structure(
+    codigos_salida, levels = niveles,
+    class = if (ordenado) c("ordered", "factor") else "factor"
+  )
+}
+
 .con_atributos_de <- function(original, nuevo) {
+  if (is.factor(original) && is.character(nuevo)) {
+    nuevo <- .reconstruir_factor(original, nuevo)
+  }
   atributos <- attributes(original)
   if (is.null(atributos) || length(nuevo) != length(original)) return(nuevo)
   quitar <- c("names", "dim", "dimnames")
-  if (is.factor(original) || !identical(typeof(original), typeof(nuevo))) {
+  conserva_factor <- is.factor(original) && is.factor(nuevo)
+  if (conserva_factor || is.factor(original) ||
+      !identical(typeof(original), typeof(nuevo))) {
     quitar <- c(quitar, "class", "levels")
   }
   for (nombre in setdiff(names(atributos), quitar)) {
     attr(nuevo, nombre) <- atributos[[nombre]]
   }
   nuevo
+}
+
+.justificacion_factor_resultado <- function(antes, despues, columna) {
+  if (is.na(columna)) {
+    return(NULL)
+  }
+  indice <- function(datos) {
+    tryCatch(
+      .indice_columna(datos, columna),
+      error = function(e) NA_integer_
+    )
+  }
+  indice_antes <- indice(antes)
+  indice_despues <- indice(despues)
+  if (is.na(indice_antes) || is.na(indice_despues)) return(NULL)
+  original <- antes[[indice_antes]]
+  resultado <- despues[[indice_despues]]
+  if (!is.factor(original)) return(NULL)
+  if (is.ordered(original) && is.factor(resultado) &&
+      !is.ordered(resultado)) {
+    return(paste0(
+      " La limpieza fundi\u00f3 niveles no contiguos del factor ordenado; ",
+      "el resultado queda como factor sin orden y el registro deja constancia ",
+      "para no inventar una relaci\u00f3n de orden."
+    ))
+  }
+  if (is.character(resultado) && all(is.na(resultado))) {
+    return(paste0(
+      " La limpieza volvi\u00f3 faltantes todos los valores del factor; el ",
+      "resultado queda como texto para evitar un factor sin niveles."
+    ))
+  }
+  NULL
 }
 
 .ejecutar_accion <- function(datos, accion, original = datos,
@@ -5643,7 +5869,27 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     marcas <- .grupos_filas_duplicadas(datos)
     datos <- .agregar_marca(datos, parametros$columna_marca, marcas$repetidas)
     datos <- .agregar_marca(datos, parametros$columna_grupo, marcas$grupos)
-    return(list(datos = datos, n = sum(!is.na(marcas$grupos))))
+    return(list(
+      datos = datos, n = sum(!is.na(marcas$grupos)),
+      n_filas_marcadas = sum(!is.na(marcas$grupos))
+    ))
+  }
+  if (identical(estrategia, "marcar_claves_duplicadas")) {
+    marca <- .filas_claves_duplicadas(datos, parametros$clave)
+    posicion_marca <- match(
+      .nombres_para_operar(parametros$columna_marca),
+      .nombres_para_operar(names(datos))
+    )
+    if (is.na(posicion_marca)) {
+      datos <- .agregar_marca(datos, parametros$columna_marca, marca)
+    } else {
+      # Un plan se puede volver a aplicar sobre el resultado que produjo. La
+      # marca se recalcula sobre esa entrega final y se reemplaza en su misma
+      # columna, en lugar de intentar crear una segunda columna con igual
+      # nombre y convertir la segunda corrida en una falla.
+      datos[[posicion_marca]] <- marca
+    }
+    return(list(datos = datos, n = sum(marca), n_filas_marcadas = sum(marca)))
   }
   if (identical(estrategia, "conservar_primera_duplicada")) {
     # La MISMA definicion de "misma fila" que el marcador del grupo y que el
@@ -5854,7 +6100,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     # `.factor_sin_nivel_na()`; la columna no se modifica.
     marca <- is.na(.factor_sin_nivel_na(x)) & aplicable
     datos <- .agregar_marca(datos, parametros$columna_marca, marca)
-    return(list(datos = datos, n = sum(marca)))
+    return(list(datos = datos, n = sum(marca), n_filas_marcadas = sum(marca)))
   }
   if (identical(estrategia, "eliminar_filas_ausentes")) {
     # Sin regla de aplicabilidad no hay nada que alinear: todas las filas
@@ -5916,7 +6162,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (identical(estrategia, "marcar_outliers")) {
     marca <- .marca_outliers(x, dentro_outliers)
     datos <- .agregar_marca(datos, parametros$columna_marca, marca)
-    return(list(datos = datos, n = sum(marca)))
+    return(list(datos = datos, n = sum(marca), n_filas_marcadas = sum(marca)))
   }
   if (identical(estrategia, "winsorizar_outliers")) {
     cambio <- .winsorizar_outliers(x, dentro_outliers)
@@ -6039,6 +6285,13 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (length(actual) != 1L || !is.finite(actual) || actual != 0L) {
     return(NULL)
   }
+  # Una marca de clave es una observacion del estado final, no una reparacion
+  # que tenga que cambiar una celda. Puede encontrar cero colisiones despues
+  # de una eliminacion y sigue siendo una accion ejecutada correctamente.
+  if (identical(as.character(accion$estrategia[[1L]]),
+                "marcar_claves_duplicadas")) {
+    return(NULL)
+  }
   esperado <- as.numeric(accion$n_afectadas[[1L]])
   unidad <- as.character(accion$unidad_conteo[[1L]])
   detalle_estimacion <- if (length(esperado) == 1L && is.finite(esperado)) {
@@ -6133,7 +6386,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     return(TRUE)
   }
   if (estrategia %in% c(
-    "marcar_filas_duplicadas", "marcar_columnas_duplicadas",
+    "marcar_filas_duplicadas", "marcar_claves_duplicadas",
+    "marcar_columnas_duplicadas",
     "marcar_outliers"
   )) return(FALSE)
   if (estrategia %in% c(
@@ -6313,6 +6567,16 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       ejecutada <- .restringir_a_aplicabilidad(ejecutada, salida, accion, datos)
     }
     if (is.null(ejecutada$error)) {
+      if (.estrategia_por_celda(accion$estrategia[[1L]])) {
+        detalle_factor <- .justificacion_factor_resultado(
+          estado_previo, ejecutada$datos, accion$columna[[1L]]
+        )
+        if (!is.null(detalle_factor)) {
+          ejecutada$justificacion <- paste0(
+            accion$justificacion[[1L]], detalle_factor
+          )
+        }
+      }
       motivo_efecto <- .motivo_efecto_accion(accion, ejecutada)
       # Sin efecto porque una accion anterior ya resolvio el problema: queda
       # `ejecutada` con cero cambios. Ver `.problema_resuelto_por_el_plan()`.
@@ -6368,7 +6632,11 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
           ejecutada$n_no_reversibles
         }
       }),
-      justificacion = as.character(accion$justificacion[[1L]]),
+      justificacion = as.character(if (is.null(ejecutada$justificacion)) {
+        accion$justificacion[[1L]]
+      } else {
+        ejecutada$justificacion
+      }),
       estado = if (fallo) "fallida" else "ejecutada",
       error = if (fallo) as.character(ejecutada$error) else NA_character_,
       estado_reparacion = if (is.null(ejecutada$estado_reparacion)) {
@@ -6938,6 +7206,52 @@ print.plan_limpieza <- function(x, ...) {
   invisible(original)
 }
 
+.resumen_resultado_limpieza <- function(x) {
+  registro <- x$registro
+  if (!inherits(registro, "data.frame")) {
+    .detener("`x$registro` debe ser un data frame.", call. = FALSE)
+  }
+  n <- nrow(registro)
+  campo <- function(nombre, por_defecto) {
+    if (nombre %in% names(registro)) registro[[nombre]] else
+      rep(por_defecto, n)
+  }
+  estrategias <- as.character(campo("estrategia", NA_character_))
+  cambiadas_registro <- as.numeric(campo("n_cambiadas", 0))
+  es_marca_filas <- estrategias %in% c(
+    "marcar_filas_duplicadas", "marcar_claves_duplicadas",
+    "marcar_filas_ausentes", "marcar_outliers"
+  )
+  celdas <- ifelse(
+    .estrategia_por_celda(estrategias), cambiadas_registro, 0
+  )
+  filas_marcadas <- as.numeric(campo("n_filas_marcadas", NA_real_))
+  # Resultados producidos antes de este campo conservan el conteo de marcas
+  # en `n_cambiadas`; se interpreta solo para esas cuatro acciones y se deja
+  # fuera de las celdas desde el mismo ayudante que usa el informe.
+  filas_marcadas[es_marca_filas & is.na(filas_marcadas)] <-
+    cambiadas_registro[es_marca_filas & is.na(filas_marcadas)]
+  filas_marcadas[is.na(filas_marcadas)] <- 0
+  data.frame(
+    id_accion = as.character(campo("id_accion", NA_character_)),
+    columna = as.character(campo("columna", NA_character_)),
+    estrategia = as.character(campo("estrategia", NA_character_)),
+    estado = as.character(campo("estado", NA_character_)),
+    error = as.character(campo("error", NA_character_)),
+    n_cambiadas = as.numeric(celdas),
+    n_filas_marcadas = as.numeric(filas_marcadas),
+    n_filas_eliminadas = as.numeric(campo("n_filas_eliminadas", 0)),
+    n_columnas_eliminadas = as.numeric(campo("n_columnas_eliminadas", 0)),
+    justificacion = as.character(campo("justificacion", NA_character_)),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' @export
+summary.resultado_limpieza <- function(object, ...) {
+  .resumen_resultado_limpieza(object)
+}
+
 #' @export
 print.resultado_limpieza <- function(x, ...) {
   original <- x
@@ -6963,17 +7277,24 @@ print.resultado_limpieza <- function(x, ...) {
         " acciones fallidas; revisar `registro$error`"
     )))
   }
-  # Es una suma de lo que conto cada accion, no de celdas distintas: una celda
-  # que tocan dos acciones cuenta dos veces, y una fila o un nombre cuentan uno.
-  # Decia "celdas o marcas afectadas", y el usuario lee primero esa cifra.
+  resumen <- .resumen_resultado_limpieza(x)
+  n_celdas <- sum(resumen$n_cambiadas)
   cli::cli_text(.cli_literal(paste0(
-    sum(x$registro$n_cambiadas),
-    if (sum(x$registro$n_cambiadas) == 1L) " cambio contado por las acciones (una celda " else
-      " cambios contados por las acciones (una celda ",
-    "que tocan dos acciones cuenta dos veces; el detalle est\u00e1 en `registro`)"
+    n_celdas,
+    if (n_celdas == 1L) " celda cambiada por las acciones" else
+      " celdas cambiadas por las acciones",
+    " (una celda que tocan dos acciones cuenta dos veces; el detalle est\u00e1 en `registro`)"
   )))
-  n_filas <- sum(x$registro$n_filas_eliminadas)
-  n_columnas <- sum(x$registro$n_columnas_eliminadas)
+  n_marcadas <- sum(resumen$n_filas_marcadas)
+  if (n_marcadas) {
+    cli::cli_text(.cli_literal(paste0(
+      n_marcadas,
+      if (n_marcadas == 1L) " fila marcada" else " filas marcadas",
+      "; el detalle est\u00e1 en `registro`"
+    )))
+  }
+  n_filas <- sum(resumen$n_filas_eliminadas)
+  n_columnas <- sum(resumen$n_columnas_eliminadas)
   if (n_filas || n_columnas) {
     cli::cli_alert_warning(.cli_literal(paste(
       n_filas, if (n_filas == 1L) " fila y " else " filas y ", n_columnas,

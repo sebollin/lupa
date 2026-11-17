@@ -53,7 +53,9 @@ escritura} —recortar espacios, quitar un invisible de transporte,
 reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar y
 no cuentan, \strong{salvo cuando la normalización fusiona valores que eran
 distintos}: ahí lo que los separaba no queda en ningún lado y esas celdas
-sí se cuentan. El criterio se mide sobre el resultado, no por el nombre de
+sí se cuentan. La marca de una clave declarada corre al final y se mide
+sobre la tabla que entrega \code{aplicar()}, después de recortes de texto y
+eliminaciones; el criterio se mide sobre el resultado, no por el nombre de
 la acción: quitar un guion suave de \verb{PRO<U+00AD>DUCTO-A} no pierde nada,
 y quitar un espacio de ancho cero que distinguía dos claves fusiona las
 dos.
@@ -64,8 +66,13 @@ comprobación del efecto observa \code{n_cambiadas} aunque \code{n_afectadas} se
 \code{fallida}, porque la ausencia de efecto es observable sin depender de la
 estimación.
 Si una columna de entrada es un factor, las acciones que transforman su
-texto devuelven una columna \code{character}: no se reconstruyen los niveles
-originales, porque una limpieza puede introducir valores nuevos.
+texto reconstruyen el factor con niveles limpios en el orden original;
+conservan niveles sin uso y un nivel \code{NA} explícito, una fusión ocupa el
+lugar del primer nivel y los niveles que pasan a faltantes desaparecen. Un
+factor ordenado sigue ordenado sólo cuando las fusiones son contiguas; una
+fusión no contigua lo deja sin orden y lo declara en el registro. Una
+estrategia que convierte el tipo lo declara en la justificación y devuelve
+el tipo convertido; si todos los niveles pasan a faltantes, devuelve texto.
 Los atributos de cada columna —la etiqueta de variable que deja \code{haven}—
 sobreviven a las acciones que la reescriben, a las conversiones de tipo y a
 las que quitan filas; quitar filas de un \code{data.table} conserva su clave.
@@ -208,11 +215,17 @@ lo dicen en su justificación y el registro las cuantifica en
 \code{n_no_reversibles}; leer \code{destructiva = FALSE} no significa que no se haya
 perdido nada, sino que el paquete pudo recomendar la acción sin conocer el
 dominio.
-Sobre una columna \strong{factor} las acciones por celda devuelven texto: el
-resultado no puede ser un factor incompleto, así que el orden declarado y los
-niveles sin observaciones no se conservan. La justificación de la acción lo
-dice, y si el factor es ordenado la acción queda recomendada pero \strong{sin
-activar}, porque conservar el orden es una decisión del dominio.
+Sobre una columna \strong{factor} las acciones por celda trabajan sobre texto y
+reconstruyen el factor: los niveles quedan limpios y en el orden original,
+los niveles declarados sin uso se conservan, una fusión ocupa el lugar del
+primer nivel y un nivel que se vuelve faltante desaparece. Un nivel \code{NA}
+explícito (\code{exclude = NULL}) se conserva. Un factor ordenado conserva su
+orden si la fusión es contigua; si funde niveles no contiguos, queda como
+factor sin orden y el registro lo declara. La acción queda recomendada pero
+\strong{sin activar}, porque conservar el orden es una decisión del dominio. Si
+una estrategia convierte el tipo de la columna, no puede conservar el factor
+y la justificación lo declara; si todos sus niveles pasan a faltantes, el
+resultado queda como texto para no crear un factor sin niveles.
 
 Tres atributos del plan declaran lo que el plan no cubre.
 \code{cobertura_diagnosticos} trae los diagnósticos que el perfil no pudo
@@ -476,19 +489,26 @@ incluidas, las marcas distinguen la primera aparición de las repetidas, pero
 no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 posterior sigue contando duplicadas. Para saber si los duplicados siguen en
 la tabla hay que quitar las columnas de marca antes de perfilarla.
+\code{marcar_claves_duplicadas} añade \code{.clave_duplicada} y marca todas las filas
+que participan en una colisión de la clave declarada, incluso cuando sus
+demás valores no son iguales. Conserva las filas y no cambia sus celdas; una
+clave compuesta se evalúa sólo entre sus filas completas.
 
 Al volver a planificar sobre lo aplicado, el plan no propone acciones sobre
 las marcas que agrega —\code{.fila_duplicada}, \code{.grupo_duplicado},
-\verb{.ausente_<columna>} y \verb{.outlier_<columna>}—: sus hallazgos quedan en
+\code{.clave_duplicada}, \verb{.ausente_<columna>} y \verb{.outlier_<columna>}—: sus hallazgos quedan en
 \code{hallazgos_sin_accion} con ese motivo, porque el \code{NA} de \code{.grupo_duplicado}
 significa que la fila no participa de ningún grupo y no una ausencia. Una
 acción cuya columna de marca ya existe en los datos queda \code{bloqueada}:
-\code{aplicar()} no puede volver a crearla.
+un plan nuevo no vuelve a recomendar crearla. Un plan anterior que se aplica
+otra vez recalcula \code{.clave_duplicada} sobre la entrega final y reutiliza su
+columna, por lo que la corrida es idempotente.
 
 El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
-Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y
-deja los cambios de esquema para el final. Esto evita perder la evidencia
+Primero marca duplicados exactos sin borrar, luego normaliza ausencias y
+texto, y deja los cambios de esquema para el final; la marca de la clave
+declarada corre después de todas esas acciones. Esto evita perder la evidencia
 original, permite imputar antes de convertir tipos y mantiene identificables
 las columnas durante todo el plan. Las eliminaciones nunca se activan por
 defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.

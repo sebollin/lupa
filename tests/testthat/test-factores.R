@@ -3,7 +3,7 @@
 # la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
 testthat::skip_on_cran()
 
-test_that("las columnas factor entran por los caminos publicos", {
+test_that("las columnas factor entran por los caminos publicos y conservan su clase", {
   datos <- data.frame(
     zona = factor(c("Norte", "NORTE", "sur", "SUR")),
     codigo = factor(c("A", "B", "A", "B"))
@@ -18,8 +18,10 @@ test_that("las columnas factor entran por los caminos publicos", {
     plan, datos, selector = function(decision) "convertir_minusculas"
   ))
   salida <- aplicar(guiado, datos)$datos
-  expect_type(salida$zona, "character")
-  expect_identical(salida$zona, c("norte", "norte", "sur", "sur"))
+  expect_s3_class(salida$zona, "factor")
+  expect_identical(levels(salida$zona), c("norte", "sur"))
+  expect_identical(as.character(salida$zona),
+                   c("norte", "norte", "sur", "sur"))
 })
 
 test_that("los metodos de metricas reciben texto aunque la columna sea factor", {

@@ -453,14 +453,16 @@ test_that("la eliminación comprueba que una columna siga siendo constante", {
   expect_match(fallo$registro$error, "dejó de ser constante")
 })
 
-test_that("las transformaciones de capitalización devuelven texto y validan", {
+test_that("las transformaciones de capitalizaci\u00f3n conservan factores y validan", {
   datos <- data.frame(zona = factor(c("Norte", "NORTE", "sur", "SUR")))
   plan <- activar_estrategia(
     planificar_limpieza(perfilar(datos)), "convertir_minusculas"
   )
   resultado <- aplicar(plan, datos)$datos
-  expect_type(resultado$zona, "character")
-  expect_identical(resultado$zona, c("norte", "norte", "sur", "sur"))
+  expect_s3_class(resultado$zona, "factor")
+  expect_identical(levels(resultado$zona), c("norte", "sur"))
+  expect_identical(as.character(resultado$zona),
+                   c("norte", "norte", "sur", "sur"))
 
   expect_error(
     lupa:::.transformar_capitalizacion(1:2, "convertir_minusculas", list()),

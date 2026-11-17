@@ -670,9 +670,10 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #'
 #' Calcula Pearson —o Spearman, si se pide— entre numéricas, V de Cramér entre
 #' categóricas y eta cuadrado entre una categórica y una numérica. Las medidas se
-#' informan en `[0, 1]`: la correlación usa su valor absoluto. La tabla declara
-#' el método, su supuesto, el soporte y el posible muestreo; no presenta
-#' significancia estadística.
+#' informan en `[0, 1]`: la columna `asociacion` conserva el valor absoluto de
+#' la correlación, y `asociacion_con_signo` agrega su coeficiente con signo para
+#' pares numéricos. La tabla declara el método, su supuesto, el soporte y el
+#' posible muestreo; no presenta significancia estadística.
 #'
 #' `metodo_numerico = "spearman"` mide asociación **monótona** sobre los rangos
 #' y no supone linealidad, así que reconoce una relación creciente aunque sea
@@ -816,6 +817,21 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       }
       x <- x[completos]
       y <- y[completos]
+      coeficiente <- tryCatch(
+        if (metodo %in% c("pearson_absoluto", "spearman_absoluto")) {
+          .cor_sin_aviso_analisis(
+            x, y,
+            method = if (identical(metodo, "spearman_absoluto")) {
+              "spearman"
+            } else {
+              "pearson"
+            }
+          )
+        } else {
+          NA_real_
+        },
+        error = function(e) NA_real_
+      )
       valor <- tryCatch(switch(
           metodo,
           pearson_absoluto = abs(.cor_sin_aviso_analisis(x, y)),
@@ -853,7 +869,9 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
           cramer_v = "Las columnas se tratan como categor\u00edas sin orden.",
           "La columna num\u00e9rica se trata como cuantitativa y la otra como categor\u00eda."
         ),
-        asociacion = as.numeric(valor), n_pares = length(x),
+        asociacion = as.numeric(valor),
+        n_pares = length(x),
+        asociacion_con_signo = as.numeric(coeficiente),
         stringsAsFactors = FALSE
       )
     }
@@ -861,7 +879,8 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   vacia <- .data_frame_simple(
     columna_1 = character(), columna_2 = character(), tipo_1 = character(),
     tipo_2 = character(), metodo = character(), supuesto = character(),
-    asociacion = numeric(), n_pares = integer(), stringsAsFactors = FALSE
+    asociacion = numeric(), n_pares = integer(),
+    asociacion_con_signo = numeric(), stringsAsFactors = FALSE
   )
   resultado <- if (length(filas)) do.call(rbind, filas) else vacia
   if (nrow(resultado)) {

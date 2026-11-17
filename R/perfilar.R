@@ -2176,8 +2176,9 @@
 #'   plan y en la SQL. Lo mismo los **nombres que el paquete deriva** de un
 #'   nombre de
 #'   columna: el que propone el plan en `nombres_propuestos` —con
-#'   `make.names()` y en snake_case— y las marcas `.ausente_<nombre>` y
-#'   `.outlier_<nombre>` que crean sus acciones. Barridos como texto de los
+#'   `make.names()` y en snake_case— y las marcas `.ausente_<nombre>`,
+#'   `.outlier_<nombre>` y `.clave_duplicada` que crean sus acciones. Barridos como
+#'   texto de los
 #'   datos, con «Segundo» protegido en `Primer Nombre` la evidencia diría
 #'   `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan propondría ese
 #'   nombre y [aplicar()] se lo pondría a la columna en los datos del usuario.

@@ -21,7 +21,8 @@ reportar(
 
 \item{...}{Objetos adicionales de clase \code{analisis}, \code{perfil}, \code{medicion},
 \code{evaluacion_calidad}, \code{historico_calidad}, \code{deriva_perfil},
-\code{deriva_calidad}, \code{plan_limpieza} o \code{duplicados_aproximados}.}
+\code{deriva_calidad}, \code{plan_limpieza}, \code{resultado_limpieza} o
+\code{duplicados_aproximados}.}
 
 \item{archivo}{Ruta de salida. De forma predeterminada crea un archivo en
 \code{tempdir()}. Una ruta que ya es un directorio se rechaza.}
@@ -66,7 +67,12 @@ evaluacion. Un perfil -o un analisis que no conserva la tabla- armado con
 la proteccion desactivada se vuelve a proteger con lo que conserva, y su
 seccion lo declara: sin la tabla, una variante de un valor protegido
 escrita en otra columna puede quedar a la vista. Para la proteccion
-completa, el perfil se arma con la proteccion activa.}
+completa, el perfil se arma con la proteccion activa.
+
+Un \code{resultado_limpieza} agrega una seccion con las acciones ejecutadas y
+fallidas, el motivo de cada falla, los cambios contados por accion y
+columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
+perfil y el plan que lo originaron.}
 }
 \value{
 La ruta normalizada del archivo, de forma invisible.

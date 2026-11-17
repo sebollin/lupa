@@ -369,8 +369,9 @@ cual —y no como \verb{[valor protegido]_nombre}— en los hallazgos sin acció
 plan y en la SQL. Lo mismo los \strong{nombres que el paquete deriva} de un
 nombre de
 columna: el que propone el plan en \code{nombres_propuestos} —con
-\code{make.names()} y en snake_case— y las marcas \verb{.ausente_<nombre>} y
-\verb{.outlier_<nombre>} que crean sus acciones. Barridos como texto de los
+\code{make.names()} y en snake_case— y las marcas \verb{.ausente_<nombre>},
+\verb{.outlier_<nombre>} y \code{.clave_duplicada} que crean sus acciones. Barridos como
+texto de los
 datos, con «Segundo» protegido en \verb{Primer Nombre} la evidencia diría
 \code{"Segundo Nombre" -> "[valor protegido].Nombre"}, el plan propondría ese
 nombre y \code{\link[=aplicar]{aplicar()}} se lo pondría a la columna en los datos del usuario.

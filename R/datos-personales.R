@@ -3419,7 +3419,8 @@
 
 # Los NOMBRES QUE EL PAQUETE DERIVA de un nombre de columna son estructura como
 # el nombre del que salen: el `make.names()` y el snake_case que el plan propone
-# en `nombres_propuestos`, y las marcas `.ausente_<nombre>` y `.outlier_<nombre>`
+# en `nombres_propuestos`, y las marcas `.clave_duplicada`,
+# `.ausente_<nombre>` y `.outlier_<nombre>`
 # que sus acciones crean. Sin esto el barrido los trataba como texto de los
 # datos: con "Segundo" -un nombre de pila- protegido en `Primer Nombre`, la
 # evidencia decia `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan
@@ -3456,7 +3457,8 @@
     ))
     unique(c(
       sintacticos, .nombres_snake(nombres),
-      paste0(".ausente_", sintacticos), paste0(".outlier_", sintacticos)
+      paste0(".ausente_", sintacticos), paste0(".outlier_", sintacticos),
+      ".clave_duplicada"
     ))
   }, error = function(e) character())
   derivados <- setdiff(derivados[!is.na(derivados)], nombres)
