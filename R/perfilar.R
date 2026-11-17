@@ -235,10 +235,34 @@
   }
   filas_candidatas <- min(filas_solicitadas, filas_por_celdas)
 
+  # Una tabla que no supera `muestra` y cabe en los dos topes se lee entera:
+  # no hace falta sonda ni busqueda, y tampoco la huella, que solo ordena filas
+  # cuando hay que dejar algunas afuera. Sin este atajo, cada intento de la
+  # busqueda pedia un subconjunto y lo elegia con una huella nueva de las
+  # posiciones: una tabla de 50.000 filas tardaba un 50 % mas.
+  cabe_entera <- filas_totales > 0 && filas_candidatas >= filas_totales
+  bytes_tabla <- NA_real_
+  if (cabe_entera && is.finite(max_bytes_muestra)) {
+    bytes_tabla <- as.numeric(utils::object.size(
+      .muestra_tabla_datos(datos, filas_totales)
+    ))
+    cabe_entera <- bytes_tabla <= max_bytes_muestra
+  }
+  if (!cabe_entera && is.null(huella) && filas_totales > 1) {
+    # Los topes recortan una tabla que no supera `muestra`: las filas que
+    # quedan se eligen con la misma huella de los valores, no por posicion,
+    # para que la muestra no dependa del orden de las filas.
+    huella <- .indices_huella_tabla(
+      datos, filas_totales - 1, columnas = columnas_huella
+    )
+    huella$k <- filas_solicitadas
+    indices_huella <- huella$indices
+  }
+
   bytes_sonda <- NA_real_
   bytes_vacios <- NA_real_
   filas_por_bytes <- Inf
-  if (is.finite(max_bytes_muestra) && filas_solicitadas > 0) {
+  if (is.finite(max_bytes_muestra) && filas_solicitadas > 0 && !cabe_entera) {
     datos_vacios <- .muestra_tabla_datos(datos, 0L)
     bytes_vacios <- as.numeric(utils::object.size(datos_vacios))
     if (bytes_vacios > max_bytes_muestra) {
@@ -279,6 +303,8 @@
     as.numeric(utils::object.size(.muestra_tabla_datos(datos, 0L)))
   } else if (is.infinite(max_bytes_muestra)) {
     NA_real_
+  } else if (cabe_entera) {
+    bytes_tabla
   } else {
     lo <- 0
     hi <- as.integer(floor(filas_candidatas))
@@ -2055,7 +2081,8 @@
 #'   el umbral y el nuevo alcance. `Inf` desactiva este tope.
 #' @param max_bytes_muestra Maximo de bytes de la muestra materializada que
 #'   alimenta los diagnosticos que muestrean filas. Por defecto es `512 MiB`.
-#'   El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
+#'   Si la tabla no supera `muestra` y cabe entera, se lee entera; si no, el
+#'   tamaño se estima sobre una sonda de hasta cien filas y se comprueba
 #'   sobre la muestra efectiva; si la cota reduce el alcance,
 #'   `cobertura_diagnosticos` informa los bytes observados y el umbral. `Inf`
 #'   desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:

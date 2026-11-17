@@ -201,3 +201,55 @@ test_that("una permutacion publica los mismos diagnosticos muestreados", {
   expect_true(any(nzchar(uno$dependencias$evidencia)))
   expect_identical(uno$dependencias$evidencia, dos$dependencias$evidencia)
 })
+
+test_that("un tope que recorta una tabla menor que la muestra no depende del orden", {
+  testthat::skip_on_cran()
+  datos <- data.frame(
+    id = seq_len(300L),
+    texto = rep(c("A-1", "B-22", "c"), 100L),
+    grupo = rep(c("G1", "G2", "G3"), each = 100L),
+    valor = rep(c("uno", "dos", "tres"), each = 100L),
+    stringsAsFactors = FALSE
+  )
+  datos$texto[c(7L, 150L, 293L)] <- c("RARA", "OTRA", "X_Y")
+  permutacion <- rev(seq_len(nrow(datos)))
+  publicar <- function(perfil) {
+    hallazgos <- perfil$hallazgos
+    hallazgos$trazabilidad <- NULL
+    list(
+      patrones = perfil$patrones,
+      formatos_fecha = perfil$formatos_fecha,
+      dependencias = perfil$dependencias,
+      hallazgos = hallazgos,
+      cobertura = perfil$cobertura_diagnosticos,
+      muestra_efectiva = perfil$meta$muestra_efectiva,
+      bytes_muestra = perfil$meta$bytes_muestra
+    )
+  }
+  bytes <- as.numeric(utils::object.size(datos))
+  topes <- list(
+    celdas = list(max_celdas_muestra = 400),
+    bytes = list(max_bytes_muestra = bytes / 2)
+  )
+  for (tope in names(topes)) {
+    uno <- do.call(perfilar, c(list(datos, fecha = "2026-01-01"), topes[[tope]]))
+    dos <- do.call(perfilar, c(
+      list(datos[permutacion, , drop = FALSE], fecha = "2026-01-01"),
+      topes[[tope]]
+    ))
+    expect_lt(uno$meta$muestra_efectiva, nrow(datos))
+    expect_identical(uno$meta$muestra_huella$metodo, lupa:::.METODO_MUESTRA_HUELLA)
+    expect_identical(publicar(uno), publicar(dos))
+  }
+})
+
+test_that("una tabla que cabe entera en la muestra se lee sin sonda ni huella", {
+  datos <- data.frame(
+    x = seq_len(500L), t = rep(c("a", "b"), 250L), stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, fecha = "2026-01-01")
+  expect_equal(perfil$meta$muestra_efectiva, nrow(datos))
+  expect_true(is.na(perfil$meta$bytes_sonda))
+  expect_true(is.finite(perfil$meta$bytes_muestra))
+  expect_null(perfil$meta$muestra_huella)
+})

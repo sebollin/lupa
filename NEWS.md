@@ -16,11 +16,23 @@
   parte de la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
   `clave`, agregar o quitar una columna cambia la muestra. `meta$muestra_huella`
   declara el método (`huella_v1`) y las columnas que entraron; las que no se
-  reducen a un valor por fila (listas, matrices) quedan fuera. En las tablas
-  de hasta `muestra` filas los hallazgos y las cifras no cambian; sólo cambia
-  `meta$bytes_sonda`, el tamaño de las 100 filas con que se estima cuánto ocupa
-  la muestra, porque esas filas son otras. Con más filas, el perfil puede
-  diferir del de la versión anterior porque mira otras filas.
+  reducen a un valor por fila (listas, matrices) quedan fuera. Una tabla que
+  se lee entera da los mismos hallazgos y las mismas cifras que antes; sólo
+  cambia el orden de los ejemplos que cita una evidencia, que ahora sigue el
+  valor y no la aparición. Cuando la muestra deja filas afuera, el perfil
+  puede diferir del de la versión anterior porque mira otras filas: con más
+  filas que `muestra`, cuando `max_celdas_muestra` o `max_bytes_muestra`
+  recortan una tabla más chica, y en las asociaciones de `analizar()`, que usan
+  su propia muestra de `muestra_asociacion` filas (10.000 por omisión).
+- Una tabla que no supera `muestra` y cabe en `max_celdas_muestra` y en
+  `max_bytes_muestra` se lee entera sin medir antes una sonda; entonces
+  `meta$bytes_sonda` queda en `NA`. Antes, una columna `factor` con muchos
+  niveles hacía que las 100 filas de la sonda parecieran pesar como miles,
+  porque cada subconjunto arrastra todos los niveles, y la tabla se recortaba
+  sin necesidad: 50.000 filas con un factor de 50.000 niveles se perfilaban
+  sobre 16.631, con 512 MB de tope para una tabla de 4 MB. Cuando un tope sí
+  recorta una tabla que no supera `muestra`, todos los diagnósticos miran las
+  mismas filas, elegidas por la huella, y `meta$muestra_huella` lo declara.
 - `analizar()` calcula esa selección una sola vez y la comparten todos sus
   diagnósticos, y las funciones de diagnóstico llamadas solas
   (`descubrir_patrones()`, `inferir_tipo()`, `detectar_formatos_fecha()`,
@@ -107,7 +119,10 @@
 - `reportar()` acepta el resultado de `aplicar()`, solo o con el perfil y el
   plan: qué acciones corrieron, cuáles fallaron y por qué, cuántas celdas
   cambió cada una y qué filas o columnas se retiraron, cada cifra por separado.
-  `summary()` del resultado da esa tabla por acción y columna.
+  `summary()` del resultado da esa tabla por acción y columna. `print()` del
+  resultado también separa las celdas cambiadas de las filas marcadas: antes,
+  marcar cuatro filas duplicadas se imprimía como «4 cambios contados por las
+  acciones»; ahora, «0 celdas cambiadas» y «4 filas marcadas».
 - Las acciones de celda sobre una columna `factor` la devuelven `factor`, y no
   `character`: los niveles se limpian en su orden, los que se funden quedan en
   el lugar del primero, y se conservan los niveles sin uso y un nivel `NA`
