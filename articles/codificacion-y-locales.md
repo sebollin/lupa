@@ -253,6 +253,14 @@ identical(nombres$nombre[[1]], jose_roto)
   reparación deja como está, como un U+0081 suelto, se diagnostica y se
   quita aparte. Y la reparación corre antes que las demás acciones de su
   columna, sea cual sea su `orden`.
+- **Lo que no se puede decidir queda como está.** Un espacio duro o un
+  guion blando después de `Ä`, `Å` o `Æ` puede ser el segundo byte de
+  una letra rota (`Ġ`, `ĭ`, `Š`, `ŭ` u `Ơ` leídas como latin-1) o texto
+  legítimo, como `PÅ` seguido de un espacio duro en un texto nórdico. El
+  detector no los distingue, así que las acciones que normalizan
+  invisibles y las que cambian mayúsculas y minúsculas no tocan ese
+  byte: normalizarlo dejaría la letra sin reparación posible.
+  `controles_invisibles` avisa que esas celdas no se pudieron decidir.
 
 El recorrido completo de un plan, con la edición de las acciones, está
 en [Limpiar con un

@@ -346,6 +346,18 @@ siguiente la sigue encontrando. Un control que la reparación deja como
 está, como un U+0081 suelto, se diagnostica y se quita aparte. Y la
 reparación corre antes que las demás acciones de su columna, sea cual
 sea su <code>orden</code>.</li>
+<li>
+<strong>Lo que no se puede decidir queda como está.</strong> Un
+espacio duro o un guion blando después de <code>Ä</code>, <code>Å</code>
+o <code>Æ</code> puede ser el segundo byte de una letra rota
+(<code>Ġ</code>, <code>ĭ</code>, <code>Š</code>, <code>ŭ</code> u
+<code>Ơ</code> leídas como latin-1) o texto legítimo, como
+<code>PÅ</code> seguido de un espacio duro en un texto nórdico. El
+detector no los distingue, así que las acciones que normalizan
+invisibles y las que cambian mayúsculas y minúsculas no tocan ese byte:
+normalizarlo dejaría la letra sin reparación posible.
+<code>controles_invisibles</code> avisa que esas celdas no se pudieron
+decidir.</li>
 </ul>
 <p>El recorrido completo de un plan, con la edición de las acciones,
 está en <a href="limpiar-con-un-plan.html">Limpiar con un plan</a>.</p>
