@@ -212,6 +212,11 @@
   `convertir_minusculas` cambiaba `MÃœNCHEN` (una `Ü` rota) a `mÃŒnchen`, que
   reparado después daba otra letra. Y tratan `Ș`/`ș` y `Ț`/`ț` del rumano, que
   quedaban con caja mixta.
+- Con `proteger_datos_personales = TRUE` en una sesión bajo el locale `C`, un
+  mensaje del motor con letras no ASCII ya no se tapa entero. La sustitución de
+  los valores protegidos le quitaba la marca UTF-8, y el paso siguiente lo leía
+  como bytes inválidos: los motivos que publica `perfilar_coleccion()` quedaban
+  en «[literal omitido]» y perdían el diagnóstico. En UTF-8 no cambia nada.
 - `perfilar_dbi()` cuenta `NaN` igual que `perfilar()`. En DuckDB y PostgreSQL,
   que guardan `NaN` en una columna de punto flotante (y PostgreSQL también en
   `numeric`), lo contaba como un valor presente y distinto: entraba en

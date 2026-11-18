@@ -123,6 +123,55 @@ test_that("H1: la coleccion tapa el valor escrito con palabras permitidas que le
                         fixed = TRUE)))
 })
 
+test_that("H1 bajo C: el mensaje del motor en UTF-8 conserva el diagnostico", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("duckdb")
+  # Bajo `C` la sustitucion por bytes devolvia el mensaje sin marca, la pasada
+  # siguiente lo leia como bytes invalidos y lo tapaba entero.
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(suppressWarnings(Sys.setlocale("LC_CTYPE", anterior)), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"), error = function(e) ""
+  ))
+  if (length(puesto) != 1L || is.na(puesto) || !nzchar(puesto)) {
+    skip("no se pudo fijar LC_CTYPE C")
+  }
+  # duckdb cita la celda entre comillas; aca se la cita como SQL Server en
+  # sueco, sin comillas, que es donde la segunda pasada la publicaba.
+  real <- .sin_literales_motor
+  local_mocked_bindings(.mensaje_motor = function(condicion) {
+    texto <- conditionMessage(condicion)
+    citado <- regmatches(texto, regexec("string '([^']*)' to", texto))[[1L]]
+    if (length(citado) == 2L) texto <- .r30_sueco(citado[[2L]])
+    real(texto, solo_comillas = inherits(condicion, c("lupa_error_dbi",
+                                                      "lupa_aviso_dbi")))
+  })
+  con <- DBI::dbConnect(.duckdb_prueba())
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  set.seed(3001L)
+  celular <- sprintf("09%d%06d", sample(1:9, 20L, TRUE),
+                     sample(100000:999999, 20L))
+  # Dos apellidos que son palabras del vocabulario castellano de los mensajes.
+  celular[[7L]] <- "Cadena Campos"
+  DBI::dbWriteTable(con, "clientes", data.frame(
+    nombre = sprintf("Cliente Apellidoso %03d", 1:20), celular_txt = celular,
+    stringsAsFactors = FALSE
+  ))
+  DBI::dbExecute(con, paste(
+    "CREATE VIEW v_cel AS SELECT nombre, CAST(celular_txt AS INTEGER) AS celular",
+    "FROM clientes"
+  ))
+  pc <- suppressWarnings(suppressMessages(perfilar_coleccion(
+    coleccion(con, c("clientes", "v_cel")), proteger_datos_personales = TRUE
+  )))
+  hojas <- .r30_hojas(list(pc$cobertura_coleccion, pc$cobertura_metricas,
+                           pc$meta$lecturas))
+  expect_identical(sum(grepl("Cadena Campos", hojas, fixed = TRUE)), 0L)
+  # El mensaje llego y sigue diciendo que fallo la conversion.
+  expect_true(any(grepl("varchar [literal omitido] [valor protegido]", hojas,
+                        fixed = TRUE)))
+})
+
 test_that("H2 y H3: la cifra entera escrita como planilla es el documento entero, no el parcial", {
   set.seed(3002L)
   numeros <- sample(1000000:6999999, 200L)

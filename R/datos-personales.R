@@ -3176,6 +3176,7 @@
                                            apartar_iguales = FALSE,
                                            nombres_iguales = NULL) {
   if (!is.character(x) || !length(valores)) return(x)
+  marcas_entrada <- Encoding(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
   # fuga medida con el piso del propio paquete -seis caracteres identifican-:
   #
@@ -3335,7 +3336,20 @@
   x <- apartado$x
   x <- pasada(x, valores, limites)
   x <- .reponer_marcas_paquete(x, apartado)
-  .reponer_nombres_delimitados(x, nombres_apartados)
+  x <- .reponer_nombres_delimitados(x, nombres_apartados)
+  # Las sustituciones van por bytes, y `gsub(useBytes = TRUE)` devuelve la cadena
+  # sin marca. Bajo `C`, un mensaje del motor en UTF-8 salia `unknown` y la pasada
+  # siguiente, con PCRE, lo leia como bytes invalidos y lo tapaba entero: el
+  # motivo que publica `perfilar_coleccion()` quedaba en "[literal omitido]". Lo
+  # que entro marcado UTF-8 sale marcado igual.
+  perdidas <- which(marcas_entrada == "UTF-8" & !is.na(x) &
+                      Encoding(x) == "unknown" & validUTF8(x))
+  if (length(perdidas)) {
+    remarcadas <- x[perdidas]
+    Encoding(remarcadas) <- "UTF-8"
+    x[perdidas] <- remarcadas
+  }
+  x
 }
 
 # Recorre la parte textual de una salida sin convertir estadisticos numericos
