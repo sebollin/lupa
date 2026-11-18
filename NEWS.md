@@ -113,7 +113,10 @@
   las dos muestras son casi otras filas, y la deriva publicaba como patrones
   aparecidos y desaparecidos lo que era otro sorteo: ahora la fila lo dice en la
   evidencia. Lo que no cambió las filas no cuenta: la regla y los topes de un
-  lado que se leyó entero, y un tope declarado distinto que no llegó a recortar.
+  lado que se leyó entero y, cuando lo declarado difiere, lo que no decidió
+  cuántas filas entraron (un tope que no llegó a recortar porque mandaba
+  `muestra` u otro tope, una `muestra` que no recortó porque mandaba un tope, o
+  dos topes de celdas que dejan las mismas filas).
   La fila compara lo declarado y no cuántas filas entraron: una tabla que pasa
   de `muestra` filas a una más, o que el mismo tope recorta distinto en otra
   entrega, sigue comparando sus patrones.

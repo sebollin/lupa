@@ -166,3 +166,52 @@ test_that("dos muestras elegidas con otra regla no comparan sus patrones", {
   ))
   expect_true(sin_regla(suppressWarnings(comparar_perfiles(entera, .dtm_perfil(con_columna, 1)))))
 })
+
+test_that("lo que no decidio cuantas filas entraron no corta los patrones", {
+  testthat::skip_on_cran()
+  base <- .dtm_tabla()
+  # Una fila de otra forma entre las 500 primeras de la huella: la ve cualquier
+  # muestra de 500 filas o mas.
+  actual <- NULL
+  for (fila in seq(11L, 3000L, by = 41L)) {
+    prueba <- base
+    prueba$codigo[fila] <- "zz99"
+    if (fila %in% lupa:::.indices_huella_tabla(prueba, 500L)$indices) {
+      actual <- prueba
+      break
+    }
+  }
+  expect_false(is.null(actual))
+  sin_fila <- function(anterior, posterior) {
+    deriva <- suppressWarnings(comparar_perfiles(anterior, posterior))
+    !any(deriva$aspecto == "configuracion_patrones") &&
+      any(deriva$aspecto == "patron" & deriva$cambio == "aparecido")
+  }
+  # Recortan los bytes: un tope de celdas distinto, que permitiria 999 filas,
+  # no decide.
+  bytes <- as.numeric(utils::object.size(base[seq_len(800L), ]))
+  a <- .dtm_perfil(base, max_bytes_muestra = bytes)
+  b <- .dtm_perfil(actual, 1, max_bytes_muestra = bytes, max_celdas_muestra = 2997)
+  expect_lt(as.numeric(a$meta$muestra_efectiva), 999)
+  expect_lt(as.numeric(b$meta$muestra_efectiva), 999)
+  expect_true(sin_fila(a, b))
+  # Dos topes de celdas que dejan las mismas filas.
+  c1 <- .dtm_perfil(base, max_celdas_muestra = 2100)
+  c2 <- .dtm_perfil(actual, 1, max_celdas_muestra = 2102)
+  expect_equal(as.numeric(c1$meta$muestra_efectiva), 700)
+  expect_equal(as.numeric(c2$meta$muestra_efectiva), 700)
+  expect_true(sin_fila(c1, c2))
+  # `muestra` 1000 contra `Inf`, con un tope de celdas que deja 1.000 filas.
+  m1 <- .dtm_perfil(base, max_celdas_muestra = 3000)
+  m2 <- suppressWarnings(perfilar(
+    actual, muestra = Inf, max_celdas_muestra = 3000,
+    analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-01-01", tz = "UTC") + 60
+  ))
+  expect_equal(as.numeric(m2$meta$muestra_efectiva), 1000)
+  expect_true(sin_fila(m1, m2))
+  # El control: un tope de celdas que deja otras filas sigue declarando.
+  c3 <- .dtm_perfil(actual, 1, max_celdas_muestra = 1800)
+  deriva <- suppressWarnings(comparar_perfiles(c1, c3))
+  expect_true(any(deriva$aspecto == "configuracion_patrones"))
+})

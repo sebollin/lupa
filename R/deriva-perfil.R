@@ -3077,35 +3077,48 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # severidad `error`, sobre los mismos datos. Si las dos muestras cubren la
   # tabla, la cobertura es la misma. La fila publica lo declarado. Lo mismo con
   # los topes: en una tabla leida entera no recortaron nada.
-  # Y un tope declarado distinto que no recorto -de ese lado la muestra quedo en
-  # lo que pedian `muestra` y el otro tope- tampoco cambio las filas: subir
-  # `max_celdas_muestra` de 1e6 a 2e6 sobre 150.000 x 3 publicaba la fila y se
-  # perdia un patron nuevo que la 0.1.2 informaba. Solo se mira cuando lo
-  # declarado difiere: con lo mismo declarado, un tope que recorta en una entrega
-  # y no en otra es un cambio de los datos.
+  # Y cuando lo declarado difiere, lo que importa es que decidio cuantas filas
+  # entraron de cada lado: la tabla entera, un tope de filas -el menor entre
+  # `muestra` y lo que permite `max_celdas_muestra` con esas columnas- o el tope
+  # de bytes, que recorta antes. Lo que no decidio no cambio las filas: subir
+  # `max_celdas_muestra` de 1e6 a 2e6 donde manda `muestra`, un tope de celdas
+  # distinto donde ya recortaban los bytes, dos topes de celdas que dejan las
+  # mismas filas, o `muestra = 1e5` contra `Inf` con un tope de celdas que deja
+  # 100.000, publicaban la fila y se perdia un patron que la 0.1.2 informaba.
+  # Solo se mira cuando lo declarado difiere: con lo mismo declarado, un tope
+  # que recorta en una entrega y no en otra es un cambio de los datos.
   efectiva <- function(config, lado, perfil) {
+    limites <- c("muestra", "max_celdas_muestra", "max_bytes_muestra")
+    opciones <- config[setdiff(names(config), limites)]
     if (isTRUE(lado$patrones_cubren)) {
-      config$muestra <- Inf
-      config$max_celdas_muestra <- Inf
-      config$max_bytes_muestra <- Inf
-      return(config)
+      return(c(opciones, list(decide = "tabla_entera", valor = Inf)))
     }
     numero <- function(x) {
       if (is.null(x) || length(x) != 1L) return(NA_real_)
       suppressWarnings(as.numeric(x))
     }
     filas <- numero(perfil$meta$muestra_efectiva)
-    pedidas <- min(numero(config$muestra), numero(perfil$meta$filas_totales))
+    total <- numero(perfil$meta$filas_totales)
+    muestra <- numero(config$muestra)
+    pedidas <- min(muestra, total)
     solicitadas <- numero(perfil$meta$celdas_solicitadas)
     celdas <- numero(config$max_celdas_muestra)
-    if (!all(is.finite(c(filas, pedidas, solicitadas))) || pedidas <= 0 ||
-        is.na(celdas)) {
+    if (!all(is.finite(c(filas, total, pedidas, solicitadas))) ||
+        pedidas <= 0 || is.na(muestra) || is.na(celdas)) {
       return(config)
     }
-    if (celdas >= solicitadas) config$max_celdas_muestra <- Inf
-    por_celdas <- if (is.finite(celdas)) floor(celdas / (solicitadas / pedidas)) else Inf
-    if (filas >= min(pedidas, por_celdas)) config$max_bytes_muestra <- Inf
-    config
+    por_celdas <- if (is.finite(celdas)) {
+      floor(celdas / (solicitadas / pedidas))
+    } else {
+      Inf
+    }
+    tope_filas <- min(muestra, por_celdas)
+    if (filas < min(tope_filas, total)) {
+      return(c(opciones, list(
+        decide = "max_bytes_muestra", valor = numero(config$max_bytes_muestra)
+      )))
+    }
+    c(opciones, list(decide = "filas", valor = tope_filas))
   }
   # Si los dos lados muestrean, importa ademas con que regla se eligieron las
   # filas: la 0.1.2 por posicion y esta version por la huella de las columnas
