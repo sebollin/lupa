@@ -335,8 +335,9 @@ la reparación y, sola, deja esa celda como está.
 
 Lo que el detector no puede decidir tampoco se destruye. Un espacio duro
 después de \code{Ä}, \code{Å} o \code{Æ}, o un guion blando después de \code{Ä} o \code{Å}, puede ser
-el segundo byte de una letra rota (\code{Ġ}, \code{Š}, \code{Ơ}, \code{ĭ} o \code{ŭ} leídas como
-latin-1) o un texto legítimo (\code{PÅ} seguido de un espacio duro): las acciones que normalizan invisibles y las que
+el segundo byte de una letra rota (\code{Ġ}, \code{Š}, la O con cuerno U+01A0, \code{ĭ} o \code{ŭ}
+leídas como latin-1) o un texto legítimo (\code{PÅ} seguido de un espacio duro):
+las acciones que normalizan invisibles y las que
 cambian mayúsculas y minúsculas no tocan ese byte, y \code{controles_invisibles}
 avisa que hay celdas que no se pudieron decidir. Normalizarlo dejaría la letra
 sin reparación posible. Un espacio duro después de otra letra, como en
