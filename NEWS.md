@@ -191,9 +191,9 @@
   detector no la ve, y `normalizar_espacios_invisibles` cambiaba el espacio
   duro por uno común, con lo que la letra quedaba sin reparación posible, ni
   siquiera volviendo a leer el origen; lo mismo con el guion blando de una `ŭ`.
-  Ahora un espacio duro o un guion blando después de `Ä`, `Å` o `Æ`, que pueden
-  formar `Ġ`, `ĭ`, `Š`, `ŭ` u `Ơ`, no se toca, y `controles_invisibles` avisa
-  que esas celdas no se pudieron decidir. En un texto nórdico con `Å` seguida de
+  Ahora un espacio duro después de `Ä`, `Å` o `Æ` (que forman `Ġ`, `Š` y `Ơ`)
+  y un guion blando después de `Ä` o `Å` (`ĭ` y `ŭ`) no se tocan, y
+  `controles_invisibles` avisa que esas celdas no se pudieron decidir. En un texto nórdico con `Å` seguida de
   un espacio duro, ese espacio queda sin normalizar. Después de cualquier otra
   letra, como en `JOSÉ PÉREZ`, se normaliza como antes.
 - Las acciones que cambian mayúsculas y minúsculas usan la misma protección que

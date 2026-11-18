@@ -9,7 +9,12 @@
 #' Dentro de cada grupo se descartan las columnas enteramente ausentes antes de
 #' perfilar. En un modelo entidad-atributo-valor bien formado eso deja viva
 #' exactamente la columna de valor que corresponde al atributo del grupo, y es
-#' lo que evita informar como falta lo que es la forma del dato. Las
+#' lo que evita informar como falta lo que es la forma del dato. Lo mismo
+#' vale para una columna enteramente ausente en toda la tabla, como la columna
+#' de valor que ningún atributo del extracto usa: se descarta en cada grupo y
+#' `cobertura_grupos$columnas_descartadas` la nombra, en vez de publicarse como
+#' `faltantes` en cada uno. Por eso, con un solo grupo, `perfilar_por()` no
+#' informa `faltantes` sobre esa columna y [perfilar()] sí. Las
 #' declaraciones que nombran columnas retiradas se recortan para ese grupo y el
 #' nombre de cada recorte, con su motivo, se declara en
 #' `cobertura_grupos$columnas_descartadas`. En `aplicabilidad` también se

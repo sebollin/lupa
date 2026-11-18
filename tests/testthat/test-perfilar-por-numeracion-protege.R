@@ -223,3 +223,30 @@ test_that("fuera de perfilar_por() el grupo vuelve a decidir solo", {
                    fecha = "2026-01-15", analizar_dependencias = FALSE)
   expect_identical(as.integer(solo$columnas$n_faltantes_disfrazados), 2L)
 })
+
+test_that("una columna vacia en toda la tabla se descarta y la cobertura la nombra", {
+  # En una tabla entidad-atributo-valor, la columna de valor que ningun
+  # atributo del extracto usa esta vacia en toda la tabla. Es la forma del
+  # dato: publicarla como `faltantes` en cada grupo daba un hallazgo falso por
+  # grupo. Se descarta y `cobertura_grupos` la nombra; con un solo grupo, por
+  # eso, `perfilar_por()` difiere de `perfilar()` sobre esa columna.
+  fecha <- as.POSIXct("2026-01-15", tz = "UTC")
+  eav <- data.frame(
+    atributo = rep(c("edad", "nombre"), each = 10),
+    valor_num = c(20:29, rep(NA, 10)),
+    valor_txt = c(rep(NA, 10), letters[1:10]),
+    valor_fecha = as.Date(rep(NA, 20))
+  )
+  por <- perfilar_por(eav, "atributo", min_filas = 1L, fecha = fecha,
+                      analizar_dependencias = FALSE)
+  cobertura <- as.data.frame(attr(por, "cobertura_grupos", exact = TRUE))
+  for (grupo in c("edad", "nombre")) {
+    descartadas <- strsplit(
+      cobertura$columnas_descartadas[cobertura$grupo == grupo], ", ",
+      fixed = TRUE
+    )[[1L]]
+    expect_true("valor_fecha" %in% descartadas, info = grupo)
+  }
+  hallazgos <- as.data.frame(por)
+  expect_false(any(hallazgos$columna == "valor_fecha"))
+})

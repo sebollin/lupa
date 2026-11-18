@@ -164,7 +164,12 @@ dominios que no tienen nada que ver entre sí.
 Dentro de cada grupo se descartan las columnas enteramente ausentes antes de
 perfilar. En un modelo entidad-atributo-valor bien formado eso deja viva
 exactamente la columna de valor que corresponde al atributo del grupo, y es
-lo que evita informar como falta lo que es la forma del dato. Las
+lo que evita informar como falta lo que es la forma del dato. Lo mismo
+vale para una columna enteramente ausente en toda la tabla, como la columna
+de valor que ningún atributo del extracto usa: se descarta en cada grupo y
+\code{cobertura_grupos$columnas_descartadas} la nombra, en vez de publicarse como
+\code{faltantes} en cada uno. Por eso, con un solo grupo, \code{perfilar_por()} no
+informa \code{faltantes} sobre esa columna y \code{\link[=perfilar]{perfilar()}} sí. Las
 declaraciones que nombran columnas retiradas se recortan para ese grupo y el
 nombre de cada recorte, con su motivo, se declara en
 \code{cobertura_grupos$columnas_descartadas}. En \code{aplicabilidad} también se

@@ -333,10 +333,10 @@ la entidad se informa aunque esté junto a una letra rota;
 \code{decodificar_entidades_html}, que no viene marcada, la decodifica después de
 la reparación y, sola, deja esa celda como está.
 
-Lo que el detector no puede decidir tampoco se destruye. Un espacio duro o un
-guion blando después de \code{Ä}, \code{Å} o \code{Æ} puede ser el segundo byte de una letra
-rota (\code{Ġ}, \code{ĭ}, \code{Š}, \code{ŭ} u \code{Ơ} leídas como latin-1) o un texto legítimo (\code{PÅ}
-seguido de un espacio duro): las acciones que normalizan invisibles y las que
+Lo que el detector no puede decidir tampoco se destruye. Un espacio duro
+después de \code{Ä}, \code{Å} o \code{Æ}, o un guion blando después de \code{Ä} o \code{Å}, puede ser
+el segundo byte de una letra rota (\code{Ġ}, \code{Š}, \code{Ơ}, \code{ĭ} o \code{ŭ} leídas como
+latin-1) o un texto legítimo (\code{PÅ} seguido de un espacio duro): las acciones que normalizan invisibles y las que
 cambian mayúsculas y minúsculas no tocan ese byte, y \code{controles_invisibles}
 avisa que hay celdas que no se pudieron decidir. Normalizarlo dejaría la letra
 sin reparación posible. Un espacio duro después de otra letra, como en
