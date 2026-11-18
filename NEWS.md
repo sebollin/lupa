@@ -104,13 +104,19 @@
   `configuracion_patrones / no_comparable` porque declaren otra `muestra`: con
   los valores por omisión (`1e5` en `perfilar()`, `Inf` en `perfilar_dbi()`)
   una base contra un archivo nunca comparaba patrones.
-- `configuracion_patrones` compara también `max_celdas_muestra` y
-  `max_bytes_muestra`. Un hallazgo que aparecía o desaparecía porque se cambió
-  un tope salía `nuevo` o `resuelto` sin una fila de configuración que lo
-  explicara. Como con `muestra`, los topes no cuentan si los dos lados se leyeron
-  enteros, y la fila compara lo declarado y no cuántas filas entraron: una tabla
-  que pasa de `muestra` filas a una más, o que el mismo tope recorta distinto en
-  otra entrega, sigue comparando sus patrones.
+- `configuracion_patrones` compara también `max_celdas_muestra`,
+  `max_bytes_muestra` y la regla con que se eligieron las filas. Un hallazgo que
+  aparecía o desaparecía porque se cambió un tope salía `nuevo` o `resuelto` sin
+  una fila de configuración que lo explicara. Y cuando los dos lados muestrean
+  con otra regla (un perfil guardado por la 0.1.2, que muestreaba por posición,
+  contra uno nuevo; una columna agregada o quitada sin `clave`; otra `clave`),
+  las dos muestras son casi otras filas, y la deriva publicaba como patrones
+  aparecidos y desaparecidos lo que era otro sorteo: ahora la fila lo dice en la
+  evidencia. Lo que no cambió las filas no cuenta: la regla y los topes de un
+  lado que se leyó entero, y un tope declarado distinto que no llegó a recortar.
+  La fila compara lo declarado y no cuántas filas entraron: una tabla que pasa
+  de `muestra` filas a una más, o que el mismo tope recorta distinto en otra
+  entrega, sigue comparando sus patrones.
 - `comparar_equivalencia()` aplica la misma regla a las cifras de
   `perfilar_dbi()`: una cifra sin valor, medida sobre otras filas o de otro modo
   que la del otro lado sale `no_comparable` con el motivo. La misma tabla en

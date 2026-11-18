@@ -88,3 +88,81 @@ test_that("el mismo tope de bytes que recorta distinto en cada entrega no corta 
   deriva <- suppressWarnings(comparar_perfiles(anterior, posterior))
   expect_false(any(deriva$aspecto == "configuracion_patrones"))
 })
+
+.dtm_tabla <- function(n = 3000L) {
+  data.frame(id = seq_len(n), codigo = sprintf("AB-%04d", seq_len(n)),
+             bloque = rep(seq_len(n / 10L), each = 10L),
+             stringsAsFactors = FALSE)
+}
+
+.dtm_perfil <- function(datos, minuto = 0, ...) {
+  suppressWarnings(perfilar(
+    datos, muestra = 1000L, analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-01-01", tz = "UTC") + minuto * 60, ...
+  ))
+}
+
+test_that("un tope declarado distinto que no recorta no corta los patrones", {
+  testthat::skip_on_cran()
+  base <- .dtm_tabla()
+  # Una fila de otra forma que la muestra de 1.000 ve: se busca entre filas.
+  actual <- NULL
+  for (fila in seq(7L, 3000L, by = 37L)) {
+    prueba <- base
+    prueba$codigo[fila] <- "zz99"
+    if (fila %in% lupa:::.indices_huella_tabla(prueba, 1000L)$indices) {
+      actual <- prueba
+      break
+    }
+  }
+  expect_false(is.null(actual))
+  anterior <- .dtm_perfil(base, max_celdas_muestra = 1e6)
+  posterior <- .dtm_perfil(actual, 1, max_celdas_muestra = 2e6)
+  # La premisa: los dos muestrean 1.000 filas y ningun tope recorta.
+  expect_equal(as.numeric(anterior$meta$muestra_efectiva), 1000)
+  expect_equal(as.numeric(posterior$meta$muestra_efectiva), 1000)
+  deriva <- suppressWarnings(comparar_perfiles(anterior, posterior))
+  expect_false(any(deriva$aspecto == "configuracion_patrones"))
+  expect_true(any(deriva$aspecto == "patron" & deriva$cambio == "aparecido"))
+  # El control: el mismo cambio de tope cuando si recorta sigue declarando.
+  recortado <- .dtm_perfil(actual, 1, max_celdas_muestra = 1500)
+  expect_lt(as.numeric(recortado$meta$muestra_efectiva), 1000)
+  deriva_recorte <- suppressWarnings(comparar_perfiles(anterior, recortado))
+  expect_true(any(deriva_recorte$aspecto == "configuracion_patrones"))
+})
+
+test_that("dos muestras elegidas con otra regla no comparan sus patrones", {
+  testthat::skip_on_cran()
+  base <- .dtm_tabla()
+  anterior <- .dtm_perfil(base)
+  sin_regla <- function(deriva) !any(deriva$aspecto == "configuracion_patrones")
+  # Una columna agregada cambia la huella de cada fila.
+  con_columna <- base
+  con_columna$extra <- seq_len(nrow(base)) %% 7L
+  deriva <- suppressWarnings(comparar_perfiles(anterior, .dtm_perfil(con_columna, 1)))
+  fila <- deriva[deriva$aspecto == "configuracion_patrones", , drop = FALSE]
+  expect_equal(nrow(fila), 1L)
+  expect_match(fila$evidencia, "huella_v2 sobre bloque, codigo, id;", fixed = TRUE)
+  expect_false(any(deriva$aspecto == "patron"))
+  # Otra `clave`, tambien.
+  por_id <- .dtm_perfil(base, clave = "id")
+  por_bloque <- .dtm_perfil(base, 1, clave = "bloque")
+  expect_false(sin_regla(suppressWarnings(comparar_perfiles(por_id, por_bloque))))
+  # Un perfil sin `muestra_huella` -como los de la 0.1.2, que muestreaban por
+  # posicion- contra uno nuevo.
+  viejo <- anterior
+  viejo$meta$muestra_huella <- NULL
+  deriva_viejo <- suppressWarnings(comparar_perfiles(viejo, .dtm_perfil(base, 1)))
+  fila_viejo <- deriva_viejo[deriva_viejo$aspecto == "configuracion_patrones", ,
+                             drop = FALSE]
+  expect_equal(nrow(fila_viejo), 1L)
+  expect_match(fila_viejo$evidencia, "por posici", fixed = TRUE)
+  # El control: la misma regla compara, y si un lado se lee entero la regla del
+  # otro no cuenta.
+  expect_true(sin_regla(suppressWarnings(comparar_perfiles(anterior, .dtm_perfil(base, 1)))))
+  entera <- suppressWarnings(perfilar(
+    base[seq_len(1000L), ], muestra = 1000L, analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+  ))
+  expect_true(sin_regla(suppressWarnings(comparar_perfiles(entera, .dtm_perfil(con_columna, 1)))))
+})

@@ -3077,19 +3077,77 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # severidad `error`, sobre los mismos datos. Si las dos muestras cubren la
   # tabla, la cobertura es la misma. La fila publica lo declarado. Lo mismo con
   # los topes: en una tabla leida entera no recortaron nada.
-  cubierta <- function(config, lado) {
+  # Y un tope declarado distinto que no recorto -de ese lado la muestra quedo en
+  # lo que pedian `muestra` y el otro tope- tampoco cambio las filas: subir
+  # `max_celdas_muestra` de 1e6 a 2e6 sobre 150.000 x 3 publicaba la fila y se
+  # perdia un patron nuevo que la 0.1.2 informaba. Solo se mira cuando lo
+  # declarado difiere: con lo mismo declarado, un tope que recorta en una entrega
+  # y no en otra es un cambio de los datos.
+  efectiva <- function(config, lado, perfil) {
     if (isTRUE(lado$patrones_cubren)) {
       config$muestra <- Inf
       config$max_celdas_muestra <- Inf
       config$max_bytes_muestra <- Inf
+      return(config)
     }
+    numero <- function(x) {
+      if (is.null(x) || length(x) != 1L) return(NA_real_)
+      suppressWarnings(as.numeric(x))
+    }
+    filas <- numero(perfil$meta$muestra_efectiva)
+    pedidas <- min(numero(config$muestra), numero(perfil$meta$filas_totales))
+    solicitadas <- numero(perfil$meta$celdas_solicitadas)
+    celdas <- numero(config$max_celdas_muestra)
+    if (!all(is.finite(c(filas, pedidas, solicitadas))) || pedidas <= 0 ||
+        is.na(celdas)) {
+      return(config)
+    }
+    if (celdas >= solicitadas) config$max_celdas_muestra <- Inf
+    por_celdas <- if (is.finite(celdas)) floor(celdas / (solicitadas / pedidas)) else Inf
+    if (filas >= min(pedidas, por_celdas)) config$max_bytes_muestra <- Inf
     config
   }
+  # Si los dos lados muestrean, importa ademas con que regla se eligieron las
+  # filas: la 0.1.2 por posicion y esta version por la huella de las columnas
+  # que entraron (todas, o las de `clave`). Con otra regla las dos muestras son
+  # casi otras filas, y la deriva publicaba como patrones aparecidos y
+  # desaparecidos lo que era otro sorteo: un perfil guardado por la 0.1.2 contra
+  # uno nuevo de la misma tabla, una columna agregada, otra `clave`. Si un lado
+  # leyo la tabla entera, la regla no cuenta, como no contaba `muestra`.
+  seleccion <- function(perfil, lado) {
+    if (isTRUE(lado$patrones_cubren)) return(NULL)
+    huella <- perfil$meta$muestra_huella
+    if (is.null(huella)) return("por posici\u00f3n")
+    paste0(
+      huella$metodo, " sobre ",
+      paste(.sort_por_bytes(as.character(huella$columnas)), collapse = ", ")
+    )
+  }
+  seleccion_a <- seleccion(anterior, lado_a)
+  seleccion_b <- seleccion(actual, lado_b)
+  seleccion_distinta <- !is.null(seleccion_a) && !is.null(seleccion_b) &&
+    !identical(seleccion_a, seleccion_b)
   patrones_comparables <- !is.null(config_a) && !is.null(config_b) &&
+    !seleccion_distinta &&
     (isTRUE(all.equal(config_a, config_b, check.attributes = FALSE)) ||
-       isTRUE(all.equal(cubierta(config_a, lado_a), cubierta(config_b, lado_b),
+       isTRUE(all.equal(efectiva(config_a, lado_a, anterior),
+                        efectiva(config_b, lado_b, actual),
                         check.attributes = FALSE)))
-  if (!patrones_comparables) {
+  if (!patrones_comparables && seleccion_distinta) {
+    agregar(
+      NA_character_, "configuracion_patrones", "no_comparable", "error",
+      paste(unlist(config_a), collapse = "; "),
+      paste(unlist(config_b), collapse = "; "),
+      descripcion = paste0(
+        "Las dos muestras eligieron sus filas con otra regla; ",
+        "sus patrones no se comparan."
+      ),
+      evidencia = paste0(
+        "Muestra del perfil anterior: ", seleccion_a, "; del actual: ",
+        seleccion_b, "."
+      )
+    )
+  } else if (!patrones_comparables) {
     agregar(
       NA_character_, "configuracion_patrones", "no_comparable", "error",
       paste(unlist(config_a), collapse = "; "),
