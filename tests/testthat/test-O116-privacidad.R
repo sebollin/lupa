@@ -97,7 +97,7 @@ test_that("el nivel citado en la prosa no publica un nombre protegido", {
 test_that("los niveles citados en la sugerencia son codigo de R que se puede leer", {
   niveles <- c("a\"b", "c\\d", "Jos\u00e9 \"x\"")
   texto <- lupa:::.texto_valores_nivel(niveles)
-  expect_identical(eval(parse(text = texto)), niveles)
+  expect_identical(eval(parse(text = texto, encoding = "UTF-8")), niveles)
   expect_identical(Encoding(lupa:::.texto_valores_nivel("Jos\u00e9 \"x\"")), "UTF-8")
 })
 

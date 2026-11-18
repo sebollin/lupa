@@ -74,7 +74,9 @@ test_that("H10: los bytes invalidos se comparan por sus bytes, no como NA", {
     detectar_dependencias(d2, min_observaciones = 5, umbral = 0.8)
   )
   evidencia <- dep2$evidencia[dep2$determinante == "x" & dep2$dependiente == "y"]
-  expect_true(startsWith(evidencia, encodeString(maria, quote = '"')))
+  # `encodeString()` usa el octal bajo C y `\x` bajo UTF-8; la evidencia
+  # publica siempre la forma `\x`, así que el patrón se escribe tal cual.
+  expect_true(startsWith(evidencia, "\"Mar\\xeda\""))
 
   # La pertenencia de las reglas del modelo usa la misma clave.
   expect_identical(

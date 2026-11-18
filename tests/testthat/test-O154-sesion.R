@@ -114,11 +114,14 @@ test_that("A2: bajo C deparse() del paquete escribe el texto no ASCII como una s
   formula <- eval(parse(text = paste0(
     "~ estado == \"S", barra, "u00ed\" & peso > 0.5"
   )))
-  simbolo <- call("~", call(">", as.name(paste0("a", intToUtf8(0xf1L), "o")), 3))
   escritos <- .con_ctype_o154("C", {
     if (!lupa:::.poner_ctype_utf8()) {
       skip("la maquina no tiene un locale UTF-8 para LC_CTYPE")
     }
+    # El nombre del simbolo se instala al crearlo: bajo C quedaria como el
+    # texto ASCII `<U+00F1>`. Se crea mientras LC_CTYPE es UTF-8, que es la
+    # sesion que la prueba simula para deparse().
+    simbolo <- call("~", call(">", as.name(paste0("a", intToUtf8(0xf1L), "o")), 3))
     Sys.setlocale("LC_CTYPE", "C")
     list(
       funcion = lupa:::.deparse_por_omision(funcion),

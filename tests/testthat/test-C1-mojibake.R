@@ -647,8 +647,13 @@ test_that("la reparacion precede a mayusculas, diccionario y ausencias", {
   diccionario$orden[diccionario$estrategia == "convertir_segun_diccionario"] <- 100L
   diccionario$orden[diccionario$estrategia == "reparar_codificacion"] <- 200L
   fila_diccionario <- which(diccionario$estrategia == "convertir_segun_diccionario")
+  # Un nombre de argumento no ASCII no sobrevive al parser bajo el locale C:
+  # la clave del diccionario es un valor y se arma como tal.
+  clave <- "Mar\u00eda"
+  reemplazo <- "MARIA"
+  names(reemplazo) <- clave
   diccionario$parametros[[fila_diccionario]] <- list(
-    diccionario = c("Mar\u00eda" = "MARIA")
+    diccionario = reemplazo
   )
   diccionario$estado[fila_diccionario] <- "lista"
   r_diccionario <- aplicar(diccionario, d)

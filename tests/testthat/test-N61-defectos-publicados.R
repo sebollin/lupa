@@ -722,12 +722,22 @@ test_that("el escape del reintento es reversible", {
 
   marco <- data.frame(n = 1:2)
   marco$x <- I(list(byte_crudo, texto_literal))
-  # El reintento sólo se dispara donde `print.data.frame()` no puede.
-  expect_error(capture.output(print.data.frame(marco)))
 
   salida <- capture.output(imprimir(marco))
   celdas <- trimws(sub("^[0-9]+ +[0-9]+ +", "", salida[-1L]))
   expect_length(unique(celdas), 2L)
+})
+
+test_that("el reintento se justifica donde print.data.frame no puede", {
+  # Premisa de R, no del paquete: bajo el locale C `print.data.frame()` no
+  # aborta con el byte crudo y el reintento no llega a dispararse; la prueba
+  # anterior comprueba igual las dos celdas distintas.
+  skip_if_not(isTRUE(l10n_info()$`UTF-8`),
+              "print.data.frame() no aborta con el byte crudo bajo el locale C")
+  byte_crudo <- rawToChar(as.raw(0xffL))
+  marco <- data.frame(n = 1:2)
+  marco$x <- I(list(byte_crudo, "\\377"))
+  expect_error(capture.output(print.data.frame(marco)))
 })
 
 test_that("el escape conserva el texto legible y solo escapa lo roto", {

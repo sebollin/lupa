@@ -87,18 +87,20 @@ test_that("la expresion completa de badness es la de ftfy 6.3.1", {
 })
 
 test_that("las extensiones deliberadas de badness cubren los cuatro arreglos", {
+  # Todo escape: un literal que mezcla caracteres UTF-8 directos con `\u`
+  # pierde los directos al leerse bajo el locale C.
+  bronte <- "Charlotte Bront\u00eb\u2026\u201d"
   expect_true(.ftfy_es_mojibake("Ã¥klagarmyndighets"))
   expect_true(.ftfy_es_mojibake("п∙я│п╩п╦ п▓я▀ п╫п╣"))
   expect_true(.ftfy_es_mojibake("â…“"))
-  expect_false(.ftfy_es_mojibake("Charlotte Brontë…\u201d"))
+  expect_false(.ftfy_es_mojibake(bronte))
   expect_identical(.ftfy_reparar_uno("Ã¥klagarmyndighets")$texto,
                    "åklagarmyndighets")
   expect_identical(.ftfy_reparar_uno("п∙я│п╩п╦ п▓я▀ п╫п╣")$texto,
                    "Если Вы не")
   expect_identical(.ftfy_reparar_uno("â…“")$texto, "⅓")
   expect_identical(.ftfy_reparar_uno("â…›")$texto, "⅛")
-  expect_identical(.ftfy_reparar_uno("Charlotte Brontë…\u201d")$texto,
-                   "Charlotte Brontë…\u201d")
+  expect_identical(.ftfy_reparar_uno(bronte)$texto, bronte)
 })
 
 test_that("la extension de KOI8-R no adivina sobre dibujos de caja", {
@@ -209,30 +211,49 @@ test_that("una tabla con C0 80 no borra caracteres por la API pública", {
 })
 
 test_that("los pasos declaran el decodificador de variantes UTF-8", {
-  caso <- .ftfy_reparar_uno("Hi guys í\u00a0½í\u00b8\u008d")
-  expect_identical(caso$texto, "Hi guys 😍")
+  caso <- .ftfy_reparar_uno("Hi guys \u00ed\u00a0\u00bd\u00ed\u00b8\u008d")
+  expect_identical(caso$texto, "Hi guys \U0001F60D")
   expect_identical(caso$pasos,
                    "encode:latin-1;decode:utf-8-variants")
 })
 
 test_that("la puerta literal de Ã declara sus formas de padrón", {
-  casos <- c(
-    "Ã quele" = "àquele",
-    "Ã quela" = "àquela",
-    "Ã quilo" = "àquilo",
-    "Ã s crianÃ§as" = "às crianças",
-    "fÃ cil" = "fà cil",
-    "jusqu'Ã nos jours" = "jusqu'Ã nos jours",
-    "jusqu'Ã  nos jours" = "jusqu'Ã  nos jours",
-    "com especial atenÃ§Ã£o Ã s crianÃ§as" =
-      "com especial atenção às crianças",
-    "Ã quele observado" = "àquele observado",
-    "Ã quela pessoa" = "àquela pessoa",
-    "Ã quilo custa" = "àquilo custa",
-    "Ã l’utilisation" = "à l’utilisation",
-    "Ã s'Ã©loigner" = "à s'éloigner",
-    "C O N C L U S Ã O" = "C O N C L U S Ã O"
+  # Las claves van como valores y se asignan con `names()`: un nombre de
+  # argumento no ASCII no sobrevive al parser bajo el locale C.
+  claves <- c(
+    "\u00c3 quele",
+    "\u00c3 quela",
+    "\u00c3 quilo",
+    "\u00c3 s crian\u00c3\u00a7as",
+    "f\u00c3 cil",
+    "jusqu'\u00c3 nos jours",
+    "jusqu'\u00c3  nos jours",
+    "com especial aten\u00c3\u00a7\u00c3\u00a3o \u00c3 s crian\u00c3\u00a7as",
+    "\u00c3 quele observado",
+    "\u00c3 quela pessoa",
+    "\u00c3 quilo custa",
+    "\u00c3 l\u2019utilisation",
+    "\u00c3 s'\u00c3\u00a9loigner",
+    "C O N C L U S \u00c3 O"
   )
+  esperadas <- c(
+    "\u00e0quele",
+    "\u00e0quela",
+    "\u00e0quilo",
+    "\u00e0s crian\u00e7as",
+    "f\u00e0 cil",
+    "jusqu'\u00c3 nos jours",
+    "jusqu'\u00c3  nos jours",
+    "com especial aten\u00e7\u00e3o \u00e0s crian\u00e7as",
+    "\u00e0quele observado",
+    "\u00e0quela pessoa",
+    "\u00e0quilo custa",
+    "\u00e0 l\u2019utilisation",
+    "\u00e0 s'\u00e9loigner",
+    "C O N C L U S \u00c3 O"
+  )
+  names(esperadas) <- claves
+  casos <- esperadas
   salidas <- vapply(names(casos), function(x) .ftfy_reparar_uno(x)$texto,
                     character(1L), USE.NAMES = FALSE)
   expect_identical(unname(salidas), unname(casos))
@@ -296,7 +317,7 @@ test_that("la reparación no introduce controles invisibles", {
   entradas <- c(
     vapply(mojibake, `[[`, character(1L), "roto"),
     vapply(legitimos, `[[`, character(1L), "texto"),
-    "DirecciÃ³n\ufffd"
+    "Direcci\u00c3\u00b3n\ufffd"
   )
   salidas <- vapply(entradas, function(x) .ftfy_reparar_uno(x)$texto,
                     character(1L))
@@ -310,8 +331,8 @@ test_that("la reparación no introduce controles invisibles", {
     if (!length(despues)) return(TRUE)
     all(tabulate(despues, nbins = 31L) <= tabulate(antes, nbins = 31L))
   }, logical(1L))))
-  reparado <- .ftfy_reparar_uno("DirecciÃ³n\ufffd")
-  expect_identical(reparado$texto, "Dirección\ufffd")
+  reparado <- .ftfy_reparar_uno("Direcci\u00c3\u00b3n\ufffd")
+  expect_identical(reparado$texto, "Direcci\u00f3n\ufffd")
   expect_identical(reparado$estado, "reparado_parcialmente")
 })
 
@@ -329,7 +350,7 @@ test_that("la reparación deduplica valores y conserva estados explícitos", {
 })
 
 test_that("la pérdida previa conserva reparación parcial sin habilitar aplicación", {
-  datos <- data.frame(nombre = "DirecciÃ³n\ufffd",
+  datos <- data.frame(nombre = "Direcci\u00c3\u00b3n\ufffd",
                       stringsAsFactors = FALSE)
   perfil <- perfilar(datos)
   indice <- which(perfil$hallazgos$tipo_hallazgo == "codificacion_rota")

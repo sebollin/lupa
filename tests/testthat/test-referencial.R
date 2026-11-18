@@ -5,16 +5,22 @@ testthat::skip_on_cran()
 
 test_that("un referencial declara clave, valores y alcance completo", {
   datos <- data.frame(id = 1:3, nombre = c("A", "B", "C"))
+  padron <- paste0("padr", intToUtf8(0xf3L), "n")
   ref <- referencial(
     datos, "id", "nombre", completo = TRUE, alcance = "universo de prueba",
-    nombre = "padrón"
+    nombre = padron
   )
 
   expect_s3_class(ref, "referencial")
   expect_equal(ref$clave, "id")
   expect_equal(ref$valor, "nombre")
   expect_true(ref$completo)
-  expect_output(print(ref), "padrón")
+  expect_identical(ref$nombre, padron)
+  # print() escribe en la representacion nativa de la sesion: bajo C el
+  # caracter no representable sale como `<U+00F3>`.
+  impreso <- capture.output(print(ref))
+  expect_true(any(grepl(enc2native(padron), impreso, fixed = TRUE,
+                        useBytes = TRUE)))
   expect_error(referencial(datos, "id", completo = TRUE), "alcance")
   expect_error(referencial(rbind(datos, datos[1, ]), "id"), "un.*vocamente")
   expect_error(referencial(transform(datos, id = c(1, NA, 3)), "id"), "ausentes")
