@@ -237,7 +237,12 @@ por ejemplo— son del grupo y se siguen contando.</p>
     <p>Dentro de cada grupo se descartan las columnas enteramente ausentes antes de
 perfilar. En un modelo entidad-atributo-valor bien formado eso deja viva
 exactamente la columna de valor que corresponde al atributo del grupo, y es
-lo que evita informar como falta lo que es la forma del dato. Las
+lo que evita informar como falta lo que es la forma del dato. Lo mismo
+vale para una columna enteramente ausente en toda la tabla, como la columna
+de valor que ningún atributo del extracto usa: se descarta en cada grupo y
+<code>cobertura_grupos$columnas_descartadas</code> la nombra, en vez de publicarse como
+<code>faltantes</code> en cada uno. Por eso, con un solo grupo, <code>perfilar_por()</code> no
+informa <code>faltantes</code> sobre esa columna y <code><a href="perfilar.html">perfilar()</a></code> sí. Las
 declaraciones que nombran columnas retiradas se recortan para ese grupo y el
 nombre de cada recorte, con su motivo, se declara en
 <code>cobertura_grupos$columnas_descartadas</code>. En <code>aplicabilidad</code> también se
