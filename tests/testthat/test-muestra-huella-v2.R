@@ -117,3 +117,56 @@ test_that("recorrer los bytes por bloques no cambia el hash", {
     expect_identical(solo$h2, completo$h2[i], info = i)
   }
 })
+
+test_that("la seleccion por huella conserva sus filas", {
+  # Filas fijadas con la implementacion que calculaba el hash fila por fila.
+  n <- 60L
+  i <- seq_len(n)
+  d <- data.frame(
+    id = sprintf("c%03d", i %% 23L),
+    monto = c(0, -0, NA, NaN, Inf)[(i %% 5L) + 1L] + (i %% 3L),
+    fecha = as.Date("2024-01-01") + (i %% 7L),
+    marca = (i %% 4L) == 0L,
+    grupo = factor(c("a", "b", NA)[(i %% 3L) + 1L]),
+    stringsAsFactors = FALSE
+  )
+  expect_identical(
+    lupa:::.indices_huella_tabla(d, 12L)$indices,
+    c(54L, 40L, 7L, 52L, 46L, 34L, 39L, 4L, 22L, 15L, 47L, 58L)
+  )
+  expect_identical(
+    lupa:::.indices_huella_vector(d$monto, 9L),
+    c(31L, 32L, 24L, 2L, 50L, 9L, 14L, 53L, 60L)
+  )
+})
+
+test_that("el hash por valor distinto es el de cada elemento", {
+  set.seed(5512)
+  n <- 3000L
+  columnas <- list(
+    dobles = sample(c(0, -0, NA, NaN, Inf, -Inf, 2^31, 2^32, 1.5, -2.25), n, TRUE),
+    enteros = sample(c(NA, -3:3, .Machine$integer.max), n, TRUE),
+    fechas = as.Date("2020-01-01") + sample(c(NA, 0:9), n, TRUE),
+    horas = as.POSIXct("2020-01-01", tz = "UTC") + sample(c(NA, 0:9) * 60, n, TRUE),
+    logicos = sample(c(TRUE, FALSE, NA), n, TRUE),
+    crudos = as.raw(sample(0:3, n, TRUE)),
+    textos = sample(c(NA, "", "a", "b\\c", strrep("z", 40L)), n, TRUE),
+    faltantes = rep(NA_character_, n),
+    factor = factor(sample(c("x", "y", NA), n, TRUE))
+  )
+  if (requireNamespace("bit64", quietly = TRUE)) {
+    columnas$int64 <- bit64::as.integer64(sample(c(-2:2, NA), n, TRUE))
+  }
+  for (nombre in names(columnas)) {
+    x <- columnas[[nombre]]
+    unicos <- lupa:::.hash_columna_huella_unicos(x)
+    elemento <- lupa:::.hash_columna_huella(x)
+    if (!is.null(unicos$indice)) {
+      expect_lte(length(unicos$h1), 12L)
+      unicos$h1 <- unicos$h1[unicos$indice]
+      unicos$h2 <- unicos$h2[unicos$indice]
+    }
+    expect_identical(unicos$h1, elemento$h1, info = nombre)
+    expect_identical(unicos$h2, elemento$h2, info = nombre)
+  }
+})

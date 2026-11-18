@@ -139,13 +139,18 @@
   x
 }
 
-.hash_texto_huella <- function(x) {
+# El hash de cada valor distinto, y en `indice` a cual corresponde cada
+# elemento: `h1[indice]` es el hash elemento por elemento. El ultimo lugar es
+# el de los faltantes. Lo que se calcula despues sobre el hash de un valor
+# (mezclarlo con el nombre de la columna) se calcula asi una vez por valor
+# distinto y no una vez por fila.
+.hash_texto_huella_unicos <- function(x) {
   canonicos <- .canonizar_texto_huella(x)
   claves <- .clave_bytes(canonicos)
-  ausentes <- is.na(canonicos)
-  h1 <- rep(.mezclar32_lsh(.SEMILLA_HUELLA_NA_1), length(canonicos))
-  h2 <- rep(.mezclar32_lsh(.SEMILLA_HUELLA_NA_2), length(canonicos))
-  presentes <- which(!ausentes)
+  presentes <- which(!is.na(canonicos))
+  indice <- rep(length(presentes) + 1L, length(canonicos))
+  h1 <- numeric()
+  h2 <- numeric()
   if (length(presentes)) {
     # Una sola pasada de `match()` da la primera aparicion de cada valor y,
     # con ella, a que valor unico corresponde cada fila.
@@ -155,11 +160,21 @@
     hashes <- .hash_bytes_huella_vectorizado(
       canonicos[presentes[es_primera]], 0x811c9dc5, 0x9e3779b9
     )
-    indices <- cumsum(es_primera)[primera]
-    h1[presentes] <- hashes$h1[indices]
-    h2[presentes] <- hashes$h2[indices]
+    h1 <- hashes$h1
+    h2 <- hashes$h2
+    indice[presentes] <- cumsum(es_primera)[primera]
+    indice[-presentes] <- length(h1) + 1L
   }
-  list(h1 = h1, h2 = h2)
+  list(
+    h1 = c(h1, .mezclar32_lsh(.SEMILLA_HUELLA_NA_1)),
+    h2 = c(h2, .mezclar32_lsh(.SEMILLA_HUELLA_NA_2)),
+    indice = indice
+  )
+}
+
+.hash_texto_huella <- function(x) {
+  unicos <- .hash_texto_huella_unicos(x)
+  list(h1 = unicos$h1[unicos$indice], h2 = unicos$h2[unicos$indice])
 }
 
 .palabras32_huella <- function(bytes, n) {
@@ -221,6 +236,35 @@
   NULL
 }
 
+# Como `.hash_columna_huella()`, por valor distinto. Los numeros se agrupan con
+# `match()`, que junta 0 y -0 y los `NaN` entre si, igual que el hash; un
+# `integer64` no, porque sus bits leidos como dobles juntarian valores
+# distintos, y va elemento por elemento (`indice` en `NULL`).
+.hash_columna_huella_unicos <- function(x) {
+  if (is.list(x) || !is.null(dim(x)) || !is.atomic(x)) return(NULL)
+  if (is.factor(x) || is.character(x)) return(.hash_texto_huella_unicos(x))
+  numeros <- if (inherits(x, "integer64")) {
+    NULL
+  } else if (inherits(x, "Date") || inherits(x, "POSIXct")) {
+    as.numeric(x)
+  } else if (is.integer(x) || (is.double(x) && is.null(oldClass(x)))) {
+    x
+  } else if (is.raw(x)) {
+    as.integer(x)
+  } else {
+    NULL
+  }
+  if (is.null(numeros)) {
+    valores <- .hash_columna_huella(x)
+    if (is.null(valores)) return(NULL)
+    return(list(h1 = valores$h1, h2 = valores$h2, indice = NULL))
+  }
+  primera <- match(numeros, numeros)
+  es_primera <- primera == seq_along(primera)
+  valores <- .hash_numerico_huella(numeros[es_primera])
+  list(h1 = valores$h1, h2 = valores$h2, indice = cumsum(es_primera)[primera])
+}
+
 .orden_prioridad_huella <- function(fila_1, fila_2, cantidad) {
   n <- length(fila_1)
   if (!n || n <= cantidad) {
@@ -255,16 +299,18 @@
   n <- length(x)
   cantidad <- min(as.numeric(n), as.numeric(.validar_muestra(muestra)))
   if (!n || n <= cantidad) return(seq_len(n))
-  valores <- .hash_columna_huella(x)
+  valores <- .hash_columna_huella_unicos(x)
   fila_1 <- rep(.SEMILLA_HUELLA_FILA_1, n)
   fila_2 <- rep(.SEMILLA_HUELLA_FILA_2, n)
   if (!is.null(valores)) {
-    fila_1 <- .suma_mod32_huella(
-      fila_1, .mezclar32_lsh(valores$h1)
-    )
-    fila_2 <- .suma_mod32_huella(
-      fila_2, .mezclar32_lsh(valores$h2)
-    )
+    mezcla_1 <- .mezclar32_lsh(valores$h1)
+    mezcla_2 <- .mezclar32_lsh(valores$h2)
+    if (!is.null(valores$indice)) {
+      mezcla_1 <- mezcla_1[valores$indice]
+      mezcla_2 <- mezcla_2[valores$indice]
+    }
+    fila_1 <- .suma_mod32_huella(fila_1, mezcla_1)
+    fila_2 <- .suma_mod32_huella(fila_2, mezcla_2)
   }
   .orden_prioridad_huella(fila_1, fila_2, cantidad)$indices
 }
@@ -297,7 +343,7 @@
   fila_1 <- rep(.SEMILLA_HUELLA_FILA_1, n)
   fila_2 <- rep(.SEMILLA_HUELLA_FILA_2, n)
   for (posicion in posiciones) {
-    valores <- .hash_columna_huella(datos[[posicion]])
+    valores <- .hash_columna_huella_unicos(datos[[posicion]])
     if (is.null(valores)) {
       omitidas <- c(omitidas, nombres[[posicion]])
       next
@@ -305,6 +351,10 @@
     nombre <- .hash_texto_huella(nombres[[posicion]])
     aporte_1 <- .mezclar32_lsh(.xor32_lsh(nombre$h1[[1L]], valores$h1))
     aporte_2 <- .mezclar32_lsh(.xor32_lsh(nombre$h2[[1L]], valores$h2))
+    if (!is.null(valores$indice)) {
+      aporte_1 <- aporte_1[valores$indice]
+      aporte_2 <- aporte_2[valores$indice]
+    }
     fila_1 <- .suma_mod32_huella(fila_1, aporte_1)
     fila_2 <- .suma_mod32_huella(fila_2, aporte_2)
   }
