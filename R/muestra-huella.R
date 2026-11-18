@@ -281,7 +281,9 @@
   mismo <- h1_ordenado[-1L] == h1_ordenado[-n] &
     h2_ordenado[-1L] == h2_ordenado[-n]
   if (!is.null(desempate) && any(mismo)) {
-    repetidas <- sort(orden_contenido[c(mismo, FALSE) | c(FALSE, mismo)])
+    marcadas <- logical(n)
+    marcadas[orden_contenido[c(mismo, FALSE) | c(FALSE, mismo)]] <- TRUE
+    repetidas <- which(marcadas)
     claves <- desempate(repetidas)
     desempate_1 <- numeric(n)
     desempate_2 <- numeric(n)
