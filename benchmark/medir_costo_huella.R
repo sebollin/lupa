@@ -76,6 +76,17 @@ escenarios <- list(
     }, character(1L))
     perfil(data.frame(id = seq_len(n), nota = nota, stringsAsFactors = FALSE))
   },
+  muestra_chica_texto = function() {
+    n <- 1e6
+    d <- data.frame(id = sample.int(n), codigo = sprintf("REG-%09d", sample.int(n)),
+                    stringsAsFactors = FALSE)
+    function() quieto(lupa::perfilar(d, muestra = 1000, fecha = fecha))
+  },
+  muestra_chica_numeros = function() {
+    n <- 1e6
+    d <- data.frame(x1 = stats::rnorm(n), x2 = stats::rnorm(n))
+    function() quieto(lupa::perfilar(d, muestra = 1000, fecha = fecha))
+  },
   analizar_120k = function() {
     d <- mixta(120000L)
     function() quieto(lupa::analizar(d, fecha = fecha))

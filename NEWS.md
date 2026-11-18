@@ -5,8 +5,8 @@
 - La muestra de `perfilar()` ya no depende del orden de las filas. Con más filas
   que `muestra` (100.000 por omisión), los patrones, los tipos, los formatos de
   fecha, las escalas y las dependencias se calculaban sobre una muestra
-  sistemática por posición: la misma tabla leída de una base sin `ORDER BY`
-  daba otro perfil (en una tabla real, 15 diferencias en `patron_raro` y
+  sistemática por posición: la misma tabla leída de una base sin `ORDER BY` daba
+  otro perfil (en una tabla real, 15 diferencias en `patron_raro` y
   `relacion_funcional_columnas`), una rareza periódica que caía entre los pasos
   de la rejilla no se veía nunca, y agregar un 10 % de filas al final cambiaba
   el 91 % de la muestra. Ahora se usan las filas de menor prioridad según un
@@ -20,14 +20,14 @@
   quitar una columna puede cambiar cuáles entran. Sin `clave`, agregar o quitar
   una columna cambia la muestra. `meta$muestra_huella` declara el método
   (`huella_v2`) y las columnas que entraron; las que no se reducen a un valor
-  por fila (listas, matrices) quedan fuera. Una tabla que
-  se lee entera da los mismos hallazgos y las mismas cifras que antes; sólo
-  cambia el orden de los ejemplos que cita una evidencia, que ahora sigue el
-  valor y no la aparición. Cuando la muestra deja filas afuera, el perfil
-  puede diferir del de la versión anterior porque mira otras filas: con más
-  filas que `muestra`, cuando `max_celdas_muestra` o `max_bytes_muestra`
-  recortan una tabla más chica, y en las asociaciones de `analizar()`, que usan
-  su propia muestra de `muestra_asociacion` filas (10.000 por omisión).
+  por fila (listas, matrices) quedan fuera. Una tabla que se lee entera da los
+  mismos hallazgos y las mismas cifras que antes; sólo cambia el orden de los
+  ejemplos que cita una evidencia, que ahora sigue el valor y no la aparición.
+  Cuando la muestra deja filas afuera, el perfil puede diferir del de la versión
+  anterior porque mira otras filas: con más filas que `muestra`, cuando
+  `max_celdas_muestra` o `max_bytes_muestra` recortan una tabla más chica, y en
+  las asociaciones de `analizar()`, que usan su propia muestra de
+  `muestra_asociacion` filas (10.000 por omisión).
 - Una tabla que no supera `muestra` y cabe en `max_celdas_muestra` y en
   `max_bytes_muestra` se lee entera sin medir antes una sonda; entonces
   `meta$bytes_sonda` queda en `NA`. Cuando un tope recorta, la muestra es el
@@ -47,10 +47,15 @@
   diagnósticos, y las funciones de diagnóstico llamadas solas
   (`descubrir_patrones()`, `inferir_tipo()`, `detectar_formatos_fecha()`,
   `clasificar_variables()`, `distribucion_valores()`, `detectar_asociaciones()`)
-  usan la misma regla. El costo de `perfilar()` y de `analizar()` es el de
-  antes; una llamada directa a una de esas funciones sobre millones de valores
-  distintos tarda más, porque calcula la huella (13 s con 2.000.000 de textos
-  distintos).
+  usan la misma regla. Una tabla que se lee entera tarda lo mismo que antes. En
+  una que supera `muestra`, o que un tope recorta, la huella recorre todas sus
+  filas: `perfilar()` y `analizar()` tardan entre un 1 y un 12 % más (de 236 a
+  259 segundos con 3.000.000 de filas), y su pico de memoria va de un 10 % menos
+  a un 29 % más (de 368 a 476 MB con 1.000.000 de filas y `muestra = 1000`). Una
+  llamada directa a una de esas funciones sobre millones de valores distintos
+  tarda más, porque calcula la huella: `descubrir_patrones()` sobre 2.000.000 de
+  textos distintos pasa de 0,2 a 6,5 segundos y de 50 a 498 MB. Son medianas en
+  Linux de `benchmark/medir_costo_huella.R`.
 
 ## Comparar entregas
 
