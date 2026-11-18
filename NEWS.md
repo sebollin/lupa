@@ -14,10 +14,13 @@
   muestra es la misma con las filas y las columnas en cualquier orden, y con
   ella el perfil, la rareza periódica se ve en la proporción que tiene, y
   agregar filas conserva la mayor parte de la muestra. En una tabla que se lee
-  entera, los ejemplos de cada patrón siguen el orden de aparición, como antes. Con `clave`, sólo sus columnas entran en el hash; sin
-  `clave`, agregar o quitar una columna cambia la muestra. `meta$muestra_huella`
-  declara el método (`huella_v2`) y las columnas que entraron; las que no se
-  reducen a un valor por fila (listas, matrices) quedan fuera. Una tabla que
+  entera, los ejemplos de cada patrón siguen el orden de aparición, como antes.
+  Con `clave`, sólo sus columnas entran en el hash, y las filas que repiten la
+  clave se ordenan entre sí por el resto de sus valores: entre ellas, agregar o
+  quitar una columna puede cambiar cuáles entran. Sin `clave`, agregar o quitar
+  una columna cambia la muestra. `meta$muestra_huella` declara el método
+  (`huella_v2`) y las columnas que entraron; las que no se reducen a un valor
+  por fila (listas, matrices) quedan fuera. Una tabla que
   se lee entera da los mismos hallazgos y las mismas cifras que antes; sólo
   cambia el orden de los ejemplos que cita una evidencia, que ahora sigue el
   valor y no la aparición. Cuando la muestra deja filas afuera, el perfil

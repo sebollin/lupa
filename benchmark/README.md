@@ -236,6 +236,28 @@ R_LIBS=<biblioteca de la version> Rscript benchmark/medir_texto_numerico.R <etiq
 Agrega una fila por tabla a `benchmark/datos/medir-texto-numerico.csv`, con la
 versión, la fecha de armado del paquete medido, la etiqueta y la corrida.
 
+`medir_costo_huella.R` mide el tiempo y el pico de memoria de `perfilar()`,
+`analizar()`, `descubrir_patrones()` y `perfilar_dbi()` sobre tablas que se
+leen enteras y sobre tablas que superan `muestra`, donde la selección por huella
+recorre todas las filas. Es la medición que cita la entrada de la huella en
+`NEWS.md`. Cada escenario corre en su propio proceso; con `todos` lista los
+nombres. Se instala cada versión en su propia biblioteca y se alternan en cada
+corrida:
+
+```sh
+for corrida in 1 2 3; do
+  for escenario in $(Rscript benchmark/medir_costo_huella.R x todos); do
+    R_LIBS=<biblioteca anterior> Rscript benchmark/medir_costo_huella.R anterior "$escenario" "$corrida"
+    R_LIBS=<biblioteca nueva> Rscript benchmark/medir_costo_huella.R nueva "$escenario" "$corrida"
+  done
+done
+```
+
+Agrega una fila por medición a `benchmark/datos/medir-costo-huella.csv`, con la
+versión, la fecha de armado del paquete medido, la etiqueta y la corrida. La
+memoria es el pico de lo que R tiene en uso durante la llamada, menos lo que ya
+ocupaban los datos.
+
 Los scripts siguientes son independientes de `verdad_raha.R` y no agregan
 dependencias al paquete:
 

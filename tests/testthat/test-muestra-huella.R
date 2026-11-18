@@ -108,6 +108,31 @@ test_that("una clave excluye las columnas nuevas de la huella", {
   expect_identical(s1, s2)
 })
 
+test_that("con una clave repetida la muestra no depende del orden de las filas", {
+  n <- 3000L
+  i <- seq_len(n)
+  d <- data.frame(
+    id = sprintf("k%03d", i %% 300L),
+    valor = sprintf("v%05d", (i * 7919L) %% 10007L),
+    stringsAsFactors = FALSE
+  )
+  d <- rbind(d, d[1:50, ])
+  filas <- function(tabla) {
+    s <- lupa:::.indices_huella_tabla(tabla, 400L, columnas = "id")$indices
+    sort(paste(tabla$id[s], tabla$valor[s]))
+  }
+  invertida <- d[rev(seq_len(nrow(d))), ]
+  mezclada <- d[c(seq(2L, nrow(d), 2L), seq(1L, nrow(d), 2L)), ]
+  expect_identical(filas(invertida), filas(d))
+  expect_identical(filas(mezclada), filas(d))
+  # Sin repetidos en la clave, el desempate no cambia nada.
+  unica <- data.frame(id = sprintf("u%05d", i), valor = rev(i))
+  expect_identical(
+    lupa:::.indices_huella_tabla(unica, 400L, columnas = "id")$indices,
+    lupa:::.indices_huella_tabla(unica["id"], 400L)$indices
+  )
+})
+
 test_that("las columnas se combinan sin depender de su orden", {
   d <- data.frame(id = seq_len(1000L), valor = rep(letters, length.out = 1000L))
   d2 <- d[c("valor", "id")]

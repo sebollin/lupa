@@ -22,7 +22,9 @@
 # partir el recorrido no cambia el resultado y acota la memoria: antes se
 # armaban de una vez varios vectores de dobles del largo de TODOS los textos de
 # la columna, y doscientas mil filas de dos mil caracteres pedian decenas de GB.
-.BYTES_BLOQUE_HUELLA <- 2097152
+# Con medio MB el recorrido de esa tabla tarda lo mismo que con dos y su pico
+# de memoria baja de 500 a 342 MB.
+.BYTES_BLOQUE_HUELLA <- 524288
 # Posiciones cuyo termino se precalcula en una tabla (256 por posicion y por
 # semilla). Mas alla se calcula byte por byte; da lo mismo, cuesta mas.
 .POSICIONES_TABLA_HUELLA <- 4096
@@ -265,7 +267,10 @@
   list(h1 = valores$h1, h2 = valores$h2, indice = cumsum(es_primera)[primera])
 }
 
-.orden_prioridad_huella <- function(fila_1, fila_2, cantidad) {
+# `desempate`, si viene, recibe las filas (en orden creciente) que comparten
+# su hash con otra y devuelve dos vectores con los que ordenarlas entre si.
+# Sin el, las filas del mismo hash se numeran por su posicion.
+.orden_prioridad_huella <- function(fila_1, fila_2, cantidad, desempate = NULL) {
   n <- length(fila_1)
   if (!n || n <= cantidad) {
     return(list(indices = seq_len(n), aparicion = seq_len(n)))
@@ -275,6 +280,18 @@
   h2_ordenado <- fila_2[orden_contenido]
   mismo <- h1_ordenado[-1L] == h1_ordenado[-n] &
     h2_ordenado[-1L] == h2_ordenado[-n]
+  if (!is.null(desempate) && any(mismo)) {
+    repetidas <- sort(orden_contenido[c(mismo, FALSE) | c(FALSE, mismo)])
+    claves <- desempate(repetidas)
+    desempate_1 <- numeric(n)
+    desempate_2 <- numeric(n)
+    desempate_1[repetidas] <- claves[[1L]]
+    desempate_2[repetidas] <- claves[[2L]]
+    # Los grupos son los mismos; cambia solo el orden dentro de cada uno.
+    orden_contenido <- .orden_por_bytes(
+      fila_1, fila_2, desempate_1, desempate_2, method = "radix"
+    )
+  }
   inicios <- which(c(TRUE, !mismo))
   tamanos <- diff(c(inicios, n + 1L))
   corrimiento <- rep(inicios - 1L, tamanos)
@@ -320,6 +337,37 @@
   x[.orden_por_bytes(.clave_bytes(x), method = "radix")]
 }
 
+# El hash de cada fila: la suma, modulo 2^32, del aporte de cada columna (el
+# hash de su valor mezclado con el de su nombre), que no depende del orden de
+# las columnas. Con `filas`, solo esas filas, con el mismo valor que tendrian
+# en la tabla entera. Las columnas que no se reducen a un valor por fila
+# quedan en `omitidas`.
+.hash_filas_huella <- function(datos, posiciones, nombres, filas = NULL) {
+  n <- if (is.null(filas)) nrow(datos) else length(filas)
+  omitidas <- character()
+  fila_1 <- rep(.SEMILLA_HUELLA_FILA_1, n)
+  fila_2 <- rep(.SEMILLA_HUELLA_FILA_2, n)
+  for (posicion in posiciones) {
+    x <- datos[[posicion]]
+    if (!is.null(filas) && is.atomic(x) && is.null(dim(x))) x <- x[filas]
+    valores <- .hash_columna_huella_unicos(x)
+    if (is.null(valores)) {
+      omitidas <- c(omitidas, nombres[[posicion]])
+      next
+    }
+    nombre <- .hash_texto_huella(nombres[[posicion]])
+    aporte_1 <- .mezclar32_lsh(.xor32_lsh(nombre$h1[[1L]], valores$h1))
+    aporte_2 <- .mezclar32_lsh(.xor32_lsh(nombre$h2[[1L]], valores$h2))
+    if (!is.null(valores$indice)) {
+      aporte_1 <- aporte_1[valores$indice]
+      aporte_2 <- aporte_2[valores$indice]
+    }
+    fila_1 <- .suma_mod32_huella(fila_1, aporte_1)
+    fila_2 <- .suma_mod32_huella(fila_2, aporte_2)
+  }
+  list(h1 = fila_1, h2 = fila_2, omitidas = omitidas)
+}
+
 .indices_huella_tabla <- function(datos, muestra, columnas = NULL) {
   n <- nrow(datos)
   k <- min(as.numeric(n), as.numeric(.validar_muestra(muestra)))
@@ -339,27 +387,24 @@
   }
   posiciones <- posiciones[!is.na(posiciones)]
   usados <- nombres[posiciones]
-  omitidas <- character()
-  fila_1 <- rep(.SEMILLA_HUELLA_FILA_1, n)
-  fila_2 <- rep(.SEMILLA_HUELLA_FILA_2, n)
-  for (posicion in posiciones) {
-    valores <- .hash_columna_huella_unicos(datos[[posicion]])
-    if (is.null(valores)) {
-      omitidas <- c(omitidas, nombres[[posicion]])
-      next
+  filas <- .hash_filas_huella(datos, posiciones, nombres)
+  omitidas <- filas$omitidas
+  # Con `clave`, las filas que la repiten tienen el mismo hash y quedaban
+  # ordenadas por su posicion: invertir las filas cambiaba cuales entraban.
+  # Entre ellas decide el hash de la fila entera; las que tambien son iguales
+  # en todo lo demas son intercambiables.
+  desempate <- if (length(posiciones) < ncol(datos)) {
+    function(cuales) {
+      completas <- .hash_filas_huella(
+        datos, seq_len(ncol(datos)), nombres, filas = cuales
+      )
+      list(completas$h1, completas$h2)
     }
-    nombre <- .hash_texto_huella(nombres[[posicion]])
-    aporte_1 <- .mezclar32_lsh(.xor32_lsh(nombre$h1[[1L]], valores$h1))
-    aporte_2 <- .mezclar32_lsh(.xor32_lsh(nombre$h2[[1L]], valores$h2))
-    if (!is.null(valores$indice)) {
-      aporte_1 <- aporte_1[valores$indice]
-      aporte_2 <- aporte_2[valores$indice]
-    }
-    fila_1 <- .suma_mod32_huella(fila_1, aporte_1)
-    fila_2 <- .suma_mod32_huella(fila_2, aporte_2)
   }
   cantidad <- as.integer(k)
-  seleccion <- .orden_prioridad_huella(fila_1, fila_2, cantidad)$indices
+  seleccion <- .orden_prioridad_huella(
+    filas$h1, filas$h2, cantidad, desempate
+  )$indices
   columnas_ordenadas <- .ordenar_nombres_huella(usados[!usados %in% omitidas])
   omitidas <- .ordenar_nombres_huella(omitidas)
   list(
