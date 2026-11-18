@@ -307,23 +307,20 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   unname(vapply(elegidos, function(x) x$meta, character(1L)))
 }
 
+# Lo declarado, no lo que resulto: los topes de la muestra deciden que filas se
+# miran igual que `muestra`, pero cuantas filas entraron depende de los datos.
+# Con la muestra efectiva en la fila, una tabla de 100.000 filas contra la misma
+# con una mas -entera de un lado, muestreada del otro- y una tabla cuyo tope de
+# bytes recorta distinto en cada entrega declaraban las corridas no comparables,
+# y un patron nuevo desaparecia de la deriva. La 0.1.2 los comparaba. Todas las
+# versiones publicadas guardan los siete campos en `meta`.
 .configuracion_patrones_perfil <- function(perfil) {
   campos <- c(
-    "muestra", "muestra_efectiva", "max_celdas_muestra",
-    "max_bytes_muestra", "max_patrones", "distinguir_mayusculas",
-    "expandir", "umbral_patron_raro"
+    "muestra", "max_celdas_muestra", "max_bytes_muestra", "max_patrones",
+    "distinguir_mayusculas", "expandir", "umbral_patron_raro"
   )
   if (!all(campos %in% names(perfil$meta))) return(NULL)
-  configuracion <- perfil$meta[campos]
-  efectiva <- suppressWarnings(as.numeric(configuracion$muestra_efectiva))
-  total <- suppressWarnings(as.numeric(perfil$meta$filas_totales))
-  if (length(efectiva) == 1L && length(total) == 1L &&
-      is.finite(efectiva) && is.finite(total) && efectiva >= total) {
-    # El crecimiento de una tabla completa no cambia la politica de patrones;
-    # solo un recorte efectivo debe distinguir la configuracion.
-    configuracion$muestra_efectiva <- Inf
-  }
-  configuracion
+  perfil$meta[campos]
 }
 
 # La normalizacion es la cuarta politica que redefine lo que se mide, y la
@@ -3078,9 +3075,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # `perfilar()`- e `Inf` -la que `perfilar_dbi()` le pasa- buscan los patrones
   # en las mismas 400, y la fila declaraba las corridas no comparables, con
   # severidad `error`, sobre los mismos datos. Si las dos muestras cubren la
-  # tabla, la cobertura es la misma. La fila publica lo declarado.
+  # tabla, la cobertura es la misma. La fila publica lo declarado. Lo mismo con
+  # los topes: en una tabla leida entera no recortaron nada.
   cubierta <- function(config, lado) {
-    if (isTRUE(lado$patrones_cubren)) config$muestra <- Inf
+    if (isTRUE(lado$patrones_cubren)) {
+      config$muestra <- Inf
+      config$max_celdas_muestra <- Inf
+      config$max_bytes_muestra <- Inf
+    }
     config
   }
   patrones_comparables <- !is.null(config_a) && !is.null(config_b) &&

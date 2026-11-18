@@ -10,10 +10,11 @@
   `relacion_funcional_columnas`), una rareza periódica que caía entre los pasos
   de la rejilla no se veía nunca, y agregar un 10 % de filas al final cambiaba
   el 91 % de la muestra. Ahora se usan las filas de menor prioridad según un
-  hash determinista de los valores de cada fila y de su número de aparición: el
-  perfil es el mismo con las filas y las columnas en cualquier orden, la rareza
-  periódica se ve en la proporción que tiene, y agregar filas conserva la mayor
-  parte de la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
+  hash determinista de los valores de cada fila y de su número de aparición: la
+  muestra es la misma con las filas y las columnas en cualquier orden, y con
+  ella el perfil, la rareza periódica se ve en la proporción que tiene, y
+  agregar filas conserva la mayor parte de la muestra. En una tabla que se lee
+  entera, los ejemplos de cada patrón siguen el orden de aparición, como antes. Con `clave`, sólo sus columnas entran en el hash; sin
   `clave`, agregar o quitar una columna cambia la muestra. `meta$muestra_huella`
   declara el método (`huella_v2`) y las columnas que entraron; las que no se
   reducen a un valor por fila (listas, matrices) quedan fuera. Una tabla que
@@ -103,12 +104,13 @@
   `configuracion_patrones / no_comparable` porque declaren otra `muestra`: con
   los valores por omisión (`1e5` en `perfilar()`, `Inf` en `perfilar_dbi()`)
   una base contra un archivo nunca comparaba patrones.
-- `configuracion_patrones` compara también `max_celdas_muestra`,
-  `max_bytes_muestra` y la muestra efectiva. Un hallazgo que aparecía o
-  desaparecía porque un tope cambió las filas de la muestra salía `nuevo` o
-  `resuelto` sin una fila de configuración que lo explicara. Una tabla leída
-  entera cuenta como muestra `Inf`: una tabla que crece sin que la muestra deje
-  filas afuera no cambia la configuración.
+- `configuracion_patrones` compara también `max_celdas_muestra` y
+  `max_bytes_muestra`. Un hallazgo que aparecía o desaparecía porque se cambió
+  un tope salía `nuevo` o `resuelto` sin una fila de configuración que lo
+  explicara. Como con `muestra`, los topes no cuentan si los dos lados se leyeron
+  enteros, y la fila compara lo declarado y no cuántas filas entraron: una tabla
+  que pasa de `muestra` filas a una más, o que el mismo tope recorta distinto en
+  otra entrega, sigue comparando sus patrones.
 - `comparar_equivalencia()` aplica la misma regla a las cifras de
   `perfilar_dbi()`: una cifra sin valor, medida sobre otras filas o de otro modo
   que la del otro lado sale `no_comparable` con el motivo. La misma tabla en

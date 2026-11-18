@@ -2,6 +2,17 @@
 # localizar y hasta donde, y `localizador` dice CON QUE se localiza. Una
 # trazabilidad puede ser al mismo tiempo por clave y truncada; meter las dos
 # cosas en un solo campo perderia informacion.
+# El limite de filas que se publica: entero mientras quepa, y el mismo numero
+# como doble pasado 2^31 - 1. `as.integer()` lo volvia `NA` con un aviso por
+# traza: `max_filas_huerfanas = 2^31 + 1` publicaba `limite = NA`.
+.limite_trazabilidad <- function(limite) {
+  if (is.infinite(limite) || limite > .Machine$integer.max) {
+    as.numeric(limite)
+  } else {
+    as.integer(limite)
+  }
+}
+
 .trazabilidad_vacia <- function(estado = "no_disponible",
                                 indices = integer(), total = NA_real_,
                                 alcance = "no_evaluado", limite = 1000L,
@@ -26,7 +37,7 @@
     total = total,
     mostrados = length(indices),
     truncado = truncado,
-    limite = if (is.infinite(limite)) Inf else as.integer(limite),
+    limite = .limite_trazabilidad(limite),
     alcance = alcance
   )
 }
@@ -66,7 +77,7 @@
   }
   indices <- as.integer(trazabilidad$indices_fila)
   indices <- indices[!is.na(indices)]
-  trazabilidad$limite <- if (is.infinite(limite)) Inf else as.integer(limite)
+  trazabilidad$limite <- .limite_trazabilidad(limite)
   trazabilidad$indices_fila <- utils::head(indices, limite)
   trazabilidad$mostrados <- length(trazabilidad$indices_fila)
   trazabilidad$truncado <- is.finite(trazabilidad$total) &&
