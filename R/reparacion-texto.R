@@ -150,6 +150,24 @@ names(.ftfy_tablas_bytes) <- c(
 .ftfy_badness_re_ftfy <- paste0(
   "(*UTF)(*UCP)", paste(.ftfy_badness_alternatives, collapse = "|")
 )
+# Los pares de bytes de una letra armenia leidos como Windows-1252 o latin-1:
+# mayusculas D4 B1-BF y D5 80-96, minusculas D5 A1-BF y D6 80-87. Cada segundo
+# byte puede haber quedado como su caracter de Windows-1252 o como el control
+# C1 de igual numero. Ningun caracter de las clases es ASCII, asi que ninguno
+# tiene significado especial dentro de los corchetes.
+.ftfy_regla_armenio <- local({
+  tabla <- .ftfy_tablas_bytes[["sloppy-windows-1252"]]
+  clase <- function(bytes) {
+    codigos <- unique(c(bytes, tabla[bytes - 0x7FL]))
+    paste0("[", paste(intToUtf8(codigos, multiple = TRUE), collapse = ""), "]")
+  }
+  par <- paste0(
+    "\u00d4", clase(0xB1L:0xBFL), "|",
+    "\u00d5", clase(c(0x80L:0x96L, 0xA1L:0xBFL)), "|",
+    "\u00d6", clase(0x80L:0x87L)
+  )
+  paste0("(?:", par, "){2}")
+})
 # Correcciones deliberadas sobre ftfy 6.3.1: la regla de inicio funciona
 # tambien al principio de la cadena, la regla de caja reconoce cirilico comun
 # para KOI8-R y la secuencia especifica de a-circunflejo evita una regla amplia.
@@ -173,7 +191,22 @@ names(.ftfy_tablas_bytes) <- c(
   # bytes con espacio duro como segundo byte (la S con caron, C5 A0) no tiene un
   # contexto asi: "\u00c5" + espacio duro + una palabra es tambien texto
   # noruego o sueco bien escrito.
-  "[\u00c4\u00c5](?<=\\p{Ll}.)\u00ad"
+  "[\u00c4\u00c5](?<=\\p{Ll}.)\u00ad",
+  # El armenio (U+0531 a U+0587: un byte inicial D4, D5 o D6 y uno de
+  # continuacion) leido como Windows-1252 o latin-1 es una O mayuscula con
+  # circunflejo, tilde o dieresis seguida de un signo, y ninguna regla lo
+  # reconocia: "\u00d5" + guion blando + "\u00d5\u00a1\u00d5\u00b9" (U+056D
+  # U+0561 U+0579) quedaba sin hallazgo y el plan borraba el guion blando como un
+  # invisible mas, y la palabra ya no se podia reparar. Como la regla arabe de
+  # ftfy, se piden dos letras seguidas, y solo los pares que forman una letra
+  # armenia: un texto bien escrito no pone dos veces seguidas una de esas O
+  # delante de un signo, y con el par que da un acento hebreo o una letra del
+  # suplemento cirilico ("\u00d6" + apostrofo tipografico, "\u00d6" + guion
+  # blando, "\u00d4" + apostrofo) el texto bien escrito es lo mas probable. El
+  # espacio duro tampoco entra: ninguna letra armenia lo tiene como segundo
+  # byte, y "SN\u00d6" + espacio duro + "\u00d6" + espacio duro es sueco. Una
+  # letra sola en su celda queda como las otras letras sueltas.
+  .ftfy_regla_armenio
 )
 # Lo que la expresion de ftfy toma por mojibake y es texto bien escrito. Una
 # posicion donde empieza alguno de estos tramos no cuenta como evidencia,

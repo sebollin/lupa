@@ -196,6 +196,17 @@
   `controles_invisibles` avisa que esas celdas no se pudieron decidir. En un texto nórdico con `Å` seguida de
   un espacio duro, ese espacio queda sin normalizar. Después de cualquier otra
   letra, como en `JOSÉ PÉREZ`, se normaliza como antes.
+- El armenio leído como Windows-1252 o latin-1 se detecta y se repara. Cada
+  letra queda escrita como una `Ô`, `Õ` u `Ö` seguida de un signo (`Õ¡Õ¹`), y
+  ninguna regla del detector lo reconocía: la celda no tenía hallazgo y, si una
+  letra traía un guion blando como segundo byte (la `խ`, muy común),
+  `eliminar_controles_invisibles` lo borraba y la palabra ya no se podía
+  reparar. Ahora dos letras armenias seguidas escritas así cuentan como texto
+  roto, como ftfy hace con el árabe. Una letra sola en su celda sigue sin
+  reconocerse, y una `Ô`, `Õ` u `Ö` seguida de un signo que no forma una letra
+  armenia (un apóstrofo, una comilla, una raya, un guion blando o un espacio
+  duro, aunque se repitan, como en `SNÖ Ö X` con espacios duros) sigue siendo
+  texto bien escrito.
 - Las acciones que cambian mayúsculas y minúsculas usan la misma protección que
   las de invisibles: con `reparar_codificacion` desmarcada,
   `convertir_minusculas` cambiaba `MÃœNCHEN` (una `Ü` rota) a `mÃŒnchen`, que
