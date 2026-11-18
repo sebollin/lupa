@@ -72,3 +72,48 @@ test_that("la huella conserva los valores elegidos al invertir filas", {
 test_that("la huella publica el metodo v2", {
   expect_identical(lupa:::.METODO_MUESTRA_HUELLA, "huella_v2")
 })
+
+test_that("el hash textual v2 conserva sus valores", {
+  # Valores fijados con la implementacion que recorria todos los bytes de una
+  # vez. Un cambio aca cambia que filas entran en la muestra.
+  x <- c("a", "abc", "", NA, rawToChar(as.raw(c(0x61, 0xc3, 0xb1, 0x6f))),
+         strrep("xy", 3000))
+  Encoding(x[[5L]]) <- "UTF-8"
+  hash <- lupa:::.hash_texto_huella(x)
+  expect_identical(hash$h1, c(2961546592, 662257936, 1947474976, 528772982,
+                              3799696468, 1172572404))
+  expect_identical(hash$h2, c(1818325621, 1944727240, 33350994, 2060038521,
+                              3743254932, 1743921137))
+})
+
+test_that("recorrer los bytes por bloques no cambia el hash", {
+  set.seed(4471)
+  texto <- function(k) paste(sample(c(letters, " ", "\\"), k, TRUE), collapse = "")
+  acentos <- rawToChar(as.raw(c(0x61, 0xc3, 0xb1, 0x6f, 0xe4, 0xb8, 0xad)))
+  Encoding(acentos) <- "UTF-8"
+  crudo <- rawToChar(as.raw(c(0x41, 0xff, 0xfe, 0x42)))
+  Encoding(crudo) <- "bytes"
+  semillas <- c(0x811c9dc5, 0x9e3779b9)
+  hash <- function(x, ...) {
+    lupa:::.hash_bytes_huella_vectorizado(x, semillas[[1L]], semillas[[2L]], ...)
+  }
+  # Pocos bytes: sin tabla precalculada, cada termino byte por byte.
+  pocos <- c(vapply(c(0L, 1L, 2L, 7L, 8L, 63L, 64L, 65L, 300L), texto, ""),
+             acentos, strrep(acentos, 40L), crudo)
+  completo <- hash(pocos)
+  for (bloque in c(1, 7, 64)) {
+    expect_identical(hash(pocos, bloque = bloque), completo, info = paste("bloque", bloque))
+  }
+  # Muchos bytes: con la tabla, y un valor mas largo que ella para que sus
+  # ultimas posiciones se calculen aparte.
+  muchos <- c(vapply(sample(0:600, 4000L, TRUE), texto, ""), texto(5000L), pocos)
+  completo <- hash(muchos)
+  for (bloque in c(1000, 4999, 100000)) {
+    expect_identical(hash(muchos, bloque = bloque), completo, info = paste("bloque", bloque))
+  }
+  for (i in c(1L, 2L, 4001L, length(muchos) - 1L, length(muchos))) {
+    solo <- hash(muchos[i])
+    expect_identical(solo$h1, completo$h1[i], info = i)
+    expect_identical(solo$h2, completo$h2[i], info = i)
+  }
+})

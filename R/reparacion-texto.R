@@ -325,12 +325,30 @@ names(.ftfy_tablas_bytes) <- c(
   if (length(posiciones)) salida[c(posiciones, posiciones + 1L)] <- TRUE
   salida
 }
+# La misma respuesta para cada elemento de un vector. Todo par ambiguo empieza
+# con un caracter no ASCII (el primer byte de cada par es 0xC4 o mas), asi que
+# una cadena ASCII no tiene ninguna posicion ambigua: su respuesta es un FALSE
+# por caracter, sin recorrerla. Recorrerla de a una costaba casi un segundo en
+# una columna de texto de 50.000 filas.
+.ftfy_posiciones_ambiguas_vector <- function(textos) {
+  salida <- vector("list", length(textos))
+  names(salida) <- names(textos)
+  if (!length(textos)) return(salida)
+  ascii <- !is.na(textos) & !.no_ascii(textos)
+  if (any(ascii)) {
+    salida[ascii] <- lapply(nchar(textos[ascii], type = "bytes"), logical)
+  }
+  resto <- which(!ascii)
+  if (length(resto)) {
+    salida[resto] <- lapply(textos[resto], .ftfy_posiciones_ambiguas)
+  }
+  salida
+}
 .ftfy_mascara_proteccion <- function(x, usar_extensiones = TRUE) {
   salida <- .ftfy_mascara_candidatos(x, usar_extensiones = usar_extensiones)
   if (!length(x)) return(salida)
-  ambiguas <- vapply(x, function(texto) {
-    any(.ftfy_posiciones_ambiguas(texto))
-  }, logical(1L), USE.NAMES = FALSE)
+  ambiguas <- vapply(.ftfy_posiciones_ambiguas_vector(x), any, logical(1L),
+                     USE.NAMES = FALSE)
   salida | ambiguas
 }
 .ftfy_umbral_mascara_lcs <- 256L

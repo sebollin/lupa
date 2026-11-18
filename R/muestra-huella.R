@@ -17,59 +17,110 @@
   salida - floor(salida / .D32_HUELLA) * .D32_HUELLA
 }
 
-.hash_bytes_huella_vectorizado <- function(valores, semilla_1, semilla_2) {
+# El recorrido de los bytes va por bloques de este tamano. El hash de un valor
+# es una suma de terminos que dependen solo de la posicion y del byte, asi que
+# partir el recorrido no cambia el resultado y acota la memoria: antes se
+# armaban de una vez varios vectores de dobles del largo de TODOS los textos de
+# la columna, y doscientas mil filas de dos mil caracteres pedian decenas de GB.
+.BYTES_BLOQUE_HUELLA <- 2097152
+# Posiciones cuyo termino se precalcula en una tabla (256 por posicion y por
+# semilla). Mas alla se calcula byte por byte; da lo mismo, cuesta mas.
+.POSICIONES_TABLA_HUELLA <- 4096
+
+.hash_bytes_huella_vectorizado <- function(valores, semilla_1, semilla_2,
+                                           bloque = .BYTES_BLOQUE_HUELLA) {
   n <- length(valores)
   if (!n) return(list(h1 = numeric(), h2 = numeric()))
   longitudes <- nchar(valores, type = "bytes")
   h1 <- rep(.mezclar32_lsh(semilla_1), n)
   h2 <- rep(.mezclar32_lsh(semilla_2), n)
-  con_bytes <- longitudes > 0L
-  if (!any(con_bytes)) return(list(h1 = h1, h2 = h2))
+  con_bytes <- which(longitudes > 0L)
+  if (!length(con_bytes)) return(list(h1 = h1, h2 = h2))
+  bloque <- min(as.numeric(bloque), 4194304)
 
   valores_bytes <- valores[con_bytes]
-  longitudes <- longitudes[con_bytes]
-  separador <- rawToChar(as.raw(1L))
-  flujo <- as.integer(charToRaw(paste(valores_bytes, collapse = separador)))
-  separadores <- cumsum(longitudes + 1L)
-  separadores <- separadores[separadores < length(flujo)]
-  if (length(separadores)) flujo <- flujo[-separadores]
-  grupos <- rep.int(seq_along(longitudes), longitudes)
-  posiciones <- sequence(longitudes)
-
+  largos <- longitudes[con_bytes]
   modulo_1 <- .MODULO_TEXTO_HUELLA_1
   modulo_2 <- .MODULO_TEXTO_HUELLA_2
-  posiciones <- as.numeric(posiciones) - 1
-  flujo <- as.numeric(flujo)
   # El termino de cada byte depende solo de su posicion (desde cero), de su
   # valor y de la semilla: la clave es posicion * 256 + byte. Asi el hash de un
   # valor no cambia con los otros valores de la columna. Al reducir a 32 bits,
   # posiciones que difieren en 2^24 coinciden para el mismo byte.
-  posiciones <- posiciones %% 16777216
-  claves <- posiciones * 256 + flujo
-  largo_tabla <- max(longitudes) * 256
-  usar_tabla <- max(longitudes) <= 16777216 && largo_tabla < length(flujo)
-  termino <- function(semilla, modulo) {
-    if (usar_tabla) {
-      claves_tabla <- seq_len(largo_tabla) - 1
-      tabla <- .mezclar32_lsh(.suma_mod32_huella(claves_tabla, semilla)) %% modulo
-      tabla[claves + 1]
+  posiciones_tabla <- min(max(largos), .POSICIONES_TABLA_HUELLA)
+  largo_tabla <- posiciones_tabla * 256
+  tabla_1 <- NULL
+  tabla_2 <- NULL
+  if (largo_tabla < sum(as.numeric(largos))) {
+    claves_tabla <- seq_len(largo_tabla) - 1
+    tabla_1 <- .mezclar32_lsh(.suma_mod32_huella(claves_tabla, semilla_1)) %% modulo_1
+    tabla_2 <- .mezclar32_lsh(.suma_mod32_huella(claves_tabla, semilla_2)) %% modulo_2
+  }
+  # Cada tramo suma los terminos de sus bytes por valor y los acumula modulo
+  # el primo. Un tramo tiene a lo sumo dos bloques de bytes y cada termino es
+  # menor que 2^26: las sumas parciales no pasan de 2^49 y son exactas.
+  suma_1 <- numeric(length(largos))
+  suma_2 <- numeric(length(largos))
+  directo <- function(claves, semilla, modulo) {
+    .mezclar32_lsh(.suma_mod32_huella(as.numeric(claves), semilla)) %% modulo
+  }
+  acumular <- function(cuales, claves, fines, en_tabla) {
+    if (is.null(tabla_1)) {
+      parcial_1 <- directo(claves, semilla_1, modulo_1)
+      parcial_2 <- directo(claves, semilla_2, modulo_2)
     } else {
-      .mezclar32_lsh(.suma_mod32_huella(claves, semilla)) %% modulo
+      indice <- claves + 1L
+      parcial_1 <- tabla_1[indice]
+      parcial_2 <- tabla_2[indice]
+      fuera <- if (en_tabla) integer() else which(claves >= largo_tabla)
+      if (length(fuera)) {
+        parcial_1[fuera] <- directo(claves[fuera], semilla_1, modulo_1)
+        parcial_2[fuera] <- directo(claves[fuera], semilla_2, modulo_2)
+      }
+    }
+    parcial_1 <- cumsum(parcial_1)[fines]
+    parcial_2 <- cumsum(parcial_2)[fines]
+    suma_1[cuales] <<- (suma_1[cuales] + diff(c(0, parcial_1))) %% modulo_1
+    suma_2[cuales] <<- (suma_2[cuales] + diff(c(0, parcial_2))) %% modulo_2
+  }
+
+  # Los valores que caben en un bloque se recorren juntos, en tandas de un
+  # bloque de bytes. Sus posiciones no llegan a 2^22 y la clave entra en un
+  # entero.
+  cortos <- which(largos <= bloque)
+  if (length(cortos)) {
+    largos_cortos <- as.numeric(largos[cortos])
+    tanda <- floor((cumsum(largos_cortos) - largos_cortos) / bloque)
+    fin_tanda <- cumsum(rle(tanda)$lengths)
+    inicio_tanda <- c(1L, fin_tanda[-length(fin_tanda)] + 1L)
+    for (t in seq_along(fin_tanda)) {
+      cuales <- cortos[inicio_tanda[[t]]:fin_tanda[[t]]]
+      largos_tanda <- largos[cuales]
+      bytes <- charToRaw(paste(valores_bytes[cuales], collapse = ""))
+      if (length(bytes) != sum(largos_tanda)) {
+        bytes <- unlist(lapply(valores_bytes[cuales], charToRaw), use.names = FALSE)
+      }
+      claves <- sequence(largos_tanda, from = 0L) * 256L + as.integer(bytes)
+      acumular(cuales, claves, cumsum(largos_tanda),
+               max(largos_tanda) <= posiciones_tabla)
     }
   }
-  terminos_1 <- termino(semilla_1, modulo_1)
-  sumas_1 <- rowsum(terminos_1, grupos, reorder = FALSE)[, 1L]
-  base_1 <- (sumas_1 + (longitudes %% modulo_1) * 65521 +
+  # Un valor mas largo que un bloque se recorre solo, de a un bloque.
+  for (cual in which(largos > bloque)) {
+    bytes <- charToRaw(valores_bytes[[cual]])
+    total <- length(bytes)
+    for (desde in seq.int(0, total - 1, by = bloque)) {
+      posiciones <- seq.int(desde, min(total, desde + bloque) - 1)
+      claves <- (posiciones %% 16777216) * 256 + as.integer(bytes[posiciones + 1])
+      acumular(cual, claves, length(posiciones), FALSE)
+    }
+  }
+
+  base_1 <- (suma_1 + (largos %% modulo_1) * 65521 +
     (as.numeric(semilla_1) %% modulo_1)) %% modulo_1
-
-  terminos_2 <- termino(semilla_2, modulo_2)
-  sumas_2 <- rowsum(terminos_2, grupos, reorder = FALSE)[, 1L]
-  base_2 <- (sumas_2 + (longitudes %% modulo_2) * 65519 +
+  base_2 <- (suma_2 + (largos %% modulo_2) * 65519 +
     (as.numeric(semilla_2) %% modulo_2)) %% modulo_2
-
-  posiciones_salida <- which(con_bytes)
-  h1[posiciones_salida] <- .mezclar32_lsh(base_1)
-  h2[posiciones_salida] <- .mezclar32_lsh(base_2)
+  h1[con_bytes] <- .mezclar32_lsh(base_1)
+  h2[con_bytes] <- .mezclar32_lsh(base_2)
   list(h1 = h1, h2 = h2)
 }
 
@@ -96,13 +147,15 @@
   h2 <- rep(.mezclar32_lsh(.SEMILLA_HUELLA_NA_2), length(canonicos))
   presentes <- which(!ausentes)
   if (length(presentes)) {
-    unicas <- unique(claves[presentes])
-    representantes <- match(unicas, claves)
-    valores_unicos <- canonicos[representantes]
+    # Una sola pasada de `match()` da la primera aparicion de cada valor y,
+    # con ella, a que valor unico corresponde cada fila.
+    claves_presentes <- claves[presentes]
+    primera <- match(claves_presentes, claves_presentes)
+    es_primera <- primera == seq_along(primera)
     hashes <- .hash_bytes_huella_vectorizado(
-      valores_unicos, 0x811c9dc5, 0x9e3779b9
+      canonicos[presentes[es_primera]], 0x811c9dc5, 0x9e3779b9
     )
-    indices <- match(claves[presentes], unicas)
+    indices <- cumsum(es_primera)[primera]
     h1[presentes] <- hashes$h1[indices]
     h2[presentes] <- hashes$h2[indices]
   }

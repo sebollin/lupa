@@ -4116,7 +4116,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .proteccion_texto_valores <- function(valores, codificacion = NULL) {
   trabajo <- .texto_para_operar(valores)
   candidatos <- .ftfy_mascara_para_texto(valores, trabajo = trabajo)
-  posiciones_ambiguas <- lapply(trabajo, .ftfy_posiciones_ambiguas)
+  posiciones_ambiguas <- .ftfy_posiciones_ambiguas_vector(trabajo)
   mascaras <- vector("list", length(valores))
   indices <- which(candidatos)
   if (length(indices)) {
@@ -4264,7 +4264,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
                               length(anterior)) {
     proteccion$posiciones_ambiguas
   } else {
-    lapply(.texto_para_operar(anterior), .ftfy_posiciones_ambiguas)
+    .ftfy_posiciones_ambiguas_vector(.texto_para_operar(anterior))
   }
   candidatos <- if (!is.null(proteccion) &&
                     length(proteccion$candidatos) == length(anterior)) {
