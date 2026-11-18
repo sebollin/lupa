@@ -293,10 +293,15 @@ test_that("SQL Server conserva el desvio de dobles extremos", {
   testthat::expect_identical(desvios_lote, desvios_columna)
   sql_lote <- as.character(por_lotes$resumen_tabla$sql$sql)
   if (inherits(conexion, "PqConnection")) {
-    testthat::expect_true(any(grepl(
+    patrones_centrado <- c(
       "STDDEV_SAMP\\(CAST\\(\\(CAST\\(\\\"f_dec\\\" AS DOUBLE PRECISION\\) - ",
-      sql_lote, perl = TRUE
-    ), na.rm = TRUE))
+      "STDDEV_SAMP\\(CAST\\(\\(CAST\\(NULLIF\\(\\\"f_dec\\\", CAST\\('NaN' AS DOUBLE PRECISION\\)\\) AS DOUBLE PRECISION\\) - "
+    )
+    testthat::expect_true(any(vapply(
+      patrones_centrado,
+      function(patron) any(grepl(patron, sql_lote, perl = TRUE)),
+      logical(1L)
+    )))
   } else {
     testthat::expect_true(any(grepl(
       "STDEV\\(CAST\\(\\(\\\"f_dec\\\" - [0-9.]+e[+-][0-9]+\\) AS FLOAT\\)",

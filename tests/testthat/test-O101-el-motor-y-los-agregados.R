@@ -65,8 +65,15 @@ test_that("un NaN del motor no se publica como una cifra calculada", {
   skip_if_not_installed("DBI")
   con <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
-  DBI::dbWriteTable(con, "d", data.frame(n_nan = c(NaN, 1, 2, 3, NA, 4),
-                                          x = c(1, 2, 3, 4, 5, 6)))
+  valores_nan <- c(NaN, 1, 2, 3, NA_real_, 4)
+  DBI::dbWriteTable(con, "d", data.frame(
+    n_nan = valores_nan,
+    infinitos = c(Inf, -Inf, NA_real_, NA_real_, NA_real_, NA_real_),
+    x = c(1, 2, 3, 4, 5, 6)
+  ))
+  memoria_nan <- perfilar(data.frame(n_nan = valores_nan))$columnas
+  memoria_nan <- memoria_nan[memoria_nan$columna == "n_nan", , drop = FALSE]
+  metricas_magnitud <- c("minimo", "maximo", "media", "mediana", "desvio")
   for (metricas in list(NULL, c("validos", "mediana"))) {
     argumentos <- list(con, "d", bloque_muestra = "solo_agregados",
                        proteger_datos_personales = FALSE)
@@ -76,12 +83,43 @@ test_that("un NaN del motor no se publica como una cifra calculada", {
     )
     sql <- as.data.frame(perfil$resumen_tabla$sql)
     de_nan <- sql[sql$columna == "n_nan" &
-                    sql$metrica %in% c("minimo", "maximo", "media", "mediana",
-                                       "desvio"), , drop = FALSE]
-    # Antes: `maximo` y `media` en NA con estado `calculado`, y la mediana
-    # contando el NaN como el mayor valor.
-    expect_true(all(de_nan$estado %in% c("no_disponible", "no_solicitado")))
-    expect_true(any(grepl("NaN", de_nan$motivo, fixed = TRUE)))
+                    sql$metrica %in% metricas_magnitud, , drop = FALSE]
+    # `NaN` almacenado es faltante: los agregados se calculan sobre los
+    # cuatro valores finitos y publican el mismo valor que `perfilar()`.
+    de_nan_calculado <- de_nan[de_nan$estado == "calculado", , drop = FALSE]
+    expect_true(nrow(de_nan_calculado) > 0L)
+    observado_nan <- perfil$resumen_tabla$columnas
+    observado_nan <- observado_nan[observado_nan$columna == "n_nan", , drop = FALSE]
+    expect_equal(observado_nan$n_faltantes, memoria_nan$n_faltantes)
+    expect_equal(observado_nan$n_validos,
+                 memoria_nan$n - memoria_nan$n_faltantes)
+    if (is.null(metricas)) {
+      expect_true(all(de_nan$estado == "calculado"))
+      expect_equal(observado_nan$n_distintos, memoria_nan$n_distintos)
+      metricas_comparar <- metricas_magnitud
+    } else {
+      expect_identical(as.character(
+        de_nan$estado[de_nan$metrica == "mediana"]
+      ), "calculado")
+      metricas_comparar <- "mediana"
+    }
+    for (metrica in metricas_comparar) {
+      expect_equal(as.numeric(observado_nan[[metrica]]),
+                   as.numeric(memoria_nan[[metrica]]), tolerance = 1e-12)
+    }
+    de_inf <- sql[sql$columna == "infinitos" &
+                    sql$metrica %in% metricas_magnitud, , drop = FALSE]
+    evaluados_inf <- de_inf$estado != "no_solicitado"
+    expect_true(any(evaluados_inf))
+    expect_true(all(de_inf$estado[evaluados_inf] == "sin_valores"))
+    expect_true(all(grepl("no contiene valores finitos",
+                          de_inf$motivo[evaluados_inf], fixed = TRUE)))
+    observado_inf <- perfil$resumen_tabla$columnas
+    observado_inf <- observado_inf[observado_inf$columna == "infinitos", ,
+                                   drop = FALSE]
+    metricas_inf <- as.character(de_inf$metrica[evaluados_inf])
+    expect_true(all(vapply(observado_inf[metricas_inf],
+                           function(x) all(is.na(x)), logical(1))))
     # Control: la columna sin NaN se calcula.
     x <- sql[sql$columna == "x" & sql$metrica == "mediana", , drop = FALSE]
     expect_identical(as.character(x$estado), "calculado")

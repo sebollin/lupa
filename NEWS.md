@@ -190,6 +190,21 @@
   `convertir_minusculas` cambiaba `MÃœNCHEN` (una `Ü` rota) a `mÃŒnchen`, que
   reparado después daba otra letra. Y tratan `Ș`/`ș` y `Ț`/`ț` del rumano, que
   quedaban con caja mixta.
+- `perfilar_dbi()` cuenta `NaN` igual que `perfilar()`. En DuckDB y PostgreSQL,
+  que guardan `NaN` en una columna de punto flotante (y PostgreSQL también en
+  `numeric`), lo contaba como un valor presente y distinto: entraba en
+  `n_validos` y en `n_distintos`, y una columna toda `NaN` publicaba sus `NaN`
+  como válidos y la moda `no_disponible`, donde en memoria salía `sin_valores`.
+  En DuckDB, además, con un solo `NaN` el mínimo, el máximo, la media, la
+  mediana y el desvío salían `no_disponible`. Ahora cuenta como faltante, no
+  entra en los distintos ni en la moda, y esos agregados se calculan sobre los
+  demás valores, como en memoria; el hallazgo `valores_no_finitos` se conserva.
+  El filtro y el conteo de los `NaN` van dentro de las mismas consultas, también
+  con `universo = "muestra_motor"`, donde se cuentan sobre las filas de la
+  muestra: no se agrega ninguna consulta ni otra lectura de la tabla, y
+  `plan_perfilado_dbi()` anuncia las mismas que antes. SQLite ya lo entregaba
+  como `NULL`, y SQL Server, MySQL y MariaDB no lo guardan. Los infinitos no
+  cambian.
 
 # lupa 0.1.2
 

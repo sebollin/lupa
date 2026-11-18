@@ -991,10 +991,13 @@ información el motor los describe como números —\code{minimo = 17956}—. Co
 \code{DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)} la columna
 se declara temporal y \code{perfilar_dbi()} no le aplica agregados
 cuantitativos, y lo dice.
-\item \strong{\code{NaN} en duckdb.} duckdb conserva \code{NaN} como un valor: lo cuenta como
-presente y distinto, y responde \code{MAX} y \code{AVG} con \code{NaN}. En R, \code{NaN} cuenta
-como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
-respondió con \code{NaN} no se publica: queda \code{no_disponible} con su motivo.
+\item \strong{\code{NaN} en duckdb y PostgreSQL.} Ambos motores pueden conservar \code{NaN},
+pero \code{perfilar_dbi()} lo lleva a la misma regla que \code{perfilar()}: cuenta
+como faltante, no cuenta como válido, distinto ni moda, y queda fuera de
+mínimo, máximo, media, mediana y desvío. Una columna sólo de \code{NaN} queda
+\code{sin_valores}, con moda \code{NA} y frecuencia 0. El hallazgo
+\code{valores_no_finitos} se conserva. SQLite ya entrega \code{NaN} como \code{NULL};
+SQL Server, MySQL y MariaDB no lo guardan.
 \item \strong{Infinitos.} SQLite, PostgreSQL y duckdb admiten \code{Inf} y \code{-Inf} en una
 columna de punto flotante, y el motor los cuenta en \code{MIN}, \code{MAX}, \code{AVG} y
 el orden de la mediana. Los estadísticos de magnitud se calculan sólo con

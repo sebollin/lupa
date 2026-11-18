@@ -3,17 +3,14 @@
 # la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
 testthat::skip_on_cran()
 
-test_that("la corroboracion declara NaN e infinitos en todos los campos divergentes", {
+test_that("con NaN e infinitos los dos caminos coinciden", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
 
   con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
-  DBI::dbWriteTable(
-    con, "datos_cruce", data.frame(
-      x = c(1:20, NaN, NaN, NA_real_, Inf, -Inf)
-    )
-  )
+  valores <- c(1:20, NaN, NaN, NA_real_, Inf, -Inf)
+  DBI::dbWriteTable(con, "datos_cruce", data.frame(x = valores))
 
   resultado <- suppressWarnings(lupa::perfilar_dbi(
     con, "datos_cruce", muestra = Inf,
@@ -22,29 +19,37 @@ test_that("la corroboracion declara NaN e infinitos en todos los campos divergen
   cobertura <- resultado$resumen_tabla$cobertura
   divergencias <- cobertura[cobertura$bloque == "corroboracion", , drop = FALSE]
 
-  # `moda` queda FUERA a proposito, y la razon vale escribirla. En esta columna
-  # los valores validos son 1..20, Inf y -Inf: veintidos, cada uno una sola vez.
-  # No hay moda. Antes, la via de memoria publicaba `-Inf` -- el menor, ganador
-  # de un desempate de veintidos vias -- y el motor publicaba NA, y esa
-  # "divergencia" era el desempate arbitrario, no una diferencia entre los dos
-  # caminos. Ahora ninguna de las dos inventa una moda, coinciden, y no hay nada
-  # que declarar. `frecuencia_moda` si sigue divergiendo, que es lo que de
-  # verdad se mide distinto.
-  expect_setequal(
-    divergencias$elemento,
-    setdiff(paste0("x::", lupa:::.METRICAS_CORROBORACION_DBI), "x::moda")
-  )
-  expect_true(is.na(resultado$resumen_tabla$columnas$moda[[1L]]))
-  expect_true(is.na(resultado$perfil_muestra$columnas$moda[[1L]]))
-  expect_true(all(divergencias$estado == "divergencia"))
-  expect_true(all(grepl("resumen_tabla", divergencias$motivo, fixed = TRUE)))
-  expect_true(all(grepl("perfil_muestra", divergencias$motivo, fixed = TRUE)))
-  expect_true(all(grepl("ambos valores quedan publicados", divergencias$motivo,
-                        fixed = TRUE)))
+  # `NaN` y `NA` son tres faltantes; `Inf` y `-Inf` son presentes para los
+  # conteos y quedan fuera de los agregados de magnitud. Los dos caminos ven
+  # exactamente esas mismas reglas, asi que no se declara ninguna divergencia,
+  # tampoco de `frecuencia_moda`.
+  expect_equal(nrow(divergencias), 0L)
   expect_equal(
     resultado$resumen_tabla$meta$corroboracion_bloques$estado,
     "comparacion_completa"
   )
+  resumen <- resultado$resumen_tabla$columnas
+  resumen <- resumen[resumen$columna == "x", , drop = FALSE]
+  muestra <- resultado$perfil_muestra$columnas
+  muestra <- muestra[muestra$columna == "x", , drop = FALSE]
+  memoria <- perfilar(data.frame(x = valores))$columnas
+  memoria <- memoria[memoria$columna == "x", , drop = FALSE]
+  expect_equal(resumen$n_faltantes, 3)
+  expect_equal(resumen$n_validos, resumen$n - resumen$n_faltantes)
+  expect_equal(muestra$n - muestra$n_faltantes, resumen$n_validos)
+  expect_equal(memoria$n - memoria$n_faltantes, resumen$n_validos)
+  for (campo in c(
+    "n_distintos", "minimo", "maximo", "media", "mediana", "desvio",
+    "n_ceros", "n_negativos", "frecuencia_moda"
+  )) {
+    expect_equal(resumen[[campo]], muestra[[campo]], tolerance = 1e-12,
+                 info = campo)
+    expect_equal(resumen[[campo]], memoria[[campo]], tolerance = 1e-12,
+                 info = campo)
+  }
+  expect_true(is.na(resultado$resumen_tabla$columnas$moda[[1L]]))
+  expect_true(is.na(resultado$perfil_muestra$columnas$moda[[1L]]))
+  expect_true(is.na(memoria$moda[[1L]]))
 })
 
 test_that("la corroboracion sigue el contrato cuando los dos caminos difieren", {

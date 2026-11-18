@@ -10202,18 +10202,121 @@
   NULL
 }
 
-# PostgreSQL ordena `NaN` por encima de todos los numeros y lo incluye en los
-# agregados. La via de infinitos puede reutilizarse si la relacion finita
-# excluye tambien este literal. No se declara para otros motores: duckdb, por
-# ejemplo, conserva la distincion en R y mantiene su contrato propio.
+# PostgreSQL y duckdb ordenan `NaN` por encima de los numeros y lo incluyen en
+# los agregados. La via de infinitos puede reutilizarse si la relacion finita
+# excluye tambien este literal. No se declara para otros motores: SQLite ya
+# entrega `NaN` como `NULL` y los demas no lo guardan.
 .literal_nan_dbi <- function(conexion, como_numeric = FALSE) {
   senas <- .senas_conexion_dbi(conexion)
+  if (grepl("duckdb", senas, fixed = TRUE, useBytes = TRUE)) {
+    return("CAST('NaN' AS DOUBLE)")
+  }
   if (!grepl("postgres|pqconnection", senas, useBytes = TRUE)) return(NULL)
   if (isTRUE(como_numeric)) {
     "CAST('NaN' AS NUMERIC)"
   } else {
     "CAST('NaN' AS DOUBLE PRECISION)"
   }
+}
+
+# Una sola expresion para la regla compartida por conteos, agregados, moda y
+# mediana. `NaN` es igual a si mismo en PostgreSQL y duckdb, por lo que no sirve
+# `x <> x`: se compara con el literal y se convierte a `NULL`, que es la
+# representacion que todas esas consultas ya usan para un faltante.
+.excluir_nan_sql_dbi <- function(conexion, columna_sql,
+                                 como_numeric = FALSE) {
+  nan <- .literal_nan_dbi(conexion, como_numeric)
+  if (is.null(nan)) return(columna_sql)
+  paste0("NULLIF(", columna_sql, ", ", nan, ")")
+}
+
+# Cuenta el `NaN` sin agregar una consulta: se incorpora a la misma sentencia
+# que ya pide los agregados. La columna que se usa para contar es la original,
+# no la expresion que lo excluye; asi se distingue una columna candidata sin
+# `NaN` de una que si los guarda.
+.contar_nan_sql_dbi <- function(conexion, columna_sql, alias,
+                                como_numeric = FALSE,
+                                tabla_fuente = NULL, tabla_total = NULL,
+                                como_numeric_total = como_numeric) {
+  nan <- .literal_nan_dbi(conexion, como_numeric)
+  if (is.null(nan)) return(NULL)
+  senas <- .senas_conexion_dbi(conexion)
+  expresion <- paste0(
+    "SUM(CASE WHEN ", columna_sql, " = ", nan,
+    " THEN 1 ELSE 0 END)"
+  )
+  if (!is.null(tabla_total) && !identical(tabla_fuente, tabla_total)) {
+    nan_total <- .literal_nan_dbi(conexion, como_numeric_total)
+    if (is.null(nan_total)) return(NULL)
+    expresion_total <- paste0(
+      "SUM(CASE WHEN ", columna_sql, " = ", nan_total,
+      " THEN 1 ELSE 0 END)"
+    )
+    cuenta <- paste0(
+      "(SELECT ", .conteo_sql_dbi(expresion_total, senas),
+      " FROM ", tabla_total, ")"
+    )
+  } else {
+    cuenta <- .conteo_sql_dbi(expresion, senas)
+  }
+  paste0(cuenta, " AS ", alias)
+}
+
+# Un tipo que el motor declara como decimal exacto (`NUMERIC`, `DECIMAL`), en
+# cualquier caja. El patron se arma con las dos cajas de cada letra: sin
+# `ignore.case`, que depende del locale.
+.tipo_decimal_exacto_dbi <- function(tipo) {
+  grepl(.regex_sin_caja("numeric|decimal"), as.character(tipo),
+        perl = TRUE, useBytes = TRUE)
+}
+
+.tipo_puede_nan_dbi <- function(tipo, prototipo = NULL, conexion = NULL) {
+  texto <- if (length(tipo) == 1L && !is.na(tipo)) as.character(tipo) else ""
+  # El tipo declarado manda cuando esta disponible. Algunos controladores
+  # devuelven un prototipo vacio con una clase doble aunque la columna sea
+  # entera; no se debe enviarle el predicado de `NaN` a esa columna.
+  if (nzchar(texto)) {
+    if (.tipo_decimal_exacto_dbi(texto) && !is.null(conexion) &&
+        grepl("duckdb", .senas_conexion_dbi(conexion), fixed = TRUE,
+              useBytes = TRUE)) {
+      return(FALSE)
+    }
+    return(grepl(.regex_sin_caja("double|float|real|numeric|decimal"), texto,
+                 perl = TRUE, useBytes = TRUE))
+  }
+  if (.tipo_decimal_exacto_dbi(texto) && !is.null(conexion) &&
+      grepl("duckdb", .senas_conexion_dbi(conexion), fixed = TRUE,
+            useBytes = TRUE)) {
+    return(FALSE)
+  }
+  if (grepl(.regex_sin_caja("double|float|real|numeric|decimal"), texto,
+            perl = TRUE, useBytes = TRUE)) return(TRUE)
+  is.double(prototipo) &&
+    !inherits(prototipo, c("Date", "POSIXct", "POSIXlt"))
+}
+
+.columnas_candidatas_nan_dbi <- function(
+    conexion, campos, es_numerico, tipos_declarados = NULL,
+    prototipo = NULL) {
+  if (is.null(.literal_nan_dbi(conexion)) || !length(campos)) {
+    return(character())
+  }
+  candidatas <- vapply(seq_along(campos), function(i) {
+    tipo <- .atributo_columna_dbi(tipos_declarados, campos[[i]], i) %||%
+      NA_character_
+    isTRUE(es_numerico[[i]]) && .tipo_puede_nan_dbi(
+      tipo, .atributo_columna_dbi(prototipo, campos[[i]], i), conexion
+    )
+  }, logical(1L))
+  campos[which(candidatas)]
+}
+
+.nan_presente_agregados_dbi <- function(agregados, campo) {
+  if (is.null(agregados) || is.null(agregados$nan)) return(FALSE)
+  contado <- agregados$nan[[campo]]
+  if (!is.list(contado) || !isTRUE(contado$ok)) return(FALSE)
+  valor <- suppressWarnings(as.numeric(contado$valor %||% NA_real_))
+  length(valor) == 1L && is.finite(valor) && valor > 0
 }
 
 # Cuenta los infinitos de la columna en un motor que sabe escribirlos. Solo se
@@ -12693,6 +12796,11 @@
         resultado$validos, consulta, aliases$total
       )
     }
+    if (!is.null(aliases$nan)) {
+      resultado$nan <- .resultado_lote_dbi(
+        consulta, sql, aliases$nan, metadatos
+      )
+    }
     if ("basicos" %in% metricas && !is.null(aliases$basicos)) {
       resultado$basicos <- .resultado_lote_campos_dbi(
         consulta, sql, aliases$basicos, metricas_basicos, metadatos
@@ -12748,7 +12856,7 @@
     infinitos_como_numeric = FALSE, centros_desvio = NULL,
     tipos_declarados = NULL, ventana_desvio = FALSE,
     decimales_exactos = NULL, incluir_cuenta = FALSE,
-    incluir_magnitud = FALSE) {
+    incluir_magnitud = FALSE, columnas_nan = character()) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -12772,11 +12880,40 @@
   } else {
     character()
   }
+  tipo_declarado_de <- function(campo) {
+    .atributo_columna_dbi(tipos_declarados, campo) %||% NA_character_
+  }
+  columna_operacion_de <- function(i) {
+    campo <- lote[[i]]
+    columna <- nombres_sql[[campo]]
+    tipo <- tipo_declarado_de(campo)
+    if (!isTRUE(es_numerico[[i]]) || !campo %in% columnas_nan ||
+        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) {
+      return(columna)
+    }
+    .excluir_nan_sql_dbi(
+      conexion, columna,
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna) ||
+        (isTRUE(infinitos_como_numeric) &&
+         campo %in% columnas_float8_numeric)
+    )
+  }
   alias_por_columna <- vector("list", length(lote))
   names(alias_por_columna) <- lote
   for (i in seq_along(lote)) {
+    campo <- lote[[i]]
+    tipo <- tipo_declarado_de(campo)
+    candidata_nan <- campo %in% columnas_nan &&
+      .tipo_puede_nan_dbi(tipo, conexion = conexion)
     alias_por_columna[[i]] <- list(
       total = if (isTRUE(incluir_total)) alias("n_total_consulta"),
+      nan = if (isTRUE(candidata_nan)) {
+        .alias_agregado_dbi(alias, numero, i, "n_nan")
+      },
+      nan_marca = if (isTRUE(candidata_nan) && isTRUE(ventana_desvio)) {
+        .alias_agregado_dbi(alias, numero, i, "n_nan_marca")
+      },
       validos = if ("validos" %in% metricas) {
         .alias_agregado_dbi(alias, numero, i, "n_validos")
       },
@@ -12850,9 +12987,11 @@
   # desborda ("Overflow in multiplication of DECIMAL(38)") y tumbaba la
   # sentencia entera, con las sumas adentro. Se promedia y se desvia el doble.
   promedio_de <- function(campo) {
+    i <- match(campo, lote)
+    columna <- columna_operacion_de(i)
     if (!is.null(piezas_exactas[[campo]]) && .duckdb_senas_dbi(senas)) {
-      paste0("CAST(", nombres_sql[[campo]], " AS DOUBLE)")
-    } else nombres_sql[[campo]]
+      paste0("CAST(", columna, " AS DOUBLE)")
+    } else columna
   }
   tabla_agregados_sql <- tabla_sql
   centros_ventana <- list()
@@ -12874,10 +13013,32 @@
       )
     }, character(1L), USE.NAMES = FALSE)
     campos_fuente <- vapply(
-      lote, function(campo) nombres_sql[[campo]], character(1L),
-      USE.NAMES = FALSE
+      seq_along(lote), function(i) {
+        columna <- columna_operacion_de(i)
+        if (identical(columna, nombres_sql[[lote[[i]]]])) columna else
+          paste0(columna, " AS ", nombres_sql[[lote[[i]]]])
+      }, character(1L), USE.NAMES = FALSE
     )
     campos_fuente <- c(campos_fuente, centros[!is.na(centros)])
+    marcas_nan <- vapply(seq_along(lote), function(i) {
+      aliases <- alias_por_columna[[i]]
+      if (is.null(aliases$nan_marca)) return(NA_character_)
+      campo <- lote[[i]]
+      tipo <- tipo_declarado_de(campo)
+      nan <- .literal_nan_dbi(
+        conexion,
+        como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+          .es_lectura_double_exacta_dbi(nombres_sql[[campo]]) ||
+          (isTRUE(infinitos_como_numeric) &&
+           campo %in% columnas_float8_numeric)
+      )
+      if (is.null(nan)) return(NA_character_)
+      paste0(
+        "CASE WHEN ", nombres_sql[[campo]], " = ", nan,
+        " THEN 1 ELSE 0 END AS ", aliases$nan_marca
+      )
+    }, character(1L), USE.NAMES = FALSE)
+    campos_fuente <- c(campos_fuente, marcas_nan[!is.na(marcas_nan)])
     tabla_agregados_sql <- paste0(
       "(SELECT ", paste(campos_fuente, collapse = ", "),
       " FROM ", tabla_sql, ") AS ", alias("lupa_desvio_ventana")
@@ -12886,39 +13047,60 @@
   expresiones_columna <- function(i) {
     campo <- lote[[i]]
     aliases <- alias_por_columna[[i]]
+    columna <- columna_operacion_de(i)
     exacta <- isTRUE(infinitos_como_numeric) &&
       campo %in% columnas_float8_numeric ||
       .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
     c(
       if ("validos" %in% metricas) paste0(
-        .contar_no_nulos_sql_dbi(nombres_sql[[campo]], senas), " AS ", aliases$validos
+        .contar_no_nulos_sql_dbi(columna, senas), " AS ", aliases$validos
       ),
+      if (!is.null(aliases$nan)) {
+        if (!is.null(aliases$nan_marca)) {
+          paste0(
+            "SUM(", aliases$nan_marca, ") AS ", aliases$nan
+          )
+        } else .contar_nan_sql_dbi(
+          conexion, nombres_sql[[campo]], aliases$nan,
+          como_numeric = .tipo_decimal_exacto_dbi(
+            tipo_declarado_de(campo)
+          ) || .es_lectura_double_exacta_dbi(nombres_sql[[campo]]) ||
+            (isTRUE(infinitos_como_numeric) &&
+             campo %in% columnas_float8_numeric),
+          tabla_fuente = tabla_agregados_sql,
+          tabla_total = if (isTRUE(incluir_magnitud)) NULL else
+            tabla_total_sql,
+          como_numeric_total = .tipo_decimal_exacto_dbi(
+            tipo_declarado_de(campo)
+          )
+        )
+      },
       if (!is.null(aliases$cuenta)) paste0(
-        .contar_no_nulos_sql_dbi(nombres_sql[[campo]], senas), " AS ", aliases$cuenta
+        .contar_no_nulos_sql_dbi(columna, senas), " AS ", aliases$cuenta
       ),
       if (!is.null(aliases$magnitud)) .expresiones_sonda_magnitud_dbi(
-        conexion, nombres_sql[[campo]], aliases$magnitud, alias
+        conexion, columna, aliases$magnitud, alias
       ),
       if ("basicos" %in% metricas && es_numerico[[i]]) c(
         if (incluir_valores) paste0(
-          "MIN(", nombres_sql[[campo]], ") AS ", aliases$basicos$minimo
+          "MIN(", columna, ") AS ", aliases$basicos$minimo
         ),
         if (incluir_valores) paste0(
-          "MAX(", nombres_sql[[campo]], ") AS ", aliases$basicos$maximo
+          "MAX(", columna, ") AS ", aliases$basicos$maximo
         ),
         if (!incluir_valores) paste0(
-          "MIN(", nombres_sql[[campo]], ") AS ", aliases$basicos$minimo
+          "MIN(", columna, ") AS ", aliases$basicos$minimo
         ),
         if (!incluir_valores) paste0(
-          "MAX(", nombres_sql[[campo]], ") AS ", aliases$basicos$maximo
+          "MAX(", columna, ") AS ", aliases$basicos$maximo
         ),
         if (!incluir_valores) paste0(
-          "MAX(", .abs_sql_seguro_dbi(conexion, nombres_sql[[campo]]),
+          "MAX(", .abs_sql_seguro_dbi(conexion, columna),
           ") AS ",
           aliases$basicos$maximo_abs
         ),
         if (!incluir_valores) paste0(
-          "MIN(", .abs_sql_seguro_dbi(conexion, nombres_sql[[campo]]),
+          "MIN(", .abs_sql_seguro_dbi(conexion, columna),
           ") AS ",
           aliases$basicos$minimo_abs
         ),
@@ -12932,13 +13114,13 @@
         ),
         paste0(
           .conteo_sql_dbi(
-            paste0("SUM(CASE WHEN ", nombres_sql[[campo]],
+            paste0("SUM(CASE WHEN ", columna,
                    " = 0 THEN 1 ELSE 0 END)"), senas
           ), " AS ", aliases$basicos$n_ceros
         ),
         paste0(
           .conteo_sql_dbi(
-            paste0("SUM(CASE WHEN ", nombres_sql[[campo]],
+            paste0("SUM(CASE WHEN ", columna,
                    " < 0 THEN 1 ELSE 0 END)"), senas
           ), " AS ", aliases$basicos$n_negativos
         )
@@ -13286,10 +13468,35 @@
 .conteos_distintos_lote_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
     aproximacion_distintos = NULL, incluir_total = FALSE,
-    tabla_total_sql = tabla_sql) {
+    tabla_total_sql = tabla_sql, tipos_declarados = NULL,
+    columnas_nan = character(), infinitos_como_numeric = FALSE,
+    columnas_float8_numeric = character(),
+    tabla_fuente_es_muestra = FALSE) {
   senas <- .senas_conexion_dbi(conexion)
+  columna_operacion_de <- function(campo) {
+    columna <- nombres_sql[[campo]]
+    tipo <- .atributo_columna_dbi(tipos_declarados, campo) %||% NA_character_
+    if (!campo %in% columnas_nan ||
+        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) {
+      return(columna)
+    }
+    .excluir_nan_sql_dbi(
+      conexion, columna,
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna) ||
+        (isTRUE(infinitos_como_numeric) &&
+         campo %in% columnas_float8_numeric)
+    )
+  }
   alias_por_columna <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, numero, i, "n_distintos")
+  }, character(1L), USE.NAMES = FALSE)
+  nan_por_columna <- vapply(seq_along(lote), function(i) {
+    campo <- lote[[i]]
+    tipo <- .atributo_columna_dbi(tipos_declarados, campo, i) %||% NA_character_
+    if (!campo %in% columnas_nan ||
+        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) return(NA_character_)
+    .alias_agregado_dbi(alias, numero, i, "n_nan")
   }, character(1L), USE.NAMES = FALSE)
   guardian_por_columna <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, numero, i, "n_validos_guard")
@@ -13313,7 +13520,7 @@
     }
     for (i in seq_along(lote)) {
       sql <- aproximacion_distintos$construir(
-        nombres_sql[[lote[[i]]]], tabla_sql, alias_por_columna[[i]]
+        columna_operacion_de(lote[[i]]), tabla_sql, alias_por_columna[[i]]
       )
       resultado <- .escalar_dbi(
         conexion, sql, .nombre_alias_dbi(alias_por_columna[[i]]),
@@ -13349,15 +13556,30 @@
     ))
   }
   expresion <- function(i) {
+    columna <- columna_operacion_de(lote[[i]])
     if (is.null(aproximacion_distintos)) {
       return(c(
         paste0(
-          .contar_no_nulos_sql_dbi(nombres_sql[[lote[[i]]]], senas), " AS ",
+          .contar_no_nulos_sql_dbi(columna, senas), " AS ",
           guardian_por_columna[[i]]
+        ),
+        if (!is.na(nan_por_columna[[i]])) .contar_nan_sql_dbi(
+          conexion, nombres_sql[[lote[[i]]]], nan_por_columna[[i]],
+          como_numeric = .tipo_decimal_exacto_dbi(
+            .atributo_columna_dbi(tipos_declarados, lote[[i]], i)
+          ) || .es_lectura_double_exacta_dbi(nombres_sql[[lote[[i]]]]) ||
+            (isTRUE(infinitos_como_numeric) &&
+             lote[[i]] %in% columnas_float8_numeric),
+          tabla_fuente = tabla_sql,
+          tabla_total = if (isTRUE(tabla_fuente_es_muestra)) NULL else
+            tabla_total_sql,
+          como_numeric_total = .tipo_decimal_exacto_dbi(
+            .atributo_columna_dbi(tipos_declarados, lote[[i]], i)
+          )
         ),
         paste0(
           .conteo_sql_dbi(
-            paste0("COUNT(DISTINCT ", nombres_sql[[lote[[i]]]], ")"), senas
+            paste0("COUNT(DISTINCT ", columna, ")"), senas
           ), " AS ",
           alias_por_columna[[i]]
         )
@@ -13366,11 +13588,11 @@
     if (is.null(aproximacion_distintos$expresion)) return(NULL)
     c(
       paste0(
-        .contar_no_nulos_sql_dbi(nombres_sql[[lote[[i]]]], senas), " AS ",
+        .contar_no_nulos_sql_dbi(columna, senas), " AS ",
         guardian_por_columna[[i]]
       ),
       aproximacion_distintos$expresion(
-        nombres_sql[[lote[[i]]]], alias_por_columna[[i]]
+        columna, alias_por_columna[[i]]
       )
     )
   }
@@ -13492,8 +13714,14 @@
         resultado, entrada$consulta,
         guardian_por_columna[[grupo[[i]]]]
       )
+      nan <- if (is.na(nan_por_columna[[grupo[[i]]]])) NULL else {
+        .resultado_lote_dbi(
+          entrada$consulta, entrada$sql,
+          nan_por_columna[[grupo[[i]]]], metadatos
+        )
+      }
       salida[[lote[[grupo[[i]]]]]] <- list(
-        consolidada = TRUE, distintos = estimar(resultado)
+        consolidada = TRUE, distintos = estimar(resultado), nan = nan
       )
     }
   }
@@ -13501,7 +13729,7 @@
     campo <- lote[[i]]
     metadatos <- .metadatos_lote_dbi(numero, campo)
     resultado <- .conteos_columna_dbi(
-      conexion, tabla_sql, nombres_sql[[campo]], alias,
+      conexion, tabla_sql, columna_operacion_de(campo), alias,
       FALSE, TRUE, presupuesto, aproximacion_distintos
     )$distintos
     resultado$metadatos <- .mezclar_metadatos_dbi(
@@ -13569,7 +13797,8 @@
                                         tipos_declarados = NULL,
                                         columnas_float8_numeric = character(),
                                         infinitos_como_numeric = FALSE,
-                                        universo = "tabla_completa") {
+                                        universo = "tabla_completa",
+                                        columnas_nan = character()) {
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
@@ -13579,13 +13808,29 @@
     salida
   }
   agregados <- list(
-    conteos = por_columna(), basicos = por_columna(), desvio = por_columna()
+    conteos = por_columna(), basicos = por_columna(), desvio = por_columna(),
+    nan = por_columna()
   )
   configuracion_aviso <- function(nombre, defecto) {
     valor <- if (is.null(presupuesto)) NULL else presupuesto[[nombre]]
     if (is.null(valor)) defecto else valor
   }
   nombres_sql <- stats::setNames(columnas_sql, columnas)
+  columna_operacion_de <- function(campo) {
+    columna <- nombres_sql[[campo]]
+    tipo <- tipos_por_nombre[[campo]] %||% NA_character_
+    i <- .indice_nombre(campo, columnas)
+    if (is.na(i) || !isTRUE(es_numerico[[i]]) ||
+        !campo %in% columnas_nan ||
+        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) return(columna)
+    .excluir_nan_sql_dbi(
+      conexion, columna,
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna) ||
+        (isTRUE(infinitos_como_numeric) &&
+         campo %in% columnas_float8_numeric)
+    )
+  }
   conteo <- conteo_inicial
   n_total <- if (is.null(conteo)) NA_real_ else .conteo_dbi(conteo$valor)
   tomar_conteo <- function(resultado) {
@@ -13677,7 +13922,8 @@
         ventana_desvio = ventana_desvio,
         decimales_exactos = decimales_exactos,
         incluir_cuenta = TRUE,
-        incluir_magnitud = identical(universo, "muestra_motor")
+        incluir_magnitud = identical(universo, "muestra_motor"),
+        columnas_nan = columnas_nan
       )
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
@@ -13690,7 +13936,7 @@
             !is.null(resultado$validos) && !isTRUE(resultado$validos$ok) &&
             isTRUE(resultado$consolidada)) {
           resultado$validos <- .conteos_columna_dbi(
-            conexion, tabla_sql, nombres_sql[[campo]], alias,
+            conexion, tabla_sql, columna_operacion_de(campo), alias,
             TRUE, FALSE, presupuesto, incluir_total = TRUE
           )$validos
         }
@@ -13698,7 +13944,7 @@
             !is.null(resultado$basicos) && !isTRUE(resultado$basicos$ok) &&
             isTRUE(resultado$consolidada)) {
           resultado$basicos <- .basicos_columna_dbi(
-            conexion, tabla_sql, nombres_sql[[campo]], alias, incluir_valores,
+            conexion, tabla_sql, columna_operacion_de(campo), alias, incluir_valores,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             float8_seguro = campo %in% columnas_float8_numeric,
             infinitos_como_numeric = isTRUE(infinitos_como_numeric) &&
@@ -13737,7 +13983,7 @@
             denominador_lote <- NULL
           }
           resultado$desvio <- .desvio_columna_dbi(
-            conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
+            conexion, tabla_sql, columna_operacion_de(campo), alias, forma,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             numeric_exact = isTRUE(infinitos_como_numeric) &&
               campo %in% columnas_float8_numeric ||
@@ -13761,6 +14007,9 @@
           agregados$conteos[[campo]] <- utils::modifyList(
             base_conteos, list(validos = resultado$validos)
           )
+        }
+        if (!is.null(resultado$nan)) {
+          agregados$nan[[campo]] <- resultado$nan
         }
         if ("basicos" %in% metricas && !is.null(resultado$basicos)) {
           agregados$basicos[[campo]] <- resultado$basicos
@@ -13828,7 +14077,8 @@
             columnas_float8_numeric = columnas_desvio_exactas,
             infinitos_como_numeric = infinitos_como_numeric,
             centros_desvio = centros[columnas_desvio],
-            tipos_declarados = tipos_por_nombre
+            tipos_declarados = tipos_por_nombre,
+            columnas_nan = columnas_nan
           )$resultados
           for (campo in columnas_desvio) {
             resultado <- resultado_desvio[[campo]]
@@ -13842,7 +14092,7 @@
           if (!is.null(agregados$desvio[[campo]]) &&
               isTRUE(agregados$desvio[[campo]]$ok)) next
           resultado <- .desvio_columna_dbi(
-            conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
+            conexion, tabla_sql, columna_operacion_de(campo), alias, forma,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             centro = centros[[campo]],
             numeric_exact = campo %in% columnas_desvio_exactas ||
@@ -13912,7 +14162,12 @@
       resultado_lote <- .conteos_distintos_lote_dbi(
         conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
         aproximacion_distintos,
-        incluir_total = FALSE, tabla_total_sql = tabla_total_sql
+        incluir_total = FALSE, tabla_total_sql = tabla_total_sql,
+        tipos_declarados = tipos_por_nombre,
+        columnas_nan = columnas_nan,
+        infinitos_como_numeric = infinitos_como_numeric,
+        columnas_float8_numeric = columnas_float8_numeric,
+        tabla_fuente_es_muestra = identical(universo, "muestra_motor")
       )
       tomar_conteo(resultado_lote)
       if (is.null(aproximacion_distintos) && numero == 1L &&
@@ -13953,6 +14208,9 @@
         agregados$conteos[[campo]] <- utils::modifyList(
           base_conteos, resultados[[campo]]
         )
+        if (!is.null(resultados[[campo]]$nan)) {
+          agregados$nan[[campo]] <- resultados[[campo]]$nan
+        }
       }
     }
   }
@@ -14094,7 +14352,8 @@
                                  solo_finitos = FALSE,
                                  infinitos_como_numeric = FALSE,
                                  numeric_exact = FALSE,
-                                 columna_sql = NULL) {
+                                 columna_sql = NULL,
+                                 nan_presente = FALSE) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(estrategia_distintos)) {
     estrategia_distintos <- list(
@@ -14299,6 +14558,15 @@
   }
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
+  }
+  if (isTRUE(nan_presente) &&
+      .tipo_puede_nan_dbi(tipo_operacion, prototipo, conexion)) {
+    columna_sql <- .excluir_nan_sql_dbi(
+      conexion, columna_sql,
+      como_numeric = .tipo_decimal_exacto_dbi(tipo_operacion) ||
+        .es_lectura_double_exacta_dbi(columna_sql) ||
+        isTRUE(infinitos_como_numeric)
+    )
   }
   registros <- list()
   motivo_no_pedida <- paste(
@@ -14915,7 +15183,8 @@
     if (es_muestreado) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, campos_pedidos, "no_disponible",
-        "muestra_inestable:sin_valores_validos", NA_character_,
+        if (isTRUE(nan_presente)) .motivo_nan_dbi("la columna") else
+          "muestra_inestable:sin_valores_validos", NA_character_,
         metadatos = metadatos
       )))
       return(list(
@@ -14924,7 +15193,12 @@
     }
     registros <- c(registros, list(.registro_sql_dbi(
       columna, campos_pedidos, "sin_valores",
-      "La columna no contiene valores no nulos.", NA_character_,
+      if (isTRUE(nan_presente)) {
+        paste(
+          "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+          "se calculan s\u00f3lo con valores finitos."
+        )
+      } else "La columna no contiene valores no nulos.", NA_character_,
       metadatos = metadatos
     )))
     return(list(
@@ -16001,8 +16275,27 @@
   # declaradas con su motivo. En esos casos la cuenta no decide
   # (`.valores_ausentes_por_cuenta_dbi()`): en PostgreSQL 9.3 un `real` con
   # `Infinity` hace fallar la sonda, y `COUNT(x) = 1` publicaba `no_aplica`.
-  list(fila = fila, sql = do.call(rbind, registros), literales = literales,
+  sql_final <- do.call(rbind, registros)
+  if (isTRUE(nan_presente) && is.data.frame(sql_final) && nrow(sql_final)) {
+    reemplazar <- sql_final$estado == "sin_valores"
+    sql_final$motivo[reemplazar] <- paste(
+      "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+      "se calculan s\u00f3lo con valores finitos."
+    )
+    if (es_muestreado) {
+      no_calculado <- sql_final$estado %in% c(
+        "sin_valores", "no_aplica", "no_disponible", "estimado",
+        "calculado"
+      )
+      if (any(no_calculado)) {
+        sql_final$estado[no_calculado] <- "no_disponible"
+        sql_final$motivo[no_calculado] <- .motivo_nan_dbi("la consulta")
+      }
+    }
+  }
+  list(fila = fila, sql = sql_final, literales = literales,
        cuenta_no_decide = isTRUE(infinitos_motor) || isTRUE(nan_motor) ||
+         (isTRUE(nan_presente) && es_muestreado) ||
          !isTRUE(magnitud_sondeada) || isTRUE(magnitud_desmentida))
 }
 
@@ -16133,6 +16426,26 @@
     }
     as.character(campos_sql_consolidados[[indice]])
   }
+  columna_operacion_de <- function(campo) {
+    columna <- sql_de(campo)
+    prototipo_campo <- .atributo_columna_dbi(prototipo, campo)
+    tipo <- tipo_motor_de(campo)
+    if (is.na(columna) || !campo %in% columnas_nan ||
+        !.tipo_puede_nan_dbi(tipo, prototipo_campo, conexion)) {
+      return(columna)
+    }
+    .excluir_nan_sql_dbi(
+      conexion, columna,
+      como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
+        .es_lectura_double_exacta_dbi(columna) ||
+        (isTRUE(infinitos_como_numeric) &&
+         campo %in% columnas_float8_numeric)
+    )
+  }
+  columnas_nan <- .columnas_candidatas_nan_dbi(
+    conexion, campos_consolidados, es_numerico_consolidados,
+    tipos_declarados, prototipo
+  )
   exacto_derrame <- (
     "distintos" %in% metricas_ejecucion &&
       identical(estrategia_distintos$estrategia_resuelta, "COUNT(DISTINCT)")
@@ -16164,7 +16477,7 @@
     tipos_declarados = tipos_declarados_consolidados,
     columnas_float8_numeric = columnas_float8_numeric,
     infinitos_como_numeric = infinitos_como_numeric,
-    universo = universo
+    universo = universo, columnas_nan = columnas_nan
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -16301,7 +16614,7 @@
       .extremos_basicos_moda_dbi(agregados, campo)
     )
     columna_moda_sql <- .expresion_binaria_moda_dbi(
-      conexion, sql_de(campo), tipo_motor_de(campo)
+      conexion, columna_operacion_de(campo), tipo_motor_de(campo)
     )
     valor_moda_sql <- .expresion_decimal_moda_dbi(
       conexion, columna_moda_sql, tipo_motor_de(campo),
@@ -16431,7 +16744,7 @@
       !is.null(mediana_consolidada)) {
     expresiones_medianas <- vapply(seq_along(campos_consolidados), function(i) {
       .expresion_mediana_motor_dbi(
-        conexion, campos_sql_consolidados[[i]],
+        conexion, columna_operacion_de(campos_consolidados[[i]]),
         tipo_motor_de(campos_consolidados[[i]])
       )
     }, character(1L))
@@ -16484,7 +16797,8 @@
                              .senas_conexion_dbi(conexion), useBytes = TRUE) &&
         campo %in% columnas_float8_numeric ||
         .es_lectura_double_exacta_dbi(sql_de(campo)),
-      columna_sql = sql_de(campo)
+      columna_sql = sql_de(campo),
+      nan_presente = .nan_presente_agregados_dbi(agregados, campo)
     )
   })
   if (identical(universo, "tabla_completa") ||
@@ -17395,6 +17709,14 @@
       }
     }
     resultados[[i]]$sql <- sql
+    if (.nan_presente_agregados_dbi(agregados, campos[[i]]) && nrow(sql)) {
+      sin_valores <- sql$estado == "sin_valores"
+      sql$motivo[sin_valores] <- paste(
+        "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+        "se calculan s\u00f3lo con valores finitos."
+      )
+      resultados[[i]]$sql <- sql
+    }
   }
   resultados
 }
@@ -23878,10 +24200,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)` la columna
 #'   se declara temporal y `perfilar_dbi()` no le aplica agregados
 #'   cuantitativos, y lo dice.
-#' * **`NaN` en duckdb.** duckdb conserva `NaN` como un valor: lo cuenta como
-#'   presente y distinto, y responde `MAX` y `AVG` con `NaN`. En R, `NaN` cuenta
-#'   como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
-#'   respondió con `NaN` no se publica: queda `no_disponible` con su motivo.
+#' * **`NaN` en duckdb y PostgreSQL.** Ambos motores pueden conservar `NaN`,
+#'   pero `perfilar_dbi()` lo lleva a la misma regla que `perfilar()`: cuenta
+#'   como faltante, no cuenta como válido, distinto ni moda, y queda fuera de
+#'   mínimo, máximo, media, mediana y desvío. Una columna sólo de `NaN` queda
+#'   `sin_valores`, con moda `NA` y frecuencia 0. El hallazgo
+#'   `valores_no_finitos` se conserva. SQLite ya entrega `NaN` como `NULL`;
+#'   SQL Server, MySQL y MariaDB no lo guardan.
 #' * **Infinitos.** SQLite, PostgreSQL y duckdb admiten `Inf` y `-Inf` en una
 #'   columna de punto flotante, y el motor los cuenta en `MIN`, `MAX`, `AVG` y
 #'   el orden de la mediana. Los estadísticos de magnitud se calculan sólo con
