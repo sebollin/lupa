@@ -16,7 +16,7 @@ testthat::skip_on_cran()
 test_that("DuckDB: la media, la mediana y el desvio de un decimal por el spool son los del decimal", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   # DuckDB no tiene lectura por bloques.
@@ -80,7 +80,7 @@ test_that("SQL Server: la media, la mediana y el desvio de un decimal por bloque
 test_that("el plan cuenta la prueba de la CTE que la muestra corre por un decimal", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   # Lo que agrega un decimal frente a un doble, en el plan y en la corrida: su

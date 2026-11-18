@@ -147,7 +147,7 @@ test_that("H2: el mensaje del motor publica solo lo permitido", {
 test_that("H2: perfilar_dbi() no publica el valor que el motor cita sin comillas", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   set.seed(2903L)
   cedulas <- .r29_cedulas(sample(1000000:6999999, 20L))
@@ -189,7 +189,7 @@ test_that("H2: el piso entre tablas de la coleccion cubre la cobertura y las lec
       primera(conditionMessage(condicion))
     }
   })
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   set.seed(2913L)
   celular <- as.numeric(sprintf("9%07d", sample(1000000:9999999, 20L)))

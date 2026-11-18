@@ -18,7 +18,7 @@
 testthat::skip_on_cran()
 
 .r33a2_conexion <- function() {
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   d <- data.frame(id = 1:30, codigo_txt = as.character(1:30),
                   stringsAsFactors = FALSE)
   d$codigo_txt[25] <- "N/D"
@@ -220,7 +220,7 @@ test_that("la decision llega a la lectura del mensaje por un solo camino", {
 test_that("sin proteccion, una tabla sin perfilar no cierra los perfiles de las demas", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   d <- data.frame(
     id = 1:30,

@@ -40,7 +40,7 @@
   skip_on_cran()
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
-  DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
 }
 
 test_that("la mediana impar de un BIGINT que pasa de 2^53 se publica si su central es exacta", {

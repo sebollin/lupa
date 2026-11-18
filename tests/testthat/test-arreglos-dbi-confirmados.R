@@ -8,24 +8,12 @@
 # la omitida. El repliegue de la lectura por bloques rehacia la llamada a mano y
 # perdia lo que la persona habia declarado.
 
-# Una conexion DuckDB que no comparte el directorio de extensiones del
-# usuario. `shared_home` es de las versiones recientes de duckdb: una anterior,
-# como la del contenedor del minimo de R declarado, no lo acepta (aborta con
-# "... must be empty"), y ahi no hay directorio compartido que evitar.
-.adc_duckdb <- function() {
-  if ("shared_home" %in% names(formals(duckdb::duckdb))) {
-    duckdb::duckdb(shared_home = FALSE)
-  } else {
-    duckdb::duckdb()
-  }
-}
-
 # Comprueba que el tipo no se desplace cuando una columna intermedia falla.
 test_that("la muestra conserva el tipo de cada columna junto a una ilegible", {
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE tipos_dbi (rota BLOB, derecha DECIMAL(18,2), texto VARCHAR)")
   DBI::dbExecute(con, paste0(
@@ -74,7 +62,7 @@ test_that("el perfil de una columna legible no cambia por tener una ilegible a s
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, paste0(
     "CREATE TABLE pares_dbi (rota BLOB, entero INTEGER, doble DOUBLE, ",
@@ -411,7 +399,7 @@ test_that("una materializacion completa que falla no publica el tamano del recor
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE spool_dbi (v INTEGER, sano INTEGER)")
   DBI::dbExecute(con, "INSERT INTO spool_dbi VALUES (1,10),(2,20),(3,30),(4,40),(5,50)")
@@ -440,7 +428,7 @@ test_that("la fraccion solicitada de la muestra sobrevive a un reintento", {
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE retry_dbi (id INTEGER, v INTEGER)")
   DBI::dbExecute(con, "INSERT INTO retry_dbi SELECT i, i FROM range(1, 21) t(i)")
@@ -481,7 +469,7 @@ test_that("el replan por cardinalidad cuenta las mismas consultas que la corrida
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE plan_dbi (id INTEGER, v DECIMAL(18,2))")
   DBI::dbExecute(con, "INSERT INTO plan_dbi SELECT i, i FROM range(1, 101) t(i)")
@@ -505,7 +493,7 @@ test_that("el replan por cardinalidad cuenta las mismas consultas que la corrida
     conexion_banco <- if (identical(motor, "sqlite")) {
       DBI::dbConnect(RSQLite::SQLite(), ":memory:")
     } else {
-      DBI::dbConnect(.adc_duckdb())
+      DBI::dbConnect(.duckdb_prueba())
     }
     for (con_texto in c(FALSE, TRUE)) {
       for (cantidad in seq_len(30L)) {
@@ -610,7 +598,7 @@ test_that("un error de la fuente conserva su origen y la columna ilegible conser
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE source_dbi (v INTEGER, sano INTEGER)")
   DBI::dbExecute(con, "INSERT INTO source_dbi VALUES (1,10),(2,20),(3,30)")
@@ -640,7 +628,7 @@ test_that("un error de la fuente conserva su origen y la columna ilegible conser
     r_solo$resumen_tabla$meta$muestreo$motivo_filas_obtenidas,
     fixed = TRUE
   ))
-  con43 <- DBI::dbConnect(duckdb::duckdb())
+  con43 <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con43, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con43, "CREATE TABLE illegible_dbi (rota INTEGER, sana INTEGER)")
   DBI::dbExecute(con43, "INSERT INTO illegible_dbi VALUES (1,10),(2,20)")
@@ -678,7 +666,7 @@ test_that("el motivo del decimal ancho queda dentro de la via del spool", {
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(.adc_duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE decimal_reason_dbi (v DECIMAL(38,0))")
   DBI::dbExecute(con, paste0(
@@ -777,7 +765,7 @@ test_that("el desvio de magnitudes extremas no sale Inf ni 0 en SQLite ni en Duc
         conexion <- if (identical(motor, "sqlite")) {
           DBI::dbConnect(RSQLite::SQLite(), ":memory:")
         } else {
-          DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+          DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
         }
         publicado <- if (is.null(metricas)) {
           .adc_desvio_publicado(conexion, x)
@@ -1036,7 +1024,7 @@ test_that("el perfil aislado de la muestra del motor se imprime", {
   con <- if (identical(motor, "sqlite")) {
     DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   } else {
-    DBI::dbConnect(.adc_duckdb())
+    DBI::dbConnect(.duckdb_prueba())
   }
   on.exit(if (identical(motor, "duckdb")) {
     DBI::dbDisconnect(con, shutdown = TRUE)

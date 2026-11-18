@@ -144,7 +144,7 @@ test_that("en DuckDB el plan anuncia las sentencias de cada via, con decimales",
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, paste(
     "CREATE TABLE pcc_datos (id INTEGER PRIMARY KEY, t VARCHAR,",

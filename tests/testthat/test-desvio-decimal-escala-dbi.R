@@ -70,7 +70,7 @@ test_that("el spool de la muestra del motor no publica el desvio que el doble de
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
   skip_if_not_installed("bit64")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   centavos <- c("0.60", "3.15", "7.20", "1.05", "9.90", "4.45", "2.30", "8.75", "5.10")
   k <- as.numeric(centavos)

@@ -356,7 +356,7 @@ test_that("H7: en PostgreSQL el desvio se pide como doble", {
   skip_if_not_installed("duckdb")
   # La expresion es SQL que un motor con `DOUBLE PRECISION` ejecuta, y da el
   # desvio de R.
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   d <- .datos_media_O159()
   DBI::dbWriteTable(con, "t", d)

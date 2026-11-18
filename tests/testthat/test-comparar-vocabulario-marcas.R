@@ -166,7 +166,7 @@ test_that("el vocabulario de una columna protegida no se guarda ni se compara", 
 test_that("el vocabulario de una base se compara con muestra que cubre y se declara con muestra parcial", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   enero <- .cvm_categorias(c("A", "B"), 200L, semilla = 110L)
   enero$id <- 1:200

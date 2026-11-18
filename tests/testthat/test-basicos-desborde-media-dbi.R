@@ -20,7 +20,7 @@
 test_that("el desborde de la media de un HUGEINT no se lleva los demas basicos ni cita la celda", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   tope_h <- "170141183460469231731687303715884105727"
   tope_u <- "340282366920938463463374607431768211455"

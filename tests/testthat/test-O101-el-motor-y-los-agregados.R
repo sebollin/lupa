@@ -63,7 +63,7 @@ test_that("dos corridas con el mismo id y fechas distintas no se mezclan", {
 test_that("un NaN del motor no se publica como una cifra calculada", {
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
-  con <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   valores_nan <- c(NaN, 1, 2, 3, NA_real_, 4)
   DBI::dbWriteTable(con, "d", data.frame(

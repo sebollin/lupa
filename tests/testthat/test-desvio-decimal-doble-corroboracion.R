@@ -34,7 +34,7 @@ skip_if_not_installed("duckdb")
 }
 
 test_that("el desvio de un decimal leido como doble no se cuenta como divergencia", {
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   .ddc_crear(con)
@@ -91,7 +91,7 @@ setMethod(
 )
 
 test_that("un desvio que el motor calcula mal sigue siendo divergencia", {
-  cruda <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  cruda <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(cruda, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   .ddc_crear(cruda)

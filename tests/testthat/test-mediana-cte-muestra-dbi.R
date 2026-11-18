@@ -18,7 +18,7 @@ skip_if_not_installed("DBI")
 
 test_that("la CTE de ventanas elige las dos centrales sin division entera", {
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb())
+  conexion <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   cte <- .candidatos_mediana_cte_ventana_dbi(conexion)[[1L]]
 
@@ -72,7 +72,7 @@ test_that("la CTE de ventanas elige las dos centrales sin division entera", {
 
 test_that("una columna con extremos tiene mediana en la muestra de DuckDB", {
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb())
+  conexion <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
 
   # La muestra cubre la tabla: valores contra `median()`.

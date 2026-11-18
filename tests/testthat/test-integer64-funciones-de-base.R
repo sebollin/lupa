@@ -189,7 +189,7 @@ test_that("las funciones publicas no pasan un integer64 a funciones de base que 
     resultados$plan <- planificar_limpieza(p, datos = d)
     resultados$aplicado <- aplicar(resultados$plan, d)
     resultados$por_grupo <- perfilar_por(d, por = "neg")
-    con <- DBI::dbConnect(duckdb::duckdb(), bigint = "integer64")
+    con <- DBI::dbConnect(.duckdb_prueba(), bigint = "integer64")
     on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
     DBI::dbWriteTable(con, "t", d)
     resultados$dbi <- perfilar_dbi(con, "t")

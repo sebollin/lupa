@@ -3,7 +3,7 @@ testthat::skip_on_cran()
 test_that("DuckDB alinea NaN con la via en memoria", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(shared_home = FALSE), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   tabla <- "nf_nan_duckdb"
   on.exit(.nf_drop(con, tabla), add = TRUE)
@@ -72,7 +72,7 @@ test_that("PostgreSQL alinea NaN con la via en memoria", {
 test_that("el presupuesto finito no cambia el resumen con NaN en DuckDB", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(shared_home = FALSE), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   tabla <- "nf_nan_presupuesto_duckdb"
   on.exit(.nf_drop(con, tabla), add = TRUE)
@@ -141,7 +141,7 @@ test_that("los infinitos siguen presentes y fuera de las magnitudes", {
   skip_if_not_installed("duckdb")
   valores <- c(Inf, -Inf, 1.5, 1.5)
   memoria <- .nf_memoria(valores)
-  con <- DBI::dbConnect(duckdb::duckdb(shared_home = FALSE), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   tabla <- "nf_inf_duckdb"
   on.exit(.nf_drop(con, tabla), add = TRUE)
@@ -180,7 +180,7 @@ test_that("el desvio extremo queda calculado y finito en cada motor disponible",
   if (requireNamespace("DBI", quietly = TRUE) &&
       requireNamespace("duckdb", quietly = TRUE)) {
     motores$duckdb <- DBI::dbConnect(
-      duckdb::duckdb(shared_home = FALSE), dbdir = ":memory:"
+      .duckdb_prueba(), dbdir = ":memory:"
     )
   }
   if (requireNamespace("DBI", quietly = TRUE) &&

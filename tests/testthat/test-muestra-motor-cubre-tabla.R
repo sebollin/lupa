@@ -34,7 +34,7 @@ skip_if_not_installed("DBI")
 
 test_that("DuckDB con la muestra pedida por encima de la tabla mide la tabla", {
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   DBI::dbExecute(con, paste0(
@@ -67,7 +67,7 @@ test_that("DuckDB con la muestra pedida por encima de la tabla mide la tabla", {
 
 test_that("DuckDB escribe BERNOULLI con su unidad y el motor la ejecuta", {
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   DBI::dbExecute(con,

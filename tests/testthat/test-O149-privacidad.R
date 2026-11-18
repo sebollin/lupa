@@ -97,7 +97,7 @@ test_that("H1: la coleccion tapa el valor escrito con palabras permitidas que le
     real(texto, solo_comillas = inherits(condicion, c("lupa_error_dbi",
                                                       "lupa_aviso_dbi")))
   })
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   set.seed(3001L)
   celular <- sprintf("09%d%06d", sample(1:9, 20L, TRUE),
@@ -241,7 +241,7 @@ test_that("H5: el nombre de una columna que es un valor protegido conocido no se
   # De punta a punta, en una coleccion, que junta sus propios valores.
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   set.seed(3005L)
   # La planilla pivoteada por docente: una columna se llama como la docente,

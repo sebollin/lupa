@@ -4,7 +4,7 @@ skip_if_not_installed("DBI")
 skip_if_not_installed("duckdb")
 
 test_that("error_esperado y estado se clasifican por metrica en las dos vias", {
-  conexion <- DBI::dbConnect(duckdb::duckdb())
+  conexion <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   set.seed(1)
   DBI::dbWriteTable(

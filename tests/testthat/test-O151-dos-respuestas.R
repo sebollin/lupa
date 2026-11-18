@@ -40,7 +40,7 @@ test_that("H4: sin bloques, una columna con infinitos publica sus magnitudes fin
   finitos <- v[is.finite(v)]
   conexiones <- list(
     sqlite = function() DBI::dbConnect(RSQLite::SQLite(), ":memory:"),
-    duckdb = function() DBI::dbConnect(duckdb::duckdb())
+    duckdb = function() DBI::dbConnect(.duckdb_prueba())
   )
   for (motor in names(conexiones)) {
     con <- conexiones[[motor]]()

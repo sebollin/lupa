@@ -262,7 +262,7 @@ test_that("un localizador publica la perdida de identidad ordinal despues de VAC
 
 test_that("DuckDB decide la ausencia de dbFetch incremental en el preflight", {
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  conexion <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(conexion, "CREATE TABLE duck_i1 AS SELECT * FROM range(4)")
   # El perfil queda vacio a proposito, y lo dice con una condicion: antes el

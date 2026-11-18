@@ -3,7 +3,7 @@ test_that("DuckDB publica enteros anchos entregados como doble", {
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(), dbdir = ":memory:"
+    .duckdb_prueba(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbExecute(conexion, paste0(
@@ -74,7 +74,7 @@ test_that("DuckDB no desborda HUGEINT extremo antes de su guarda", {
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(), dbdir = ":memory:"
+    .duckdb_prueba(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbExecute(conexion, paste0(
@@ -118,7 +118,7 @@ test_that("DuckDB da exacta la media de un BIGINT grande por debajo de 2^53", {
   # unidades; `AVG(x * 1.0)` suma en decimal exacto. La exacta es
   # 112589990685500014847/25000 = 4503599627420000.59..., y el doble mas
   # cercano es 4503599627420001 (entre 2^52 y 2^53 los dobles van de a 1).
-  conexion <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  conexion <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbExecute(conexion, "CREATE TABLE a2561_media_big (b BIGINT)")
   DBI::dbExecute(conexion, paste0(

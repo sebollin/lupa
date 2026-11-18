@@ -3,7 +3,7 @@ test_that("DuckDB publica la moda decimal con texto exacto", {
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(), dbdir = ":memory:"
+    .duckdb_prueba(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbExecute(conexion, paste0(

@@ -19,7 +19,7 @@ testthat::skip_on_cran()
 test_that("DuckDB: la media y el desvio de un decimal, por la tabla completa y el spool", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   .dext_probar(con, "dext", "DECIMAL(38,%d)", bloques = FALSE)

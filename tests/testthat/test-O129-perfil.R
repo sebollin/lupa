@@ -283,7 +283,7 @@ test_that("H8: muestra_motor retiene la traza como no_disponible y conserva el c
   skip_if_not_installed("duckdb")
   d <- data.frame(id = 1:200, s = rep(c("aa", "bb", "cc", "dd"), length.out = 200))
   d$s[c(5, 150, 151, 152)] <- "AA"
-  con <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "t", d)
   pd <- suppressMessages(perfilar_dbi(

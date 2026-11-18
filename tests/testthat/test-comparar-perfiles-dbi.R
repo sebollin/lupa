@@ -17,7 +17,7 @@ testthat::skip_on_cran()
 .cpd_duckdb <- function(tablas) {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), ":memory:")
   for (nombre in names(tablas)) DBI::dbWriteTable(con, nombre, tablas[[nombre]])
   con
 }

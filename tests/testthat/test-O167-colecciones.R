@@ -205,7 +205,7 @@ testthat::skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
   .r35x2_definir()
-  real <- suppressMessages(DBI::dbConnect(duckdb::duckdb()))
+  real <- suppressMessages(DBI::dbConnect(.duckdb_prueba()))
   estado <- new.env(parent = emptyenv())
   estado$en_tx <- FALSE
   estado$abortada <- FALSE
@@ -444,7 +444,7 @@ test_that("B1: una columna de orden_muestra que la sesion no puede escribir da e
 test_that("B3: el motivo de una lectura nombra la tabla y la columna de orden que declaro el usuario", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- suppressMessages(DBI::dbConnect(duckdb::duckdb()))
+  con <- suppressMessages(DBI::dbConnect(.duckdb_prueba()))
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "padron", data.frame(id = 1:5))
   DBI::dbWriteTable(con, "visita", data.frame(padron_id = 1:5))

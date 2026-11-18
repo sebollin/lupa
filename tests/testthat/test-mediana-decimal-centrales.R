@@ -71,7 +71,7 @@ testthat::skip_on_cran()
 test_that("DuckDB: la mediana de un decimal es la exacta, completa y por la muestra", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   .mdc_crear(con, "mdc_t")

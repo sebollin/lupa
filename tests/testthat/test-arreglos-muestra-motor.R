@@ -416,7 +416,7 @@ test_that("una tabla normal no emite avisos en DuckDB", {
   skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  conexion <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   tabla <- "arrm_aviso_duckdb"
   .arrm_tabla_normal(conexion, tabla)

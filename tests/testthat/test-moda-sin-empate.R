@@ -55,7 +55,7 @@ test_that("las tres puertas dicen lo mismo sobre la columna empatada", {
   # divergencia.
   skip_if_not_installed("duckdb")
   datos <- data.frame(v = c(-5.5, -1, 0, 3.75))
-  conexion <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  conexion <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbWriteTable(conexion, "datos", datos)
 

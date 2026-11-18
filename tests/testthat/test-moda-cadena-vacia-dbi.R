@@ -10,7 +10,7 @@ skip_if_not_installed("DBI")
 .conexiones_moda_vacia <- function() {
   conexiones <- list()
   if (requireNamespace("duckdb", quietly = TRUE)) {
-    conexiones$duckdb <- function() DBI::dbConnect(duckdb::duckdb())
+    conexiones$duckdb <- function() DBI::dbConnect(.duckdb_prueba())
   }
   if (requireNamespace("RSQLite", quietly = TRUE)) {
     conexiones$sqlite <- function() DBI::dbConnect(RSQLite::SQLite(), ":memory:")

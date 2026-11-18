@@ -20,7 +20,7 @@ testthat::skip_on_cran()
 .cdc_duckdb <- function() {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  DBI::dbConnect(.duckdb_prueba(), ":memory:")
 }
 
 .cdc_dbi <- function(con, tabla, fecha, ...) {

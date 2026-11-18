@@ -417,7 +417,7 @@ test_that("las trazas cuentan en el presupuesto de memoria", {
     return(DBI::dbConnect(RSQLite::SQLite(), ":memory:"))
   }
   skip_if_not_installed("duckdb")
-  DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
 }
 
 .cerrar_huerfanas <- function(con, motor) {

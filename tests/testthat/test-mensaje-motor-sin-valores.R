@@ -41,7 +41,7 @@ skip_if_not_installed("duckdb")
 }
 
 .msv_conexion <- function() {
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   DBI::dbExecute(con, "CREATE TABLE msv_base (id INTEGER, t VARCHAR)")
   DBI::dbExecute(con, paste0(
     "INSERT INTO msv_base VALUES (1, '11'), (2, 'ZQXKSECRETO'), (3, '33')"

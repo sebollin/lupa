@@ -43,7 +43,7 @@ test_that("las senas de la conexion se leen una vez por perfil y por plan", {
 test_that("en DuckDB tambien, y el estado no queda tras un error", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "t", .scuv_tabla)
   expect_identical(.scuv_contar(suppressWarnings(suppressMessages(

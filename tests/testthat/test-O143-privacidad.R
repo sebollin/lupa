@@ -80,7 +80,7 @@ test_that("H1: perfilar_dbi() no publica la cedula que cita el error del motor",
   # sale protegida.
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   set.seed(2809L)
   cedulas <- .r28_cedulas(sample(1000000:6999999, 30L))

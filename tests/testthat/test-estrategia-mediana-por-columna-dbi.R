@@ -48,7 +48,7 @@ testthat::skip_on_cran()
 test_that("en DuckDB la columna con extremos no usa la consolidada que nombra la tabla", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb())
+  conexion <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   set.seed(41)
   datos <- data.frame(x = stats::rnorm(501L), e = stats::rnorm(501L) * 1e200)

@@ -351,7 +351,7 @@ test_that("H2: con la vista antes que su base, otras_tablas no publica el resto 
     stringsAsFactors = FALSE
   )
   d$nombre[20] <- d$celular_txt[20] <- "Juan 'Pocho' Campos Cadena"
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "clientes", d)
   DBI::dbExecute(con, paste(

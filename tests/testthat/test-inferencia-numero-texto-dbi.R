@@ -48,7 +48,7 @@ testthat::skip_on_cran()
 
 testthat::test_that("DuckDB perfila los numeros como texto con el lector comun", {
   testthat::skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   .comprobar_numero_texto_dbi(con)
 })

@@ -13,7 +13,7 @@ skip_if_not_installed("DBI")
 
 test_that("ningun registro afirma un valor ausente en DuckDB", {
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb())
+  conexion <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   .mcm_tabla_vacias(conexion, "mcm_vacias")
   hallados <- .mcm_recorrer_afirmados(conexion, "mcm_vacias")

@@ -88,7 +88,7 @@ test_that("M2: el desvio centrado de una columna real resta en doble, y una deci
   guardados <- .f4_O164(v)
   # A mano: la media pasa diez veces el desvio, asi que se recentra.
   expect_gt(mean(guardados) / stats::sd(guardados), 10)
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE t (v REAL)")
   DBI::dbExecute(con, paste0(
@@ -162,7 +162,7 @@ test_that("B1: el centro de una columna float de SQL Server no tiene el tope de 
 test_that("B3: un desvio 0 sobre valores distintos se vuelve a pedir centrado aunque los extremos como dobles coincidan", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   # 1000 + g * 1e-17: 60 decimales distintos que como dobles son todos 1000.
   DBI::dbExecute(con, paste(
@@ -201,7 +201,7 @@ test_that("B3: un desvio 0 sobre valores distintos se vuelve a pedir centrado au
 test_that("B3: si la consulta exacta no corre, el desvio 0 del motor no se publica", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, paste(
     "CREATE TABLE t AS SELECT CAST('1000.' || lpad(CAST(g AS VARCHAR), 17, '0')",
@@ -253,7 +253,7 @@ test_that("M3: un decimal desde 2^53 retiene sus metricas de magnitud aunque el 
     ),
     c("numeric", "double", "integer")
   )
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, paste(
     "CREATE TABLE t AS SELECT CAST(90071992547409000 + g AS DECIMAL(38, 2))",

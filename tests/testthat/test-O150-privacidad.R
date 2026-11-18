@@ -226,7 +226,7 @@ test_that("H3: la copia lee una funcion, una llamada y una formula como las impr
 test_that("H4: el aviso de consola de una coleccion pasa por el piso final", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   n <- 30L
   clientes <- data.frame(

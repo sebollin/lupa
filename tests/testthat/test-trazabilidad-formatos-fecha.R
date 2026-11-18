@@ -673,7 +673,7 @@ test_that("por DBI la tabla completa trae filas y la muestra del motor las retie
   )
   motores <- list()
   if (requireNamespace("duckdb", quietly = TRUE)) {
-    motores$duckdb <- function() DBI::dbConnect(duckdb::duckdb(), ":memory:")
+    motores$duckdb <- function() DBI::dbConnect(.duckdb_prueba(), ":memory:")
   }
   if (requireNamespace("RSQLite", quietly = TRUE)) {
     motores$sqlite <- function() DBI::dbConnect(RSQLite::SQLite(), ":memory:")

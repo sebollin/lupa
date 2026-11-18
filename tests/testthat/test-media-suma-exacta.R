@@ -95,7 +95,7 @@ test_that("la media de la muestra coincide con la del motor y no diverge", {
   testthat::skip_on_cran()
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
           add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE mse_t (v BIGINT, w DOUBLE)")

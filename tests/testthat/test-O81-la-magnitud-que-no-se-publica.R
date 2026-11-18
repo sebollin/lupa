@@ -41,7 +41,7 @@ test_that("un entero de 64 bits que llega como doble no publica mediana ni desvi
   # metrica.
   archivo <- tempfile(fileext = ".duckdb")
   on.exit(unlink(archivo, force = TRUE), add = TRUE)
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = archivo)
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = archivo)
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE, after = FALSE)
   DBI::dbExecute(con, "CREATE TABLE bigs (v BIGINT)")
   DBI::dbExecute(con, paste(
@@ -76,7 +76,7 @@ test_that("con enteros chicos, la magnitud se publica como siempre", {
   # Mitad de control: la guarda no puede apagar la magnitud de cualquier `BIGINT`.
   archivo <- tempfile(fileext = ".duckdb")
   on.exit(unlink(archivo, force = TRUE), add = TRUE)
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = archivo)
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = archivo)
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE, after = FALSE)
   DBI::dbExecute(con, "CREATE TABLE chicos (v BIGINT)")
   DBI::dbExecute(con, "INSERT INTO chicos VALUES (10),(20),(30),(40)")
@@ -102,7 +102,7 @@ test_that("una columna STRUCT no discrepa consigo misma entre los dos bloques", 
   skip_if_not_installed("DBI")
   archivo <- tempfile(fileext = ".duckdb")
   on.exit(unlink(archivo, force = TRUE), add = TRUE)
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = archivo)
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = archivo)
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE, after = FALSE)
   DBI::dbExecute(con, "CREATE TABLE ests (st STRUCT(a INTEGER, b VARCHAR))")
   DBI::dbExecute(con, paste(

@@ -148,7 +148,7 @@ test_that("un decimal entero que la muestra convirtio a integer64 no se tapa com
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
   skip_if_not_installed("bit64")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE t (v DECIMAL(38,0))")
   DBI::dbExecute(con, paste(

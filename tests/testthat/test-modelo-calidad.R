@@ -598,7 +598,7 @@ test_that("ratio sigue agregando lo que medir() produce", {
 # nombre y falla nombrando lo que sobra y lo que falta.
 test_that("los pesos con nombre se emparejan y no se leen por posicion", {
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  conexion <- DBI::dbConnect(.duckdb_prueba(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   primera <- data.frame(v = c(1, NA, 3))
   segunda <- data.frame(v = c(1, 2, 3, 4, NA, NA, NA))

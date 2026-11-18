@@ -7,7 +7,7 @@ test_that("con NaN e infinitos los dos caminos coinciden", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
 
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   valores <- c(1:20, NaN, NaN, NA_real_, Inf, -Inf)
   DBI::dbWriteTable(con, "datos_cruce", data.frame(x = valores))
@@ -69,7 +69,7 @@ test_that("la corroboracion sigue el contrato cuando los dos caminos difieren", 
   # Las dos conductas son correctas. Lo que la prueba tiene que fijar no es el
   # numero ni la existencia de la divergencia, sino el CONTRATO, que vale en las
   # dos plataformas: si difieren se declara, y si coinciden no se inventa nada.
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "datos_cruce", data.frame(x = c(1e16, 1, -1e16)))
 
@@ -105,7 +105,7 @@ test_that("datos limpios no inventan una divergencia", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
 
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "datos_cruce", data.frame(x = c(0.5, 0.5, 1.5, 2.5)))
 
@@ -127,7 +127,7 @@ test_that("una submuestra no convierte sus diferencias esperables en fallos", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
 
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "datos_cruce", data.frame(x = seq_len(20L)))
 

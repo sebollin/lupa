@@ -364,7 +364,7 @@ test_that("A3: una columna enmascarada publica su completitud y nada de lo que d
 test_that("M5: la columna que falla en una fila que no es la primera se aisla sobre las filas de la muestra", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "PRAGMA threads=1")
   # 300 filas; `codigo` no es un entero en la fila 240; `depto` nulo cuando
@@ -399,7 +399,7 @@ test_that("M5: la columna que falla en una fila que no es la primera se aisla so
 test_that("M5: el motivo de la columna aislada sigue la bandera de proteccion", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.duckdb_prueba())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   d <- data.frame(id = 1:30, codigo_txt = as.character(1:30),
                   stringsAsFactors = FALSE)

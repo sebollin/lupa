@@ -167,7 +167,7 @@ test_that("una muestra saturada clasifica el spool como trabajo creciente", {
 test_that("la misma metrica cambia de clase segun el metodo de DuckDB", {
   skip_if_not_installed("duckdb")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(), dbdir = ":memory:"
+    .duckdb_prueba(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbWriteTable(conexion, "datos", data.frame(

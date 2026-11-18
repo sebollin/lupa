@@ -18,7 +18,7 @@ testthat::skip_on_cran()
 test_that("NaN se cuenta dentro de la misma muestra en DuckDB", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(shared_home = FALSE), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   tabla <- "nf_nan_muestra_duckdb"
   on.exit(.nf_drop(con, tabla), add = TRUE)

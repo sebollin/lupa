@@ -284,7 +284,7 @@ test_that("solo_agregados respeta el producto completo en RSQLite", {
 test_that("solo_agregados respeta el producto completo en DuckDB", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
-  conexion <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  conexion <- DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(conexion, "t", data.frame(
     g = rep(c("a", "b", "c"), 4), x = 1:12
