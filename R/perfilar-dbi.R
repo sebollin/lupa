@@ -7720,10 +7720,15 @@
       !length(derrame$consultas)) {
     return(sql)
   }
-  # El SQL de esta corrida se normaliza una vez, no una vez por consulta medida.
+  # El SQL de esta corrida se normaliza una vez por texto distinto, no una vez
+  # por consulta medida ni por fila: el resumen repite la misma sentencia en una
+  # fila por metrica y por columna, y la normalizacion recorre el texto caracter
+  # por caracter. Con 4.000.000 x 8 en la muestra del motor se llevaba 14 de
+  # los 19 segundos de la corrida.
+  textos <- unique(sql$sql)
   normalizadas <- vapply(
-    sql$sql, .normalizar_sql_derrame_dbi, character(1L), USE.NAMES = FALSE
-  )
+    textos, .normalizar_sql_derrame_dbi, character(1L), USE.NAMES = FALSE
+  )[match(sql$sql, textos)]
   for (consulta in derrame$consultas) {
     indices <- which(normalizadas == consulta$query_normalizada)
     if (!length(indices)) next
