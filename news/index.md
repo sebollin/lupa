@@ -15,18 +15,43 @@
   que caía entre los pasos de la rejilla no se veía nunca, y agregar un
   10 % de filas al final cambiaba el 91 % de la muestra. Ahora se usan
   las filas de menor prioridad según un hash determinista de los valores
-  de cada fila y de su número de aparición: el perfil es el mismo con
-  las filas y las columnas en cualquier orden, la rareza periódica se ve
-  en la proporción que tiene, y agregar filas conserva la mayor parte de
-  la muestra. Con `clave`, sólo sus columnas entran en el hash; sin
-  `clave`, agregar o quitar una columna cambia la muestra.
-  `meta$muestra_huella` declara el método (`huella_v1`) y las columnas
+  de cada fila y de su número de aparición: la muestra es la misma con
+  las filas y las columnas en cualquier orden, y con ella el perfil, la
+  rareza periódica se ve en la proporción que tiene, y agregar filas
+  conserva la mayor parte de la muestra. En una tabla que se lee entera,
+  los ejemplos de cada patrón siguen el orden de aparición, como antes.
+  Con `clave`, sólo sus columnas entran en el hash, y las filas que
+  repiten la clave se ordenan entre sí por el resto de sus valores:
+  entre ellas, agregar o quitar una columna puede cambiar cuáles entran.
+  Sin `clave`, agregar o quitar una columna cambia la muestra.
+  `meta$muestra_huella` declara el método (`huella_v2`) y las columnas
   que entraron; las que no se reducen a un valor por fila (listas,
-  matrices) quedan fuera. En las tablas de hasta `muestra` filas los
-  hallazgos y las cifras no cambian; sólo cambia `meta$bytes_sonda`, el
-  tamaño de las 100 filas con que se estima cuánto ocupa la muestra,
-  porque esas filas son otras. Con más filas, el perfil puede diferir
-  del de la versión anterior porque mira otras filas.
+  matrices) quedan fuera. Una tabla que se lee entera da los mismos
+  hallazgos y las mismas cifras que antes; sólo cambia el orden de los
+  ejemplos que cita una evidencia, que ahora sigue el valor y no la
+  aparición. Cuando la muestra deja filas afuera, el perfil puede
+  diferir del de la versión anterior porque mira otras filas: con más
+  filas que `muestra`, cuando `max_celdas_muestra` o `max_bytes_muestra`
+  recortan una tabla más chica, y en las asociaciones de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  que usan su propia muestra de `muestra_asociacion` filas (10.000 por
+  omisión).
+- Una tabla que no supera `muestra` y cabe en `max_celdas_muestra` y en
+  `max_bytes_muestra` se lee entera sin medir antes una sonda; entonces
+  `meta$bytes_sonda` queda en `NA`. Cuando un tope recorta, la muestra
+  es el prefijo más largo de la huella que cabe en los dos topes:
+  primero se mide el candidato entero, y la sonda de cien filas sólo
+  elige por dónde empezar la búsqueda cuando el candidato no cabe. Antes
+  la sonda fijaba el techo, y una columna `factor` con muchos niveles
+  hacía que sus 100 filas parecieran pesar como miles, porque cada
+  subconjunto arrastra todos los niveles (lo mismo con textos largos
+  repetidos): 50.000 filas con un factor de 50.000 niveles se perfilaban
+  sobre 16.631, con 512 MB de tope para una tabla de 4 MB, y una de
+  60.000 × 20 sobre 14.733 cuando el tope de celdas permitía 50.000.
+  Ahora la primera se lee entera y la segunda llega a las 50.000,
+  también con más filas que `muestra`. Cuando un tope recorta una tabla
+  que no supera `muestra`, todos los diagnósticos miran las mismas
+  filas, elegidas por la huella, y `meta$muestra_huella` lo declara.
 - [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   calcula esa selección una sola vez y la comparten todos sus
   diagnósticos, y las funciones de diagnóstico llamadas solas
@@ -36,13 +61,20 @@
   [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md),
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
   [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md))
-  usan la misma regla. El costo de
+  usan la misma regla. Una tabla que se lee entera tarda lo mismo que
+  antes. En una que supera `muestra`, o que un tope recorta, la huella
+  recorre todas sus filas:
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  y de
+  y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  es el de antes; una llamada directa a una de esas funciones sobre
-  millones de valores distintos tarda más, porque calcula la huella (13
-  s con 2.000.000 de textos distintos).
+  tardan entre un 1 y un 12 % más (de 236 a 259 segundos con 3.000.000
+  de filas), y su pico de memoria va de un 10 % menos a un 29 % más (de
+  368 a 476 MB con 1.000.000 de filas y `muestra = 1000`). Una llamada
+  directa a una de esas funciones sobre millones de valores distintos
+  tarda más, porque calcula la huella:
+  [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+  sobre 2.000.000 de textos distintos pasa de 0,2 a 6,5 segundos y de 50
+  a 498 MB. Son medianas en Linux de `benchmark/medir_costo_huella.R`.
 
 ### Comparar entregas
 
@@ -124,6 +156,23 @@
   `Inf` en
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md))
   una base contra un archivo nunca comparaba patrones.
+- `configuracion_patrones` compara también `max_celdas_muestra`,
+  `max_bytes_muestra` y la regla con que se eligieron las filas. Un
+  hallazgo que aparecía o desaparecía porque se cambió un tope salía
+  `nuevo` o `resuelto` sin una fila de configuración que lo explicara. Y
+  cuando los dos lados muestrean con otra regla (un perfil guardado por
+  la 0.1.2, que muestreaba por posición, contra uno nuevo; una columna
+  agregada o quitada sin `clave`; otra `clave`), las dos muestras son
+  casi otras filas, y la deriva publicaba como patrones aparecidos y
+  desaparecidos lo que era otro sorteo: ahora la fila lo dice en la
+  evidencia. Lo que no cambió las filas no cuenta: la regla y los topes
+  de un lado que se leyó entero y, cuando lo declarado difiere, lo que
+  no decidió cuántas filas entraron (un tope que no llegó a recortar
+  porque mandaba `muestra` u otro tope, una `muestra` que no recortó
+  porque mandaba un tope, o dos topes de celdas que dejan las mismas
+  filas). La fila compara lo declarado y no cuántas filas entraron: una
+  tabla que pasa de `muestra` filas a una más, o que el mismo tope
+  recorta distinto en otra entrega, sigue comparando sus patrones.
 - [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
   aplica la misma regla a las cifras de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
@@ -159,6 +208,10 @@
   columnas se retiraron, cada cifra por separado.
   [`summary()`](https://rdrr.io/r/base/summary.html) del resultado da
   esa tabla por acción y columna.
+  [`print()`](https://rdrr.io/r/base/print.html) del resultado también
+  separa las celdas cambiadas de las filas marcadas: antes, marcar
+  cuatro filas duplicadas se imprimía como «4 cambios contados por las
+  acciones»; ahora, «0 celdas cambiadas» y «4 filas marcadas».
 - Las acciones de celda sobre una columna `factor` la devuelven
   `factor`, y no `character`: los niveles se limpian en su orden, los
   que se funden quedan en el lugar del primero, y se conservan los
@@ -173,6 +226,14 @@
   dirección; las columnas que ya publicaba no cambian.
 
 ### Correcciones
+
+- Los límites que se dan como enteros (`max_celdas_muestra`,
+  `max_bytes_muestra`, `umbral_celdas_aviso_tabla_ancha`,
+  `max_filas_huerfanas` y los de
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md))
+  aceptan valores mayores que 2^31 - 1. Antes se convertían en `NA` con
+  un aviso de coerción, y `perfilar(max_bytes_muestra = 2^31 + 1)`
+  abortaba con «valor ausente donde TRUE/FALSE es necesario».
 
 - Las relaciones aritméticas entre columnas ya no se publican como
   cumplidas escondiendo las filas que no las cumplen. Con datos
@@ -208,7 +269,29 @@
   a `mÃŒnchen`, que reparado después daba otra letra. Y tratan `Ș`/`ș` y
   `Ț`/`ț` del rumano, que quedaban con caja mixta.
 
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  cuenta `NaN` igual que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  En DuckDB y PostgreSQL, que guardan `NaN` en una columna de punto
+  flotante (y PostgreSQL también en `numeric`), lo contaba como un valor
+  presente y distinto: entraba en `n_validos` y en `n_distintos`, y una
+  columna toda `NaN` publicaba sus `NaN` como válidos y la moda
+  `no_disponible`, donde en memoria salía `sin_valores`. En DuckDB,
+  además, con un solo `NaN` el mínimo, el máximo, la media, la mediana y
+  el desvío salían `no_disponible`. Ahora cuenta como faltante, no entra
+  en los distintos ni en la moda, y esos agregados se calculan sobre los
+  demás valores, como en memoria; el hallazgo `valores_no_finitos` se
+  conserva. El filtro y el conteo de los `NaN` van dentro de las mismas
+  consultas, también con `universo = "muestra_motor"`, donde se cuentan
+  sobre las filas de la muestra: no se agrega ninguna consulta ni otra
+  lectura de la tabla, y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  anuncia las mismas que antes. SQLite ya lo entregaba como `NULL`, y
+  SQL Server, MySQL y MariaDB no lo guardan. Los infinitos no cambian.
+
 ## lupa 0.1.2
+
+CRAN release: 2026-11-17
 
 ### Trazabilidad
 

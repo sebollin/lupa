@@ -1118,11 +1118,14 @@ eso no es lo mismo que la tabla en R:
   columna se declara temporal y `perfilar_dbi()` no le aplica agregados
   cuantitativos, y lo dice.
 
-- **`NaN` en duckdb.** duckdb conserva `NaN` como un valor: lo cuenta
-  como presente y distinto, y responde `MAX` y `AVG` con `NaN`. En R,
-  `NaN` cuenta como ausente. Los conteos pueden diferir por eso, y una
-  métrica que el motor respondió con `NaN` no se publica: queda
-  `no_disponible` con su motivo.
+- **`NaN` en duckdb y PostgreSQL.** Ambos motores pueden conservar
+  `NaN`, pero `perfilar_dbi()` lo lleva a la misma regla que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  cuenta como faltante, no cuenta como válido, distinto ni moda, y queda
+  fuera de mínimo, máximo, media, mediana y desvío. Una columna sólo de
+  `NaN` queda `sin_valores`, con moda `NA` y frecuencia 0. El hallazgo
+  `valores_no_finitos` se conserva. SQLite ya entrega `NaN` como `NULL`;
+  SQL Server, MySQL y MariaDB no lo guardan.
 
 - **Infinitos.** SQLite, PostgreSQL y duckdb admiten `Inf` y `-Inf` en
   una columna de punto flotante, y el motor los cuenta en `MIN`, `MAX`,

@@ -1221,8 +1221,12 @@ el umbral y el nuevo alcance. <code>Inf</code> desactiva este tope.</p></dd>
 <dt id="arg-max-bytes-muestra">max_bytes_muestra<a class="anchor" aria-label="anchor" href="#arg-max-bytes-muestra"></a></dt>
 <dd><p>Maximo de bytes de la muestra materializada que
 alimenta los diagnosticos que muestrean filas. Por defecto es <code>512 MiB</code>.
-El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
-sobre la muestra efectiva; si la cota reduce el alcance,
+Si la tabla no supera <code>muestra</code> y cabe entera, se lee entera. Si no, la
+muestra es el prefijo más largo de la huella que cabe en este tope y en
+<code>max_celdas_muestra</code>: primero se mide el candidato entero y, sólo si no
+cabe, una sonda de hasta cien filas elige por dónde empezar una búsqueda
+que comprueba cada tamaño sobre el objeto materializado; si la cota reduce
+el alcance,
 <code>cobertura_diagnosticos</code> informa los bytes observados y el umbral. <code>Inf</code>
 desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:
 son parte de lo que se materializa —y el paquete los trata como datos, por

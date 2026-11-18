@@ -1224,15 +1224,18 @@ perfilar(
 - max_bytes_muestra:
 
   Maximo de bytes de la muestra materializada que alimenta los
-  diagnosticos que muestrean filas. Por defecto es `512 MiB`. El tamaño
-  se estima sobre una sonda de hasta cien filas y se comprueba sobre la
-  muestra efectiva; si la cota reduce el alcance,
-  `cobertura_diagnosticos` informa los bytes observados y el umbral.
-  `Inf` desactiva este tope. Se mide la tabla como llega, con sus
-  nombres de fila: son parte de lo que se materializa —y el paquete los
-  trata como datos, por ejemplo al proteger—, así que la misma tabla con
-  nombres de fila de texto ocupa más y, con el mismo tope, se muestrea
-  en menos filas.
+  diagnosticos que muestrean filas. Por defecto es `512 MiB`. Si la
+  tabla no supera `muestra` y cabe entera, se lee entera. Si no, la
+  muestra es el prefijo más largo de la huella que cabe en este tope y
+  en `max_celdas_muestra`: primero se mide el candidato entero y, sólo
+  si no cabe, una sonda de hasta cien filas elige por dónde empezar una
+  búsqueda que comprueba cada tamaño sobre el objeto materializado; si
+  la cota reduce el alcance, `cobertura_diagnosticos` informa los bytes
+  observados y el umbral. `Inf` desactiva este tope. Se mide la tabla
+  como llega, con sus nombres de fila: son parte de lo que se
+  materializa —y el paquete los trata como datos, por ejemplo al
+  proteger—, así que la misma tabla con nombres de fila de texto ocupa
+  más y, con el mismo tope, se muestrea en menos filas.
 
 - avisar_costo_tabla_ancha:
 
