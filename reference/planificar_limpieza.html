@@ -412,8 +412,9 @@ la entidad se informa aunque esté junto a una letra rota;
 la reparación y, sola, deja esa celda como está.</p>
 <p>Lo que el detector no puede decidir tampoco se destruye. Un espacio duro
 después de <code>Ä</code>, <code>Å</code> o <code>Æ</code>, o un guion blando después de <code>Ä</code> o <code>Å</code>, puede ser
-el segundo byte de una letra rota (<code>Ġ</code>, <code>Š</code>, <code>Ơ</code>, <code>ĭ</code> o <code>ŭ</code> leídas como
-latin-1) o un texto legítimo (<code>PÅ</code> seguido de un espacio duro): las acciones que normalizan invisibles y las que
+el segundo byte de una letra rota (<code>Ġ</code>, <code>Š</code>, la O con cuerno U+01A0, <code>ĭ</code> o <code>ŭ</code>
+leídas como latin-1) o un texto legítimo (<code>PÅ</code> seguido de un espacio duro):
+las acciones que normalizan invisibles y las que
 cambian mayúsculas y minúsculas no tocan ese byte, y <code>controles_invisibles</code>
 avisa que hay celdas que no se pudieron decidir. Normalizarlo dejaría la letra
 sin reparación posible. Un espacio duro después de otra letra, como en

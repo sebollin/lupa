@@ -361,13 +361,13 @@ como está.
 
 Lo que el detector no puede decidir tampoco se destruye. Un espacio duro
 después de `Ä`, `Å` o `Æ`, o un guion blando después de `Ä` o `Å`, puede
-ser el segundo byte de una letra rota (`Ġ`, `Š`, `Ơ`, `ĭ` o `ŭ` leídas
-como latin-1) o un texto legítimo (`PÅ` seguido de un espacio duro): las
-acciones que normalizan invisibles y las que cambian mayúsculas y
-minúsculas no tocan ese byte, y `controles_invisibles` avisa que hay
-celdas que no se pudieron decidir. Normalizarlo dejaría la letra sin
-reparación posible. Un espacio duro después de otra letra, como en
-`JOSÉ PÉREZ`, se normaliza como siempre.
+ser el segundo byte de una letra rota (`Ġ`, `Š`, la O con cuerno U+01A0,
+`ĭ` o `ŭ` leídas como latin-1) o un texto legítimo (`PÅ` seguido de un
+espacio duro): las acciones que normalizan invisibles y las que cambian
+mayúsculas y minúsculas no tocan ese byte, y `controles_invisibles`
+avisa que hay celdas que no se pudieron decidir. Normalizarlo dejaría la
+letra sin reparación posible. Un espacio duro después de otra letra,
+como en `JOSÉ PÉREZ`, se normaliza como siempre.
 
 Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y
 la convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la

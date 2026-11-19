@@ -125,7 +125,11 @@ perfilados, que están en los hallazgos y en las filas con
 tabla. Para que la cuenta cierre, un grupo perfilado que no produjo
 ningún hallazgo también tiene su fila en `cobertura_grupos`, con
 `grupo_perfilado = TRUE` y ese motivo: si no, no estaría en ninguna de
-las dos tablas.
+las dos tablas. El atributo `hallazgos_tabla` tiene las columnas de
+`hallazgos` de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+sin las del grupo: son los hallazgos de la tabla entera, hoy los de una
+columna enteramente ausente. No entra en esa suma.
 
 El atributo `etiquetas_personales` declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo **son** valores de esa
@@ -205,11 +209,31 @@ del grupo, y es lo que evita informar como falta lo que es la forma del
 dato. Lo mismo vale para una columna enteramente ausente en toda la
 tabla, como la columna de valor que ningún atributo del extracto usa: se
 descarta en cada grupo y `cobertura_grupos$columnas_descartadas` la
-nombra, en vez de publicarse como `faltantes` en cada uno. Por eso, con
-un solo grupo, `perfilar_por()` no informa `faltantes` sobre esa columna
-y [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-sí. Las declaraciones que nombran columnas retiradas se recortan para
-ese grupo y el nombre de cada recorte, con su motivo, se declara en
+nombra, en vez de publicarse como `faltantes` en cada uno. Como esa
+columna tampoco se pierde sin decirlo, el atributo `hallazgos_tabla` la
+informa **una** vez, con el esquema de los hallazgos de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+producida por
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+sobre esas columnas: los umbrales, `aplicabilidad` y
+`columnas_opcionales` valen igual que allí, y una columna de `NaN`
+conserva `valores_no_finitos`. La sugerencia dice las dos lecturas
+posibles —un defecto de carga, o la columna de valor de un atributo que
+el extracto no trae— y al ejecutar se avisa que hay filas ahí. Es un
+atributo y no filas de la tabla de grupos para que quien suma
+`n_filas_grupo`, cuenta grupos o separa por `grupo` no encuentre una
+fila que no es un grupo; quien filtra por severidad usa
+`attr(x, "hallazgos_tabla")`, que se puede unir con
+[`rbind()`](https://rdrr.io/r/base/cbind.html) a los hallazgos por
+grupo. Como `cobertura_grupos`, es un atributo del objeto:
+[`subset()`](https://rdrr.io/r/base/subset.html), `[`,
+[`merge()`](https://rdrr.io/r/base/merge.html), `dplyr::select()`, la
+escritura a CSV y [`rbind()`](https://rdrr.io/r/base/cbind.html) (que
+conserva sólo el del primero) no lo llevan consigo. No incluye las
+columnas compuestas, y la `clave` declarada sólo si ningún grupo llegó a
+perfilarse (si alguno lo hizo, cada grupo ya la informa). Las
+declaraciones que nombran columnas retiradas se recortan para ese grupo
+y el nombre de cada recorte, con su motivo, se declara en
 `cobertura_grupos$columnas_descartadas`. En `aplicabilidad` también se
 recorta una regla si
 [`all.vars()`](https://rdrr.io/r/base/allnames.html) de su fórmula

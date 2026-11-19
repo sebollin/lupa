@@ -174,7 +174,10 @@ perfilados, que están en los hallazgos y en las filas con
 Para que la cuenta cierre, un grupo perfilado que no produjo ningún
 hallazgo también tiene su fila en <code>cobertura_grupos</code>, con
 <code>grupo_perfilado = TRUE</code> y ese motivo: si no, no estaría en ninguna de las
-dos tablas.</p>
+dos tablas.
+El atributo <code>hallazgos_tabla</code> tiene las columnas de <code>hallazgos</code> de
+<code><a href="perfilar.html">perfilar()</a></code> sin las del grupo: son los hallazgos de la tabla entera, hoy
+los de una columna enteramente ausente. No entra en esa suma.</p>
 <p>El atributo <code>etiquetas_personales</code> declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo <strong>son</strong> valores de esa
 columna, así que la salida los publica —en los hallazgos y en las dos
@@ -241,8 +244,22 @@ lo que evita informar como falta lo que es la forma del dato. Lo mismo
 vale para una columna enteramente ausente en toda la tabla, como la columna
 de valor que ningún atributo del extracto usa: se descarta en cada grupo y
 <code>cobertura_grupos$columnas_descartadas</code> la nombra, en vez de publicarse como
-<code>faltantes</code> en cada uno. Por eso, con un solo grupo, <code>perfilar_por()</code> no
-informa <code>faltantes</code> sobre esa columna y <code><a href="perfilar.html">perfilar()</a></code> sí. Las
+<code>faltantes</code> en cada uno. Como esa columna tampoco se pierde sin decirlo, el
+atributo <code>hallazgos_tabla</code> la informa <strong>una</strong> vez, con el esquema de los
+hallazgos de <code><a href="perfilar.html">perfilar()</a></code> y producida por <code><a href="perfilar.html">perfilar()</a></code> sobre esas columnas:
+los umbrales, <code>aplicabilidad</code> y <code>columnas_opcionales</code> valen igual que allí, y
+una columna de <code>NaN</code> conserva <code>valores_no_finitos</code>. La sugerencia dice las dos
+lecturas posibles —un defecto de carga, o la columna de valor de un atributo
+que el extracto no trae— y al ejecutar se avisa que hay filas ahí. Es un
+atributo y no filas de la tabla de grupos para que quien suma <code>n_filas_grupo</code>,
+cuenta grupos o separa por <code>grupo</code> no encuentre una fila que no es un grupo;
+quien filtra por severidad usa <code>attr(x, "hallazgos_tabla")</code>, que se puede unir
+con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> a los hallazgos por grupo. Como <code>cobertura_grupos</code>, es un
+atributo del objeto: <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code>, <code>[</code>, <code><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge()</a></code>, <code>dplyr::select()</code>, la
+escritura a CSV y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> (que conserva sólo el del primero) no lo llevan
+consigo. No incluye las columnas compuestas, y
+la <code>clave</code> declarada sólo si ningún grupo llegó a perfilarse (si alguno lo
+hizo, cada grupo ya la informa). Las
 declaraciones que nombran columnas retiradas se recortan para ese grupo y el
 nombre de cada recorte, con su motivo, se declara en
 <code>cobertura_grupos$columnas_descartadas</code>. En <code>aplicabilidad</code> también se

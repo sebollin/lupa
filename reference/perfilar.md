@@ -934,8 +934,20 @@ perfilar(
   identidad dentro de `tolerancia_aritmetica` para reconocer una
   regularidad aritmética entre columnas numéricas. El valor por omisión
   es `0.9`. Una vez reconocida la relación se informan todas sus
-  discrepancias, sin un segundo filtro por su cantidad absoluta. La
-  proporción y el criterio efectivos se publican en cada evidencia.
+  discrepancias, sin un segundo filtro por su cantidad absoluta. En una
+  proporcionalidad, si una lectura más gruesa alcanza el umbral y una
+  más fina explica al menos el 80 % de las filas dejando afuera las
+  discrepancias, se publica la fina con esas filas señaladas: la
+  evidencia de que la relación existe es que la gruesa alcanzaba el
+  criterio. La fina tiene que ser exacta en las filas que explica, y las
+  que deja afuera no pueden ser un redondeo a una resolución más gruesa.
+  Y cuando las filas de afuera son al menos cuatro y comparten otra
+  constante exacta —otro tipo de cambio, un recargo que no se aplicó,
+  otra tasa—, la evidencia lo dice, siempre que la segunda constante se
+  separe de la principal más que el doble de su tolerancia relativa
+  típica, con un piso de 0,1 %, y que las filas la sigan dentro de esa
+  tolerancia. La proporción y el criterio efectivos se publican en cada
+  evidencia.
 
 - min_filas_aritmetica:
 

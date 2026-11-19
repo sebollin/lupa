@@ -4,6 +4,30 @@
 
 ### Perfilado
 
+- [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  informa una columna enteramente ausente en toda la tabla. Dentro de
+  cada grupo se descartan, como antes, las columnas que faltan en ese
+  grupo (en una tabla entidad-atributo-valor, la columna de valor de
+  otro atributo), pero una columna vacía en todas las filas no la
+  nombraba ningún hallazgo, mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la informaba como `faltantes`. Ahora va una sola vez en
+  `attr(, "hallazgos_tabla")`, con el esquema, los umbrales y la traza
+  de los hallazgos de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  (también `valores_no_finitos` si es toda `NaN`, y
+  `regla_silencia_ausencia` si una `aplicabilidad` la declara), y la
+  sugerencia agrega la otra lectura posible: la columna de valor de un
+  atributo que el extracto no trae. Al ejecutar, un mensaje nombra las
+  primeras columnas. Los grupos siguen sin informarla y
+  `cobertura_grupos$columnas_descartadas` la declara. No se agrega
+  ninguna fila a la tabla de grupos, así que las cuentas por grupo no
+  cambian. Como `cobertura_grupos`, es un atributo:
+  [`subset()`](https://rdrr.io/r/base/subset.html), `[`,
+  [`merge()`](https://rdrr.io/r/base/merge.html), un CSV y
+  [`rbind()`](https://rdrr.io/r/base/cbind.html) no lo llevan. Con 20
+  columnas vacías en un millón de filas, el tiempo es el mismo que
+  antes.
 - La muestra de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   ya no depende del orden de las filas. Con más filas que `muestra`
@@ -240,16 +264,33 @@
   redondeados la constante se lee de los datos, y una lectura gruesa
   podía correrse lo justo para tragarse las filas rotas: con un IVA del
   22 % en 20 filas y tres rotas salía `x ~= y * 4.5` «en todas las
-  filas», y con un tipo de cambio truncado, `cant ~= y * 0.025`. Ahora
-  esa lectura no se publica cuando una más fina explica al menos el 80 %
-  de las filas y deja las rotas afuera. Un tipo de cambio de cuatro
-  decimales se lee directo (`y ~= x * 39.8734`), y no como la recíproca
-  corta que acusaba una fila sana (`y ~= x / 0.02508`); y constantes
-  como `3.99995` o `3.75000000018`, que acusaban una fila sana y
-  callaban dos rotas, no se publican cuando la relación no alcanza el
-  criterio. Medido sobre más de 20.000 tablas de constantes, redondeos y
-  truncados: ninguna relación sana deja de publicarse y ninguna fila
-  sana nueva queda acusada.
+  filas», y con un tipo de cambio truncado, `cant ~= y * 0.025`. Ahora,
+  cuando una lectura más fina explica al menos el 80 % de las filas, se
+  publica la fina como relación que «se rompe en una minoría de las
+  filas comparables», con las filas que deja afuera señaladas: en el
+  ejemplo, `y ~= x * 0.22` con las tres rotas. Lo mismo con constantes
+  como `0.25` o `3.75`, que antes se leían `3.99995` o `3.75000000018`,
+  acusaban una fila sana y callaban dos rotas. La fina tiene que ser
+  exacta en las filas que explica, y las que deja afuera no se acusan si
+  son un redondeo a un paso más grueso (0,05, 0,1, 0,25, 0,5, 1, 5…):
+  filas cargadas a enteros o a cinco centésimos entre otras a centavos
+  siguen siendo sanas. Una minoría con otra constante, como un segundo
+  tipo de cambio o un recargo que no se aplicó, sí queda señalada. Un
+  tipo de cambio de cuatro decimales se lee directo
+  (`y ~= x * 39.8734`), y no como la recíproca corta que acusaba una
+  fila sana (`y ~= x / 0.02508`). Medido sobre más de 5.000 tablas de
+  constantes, redondeos y truncados y sobre 400 tablas al azar: ninguna
+  tabla señala menos filas rotas ni acusa más sanas que la 0.1.2, y
+  ninguna relación sana deja de publicarse.
+
+- Cuando las filas que una proporcionalidad deja afuera comparten otra
+  constante exacta —otro tipo de cambio, un recargo que no se aplicó,
+  otra tasa de IVA—, la evidencia lo dice con la misma forma que la
+  relación: «Las 8 filas de afuera siguen `y ~= x * 41`». Se dice desde
+  cuatro filas, si la segunda constante se separa de la principal más
+  que el doble de su tolerancia relativa (con un piso de 0,1 %) y si las
+  filas la siguen dentro de esa tolerancia. No cambia qué se publica ni
+  qué filas se señalan.
 
 - La limpieza por omisión ya no destruye letras rotas que el detector no
   reconoce. «Škoda» leída como latin-1 es `Å`, un espacio duro y `koda`:
@@ -263,11 +304,32 @@
   un espacio duro, ese espacio queda sin normalizar. Después de
   cualquier otra letra, como en `JOSÉ PÉREZ`, se normaliza como antes.
 
+- El armenio leído como Windows-1252 o latin-1 se detecta y se repara.
+  Cada letra queda escrita como una `Ô`, `Õ` u `Ö` seguida de un signo
+  (`Õ¡Õ¹`), y ninguna regla del detector lo reconocía: la celda no tenía
+  hallazgo y, si una letra traía un guion blando como segundo byte (la
+  `խ`, muy común), `eliminar_controles_invisibles` lo borraba y la
+  palabra ya no se podía reparar. Ahora dos letras armenias seguidas
+  escritas así cuentan como texto roto, como ftfy hace con el árabe. Una
+  letra sola en su celda sigue sin reconocerse, y una `Ô`, `Õ` u `Ö`
+  seguida de un signo que no forma una letra armenia (un apóstrofo, una
+  comilla, una raya, un guion blando o un espacio duro, aunque se
+  repitan, como en `SNÖ Ö X` con espacios duros) sigue siendo texto bien
+  escrito.
+
 - Las acciones que cambian mayúsculas y minúsculas usan la misma
   protección que las de invisibles: con `reparar_codificacion`
   desmarcada, `convertir_minusculas` cambiaba `MÃœNCHEN` (una `Ü` rota)
   a `mÃŒnchen`, que reparado después daba otra letra. Y tratan `Ș`/`ș` y
   `Ț`/`ț` del rumano, que quedaban con caja mixta.
+
+- Con `proteger_datos_personales = TRUE` en una sesión bajo el locale
+  `C`, un mensaje del motor con letras no ASCII ya no se tapa entero. La
+  sustitución de los valores protegidos le quitaba la marca UTF-8, y el
+  paso siguiente lo leía como bytes inválidos: los motivos que publica
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  quedaban en «\[literal omitido\]» y perdían el diagnóstico. En UTF-8
+  no cambia nada.
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   cuenta `NaN` igual que
