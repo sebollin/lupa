@@ -471,6 +471,101 @@
   }
 }
 
+# El largo de un codigo. El patron de forma de `patron_raro` junta las corridas
+# de digitos -`9+`-, asi que `00123` y `123` son el MISMO patron y ninguna regla
+# de forma ve que a un codigo se le perdieron los ceros de la izquierda -lo que
+# pasa al abrir la columna como numero y volver a guardarla-. Esta mide el largo
+# de la corrida de digitos, por grupo de prefijo y sufijo (`AB-`, `CD-`): cada
+# prefijo puede tener su propio ancho.
+#
+# Para no acusar a una columna sana exige tres cosas, las tres medidas:
+# - la columna es un codigo: al menos el 80 % de sus valores son un prefijo corto
+#   sin digitos, UNA corrida de digitos y un sufijo corto -una fecha, un decimal
+#   o una frase no lo son-;
+# - el grupo tiene un largo dominante (al menos `.LARGO_CODIGO_MIN_DOMINANTE` de
+#   sus valores) y el codigo es RELLENADO: algun valor de ese largo empieza con
+#   cero. Sin eso, un numero de 1 a 99999 escrito sin relleno tiene valores de
+#   todos los largos y ninguno esta mal;
+# - un valor esta mal si tiene MENOS digitos que el dominante. Uno con mas puede
+#   ser un codigo que desbordo su ancho, y no se acusa.
+.LARGO_CODIGO_MIN_VALORES <- 10L
+.LARGO_CODIGO_MIN_DOMINANTE <- 0.8
+.LARGO_CODIGO_MIN_FORMA <- 0.8
+# El relleno se sostiene con evidencia propia: al menos tres valores del largo
+# dominante con cero a la izquierda y no menos del 2 % de ellos. Un solo valor
+# no distingue un codigo rellenado de uno que casualmente empieza con cero.
+.LARGO_CODIGO_MIN_RELLENO <- 0.02
+# Si casi todos los del largo dominante empiezan con cero -un telefono `09...`,
+# una cedula de ocho cifras, un RUT de doce-, el cero es un prefijo constante y
+# no relleno: los mas cortos son otro formato valido, no un cero perdido. Con
+# dos ceros seguidos si hay relleno: `00001` de una secuencia rellena.
+.LARGO_CODIGO_MAX_PREFIJO_CERO <- 0.9
+
+.largo_codigo_inconsistente <- function(x) {
+  if (!(is.character(x) || is.factor(x))) return(NULL)
+  valores <- tryCatch(as.character(x), error = function(e) NULL)
+  if (is.null(valores)) return(NULL)
+  posiciones <- which(!is.na(valores) & nzchar(valores))
+  if (length(posiciones) < .LARGO_CODIGO_MIN_VALORES) return(NULL)
+  patron_forma <- "^[^0-9]{0,6}[0-9]+[^0-9]{0,3}$"
+  # Una muestra pareja descarta rapido las columnas que no son codigos -casi
+  # todas las de texto-, sin recortar ni medir la columna entera.
+  if (length(posiciones) > 2000L) {
+    paso <- posiciones[unique(round(seq(1, length(posiciones), length.out = 2000L)))]
+    if (mean(grepl(patron_forma, .recortar_bytes(valores[paso]), perl = TRUE,
+                   useBytes = TRUE)) < 0.5 * .LARGO_CODIGO_MIN_FORMA) {
+      return(NULL)
+    }
+  }
+  texto <- .recortar_bytes(valores[posiciones])
+  forma <- grepl(patron_forma, texto, perl = TRUE, useBytes = TRUE)
+  if (mean(forma) < .LARGO_CODIGO_MIN_FORMA) return(NULL)
+  posiciones <- posiciones[forma]
+  texto <- texto[forma]
+  prefijo <- sub("[0-9].*$", "", texto, perl = TRUE, useBytes = TRUE)
+  sufijo <- sub("^.*[0-9]", "", texto, perl = TRUE, useBytes = TRUE)
+  digitos <- gsub("[^0-9]", "", texto, perl = TRUE, useBytes = TRUE)
+  largo <- nchar(digitos, type = "bytes")
+  con_cero <- largo >= 2L & startsWith(digitos, "0")
+  con_dos_ceros <- largo >= 3L & startsWith(digitos, "00")
+  grupo <- paste(prefijo, sufijo, sep = "\r")
+  afectados <- integer()
+  evaluados <- 0L
+  detalle <- NULL
+  cortos_largos <- integer()
+  for (g in unique(grupo)) {
+    en_grupo <- which(grupo == g)
+    if (length(en_grupo) < .LARGO_CODIGO_MIN_VALORES) next
+    cuenta <- table(largo[en_grupo])
+    dominante <- max(as.integer(names(cuenta)[cuenta == max(cuenta)]))
+    if (dominante < 2L ||
+        max(cuenta) / length(en_grupo) < .LARGO_CODIGO_MIN_DOMINANTE) next
+    del_dominante <- en_grupo[largo[en_grupo] == dominante]
+    n_cero <- sum(con_cero[del_dominante])
+    if (n_cero < 3L || n_cero / length(del_dominante) < .LARGO_CODIGO_MIN_RELLENO) next
+    if (n_cero / length(del_dominante) >= .LARGO_CODIGO_MAX_PREFIJO_CERO &&
+        mean(con_dos_ceros[del_dominante]) < 0.5) next
+    cortos <- en_grupo[largo[en_grupo] < dominante]
+    if (!length(cortos)) next
+    afectados <- c(afectados, posiciones[cortos])
+    evaluados <- evaluados + length(en_grupo)
+    cortos_largos <- c(cortos_largos, largo[cortos])
+    if (is.null(detalle) || length(en_grupo) > detalle$n_grupo) {
+      detalle <- list(
+        largo_dominante = dominante, n_grupo = length(en_grupo),
+        n_dominante = as.integer(max(cuenta)), n_con_relleno = n_cero
+      )
+    }
+  }
+  if (!length(afectados)) return(NULL)
+  marca <- logical(length(valores))
+  marca[afectados] <- TRUE
+  detalle$indices <- which(marca)
+  detalle$n_evaluados <- evaluados
+  detalle$largos_cortos <- which(tabulate(cortos_largos) > 0L)
+  detalle
+}
+
 # `largo_esperado` dice si la columna trae por construccion valores de todos los
 # largos de digitos -una numeracion o un tramo de enteros lleno-; ver el
 # llamado en `.perfilar_columna()`.
@@ -3719,6 +3814,7 @@
   if (tipo %in% c(
       "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario",
       "fecha_nacimiento_fuera_rango", "fecha_fallecimiento_fuera_rango",
+      "largo_codigo_inconsistente", "digito_verificador_invalido",
       "posible_ausencia_estructural", "regla_silencia_ausencia"
     ) &&
       is.list(trazabilidad_precalculada) &&
@@ -5570,6 +5666,44 @@
       )
     }
 
+    # Los ceros perdidos de un codigo no cambian su patron de forma: ver
+    # `.largo_codigo_inconsistente()`. `umbral_patron_raro = 0` apaga los avisos
+    # de forma, tambien este.
+    if (is.finite(umbral_patron_raro) && umbral_patron_raro > 0 &&
+        is.data.frame(datos) && i <= ncol(datos)) {
+      largo <- .largo_codigo_inconsistente(datos[[i]])
+      if (!is.null(largo)) {
+        hallazgo_largo <- .nuevo_hallazgo(
+          nombre, "largo_codigo_inconsistente", "sospechoso",
+          paste0(
+            "Hay valores con menos d\u00edgitos que el largo dominante de la ",
+            "columna, que se escribe con ceros a la izquierda: pueden ser ",
+            "c\u00f3digos a los que se les perdi\u00f3 el relleno."
+          ),
+          paste0(
+            "Largo dominante del grupo mayor: ", largo$largo_dominante,
+            " d\u00edgitos (",
+            largo$n_dominante, " de ", largo$n_grupo,
+            " valores con la misma forma; ", largo$n_con_relleno,
+            " con cero a la izquierda). Valores m\u00e1s cortos: ",
+            length(largo$indices), ", de ",
+            paste(largo$largos_cortos, collapse = ", "), " d\u00edgitos."
+          ),
+          paste0(
+            "Confirmar con la fuente si el c\u00f3digo tiene largo fijo; si lo ",
+            "tiene, restituir el relleno y no leer la columna como n\u00famero. ",
+            "Si no, son otra numeraci\u00f3n o otro formato v\u00e1lido ",
+            "-un c\u00f3digo de otro pa\u00eds, una serie anterior- y no hay ",
+            "p\u00e9rdida."
+          ),
+          largo$n_evaluados, length(largo$indices), "fila"
+        )
+        hallazgo_largo$trazabilidad <- I(list(
+          .trazabilidad_indices(largo$indices, "completo", limite = Inf)
+        ))
+        agregar(hallazgo_largo)
+      }
+    }
     if (isTRUE(fila$n_espacios_borde > 0L)) {
       agregar(.nuevo_hallazgo(
         nombre, "espacios_sobrantes", "sospechoso",

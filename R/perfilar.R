@@ -1937,7 +1937,17 @@
 #'   un error; la igualdad conserva la severidad sospechosa.
 #' @param umbral_patron_raro Máxima frecuencia de un patrón raro. La frontera
 #'   es inclusiva: un patrón no dominante con exactamente esa proporción es raro,
-#'   y sólo los que la superan quedan excluidos.
+#'   y sólo los que la superan quedan excluidos. Con `0` no se emite ningún
+#'   aviso de forma: tampoco `largo_codigo_inconsistente`, que nombra los
+#'   valores de un código con menos dígitos que el largo dominante de la columna
+#'   cuando ese largo se escribe con ceros a la izquierda (`"00123"` frente a
+#'   `"123"`, `"AB-00001"` frente a `"AB-1"`). El patrón de forma junta las
+#'   corridas de dígitos y no distingue esos largos. Sólo se acusan los más
+#'   cortos, por grupo de prefijo y sufijo, en columnas de texto donde al menos
+#'   el 80 % de los valores tiene forma de código y el largo dominante cubre al
+#'   menos el 80 % del grupo; un número sin relleno, un largo a mitades o un
+#'   código que desborda su ancho no se acusan. Es `sospechoso`, con la traza de
+#'   las filas, y su evidencia sólo lleva largos y conteos.
 #' @param umbral_patron_dominante Frecuencia mínima del patrón dominante.
 #' @param columnas_opcionales Nombres de columnas donde la ausencia no es un
 #'   defecto. Su universo de completitud son las celdas presentes, y
@@ -2609,7 +2619,11 @@
 #'   un vector de texto y devuelven un lógico de igual longitud. `NULL` usa
 #'   `validadores_uruguay()` por compatibilidad; `FALSE` o `numeric()` desactiva
 #'   la verificación de documentos. El nombre del mejor validador queda en el
-#'   fundamento de la clasificación.
+#'   fundamento de la clasificación. Si ese validador lo cumple la mitad o más
+#'   de los valores de una columna de documentos pero no todos, el hallazgo
+#'   `digito_verificador_invalido` (`sospechoso`) nombra las filas que no lo
+#'   cumplen —pueden ser documentos mal cargados, de otro país o de otro
+#'   tipo—; la evidencia no lleva valores. Con `FALSE` no se emite.
 #' @param umbral_documento_verificado Proporción mínima de valores que debe
 #'   aceptar un validador para clasificar una forma de documento como
 #'   `verificado`. Por defecto es `0.9`.
@@ -3797,8 +3811,17 @@ perfilar <- function(datos,
   hallazgos_personales <- .hallazgos_datos_personales(
     datos_personales, datos_personales_permitidos
   )
+  hallazgos_verificador <- .hallazgos_verificador_personal(
+    datos_personales, datos_texto_caro, nombres, validadores_personales
+  )
+  hallazgos <- .sin_largo_de_documentos_validos(
+    hallazgos, datos_personales, datos_texto_caro, nombres,
+    validadores_personales
+  )
+  attr(datos_personales, "validador_por_columna") <- NULL
   hallazgos_personales <- c(
     hallazgos_personales,
+    hallazgos_verificador,
     .hallazgos_rango_fecha_personal(
       columnas, datos_personales, fecha_hora, "fecha_nacimiento",
       datos = datos, resultados = resultados

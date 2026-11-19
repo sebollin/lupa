@@ -30,6 +30,7 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
   "ceros_no_permitidos", "clave_con_ausentes", "clave_no_unica",
   "codificacion_invalida", "codificacion_rota", "columnas_duplicadas",
   "constante", "controles_invisibles", "coordenada_fuera_dominio",
+  "digito_verificador_invalido", "largo_codigo_inconsistente",
   "crs_no_declarado", "dato_personal_posible", "desviacion_benford",
   "duplicados_aproximados", "duplicados_exactos_columnas",
   "duplicados_exactos_normalizados", "entidades_html",

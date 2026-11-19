@@ -1228,12 +1228,12 @@
       proteger <- TRUE
     } else if (isTRUE(proporcion_documento_formateado >= 0.8)) {
       # Escritos como documento y sin verificar. Es el caso de una base sucia
-      # —documentos mal cargados, con digito verificador equivocado—, que es la
+      # \u2014documentos mal cargados, con digito verificador equivocado\u2014, que es la
       # poblacion para la que existe el paquete. Ante la duda se protege, y sin
       # exigir una cantidad minima de valores distintos: una columna con un solo
       # documento repetido no identifica a nadie DENTRO de la tabla, pero si
       # identifica a una persona fuera de ella, y el hallazgo que la nombra
-      # —que la columna es constante— no necesita mostrar cual es el valor.
+      # \u2014que la columna es constante\u2014 no necesita mostrar cual es el valor.
       # La evidencia sigue declarandose debil, que es lo que es.
       fundamento <- "forma de documento con separadores, sin verificar"
       poder <- "debil"
@@ -1285,7 +1285,12 @@
       as.numeric(proporcion_verificada)
     } else {
       NA_real_
-    }
+    },
+    # El verificador que dio la proporcion mas alta: quien hace el hallazgo de
+    # los valores que no lo cumplen lo vuelve a correr sobre la columna entera.
+    validador = if (length(indice_validador)) {
+      names(proporciones_validadores)[[indice_validador]]
+    } else NA_character_
   )
 }
 
@@ -1361,6 +1366,7 @@
                                        umbral_verificado = 0.9,
                                        muestra_validadores = 1000L,
                                        declaradas = character()) {
+  validador_por_columna <- character()
   filas <- lapply(seq_along(datos), function(i) {
     indice_declarada <- .indice_nombre(nombres[[i]], names(declaradas))
     if (!is.na(indice_declarada)) {
@@ -1386,6 +1392,9 @@
       muestra_validadores = muestra_validadores
     )
     if (is.na(clasificacion$tipo)) return(NULL)
+    if (!is.null(clasificacion$validador) && !is.na(clasificacion$validador)) {
+      validador_por_columna[[nombres[[i]]]] <<- clasificacion$validador
+    }
     .data_frame_simple(
       columna = nombres[[i]],
       tipo = clasificacion$tipo,
@@ -1414,8 +1423,161 @@
   class(resultado) <- c("clasificacion_datos_personales", "data.frame")
   # Y la columna que copia los documentos protegidos sin su verificador: ver
   # `.copias_sin_verificador()`.
-  .reclasificar_copias_sin_verificador(resultado, datos, nombres,
-                                       umbral = umbral_verificado)
+  resultado <- .reclasificar_copias_sin_verificador(
+    resultado, datos, nombres, umbral = umbral_verificado
+  )
+  # Viaja aparte de la tabla -que es una salida publicada y no cambia- hasta
+  # `.hallazgos_verificador_personal()`, que la lee y la saca.
+  attr(resultado, "validador_por_columna") <- validador_por_columna
+  resultado
+}
+
+# Los valores de una columna de documentos que no cumplen el verificador que la
+# clasifico. `proporcion_verificada` medida y sin nombrar las filas dejaba al
+# usuario con un 0,945 y ninguna fila para corregir. El verificador es el que
+# traia la clasificacion -del pack que recibio `validadores_personales`, sea el
+# de un pais o uno propio-, y se vuelve a correr sobre la columna entera.
+#
+# Un valor cuenta como invalido solo si ninguna lectura razonable lo valida:
+# - lo que una exportacion agrega -`.0` de un REAL, un punto final, comas de
+#   miles- se normaliza antes de validar, y vale si cierra con cualquiera de las
+#   dos escrituras;
+# - un valor que cierra con OTRO validador del pack es un documento de otro tipo
+#   -un RUT en una columna de cedulas-, no un error de carga;
+# - un cuerpo de ceros es la ausencia escrita como numero, no un documento;
+# - y un valor de OTRA FORMA que los verificados -con letras, o con una cantidad
+#   de cifras que ningun valor verificado tiene: un pasaporte, un documento de
+#   otro pais, una serie anterior- no se cuenta; la evidencia dice cuantos son.
+#
+# Se publica si la mayoria de los valores lo cumple -la proporcion de azar de un
+# digito de control es de uno en diez-: con menos, la columna no es de esos
+# documentos y no hay "invalidos" que contar. Es `sospechoso` y no `error`: un
+# valor puede ser un documento de otro pais. La evidencia no lleva ningun valor.
+.MIN_PROPORCION_VERIFICADOR <- 0.5
+
+# Lo que una exportacion agrega a un documento: `12345678.0`, `12345678.`,
+# `12,345,678-9`. Es una escritura alternativa: se valida ademas del texto.
+.normalizar_documento_exportado <- function(textos) {
+  salida <- sub("[.]0+$", "", textos, perl = TRUE, useBytes = TRUE)
+  salida <- sub("[.]$", "", salida, perl = TRUE, useBytes = TRUE)
+  gsub(",", ".", salida, fixed = TRUE, useBytes = TRUE)
+}
+
+# Cumple el validador con el texto tal cual o normalizado.
+.cumple_documento <- function(validador, textos) {
+  una_vez <- function(t) {
+    r <- tryCatch(validador(t), error = function(e) NULL)
+    if (!is.logical(r) || length(r) != length(t)) return(NULL)
+    r %in% TRUE
+  }
+  crudo <- una_vez(textos)
+  if (is.null(crudo)) return(NULL)
+  normalizado <- una_vez(.normalizar_documento_exportado(textos))
+  if (is.null(normalizado)) crudo else crudo | normalizado
+}
+
+.hallazgos_verificador_personal <- function(clasificacion, datos, nombres,
+                                            validadores) {
+  usados <- attr(clasificacion, "validador_por_columna", exact = TRUE)
+  if (!length(usados) || !length(validadores)) return(list())
+  hallazgos <- list()
+  for (i in seq_len(nrow(clasificacion))) {
+    columna <- as.character(clasificacion$columna[[i]])
+    if (!identical(as.character(clasificacion$tipo[[i]]), "documento_identidad")) next
+    nombre_validador <- usados[.nombres_para_operar(names(usados)) ==
+                                 .nombres_para_operar(columna)]
+    if (!length(nombre_validador) || !nombre_validador[[1L]] %in% names(validadores)) next
+    indice <- .indice_nombre(columna, nombres)
+    if (is.na(indice)) next
+    textos <- .textos_para_clasificacion_personal(datos[[indice]])
+    presentes <- which(!is.na(textos) & nzchar(textos))
+    # Un cuerpo de ceros es la ausencia escrita como numero.
+    ceros <- grepl("^[0.,[:space:]-]*0[0.,[:space:]-]*$", textos[presentes],
+                   perl = TRUE, useBytes = TRUE)
+    presentes <- presentes[!ceros]
+    if (!length(presentes)) next
+    t <- textos[presentes]
+    cumple <- .cumple_documento(validadores[[nombre_validador[[1L]]]], t)
+    if (is.null(cumple)) next
+    proporcion <- mean(cumple)
+    if (proporcion < .MIN_PROPORCION_VERIFICADOR) next
+    otros <- rep(FALSE, length(t))
+    for (v in validadores[names(validadores) != nombre_validador[[1L]]]) {
+      r <- .cumple_documento(v, t)
+      if (!is.null(r)) otros <- otros | r
+    }
+    candidatos <- !cumple & !otros
+    if (!any(candidatos)) next
+    cifras <- nchar(gsub("[^0-9]", "", .normalizar_documento_exportado(t),
+                         perl = TRUE, useBytes = TRUE), type = "bytes")
+    con_letras <- grepl("[A-Za-z]", t, perl = TRUE, useBytes = TRUE)
+    cuenta <- table(cifras[cumple])
+    largos_verificados <- as.integer(names(cuenta)[cuenta / sum(cuenta) >= 0.05])
+    misma_forma <- !con_letras & cifras %in% largos_verificados
+    invalidos <- presentes[candidatos & misma_forma]
+    if (!length(invalidos)) next
+    n_otra_forma <- sum(candidatos & !misma_forma)
+    hallazgo <- .nuevo_hallazgo(
+      columna, "digito_verificador_invalido", "sospechoso",
+      paste0(
+        "Hay valores de la forma de los verificados que no cumplen el ",
+        "verificador de la columna: pueden ser documentos mal cargados, o de ",
+        "otro pa\u00eds o de otro tipo."
+      ),
+      paste0(
+        "Verificador `", nombre_validador[[1L]], "`: ", length(invalidos),
+        " de ", length(presentes), " valores no lo cumplen (proporci\u00f3n ",
+        "verificada ", .formatear_decimal_publicado(proporcion),
+        "); no se publican los valores.",
+        if (n_otra_forma > 0L) {
+          paste0(
+            " Otros ", n_otra_forma, " valores tienen otra forma -letras, o ",
+            "otra cantidad de cifras- y no se cuentan: pueden ser otro tipo ",
+            "de documento."
+          )
+        } else ""
+      ),
+      paste0(
+        "Revisar los registros se\u00f1alados contra la fuente; si son ",
+        "documentos de otro tipo, separarlos en otra columna."
+      ),
+      length(presentes), length(invalidos), "fila"
+    )
+    hallazgo$trazabilidad <- I(list(
+      .trazabilidad_indices(invalidos, "completo", limite = Inf)
+    ))
+    hallazgos[[length(hallazgos) + 1L]] <- hallazgo
+  }
+  hallazgos
+}
+
+# Un hallazgo de largo sobre una columna de documentos que el catalogo
+# reconoce: si los valores mas cortos tambien cumplen el verificador, son el
+# mismo documento escrito sin su cero inicial -la cedula de siete cifras, el RUT
+# de once- y no un relleno perdido. Se retira el hallazgo de largo.
+.sin_largo_de_documentos_validos <- function(hallazgos, clasificacion, datos,
+                                             nombres, validadores) {
+  usados <- attr(clasificacion, "validador_por_columna", exact = TRUE)
+  if (!length(usados) || !length(validadores) || !nrow(hallazgos)) {
+    return(hallazgos)
+  }
+  quitar <- rep(FALSE, nrow(hallazgos))
+  for (i in which(as.character(hallazgos$tipo_hallazgo) == "largo_codigo_inconsistente")) {
+    columna <- as.character(hallazgos$columna[[i]])
+    nombre_validador <- usados[.nombres_para_operar(names(usados)) ==
+                                 .nombres_para_operar(columna)]
+    if (!length(nombre_validador) || !nombre_validador[[1L]] %in% names(validadores)) next
+    indice <- .indice_nombre(columna, nombres)
+    filas <- hallazgos$trazabilidad[[i]]$indices
+    if (is.na(indice) || !length(filas)) next
+    textos <- .textos_para_clasificacion_personal(datos[[indice]])[filas]
+    cumple <- .cumple_documento(validadores[[nombre_validador[[1L]]]], textos)
+    if (!is.null(cumple) && mean(cumple) >= 0.9) quitar[[i]] <- TRUE
+  }
+  if (!any(quitar)) return(hallazgos)
+  hallazgos <- hallazgos[!quitar, , drop = FALSE]
+  rownames(hallazgos) <- NULL
+  hallazgos
 }
 
 # Una columna de nombre neutro con la cedula
@@ -3359,7 +3521,7 @@
 # EL RECORRIDO, separado de lo que se hace con cada hoja. Lo usan las dos pasadas
 # de `.proteger_textos_salida()`, asi que las dos visitan las mismas hojas en el
 # mismo orden por construccion -y los atributos se siguen protegiendo igual-.
-# ¿Esta columna de una tabla de salida guarda NOMBRES DE COLUMNA de la entrada?
+# \u00bfEsta columna de una tabla de salida guarda NOMBRES DE COLUMNA de la entrada?
 #
 # Se decide por el CONTENIDO y no por el nombre del campo: lo es si todos sus
 # valores no vacios son nombres de la entrada, solos o unidos por los separadores
@@ -4129,7 +4291,7 @@
   plan
 }
 
-# La ayuda y `aplicar()` sólo necesitan que se tapen las fechas de acciones
+# La ayuda y `aplicar()` s\u00f3lo necesitan que se tapen las fechas de acciones
 # cuyo objeto directo es protegido. El mapa se trata aparte para no tapar por
 # accidente su lado no protegido.
 .proteger_fechas_acciones_plan <- function(plan, sensibles) {
@@ -4315,7 +4477,7 @@
     )
   }
   # `guiar_limpieza()` vuelve a consultar los datos de origen para construir
-  # ejemplos. Llevar sólo los nombres de columnas permite enmascararlos en esa
+  # ejemplos. Llevar s\u00f3lo los nombres de columnas permite enmascararlos en esa
   # salida sin serializar ni publicar los valores protegidos.
   attr(plan, "columnas_datos_personales_protegidas") <- sensibles
   plan
@@ -4729,7 +4891,7 @@
                                           valores_debiles = NULL) {
   sensibles <- .columnas_personales_protegidas(clasificacion)
   # Dos alcances, y la diferencia es deliberada. `sensibles` gobierna los
-  # estadisticos de la tabla de columnas —minimo, maximo, moda—, donde suprimir
+  # estadisticos de la tabla de columnas \u2014minimo, maximo, moda\u2014, donde suprimir
   # de mas tiene un costo real: una columna de importes con forma de documento
   # perderia su resumen cuantitativo. `clasificadas` gobierna la evidencia de
   # los hallazgos, donde el valor casi nunca hace falta: el hallazgo `constante`
@@ -4829,7 +4991,7 @@
   }
   # La caja envolvente es una estadistica espacial distinta de los extremos
   # numericos, pero sobre domicilios publica coordenadas de personas. Se
-  # conserva el bloque geometrico y su alcance, ocultando sólo los cuatro
+  # conserva el bloque geometrico y su alcance, ocultando s\u00f3lo los cuatro
   # valores de coordenadas.
   campos_bbox <- intersect(
     c("bbox_xmin", "bbox_xmax", "bbox_ymin", "bbox_ymax"),
@@ -4888,9 +5050,9 @@
     }
   }
   # `columna` puede ser una columna simple o una lista de columnas
-  # separadas por comas. La decisión se toma por el contenido, no por el tipo
+  # separadas por comas. La decisi\u00f3n se toma por el contenido, no por el tipo
   # de hallazgo, para que los nuevos hallazgos compuestos queden protegidos
-  # automáticamente.
+  # autom\u00e1ticamente.
   columna_completa <- as.character(hallazgos$columna)
   coincide_con <- function(lista) {
     claves <- .nombres_para_operar(lista)
@@ -4917,9 +5079,9 @@
     indices_debiles <- candidatos & !indices_hallazgos &
       coincide_con(clasificadas)
   }
-  # La ausencia estructural es una señal válida aunque el determinante sea
-  # personal. Se conserva la predicción y su precisión, pero no el corte ni los
-  # niveles que permitirían reconstruir valores de la columna protegida.
+  # La ausencia estructural es una se\u00f1al v\u00e1lida aunque el determinante sea
+  # personal. Se conserva la predicci\u00f3n y su precisi\u00f3n, pero no el corte ni los
+  # niveles que permitir\u00edan reconstruir valores de la columna protegida.
   # Corre antes de tapar la evidencia, porque reconoce el determinante en ella:
   # si la dependiente tambien era personal, la evidencia ya estaba tapada y la
   # sugerencia salia con los niveles o el corte del determinante.
