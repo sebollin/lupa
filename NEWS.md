@@ -2,6 +2,22 @@
 
 ## Perfilado
 
+- `perfilar_por()` informa una columna enteramente ausente en toda la tabla.
+  Dentro de cada grupo se descartan, como antes, las columnas que faltan en ese
+  grupo (en una tabla entidad-atributo-valor, la columna de valor de otro
+  atributo), pero una columna vacía en todas las filas no la nombraba ningún
+  hallazgo, mientras `perfilar()` la informaba como `faltantes`. Ahora va una
+  sola vez en `attr(, "hallazgos_tabla")`, con el esquema, los umbrales y la
+  traza de los hallazgos de `perfilar()` (también `valores_no_finitos` si es
+  toda `NaN`, y `regla_silencia_ausencia` si una `aplicabilidad` la declara),
+  y la sugerencia agrega la otra lectura posible: la columna de valor de un
+  atributo que el extracto no trae. Al ejecutar, un mensaje nombra las
+  primeras columnas. Los grupos siguen sin informarla y
+  `cobertura_grupos$columnas_descartadas` la declara. No se agrega ninguna fila
+  a la tabla de grupos, así que las cuentas por grupo no cambian. Como
+  `cobertura_grupos`, es un atributo: `subset()`, `[`, `merge()`, un CSV y
+  `rbind()` no lo llevan. Con 20 columnas vacías en un millón de filas, el
+  tiempo es el mismo que antes.
 - La muestra de `perfilar()` ya no depende del orden de las filas. Con más filas
   que `muestra` (100.000 por omisión), los patrones, los tipos, los formatos de
   fecha, las escalas y las dependencias se calculaban sobre una muestra

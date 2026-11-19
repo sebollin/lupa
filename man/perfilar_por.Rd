@@ -92,6 +92,9 @@ Para que la cuenta cierre, un grupo perfilado que no produjo ningún
 hallazgo también tiene su fila en \code{cobertura_grupos}, con
 \code{grupo_perfilado = TRUE} y ese motivo: si no, no estaría en ninguna de las
 dos tablas.
+El atributo \code{hallazgos_tabla} tiene las columnas de \code{hallazgos} de
+\code{\link[=perfilar]{perfilar()}} sin las del grupo: son los hallazgos de la tabla entera, hoy
+los de una columna enteramente ausente. No entra en esa suma.
 
 El atributo \code{etiquetas_personales} declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo \strong{son} valores de esa
@@ -168,8 +171,22 @@ lo que evita informar como falta lo que es la forma del dato. Lo mismo
 vale para una columna enteramente ausente en toda la tabla, como la columna
 de valor que ningún atributo del extracto usa: se descarta en cada grupo y
 \code{cobertura_grupos$columnas_descartadas} la nombra, en vez de publicarse como
-\code{faltantes} en cada uno. Por eso, con un solo grupo, \code{perfilar_por()} no
-informa \code{faltantes} sobre esa columna y \code{\link[=perfilar]{perfilar()}} sí. Las
+\code{faltantes} en cada uno. Como esa columna tampoco se pierde sin decirlo, el
+atributo \code{hallazgos_tabla} la informa \strong{una} vez, con el esquema de los
+hallazgos de \code{\link[=perfilar]{perfilar()}} y producida por \code{\link[=perfilar]{perfilar()}} sobre esas columnas:
+los umbrales, \code{aplicabilidad} y \code{columnas_opcionales} valen igual que allí, y
+una columna de \code{NaN} conserva \code{valores_no_finitos}. La sugerencia dice las dos
+lecturas posibles —un defecto de carga, o la columna de valor de un atributo
+que el extracto no trae— y al ejecutar se avisa que hay filas ahí. Es un
+atributo y no filas de la tabla de grupos para que quien suma \code{n_filas_grupo},
+cuenta grupos o separa por \code{grupo} no encuentre una fila que no es un grupo;
+quien filtra por severidad usa \code{attr(x, "hallazgos_tabla")}, que se puede unir
+con \code{rbind()} a los hallazgos por grupo. Como \code{cobertura_grupos}, es un
+atributo del objeto: \code{subset()}, \code{[}, \code{merge()}, \code{dplyr::select()}, la
+escritura a CSV y \code{rbind()} (que conserva sólo el del primero) no lo llevan
+consigo. No incluye las columnas compuestas, y
+la \code{clave} declarada sólo si ningún grupo llegó a perfilarse (si alguno lo
+hizo, cada grupo ya la informa). Las
 declaraciones que nombran columnas retiradas se recortan para ese grupo y el
 nombre de cada recorte, con su motivo, se declara en
 \code{cobertura_grupos$columnas_descartadas}. En \code{aplicabilidad} también se

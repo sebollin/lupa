@@ -13,8 +13,22 @@
 #' vale para una columna enteramente ausente en toda la tabla, como la columna
 #' de valor que ningún atributo del extracto usa: se descarta en cada grupo y
 #' `cobertura_grupos$columnas_descartadas` la nombra, en vez de publicarse como
-#' `faltantes` en cada uno. Por eso, con un solo grupo, `perfilar_por()` no
-#' informa `faltantes` sobre esa columna y [perfilar()] sí. Las
+#' `faltantes` en cada uno. Como esa columna tampoco se pierde sin decirlo, el
+#' atributo `hallazgos_tabla` la informa **una** vez, con el esquema de los
+#' hallazgos de [perfilar()] y producida por [perfilar()] sobre esas columnas:
+#' los umbrales, `aplicabilidad` y `columnas_opcionales` valen igual que allí, y
+#' una columna de `NaN` conserva `valores_no_finitos`. La sugerencia dice las dos
+#' lecturas posibles —un defecto de carga, o la columna de valor de un atributo
+#' que el extracto no trae— y al ejecutar se avisa que hay filas ahí. Es un
+#' atributo y no filas de la tabla de grupos para que quien suma `n_filas_grupo`,
+#' cuenta grupos o separa por `grupo` no encuentre una fila que no es un grupo;
+#' quien filtra por severidad usa `attr(x, "hallazgos_tabla")`, que se puede unir
+#' con `rbind()` a los hallazgos por grupo. Como `cobertura_grupos`, es un
+#' atributo del objeto: `subset()`, `[`, `merge()`, `dplyr::select()`, la
+#' escritura a CSV y `rbind()` (que conserva sólo el del primero) no lo llevan
+#' consigo. No incluye las columnas compuestas, y
+#' la `clave` declarada sólo si ningún grupo llegó a perfilarse (si alguno lo
+#' hizo, cada grupo ya la informa). Las
 #' declaraciones que nombran columnas retiradas se recortan para ese grupo y el
 #' nombre de cada recorte, con su motivo, se declara en
 #' `cobertura_grupos$columnas_descartadas`. En `aplicabilidad` también se
@@ -105,6 +119,9 @@
 #'   hallazgo también tiene su fila en `cobertura_grupos`, con
 #'   `grupo_perfilado = TRUE` y ese motivo: si no, no estaría en ninguna de las
 #'   dos tablas.
+#'   El atributo `hallazgos_tabla` tiene las columnas de `hallazgos` de
+#'   [perfilar()] sin las del grupo: son los hallazgos de la tabla entera, hoy
+#'   los de una columna enteramente ausente. No entra en esa suma.
 #'
 #'   El atributo `etiquetas_personales` declara si la columna de agrupación
 #'   lleva datos personales. Las etiquetas de grupo **son** valores de esa
@@ -1090,6 +1107,40 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
   }
 
+  # Una columna enteramente ausente en toda la tabla se descarta en cada grupo
+  # (en un formato largo estrecho es la columna de valor de un atributo que el
+  # extracto no trae), y entonces ningun hallazgo la nombraba mientras
+  # `perfilar()` la informa. Se informa una vez, a nivel de tabla, en un atributo
+  # aparte: una fila que no es un grupo no puede vivir en la tabla de grupos sin
+  # romper a quien suma `n_filas_grupo`, cuenta grupos o los separa por `grupo`.
+  hallazgos_tabla <- .hallazgos_columnas_vacias_en_la_tabla(
+    datos, indices_sin_por, clave, extras,
+    hay_perfilados = length(grupos_perfilados) > 0L
+  )
+  # Solo se anuncia lo que no es informativo: una columna declarada opcional
+  # deja un `regla_silencia_ausencia` de severidad `ok` que no pide mirar nada.
+  a_anunciar <- hallazgos_tabla[
+    as.character(hallazgos_tabla$severidad) != "ok", , drop = FALSE
+  ]
+  if (nrow(a_anunciar)) {
+    nombres_aviso <- unique(as.character(a_anunciar$columna))
+    nombres_aviso[is.na(nombres_aviso)] <- "NA"
+    mostrados <- utils::head(nombres_aviso, 5L)
+    cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
+      length(nombres_aviso),
+      if (length(nombres_aviso) == 1L) {
+        " columna est\u00e1 enteramente ausente en toda la tabla y ning\u00fan grupo la perfila: "
+      } else {
+        " columnas est\u00e1n enteramente ausentes en toda la tabla y ning\u00fan grupo las perfila: "
+      },
+      paste0("`", .marcar_para_exhibir(mostrados), "`", collapse = ", "),
+      if (length(nombres_aviso) > length(mostrados)) {
+        paste0(" y ", length(nombres_aviso) - length(mostrados), " m\u00e1s")
+      },
+      ". Los hallazgos est\u00e1n en `attr(, \"hallazgos_tabla\")`."
+    ))))
+  }
+
   if (indice_colision > 0L) {
     cobertura[[indice_colision]]$grupo_perfilado <-
       "(ausente)" %in% grupos_perfilados
@@ -1141,6 +1192,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       columnas_descartadas = character(), stringsAsFactors = FALSE
     )
   }
+  attr(salida, "hallazgos_tabla") <- hallazgos_tabla
   attr(salida, "cobertura_diagnosticos") <- if (length(cobertura_diagnosticos)) {
     do.call(rbind, cobertura_diagnosticos)
   } else {
@@ -1175,6 +1227,152 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   class(salida) <- c("hallazgos_por_grupo", "data.frame")
   salida
+}
+
+# Hallazgos de las columnas enteramente ausentes en toda la tabla, con el
+# esquema de los de `perfilar()`. Salen de `perfilar()` aplicado a esas columnas
+# (con los umbrales y las declaraciones del usuario) y no de un texto propio: la
+# severidad, `valores_no_finitos` de una columna de `NaN`, la unidad y la traza
+# son las que `perfilar()` publica sobre la tabla entera. Una columna compuesta
+# (matriz, data frame anidado) queda fuera: `perfilar()` la informa con otro
+# tipo. La clave declarada se nombra solo si ningun grupo se perfilo, porque si
+# alguno lo hizo ya la informa. Para evaluar una regla de `aplicabilidad` sobre
+# la tabla entera se incluyen las columnas que la formula menciona.
+.hallazgos_columnas_vacias_en_la_tabla <- function(datos, indices, clave, extras,
+                                                    hay_perfilados) {
+  vacio <- .hallazgos_vacios()
+  if (!nrow(datos) || !length(indices)) return(vacio)
+  columnas <- .seleccionar_columnas(datos, indices)
+  vacia <- vapply(columnas, function(x) {
+    !is.data.frame(x) && is.null(dim(x)) && all(is.na(x))
+  }, logical(1L))
+  candidatas <- names(datos)[indices][vacia]
+  if (hay_perfilados && length(clave)) {
+    candidatas <- candidatas[
+      !(.nombres_para_operar(candidatas) %in% .nombres_para_operar(clave))
+    ]
+  }
+  if (!length(candidatas)) return(vacio)
+
+  reglas <- extras$aplicabilidad
+  if (!is.list(reglas) || is.null(names(reglas))) reglas <- list()
+  reglas <- reglas[
+    .nombres_para_operar(names(reglas)) %in% .nombres_para_operar(candidatas)
+  ]
+  mencionadas <- unique(unlist(lapply(reglas, function(f) {
+    if (inherits(f, "formula")) all.vars(f) else character()
+  })))
+  mencionadas <- intersect(mencionadas, names(datos))
+  incluidas <- unique(c(candidatas, mencionadas))
+  rebanada <- .seleccionar_columnas(
+    datos, .indice_nombre(incluidas, names(datos))
+  )
+
+  # Los mismos pasos que `perfilar()` da a estas columnas -perfilado por columna,
+  # hallazgos de columna, ausencia estructural y traza-, sin el trabajo de tabla
+  # (filas duplicadas, aritmetica entre columnas, huella de muestra) que no toca
+  # a estos hallazgos y que con muchas columnas vacias costaba varias veces lo
+  # que cuesta perfilar los grupos.
+  arg <- function(nombre) {
+    valor <- if (nombre %in% names(extras)) extras[[nombre]] else {
+      eval(formals(perfilar)[[nombre]], environment(perfilar))
+    }
+    # Las declaraciones que nombran columnas se recortan a las de esta rebanada.
+    if (nombre %in% c("columnas_opcionales", "columnas_sin_ceros",
+                      "columnas_no_negativas", "columnas_codigo") &&
+        is.character(valor)) {
+      valor <- valor[
+        .nombres_para_operar(valor) %in% .nombres_para_operar(incluidas)
+      ]
+    }
+    valor
+  }
+  nombres <- names(rebanada)
+  nombres_texto <- .marcar_utf8_textos(nombres)
+  opcionales <- arg("columnas_opcionales")
+  aplicabilidad_resuelta <- .resolver_aplicabilidad(
+    rebanada, nombres, opcionales, if (length(reglas)) reglas else NULL
+  )
+  codigo <- .normalizar_columnas_codigo(arg("columnas_codigo"), nombres)
+  es_codigo <- .nombres_para_operar(nombres) %in% .nombres_para_operar(codigo)
+  # Las columnas enteramente ausentes del mismo tipo, sin regla de aplicabilidad
+  # ni declaracion de codigo, dan el mismo perfil salvo el nombre: se perfila una
+  # y las demas la reutilizan. Con decenas de columnas de valor sin usar, perfilar
+  # cada una costaba mas que perfilar los grupos.
+  vistos <- list()
+  resultados <- lapply(seq_along(rebanada), function(i) {
+    x <- rebanada[[i]]
+    reutilizable <- is.null(aplicabilidad_resuelta$mascaras[[i]]) &&
+      !es_codigo[[i]]
+    clave_tipo <- paste(
+      c(typeof(x), oldClass(x), if (is.factor(x)) levels(x)), collapse = "\r"
+    )
+    if (reutilizable && !is.null(vistos[[clave_tipo]])) {
+      resultado <- vistos[[clave_tipo]]
+      resultado$fila$columna <- nombres[[i]]
+      return(resultado)
+    }
+    resultado <- .perfilar_columna(
+      x, nombres[[i]], nrow(rebanada), arg("max_patrones"),
+      arg("distinguir_mayusculas"), arg("expandir"), arg("umbral_patron_raro"),
+      arg("sentinelas_numericos"),
+      aplicable = aplicabilidad_resuelta$mascaras[[i]],
+      cadenas_ausencia = arg("cadenas_ausencia"),
+      codigo = es_codigo[[i]],
+      max_largo_valor_vocabulario = arg("max_largo_valor_vocabulario")
+    )
+    if (reutilizable) vistos[[clave_tipo]] <<- resultado
+    resultado
+  })
+  columnas_perfil <- .apilar_filas(lapply(resultados, `[[`, "fila"))
+  rownames(columnas_perfil) <- NULL
+  h <- .hallazgos_columnas(
+    resultados, nombres, arg("umbral_alta_cardinalidad"),
+    arg("umbral_faltantes_sospechoso"), arg("umbral_faltantes_error"),
+    arg("umbral_patron_raro"), arg("umbral_patron_dominante"),
+    arg("columnas_sin_ceros"), arg("columnas_no_negativas"), datos = rebanada
+  )
+  h <- if (length(h)) do.call(rbind, h) else .hallazgos_vacios()
+  h$severidad <- factor(
+    as.character(h$severidad),
+    levels = c("ok", "sospechoso", "error"), ordered = TRUE
+  )
+  rownames(h) <- NULL
+  if (isTRUE(arg("ausencia_estructural"))) {
+    estructural <- .diagnosticar_ausencia_estructural(
+      rebanada, nombres, resultados, aplicabilidad_resuelta,
+      arg("umbral_faltantes_error"), nombres_texto = nombres_texto,
+      marcas = .marcas_limpieza_tabla(rebanada)
+    )
+    if (length(estructural$hallazgos)) {
+      h <- .cruzar_faltantes_con_estructural(h, estructural$hallazgos)
+      h <- do.call(rbind, c(list(h), estructural$hallazgos))
+      h$severidad <- factor(
+        as.character(h$severidad),
+        levels = c("ok", "sospechoso", "error"), ordered = TRUE
+      )
+      rownames(h) <- NULL
+    }
+  }
+  h <- .agregar_trazabilidad_hallazgos(
+    h, rebanada, nombres, resultados, expandir = arg("expandir"),
+    aproximados = NULL, limite = arg("max_filas_hallazgo"),
+    distinguir_mayusculas = arg("distinguir_mayusculas"), clave = NULL
+  )
+  mantener <- h$tipo_hallazgo %in% c(
+    "faltantes", "valores_no_finitos", "regla_silencia_ausencia"
+  ) & (.nombres_para_operar(h$columna) %in% .nombres_para_operar(candidatas))
+  h <- h[mantener, , drop = FALSE]
+  if (!nrow(h)) return(vacio)
+  es_faltante <- h$tipo_hallazgo == "faltantes"
+  h$sugerencia[es_faltante] <- paste0(
+    h$sugerencia[es_faltante],
+    " Si la tabla est\u00e1 en formato largo, puede ser la columna de valor de ",
+    "un atributo que este extracto no trae; `cobertura_grupos` la declara ",
+    "descartada en cada grupo."
+  )
+  rownames(h) <- NULL
+  h
 }
 
 # La guarda de la numeracion que `perfilar_por()` decide sobre la columna

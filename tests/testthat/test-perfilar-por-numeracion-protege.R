@@ -228,8 +228,8 @@ test_that("una columna vacia en toda la tabla se descarta y la cobertura la nomb
   # En una tabla entidad-atributo-valor, la columna de valor que ningun
   # atributo del extracto usa esta vacia en toda la tabla. Es la forma del
   # dato: publicarla como `faltantes` en cada grupo daba un hallazgo falso por
-  # grupo. Se descarta y `cobertura_grupos` la nombra; con un solo grupo, por
-  # eso, `perfilar_por()` difiere de `perfilar()` sobre esa columna.
+  # grupo. Se descarta en cada grupo y `cobertura_grupos` la nombra; la tabla la
+  # informa aparte, en `attr(, "hallazgos_tabla")`, igual que `perfilar()`.
   fecha <- as.POSIXct("2026-01-15", tz = "UTC")
   eav <- data.frame(
     atributo = rep(c("edad", "nombre"), each = 10),
