@@ -1062,3 +1062,197 @@ test_that("la lectura gruesa verdadera no se descarta cuando la fina solo cubre 
 })
 
 
+
+test_that("con umbral 0,8 las filas a 0,05 se siguen senalando", {
+  skip_on_cran()
+  # La lectura fina alcanza el 0,8 por la via directa, sin pasar por el
+  # respaldo. Las siete filas que no coinciden con el valor a centavos se
+  # informan: una fila registrada a 0,05 no se distingue de una rota que cae en
+  # la misma reticula, y el paquete prefiere avisar de mas antes que callar un
+  # dato roto.
+  x <- 1:40
+  y <- round(x * 0.22, 2)
+  gruesas <- c(2L, 4L, 8L, 13L, 27L, 29L, 30L, 37L)
+  y[gruesas] <- round(x[gruesas] * 0.22 / 0.05) * 0.05
+  r <- lupa:::.detectar_aritmetica_columnas(data.frame(x = x, y = y),
+                                            umbral = 0.8)
+  h <- Filter(function(z) {
+    grepl("proporcional", z$descripcion[[1L]], fixed = TRUE, useBytes = TRUE)
+  }, r$hallazgos)
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_match(h[[1L]]$descripcion, "y ~= x * 0.22 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_equal(h[[1L]]$n_afectados, 7)
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila,
+                     c(2L, 4L, 8L, 13L, 27L, 29L, 37L))
+  }
+})
+
+test_that("con umbral 0,8 una rota fuera de la reticula se sigue senalando", {
+  skip_on_cran()
+  # La misma tabla con la fila 13 corrida 0,20: no es un redondeo a 0,05 y la
+  # guarda de la via directa no puede callarla.
+  x <- 1:40
+  y <- round(x * 0.22, 2)
+  gruesas <- c(2L, 4L, 8L, 13L, 27L, 29L, 30L, 37L)
+  y[gruesas] <- round(x[gruesas] * 0.22 / 0.05) * 0.05
+  rota <- 13L
+  y[rota] <- y[rota] + 0.20
+  r <- lupa:::.detectar_aritmetica_columnas(data.frame(x = x, y = y),
+                                            umbral = 0.8)
+  h <- Filter(function(z) {
+    grepl("proporcional", z$descripcion[[1L]], fixed = TRUE, useBytes = TRUE)
+  }, r$hallazgos)
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_true(rota %in% h[[1L]]$trazabilidad[[1L]]$indices_fila)
+  }
+})
+
+test_that("la evidencia dice la segunda constante de las filas de afuera", {
+  skip_on_cran()
+  # El tipo de cambio cambia en una minoria: las filas de afuera no son un
+  # redondeo mas grueso sino otro regimen, y la evidencia lo dice sin cambiar la
+  # deteccion ni las filas senaladas.
+  x <- 1:40
+  otras <- c(2L, 4L, 8L, 13L, 27L, 29L, 30L, 37L)
+  y <- round(x * 40.1, 2)
+  y[otras] <- round(x[otras] * 41, 2)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_match(h[[1L]]$descripcion, "y ~= x * 40.1 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_match(h[[1L]]$evidencia,
+                 "Las 8 filas de afuera siguen y ~= x * 41.",
+                 fixed = TRUE, useBytes = TRUE)
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, otras)
+    expect_equal(h[[1L]]$n_afectados, 8)
+  }
+})
+
+test_that("con dos filas de afuera no se afirma una segunda constante", {
+  skip_on_cran()
+  # Dos filas comparten cualquier constante: la segunda tasa se lee, pero no se
+  # informa. La evidencia sigue nombrando las dos discrepancias.
+  x <- 1:40
+  otras <- c(2L, 30L)
+  y <- round(x * 40.1, 2)
+  y[otras] <- round(x[otras] * 41, 2)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_false(grepl("filas de afuera siguen", h[[1L]]$evidencia,
+                       fixed = TRUE, useBytes = TRUE))
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, otras)
+  }
+})
+
+test_that("las filas de afuera rotas no se leen como una segunda constante", {
+  skip_on_cran()
+  # Cuatro rotas sueltas no comparten una constante: la evidencia no inventa un
+  # segundo regimen.
+  x <- 1:40
+  y <- round(x * 0.22, 2)
+  rotas <- c(5L, 15L, 25L, 35L)
+  y[rotas] <- y[rotas] + c(0.20, -0.17, 0.30, -0.25)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_false(grepl("filas de afuera siguen", h[[1L]]$evidencia,
+                       fixed = TRUE, useBytes = TRUE))
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, rotas)
+  }
+})
+
+test_that("no se afirma una segunda constante cuando solo cambia el redondeo", {
+  skip_on_cran()
+  # Cuatro filas registradas a unidades siguen la misma constante que el resto:
+  # la dispersion de sus cocientes es la del redondeo, no otra tasa, y la
+  # evidencia no inventa un segundo regimen.
+  x <- 1:40
+  y <- round(x * 1.22, 2)
+  gruesas <- c(5L, 15L, 25L, 35L)
+  y[gruesas] <- round(x[gruesas] * 1.22)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_false(grepl("filas de afuera siguen", h[[1L]]$evidencia,
+                       fixed = TRUE, useBytes = TRUE))
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, gruesas)
+  }
+})
+
+test_that("la segunda constante se escribe como la relacion, con la division", {
+  skip_on_cran()
+  # La relacion principal usa la reciproca corta (`y ~= x / 7`); la segunda
+  # constante tiene que usar la misma forma (`y ~= x / 9`) y no el decimal con
+  # ruido de punto flotante.
+  x <- as.double(63 * (1:60))
+  y <- x / 7
+  y[55:60] <- x[55:60] / 9
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_match(h[[1L]]$descripcion, "y ~= x / 7 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_match(h[[1L]]$evidencia,
+                 "Las 6 filas de afuera siguen y ~= x / 9.",
+                 fixed = TRUE, useBytes = TRUE)
+  }
+})
+
+test_that("una segunda constante casi igual a la principal no se informa", {
+  skip_on_cran()
+  # Cuatro filas con 12,51 sobre valores de miles y una base chica en la
+  # columna: el cociente cambia en la cuarta cifra y no es otro regimen. La
+  # separacion se mide en relativo, con un piso, y no por el tamano de la
+  # mediana de la base.
+  x <- c(2 * (1:10), seq(1000, 1050, by = 2), 1000, 1010, 1020, 1030)
+  y <- round(x * 12.5)
+  y[37:40] <- round(x[37:40] * 12.51)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_false(grepl("filas de afuera siguen", h[[1L]]$evidencia,
+                       fixed = TRUE, useBytes = TRUE))
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, 37:40)
+  }
+})
+
+test_that("no se afirma una segunda constante que el redondeo no sostiene", {
+  skip_on_cran()
+  # Respuesta entera de valores chicos: las cuatro filas a 0,3 se apartan de su
+  # producto hasta un 11 %, mas que la tolerancia relativa de la principal. La
+  # evidencia no dice que siguen esa constante.
+  x <- 11:50
+  y <- round(x * 3)
+  rotas <- c(2L, 12L, 22L, 32L)
+  y[rotas] <- round(x[rotas] * 0.3)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_false(grepl("filas de afuera siguen", h[[1L]]$evidencia,
+                       fixed = TRUE, useBytes = TRUE))
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, rotas)
+  }
+})
+
+test_that("una segunda tasa exacta se sigue informando", {
+  skip_on_cran()
+  # Control: el 10 % de IVA sobre cien filas no se aparta de su constante y la
+  # evidencia lo dice.
+  x <- 1:100
+  y <- round(x * 0.22, 2)
+  otras <- 91:100
+  y[otras] <- round(x[otras] * 0.10, 2)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_match(h[[1L]]$evidencia,
+                 "Las 10 filas de afuera siguen y ~= x * 0.1.",
+                 fixed = TRUE, useBytes = TRUE)
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, otras)
+  }
+})

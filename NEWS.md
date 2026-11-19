@@ -209,6 +209,13 @@
   redondeos y truncados y sobre 400 tablas al azar: ninguna tabla señala menos
   filas rotas ni acusa más sanas que la 0.1.2, y ninguna relación sana deja de
   publicarse.
+- Cuando las filas que una proporcionalidad deja afuera comparten otra
+  constante exacta —otro tipo de cambio, un recargo que no se aplicó, otra tasa
+  de IVA—, la evidencia lo dice con la misma forma que la relación: «Las 8
+  filas de afuera siguen `y ~= x * 41`». Se dice desde cuatro filas, si la
+  segunda constante se separa de la principal más que el doble de su
+  tolerancia relativa (con un piso de 0,1 %) y si las filas la siguen dentro de
+  esa tolerancia. No cambia qué se publica ni qué filas se señalan.
 
 - La limpieza por omisión ya no destruye letras rotas que el detector no
   reconoce. «Škoda» leída como latin-1 es `Å`, un espacio duro y `koda`: el

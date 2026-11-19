@@ -28,6 +28,26 @@
   format(tolerancia, scientific = TRUE, trim = TRUE, digits = 15L)
 }
 
+# **La forma publicada de una constante.** Con la reciproca corta, la relacion
+# se escribe con la division -`y ~= x / 7` y no `y ~= x * 0.142857142857143`-;
+# la segunda constante de las filas de afuera usa la misma forma, para que las
+# dos frases se lean igual. El valor ya viene con las cifras que sostienen las
+# filas (`.constante_por_intervalos_aritmetica()`), asi que no se agrega ruido
+# de punto flotante.
+.forma_constante_aritmetica <- function(constante, reciproca) {
+  if (is.null(reciproca)) {
+    list(
+      operador = " * ",
+      factor = format(constante, scientific = FALSE, trim = TRUE, digits = 15L)
+    )
+  } else {
+    list(
+      operador = " / ",
+      factor = format(reciproca, scientific = FALSE, trim = TRUE, digits = 15L)
+    )
+  }
+}
+
 # `cota` es un tope absoluto para la tolerancia relativa: ver
 # `.cota_cuanto_aritmetica()`. Con `Inf` -lo que llega cuando no hay cota- el
 # `pmin()` devuelve la tolerancia relativa sin tocarla, bit a bit.
@@ -361,6 +381,30 @@
     }
   }
   NA_real_
+}
+
+# **La reticula de las filas que una lectura deja afuera.** En el respaldo
+# decide si la fina se puede publicar: si las de afuera son un redondeo mas
+# grueso, no lo son. Se mide solo en las filas de afuera, porque son una minoria
+# de la columna (ver `.reticula_de_redondeo_aritmetica()`).
+.reticula_filas_de_afuera_aritmetica <- function(lectura, invertida, base,
+                                                 respuesta, comparables) {
+  if (is.null(lectura$cumple) || length(lectura$cuanto) != 1L ||
+      !is.finite(lectura$cuanto) || length(lectura$constante) != 1L) {
+    return(NA_real_)
+  }
+  fuera <- !lectura$cumple
+  if (!any(fuera)) return(NA_real_)
+  r_f <- if (invertida) base[comparables] else respuesta[comparables]
+  b_f <- if (invertida) respuesta[comparables] else base[comparables]
+  esperado_f <- b_f * lectura$constante
+  residuo <- abs(r_f[fuera] - esperado_f[fuera])
+  margen <- max(8 * .Machine$double.eps *
+    pmax(1, abs(r_f[fuera]), abs(esperado_f[fuera])))
+  .reticula_de_redondeo_aritmetica(
+    r_f[fuera], desde = lectura$cuanto, residuo = max(residuo),
+    margen = margen
+  )
 }
 
 # Decimales fijos: la misma resolucion en la mitad de valores grandes y en la de
@@ -1477,6 +1521,81 @@
   )
 }
 
+# **Una segunda constante exacta en las filas de afuera.** Cuando la minoria que
+# la relacion deja afuera no es un redondeo mas grueso sino otro regimen -otro
+# tipo de cambio, un recargo que no se aplico, otra tasa-, sus cocientes
+# comparten una constante distinta de la principal. Se lee con la misma funcion
+# de constantes que la relacion (`.constante_por_intervalos_aritmetica()`), con
+# el medio cuanto de la respuesta como semiancho, y se informa solo como
+# evidencia: no cambia la deteccion, las filas senaladas ni los campos.
+# Con dos filas cualquier par define una recta por el origen, y con tres o
+# cuatro la dispersion del redondeo se puede confundir con otra constante. Se
+# piden al menos cuatro filas -el caso con dos de la 0.1.2 queda sin el texto-.
+.MINIMO_FILAS_SEGUNDO_REGIMEN <- 4L
+
+# Y una fila que se aparta de `k2` mas de una decima parte de su producto no
+# "sigue" esa constante: el redondeo, no la proporcion, es lo que se ve. La
+# cota relativa de la principal puede ser mas ancha todavia -con una respuesta
+# entera de valores chicos, medio cuanto es una fraccion grande-, asi que el
+# tope es el menor de los dos. Medido: las frases con desvios del 11 al 33 %
+# sobre respuestas enteras chicas dejaban de sostener la lectura; las segundas
+# constantes genuinas de los controles no pasan del 0,5 %.
+.TOPE_RELATIVO_SEGUNDO_REGIMEN <- 0.10
+
+.segundo_regimen_aritmetica <- function(base, respuesta, fuera, constante,
+                                        cota) {
+  if (sum(fuera) < .MINIMO_FILAS_SEGUNDO_REGIMEN) return(NULL)
+  b <- as.double(base[fuera])
+  r <- as.double(respuesta[fuera])
+  usables <- is.finite(b) & is.finite(r) & b != 0
+  if (sum(usables) < .MINIMO_FILAS_SEGUNDO_REGIMEN) return(NULL)
+  b <- b[usables]
+  r <- r[usables]
+  # **La separacion se mide en relativo.** La tolerancia de la principal es la
+  # mitad de su cuanto sobre el valor esperado, y la tipica es la de la base
+  # mediana. Pero el cociente puede cambiar solo por el tamano de la base: con
+  # `y ~= x * 12.5` y cuatro filas corridas 0,05 sobre valores de miles, la
+  # diferencia relativa es 1,25e-5 y no es otro regimen. Por eso la separacion
+  # tiene que superar tambien un piso relativo de una decima de punto
+  # porcentual: por debajo de eso no hay constante que nombrar.
+  magnitudes <- abs(as.double(base))
+  magnitudes <- magnitudes[is.finite(magnitudes) & magnitudes != 0]
+  if (!length(magnitudes)) return(NULL)
+  tolerancia_relativa <- max(
+    2 * cota / (abs(constante) * stats::median(magnitudes)),
+    1e-3
+  )
+  if (!is.finite(tolerancia_relativa)) return(NULL)
+  referencia <- stats::median(r / b)
+  if (!is.finite(referencia) || referencia == 0) return(NULL)
+  leida <- .constante_por_intervalos_aritmetica(
+    b, r, cota, referencia, 0.8
+  )
+  k2 <- as.vector(leida)
+  if (!is.finite(k2) || k2 == 0) return(NULL)
+  if (abs(k2 - constante) <= tolerancia_relativa * abs(constante)) {
+    return(NULL)
+  }
+  # Las filas tienen que seguir la constante: el redondeo de la respuesta, a lo
+  # sumo medio cuanto, y el error del doble. Y en relativo no pueden apartarse
+  # mas que la tolerancia de la principal, ni mas de una decima parte: con una
+  # respuesta entera de valores chicos, medio cuanto es una fraccion grande del
+  # producto y una constante con desvios del 11 al 33 % no se sostiene como
+  # "siguen".
+  margen <- 8 * .Machine$double.eps * pmax(1, abs(r), abs(b * k2))
+  residuo <- abs(r - b * k2)
+  tope_relativo <- min(tolerancia_relativa, .TOPE_RELATIVO_SEGUNDO_REGIMEN)
+  if (!all(residuo <= cota + margen) ||
+      !all(residuo <= tope_relativo * abs(b * k2) + margen)) {
+    return(NULL)
+  }
+  list(
+    constante = k2, filas = length(b),
+    cifras = attr(leida, "cifras", exact = TRUE),
+    reciproca = attr(leida, "reciproca", exact = TRUE)
+  )
+}
+
 .hallazgo_proporcional <- function(datos, par, umbral, min_filas,
                                     tolerancia, nombres_texto = names(datos),
                                     cuanto_de = NULL) {
@@ -1631,19 +1750,10 @@
       if (!isTRUE(fina$exacta) || !con_soporte(gruesa, !invertida_fina)) {
         return(FALSE)
       }
-      r_f <- if (invertida_fina) base[comparables] else respuesta[comparables]
-      b_f <- if (invertida_fina) respuesta[comparables] else base[comparables]
-      fuera <- !fina$cumple
-      if (!any(fuera)) return(FALSE)
-      esperado_f <- b_f * fina$constante
-      residuo <- abs(r_f[fuera] - esperado_f[fuera])
-      margen <- max(8 * .Machine$double.eps *
-        pmax(1, abs(r_f[fuera]), abs(esperado_f[fuera])))
-      reticula <- .reticula_de_redondeo_aritmetica(
-        r_f[fuera], desde = fina$cuanto, residuo = max(residuo),
-        margen = margen
-      )
-      !is.finite(reticula)
+      if (!any(!fina$cumple)) return(FALSE)
+      !is.finite(.reticula_filas_de_afuera_aritmetica(
+        fina, invertida_fina, base, respuesta, comparables
+      ))
     }
     con_la_fina <- function(gruesa, invertida, fina) {
       r_f <- if (invertida) base[comparables] else respuesta[comparables]
@@ -1969,19 +2079,35 @@
   indices_incumplen <- filas_comparables[!cumple]
   esperados_incumplen <- esperado[!cumple]
   nombres <- names(datos)
-  constante_texto <- format(
-    constante, scientific = FALSE, trim = TRUE, digits = 15L
-  )
+  # La segunda constante de las filas de afuera, solo para la evidencia: ver
+  # `.segundo_regimen_aritmetica()`.
+  segundo_regimen <- NULL
+  if (length(indices_incumplen) && is.finite(cota)) {
+    segundo_regimen <- .segundo_regimen_aritmetica(
+      base[comparables], respuesta[comparables], !cumple, constante, cota
+    )
+  }
+  texto_segundo_regimen <- ""
+  if (!is.null(segundo_regimen)) {
+    forma_segunda <- .forma_constante_aritmetica(
+      segundo_regimen$constante, segundo_regimen$reciproca
+    )
+    texto_segundo_regimen <- paste0(
+      "Las ", segundo_regimen$filas, " filas de afuera siguen ",
+      nombres_texto[[indice_respuesta]], " ~= ", nombres_texto[[indice_base]],
+      forma_segunda$operador, forma_segunda$factor, ". "
+    )
+  }
   # Con la reciproca corta, la relacion se escribe con la division: `y ~= x / 7`
   # y no `y ~= x * 0.142857142857143`.
-  operador <- c(" * ", " / ")
-  factor_texto <- constante_texto
-  if (!is.null(reciproca_elegida)) {
-    operador <- rev(operador)
-    factor_texto <- format(
-      reciproca_elegida, scientific = FALSE, trim = TRUE, digits = 15L
-    )
-    constante_texto <- paste0("1/", factor_texto)
+  forma <- .forma_constante_aritmetica(constante, reciproca_elegida)
+  factor_texto <- forma$factor
+  operador <- c(forma$operador,
+                if (identical(forma$operador, " * ")) " / " else " * ")
+  constante_texto <- if (is.null(reciproca_elegida)) {
+    factor_texto
+  } else {
+    paste0("1/", factor_texto)
   }
   expresion <- paste0(
     nombres_texto[[indice_respuesta]], " ~= ", nombres_texto[[indice_base]],
@@ -2044,7 +2170,8 @@
             " filas finitas con base distinta de cero); forma equivalente: "
         )
       },
-      inversa, ". Tolerancia declarada: ", tolerancia_texto,
+      inversa, ". ", texto_segundo_regimen, "Tolerancia declarada: ",
+      tolerancia_texto,
       "; criterio |observado - esperado| <= ",
       if (is.finite(cota)) {
         paste0(

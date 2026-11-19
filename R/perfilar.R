@@ -2702,8 +2702,13 @@
 #'   discrepancias, se publica la fina con esas filas señaladas: la evidencia de
 #'   que la relación existe es que la gruesa alcanzaba el criterio. La fina tiene
 #'   que ser exacta en las filas que explica, y las que deja afuera no pueden
-#'   ser un redondeo a una resolución más gruesa. La
-#'   proporción y el criterio efectivos se publican en cada evidencia.
+#'   ser un redondeo a una resolución más gruesa. Y cuando las filas de afuera
+#'   son al menos cuatro y comparten otra constante exacta —otro tipo de cambio,
+#'   un recargo que no se aplicó, otra tasa—, la evidencia lo dice, siempre que
+#'   la segunda constante se separe de la principal más que el doble de su
+#'   tolerancia relativa típica, con un piso de 0,1 %, y que las filas la sigan
+#'   dentro de esa tolerancia.
+#'   La proporción y el criterio efectivos se publican en cada evidencia.
 #' @param min_filas_aritmetica Mínimo de filas comparables necesario para
 #'   evaluar una candidata aritmética. Por omisión es `3`.
 #' @param tolerancia_aritmetica Tolerancia numérica relativa escalada usada al
