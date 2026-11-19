@@ -818,11 +818,12 @@ test_that("una reciproca que solo ahorra la cifra de la division empata con la d
   expect_equal(r$h[[1L]]$n_afectados, 0)
 })
 
-test_that("una constante exacta en las filas sanas no se descarta por el piso de una larga que traga rotas", {
+test_that("una constante exacta en las filas sanas se publica con sus rotas aunque una larga suba el piso", {
   skip_on_cran()
   # y = x / 4 en 20 filas con tres rotas por cinco centavos: `1/3.99995`
   # explicaba 18 filas (16 sanas y dos rotas) y subia el piso a 18, dejando
-  # afuera a `1/4` (17 sanas exactas) y acusando la sana 18.
+  # afuera a `1/4` (17 sanas exactas). La gruesa alcanzaba el criterio y la
+  # fina explica las 17 sanas: se publica la fina con las tres rotas.
   x1 <- c(5705, 1502, 1644, 1724, 3065, 2293, 9654, 1558, 8045, 6522,
           7342, 3691, 1510, 6952, 486, 1715, 376, 9205, 4429, 7043)
   y1_cent <- 25 * x1
@@ -833,10 +834,16 @@ test_that("una constante exacta en las filas sanas no se descarta por el piso de
   expect_identical(as.vector(k1), 0.25)
   expect_identical(attr(k1, "cifras"), 1L)
   r1 <- prop_de(data.frame(x = x1, y = y1_cent / 100))
-  expect_length(r1$h, 0L)
+  expect_length(r1$h, 1L)
+  if (length(r1$h)) {
+    expect_match(r1$h[[1L]]$descripcion, "y ~= x * 0.25 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_identical(r1$h[[1L]]$trazabilidad[[1L]]$indices_fila, rotas1)
+  }
 
   # Lo mismo con importes grandes e y = 3.75 * x: `3.75000000018` explicaba 18
-  # filas (16 sanas y dos rotas) y acusaba la sana 4.
+  # filas (16 sanas y dos rotas) y acusaba la sana 4. La fina `3.75` explica
+  # las 17 sanas y se publica con las tres rotas.
   x2 <- c(131918469, 44496973, 52028630, 160195871, 6565510, 137873294,
           104026207, 45904400, 113866661, 86862171, 14809644, 116895062,
           50384664, 134793257, 137723479, 89135147, 143579009, 157268029,
@@ -847,23 +854,43 @@ test_that("una constante exacta en las filas sanas no se descarta por el piso de
   k2 <- lupa:::.constante_por_intervalos_aritmetica(x2, y2, 0.025, 3.75)
   expect_identical(as.vector(k2), 3.75)
   r2 <- prop_de(data.frame(x = x2, y = y2))
-  expect_length(r2$h, 0L)
+  expect_length(r2$h, 1L)
+  if (length(r2$h)) {
+    expect_match(r2$h[[1L]]$descripcion, "y ~= x * 3.75 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_identical(r2$h[[1L]]$trazabilidad[[1L]]$indices_fila, rotas2)
+  }
 })
 
-test_that("la lectura gruesa no suplanta a la fina cuando la fina concentra las filas sin alcanzar el criterio", {
+test_that("la lectura fina se publica con las rotas que la gruesa callaba", {
   skip_on_cran()
   # x = 1:20 e y = round(x * 0.22, 2) con tres rotas: la lectura de y explica
   # 17 de 20 (0,85 < 0,9), y la de x -22 veces mas gruesa- publicaba
-  # `x ~= y * 4.5` sin filas discrepantes o `4.435` callando una rota.
+  # `x ~= y * 4.5` sin filas discrepantes o `4.435` callando una rota. La
+  # gruesa alcanzaba el criterio: la fina se publica con las tres rotas.
   x <- 1:20
   y_cent <- 22L * x
   y1 <- y_cent / 100
-  y1[c(11L, 12L, 14L)] <- y1[c(11L, 12L, 14L)] + 0.05
-  expect_length(prop_de(data.frame(x = x, y = y1))$h, 0L)
+  rotas1 <- c(11L, 12L, 14L)
+  y1[rotas1] <- y1[rotas1] + 0.05
+  h1 <- prop_de(data.frame(x = x, y = y1))$h
+  expect_length(h1, 1L)
+  if (length(h1)) {
+    expect_match(h1[[1L]]$descripcion, "y ~= x * 0.22 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_identical(h1[[1L]]$trazabilidad[[1L]]$indices_fila, rotas1)
+  }
 
   y2 <- y_cent / 100
-  y2[c(4L, 10L, 16L)] <- y2[c(4L, 10L, 16L)] + 0.20
-  expect_length(prop_de(data.frame(x = x, y = y2))$h, 0L)
+  rotas2 <- c(4L, 10L, 16L)
+  y2[rotas2] <- y2[rotas2] + 0.20
+  h2 <- prop_de(data.frame(x = x, y = y2))$h
+  expect_length(h2, 1L)
+  if (length(h2)) {
+    expect_match(h2[[1L]]$descripcion, "y ~= x * 0.22 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_identical(h2[[1L]]$trazabilidad[[1L]]$indices_fila, rotas2)
+  }
 
   # Y con una respuesta truncada `trunc(cant * 39.8734)` y dos rotas (+20): la
   # lectura de `cant` con `0.025` (tolerancia 40 veces mas ancha) las callaba.
@@ -873,6 +900,76 @@ test_that("la lectura gruesa no suplanta a la fina cuando la fina concentra las 
   y_tr <- (398734L * cant) %/% 10000L
   y_tr[c(5L, 22L)] <- y_tr[c(5L, 22L)] + 20L
   expect_length(prop_de(data.frame(cant = cant, y = y_tr))$h, 0L)
+})
+
+test_that("la fina no acusa filas registradas en una reticula mas gruesa", {
+  skip_on_cran()
+  # y = round(1.22 * x, 2) en 80 filas y a unidades en 20: las 20 son sanas a
+  # su resolucion. La gruesa explica las 100, la fina 82; publicar la fina
+  # acusaria 18 filas que solo estan redondeadas a unidades.
+  x <- 1:100
+  y <- round(x * 1.22, 2)
+  gruesas <- seq(5L, 100L, by = 5L)
+  y[gruesas] <- round(x[gruesas] * 1.22)
+  expect_length(prop_de(data.frame(x = x, y = y))$h, 0L)
+})
+
+test_that("la fina no acusa filas registradas a 0,05", {
+  skip_on_cran()
+  # La misma respuesta a centavos, con ocho filas registradas en multiplos de
+  # 0,05: son sanas a esa resolucion y la fina las dejaba afuera. Con nueve o
+  # mas filas la reticula de afuera pasaba la cota de azar; con ocho no, y la
+  # guarda las acusaba.
+  x <- 1:40
+  y <- round(x * 0.22, 2)
+  gruesas <- c(2L, 4L, 8L, 13L, 27L, 29L, 30L, 37L)
+  y[gruesas] <- round(x[gruesas] * 0.22 / 0.05) * 0.05
+  expect_length(prop_de(data.frame(x = x, y = y))$h, 0L)
+})
+
+test_that("una rota entre filas registradas a 0,05 se sigue senalando", {
+  skip_on_cran()
+  # La misma tabla con la fila 13 corrida 0,20: no es un redondeo a 0,05, y la
+  # guarda no puede callarla.
+  x <- 1:40
+  y <- round(x * 0.22, 2)
+  gruesas <- c(2L, 4L, 8L, 13L, 27L, 29L, 30L, 37L)
+  y[gruesas] <- round(x[gruesas] * 0.22 / 0.05) * 0.05
+  rota <- 13L
+  y[rota] <- y[rota] + 0.20
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, rota)
+  }
+})
+
+test_that("la fina senala la minoria con otra constante aunque su maximo comun sea grande", {
+  skip_on_cran()
+  # El tipo de cambio cambia en una minoria (40,1 a 40,35). La reticula de las
+  # filas de afuera tiene como maximo comun 40,35, y tomarlo como paso callaba
+  # la relacion entera; la minoria tiene que quedar senalada.
+  x <- 1:40
+  otras <- c(2L, 4L, 8L, 13L, 27L, 29L, 30L, 37L)
+  y <- round(x * 40.1, 2)
+  y[otras] <- round(x[otras] * 40.35, 2)
+  h <- prop_de(data.frame(x = x, y = y))$h
+  expect_length(h, 1L)
+  if (length(h)) {
+    expect_match(h[[1L]]$descripcion, "y ~= x * 40.1 ", fixed = TRUE,
+                 useBytes = TRUE)
+    expect_identical(h[[1L]]$trazabilidad[[1L]]$indices_fila, otras)
+  }
+})
+
+test_that("sin relacion verdadera, el respaldo no publica una proporcion", {
+  skip_on_cran()
+  # Dos series sin relacion: ni la gruesa ni la fina alcanzan el criterio.
+  x <- c(3, 17, 29, 41, 58, 66, 74, 83, 91, 105, 118, 127, 139, 146, 158,
+         167, 179, 188, 199, 211)
+  y <- c(47, 11, 83, 29, 61, 97, 13, 71, 103, 37, 89, 17, 53, 101, 23, 79,
+         43, 107, 31, 67)
+  expect_length(prop_de(data.frame(x = x, y = y))$h, 0L)
 })
 
 test_that("no se callan tablas con rotas senaladas cuando la gruesa o la larga no pierden sanas", {

@@ -177,14 +177,22 @@
   se lee de los datos, y una lectura gruesa podía correrse lo justo para
   tragarse las filas rotas: con un IVA del 22 % en 20 filas y tres rotas salía
   `x ~= y * 4.5` «en todas las filas», y con un tipo de cambio truncado,
-  `cant ~= y * 0.025`. Ahora esa lectura no se publica cuando una más fina
-  explica al menos el 80 % de las filas y deja las rotas afuera. Un tipo de
-  cambio de cuatro decimales se lee directo (`y ~= x * 39.8734`), y no como la
-  recíproca corta que acusaba una fila sana (`y ~= x / 0.02508`); y constantes
-  como `3.99995` o `3.75000000018`, que acusaban una fila sana y callaban dos
-  rotas, no se publican cuando la relación no alcanza el criterio. Medido sobre
-  más de 20.000 tablas de constantes, redondeos y truncados: ninguna relación
-  sana deja de publicarse y ninguna fila sana nueva queda acusada.
+  `cant ~= y * 0.025`. Ahora, cuando una lectura más fina explica al menos el
+  80 % de las filas, se publica la fina como relación que «se rompe en una
+  minoría de las filas comparables», con las filas que deja afuera señaladas:
+  en el ejemplo, `y ~= x * 0.22` con las tres rotas. Lo mismo con constantes
+  como `0.25` o `3.75`, que antes se leían `3.99995` o `3.75000000018`, acusaban
+  una fila sana y callaban dos rotas. La fina tiene que ser exacta en las filas
+  que explica, y las que deja afuera no se acusan si son un redondeo a un paso
+  más grueso (0,05, 0,1, 0,25, 0,5, 1, 5…): filas cargadas a enteros o a cinco
+  centésimos entre otras a centavos siguen siendo sanas. Una minoría con otra
+  constante, como un segundo tipo de cambio o un recargo que no se aplicó, sí
+  queda señalada. Un tipo de cambio de cuatro decimales se lee directo
+  (`y ~= x * 39.8734`), y no como la recíproca corta que acusaba una fila sana
+  (`y ~= x / 0.02508`). Medido sobre más de 5.000 tablas de constantes,
+  redondeos y truncados y sobre 400 tablas al azar: ninguna tabla señala menos
+  filas rotas ni acusa más sanas que la 0.1.2, y ninguna relación sana deja de
+  publicarse.
 
 - La limpieza por omisión ya no destruye letras rotas que el detector no
   reconoce. «Škoda» leída como latin-1 es `Å`, un espacio duro y `koda`: el

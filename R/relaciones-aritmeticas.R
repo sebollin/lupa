@@ -234,6 +234,11 @@
 
 .multiplos_resolucion <- c(2, 4, 5, 8, 20, 25, 40, 50, 125, 200, 250, 500)
 
+# Los pasos de redondeo decimales usuales: 1, 2, 2,5 y 5 veces cada potencia de
+# diez. Cubren 0,01, 0,02, 0,025, 0,05, 0,1, 0,2, 0,25, 0,5, 1, 2, 2,5, 5, 10
+# y los que siguen, que son las reticulas con que se registran los importes.
+.PASOS_REDONDEO <- c(1, 2, 2.5, 5)
+
 .resolucion_columna_aritmetica <- function(x, fraccion = .FRACCION_RESOLUCION,
                                            fuera = NULL, filas = NULL) {
   # El cero esta en toda reticula y no dice nada de la resolucion: con 60 % de
@@ -312,6 +317,50 @@
     b <- resto
   }
   a
+}
+
+# **La reticula de redondeo de un grupo de valores.** Es el paso decimal mas
+# fino que cubre a todos -todos son multiplos del paso y el residuo mayor no
+# pasa de su mitad- y que a la vez es mayor que la resolucion de la lectura
+# fina. Se busca entre los pasos usuales (`.PASOS_REDONDEO`), no en el maximo
+# comun de los valores: con dos filas a multiplos de 0,05, el maximo comun
+# puede ser 0,20 o 2,20, y su mitad taparia rotas mas grandes que el propio
+# redondeo. El paso mas fino que cubre es el que menos calla, y por eso la
+# busqueda empieza en la resolucion de la fina y no en la reticula entera de
+# los valores: cinco filas a 0,05 pueden ser todas multiplos de 0,10, y el paso
+# de 0,10 taparia una corrida de 0,04 que el de 0,05 no tapa.
+#
+# No lleva la cota de azar de `.resolucion_columna_aritmetica()`: aquella
+# decide si una columna entera tiene decimales fijos, y con cinco filas fuera
+# de la reticula de la fina, `5^-5` no llega al 1e-6 que pide -medido: las
+# filas a 0,05 de una tabla de 40 se leian a 0,01 y se acusaban-. Aca la
+# pregunta es otra: si esa minoria, que la fina ya dejo afuera, esta registrada
+# en un paso mas grueso. La cota contra el azar es que todos los valores caigan
+# en el mismo paso usual.
+.reticula_de_redondeo_aritmetica <- function(x, desde, residuo,
+                                             margen = 0) {
+  x <- abs(as.double(x[is.finite(x) & x != 0]))
+  if (!length(x) || !is.finite(desde) || desde <= 0 ||
+      !is.finite(residuo)) {
+    return(NA_real_)
+  }
+  # Una reticula mayor que el doble del valor mas grande no es una reticula de
+  # esos valores: sin esta cota, cualquier paso enorme los "contiene" por el
+  # error del doble y la guarda callaba las tres rotas de F1.
+  magnitud <- max(abs(x))
+  inicio <- max(-15L, floor(log10(desde)))
+  for (decada in seq.int(inicio, 15L)) {
+    for (paso in .PASOS_REDONDEO) {
+      reticula <- paso * 10^decada
+      if (reticula <= desde) next
+      if (reticula > 2 * magnitud) return(NA_real_)
+      # Un paso mas fino que el doble del residuo no puede ser su redondeo:
+      # se prueba el siguiente. La busqueda va de fino a grueso.
+      if (residuo > reticula / 2 + margen) next
+      if (all(.en_resolucion_aritmetica(x, reticula))) return(reticula)
+    }
+  }
+  NA_real_
 }
 
 # Decimales fijos: la misma resolucion en la mitad de valores grandes y en la de
@@ -1060,7 +1109,10 @@
       aplica = TRUE, alcanza = FALSE, cota = cota, cuanto = cuanto$cuanto,
       constante = as.vector(constante),
       cifras = attr(constante, "cifras", exact = TRUE),
-      mediana = mediana, cumple = cumple, exacta = exacta
+      reciproca = attr(constante, "reciproca", exact = TRUE),
+      mediana = mediana, esperado = esperado, cumple = cumple, exacta = exacta,
+      utilizables = utilizables,
+      relativa_maxima = max(tolerancia * pmax(1, abs(r), abs(esperado_mediana)))
     ))
   }
   if (solo_consistencia) return(list(aplica = FALSE, alcanza = FALSE, consistente = TRUE))
@@ -1503,6 +1555,7 @@
   cota <- Inf
   cota_elegida <- NULL
   reciproca_elegida <- NULL
+  respaldo_elegido <- FALSE
   relativa_maxima <- max(tolerancia * pmax(
     1, abs(respuesta[comparables]), abs(esperado)
   ))
@@ -1566,6 +1619,31 @@
       r <- if (invertida) base else respuesta
       .soporte_proporcional_aritmetica(b, r, comparables, cumple,
                                        umbral, min_filas)
+    }
+    # Una fina exacta puede dejar afuera filas que no estan rotas sino
+    # registradas en una reticula mas gruesa: con `y = round(1.22 * x, 2)` en
+    # 80 filas y `round(1.22 * x)` en 20, la fina las acusa y la gruesa las
+    # explica a todas. Si lo que queda afuera cabe en el medio paso de una
+    # reticula mas gruesa que la de la fina, no se publica el respaldo: la
+    # reticula se mide en las filas de afuera, no en la columna entera, porque
+    # son una minoria (ver `.reticula_de_redondeo_aritmetica()`).
+    respaldo_valido <- function(gruesa, fina, invertida_fina) {
+      if (!isTRUE(fina$exacta) || !con_soporte(gruesa, !invertida_fina)) {
+        return(FALSE)
+      }
+      r_f <- if (invertida_fina) base[comparables] else respuesta[comparables]
+      b_f <- if (invertida_fina) respuesta[comparables] else base[comparables]
+      fuera <- !fina$cumple
+      if (!any(fuera)) return(FALSE)
+      esperado_f <- b_f * fina$constante
+      residuo <- abs(r_f[fuera] - esperado_f[fuera])
+      margen <- max(8 * .Machine$double.eps *
+        pmax(1, abs(r_f[fuera]), abs(esperado_f[fuera])))
+      reticula <- .reticula_de_redondeo_aritmetica(
+        r_f[fuera], desde = fina$cuanto, residuo = max(residuo),
+        margen = margen
+      )
+      !is.finite(reticula)
     }
     con_la_fina <- function(gruesa, invertida, fina) {
       r_f <- if (invertida) base[comparables] else respuesta[comparables]
@@ -1669,18 +1747,31 @@
       !cabe_trunca(r_i + fina$cota) &&
         !cabe_trunca(r_i + ifelse(r_i >= 0, fina$cota, -fina$cota))
     }
+    respaldo <- NULL
+    retira_directa <- lectura_directa$alcanza &&
+      !lectura_inversa$alcanza && !is.null(lectura_inversa$cota) &&
+      en_fina_no_alcanza(lectura_directa, lectura_inversa, TRUE,
+                         cota_comun(lectura_directa, FALSE) /
+                           cota_comun(lectura_inversa, TRUE))
+    if (retira_directa && respaldo_valido(lectura_directa, lectura_inversa, TRUE)) {
+      respaldo <- list(lectura = lectura_inversa, invertir = TRUE)
+    }
     if (lectura_directa$alcanza &&
         (lectura_inversa$alcanza || is.null(lectura_inversa$cota) ||
-         !en_fina_no_alcanza(lectura_directa, lectura_inversa, TRUE,
-                             cota_comun(lectura_directa, FALSE) /
-                               cota_comun(lectura_inversa, TRUE)))) {
+         !retira_directa)) {
       elegida <- lectura_directa
+    }
+    retira_inversa <- lectura_inversa$alcanza &&
+      !lectura_directa$alcanza && !is.null(lectura_directa$cota) &&
+      en_fina_no_alcanza(lectura_inversa, lectura_directa, FALSE,
+                         cota_comun(lectura_inversa, TRUE) /
+                           cota_comun(lectura_directa, FALSE))
+    if (retira_inversa && respaldo_valido(lectura_inversa, lectura_directa, FALSE)) {
+      respaldo <- list(lectura = lectura_directa, invertir = FALSE)
     }
     if (lectura_inversa$alcanza &&
         (!is.null(elegida) || is.null(lectura_directa$cota) ||
-         !en_fina_no_alcanza(lectura_inversa, lectura_directa, FALSE,
-                             cota_comun(lectura_inversa, TRUE) /
-                               cota_comun(lectura_directa, FALSE)))) {
+         !retira_inversa)) {
       cota_d <- if (!is.null(elegida)) cota_comun(lectura_directa, FALSE)
       cota_i <- cota_comun(lectura_inversa, TRUE)
       soporte_d <- !is.null(elegida) && con_soporte(lectura_directa, FALSE)
@@ -1812,6 +1903,11 @@
       }
       if (invertir) elegida <- lectura_inversa
     }
+    if (is.null(elegida) && !is.null(respaldo)) {
+      elegida <- respaldo$lectura
+      invertir <- respaldo$invertir
+      respaldo_elegido <- TRUE
+    }
     if (is.null(elegida)) {
       # Una lectura posible -una columna con decimales fijos y la relativa
       # por encima de su redondeo- que no alcanza el criterio: la relativa la
@@ -1861,10 +1957,12 @@
       relativa_maxima <- elegida$relativa_maxima
     }
   }
-  if (!.cumple_criterio_aritmetica(proporcion, umbral)) return(NULL)
+  if (!respaldo_elegido &&
+      !.cumple_criterio_aritmetica(proporcion, umbral)) return(NULL)
   # El soporte, en todos los caminos: ver `.soporte_proporcional_aritmetica()`.
+  umbral_soporte <- if (respaldo_elegido) min(umbral, 0.8) else umbral
   if (!.soporte_proporcional_aritmetica(base, respuesta, comparables, cumple,
-                                        umbral, min_filas)) {
+                                        umbral_soporte, min_filas)) {
     return(sin_soporte)
   }
   filas_comparables <- which(comparables)
@@ -1894,6 +1992,18 @@
     operador[[2L]], factor_texto
   )
   tolerancia_texto <- .texto_tolerancia_aritmetica(tolerancia)
+  criterio_texto <- if (respaldo_elegido) {
+    paste0(
+      "Criterio de reconocimiento declarado: la lectura gruesa alcanzaba ",
+      "cumplimiento >= ",
+      format(umbral, scientific = FALSE, trim = TRUE, digits = 15L),
+      " y esta lectura fina explica al menos el 80 % de las filas comparables ",
+      "y es exacta en las que explica; se informan como discrepancias las ",
+      "filas que quedan afuera. "
+    )
+  } else {
+    .texto_criterio_aritmetica(umbral, min_filas)
+  }
   ejemplos <- .evidencia_filas_aritmetica(
     datos, indices_incumplen, c(indice_base, indice_respuesta),
     esperados_incumplen, paste0(nombres_texto[[indice_respuesta]], " esperado"),
@@ -1916,7 +2026,7 @@
       n_evaluados, if (n_evaluados == 1L) " de " else " de ", nrow(datos),
       if (nrow(datos) == 1L) " fila con valores finitos en ambas columnas). " else
         " filas con valores finitos en ambas columnas). ",
-      .texto_criterio_aritmetica(umbral, min_filas),
+      criterio_texto,
       "Constante observada k=", constante_texto,
       if (is.finite(cota)) {
         paste0(
