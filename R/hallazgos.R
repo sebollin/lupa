@@ -495,11 +495,36 @@
 # dominante con cero a la izquierda y no menos del 2 % de ellos. Un solo valor
 # no distingue un codigo rellenado de uno que casualmente empieza con cero.
 .LARGO_CODIGO_MIN_RELLENO <- 0.02
-# Si casi todos los del largo dominante empiezan con cero -un telefono `09...`,
-# una cedula de ocho cifras, un RUT de doce-, el cero es un prefijo constante y
-# no relleno: los mas cortos son otro formato valido, no un cero perdido. Con
-# dos ceros seguidos si hay relleno: `00001` de una secuencia rellena.
-.LARGO_CODIGO_MAX_PREFIJO_CERO <- 0.9
+
+# Un valor corto solo es un cero perdido si, rellenado con ceros hasta el largo
+# dominante, su principio es uno que los valores dominantes tienen: pertenece.
+# Un fijo de ocho cifras `21234567` rellenado es `021234567`, y los celulares
+# dominantes empiezan todos con `09`: no hay un `02` entre ellos, asi que ese
+# fijo no perdio nada. Un `00598...` de trece cifras contra un fijo de ocho pide
+# cinco ceros seguidos que ningun dominante tiene. Un departamento `7` es `07` y
+# `07` esta entre los `01`..`09`. Se mide posicion por posicion, no por el
+# prefijo entero -un codigo de cinco cifras al azar casi nunca repite el prefijo
+# `001`-: cada posicion de relleno tiene que ser un cero en al menos el 1 % de
+# los dominantes (y dos), y la cifra con que empieza el valor corto tiene que
+# aparecer en la posicion siguiente con esa misma frecuencia.
+.LARGO_CODIGO_MIN_APARICION <- 0.01
+
+.cortos_con_relleno_posible <- function(digitos_dominantes, digitos_cortos,
+                                        dominante) {
+  minimo <- max(2L, ceiling(.LARGO_CODIGO_MIN_APARICION * length(digitos_dominantes)))
+  cifras <- lapply(seq_len(dominante), function(j) substr(digitos_dominantes, j, j))
+  ceros <- vapply(cifras, function(v) sum(v == "0"), numeric(1L))
+  z <- dominante - nchar(digitos_cortos, type = "bytes")
+  inicial <- substr(digitos_cortos, 1L, 1L)
+  clave <- paste(z, inicial)
+  veredicto <- vapply(unique(clave), function(k) {
+    parte <- strsplit(k, " ", fixed = TRUE)[[1L]]
+    zk <- as.integer(parte[[1L]])
+    all(ceros[seq_len(zk)] >= minimo) &&
+      sum(cifras[[zk + 1L]] == parte[[2L]]) >= minimo
+  }, logical(1L))
+  unname(veredicto[clave])
+}
 
 .largo_codigo_inconsistente <- function(x) {
   if (!(is.character(x) || is.factor(x))) return(NULL)
@@ -527,7 +552,6 @@
   digitos <- gsub("[^0-9]", "", texto, perl = TRUE, useBytes = TRUE)
   largo <- nchar(digitos, type = "bytes")
   con_cero <- largo >= 2L & startsWith(digitos, "0")
-  con_dos_ceros <- largo >= 3L & startsWith(digitos, "00")
   grupo <- paste(prefijo, sufijo, sep = "\r")
   afectados <- integer()
   evaluados <- 0L
@@ -543,9 +567,10 @@
     del_dominante <- en_grupo[largo[en_grupo] == dominante]
     n_cero <- sum(con_cero[del_dominante])
     if (n_cero < 3L || n_cero / length(del_dominante) < .LARGO_CODIGO_MIN_RELLENO) next
-    if (n_cero / length(del_dominante) >= .LARGO_CODIGO_MAX_PREFIJO_CERO &&
-        mean(con_dos_ceros[del_dominante]) < 0.5) next
     cortos <- en_grupo[largo[en_grupo] < dominante]
+    cortos <- cortos[.cortos_con_relleno_posible(
+      digitos[del_dominante], digitos[cortos], dominante
+    )]
     if (!length(cortos)) next
     afectados <- c(afectados, posiciones[cortos])
     evaluados <- evaluados + length(en_grupo)

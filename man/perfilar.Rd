@@ -140,8 +140,15 @@ corridas de dígitos y no distingue esos largos. Sólo se acusan los más
 cortos, por grupo de prefijo y sufijo, en columnas de texto donde al menos
 el 80 \% de los valores tiene forma de código y el largo dominante cubre al
 menos el 80 \% del grupo; un número sin relleno, un largo a mitades o un
-código que desborda su ancho no se acusan. Es \code{sospechoso}, con la traza de
-las filas, y su evidencia sólo lleva largos y conteos.}
+código que desborda su ancho no se acusan. Un valor corto sólo se acusa si,
+rellenado con ceros hasta el largo dominante, su principio es uno que los
+valores dominantes tienen: un fijo \code{21234567} frente a celulares \verb{09...}
+o frente a teléfonos \verb{00598...} no perdió nada, y un departamento \code{7}
+frente a \code{01}..\code{09} sí. En una columna de documentos que el verificador
+reconoce, los cortos que lo cumplen se excluyen. Una numeración que creció
+o un código de otro país pueden seguir acusándose, y la sugerencia lo dice.
+Es \code{sospechoso}, con la traza de las filas, y su evidencia sólo lleva
+largos y conteos.}
 
 \item{umbral_patron_dominante}{Frecuencia mínima del patrón dominante.}
 

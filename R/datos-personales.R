@@ -1528,7 +1528,8 @@
         "Verificador `", nombre_validador[[1L]], "`: ", length(invalidos),
         " de ", length(presentes), " valores no lo cumplen (proporci\u00f3n ",
         "verificada ", .formatear_decimal_publicado(proporcion),
-        "); no se publican los valores.",
+        "); no se publican los valores. Un documento de otro tipo con las ",
+        "mismas cifras no se distingue de un d\u00edgito mal cargado.",
         if (n_otra_forma > 0L) {
           paste0(
             " Otros ", n_otra_forma, " valores tienen otra forma -letras, o ",
@@ -1572,7 +1573,26 @@
     if (is.na(indice) || !length(filas)) next
     textos <- .textos_para_clasificacion_personal(datos[[indice]])[filas]
     cumple <- .cumple_documento(validadores[[nombre_validador[[1L]]]], textos)
-    if (!is.null(cumple) && mean(cumple) >= 0.9) quitar[[i]] <- TRUE
+    if (is.null(cumple) || !any(cumple)) next
+    # Valor por valor: el que cumple es el mismo documento sin su cero inicial;
+    # los que no, siguen en el hallazgo. Decidir por la mayoria acusaba a veinte
+    # documentos validos por cinco truncados.
+    if (all(cumple)) {
+      quitar[[i]] <- TRUE
+      next
+    }
+    quedan <- filas[!cumple]
+    hallazgos$n_afectados[[i]] <- length(quedan)
+    traza <- hallazgos$trazabilidad[[i]]
+    traza$indices <- quedan
+    traza$total <- length(quedan)
+    hallazgos$trazabilidad[[i]] <- traza
+    hallazgos$evidencia[[i]] <- paste0(
+      sub("cortos: [0-9]+,", paste0("cortos: ", length(quedan), ","),
+          hallazgos$evidencia[[i]], perl = TRUE, useBytes = TRUE),
+      " Se excluyen ", sum(cumple), " valores m\u00e1s cortos que cumplen el ",
+      "verificador: son el mismo documento sin su cero inicial."
+    )
   }
   if (!any(quitar)) return(hallazgos)
   hallazgos <- hallazgos[!quitar, , drop = FALSE]
