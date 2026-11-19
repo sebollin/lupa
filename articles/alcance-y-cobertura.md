@@ -686,7 +686,7 @@ parte de su contrato:
 
 ## El vocabulario completo de `tipo_hallazgo`
 
-El paquete emite 60 nombres de `tipo_hallazgo`. Están en castellano
+El paquete emite 62 nombres de `tipo_hallazgo`. Están en castellano
 porque forman parte de la API pública: cambiar uno es un cambio
 incompatible.
 
@@ -714,20 +714,21 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 #> anio_de_dos_digitos                     geometria_invalida
 #> bloqueo_por_con_perdida                 geometria_vacia
 #> casi_clave                              integer64_fuera_precision_double
-#> casi_duplicados_vocabulario             mayusculas_inconsistentes
-#> celdas_multivaluadas                    monedas_mixtas
-#> ceros_no_permitidos                     negativos_no_permitidos
-#> clave_con_ausentes                      nombres_columnas_problematicos
-#> clave_no_unica                          normalizacion_unicode
-#> codificacion_invalida                   numero_como_texto
-#> codificacion_rota                       outliers
-#> columnas_duplicadas                     patron_raro
-#> constante                               posible_ausencia_estructural
-#> controles_invisibles                    posible_centinela_numerico
-#> coordenada_fuera_dominio                posible_identificador
-#> crs_no_declarado                        regla_silencia_ausencia
-#> dato_personal_posible                   relacion_aritmetica_columnas
-#> desviacion_benford                      relacion_funcional_columnas
+#> casi_duplicados_vocabulario             largo_codigo_inconsistente
+#> celdas_multivaluadas                    mayusculas_inconsistentes
+#> ceros_no_permitidos                     monedas_mixtas
+#> clave_con_ausentes                      negativos_no_permitidos
+#> clave_no_unica                          nombres_columnas_problematicos
+#> codificacion_invalida                   normalizacion_unicode
+#> codificacion_rota                       numero_como_texto
+#> columnas_duplicadas                     outliers
+#> constante                               patron_raro
+#> controles_invisibles                    posible_ausencia_estructural
+#> coordenada_fuera_dominio                posible_centinela_numerico
+#> crs_no_declarado                        posible_identificador
+#> dato_personal_posible                   regla_silencia_ausencia
+#> desviacion_benford                      relacion_aritmetica_columnas
+#> digito_verificador_invalido             relacion_funcional_columnas
 #> duplicados_aproximados                  relacion_orden_columnas
 #> duplicados_exactos_columnas             separadores_en_campo
 #> duplicados_exactos_normalizados         tipo_compuesto_no_analizado

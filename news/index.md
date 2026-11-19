@@ -4,6 +4,30 @@
 
 ### Perfilado
 
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa los códigos que perdieron los ceros a la izquierda
+  (`largo_codigo_inconsistente`, sospechoso): en una columna de texto
+  con forma de código cuyo largo dominante se escribe con ceros a la
+  izquierda, nombra los valores con menos dígitos (`"00123"` frente a
+  `"123"`, `"AB-00001"` frente a `"AB-1"`), con la traza de filas. Un
+  cero que encabeza casi todos los valores es un prefijo, no relleno
+  (celulares `09…` junto a fijos), hace falta más de un valor rellenado,
+  y una columna de documentos cuyos valores cortos cumplen su
+  verificador no se acusa. Cuando el largo distinto puede ser otra
+  numeración u otro formato válido (facturas que crecieron de cinco a
+  seis dígitos, códigos postales de dos países), la sugerencia lo dice.
+  `umbral_patron_raro = 0` lo apaga.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa los documentos que no cumplen su dígito verificador
+  (`digito_verificador_invalido`, sospechoso): en una columna de
+  documentos, nombra las filas que no cumplen el verificador del
+  catálogo que la clasificó cuando lo cumple la mitad o más. Antes de
+  validar se limpia lo que agrega una exportación (`.0`, puntos, comas,
+  guion); un valor que cumple el verificador de otro documento del
+  catálogo, uno de otra forma (letras, otra cantidad de cifras) o un
+  centinela como `00000000` no se cuenta como inválido, y la evidencia
+  dice cuántos quedaron aparte. La evidencia no lleva valores.
+  `validadores_personales = FALSE` lo apaga.
 - [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   informa una columna enteramente ausente en toda la tabla. Dentro de
   cada grupo se descartan, como antes, las columnas que faltan en ese

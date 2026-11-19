@@ -225,7 +225,17 @@ un error; la igualdad conserva la severidad sospechosa.</p></dd>
 <dt id="arg-umbral-patron-raro">umbral_patron_raro<a class="anchor" aria-label="anchor" href="#arg-umbral-patron-raro"></a></dt>
 <dd><p>Máxima frecuencia de un patrón raro. La frontera
 es inclusiva: un patrón no dominante con exactamente esa proporción es raro,
-y sólo los que la superan quedan excluidos.</p></dd>
+y sólo los que la superan quedan excluidos. Con <code>0</code> no se emite ningún
+aviso de forma: tampoco <code>largo_codigo_inconsistente</code>, que nombra los
+valores de un código con menos dígitos que el largo dominante de la columna
+cuando ese largo se escribe con ceros a la izquierda (<code>"00123"</code> frente a
+<code>"123"</code>, <code>"AB-00001"</code> frente a <code>"AB-1"</code>). El patrón de forma junta las
+corridas de dígitos y no distingue esos largos. Sólo se acusan los más
+cortos, por grupo de prefijo y sufijo, en columnas de texto donde al menos
+el 80 % de los valores tiene forma de código y el largo dominante cubre al
+menos el 80 % del grupo; un número sin relleno, un largo a mitades o un
+código que desborda su ancho no se acusan. Es <code>sospechoso</code>, con la traza de
+las filas, y su evidencia sólo lleva largos y conteos.</p></dd>
 
 
 <dt id="arg-umbral-patron-dominante">umbral_patron_dominante<a class="anchor" aria-label="anchor" href="#arg-umbral-patron-dominante"></a></dt>
@@ -859,7 +869,11 @@ tomar solo.</p></dd>
 un vector de texto y devuelven un lógico de igual longitud. <code>NULL</code> usa
 <code><a href="pack_validadores.html">validadores_uruguay()</a></code> por compatibilidad; <code>FALSE</code> o <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric()</a></code> desactiva
 la verificación de documentos. El nombre del mejor validador queda en el
-fundamento de la clasificación.</p></dd>
+fundamento de la clasificación. Si ese validador lo cumple la mitad o más
+de los valores de una columna de documentos pero no todos, el hallazgo
+<code>digito_verificador_invalido</code> (<code>sospechoso</code>) nombra las filas que no lo
+cumplen —pueden ser documentos mal cargados, de otro país o de otro
+tipo—; la evidencia no lleva valores. Con <code>FALSE</code> no se emite.</p></dd>
 
 
 <dt id="arg-umbral-documento-verificado">umbral_documento_verificado<a class="anchor" aria-label="anchor" href="#arg-umbral-documento-verificado"></a></dt>

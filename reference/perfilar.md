@@ -161,7 +161,18 @@ perfilar(
 
   Máxima frecuencia de un patrón raro. La frontera es inclusiva: un
   patrón no dominante con exactamente esa proporción es raro, y sólo los
-  que la superan quedan excluidos.
+  que la superan quedan excluidos. Con `0` no se emite ningún aviso de
+  forma: tampoco `largo_codigo_inconsistente`, que nombra los valores de
+  un código con menos dígitos que el largo dominante de la columna
+  cuando ese largo se escribe con ceros a la izquierda (`"00123"` frente
+  a `"123"`, `"AB-00001"` frente a `"AB-1"`). El patrón de forma junta
+  las corridas de dígitos y no distingue esos largos. Sólo se acusan los
+  más cortos, por grupo de prefijo y sufijo, en columnas de texto donde
+  al menos el 80 % de los valores tiene forma de código y el largo
+  dominante cubre al menos el 80 % del grupo; un número sin relleno, un
+  largo a mitades o un código que desborda su ancho no se acusan. Es
+  `sospechoso`, con la traza de las filas, y su evidencia sólo lleva
+  largos y conteos.
 
 - umbral_patron_dominante:
 
@@ -855,7 +866,11 @@ perfilar(
   por compatibilidad; `FALSE` o
   [`numeric()`](https://rdrr.io/r/base/numeric.html) desactiva la
   verificación de documentos. El nombre del mejor validador queda en el
-  fundamento de la clasificación.
+  fundamento de la clasificación. Si ese validador lo cumple la mitad o
+  más de los valores de una columna de documentos pero no todos, el
+  hallazgo `digito_verificador_invalido` (`sospechoso`) nombra las filas
+  que no lo cumplen —pueden ser documentos mal cargados, de otro país o
+  de otro tipo—; la evidencia no lleva valores. Con `FALSE` no se emite.
 
 - umbral_documento_verificado:
 
