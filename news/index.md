@@ -5,6 +5,35 @@
 ### Perfilado
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  infiere por el nombre el dominio de edades, porcentajes, coordenadas y
+  fechas (nacimientos, registros, vigencias) y dice lo que cae afuera
+  (`valor_fuera_dominio`, `fecha_futura`, `fecha_centinela`). Lo que
+  ninguna unidad admite —una edad o un porcentaje negativos, un
+  nacimiento futuro, una latitud fuera de \[-90, 90\], una longitud
+  fuera de toda convención— se acusa por fila (`sospechoso`) en
+  cualquier proporción. Lo que depende de la escala (una edad mayor que
+  130, un porcentaje mayor que 100) se acusa por fila mientras es una
+  minoría; si es buena parte de la columna, un aviso de columna (`ok`)
+  lo describe y nombra como posibilidad todo factor que la lleva al
+  dominio (potencias de diez; en una edad, meses, semanas, días u
+  horas), los valores repetidos que pueden ser códigos de ausencia
+  (`999`, `-1`) y el resto de lo de afuera. Las convenciones legítimas
+  avisan de la columna sin acusar filas: la longitud de 0 a 360 (un
+  valor que no cabe en ninguna convención se acusa solo), la mezcla de
+  las dos convenciones de longitud y el `9999-12-31` de una vigencia
+  «sin fin». Un porcentaje con `de`, `del` o `por` en el nombre sólo
+  avisa de la columna; los relativos (`of`, `sobre`, `respecto`) y los
+  nombres que anuncian otra unidad (`edad_dias`, `longitud_cable`) no
+  infieren. `lat`, `lon` y `lng` infieren junto a su columna pareja.
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  decide con la tabla entera y lo dice en el texto;
+  [`print()`](https://rdrr.io/r/base/print.html) y
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  cuentan estos avisos aparte de los correctos;
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  informa el paso de filas a columna. `dominios` declara la regla de una
+  columna o, con `FALSE`, apaga la inferencia.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa los códigos que perdieron los ceros a la izquierda
   (`largo_codigo_inconsistente`, sospechoso): en una columna de texto
   con forma de código cuyo largo dominante se escribe con ceros a la

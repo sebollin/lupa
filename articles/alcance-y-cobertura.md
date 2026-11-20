@@ -686,7 +686,7 @@ parte de su contrato:
 
 ## El vocabulario completo de `tipo_hallazgo`
 
-El paquete emite 62 nombres de `tipo_hallazgo`. Están en castellano
+El paquete emite 65 nombres de `tipo_hallazgo`. Están en castellano
 porque forman parte de la API pública: cambiar uno es un cambio
 incompatible.
 
@@ -736,11 +736,13 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 #> espacios_sobrantes                      tipos_geometria_mixtos
 #> faltantes                               unidades_mixtas
 #> faltantes_disfrazados                   valor_concentrado
-#> fecha_fallecimiento_fuera_rango         valor_fuera_de_aplicabilidad
-#> fecha_nacimiento_fuera_rango            valores_no_finitos
-#> fecha_partida_columnas                  valores_subnormales
-#> filas_duplicadas                        variantes_equifrecuentes_vocabulario
-#> formato_fecha_ambiguo                   zona_horaria_fecha_hora
+#> fecha_centinela                         valor_fuera_de_aplicabilidad
+#> fecha_fallecimiento_fuera_rango         valor_fuera_dominio
+#> fecha_futura                            valores_no_finitos
+#> fecha_nacimiento_fuera_rango            valores_subnormales
+#> fecha_partida_columnas                  variantes_equifrecuentes_vocabulario
+#> filas_duplicadas                        zona_horaria_fecha_hora
+#> formato_fecha_ambiguo
 ```
 
 ## Qué se enmascara y con qué alcance
