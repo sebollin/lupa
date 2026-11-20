@@ -149,7 +149,12 @@ claves únicas, los determinantes cuya tasa de valores distintos alcanza
 informa un par cuyo determinante no acierta más filas que la moda del
 dependiente sin agrupar: con un dependiente casi constante —un `estado`
 que vale `"ACTIVO"` en el 99,7 % de las filas— cualquier columna
-alcanzaría el umbral sin aportar nada. El valor predeterminado de
+alcanzaría el umbral sin aportar nada. Si ese dependiente casi constante
+tiene una proporción modal de al menos `umbral_casi_constante`, tampoco
+se informa un par con determinante de tasa de valores distintos de 0,5 o
+más cuya ventaja sobre la moda sale sólo de valores del determinante que
+aparecen en una única fila: esa fila queda "explicada" por sí misma, sin
+que ningún grupo repetido la sostenga. El valor predeterminado de
 `umbral = 0.995` exige que como máximo 5 de cada 1.000 filas contradigan
 la relación. Los ausentes de cualquiera de las dos columnas no integran
 el cálculo. El descarte ocurre antes de construir agrupaciones. El valor

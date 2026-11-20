@@ -1896,6 +1896,58 @@ dominar. Sus puntos ciegos medidos son las concentraciones por debajo de
 15 % y los empates naturales en columnas enteras pequeñas, donde el
 cociente puede quedar por debajo de cinco.
 
+Una columna de cualquier tipo atómico emite `casi_constante` cuando
+tiene al menos 100 valores presentes, dos o más valores distintos y un
+valor ocupa al menos 0,99 de ellos. Es la varianza casi nula que
+`caret::nearZeroVar()` mide con la razón entre las dos frecuencias
+mayores y el porcentaje de valores únicos (Kuhn, 2008, *Building
+Predictive Models in R Using the caret Package*, Journal of Statistical
+Software 28(5)); `lupa` exige una proporción modal más alta porque
+prefiere callar a acusar una columna que tiene el 5 % de datos propios.
+La evidencia publica el valor más frecuente, la razón de frecuencias y
+el porcentaje de únicos, y la traza da las filas que no tienen el valor
+más frecuente. La severidad es siempre `ok`: es una propiedad observada
+y no un defecto. Una tabla de un solo año, país o estado, una variable
+`fallecido` con el 1 % de `"si"` o un conteo con el 99 % de ceros tienen
+esta forma y son información. El texto no la califica; dice cuántas
+filas difieren del valor común. Cuenta sobre el universo aplicable
+declarado en `aplicabilidad`. No se emite si `valor_concentrado` ya
+describe la columna, ni si lo que domina son ausencias escritas de otra
+forma (`faltantes_disfrazados`). Sobre una muestra de la tabla
+([`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+con `muestra` o `universo = "muestra_motor"`) no se emite: la proporción
+medida en la muestra no prueba que la tabla llegue al umbral, y se
+declara en `cobertura_diagnosticos`. Una columna casi constante tampoco
+es el lado determinado de una dependencia funcional cuando el
+determinante tiene una tasa de valores distintos de al menos 0,5 y la
+ventaja sobre la moda sale sólo de valores del determinante que aparecen
+una vez, ni produce `casi_duplicados_vocabulario` entre dos valores de
+un solo carácter.
+
+Una columna de texto que la inferencia de tipo lee como `hora` o `fecha`
+emite `hora_invalida` o `fecha_invalida` cuando tiene valores con la
+forma pero que no existen: `"25:10"` o `"12:61"` en horas,
+`"2022-02-30"` o `"31/02/2022"` en fechas. La hora `24:00` se acepta
+como fin del día y no se cuenta; con barras, un valor es inválido sólo
+si lo es como día/mes y como mes/día. Se evalúan fechas de día con año
+de cuatro cifras y sin hora. Una columna mezclada, o un texto con forma
+de fecha que no es una columna de fechas, no recibe el hallazgo. Los
+minutos o segundos mayores que 59 son inválidos en cualquier columna;
+una hora de 24 o más con minutos válidos puede ser una duración, y sólo
+se acusa si el nombre de la columna dice que es una hora del día
+(`hora`, `horario`, `hour`, `time`, por palabra completa). Cuentan sobre
+el universo aplicable. Un `umbral_patron_raro = 0` apaga estos dos
+avisos de forma.
+
+Una columna que es un posible identificador, con todos sus valores
+presentes distintos y entre el 0 y el 10 % de ausentes, emite
+`identificador_con_ausentes` (severidad `ok`: sin `clave=` no se sabe si
+es obligatorio; con las filas `NA` en la traza). Los valores se comparan
+como en el resto del perfil: un blanco o un espacio final no sostienen
+la unicidad. Se omite si está declarada en `clave`, donde la dice
+`clave_con_ausentes`. Un identificador opcional con muchos ausentes no
+se acusa.
+
 La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
 valores finitos; las columnas compuestas —matrices, arreglos de más de
 una dimensión o tablas anidadas— no son magnitudes por fila y quedan
