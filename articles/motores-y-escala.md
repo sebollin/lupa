@@ -1280,16 +1280,18 @@ contenidas en alguna de ellas:
 ``` r
 
 por_omision$resumen_tabla$tiempos[, c("etapa", "nivel", "estado")]
-#>                            etapa nivel        estado
-#> 1           ausencia_estructural     2        medido
-#> 2    casi_duplicados_vocabulario     2        medido
-#> 3 clasificacion_datos_personales     2        medido
-#> 4                   dependencias     2        medido
-#> 5         duplicados_aproximados     2 no_solicitado
-#> 6                lectura_muestra     1        medido
-#> 7             perfilado_columnas     2        medido
-#> 8              perfilado_muestra     1        medido
-#> 9    proteccion_datos_personales     2 no_solicitado
+#>                             etapa nivel        estado
+#> 1            ausencia_estructural     2        medido
+#> 2     casi_duplicados_vocabulario     2        medido
+#> 3  clasificacion_datos_personales     2        medido
+#> 4            dependencia_ausencia     2        medido
+#> 5                    dependencias     2        medido
+#> 6          duplicados_aproximados     2 no_solicitado
+#> 7                 lectura_muestra     1        medido
+#> 8               patrones_ausencia     2        medido
+#> 9              perfilado_columnas     2        medido
+#> 10              perfilado_muestra     1        medido
+#> 11    proteccion_datos_personales     2 no_solicitado
 ```
 
 En una sesión interactiva, una barra avanza contra las consultas que el

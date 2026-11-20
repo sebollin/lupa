@@ -686,7 +686,7 @@ parte de su contrato:
 
 ## El vocabulario completo de `tipo_hallazgo`
 
-El paquete emite 65 nombres de `tipo_hallazgo`. Están en castellano
+El paquete emite 68 nombres de `tipo_hallazgo`. Están en castellano
 porque forman parte de la API pública: cambiar uno es un cambio
 incompatible.
 
@@ -710,31 +710,33 @@ mitad <- ceiling(length(tipos) / 2)
 izquierda <- tipos[seq_len(mitad)]
 derecha <- c(tipos[-seq_len(mitad)], rep("", 2 * mitad - length(tipos)))
 writeLines(paste0(formatC(izquierda, width = -40), derecha))
-#> alta_cardinalidad                       formatos_fecha_mixtos
-#> anio_de_dos_digitos                     geometria_invalida
-#> bloqueo_por_con_perdida                 geometria_vacia
-#> casi_clave                              integer64_fuera_precision_double
-#> casi_duplicados_vocabulario             largo_codigo_inconsistente
-#> celdas_multivaluadas                    mayusculas_inconsistentes
-#> ceros_no_permitidos                     monedas_mixtas
-#> clave_con_ausentes                      negativos_no_permitidos
-#> clave_no_unica                          nombres_columnas_problematicos
-#> codificacion_invalida                   normalizacion_unicode
-#> codificacion_rota                       numero_como_texto
-#> columnas_duplicadas                     outliers
-#> constante                               patron_raro
-#> controles_invisibles                    posible_ausencia_estructural
-#> coordenada_fuera_dominio                posible_centinela_numerico
-#> crs_no_declarado                        posible_identificador
-#> dato_personal_posible                   regla_silencia_ausencia
-#> desviacion_benford                      relacion_aritmetica_columnas
-#> digito_verificador_invalido             relacion_funcional_columnas
-#> duplicados_aproximados                  relacion_orden_columnas
-#> duplicados_exactos_columnas             separadores_en_campo
-#> duplicados_exactos_normalizados         tipo_compuesto_no_analizado
-#> entidades_html                          tipo_declarado_distinto
-#> espacios_sobrantes                      tipos_geometria_mixtos
-#> faltantes                               unidades_mixtas
+#> alta_cardinalidad                       filas_vacias
+#> anio_de_dos_digitos                     formato_fecha_ambiguo
+#> ausencia_dependiente                    formatos_fecha_mixtos
+#> bloqueo_por_con_perdida                 geometria_invalida
+#> casi_clave                              geometria_vacia
+#> casi_duplicados_vocabulario             integer64_fuera_precision_double
+#> celdas_multivaluadas                    largo_codigo_inconsistente
+#> ceros_no_permitidos                     mayusculas_inconsistentes
+#> clave_con_ausentes                      monedas_mixtas
+#> clave_no_unica                          negativos_no_permitidos
+#> codificacion_invalida                   nombres_columnas_problematicos
+#> codificacion_rota                       normalizacion_unicode
+#> columnas_duplicadas                     numero_como_texto
+#> constante                               outliers
+#> controles_invisibles                    patron_raro
+#> coordenada_fuera_dominio                posible_ausencia_estructural
+#> crs_no_declarado                        posible_centinela_numerico
+#> dato_personal_posible                   posible_identificador
+#> desviacion_benford                      regla_silencia_ausencia
+#> digito_verificador_invalido             relacion_aritmetica_columnas
+#> duplicados_aproximados                  relacion_funcional_columnas
+#> duplicados_exactos_columnas             relacion_orden_columnas
+#> duplicados_exactos_normalizados         separadores_en_campo
+#> entidades_html                          tipo_compuesto_no_analizado
+#> espacios_sobrantes                      tipo_declarado_distinto
+#> faltantes                               tipos_geometria_mixtos
+#> faltantes_conjuntos                     unidades_mixtas
 #> faltantes_disfrazados                   valor_concentrado
 #> fecha_centinela                         valor_fuera_de_aplicabilidad
 #> fecha_fallecimiento_fuera_rango         valor_fuera_dominio
@@ -742,7 +744,6 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 #> fecha_nacimiento_fuera_rango            valores_subnormales
 #> fecha_partida_columnas                  variantes_equifrecuentes_vocabulario
 #> filas_duplicadas                        zona_horaria_fecha_hora
-#> formato_fecha_ambiguo
 ```
 
 ## Qué se enmascara y con qué alcance

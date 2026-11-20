@@ -364,7 +364,7 @@ p <- perfilar(casi_vacia, columnas_opcionales = "x",
 silencio <- hallazgos(p)[hallazgos(p)$tipo_hallazgo == "regla_silencia_ausencia", ]
 silencio[, c("columna", "severidad", "n_afectados", "n_evaluados")]
 #>   columna severidad n_afectados n_evaluados
-#> 2       x        ok         160         200
+#> 3       x        ok         160         200
 writeLines(strwrap(silencio$evidencia, 88))
 #> Faltan 160 de 200 celdas de la columna (80.0 %), y la columna se declaró con
 #> `columnas_opcionales`: la ausencia no es defecto en esta columna.

@@ -202,6 +202,101 @@ el de una columna protegida o sin valores publicados
 (`incluir_valores = FALSE`) no se guarda y se declara en
 `campos_protegidos`.
 
+### Deriva de la distribución
+
+Una media que se corre 25 con desvío 15, o un reparto 50/50 que pasa a
+80/20, no mueven el rango, los faltantes ni la cardinalidad. Se miden
+con lo que el perfil ya guarda —media, desvío, cantidad de valores y
+frecuencias del vocabulario—, con una medida de **tamaño de efecto** y
+no con un p-valor: con muchas filas cualquier diferencia es
+«significativa» (Lin, Lucas y Shmueli, 2013), y la pregunta es si es
+grande. Pero con pocas filas el tamaño solo es ruido, así que cada fila
+exige además que la diferencia supere el ruido de muestreo con z = 3,29
+(p = 0,001 bilateral). Las filas, con `cambio = "modificado"`, `delta`
+en la medida y su valor, los umbrales y el ruido en `evidencia`:
+
+- `deriva_media`: diferencia de medias estandarizada,
+  `(media actual - media anterior) / sqrt((desvío anterior^2 + desvío actual^2) / 2)`
+  (Cohen, 1988; Austin, 2009). `sospechoso` desde 0,2 y `error` desde
+  0,8, en cualquier sentido. Ruido: error típico de Welch.
+
+- `deriva_dispersion`: razón entre los desvíos. `delta` es desvío actual
+  sobre anterior; `sospechoso` desde 1,5 veces (o 1/1,5) y `error`
+  desde 2. Mira el cambio de varianza sin cambio de media. El perfil no
+  guarda la curtosis, y el ruido de un desvío depende de ella: se la
+  acota con los extremos y el desvío del propio perfil (una cota, así
+  que no subestima el ruido). No se compara con menos de 50 valores por
+  lado, ni si un solo valor explica más de la cuarta parte de la suma de
+  cuadrados (una columna casi constante con un valor lejano: su desvío
+  es ese valor).
+
+- `deriva_categorias`: PSI (índice de estabilidad poblacional;
+  Siddiqi, 2006) del reparto entre los valores que están en las dos
+  entregas, con los cortes convencionales 0,1 (`sospechoso`) y 0,25
+  (`error`). Los valores que aparecen o desaparecen los dice la fila
+  `vocabulario`, y no se cuentan dos veces. Las clases que esperarían
+  menos de cinco filas por lado se juntan (Cochran, 1954). El PSI
+  equivale, a segundo orden, al chi-cuadrado de homogeneidad reescalado
+  por `1/n1 + 1/n2` (Yurdakul, 2018), así que el ruido esperado es
+  `qchisq(0,999, k - 1) * (1/n1 + 1/n2)`; la evidencia lo informa junto
+  a la distancia de variación total.
+
+- `conteo_hallazgo`: un hallazgo que sigue con la misma severidad pero
+  afecta a más (o menos) filas, `agravado` o `atenuado`. Se compara la
+  proporción de filas afectadas, y sólo si cambia al menos
+  `umbral_cambio` y por encima del ruido de dos proporciones: de 1 fila
+  en 100 a 2 en 100 no hay fila; de 50 % a 60 % de 2.000 filas sí. Sube:
+  `sospechoso`, `error` desde `umbral_error`; baja: `ok`. No se comparan
+  así los hallazgos que ya tienen su aspecto —`faltantes`,
+  `faltantes_disfrazados`, `alta_cardinalidad`—, ni `outliers`, cuyos
+  límites de Tukey se mueven con los datos de cada entrega, ni los que
+  cuentan cómo están escritos los valores —`espacios_sobrantes`,
+  `mayusculas_inconsistentes`, `normalizacion_unicode`—, ni los que
+  cuentan coincidencias entre filas —`filas_duplicadas`, `casi_clave`,
+  `valor_concentrado`: con la misma distribución, más filas son más
+  coincidencias, y la proporción crece con el tamaño de la tabla—, ni
+  `fecha_futura` cuando las dos corridas tienen fechas distintas (cuenta
+  contra la fecha de la corrida). Tampoco se compara un conteo si cambió
+  su universo: los faltantes de la columna (o de cualquiera, en un
+  hallazgo de la tabla) o la resolución de una columna numérica, que
+  cambia los repetidos.
+
+Nada de esto se publica si cambió el tipo declarado o la unidad de la
+columna, si la comparación ya publica para esa columna una fila
+`no_comparable`, si la columna está protegida, si un lado es una muestra
+de la tabla (la fila `muestra` lo declara) o si un perfil no trae un
+campo que la decisión necesita. La abstención es **por columna**: la
+política de centinelas distinta o no registrada saca las columnas con
+faltantes numéricos disfrazados; una aplicabilidad o columnas opcionales
+distintas, las columnas que cambiaron de declaración; un perfil de una
+versión anterior sin `unidad`, las columnas cuya unidad declara el otro
+(si ninguno la declara, se compara). Una columna constante que pasa a
+otra constante se publica como `deriva_media`, sin medida estandarizada
+(`delta` es `NA`). Los valores que difieren sólo en espacios de los
+bordes o en mayúsculas son el mismo valor para `deriva_categorias`, como
+en la fila `vocabulario`. La media dice lo observado: si la columna no
+declara su unidad en los dos perfiles, la descripción avisa que puede
+ser un cambio de unidad. La dispersión no se compara si cambió la
+resolución de la columna (el paso medio entre sus valores distintos
+cambia cuatro veces o más, o sólo uno de los lados tiene menos de tres
+valores distintos: una entrega a 2 decimales y otra a 0), una heurística
+con lo que el perfil guarda, no una medición de los decimales.
+**Límites**: el perfil no guarda cuantiles ni histograma, así que no hay
+prueba de Kolmogórov-Smirnov ni PSI numérico con cortes por deciles; un
+cambio de forma que deja iguales la media y el desvío —un corrimiento de
+cola que se compensa— no se ve, y el rango y los hallazgos son lo que
+queda. El umbral no es un argumento: son las convenciones citadas. Quien
+no quiera estas filas las filtra por su `aspecto`: `deriva_media`,
+`deriva_dispersion`, `deriva_categorias` y `conteo_hallazgo`.
+
+Referencias: Cohen, J. (1988), *Statistical Power Analysis for the
+Behavioral Sciences*, Erlbaum; Austin, P. C. (2009), *Statistics in
+Medicine* 28(25); Siddiqi, N. (2006), *Credit Risk Scorecards*, Wiley;
+Yurdakul, B. (2018), *Statistical Properties of Population Stability
+Index*, Western Michigan University; Lin, M., Lucas, H. C. y Shmueli, G.
+(2013), *Information Systems Research* 24(4); Cochran, W. G. (1954),
+*Biometrics* 10(4).
+
 Las **marcas del plan de limpieza** —`.fila_duplicada`,
 `.grupo_duplicado`, `.ausente_<columna>` y `.outlier_<columna>`— se
 reconocen por lo que deja

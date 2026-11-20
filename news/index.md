@@ -5,6 +5,23 @@
 ### Perfilado
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa los patrones de ausencia: `faltantes_conjuntos` cuando varias
+  columnas comparten un bloque de filas ausentes (se lee de la tabla de
+  patrones de ausencia por fila, como `md.pattern()` del paquete mice,
+  con un mínimo de 10 filas y el 1 % de la tabla),
+  `ausencia_dependiente` cuando la proporción de faltantes de una
+  columna cambia entre los grupos de otra o en el tope de una numérica
+  (con el efecto y el cociente de riesgos, no un p-valor), y
+  `filas_vacias` cuando una fila no tiene ningún valor. Los dos primeros
+  son informativos (`ok`): describen la estructura de la ausencia —un
+  bloque que no se cargó, o columnas que sólo se completan juntas— y no
+  prueban un defecto; `filas_vacias` es `error`. Los tres traen las
+  filas afectadas y se apagan con `ausencia_estructural = FALSE`. Un
+  identificador casi clave no se usa para explicar la ausencia. En
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  una fila es vacía sólo si lo es en la tabla entera. El plan de
+  limpieza no propone borrar filas por estos hallazgos.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   infiere por el nombre el dominio de edades, porcentajes, coordenadas y
   fechas (nacimientos, registros, vigencias) y dice lo que cae afuera
   (`valor_fuera_dominio`, `fecha_futura`, `fecha_centinela`). Lo que
@@ -158,6 +175,28 @@
 
 ### Comparar entregas
 
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  mide la deriva de la distribución entre dos entregas, en filas que se
+  filtran por `aspecto`: `deriva_media` (diferencia de medias
+  estandarizada, con los cortes 0,2 y 0,8 de Cohen; una columna
+  constante que pasa a otra constante se publica sin medida),
+  `deriva_dispersion` (razón de desvíos, 1,5 y 2) y `deriva_categorias`
+  (índice de estabilidad poblacional sobre los valores presentes en las
+  dos entregas, 0,1 y 0,25). Cada fila exige además que la diferencia
+  supere el ruido de muestreo (nivel 0,001), y la comparación se
+  abstiene, columna por columna, cuando no puede decidir que las cifras
+  miden lo mismo: unidad, política de centinelas, aplicabilidad o
+  columnas opcionales distintas, campos que un perfil de otra versión no
+  trae, un cambio de resolución o un lado que es muestra. Antes una
+  media corrida 25 con desvío 15 salía sólo como cambio de rango, y un
+  reparto 50/50 que pasaba a 80/20 no salía.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  publica `conteo_hallazgo` cuando un hallazgo sigue con la misma
+  severidad pero afecta a una proporción de filas materialmente distinta
+  (al menos `umbral_cambio` y por encima del ruido). Quedan fuera los
+  hallazgos que dependen de la fecha de la corrida, de cómo están
+  escritos los valores o del tamaño de la tabla (duplicados,
+  concentración).
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
   acepta objetos de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).

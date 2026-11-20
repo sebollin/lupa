@@ -1808,16 +1808,18 @@ cliente en la misma unidad. Las de <code>nivel = 1</code> son disjuntas;
 las de nivel mayor están contenidas en alguna de ellas:</p>
 <div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">por_omision</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">tiempos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"etapa"</span>, <span class="st">"nivel"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;                            etapa nivel        estado</span></span>
-<span><span class="co">#&gt; 1           ausencia_estructural     2        medido</span></span>
-<span><span class="co">#&gt; 2    casi_duplicados_vocabulario     2        medido</span></span>
-<span><span class="co">#&gt; 3 clasificacion_datos_personales     2        medido</span></span>
-<span><span class="co">#&gt; 4                   dependencias     2        medido</span></span>
-<span><span class="co">#&gt; 5         duplicados_aproximados     2 no_solicitado</span></span>
-<span><span class="co">#&gt; 6                lectura_muestra     1        medido</span></span>
-<span><span class="co">#&gt; 7             perfilado_columnas     2        medido</span></span>
-<span><span class="co">#&gt; 8              perfilado_muestra     1        medido</span></span>
-<span><span class="co">#&gt; 9    proteccion_datos_personales     2 no_solicitado</span></span></code></pre></div>
+<span><span class="co">#&gt;                             etapa nivel        estado</span></span>
+<span><span class="co">#&gt; 1            ausencia_estructural     2        medido</span></span>
+<span><span class="co">#&gt; 2     casi_duplicados_vocabulario     2        medido</span></span>
+<span><span class="co">#&gt; 3  clasificacion_datos_personales     2        medido</span></span>
+<span><span class="co">#&gt; 4            dependencia_ausencia     2        medido</span></span>
+<span><span class="co">#&gt; 5                    dependencias     2        medido</span></span>
+<span><span class="co">#&gt; 6          duplicados_aproximados     2 no_solicitado</span></span>
+<span><span class="co">#&gt; 7                 lectura_muestra     1        medido</span></span>
+<span><span class="co">#&gt; 8               patrones_ausencia     2        medido</span></span>
+<span><span class="co">#&gt; 9              perfilado_columnas     2        medido</span></span>
+<span><span class="co">#&gt; 10              perfilado_muestra     1        medido</span></span>
+<span><span class="co">#&gt; 11    proteccion_datos_personales     2 no_solicitado</span></span></code></pre></div>
 <p>En una sesión interactiva, una barra avanza contra las consultas que
 el plan prevé emitir. <code>options(lupa.progreso = FALSE)</code> la
 apaga y <code>TRUE</code> la fuerza. No cambia ningún valor medido.</p>
