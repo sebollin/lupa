@@ -272,7 +272,30 @@ porque ofrecer la línea para declararla sería afirmar de más.
 Con el mismo argumento viaja \code{regla_silencia_ausencia}, también \code{ok}: avisa
 cuando una columna declarada opcional o con universo propio sigue casi
 vacía dentro de ese universo. La declaración funcionó y por eso el perfil
-salió limpio; el aviso existe para que eso sea una decisión y no un efecto.}
+salió limpio; el aviso existe para que eso sea una decisión y no un efecto.
+Con el mismo argumento se buscan, además, tres patrones de ausencia que no
+son una regla casi determinista: columnas que faltan juntas
+(\code{faltantes_conjuntos}, severidad \code{ok}), una columna que falta más en un
+grupo que en otro (\code{ausencia_dependiente}, \code{ok}) y filas completamente
+vacías (\code{filas_vacias}, \code{error}). Los dos primeros describen la estructura
+de la ausencia —un bloque que no se cargó o columnas que sólo se completan
+juntas— y no prueban un defecto. Los faltantes conjuntos se leen de la
+tabla de patrones de ausencia, como \code{md.pattern()} de \code{mice}: un patrón con
+dos o más columnas ausentes, al menos 10 filas y al menos 1 \% de la tabla,
+y 1,5 veces lo esperado por independencia, es un grupo conjunto. Las
+columnas con más de 90 \% de ausencias quedan afuera porque ahí la
+coincidencia es trivial. Si el tope de 40 columnas recorta el grupo, el
+texto dice cuántas más faltan en esas mismas filas. Para la dependencia se
+exige una diferencia de al menos 20 puntos entre dos grupos de otra
+columna, con al menos 20 filas por grupo y 10 ausentes en el grupo más
+incompleto; los grupos son los niveles de una columna categórica de hasta
+20 valores, o el máximo observado de una columna numérica contra el resto.
+Una columna casi clave —casi un valor por fila— no se usa para agrupar. La
+evidencia publica las proporciones y el tamaño del efecto, no un p-valor.
+El examen se detiene en 40 columnas candidatas y 40 determinantes, y lo que
+queda afuera se declara en \code{cobertura_diagnosticos}. Los tres patrones usan
+este mismo interruptor y \code{FALSE} los apaga junto con
+\code{posible_ausencia_estructural}.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 interpretan como ausencia. Se normaliza como un conjunto numérico, por lo

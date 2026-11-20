@@ -2069,6 +2069,29 @@
 #'   cuando una columna declarada opcional o con universo propio sigue casi
 #'   vacía dentro de ese universo. La declaración funcionó y por eso el perfil
 #'   salió limpio; el aviso existe para que eso sea una decisión y no un efecto.
+#'   Con el mismo argumento se buscan, además, tres patrones de ausencia que no
+#'   son una regla casi determinista: columnas que faltan juntas
+#'   (`faltantes_conjuntos`, severidad `ok`), una columna que falta más en un
+#'   grupo que en otro (`ausencia_dependiente`, `ok`) y filas completamente
+#'   vacías (`filas_vacias`, `error`). Los dos primeros describen la estructura
+#'   de la ausencia —un bloque que no se cargó o columnas que sólo se completan
+#'   juntas— y no prueban un defecto. Los faltantes conjuntos se leen de la
+#'   tabla de patrones de ausencia, como `md.pattern()` de `mice`: un patrón con
+#'   dos o más columnas ausentes, al menos 10 filas y al menos 1 % de la tabla,
+#'   y 1,5 veces lo esperado por independencia, es un grupo conjunto. Las
+#'   columnas con más de 90 % de ausencias quedan afuera porque ahí la
+#'   coincidencia es trivial. Si el tope de 40 columnas recorta el grupo, el
+#'   texto dice cuántas más faltan en esas mismas filas. Para la dependencia se
+#'   exige una diferencia de al menos 20 puntos entre dos grupos de otra
+#'   columna, con al menos 20 filas por grupo y 10 ausentes en el grupo más
+#'   incompleto; los grupos son los niveles de una columna categórica de hasta
+#'   20 valores, o el máximo observado de una columna numérica contra el resto.
+#'   Una columna casi clave —casi un valor por fila— no se usa para agrupar. La
+#'   evidencia publica las proporciones y el tamaño del efecto, no un p-valor.
+#'   El examen se detiene en 40 columnas candidatas y 40 determinantes, y lo que
+#'   queda afuera se declara en `cobertura_diagnosticos`. Los tres patrones usan
+#'   este mismo interruptor y `FALSE` los apaga junto con
+#'   `posible_ausencia_estructural`.
 #' @param columnas_personales Columnas que traen datos personales, declaradas
 #'   por quien conoce el dato. `c("cod_benef", "apodo")` las nombra sin decir de
 #'   qué tipo son; `c(cod_benef = "documento_identidad")` además lo dice. Lo
@@ -3790,12 +3813,37 @@ perfilar <- function(datos,
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL
   if (isTRUE(ausencia_estructural)) {
+    conjuntos <- .medir_etapa_dbi(
+      trazador_tiempos, "patrones_ausencia",
+      .diagnosticar_patrones_ausencia(
+        datos, nombres, resultados, aplicabilidad_resuelta,
+        explicadas = character(), nombres_texto = nombres_texto,
+        marcas = marcas_limpieza, fase = "conjuntos"
+      )
+    )
+    if (nrow(conjuntos$cobertura)) {
+      cobertura_diagnosticos <- rbind(
+        cobertura_diagnosticos, conjuntos$cobertura
+      )
+    }
+    if (length(conjuntos$hallazgos)) {
+      hallazgos <- .cruzar_faltantes_con_estructural(
+        hallazgos, conjuntos$hallazgos
+      )
+      hallazgos <- do.call(rbind, c(list(hallazgos), conjuntos$hallazgos))
+      hallazgos$severidad <- factor(
+        as.character(hallazgos$severidad),
+        levels = c("ok", "sospechoso", "error"), ordered = TRUE
+      )
+      rownames(hallazgos) <- NULL
+    }
+
     estructural <- .medir_etapa_dbi(
       trazador_tiempos, "ausencia_estructural",
       .diagnosticar_ausencia_estructural(
         datos, nombres, resultados, aplicabilidad_resuelta,
         umbral_faltantes_error, nombres_texto = nombres_texto,
-        marcas = marcas_limpieza
+        marcas = marcas_limpieza, excluidas = conjuntos$conjuntas_cubiertas
       )
     )
     if (nrow(estructural$cobertura)) {
@@ -3803,11 +3851,55 @@ perfilar <- function(datos,
         cobertura_diagnosticos, estructural$cobertura
       )
     }
+    explicadas_estructural <- character()
     if (length(estructural$hallazgos)) {
       hallazgos <- .cruzar_faltantes_con_estructural(
         hallazgos, estructural$hallazgos
       )
+      explicadas_estructural <- unique(unlist(lapply(
+        estructural$hallazgos, function(h) {
+          if (identical(
+            as.character(h$tipo_hallazgo[[1L]]),
+            "posible_ausencia_estructural"
+          )) {
+            as.character(h$columna[[1L]])
+          } else {
+            character()
+          }
+        }
+      ), use.names = FALSE))
       hallazgos <- do.call(rbind, c(list(hallazgos), estructural$hallazgos))
+      hallazgos$severidad <- factor(
+        as.character(hallazgos$severidad),
+        levels = c("ok", "sospechoso", "error"), ordered = TRUE
+      )
+      rownames(hallazgos) <- NULL
+    }
+
+    dependencia <- .medir_etapa_dbi(
+      trazador_tiempos, "dependencia_ausencia",
+      .diagnosticar_patrones_ausencia(
+        datos, nombres, resultados, aplicabilidad_resuelta,
+        explicadas = unique(c(
+          explicadas_estructural, conjuntos$conjuntas_cubiertas
+        )),
+        explicadas_determinante = explicadas_estructural,
+        nombres_texto = nombres_texto, marcas = marcas_limpieza,
+        fase = "dependencia"
+      )
+    )
+    if (nrow(dependencia$cobertura)) {
+      cobertura_diagnosticos <- rbind(
+        cobertura_diagnosticos, dependencia$cobertura
+      )
+    }
+    if (length(dependencia$hallazgos)) {
+      hallazgos <- .cruzar_faltantes_con_estructural(
+        hallazgos, dependencia$hallazgos
+      )
+      hallazgos <- do.call(
+        rbind, c(list(hallazgos), dependencia$hallazgos)
+      )
       hallazgos$severidad <- factor(
         as.character(hallazgos$severidad),
         levels = c("ok", "sospechoso", "error"), ordered = TRUE
@@ -3816,7 +3908,13 @@ perfilar <- function(datos,
     }
   } else {
     .registrar_etapa_dbi(
+      trazador_tiempos, "patrones_ausencia", estado = "no_solicitado"
+    )
+    .registrar_etapa_dbi(
       trazador_tiempos, "ausencia_estructural", estado = "no_solicitado"
+    )
+    .registrar_etapa_dbi(
+      trazador_tiempos, "dependencia_ausencia", estado = "no_solicitado"
     )
   }
   benford <- .diagnosticar_benford(

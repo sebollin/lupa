@@ -2,6 +2,20 @@
 
 ## Perfilado
 
+- `perfilar()` informa los patrones de ausencia: `faltantes_conjuntos` cuando
+  varias columnas comparten un bloque de filas ausentes (se lee de la tabla de
+  patrones de ausencia por fila, como `md.pattern()` del paquete mice, con un
+  mínimo de 10 filas y el 1 % de la tabla), `ausencia_dependiente` cuando la
+  proporción de faltantes de una columna cambia entre los grupos de otra o en
+  el tope de una numérica (con el efecto y el cociente de riesgos, no un
+  p-valor), y `filas_vacias` cuando una fila no tiene ningún valor. Los dos
+  primeros son informativos (`ok`): describen la estructura de la ausencia
+  —un bloque que no se cargó, o columnas que sólo se completan juntas— y no
+  prueban un defecto; `filas_vacias` es `error`. Los tres traen las filas
+  afectadas y se apagan con `ausencia_estructural = FALSE`. Un identificador
+  casi clave no se usa para explicar la ausencia. En `perfilar_por()` una fila
+  es vacía sólo si lo es en la tabla entera. El plan de limpieza no propone
+  borrar filas por estos hallazgos.
 - `perfilar()` infiere por el nombre el dominio de edades, porcentajes,
   coordenadas y fechas (nacimientos, registros, vigencias) y dice lo que cae
   afuera (`valor_fuera_dominio`, `fecha_futura`, `fecha_centinela`). Lo que

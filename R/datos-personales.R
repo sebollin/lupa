@@ -4757,7 +4757,10 @@
   if (!nrow(hallazgos) || !length(sensibles)) return(hallazgos)
   indices <- which(hallazgos$tipo_hallazgo ==
                      "posible_ausencia_estructural")
-  if (!length(indices)) return(hallazgos)
+  indices_dependencia <- which(
+    hallazgos$tipo_hallazgo == "ausencia_dependiente"
+  )
+  if (!length(indices) && !length(indices_dependencia)) return(hallazgos)
   # El determinante se reconoce comparando el comienzo de la evidencia con cada
   # nombre protegido, y no extrayendolo con una expresion: un nombre con un
   # acento grave dentro cortaba la extraccion y la sugerencia salia entera, con
@@ -4766,6 +4769,30 @@
     .marcar_utf8_textos(as.character(sensibles)),
     as.character(sensibles)
   ))
+  # La dependencia de la ausencia publica niveles o el maximo del determinante.
+  # Si esa columna esta protegida, se conserva el hecho -hay dependencia- y se
+  # tapan los valores que permitirian reconstruirla.
+  for (i in indices_dependencia) {
+    evidencia <- as.character(hallazgos$evidencia[[i]])
+    if (is.na(evidencia) || startsWith(evidencia, "[evidencia protegida]")) {
+      next
+    }
+    prefijos <- c(
+      paste0("En `", textos_sensibles, "` = "),
+      paste0("En el m\u00e1ximo de `", textos_sensibles, "` (")
+    )
+    coinciden <- vapply(seq_along(textos_sensibles), function(k) {
+      any(startsWith(evidencia, prefijos[c(k, length(textos_sensibles) + k)]))
+    }, logical(1L))
+    if (!any(coinciden)) next
+    candidatos <- textos_sensibles[coinciden]
+    determinante <- candidatos[[which.max(nchar(candidatos, type = "bytes"))]]
+    hallazgos$evidencia[[i]] <- paste0(
+      "[evidencia protegida] La proporci\u00f3n de ausentes cambia seg\u00fan `",
+      determinante, "`, que est\u00e1 protegida; no se publican sus valores ni ",
+      "la comparaci\u00f3n entre grupos."
+    )
+  }
   for (i in indices) {
     evidencia <- as.character(hallazgos$evidencia[[i]])
     if (is.na(evidencia)) next

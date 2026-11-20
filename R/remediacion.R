@@ -571,7 +571,7 @@
 # Cualquier otro con `columna` `NA` es de una columna sin nombre.
 .TIPOS_HALLAZGO_DE_LA_TABLA <- c(
   "clave_con_ausentes", "clave_no_unica", "filas_duplicadas",
-  "nombres_columnas_problematicos", "fecha_partida_columnas"
+  "filas_vacias", "nombres_columnas_problematicos", "fecha_partida_columnas"
 )
 
 .hallazgos_sin_accion_declarados <- function(perfil, plan, ambiguos) {

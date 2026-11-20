@@ -24,7 +24,7 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
 
 # Superficie completa que emite el paquete en esta version.
 .tipos_hallazgo_emitidos <- sort(c(
-  "alta_cardinalidad", "anio_de_dos_digitos",
+  "alta_cardinalidad", "anio_de_dos_digitos", "ausencia_dependiente",
   "bloqueo_por_con_perdida", "casi_clave",
   "casi_duplicados_vocabulario", "celdas_multivaluadas",
   "ceros_no_permitidos", "clave_con_ausentes", "clave_no_unica",
@@ -34,10 +34,11 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
   "crs_no_declarado", "dato_personal_posible", "desviacion_benford",
   "duplicados_aproximados", "duplicados_exactos_columnas",
   "duplicados_exactos_normalizados", "entidades_html",
-  "espacios_sobrantes", "faltantes", "faltantes_disfrazados",
-  "fecha_centinela", "fecha_fallecimiento_fuera_rango", "fecha_futura",
+  "espacios_sobrantes", "faltantes", "faltantes_conjuntos",
+  "faltantes_disfrazados", "fecha_centinela", "fecha_fallecimiento_fuera_rango", "fecha_futura",
   "fecha_nacimiento_fuera_rango",
-  "fecha_partida_columnas", "filas_duplicadas", "formato_fecha_ambiguo",
+  "fecha_partida_columnas", "filas_duplicadas", "filas_vacias",
+  "formato_fecha_ambiguo",
   "formatos_fecha_mixtos", "geometria_invalida", "geometria_vacia",
   "integer64_fuera_precision_double", "mayusculas_inconsistentes",
   "monedas_mixtas", "negativos_no_permitidos",

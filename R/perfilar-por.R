@@ -433,6 +433,11 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 
   indices_sin_por <- setdiff(seq_along(datos), indice_por)
   nombres_sin_por <- names(datos)[indices_sin_por]
+  # Que filas estan vacias se decide sobre la tabla entera. En la rebanada la
+  # columna de agrupacion no esta, asi que una fila con solo el grupo se veria
+  # vacia y no lo es.
+  vacias_enteras <- logical(nrow(datos))
+  vacias_enteras[.filas_vacias_perfil(datos, nrow(datos))] <- TRUE
   hallazgos <- list()
   cobertura <- list()
   grupos_perfilados <- character()
@@ -939,6 +944,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     previo_contexto <- .fijar_contexto_por(
       guarda_de_la_columna, dominio_de_la_columna
     )
+    .CONTEXTO_POR$filas_vacias_tabla <- vacias_enteras[filas]
     perfil <- tryCatch({
       perfil_grupo <- do.call(perfilar, c(list(rebanada), extras_grupo))
       protegidos_grupo <- .CONTEXTO_POR$protegidos
@@ -1436,6 +1442,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 .CONTEXTO_POR <- new.env(parent = emptyenv())
 .CONTEXTO_POR$guarda_columna <- NULL
 .CONTEXTO_POR$protegidos <- NULL
+# - `filas_vacias_tabla`: mascara logica de la rebanada que dice cuales de sus
+#   filas estan vacias en la tabla entera. Una fila con el grupo presente no es
+#   vacia aunque falten todas las demas columnas.
+.CONTEXTO_POR$filas_vacias_tabla <- NULL
 # - `dominio_columna`: funcion que recibe el nombre de una columna y devuelve,
 #   por tipo de hallazgo de dominio, el modo con que la tabla entera lo publica
 #   (`fila` o `columna`), o `NULL` si no se pudo medir. El sosten de una regla
@@ -1450,12 +1460,14 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     guarda_columna = .CONTEXTO_POR$guarda_columna,
     protegidos = .CONTEXTO_POR$protegidos,
     dominio_columna = .CONTEXTO_POR$dominio_columna,
-    captura_dominio = .CONTEXTO_POR$captura_dominio
+    captura_dominio = .CONTEXTO_POR$captura_dominio,
+    filas_vacias_tabla = .CONTEXTO_POR$filas_vacias_tabla
   )
   .CONTEXTO_POR$guarda_columna <- guarda_columna
   .CONTEXTO_POR$dominio_columna <- dominio_columna
   .CONTEXTO_POR$captura_dominio <- NULL
   .CONTEXTO_POR$protegidos <- list()
+  .CONTEXTO_POR$filas_vacias_tabla <- NULL
   invisible(previo)
 }
 
@@ -1464,6 +1476,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   .CONTEXTO_POR$protegidos <- previo$protegidos
   .CONTEXTO_POR$dominio_columna <- previo$dominio_columna
   .CONTEXTO_POR$captura_dominio <- previo$captura_dominio
+  .CONTEXTO_POR$filas_vacias_tabla <- previo$filas_vacias_tabla
   invisible(NULL)
 }
 

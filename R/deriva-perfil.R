@@ -224,7 +224,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   ),
   ausencia_estructural = list(
     clase = "habilita", meta = "ausencia_estructural", forma = "interruptor",
-    hallazgos = "posible_ausencia_estructural"
+    hallazgos = c(
+      "posible_ausencia_estructural", "faltantes_conjuntos",
+      "ausencia_dependiente", "filas_vacias"
+    )
   ),
   sentinelas_numericos = list(clase = "politica", fila = "configuracion_sentinelas_numericos"),
   cadenas_ausencia = list(clase = "politica", fila = "configuracion_cadenas_ausencia"),

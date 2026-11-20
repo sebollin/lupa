@@ -383,10 +383,12 @@
 
 # La traza de un hallazgo de ausencia, armada por quien lo conto. Sin tope: lo
 # aplica `.trazabilidad_hallazgo()` al publicar, que ademas pone las claves.
-.con_filas_de_ausencia <- function(hallazgo, filas) {
-  hallazgo$trazabilidad <- I(list(
-    .trazabilidad_indices(filas, "completo", limite = Inf)
-  ))
+# `columnas` viaja en la traza cuando el hallazgo es de varias columnas: el
+# campo `columna` no alcanza para separar nombres que llevan comas.
+.con_filas_de_ausencia <- function(hallazgo, filas, columnas = NULL) {
+  traza <- .trazabilidad_indices(filas, "completo", limite = Inf)
+  if (!is.null(columnas)) traza$columnas <- as.character(columnas)
+  hallazgo$trazabilidad <- I(list(traza))
   hallazgo
 }
 
@@ -612,22 +614,51 @@
 # decidir sigue siendo suyo.
 .cruzar_faltantes_con_estructural <- function(hallazgos, senales) {
   if (!length(senales) || !nrow(hallazgos)) return(hallazgos)
-  columnas <- vapply(senales, function(h) as.character(h$columna[[1L]]),
-                     character(1L))
-  tipos <- vapply(senales, function(h) as.character(h$tipo_hallazgo[[1L]]),
-                  character(1L))
-  columnas <- unique(columnas[tipos == "posible_ausencia_estructural"])
-  if (!length(columnas)) return(hallazgos)
-  objetivo <- hallazgos$tipo_hallazgo == "faltantes" &
-    .nombres_para_operar(as.character(hallazgos$columna)) %in%
-      .nombres_para_operar(columnas)
-  if (!any(objetivo)) return(hallazgos)
-  hallazgos$evidencia[objetivo] <- paste0(
-    sub("[.[:space:]]*$", "", hallazgos$evidencia[objetivo]),
-    ". Hay adem\u00e1s un hallazgo `posible_ausencia_estructural` sobre esta ",
-    "columna: parte de esta ausencia podr\u00eda ser por dise\u00f1o. La ",
-    "severidad no se baja por esa sospecha; leer las dos y decidir."
+  frases <- c(
+    posible_ausencia_estructural = paste0(
+      ". Hay adem\u00e1s un hallazgo `posible_ausencia_estructural` sobre esta ",
+      "columna: parte de esta ausencia podr\u00eda ser por dise\u00f1o. La ",
+      "severidad no se baja por esa sospecha; leer las dos y decidir."
+    ),
+    faltantes_conjuntos = paste0(
+      ". Hay adem\u00e1s un hallazgo `faltantes_conjuntos`: esta columna falta ",
+      "junto con otras, lo que puede ser un bloque que no se carg\u00f3 o ",
+      "columnas que s\u00f3lo se completan juntas."
+    ),
+    ausencia_dependiente = paste0(
+      ". Hay adem\u00e1s un hallazgo `ausencia_dependiente`: la proporci\u00f3n ",
+      "de ausentes cambia seg\u00fan el valor de otra columna, lo que puede ser ",
+      "un bloque que no se carg\u00f3 o una columna que s\u00f3lo se completa en ",
+      "ciertos grupos."
+    )
   )
+  for (tipo in names(frases)) {
+    senales_tipo <- senales[vapply(senales, function(h) {
+      identical(as.character(h$tipo_hallazgo[[1L]]), tipo)
+    }, logical(1L))]
+    if (!length(senales_tipo)) next
+    columnas <- unique(unlist(lapply(senales_tipo, function(h) {
+      traza <- h$trazabilidad[[1L]]
+      if (is.list(traza) && length(traza$columnas)) {
+        as.character(traza$columnas)
+      } else if (identical(tipo, "faltantes_conjuntos")) {
+        .separar_nombres_columnas_historico(
+          as.character(h$columna[[1L]]), sep = ","
+        )
+      } else {
+        as.character(h$columna[[1L]])
+      }
+    }), use.names = FALSE))
+    if (!length(columnas)) next
+    objetivo <- hallazgos$tipo_hallazgo == "faltantes" &
+      .nombres_para_operar(as.character(hallazgos$columna)) %in%
+        .nombres_para_operar(columnas)
+    if (!any(objetivo)) next
+    hallazgos$evidencia[objetivo] <- paste0(
+      sub("[.[:space:]]*$", "", hallazgos$evidencia[objetivo]),
+      frases[[tipo]]
+    )
+  }
   hallazgos
 }
 
@@ -644,7 +675,8 @@
                                                aplicabilidad_resuelta,
                                                umbral_faltantes_error,
                                                nombres_texto = NULL,
-                                               marcas = NULL) {
+                                               marcas = NULL,
+                                               excluidas = character()) {
   if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(nombres)
   vacio <- list(
     hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia()
@@ -661,6 +693,7 @@
   declaradas <- aplicabilidad_resuelta$reglas$columna
   nombres_operativos <- .nombres_para_operar(nombres)
   declaradas_operativas <- .nombres_para_operar(declaradas)
+  excluidas_operativas <- .nombres_para_operar(excluidas)
   ausentes <- vector("list", length(nombres))
   no_atomicas <- character()
   for (i in seq_along(nombres)) {
@@ -683,7 +716,7 @@
   )
   candidata <- !is.na(n_ausentes) & n_ausentes >= .min_ausentes_ausencia &
     n_ausentes < n & n_ausentes >= n * .min_prop_ausencia_ausencia &
-    !(nombres_operativos %in% declaradas_operativas)
+    !(nombres_operativos %in% c(declaradas_operativas, excluidas_operativas))
   indices <- which(candidata)
   # El piso de filas se declara solo cuando habia algo que examinar. Anunciar en
   # cada tabla de diez filas que no se busco un patron que no tenia candidatos
@@ -871,4 +904,715 @@
   }
 
   list(hallazgos = c(avisos, hallazgos), cobertura = cobertura)
+}
+
+# ---------------------------------------------------------------------------
+# Patrones de ausencia que no son una regla casi determinista.
+#
+# `posible_ausencia_estructural` responde a "esta columna falta porque el valor
+# de otra decide donde corresponde". Los tres diagnosticos de abajo responden a
+# preguntas distintas y por eso tienen tipo propio: dos columnas que faltan
+# juntas, una columna que falta mas en un grupo que en otro, y filas sin ningun
+# valor. Los tres comparten la lectura de ausencia del perfil -`NA` y lo ya
+# detectado como disfrazado-, porque contar dos veces cosas distintas seria
+# publicar un patron que los datos no tienen.
+# ---------------------------------------------------------------------------
+
+# Una columna casi siempre vacia hace trivial cualquier coincidencia: con 95 %
+# de ausencias, dos columnas independientes comparten 90 % de las filas. El
+# techo y el `lift` contra la independencia separan la coincidencia medida de la
+# que produce una columna vacia.
+.max_prop_ausencia_conjuntos <- 0.90
+.min_lift_conjuntos <- 1.5
+# Una columna es candidata si tiene algo presente y algo ausente. El piso es
+# doble a proposito: el absoluto evita que en una tabla chica una ausencia de
+# tres filas entre en la tabla de patrones, y el relativo evita que en una tabla
+# enorme veinte filas sueltas lo hagan. Con 5 % una columna que falta en 40 de
+# 1.000 quedaba fuera aunque su bloque comun fuera medible; con 20 filas y 2 %
+# entra, y el patron conjunto sigue exigiendo sus propios minimos.
+.min_ausentes_conjuntos <- 20L
+.min_prop_ausencia_conjuntos <- 0.02
+.max_columnas_conjuntos <- 40L
+# Un patron de ausencia -la combinacion exacta de columnas que faltan en una
+# fila- agrupa las filas que lo comparten, como `mice::md.pattern()`. Se exige
+# un bloque minimo de filas y una proporcion minima de la tabla: un patron con
+# dos filas en una tabla de mil es una casualidad, y uno con diez filas en una
+# tabla de un millon no mueve ninguna conclusion. La proporcion es menor que la
+# de cada columna porque el bloque comun puede ser una parte chica de las
+# ausencias de cada una, que es justo el caso que los pares no ven.
+.min_filas_patron_conjuntos <- 10L
+.min_prop_patron_conjuntos <- 0.01
+
+# Para la dependencia, el efecto se mide como diferencia de proporciones entre
+# grupos. Un p-valor solo no sirve: con muchas filas, una diferencia de dos
+# puntos porcentuales es significativa y no es un hallazgo util.
+.min_diferencia_ausencia_dependiente <- 0.20
+.min_grupo_ausencia_dependiente <- 20L
+.max_niveles_ausencia_dependiente <- 20L
+.min_ausentes_grupo_dependiente <- 10L
+.max_columnas_dependiente <- 40L
+.max_determinantes_dependiente <- 40L
+
+.cobertura_patron_ausencia <- function(diagnostico, columna, motivo, como,
+                                       columnas = NULL) {
+  if (is.null(columnas)) columnas <- as.character(columna)
+  data.frame(
+    diagnostico = diagnostico,
+    columna = if (length(columna)) as.character(columna) else NA_character_,
+    motivo = motivo, como_resolverlo = como,
+    dependencia = NA_character_, columnas = I(list(as.character(columnas))),
+    stringsAsFactors = FALSE
+  )
+}
+
+# La tabla de patrones de ausencia, en la misma idea que `mice::md.pattern()`:
+# cada fila distinta de la matriz de indicadores es un patron, y se cuenta
+# cuantas filas lo comparten. No se usa `mice` ni se agrega a Suggests: con el
+# tope de columnas, cada patron cabe en los 53 bits exactos de un double y la
+# clave se arma con una multiplicacion de la matriz por potencias de dos.
+.patrones_ausencia <- function(mascaras) {
+  k <- length(mascaras)
+  if (k < 2L) return(NULL)
+  n <- length(mascaras[[1L]])
+  if (!n) return(NULL)
+  matriz <- matrix(FALSE, nrow = n, ncol = k)
+  for (i in seq_len(k)) matriz[, i] <- mascaras[[i]]
+  claves <- drop(matriz %*% 2 ^ (seq_len(k) - 1L))
+  unicas <- unique(claves)
+  codigos <- match(claves, unicas)
+  list(
+    matriz = matriz,
+    cuentas = tabulate(codigos, length(unicas)),
+    codigos = codigos,
+    primeras = which(!duplicated(codigos)),
+    n = n, k = k
+  )
+}
+
+# Las filas donde no hay ningun valor. Se exige ausencia real -`is.na()`-, no
+# una ausencia disfrazada: un codigo 999 o un "S/D" es un valor presente, y una
+# fila llena de ellos no es una fila vacia aunque el perfil los cuente como
+# faltantes para otras medidas. En una columna compuesta se exige que todas sus
+# celdas esten ausentes. Si una columna no se puede leer, la fila no se acusa
+# vacia: callar una fila dudosa es preferible a inventar una fila vacia.
+.filas_vacias_perfil <- function(datos, n) {
+  if (!n || !ncol(datos)) return(integer())
+  vacia <- rep(TRUE, n)
+  for (i in seq_along(datos)) {
+    x <- datos[[i]]
+    mascara <- tryCatch({
+      if (is.data.frame(x)) {
+        !.filas_completas(x)
+      } else if (is.matrix(x) || (is.array(x) && length(dim(x)) > 1L)) {
+        dimensiones <- dim(x)
+        if (is.null(dimensiones) || dimensiones[[1L]] != n) {
+          NULL
+        } else {
+          celdas <- is.na(x)
+          dim(celdas) <- c(n, length(celdas) / n)
+          rowSums(celdas) == ncol(celdas)
+        }
+      } else {
+        is.na(x)
+      }
+    }, error = function(e) NULL)
+    if (is.null(mascara) || length(mascara) != n) {
+      mascara <- rep(FALSE, n)
+    }
+    vacia <- vacia & as.logical(mascara)
+  }
+  which(vacia)
+}
+
+# Un determinante se prepara una vez y se contrasta contra todas las columnas
+# objetivo. Los niveles se tabulan por codigo; el tope de un numero se compara
+# contra el resto. Las dos formas son grupos medidos, no una categoria inventada
+# para toda columna numerica.
+.preparar_dependencia_ausencia <- function(x, nombre, n, resultado = NULL) {
+  if (is.data.frame(x) || .es_columna_compuesta(x) || is.list(x)) return(NULL)
+  if (length(x) != n) return(NULL)
+  # Un identificador no sirve para agrupar: sus valores casi no se repiten y el
+  # tope de un casi unico junta unas pocas filas que no son un universo. La
+  # decision no es un umbral propio: `casi_clave` es la clave con colisiones que
+  # ya publica el perfil, y `.decision_identificador_numerico()` es su
+  # numeracion -densa y casi sin repetir- con las guardas de tipo y secuencia.
+  # Una fecha con un tope repetido queda afuera de las dos y sigue agrupando.
+  if (!is.null(resultado)) {
+    es_identificador <- isTRUE(resultado$casi_clave$es_casi_clave) ||
+      isTRUE(.decision_identificador_numerico(resultado$fila)$posible)
+    if (es_identificador) return(NULL)
+  }
+  usable <- !is.na(x)
+  n_usables <- sum(usable)
+  if (n_usables < 2L * .min_grupo_ausencia_dependiente) return(NULL)
+  valores <- x[usable]
+  etiquetas <- NULL
+  if (is.factor(x) || is.character(x) || is.logical(x)) {
+    etiquetas <- as.character(valores)
+    distintos <- unique(etiquetas[!is.na(etiquetas)])
+  } else {
+    distintos <- unique(valores)
+  }
+  candidatos <- list()
+
+  if (is.factor(x) || is.character(x) || is.logical(x) ||
+      is.numeric(x) || inherits(x, c("Date", "POSIXt"))) {
+    if (length(distintos) >= 2L &&
+        length(distintos) <= .max_niveles_ausencia_dependiente) {
+      if (is.null(etiquetas)) etiquetas <- .etiqueta_numero_reversible(valores)
+      niveles <- .factor_por_bytes(etiquetas)
+      codigos <- as.integer(niveles)
+      n_por <- tabulate(codigos, nlevels(niveles))
+      if (min(n_por) >= .min_grupo_ausencia_dependiente) {
+        candidatos[[length(candidatos) + 1L]] <- list(
+          tipo = "niveles", codigos = codigos, n_por = n_por,
+          etiquetas = levels(niveles)
+        )
+      }
+    }
+  }
+
+  if ((is.numeric(valores) || inherits(valores, c("Date", "POSIXt"))) &&
+      !inherits(valores, c("difftime", "units"))) {
+    maximo <- suppressWarnings(max(valores))
+    numerico <- suppressWarnings(as.numeric(maximo))
+    if (length(numerico) == 1L && is.finite(numerico)) {
+      en_tope <- valores == maximo
+      n_tope <- sum(en_tope)
+      n_resto <- n_usables - n_tope
+      if (n_tope >= .min_grupo_ausencia_dependiente &&
+          n_resto >= .min_grupo_ausencia_dependiente) {
+        candidatos[[length(candidatos) + 1L]] <- list(
+          tipo = "tope",
+          codigos = ifelse(en_tope, 1L, 2L),
+          n_por = c(n_tope, n_resto),
+          etiquetas = c(.etiqueta_numero_reversible(maximo), "resto")
+        )
+      }
+    }
+  }
+
+  if (!length(candidatos)) return(NULL)
+  list(
+    nombre = nombre, usable = usable, n_usables = n_usables,
+    candidatos = candidatos
+  )
+}
+
+.hallazgo_faltantes_conjuntos <- function(nombres_grupo, n_ausentes_grupo,
+                                          interseccion, n, jaccard, lift,
+                                          columnas_texto,
+                                          columnas_extra = character()) {
+  conteos <- paste0(
+    "`", columnas_texto, "`: ", n_ausentes_grupo,
+    ifelse(n_ausentes_grupo == 1L, " ausente", " ausentes"),
+    collapse = "; "
+  )
+  tope <- if (length(columnas_extra)) {
+    paste0(
+      " Hay ", length(columnas_extra),
+      if (length(columnas_extra) == 1L) {
+        " columna m\u00e1s que falta en esas mismas filas"
+      } else {
+        " columnas m\u00e1s que faltan en esas mismas filas"
+      },
+      "; el tope de ", .max_columnas_conjuntos, " no las examin\u00f3."
+    )
+  } else {
+    ""
+  }
+  .nuevo_hallazgo(
+    paste(nombres_grupo, collapse = ","),
+    "faltantes_conjuntos", "ok",
+    paste0(
+      "La ausencia de estas columnas coincide en las mismas filas. Puede ser ",
+      "un bloque que no se carg\u00f3 o columnas que s\u00f3lo se completan ",
+      "juntas: la coincidencia describe la estructura de la ausencia y no ",
+      "prueba un defecto."
+    ),
+    paste0(
+      conteos, ". Faltan todas en ", interseccion,
+      if (interseccion == 1L) " fila" else " filas",
+      " (", .formatear_decimal_publicado(100 * interseccion / n, 1L),
+      " % de ", n, "); coincidencia ",
+      .formatear_decimal_publicado(jaccard, 2L),
+      " y ", .formatear_decimal_publicado(lift, 2L),
+      " veces lo esperado si las ausencias fueran independientes.", tope
+    ),
+    paste0(
+      "Si la ausencia conjunta es por dise\u00f1o, declarar `aplicabilidad` o ",
+      "`columnas_opcionales`; si es un bloque que no se carg\u00f3, completar ",
+      "la carga antes de analizar."
+    ),
+    n, interseccion, "fila"
+  )
+}
+
+.hallazgo_ausencia_dependiente <- function(columna, determinante, ajuste,
+                                           columna_texto, determinante_texto) {
+  if (identical(ajuste$tipo, "tope")) {
+    grupo_alto <- paste0(
+      "el m\u00e1ximo de `", determinante_texto, "` (",
+      .texto_valores_nivel(ajuste$etiqueta_alta), ")"
+    )
+    grupo_bajo <- "el resto"
+  } else {
+    grupo_alto <- paste0(
+      "`", determinante_texto, "` = ",
+      .texto_valores_nivel(ajuste$etiqueta_alta)
+    )
+    grupo_bajo <- paste0(
+      "`", determinante_texto, "` = ",
+      .texto_valores_nivel(ajuste$etiqueta_baja)
+    )
+  }
+  .nuevo_hallazgo(
+    columna, "ausencia_dependiente", "ok",
+    paste0(
+      "La ausencia de esta columna no se reparte igual entre los valores de ",
+      "otra: falta m\u00e1s en un grupo que en otro. Puede ser un bloque que no ",
+      "se carg\u00f3 o una columna que s\u00f3lo se completa en ciertos grupos; ",
+      "la asociaci\u00f3n describe la estructura de la ausencia y no prueba un ",
+      "defecto."
+    ),
+    paste0(
+      "En ", grupo_alto, " faltan ", ajuste$n_ausentes_alto, " de ",
+      ajuste$n_alto, " (",
+      .formatear_decimal_publicado(100 * ajuste$proporcion_alta, 1L),
+      " %); en ", grupo_bajo, " faltan ", ajuste$n_ausentes_bajo, " de ",
+      ajuste$n_bajo, " (",
+      .formatear_decimal_publicado(100 * ajuste$proporcion_baja, 1L),
+      " %). Diferencia: ",
+      .formatear_decimal_publicado(100 * ajuste$diferencia, 1L),
+      " puntos porcentuales; cociente de riesgos: ",
+      if (is.finite(ajuste$razon)) {
+        .formatear_decimal_publicado(ajuste$razon, 2L)
+      } else {
+        "infinito"
+      },
+      ". Medido sobre ", ajuste$n_evaluados,
+      if (ajuste$n_evaluados == 1L) " fila con el determinante presente." else
+        " filas con el determinante presente."
+    ),
+    paste0(
+      "Revisar si el grupo con m\u00e1s ausencia es un universo distinto; si lo ",
+      "es, declararlo con `aplicabilidad` o `columnas_opcionales`. Si la ",
+      "ausencia depende del valor -por ejemplo, un registro que se corta al ",
+      "llegar a un tope-, documentarlo antes de imputar o de comparar grupos."
+    ),
+    ajuste$n_evaluados, ajuste$n_afectados, "fila"
+  )
+}
+
+.diagnosticar_patrones_ausencia <- function(datos, nombres, resultados,
+                                            aplicabilidad_resuelta,
+                                            explicadas = character(),
+                                            explicadas_determinante = NULL,
+                                            nombres_texto = NULL,
+                                            marcas = NULL,
+                                            fase = c("todo", "conjuntos",
+                                                     "dependencia")) {
+  fase <- match.arg(fase)
+  hacer_conjuntos <- !identical(fase, "dependencia")
+  hacer_dependencia <- !identical(fase, "conjuntos")
+  vacio <- list(
+    hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia(),
+    conjuntas_cubiertas = character()
+  )
+  n <- nrow(datos)
+  if (!n || !length(nombres)) return(vacio)
+  if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(nombres)
+  nombres_operativos <- .nombres_para_operar(nombres)
+  declaradas <- .nombres_para_operar(aplicabilidad_resuelta$reglas$columna)
+  explicadas <- unique(c(
+    .nombres_para_operar(explicadas),
+    if (is.data.frame(marcas) && nrow(marcas)) {
+      .nombres_para_operar(marcas$marca[!is.na(marcas$columna)])
+    } else {
+      character()
+    }
+  ))
+  # Una columna que participa de un bloque conjunto se saca como objetivo para
+  # no repetir el bloque como dependencia. Como determinante no se saca: si su
+  # ausencia esta contenida en la de otra, el bloque es una implicacion y la
+  # dependencia del otro extremo sigue siendo el hallazgo que explica el hecho.
+  if (is.null(explicadas_determinante)) {
+    explicadas_determinante <- explicadas
+  } else {
+    explicadas_determinante <- unique(c(
+      .nombres_para_operar(explicadas_determinante),
+      if (is.data.frame(marcas) && nrow(marcas)) {
+        .nombres_para_operar(marcas$marca[!is.na(marcas$columna)])
+      } else {
+        character()
+      }
+    ))
+  }
+
+  ausentes <- vector("list", length(nombres))
+  no_atomicas <- character()
+  for (i in seq_along(nombres)) {
+    mascara <- .mascara_ausencia_columna(
+      datos[[i]], resultados[[i]]$faltantes_disfrazados, n
+    )
+    if (is.null(mascara)) {
+      no_atomicas <- c(no_atomicas, nombres[[i]])
+    } else {
+      ausentes[[i]] <- mascara
+    }
+  }
+
+  hallazgos <- list()
+  cobertura <- .cobertura_diagnosticos_vacia()
+
+  # Las filas vacias se miden siempre: no dependen de un minimo de columnas ni
+  # de que la tabla sea ancha. Una sola fila sin valores es un hecho, no una
+  # tendencia.
+  vacias <- if (hacer_conjuntos) {
+    .filas_vacias_perfil(datos, n)
+  } else {
+    integer()
+  }
+  # En `perfilar_por()` la rebanada no tiene la columna de agrupacion: una fila
+  # puede estar vacia dentro del grupo y tener el grupo en la tabla entera. La
+  # tabla entera ya decidio que filas estan vacias; aca solo se conservan esas.
+  if (hacer_conjuntos && length(vacias)) {
+    del_contexto <- .CONTEXTO_POR$filas_vacias_tabla
+    if (!is.null(del_contexto) && length(del_contexto) == n) {
+      vacias <- vacias[del_contexto[vacias]]
+    }
+  }
+  if (hacer_conjuntos && length(vacias)) {
+    aviso <- .nuevo_hallazgo(
+      NA_character_, "filas_vacias", "error",
+      paste0(
+        "La tabla tiene filas sin ning\u00fan valor. No aportan a ning\u00fan ",
+        "an\u00e1lisis y, si son un artefacto de carga, conviene quitarlas del ",
+        "origen antes de perfilar."
+      ),
+      paste0(
+        length(vacias), if (length(vacias) == 1L) " fila vac\u00eda de " else
+          " filas vac\u00edas de ", n,
+        " (", .formatear_decimal_publicado(100 * length(vacias) / n, 1L),
+        " %)."
+      ),
+      paste0(
+        "Revisar el origen de esas filas y corregir la carga. El plan de ",
+        "limpieza no propone eliminarlas: conservarlas o marcarlas es una ",
+        "decisi\u00f3n de quien conoce el dato."
+      ),
+      n, length(vacias), "fila"
+    )
+    hallazgos[[length(hallazgos) + 1L]] <-
+      .con_filas_de_ausencia(aviso, vacias)
+  }
+
+  n_ausentes <- vapply(
+    ausentes, function(m) if (is.null(m)) NA_integer_ else sum(m), integer(1L)
+  )
+  # Candidata: tiene algo presente y algo ausente, no es casi siempre vacia y
+  # no fue declarada ni explicada por otro diagnostico. Las columnas declaradas
+  # no se examinan: el usuario ya dijo que su ausencia no es un defecto.
+  candidata <- !is.na(n_ausentes) &
+    n_ausentes >= .min_ausentes_conjuntos &
+    n_ausentes >= n * .min_prop_ausencia_conjuntos &
+    n_ausentes <= n * .max_prop_ausencia_conjuntos &
+    !(nombres_operativos %in% c(declaradas, explicadas))
+  indices <- which(candidata)
+
+  if (hacer_conjuntos && n < .min_filas_ausencia_estructural &&
+      length(indices)) {
+    cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+      "faltantes_conjuntos", paste(nombres[indices], collapse = ", "),
+      paste0(
+        "No se buscaron faltantes conjuntos: la tabla tiene ", n,
+        if (n == 1L) " fila y se necesitan al menos " else
+          " filas y se necesitan al menos ", .min_filas_ausencia_estructural,
+        " para que una coincidencia de ausencias signifique algo."
+      ),
+      "Perfilar una tabla con m\u00e1s filas si interesa esta se\u00f1al.",
+      columnas = nombres[indices]
+    ))
+  }
+  if (hacer_dependencia && n < .min_filas_ausencia_estructural &&
+      length(indices)) {
+    cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+      "ausencia_dependiente", paste(nombres[indices], collapse = ", "),
+      paste0(
+        "No se busc\u00f3 dependencia de la ausencia: la tabla tiene ", n,
+        if (n == 1L) " fila y se necesitan al menos " else
+          " filas y se necesitan al menos ", .min_filas_ausencia_estructural,
+        " para comparar grupos."
+      ),
+      "Perfilar una tabla con m\u00e1s filas si interesa esta se\u00f1al.",
+      columnas = nombres[indices]
+    ))
+  }
+
+  if (hacer_conjuntos && length(no_atomicas) && length(indices)) {
+    cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+      "faltantes_conjuntos", paste(no_atomicas, collapse = ", "),
+      paste0(
+        "No se buscaron faltantes conjuntos en ", length(no_atomicas),
+        if (length(no_atomicas) == 1L) {
+          " columna que no es un vector at\u00f3mico: la coincidencia se mide celda a celda."
+        } else {
+          " columnas que no son vectores at\u00f3micos: la coincidencia se mide celda a celda."
+        }
+      ),
+      "No corresponde resolverlo; queda declarado."
+    ))
+  }
+
+  if (n < .min_filas_ausencia_estructural || !length(indices)) {
+    return(list(
+      hallazgos = hallazgos, cobertura = cobertura,
+      conjuntas_cubiertas = character()
+    ))
+  }
+
+  indices_extra <- integer()
+  if (hacer_conjuntos && length(indices) > .max_columnas_conjuntos) {
+    indices_extra <- indices[-seq_len(.max_columnas_conjuntos)]
+    recortadas <- nombres[indices_extra]
+    indices <- indices[seq_len(.max_columnas_conjuntos)]
+    cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+      "faltantes_conjuntos", paste(recortadas, collapse = ", "),
+      paste0(
+        "No se buscaron faltantes conjuntos en ", length(recortadas),
+        if (length(recortadas) == 1L) {
+          " columna: la tabla de patrones se detiene en "
+        } else {
+          " columnas: la tabla de patrones se detiene en "
+        },
+        .max_columnas_conjuntos,
+        " para acotar el costo, y pueden compartir el patr\u00f3n de las examinadas."
+      ),
+      "Perfilar por subconjuntos de columnas si interesa examinarlas todas."
+    ))
+  }
+
+  # --- Faltantes conjuntos -------------------------------------------------
+
+  columnas_conjuntas <- character()
+  cobertura_conjunta <- vector("list", length(nombres))
+  if (hacer_conjuntos) {
+    patrones <- .patrones_ausencia(ausentes[indices])
+    if (!is.null(patrones)) {
+      umbral_filas <- max(
+        .min_filas_patron_conjuntos,
+        ceiling(n * .min_prop_patron_conjuntos)
+      )
+      publicables <- which(patrones$cuentas >= umbral_filas)
+      if (length(publicables)) {
+        filas_por_patron <- split(seq_len(n), patrones$codigos)
+        es_vacia <- logical(n)
+        if (length(vacias)) es_vacia[vacias] <- TRUE
+        for (g in publicables) {
+          columnas_grupo <- which(patrones$matriz[patrones$primeras[[g]], ])
+          if (length(columnas_grupo) < 2L) next
+          filas_patron <- filas_por_patron[[g]]
+          interseccion <- patrones$cuentas[[g]]
+          # Si el patron es exactamente el conjunto de filas vacias, ya lo
+          # cuenta `filas_vacias`: publicar ademas un grupo de columnas que
+          # faltan juntas por esa causa repetiria el mismo hecho con otra forma.
+          if (all(es_vacia[filas_patron])) next
+          indices_grupo <- indices[columnas_grupo]
+          mascaras <- ausentes[indices_grupo]
+          union <- sum(Reduce(`|`, mascaras))
+          jaccard <- if (union > 0L) interseccion / union else 0
+          n_ausentes_grupo <- n_ausentes[indices_grupo]
+          log_esperada <- sum(log(n_ausentes_grupo)) -
+            (length(columnas_grupo) - 1L) * log(n)
+          esperada <- exp(log_esperada)
+          lift <- if (is.finite(esperada) && esperada > 0) {
+            interseccion / esperada
+          } else {
+            Inf
+          }
+          # La coincidencia de a pares no alcanza para distinguir un bloque
+          # comun de una casualidad; el `lift` si: mide el bloque contra lo que
+          # produciria la independencia entre las mismas columnas.
+          if (lift < .min_lift_conjuntos) next
+          columnas_extra <- character()
+          if (length(indices_extra)) {
+            comparten <- vapply(
+              indices_extra,
+              function(j) all(ausentes[[j]][filas_patron]),
+              logical(1L)
+            )
+            columnas_extra <- nombres[indices_extra[comparten]]
+          }
+          nombres_grupo <- nombres[indices_grupo]
+          columnas_conjuntas <- c(columnas_conjuntas, nombres_grupo)
+          filas_logicas <- logical(n)
+          filas_logicas[filas_patron] <- TRUE
+          for (jj in indices_grupo) {
+            previo <- cobertura_conjunta[[jj]]
+            cobertura_conjunta[[jj]] <- if (is.null(previo)) {
+              filas_logicas
+            } else {
+              previo | filas_logicas
+            }
+          }
+          hallazgos[[length(hallazgos) + 1L]] <- .con_filas_de_ausencia(
+            .hallazgo_faltantes_conjuntos(
+              nombres_grupo, n_ausentes_grupo, interseccion, n,
+              jaccard, lift, nombres_texto[indices_grupo], columnas_extra
+            ),
+            filas_patron,
+            columnas = nombres_grupo
+          )
+        }
+      }
+    }
+  }
+
+  # Una columna queda cubierta por los bloques conjuntos cuando todas sus
+  # filas ausentes estan en alguno de ellos. Solo esas se sacan como objetivo de
+  # la dependencia: si el bloque explica solo una parte de su ausencia, la
+  # dependencia sigue midiendo el resto.
+  conjuntas_cubiertas <- character()
+  if (hacer_conjuntos && length(columnas_conjuntas)) {
+    cubierta <- vapply(seq_along(nombres), function(j) {
+      cob <- cobertura_conjunta[[j]]
+      ausente <- ausentes[[j]]
+      !is.null(cob) && !is.null(ausente) && any(ausente) && all(cob[ausente])
+    }, logical(1L))
+    conjuntas_cubiertas <- nombres[cubierta]
+  }
+
+  if (!hacer_dependencia) {
+    return(list(
+      hallazgos = hallazgos, cobertura = cobertura,
+      conjuntas_cubiertas = conjuntas_cubiertas
+    ))
+  }
+
+  # --- Ausencia dependiente de otra columna --------------------------------
+
+  excluidas_objetivo <- unique(c(
+    .nombres_para_operar(explicadas),
+    .nombres_para_operar(conjuntas_cubiertas)
+  ))
+  excluidas_determinante <- .nombres_para_operar(explicadas_determinante)
+  indices_dependencia <- indices[
+    !(nombres_operativos[indices] %in% excluidas_objetivo)
+  ]
+  if (length(indices_dependencia) > .max_columnas_dependiente) {
+    recortadas <- nombres[
+      indices_dependencia[-seq_len(.max_columnas_dependiente)]
+    ]
+    indices_dependencia <- indices_dependencia[
+      seq_len(.max_columnas_dependiente)
+    ]
+    cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+      "ausencia_dependiente", paste(recortadas, collapse = ", "),
+      paste0(
+        "No se busc\u00f3 dependencia de la ausencia en ", length(recortadas),
+        if (length(recortadas) == 1L) {
+          " columna: el examen es de a pares y se detiene en "
+        } else {
+          " columnas: el examen es de a pares y se detiene en "
+        },
+        .max_columnas_dependiente,
+        " para acotar el costo."
+      ),
+      "Perfilar por subconjuntos de columnas si interesa examinarlas todas."
+    ))
+  }
+
+  determinantes <- list()
+  for (j in seq_along(nombres)) {
+    if (length(determinantes) >= .max_determinantes_dependiente) {
+      cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+        "ausencia_dependiente", NA_character_,
+        paste0(
+          "Se examinaron ", .max_determinantes_dependiente,
+          if (.max_determinantes_dependiente == 1L) {
+            " columna como posible determinante de la ausencia y el resto no se prob\u00f3."
+          } else {
+            " columnas como posibles determinantes de la ausencia y el resto no se prob\u00f3."
+          }
+        ),
+        "Perfilar por subconjuntos de columnas si interesa probarlas todas."
+      ))
+      break
+    }
+    preparado <- .preparar_dependencia_ausencia(
+      datos[[j]], nombres[[j]], n, resultados[[j]]
+    )
+    if (!is.null(preparado)) {
+      preparado$indice <- j
+      determinantes[[length(determinantes) + 1L]] <- preparado
+    }
+  }
+
+  for (objetivo in indices_dependencia) {
+    ausente_objetivo <- ausentes[[objetivo]]
+    mejor <- NULL
+    for (det in determinantes) {
+      if (det$indice == objetivo) next
+      if (nombres_operativos[[det$indice]] %in% excluidas_determinante) next
+      for (candidato in det$candidatos) {
+        n_ausentes_grupo <- tabulate(
+          candidato$codigos[ausente_objetivo[det$usable]],
+          length(candidato$n_por)
+        )
+        proporciones <- n_ausentes_grupo / candidato$n_por
+        alto <- which.max(proporciones)
+        bajo <- which.min(proporciones)
+        if (alto == bajo) next
+        diferencia <- proporciones[[alto]] - proporciones[[bajo]]
+        if (diferencia < .min_diferencia_ausencia_dependiente) next
+        if (n_ausentes_grupo[[alto]] < .min_ausentes_grupo_dependiente) next
+        if (candidato$n_por[[alto]] < .min_grupo_ausencia_dependiente ||
+            candidato$n_por[[bajo]] < .min_grupo_ausencia_dependiente) {
+          next
+        }
+        razon <- if (proporciones[[bajo]] > 0) {
+          proporciones[[alto]] / proporciones[[bajo]]
+        } else {
+          Inf
+        }
+                  ajuste <- list(
+                    tipo = candidato$tipo,
+                    etiqueta_alta = candidato$etiquetas[[alto]],
+                    etiqueta_baja = candidato$etiquetas[[bajo]],
+                    n_alto = candidato$n_por[[alto]],
+                    n_bajo = candidato$n_por[[bajo]],
+                    n_ausentes_alto = n_ausentes_grupo[[alto]],
+                    n_ausentes_bajo = n_ausentes_grupo[[bajo]],
+                    proporcion_alta = proporciones[[alto]],
+                    proporcion_baja = proporciones[[bajo]],
+                    diferencia = diferencia,
+                    razon = razon,
+                    n_grupos = length(candidato$n_por),
+                    n_evaluados = det$n_usables,
+                    n_afectados = sum(n_ausentes_grupo),
+                    detalle = det
+                  )
+                  if (is.null(mejor) || diferencia > mejor$diferencia ||
+                      (diferencia == mejor$diferencia &&
+                         ajuste$n_grupos < mejor$n_grupos)) {
+                    mejor <- ajuste
+                  }
+      }
+    }
+    if (is.null(mejor)) next
+    filas <- which(ausente_objetivo & mejor$detalle$usable)
+    hallazgos[[length(hallazgos) + 1L]] <- .con_filas_de_ausencia(
+      .hallazgo_ausencia_dependiente(
+        nombres[[objetivo]], mejor$detalle$nombre, mejor,
+        nombres_texto[[objetivo]],
+        nombres_texto[[mejor$detalle$indice]]
+      ),
+      filas
+    )
+  }
+
+  list(
+    hallazgos = hallazgos, cobertura = cobertura,
+    conjuntas_cubiertas = conjuntas_cubiertas
+  )
 }

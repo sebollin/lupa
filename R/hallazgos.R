@@ -3841,6 +3841,7 @@
       "fecha_nacimiento_fuera_rango", "fecha_fallecimiento_fuera_rango",
       "largo_codigo_inconsistente", "digito_verificador_invalido",
       "posible_ausencia_estructural", "regla_silencia_ausencia",
+      "faltantes_conjuntos", "ausencia_dependiente", "filas_vacias",
       "valor_fuera_dominio", "fecha_futura", "fecha_centinela"
     ) &&
       is.list(trazabilidad_precalculada) &&
