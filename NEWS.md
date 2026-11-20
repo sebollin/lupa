@@ -135,6 +135,24 @@
 
 ## Comparar entregas
 
+- `comparar_perfiles()` mide la deriva de la distribución entre dos entregas,
+  en filas que se filtran por `aspecto`: `deriva_media` (diferencia de medias
+  estandarizada, con los cortes 0,2 y 0,8 de Cohen; una columna constante que
+  pasa a otra constante se publica sin medida), `deriva_dispersion` (razón de
+  desvíos, 1,5 y 2) y `deriva_categorias` (índice de estabilidad poblacional
+  sobre los valores presentes en las dos entregas, 0,1 y 0,25). Cada fila
+  exige además que la diferencia supere el ruido de muestreo (nivel 0,001), y
+  la comparación se abstiene, columna por columna, cuando no puede decidir que
+  las cifras miden lo mismo: unidad, política de centinelas, aplicabilidad o
+  columnas opcionales distintas, campos que un perfil de otra versión no trae,
+  un cambio de resolución o un lado que es muestra. Antes una media corrida 25
+  con desvío 15 salía sólo como cambio de rango, y un reparto 50/50 que pasaba
+  a 80/20 no salía.
+- `comparar_perfiles()` publica `conteo_hallazgo` cuando un hallazgo sigue con
+  la misma severidad pero afecta a una proporción de filas materialmente
+  distinta (al menos `umbral_cambio` y por encima del ruido). Quedan fuera los
+  hallazgos que dependen de la fecha de la corrida, de cómo están escritos los
+  valores o del tamaño de la tabla (duplicados, concentración).
 - `comparar_perfiles()` acepta objetos de `perfilar_dbi()`. Antes había que
   pasar `$perfil_muestra`, y lo que la muestra no leía no se comparaba: un
   aumento de faltantes en filas fuera de la muestra no aparecía, y dos muestras

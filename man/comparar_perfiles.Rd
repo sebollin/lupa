@@ -163,6 +163,89 @@ forma, puede no dar ninguna fila. Un perfil sin \code{general$vocabulario} —de
 anterior— se declara con la fila de campos ausentes, y el de una columna
 protegida o sin valores publicados (\code{incluir_valores = FALSE}) no se guarda y
 se declara en \code{campos_protegidos}.
+\subsection{Deriva de la distribución}{
+
+Una media que se corre 25 con desvío 15, o un reparto 50/50 que pasa a 80/20,
+no mueven el rango, los faltantes ni la cardinalidad. Se miden con lo que el
+perfil ya guarda —media, desvío, cantidad de valores y frecuencias del
+vocabulario—, con una medida de \strong{tamaño de efecto} y no con un p-valor: con
+muchas filas cualquier diferencia es «significativa» (Lin, Lucas y Shmueli,
+2013), y la pregunta es si es grande. Pero con pocas filas el tamaño solo es
+ruido, así que cada fila exige además que la diferencia supere el ruido de
+muestreo con z = 3,29 (p = 0,001 bilateral). Las filas, con \code{cambio = "modificado"}, \code{delta} en la medida y su valor, los umbrales y el ruido en
+\code{evidencia}:
+\itemize{
+\item \code{deriva_media}: diferencia de medias estandarizada, \verb{(media actual - media anterior) / sqrt((desvío anterior^2 + desvío actual^2) / 2)} (Cohen, 1988;
+Austin, 2009). \code{sospechoso} desde 0,2 y \code{error} desde 0,8, en cualquier
+sentido. Ruido: error típico de Welch.
+\item \code{deriva_dispersion}: razón entre los desvíos. \code{delta} es desvío actual sobre
+anterior; \code{sospechoso} desde 1,5 veces (o 1/1,5) y \code{error} desde 2. Mira el
+cambio de varianza sin cambio de media. El perfil no guarda la curtosis, y
+el ruido de un desvío depende de ella: se la acota con los extremos y el
+desvío del propio perfil (una cota, así que no subestima el ruido). No se
+compara con menos de 50 valores por lado, ni si un solo valor explica más
+de la cuarta parte de la suma de cuadrados (una columna casi constante con
+un valor lejano: su desvío es ese valor).
+\item \code{deriva_categorias}: PSI (índice de estabilidad poblacional; Siddiqi, 2006)
+del reparto entre los valores que están en las dos entregas, con los cortes
+convencionales 0,1 (\code{sospechoso}) y 0,25 (\code{error}). Los valores que
+aparecen o desaparecen los dice la fila \code{vocabulario}, y no se cuentan dos
+veces. Las clases que esperarían menos de cinco filas por lado se juntan
+(Cochran, 1954). El PSI equivale, a segundo orden, al chi-cuadrado de
+homogeneidad reescalado por \code{1/n1 + 1/n2} (Yurdakul, 2018), así que el
+ruido esperado es \code{qchisq(0,999, k - 1) * (1/n1 + 1/n2)}; la evidencia lo
+informa junto a la distancia de variación total.
+\item \code{conteo_hallazgo}: un hallazgo que sigue con la misma severidad pero afecta
+a más (o menos) filas, \code{agravado} o \code{atenuado}. Se compara la proporción de
+filas afectadas, y sólo si cambia al menos \code{umbral_cambio} y por encima del
+ruido de dos proporciones: de 1 fila en 100 a 2 en 100 no hay fila; de 50 \%
+a 60 \% de 2.000 filas sí. Sube: \code{sospechoso}, \code{error} desde \code{umbral_error};
+baja: \code{ok}. No se comparan así los hallazgos que ya tienen su aspecto
+—\code{faltantes}, \code{faltantes_disfrazados}, \code{alta_cardinalidad}—, ni \code{outliers},
+cuyos límites de Tukey se mueven con los datos de cada entrega, ni los que
+cuentan cómo están escritos los valores —\code{espacios_sobrantes},
+\code{mayusculas_inconsistentes}, \code{normalizacion_unicode}—, ni los que cuentan
+coincidencias entre filas —\code{filas_duplicadas}, \code{casi_clave},
+\code{valor_concentrado}: con la misma distribución, más filas son más
+coincidencias, y la proporción crece con el tamaño de la tabla—, ni \code{fecha_futura}
+cuando las dos corridas tienen fechas distintas (cuenta contra la fecha de
+la corrida). Tampoco se compara un conteo si cambió su universo: los
+faltantes de la columna (o de cualquiera, en un hallazgo de la tabla) o la
+resolución de una columna numérica, que cambia los repetidos.
+}
+
+Nada de esto se publica si cambió el tipo declarado o la unidad de la
+columna, si la comparación ya publica para esa columna una fila
+\code{no_comparable}, si la columna está protegida, si un lado es una muestra de la
+tabla (la fila \code{muestra} lo declara) o si un perfil no trae un campo que la
+decisión necesita. La abstención es \strong{por columna}: la política de centinelas
+distinta o no registrada saca las columnas con faltantes numéricos
+disfrazados; una aplicabilidad o columnas opcionales distintas, las columnas
+que cambiaron de declaración; un perfil de una versión anterior sin \code{unidad},
+las columnas cuya unidad declara el otro (si ninguno la declara, se compara).
+Una columna constante que pasa a otra constante se publica como
+\code{deriva_media}, sin medida estandarizada (\code{delta} es \code{NA}). Los valores que
+difieren sólo en espacios de los bordes o en mayúsculas son el mismo valor
+para \code{deriva_categorias}, como en la fila \code{vocabulario}. La media dice lo
+observado: si la columna no declara su unidad en los dos perfiles, la
+descripción avisa que puede ser un cambio de unidad. La dispersión no se
+compara si cambió la resolución de la columna (el paso medio entre sus valores
+distintos cambia cuatro veces o más, o sólo uno de los lados tiene menos de
+tres valores distintos: una entrega a 2 decimales y otra a 0), una
+heurística con lo que el perfil guarda, no una medición de los decimales. \strong{Límites}: el perfil no
+guarda cuantiles ni histograma, así que no hay prueba de Kolmogórov-Smirnov
+ni PSI numérico con cortes por deciles; un cambio de forma que deja iguales la
+media y el desvío —un corrimiento de cola que se compensa— no se ve, y el
+rango y los hallazgos son lo que queda. El umbral no es un argumento: son las
+convenciones citadas. Quien no quiera estas filas las filtra por su \code{aspecto}:
+\code{deriva_media}, \code{deriva_dispersion}, \code{deriva_categorias} y \code{conteo_hallazgo}.
+
+Referencias: Cohen, J. (1988), \emph{Statistical Power Analysis for the Behavioral
+Sciences}, Erlbaum; Austin, P. C. (2009), \emph{Statistics in Medicine} 28(25);
+Siddiqi, N. (2006), \emph{Credit Risk Scorecards}, Wiley; Yurdakul, B. (2018),
+\emph{Statistical Properties of Population Stability Index}, Western Michigan
+University; Lin, M., Lucas, H. C. y Shmueli, G. (2013), \emph{Information Systems
+Research} 24(4); Cochran, W. G. (1954), \emph{Biometrics} 10(4).
 
 Las \strong{marcas del plan de limpieza} —\code{.fila_duplicada}, \code{.grupo_duplicado},
 \verb{.ausente_<columna>} y \verb{.outlier_<columna>}— se reconocen por lo que deja
@@ -293,6 +376,7 @@ columnas entre las corridas: cambio el universo que define esas filas. En
 ese caso se publica \code{no_comparable}, con severidad \code{error}, y se nombran las
 columnas cambiadas. Con las mismas columnas, el veredicto \code{resuelto} se
 conserva.
+}
 }
 \section{Perfiles de una base de datos}{
 
