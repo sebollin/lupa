@@ -2200,7 +2200,7 @@
 #'   publica entonces un aviso `ok` de la columna con las dos lecturas, sin
 #'   acusar filas; lo que no admite la lectura de otra unidad (una edad
 #'   negativa, un porcentaje negativo, una fecha de nacimiento futura, una
-#'   latitud fuera de [-90, 90]) se acusa por fila con cualquier proporción. Un centinela de
+#'   latitud fuera de `[-90, 90]`) se acusa por fila con cualquier proporción. Un centinela de
 #'   fecha que es la mayoría de la columna (un inicio o fin de vigencia abierto)
 #'   se publica también como aviso `ok` de la columna. Los nombres relativos
 #'   (`pct_of_sales`) o ambiguos (`longitud_cable`) no infieren dominio; un

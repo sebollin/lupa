@@ -1227,7 +1227,7 @@
   explicadas <- unique(c(
     .nombres_para_operar(explicadas),
     if (is.data.frame(marcas) && nrow(marcas)) {
-      .nombres_para_operar(marcas$marca[!is.na(marcas$columna)])
+      .nombres_para_operar(marcas$marca)
     } else {
       character()
     }
@@ -1242,7 +1242,7 @@
     explicadas_determinante <- unique(c(
       .nombres_para_operar(explicadas_determinante),
       if (is.data.frame(marcas) && nrow(marcas)) {
-        .nombres_para_operar(marcas$marca[!is.na(marcas$columna)])
+        .nombres_para_operar(marcas$marca)
       } else {
         character()
       }
