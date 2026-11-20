@@ -23,18 +23,19 @@ test_that("error_esperado y estado se clasifican por metrica en las dos vias", {
     metrica = c(
       "n", "n_validos", "n_faltantes", "prop_faltantes", "n_distintos",
       "tasa_distintos", "moda", "frecuencia_moda", "minimo", "maximo",
-      "media", "n_ceros", "n_negativos", "mediana", "desvio"
+      "media", "n_ceros", "n_negativos", "mediana", "desvio",
+      "n_faltantes_disfrazados"
     ),
     # `x` no repite valores en la muestra: la moda queda `no_disponible`, no
     # `estimado` con el valor ausente.
     estado = c(
       "calculado", rep("observado_muestra", 5L), "no_disponible",
       "observado_muestra", rep("estimado", 3L),
-      rep("observado_muestra", 2L), "estimado", "estimado"
+      rep("observado_muestra", 2L), "estimado", "estimado", "calculado"
     ),
     error_esperado = c(
       "no_aplica", rep("no_estimado", 3L), rep("no_estimable", 4L),
-      rep("no_estimado", 5L), "no_estimable", "no_estimado"
+      rep("no_estimado", 5L), "no_estimable", "no_estimado", "muestra"
     ),
     stringsAsFactors = FALSE
   )

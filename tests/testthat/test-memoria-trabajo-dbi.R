@@ -367,7 +367,8 @@ test_that("una muestra saturada conserva el limite y declara el spool", {
     tasa_distintos = "observado_muestra", moda = "estimado",
     frecuencia_moda = "observado_muestra", minimo = "estimado",
     maximo = "estimado", media = "estimado", n_ceros = "observado_muestra",
-    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado"
+    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado",
+    n_faltantes_disfrazados = "calculado"
   )
   expect_identical(
     muestras$estado, unname(esperados_estado[muestras$metrica])

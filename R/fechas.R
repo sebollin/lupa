@@ -36,7 +36,8 @@
 }
 
 .es_fecha_valida <- function(x, formato, expresion, granularidad = "dia",
-                             designadores = TRUE, solo_forma = FALSE) {
+                             designadores = TRUE, solo_forma = FALSE,
+                             segundos_intercalares = FALSE) {
   # Declarado, y solo lo legible: un texto que no es UTF-8 valido no es una
   # fecha en ninguna sesion, y bajo un locale UTF-8 hacia abortar el `grepl()`.
   x <- .declarar_utf8_valido(as.character(x))
@@ -83,13 +84,29 @@
       # ya dice que el valor no es una fecha.
       convertido <- suppressWarnings(.strptime_utc(preparados, formato))
       valido_convertido <- !is.na(convertido)
-      # Y acepta segundos hasta 61 -los intercalares-, que despues normaliza al
-      # minuto siguiente: `23:59:60` del 2024-01-31 se publicaba como el
-      # 1 de febrero, un dia que nadie escribio. Un segundo 60 o 61 no es una
-      # hora que `POSIXct` pueda guardar sin cambiarla.
+      # El segundo 60 es el intercalar de ISO 8601 y solo existe a las 23:59.
+      # `strptime()` lo devuelve como 60 y lo normaliza al minuto siguiente;
+      # `POSIXct` no puede guardarlo sin cambiarlo. Se acepta como escritura
+      # valida y no se acusa, pero no se publica convertido. Cualquier otro
+      # segundo mayor que 59 sigue siendo invalido. La deteccion de formatos
+      # mira la forma dominante y no acepta el intercalar: un valor raro no
+      # convierte la columna en otro formato. Solo el diagnostico de fechas
+      # imposibles lo pide.
       if (grepl("%S", formato, fixed = TRUE, useBytes = TRUE) || grepl("%T", formato, fixed = TRUE, useBytes = TRUE)) {
-        valido_convertido <- valido_convertido & !is.na(convertido$sec) &
-          convertido$sec < 60
+        segundos <- suppressWarnings(as.numeric(convertido$sec))
+        valido_convertido <- valido_convertido &
+          !is.na(segundos) & segundos < 60
+        if (isTRUE(segundos_intercalares)) {
+          intercalar <- which(!is.na(segundos) & segundos >= 60 & segundos < 61)
+          if (length(intercalar)) {
+            hora_minuto <- sub(
+              "^.*[ T]([0-9]{2}):([0-9]{2}):.*$", "\\1:\\2",
+              valores[intercalar], perl = TRUE
+            )
+            ok <- !is.na(hora_minuto) & hora_minuto == "23:59"
+            valido_convertido[intercalar[ok]] <- TRUE
+          }
+        }
       }
       # La hora 24 es el mismo caso: `strptime()` acepta `24:00` y lo normaliza
       # a la medianoche del dia siguiente, y `2024-01-31 24:00` se publicaba

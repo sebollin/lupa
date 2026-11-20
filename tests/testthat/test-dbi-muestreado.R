@@ -249,7 +249,8 @@ test_that("muestreado materializa una seleccion y marca su cobertura", {
     tasa_distintos = "observado_muestra", moda = "estimado",
     frecuencia_moda = "observado_muestra", minimo = "estimado",
     maximo = "estimado", media = "estimado", n_ceros = "observado_muestra",
-    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado"
+    n_negativos = "observado_muestra", mediana = "estimado", desvio = "estimado",
+    n_faltantes_disfrazados = "calculado"
   )
   errores <- c(
     n_validos = "no_estimado", n_faltantes = "no_estimado",
@@ -257,7 +258,8 @@ test_that("muestreado materializa una seleccion y marca su cobertura", {
     tasa_distintos = "no_estimable", moda = "no_estimable",
     frecuencia_moda = "no_estimable", minimo = "no_estimado",
     maximo = "no_estimado", media = "no_estimado", n_ceros = "no_estimado",
-    n_negativos = "no_estimado", mediana = "no_estimable", desvio = "no_estimado"
+    n_negativos = "no_estimado", mediana = "no_estimable", desvio = "no_estimado",
+    n_faltantes_disfrazados = "muestra"
   )
   # Las metricas numericas de `texto` no aplican, y la moda de `id`, que no
   # repite valores en la muestra, no se puede estimar: ninguna se publica como

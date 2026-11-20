@@ -1740,17 +1740,52 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # La proporcion de faltantes de un lado, con la definicion de lupa: los `NULL`
 # y los disfrazados. Si las filas del lado son la tabla entera, la del perfil.
 # Si es una muestra de una base, los `NULL` los cuenta el motor sobre toda la
-# tabla y los disfrazados se estiman sobre la muestra, porque el resumen SQL no
-# reconoce centinelas ni cadenas de ausencia: un faltante disfrazado que entra
-# en filas que la muestra no lee no se ve. Las dos partes se suman solo si miden
-# sobre el mismo denominador; una declaracion de aplicabilidad lo achica en la
-# muestra, y entonces queda la estimacion de la muestra entera.
+# tabla y, cuando la cuenta nueva no esta disponible, los disfrazados se
+# estiman sobre la muestra. La fila SQL nueva se usa solo si sus dos partes y
+# su denominador son comparables sobre la tabla completa; una declaracion de
+# aplicabilidad lo achica en la muestra, y entonces queda la estimacion de la
+# muestra entera.
 .faltantes_lado_deriva <- function(lado, fila, columna) {
   propio <- fila[["prop_faltantes_totales"]]
   estimado <- list(
     valor = propio, universo = if (isTRUE(lado$cubre)) "tabla_completa" else "muestra",
     nulos = NA_real_, disfrazados = NA_real_
   )
+  # La cifra nueva vive en el resumen SQL y conserva el universo de la tabla.
+  # Solo se usa si las tres partes llegan calculadas sobre la tabla completa;
+  # una muestra no puede convertirse en cifra de tabla por tener un resumen.
+  if (!is.null(lado$resumen)) {
+    disfrazados_sql <- .cifra_sql_dbi(
+      lado$resumen, columna, "n_faltantes_disfrazados"
+    )
+    nulos_sql <- .cifra_sql_dbi(lado$resumen, columna, "n_faltantes")
+    total_sql <- .cifra_sql_dbi(lado$resumen, columna, "n")
+    estados <- lapply(list(disfrazados_sql, nulos_sql, total_sql), function(x) {
+      .motivo_cifras_sql_no_comparables(x, x)
+    })
+    n_total <- suppressWarnings(as.numeric(total_sql$valor))
+    nulos <- suppressWarnings(as.numeric(nulos_sql$valor))
+    disfrazados <- suppressWarnings(as.numeric(disfrazados_sql$valor))
+    if (all(vapply(estados, is.na, logical(1L))) &&
+        identical(disfrazados_sql$alcance, "tabla_completa") &&
+        length(n_total) == 1L && is.finite(n_total) && n_total > 0 &&
+        length(nulos) == 1L && is.finite(nulos) &&
+        length(disfrazados) == 1L && is.finite(disfrazados)) {
+      meta_perfil <- if (is.list(lado$perfil)) lado$perfil$meta else NULL
+      declaradas <- .nombres_para_operar(as.character(c(
+        if (is.list(meta_perfil)) meta_perfil$declaracion_aplicabilidad,
+        if (is.list(meta_perfil)) meta_perfil$columnas_opcionales
+      )))
+      if (!(.nombres_para_operar(columna) %in% declaradas)) {
+        return(list(
+          valor = (nulos + disfrazados) / n_total,
+          universo = "tabla_completa",
+          nulos = nulos / n_total,
+          disfrazados = disfrazados / n_total
+        ))
+      }
+    }
+  }
   if (isTRUE(lado$cubre) || is.null(lado$resumen)) return(estimado)
   nulos <- .cifra_sql_dbi(lado$resumen, columna, "prop_faltantes")
   de_tabla <- is.na(.motivo_cifras_sql_no_comparables(nulos, nulos)) &&
@@ -2874,7 +2909,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       distintos <- list(a$n_distintos, b$n_distintos)
       universo <- NULL
       partes <- NULL
-      if (muestra_no_comparable && identical(aspecto, "faltantes")) {
+      usar_sql_faltantes <- identical(aspecto, "faltantes") && (
+        muestra_no_comparable ||
+          (!is.null(lado_a$resumen) && !is.null(lado_b$resumen))
+      )
+      if (usar_sql_faltantes) {
         faltantes_a <- .faltantes_lado_deriva(lado_a, a, nombre_a)
         faltantes_b <- .faltantes_lado_deriva(lado_b, b, nombre_b)
         valor_a <- faltantes_a$valor

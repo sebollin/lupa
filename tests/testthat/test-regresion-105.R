@@ -66,6 +66,20 @@ resumen_r_columna_r105 <- function(x) {
     desvio = if (es_numerico && length(valores) > 1L) stats::sd(valores) else NA_real_,
     n_ceros = if (es_numerico && length(valores)) sum(valores == 0) else NA_real_,
     n_negativos = if (es_numerico && length(valores)) sum(valores < 0) else NA_real_,
+    n_faltantes_disfrazados = if (es_numerico) {
+      sentinelas <- c(-9, -99, -999, -9999, 999)
+      cuentas <- vapply(
+        sentinelas, function(valor) sum(x %in% valor), numeric(1L)
+      )
+      valores <- x[!is.na(x)]
+      if (length(valores)) {
+        rango <- range(valores)
+        unicos_en_rango <- sentinelas >= rango[[1L]] &
+          sentinelas <= rango[[2L]] & cuentas == 1
+        cuentas[unicos_en_rango] <- 0
+      }
+      sum(cuentas)
+    } else 0,
     stringsAsFactors = FALSE
   )
 }
@@ -103,6 +117,33 @@ test_that("el resumen SQL coincide con R sobre las 5000 filas", {
   ])))
   expect_identical(DBI::dbListTables(con), tablas_antes)
   expect_false(resultado$resumen_tabla$meta$objetos_temporales)
+})
+
+test_that("la cuenta SQL de faltantes disfrazados sigue activa con muestra", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  datos <- data.frame(
+    id = 1:20,
+    estado = c(rep("ok", 14), rep("N/D", 6)),
+    monto = c(1:17, -99, -99, 20),
+    stringsAsFactors = FALSE
+  )
+  DBI::dbWriteTable(con, "faltantes_disfrazados", datos)
+
+  resultado <- perfilar_dbi(
+    con, "faltantes_disfrazados", muestra = 5L, orden_muestra = "id",
+    sentinelas_numericos = -99
+  )
+  columnas <- resultado$resumen_tabla$columnas
+  expect_equal(columnas$n_faltantes_disfrazados, c(0, 6, 2))
+  filas <- resultado$resumen_tabla$sql[
+    resultado$resumen_tabla$sql$metrica == "n_faltantes_disfrazados",
+    , drop = FALSE
+  ]
+  expect_true(all(filas$estado == "calculado"))
+  expect_true(all(nzchar(filas$sql)))
 })
 
 test_that("el perfil completo declara el alcance de la muestra", {

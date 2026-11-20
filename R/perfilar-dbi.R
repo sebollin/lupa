@@ -10993,7 +10993,8 @@
                                  pide_validos, pide_distintos,
                                  presupuesto = NULL,
                                  aproximacion_distintos = NULL,
-                                 incluir_total = FALSE) {
+                                 incluir_total = FALSE,
+                                 faltantes = NULL) {
   senas <- .senas_conexion_dbi(conexion)
   total_alias <- alias("n_total_consulta")
   sql_validos <- paste0(
@@ -11001,6 +11002,9 @@
       paste0(.conteo_sql_dbi("COUNT(*)", senas), " AS ", total_alias, ", ")
     } else "",
     .contar_no_nulos_sql_dbi(columna_sql, senas), " AS ", alias("n_validos"),
+    if (!is.null(faltantes)) paste0(", ", paste(
+      faltantes$expresiones, collapse = ", "
+    )) else "",
     " FROM ", tabla_sql
   )
   expresion_distintos <- if (is.null(aproximacion_distintos)) {
@@ -11051,6 +11055,9 @@
           paste0(.conteo_sql_dbi("COUNT(*)", senas), " AS ", total_alias, ", ")
         } else "",
         .contar_no_nulos_sql_dbi(columna_sql, senas), " AS ", alias("n_validos"),
+        if (!is.null(faltantes)) paste0(", ", paste(
+          faltantes$expresiones, collapse = ", "
+        )) else "",
         ", ", paste(expresion_distintos, collapse = ", "),
         " FROM ", tabla_sql
       )
@@ -11083,6 +11090,11 @@
           salida <- list(
             validos = validos, distintos = distintos, consolidada = TRUE
           )
+          if (!is.null(faltantes)) {
+            salida$faltantes <- .resultado_faltantes_lote_dbi(
+              consulta, sql, faltantes$aliases, list()
+            )
+          }
           if (isTRUE(incluir_total)) {
             salida$conteo <- .valor_campo_dbi(
               consulta$datos, .nombre_alias_dbi(total_alias)
@@ -11113,6 +11125,11 @@
       if (isTRUE(incluir_total)) total_alias else NULL
     )
     resultado$validos <- validos
+    if (!is.null(faltantes)) {
+      resultado$faltantes <- .resultado_faltantes_lote_dbi(
+        consulta_validos, sql_validos, faltantes$aliases, list()
+      )
+    }
     if (isTRUE(incluir_total) && isTRUE(validos$ok)) {
       resultado$conteo <- .resultado_lote_dbi(
         consulta_validos, sql_validos, total_alias, list(
@@ -11669,7 +11686,8 @@
                                  incluir_valores, presupuesto = NULL,
                                  metadatos = NULL, float8_seguro = FALSE,
                                  infinitos_como_numeric = FALSE,
-                                 tipo = NA_character_) {
+                                 tipo = NA_character_,
+                                 faltantes_expresiones = character()) {
   senas <- .senas_conexion_dbi(conexion)
   parte_media <- paste0(.media_sql_dbi(
     columna_sql, senas, tabla_sql = tabla_sql,
@@ -11703,7 +11721,8 @@
         senas
       ), " AS ",
       alias("n_negativos")
-    )
+    ),
+    faltantes_expresiones
   )
   sql <- paste0("SELECT ", paste(partes, collapse = ", "), " FROM ", tabla_sql)
   resultado <- .consultar_dbi(
@@ -12822,6 +12841,11 @@
         resultado$desvio, consulta, aliases$total
       )
     }
+    if (!is.null(aliases$faltantes)) {
+      resultado$faltantes <- .resultado_faltantes_lote_dbi(
+        consulta, sql, aliases$faltantes, metadatos
+      )
+    }
     salida[[i]] <- resultado
   }
   salida
@@ -12861,7 +12885,9 @@
     infinitos_como_numeric = FALSE, centros_desvio = NULL,
     tipos_declarados = NULL, ventana_desvio = FALSE,
     decimales_exactos = NULL, incluir_cuenta = FALSE,
-    incluir_magnitud = FALSE, columnas_nan = character()) {
+    incluir_magnitud = FALSE, columnas_nan = character(),
+    politicas_faltantes = NULL, columnas_sql_originales = NULL,
+    columnas_double_originales = character()) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -12932,8 +12958,84 @@
       },
       desvio = if ("desvio" %in% metricas && es_numerico[[i]]) {
         .alias_agregado_dbi(alias, numero, i, "desvio")
+      },
+      faltantes = if (!is.null(politicas_faltantes) &&
+                      !is.null(politicas_faltantes[[campo]])) {
+        .aliases_faltantes_dbi(
+          politicas_faltantes[[campo]], alias, numero, i, conexion,
+          incluir_guardas = FALSE,
+          incluir_distintos = identical(
+            politicas_faltantes[[campo]]$clase, "textual"
+          )
+        )
       }
     )
+  }
+  nombres_sql_originales <- if (is.null(columnas_sql_originales)) {
+    nombres_sql
+  } else {
+    stats::setNames(columnas_sql_originales, names(columnas_sql_originales))
+  }
+  if (is.null(names(nombres_sql_originales))) {
+    names(nombres_sql_originales) <- names(nombres_sql)
+  }
+  dobles_originales <- intersect(
+    as.character(columnas_double_originales), names(nombres_sql)
+  )
+  for (i in seq_along(lote)) {
+    campo <- lote[[i]]
+    faltantes <- alias_por_columna[[i]]$faltantes
+    if (is.null(faltantes)) next
+    faltantes$columna_original <- nombres_sql_originales[[campo]] %||%
+      nombres_sql[[campo]]
+    faltantes$comparar_double_original <- campo %in% dobles_originales
+    alias_por_columna[[i]]$faltantes <- faltantes
+  }
+  evitar_plegado <- if (grepl(
+    "postgres|pqconnection|duckdb", senas, useBytes = TRUE
+  )) {
+    " OFFSET 0"
+  } else if (grepl("sqlite", senas, useBytes = TRUE)) {
+    " LIMIT -1 OFFSET 0"
+  } else {
+    ""
+  }
+  tabla_agregados_sql <- tabla_sql
+  for (i in seq_along(lote)) {
+    campo <- lote[[i]]
+    policy <- if (is.list(politicas_faltantes)) {
+      politicas_faltantes[[campo]]
+    } else NULL
+    faltantes <- alias_por_columna[[i]]$faltantes
+    if (is.null(policy) || !isTRUE(policy$exacta) ||
+        !identical(policy$clase, "textual") || is.null(faltantes)) next
+    normalizador <- gsub(
+      "\\{columna\\}", nombres_sql[[campo]], policy$normalizador
+    )
+    alias_normalizado <- alias(
+      paste0("lupa_fd_norm_l", numero, "_c", i)
+    )
+    faltantes$columna_normalizada <- alias_normalizado
+    tabla_agregados_sql <- paste0(
+      "(SELECT *, ", normalizador, " AS ", alias_normalizado,
+      " FROM ", tabla_agregados_sql, evitar_plegado, ") AS ",
+      alias(paste0("lupa_fd_normaliza_l", numero, "_c", i))
+    )
+    if (length(policy$numericos)) {
+      alias_numerico <- alias(
+        paste0("lupa_fd_num_l", numero, "_c", i)
+      )
+      faltantes$columna_numerica <- alias_numerico
+      expresion_numerica <- .expresion_numerica_texto_faltantes_dbi(
+        conexion, alias_normalizado
+      )
+      tabla_agregados_sql <- paste0(
+        "(SELECT *, ", expresion_numerica, " AS ", alias_numerico,
+        " FROM ", tabla_agregados_sql, evitar_plegado, ") AS ",
+        alias(paste0("lupa_fd_numero_l", numero, "_c", i))
+      )
+    }
+    alias_por_columna[[i]]$faltantes <- faltantes
   }
   # La media y el desvio exactos de un decimal, en la misma sentencia que los
   # agregados (`.piezas_sumas_sin_centro_dbi()`): no cuestan una consulta mas
@@ -12998,7 +13100,6 @@
       paste0("CAST(", columna, " AS DOUBLE)")
     } else columna
   }
-  tabla_agregados_sql <- tabla_sql
   centros_ventana <- list()
   if (isTRUE(ventana_desvio) && any(es_numerico)) {
     centros <- vapply(seq_along(lote), function(i) {
@@ -13024,7 +13125,26 @@
           paste0(columna, " AS ", nombres_sql[[lote[[i]]]])
       }, character(1L), USE.NAMES = FALSE
     )
-    campos_fuente <- c(campos_fuente, centros[!is.na(centros)])
+    columnas_faltantes_fuente <- unlist(lapply(
+      alias_por_columna, function(x) {
+        faltantes <- x$faltantes
+        if (is.null(faltantes)) return(character())
+        c(faltantes$columna_normalizada, faltantes$columna_numerica)
+      }
+    ), use.names = FALSE)
+    columnas_originales_fuente <- vapply(
+      seq_along(lote), function(i) {
+        faltantes <- alias_por_columna[[i]]$faltantes
+        if (is.null(faltantes) ||
+            !isTRUE(faltantes$comparar_double_original)) return(NA_character_)
+        faltantes$columna_original
+      }, character(1L), USE.NAMES = FALSE
+    )
+    campos_fuente <- c(
+      campos_fuente, columnas_faltantes_fuente,
+      columnas_originales_fuente[!is.na(columnas_originales_fuente)],
+      centros[!is.na(centros)]
+    )
     marcas_nan <- vapply(seq_along(lote), function(i) {
       aliases <- alias_por_columna[[i]]
       if (is.null(aliases$nan_marca)) return(NA_character_)
@@ -13046,10 +13166,11 @@
     campos_fuente <- c(campos_fuente, marcas_nan[!is.na(marcas_nan)])
     tabla_agregados_sql <- paste0(
       "(SELECT ", paste(campos_fuente, collapse = ", "),
-      " FROM ", tabla_sql, ") AS ", alias("lupa_desvio_ventana")
+      " FROM ", tabla_agregados_sql, ") AS ",
+      alias("lupa_desvio_ventana")
     )
   }
-  expresiones_columna <- function(i) {
+  expresiones_columna <- function(i, incluir_faltantes = TRUE) {
     campo <- lote[[i]]
     aliases <- alias_por_columna[[i]]
     columna <- columna_operacion_de(i)
@@ -13060,6 +13181,20 @@
       if ("validos" %in% metricas) paste0(
         .contar_no_nulos_sql_dbi(columna, senas), " AS ", aliases$validos
       ),
+      if (isTRUE(incluir_faltantes) && !is.null(aliases$faltantes)) {
+        faltantes <- aliases$faltantes
+        .expresiones_faltantes_dbi(
+          conexion, politicas_faltantes[[campo]],
+          faltantes$columna_normalizada %||% columna,
+          faltantes, tabla_agregados_sql,
+          columna_original = faltantes$columna_original %||% columna,
+          columna_normalizada = faltantes$columna_normalizada,
+          columna_numerica = faltantes$columna_numerica,
+          comparar_double_original = isTRUE(
+            faltantes$comparar_double_original
+          )
+        )
+      },
       if (!is.null(aliases$nan)) {
         if (!is.null(aliases$nan_marca)) {
           paste0(
@@ -13153,6 +13288,28 @@
       piezas_exactas[[campo]]$partes
     )
   }
+  faltantes_para <- function(i, tabla_fuente = tabla_sql) {
+    campo <- lote[[i]]
+    aliases <- alias_por_columna[[i]]$faltantes
+    if (is.null(aliases)) return(NULL)
+    list(
+      aliases = aliases,
+      expresiones = .expresiones_faltantes_dbi(
+        conexion, politicas_faltantes[[campo]], nombres_sql[[campo]],
+        aliases, tabla_fuente,
+        columna_original = aliases$columna_original %||% nombres_sql[[campo]],
+        comparar_double_original = isTRUE(
+          aliases$comparar_double_original
+        )
+      )
+    )
+  }
+  faltantes_desde_resultado <- function(resultado, extras, metadatos) {
+    if (is.null(extras)) return(NULL)
+    .resultado_faltantes_desde_resultado_dbi(
+      resultado, extras$aliases, metadatos
+    )
+  }
   total_alias <- alias("n_total_consulta")
   expresion_total <- paste0(
     .conteo_sql_dbi("COUNT(*)", senas), " AS ", total_alias
@@ -13162,11 +13319,15 @@
     "(SELECT ", .conteo_sql_dbi("COUNT(*)", senas), " FROM ",
     tabla_total_sql, ") AS ", universo_alias
   )
-  construir <- function(indices, con_total = FALSE, con_universo = FALSE) {
+  construir <- function(indices, con_total = FALSE, con_universo = FALSE,
+                        incluir_faltantes = TRUE) {
     expresiones <- c(
       if (isTRUE(con_total)) expresion_total,
       if (isTRUE(con_universo)) expresion_universo,
-      unlist(lapply(indices, expresiones_columna), use.names = FALSE)
+      unlist(lapply(
+        indices, expresiones_columna,
+        incluir_faltantes = incluir_faltantes
+      ), use.names = FALSE)
     )
     paste0(
       "SELECT ", paste(expresiones, collapse = ", "), " FROM ",
@@ -13175,6 +13336,7 @@
   }
 
   cache <- list()
+  sondeo_sin_faltantes <- FALSE
   clave <- function(indices) paste(indices, collapse = ",")
   sondear <- function(indices, con_total = incluir_total,
                       con_universo = FALSE) {
@@ -13183,7 +13345,8 @@
     )
     if (!is.null(cache[[llave]])) return(isTRUE(cache[[llave]]$ok))
     sql <- construir(
-      indices, con_total = con_total, con_universo = con_universo
+      indices, con_total = con_total, con_universo = con_universo,
+      incluir_faltantes = !isTRUE(sondeo_sin_faltantes)
     )
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = etapa
@@ -13230,6 +13393,12 @@
     agotado <- FALSE
     sondas <- 0L
   } else {
+    # La sonda que localiza una columna ilegible debe probar el mismo agregado
+    # que existia antes de la cuenta de faltantes disfrazados. La consulta
+    # consolidada ya rechazo la version completa; mantener sus expresiones
+    # nuevas en cada nodo haria que tambien fallen las hojas sanas y obligaria
+    # a reemitir todos los agregados por columna.
+    sondeo_sin_faltantes <- TRUE
     aislamiento <- .aislar_ilegibles_dbi(
       sondear, function() {
         is.null(presupuesto) || .saldo_dbi(presupuesto) >= 1
@@ -13274,6 +13443,27 @@
     )
     for (i in seq_along(grupo)) {
       campo <- lote[[grupo[[i]]]]
+      # El aislamiento omite los faltantes para localizar una
+      # columna que desborda. Las columnas legibles necesitan una consulta
+      # acotada para recuperar esa cuenta sin volver a incluir la culpable.
+      if (!isTRUE(inicial) && grepl(
+        "sql server|microsoft sql|sqlserver|mssql", senas, useBytes = TRUE
+      )) {
+        extras <- faltantes_para(grupo[[i]])
+        faltantes <- valores[[i]]$faltantes
+        if (!is.null(extras) &&
+            (!is.list(faltantes) || !isTRUE(faltantes$ok))) {
+          recuperado <- .conteos_columna_dbi(
+            conexion, tabla_sql, columna_operacion_de(grupo[[i]]), alias,
+            pide_validos = TRUE, pide_distintos = FALSE,
+            presupuesto = presupuesto, incluir_total = TRUE,
+            faltantes = extras
+          )
+          if (is.list(recuperado$faltantes)) {
+            valores[[i]]$faltantes <- recuperado$faltantes
+          }
+        }
+      }
       piezas <- piezas_exactas[[campo]]
       if (!is.null(piezas) && isTRUE(entrada$consulta$ok)) {
         exacto <- .leer_sumas_exactas_dbi(
@@ -13326,12 +13516,15 @@
     campo <- lote[[i]]
     metadatos <- .metadatos_lote_dbi(numero, campo)
     individual <- list(consolidada = FALSE)
+    extras <- faltantes_para(i)
     if ("validos" %in% metricas) {
       conteos_columna <- .conteos_columna_dbi(
         conexion, tabla_sql, nombres_sql[[campo]], alias,
-        TRUE, FALSE, presupuesto, incluir_total = TRUE
+        TRUE, FALSE, presupuesto, incluir_total = TRUE,
+        faltantes = NULL
       )
       individual$validos <- conteos_columna$validos
+      individual$faltantes <- conteos_columna$faltantes
     }
     if ("basicos" %in% metricas && es_numerico[[i]]) {
       individual$basicos <- .basicos_columna_dbi(
@@ -13342,8 +13535,15 @@
           campo %in% columnas_float8_numeric ||
           .es_lectura_double_exacta_dbi(nombres_sql[[campo]]),
         tipo = if (is.null(tipos_declarados)) NA_character_ else
-          tipos_declarados[[campo]] %||% NA_character_
+          tipos_declarados[[campo]] %||% NA_character_,
+        faltantes_expresiones = character()
       )
+      if (is.null(individual$faltantes) && !is.null(extras) &&
+          isTRUE(individual$basicos$ok)) {
+        individual$faltantes <- .resultado_faltantes_lote_dbi(
+          individual$basicos, individual$basicos$sql, extras$aliases, metadatos
+        )
+      }
     }
     if ("desvio" %in% metricas && es_numerico[[i]]) {
       individual$desvio <- .desvio_columna_dbi(
@@ -13359,6 +13559,18 @@
             .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
       )
     }
+    if (!is.null(extras) && is.null(individual$faltantes)) {
+      resultado_fallido <- individual$validos %||% individual$basicos %||%
+        individual$desvio
+      if (is.null(resultado_fallido)) {
+        resultado_fallido <- .resultado_agregado_no_emitido_dbi(
+          etapa, "La consulta de faltantes disfrazados no se emitio."
+        )
+      }
+      individual$faltantes <- faltantes_desde_resultado(
+        resultado_fallido, extras, metadatos
+      )
+    }
     for (metrica in intersect(names(individual), c("validos", "basicos", "desvio"))) {
       individual[[metrica]]$metadatos <- .mezclar_metadatos_dbi(
         metadatos, individual[[metrica]]$metadatos
@@ -13368,15 +13580,38 @@
   }
 
   if (length(pendientes)) {
-    motivo <- paste(
+    motivo_predeterminado <- paste(
       "El lote de agregados fue rechazado y no se pudieron aislar todas sus",
       "columnas dentro del presupuesto de sondas; las columnas pendientes no",
       "se suponen culpables ni legibles."
     )
+    motivo_de_pendiente <- function(i) {
+      claves <- names(cache)[vapply(
+        strsplit(names(cache), "|", fixed = TRUE),
+        function(partes) length(partes) &&
+          identical(partes[[1L]], as.character(i)),
+        logical(1L)
+      )]
+      motivos <- vapply(cache[claves], function(entrada) {
+        motivo <- entrada$consulta$motivo
+        if (length(motivo) == 1L && !is.na(motivo) &&
+            nzchar(as.character(motivo))) {
+          as.character(motivo)
+        } else NA_character_
+      }, character(1L))
+      motivos <- motivos[!is.na(motivos)]
+      if (length(motivos)) return(motivos[[1L]])
+      if (!is.null(presupuesto) && .saldo_dbi(presupuesto) < 1) {
+        return(.motivo_presupuesto_dbi(presupuesto))
+      }
+      motivo_predeterminado
+    }
     for (i in pendientes) {
       campo <- lote[[i]]
       metadatos <- .metadatos_lote_dbi(numero, campo)
-      sin_consulta <- .resultado_agregado_no_emitido_dbi(etapa, motivo)
+      sin_consulta <- .resultado_agregado_no_emitido_dbi(
+        etapa, motivo_de_pendiente(i)
+      )
       individual <- list(consolidada = FALSE)
       if ("validos" %in% metricas) {
         individual$validos <- .resultado_lote_dbi(
@@ -13394,6 +13629,12 @@
         individual$desvio <- .resultado_lote_dbi(
           sin_consulta, NA_character_, alias_por_columna[[i]]$desvio,
           metadatos
+        )
+      }
+      extras <- faltantes_para(i)
+      if (!is.null(extras)) {
+        individual$faltantes <- .resultado_faltantes_lote_dbi(
+          sin_consulta, NA_character_, extras$aliases, metadatos
         )
       }
       resultado[[campo]] <- individual
@@ -13803,7 +14044,10 @@
                                         columnas_float8_numeric = character(),
                                         infinitos_como_numeric = FALSE,
                                         universo = "tabla_completa",
-                                        columnas_nan = character()) {
+                                        columnas_nan = character(),
+                                        politicas_faltantes = NULL,
+                                        columnas_sql_originales = NULL,
+                                        columnas_double_originales = character()) {
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
@@ -13814,13 +14058,21 @@
   }
   agregados <- list(
     conteos = por_columna(), basicos = por_columna(), desvio = por_columna(),
-    nan = por_columna()
+    nan = por_columna(), faltantes = por_columna()
   )
   configuracion_aviso <- function(nombre, defecto) {
     valor <- if (is.null(presupuesto)) NULL else presupuesto[[nombre]]
     if (is.null(valor)) defecto else valor
   }
   nombres_sql <- stats::setNames(columnas_sql, columnas)
+  nombres_sql_originales <- if (is.null(columnas_sql_originales)) {
+    nombres_sql
+  } else {
+    stats::setNames(columnas_sql_originales, columnas)
+  }
+  dobles_originales <- intersect(
+    as.character(columnas_double_originales), columnas
+  )
   columna_operacion_de <- function(campo) {
     columna <- nombres_sql[[campo]]
     tipo <- tipos_por_nombre[[campo]] %||% NA_character_
@@ -13852,6 +14104,18 @@
     NULL
   } else {
     stats::setNames(as.character(tipos_declarados), columnas)
+  }
+  politicas_faltantes_texto <- if (is.list(politicas_faltantes)) {
+    nombres <- names(politicas_faltantes)[vapply(
+      politicas_faltantes, function(x) {
+        is.list(x) && isTRUE(x$exacta) && identical(x$clase, "textual")
+      }, logical(1L)
+    )]
+    politicas_faltantes[nombres]
+  } else list()
+  politicas_faltantes_planos <- politicas_faltantes
+  if (length(politicas_faltantes_texto)) {
+    politicas_faltantes_planos[ names(politicas_faltantes_texto) ] <- NULL
   }
   ventana_desvio <- .desvio_por_ventana_dbi(conexion, metricas, universo)
   # La media y el desvio de un decimal salen de sus sumas exactas, pedidas en
@@ -13891,6 +14155,35 @@
   } else {
     numericas
   }
+  # La cuenta de faltantes disfrazados es independiente de que el usuario
+  # haya pedido `validos` y tambien puede ser la unica metrica de una columna
+  # textual. Mantener esas columnas en el mismo lote evita perderla cuando el
+  # agregado normal solo incluye numericas.
+  campos_faltantes <- if (is.list(politicas_faltantes_planos)) {
+    names(politicas_faltantes_planos)[vapply(
+      politicas_faltantes_planos, function(x) isTRUE(x$exacta), logical(1L)
+    )]
+  } else character()
+  faltantes_para <- function(campo, numero) {
+    policy <- if (is.list(politicas_faltantes_planos)) {
+      politicas_faltantes_planos[[campo]]
+    } else NULL
+    if (is.null(policy) || !isTRUE(policy$exacta)) return(NULL)
+    posicion <- .indice_nombre(campo, columnas)
+    aliases <- .aliases_faltantes_dbi(
+      policy, alias, numero, posicion, conexion, incluir_guardas = FALSE,
+      incluir_distintos = identical(policy$clase, "textual")
+    )
+    list(
+      aliases = aliases,
+      expresiones = .expresiones_faltantes_dbi(
+        conexion, policy, nombres_sql[[campo]], aliases, tabla_sql,
+        columna_original = nombres_sql_originales[[campo]],
+        comparar_double_original = campo %in% dobles_originales
+      )
+    )
+  }
+  columnas_planas <- unique(c(columnas_planas, intersect(campos_faltantes, columnas)))
   if (length(metricas_consulta) && length(columnas_planas)) {
     if (isTRUE(ventana_desvio)) {
       forma <- .forma_desvio_ventana_dbi(conexion)
@@ -13928,27 +14221,36 @@
         decimales_exactos = decimales_exactos,
         incluir_cuenta = TRUE,
         incluir_magnitud = identical(universo, "muestra_motor"),
-        columnas_nan = columnas_nan
+        columnas_nan = columnas_nan,
+        politicas_faltantes = politicas_faltantes_planos,
+        columnas_sql_originales = nombres_sql_originales,
+        columnas_double_originales = dobles_originales
       )
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
       for (campo in lote) {
         resultado <- resultado_lote[[campo]]
+        extras_faltantes <- faltantes_para(campo, numero)
         # Un resultado con filas pero sin uno de sus alias no es un rechazo de
         # columna. Mantener el reintento anterior por metrica evita cambiar la
         # disponibilidad si un controlador pliega o renombra los alias.
         if ("validos" %in% metricas_consulta &&
             !is.null(resultado$validos) && !isTRUE(resultado$validos$ok) &&
             isTRUE(resultado$consolidada)) {
-          resultado$validos <- .conteos_columna_dbi(
+          conteos_reintento <- .conteos_columna_dbi(
             conexion, tabla_sql, columna_operacion_de(campo), alias,
-            TRUE, FALSE, presupuesto, incluir_total = TRUE
-          )$validos
+            TRUE, FALSE, presupuesto, incluir_total = TRUE,
+            faltantes = NULL
+          )
+          resultado$validos <- conteos_reintento$validos
+          if (!is.null(extras_faltantes)) {
+            resultado$faltantes <- conteos_reintento$faltantes
+          }
         }
         if ("basicos" %in% metricas_consulta &&
             !is.null(resultado$basicos) && !isTRUE(resultado$basicos$ok) &&
             isTRUE(resultado$consolidada)) {
-          resultado$basicos <- .basicos_columna_dbi(
+          basicos_reintento <- .basicos_columna_dbi(
             conexion, tabla_sql, columna_operacion_de(campo), alias, incluir_valores,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             float8_seguro = campo %in% columnas_float8_numeric,
@@ -13956,8 +14258,17 @@
               campo %in% columnas_float8_numeric ||
               .es_lectura_double_exacta_dbi(nombres_sql[[campo]]),
             tipo = if (is.null(tipos_por_nombre)) NA_character_ else
-              tipos_por_nombre[[campo]] %||% NA_character_
+              tipos_por_nombre[[campo]] %||% NA_character_,
+            faltantes_expresiones = character()
           )
+          resultado$basicos <- basicos_reintento
+          if (!is.null(extras_faltantes)) {
+            resultado$faltantes <-
+              .resultado_faltantes_desde_resultado_dbi(
+                basicos_reintento, extras_faltantes$aliases,
+                .metadatos_lote_dbi(numero, campo)
+              )
+          }
         }
         desvio_consolidado <- if (is.null(resultado$desvio)) {
           NA_real_
@@ -14030,6 +14341,9 @@
         if (!is.null(resultado$magnitud_lote)) {
           agregados$magnitudes[[campo]] <- resultado$magnitud_lote
         }
+        if (!is.null(resultado$faltantes)) {
+          agregados$faltantes[[campo]] <- resultado$faltantes
+        }
         if ("desvio" %in% metricas_planas && !is.null(resultado$desvio)) {
           agregados$desvio[[campo]] <- resultado$desvio
         }
@@ -14083,7 +14397,9 @@
             infinitos_como_numeric = infinitos_como_numeric,
             centros_desvio = centros[columnas_desvio],
             tipos_declarados = tipos_por_nombre,
-            columnas_nan = columnas_nan
+            columnas_nan = columnas_nan,
+            columnas_sql_originales = nombres_sql_originales,
+            columnas_double_originales = dobles_originales
           )$resultados
           for (campo in columnas_desvio) {
             resultado <- resultado_desvio[[campo]]
@@ -14110,6 +14426,67 @@
         }
       }
     }
+  }
+  # La normalizacion textual puede obligar al motor a materializar una tabla
+  # derivada. Para las cuentas textuales se agrupa primero por el valor crudo:
+  # la normalizacion y la conversion numerica se hacen sobre cada valor
+  # distinto, no sobre cada fila, y el peso del grupo conserva las cuentas.
+  completar_faltantes_texto <- function(agregados, campos_texto) {
+    for (campo in intersect(campos_texto, columnas)) {
+      policy <- politicas_faltantes_texto[[campo]]
+      if (!is.list(policy) || !isTRUE(policy$exacta)) next
+      posicion <- .indice_nombre(campo, columnas)
+      aliases <- .aliases_faltantes_dbi(
+        policy, alias, 9998L, posicion, conexion,
+        incluir_guardas = FALSE, incluir_distintos = TRUE
+      )
+      raw <- alias("lupa_fd_raw")
+      peso <- alias("lupa_fd_n")
+      normalizado <- alias("lupa_fd_normalizado")
+      numerico <- if (length(policy$numericos)) {
+        .expresion_numerica_texto_faltantes_dbi(conexion, normalizado)
+      } else NULL
+      fuente_agrupada <- paste0(
+        "(SELECT ", nombres_sql[[campo]], " AS ", raw,
+        ", COUNT(*) AS ", peso, " FROM ", tabla_sql,
+        " WHERE ", nombres_sql[[campo]], " IS NOT NULL GROUP\nBY ",
+        nombres_sql[[campo]], ") AS ", alias("lupa_fd_grupos")
+      )
+      fuente_normalizada <- paste0(
+        "(SELECT ", raw, ", ",
+        gsub("\\{columna\\}", raw, policy$normalizador),
+        " AS ", normalizado, ", ", peso, " FROM ", fuente_agrupada,
+        ") AS ",
+        alias("lupa_fd_normaliza")
+      )
+      grupos <- if (is.null(numerico)) fuente_normalizada else paste0(
+        "(SELECT ", raw, ", ", normalizado, ", ", numerico,
+        " AS ", alias("lupa_fd_numerico"), ", ", peso,
+        " FROM ", fuente_normalizada, ") AS ",
+        alias("lupa_fd_numericos")
+      )
+      expresiones <- .expresiones_faltantes_dbi(
+        conexion, policy, raw, aliases, grupos,
+        columna_original = raw, columna_normalizada = normalizado,
+        columna_numerica = if (is.null(numerico)) NULL else
+          alias("lupa_fd_numerico"), peso = peso
+      )
+      sql <- paste0(
+        "SELECT ", paste(expresiones, collapse = ", "), " FROM ", grupos
+      )
+      consulta <- .consultar_dbi(
+        conexion, sql, presupuesto, etapa = "conteos"
+      )
+      agregados$faltantes[[campo]] <- .resultado_faltantes_lote_dbi(
+        consulta, sql, aliases, .metadatos_lote_dbi(9998L, campo)
+      )
+    }
+    agregados
+  }
+  if (length(politicas_faltantes_texto)) {
+    agregados <- completar_faltantes_texto(
+      agregados, names(politicas_faltantes_texto)
+    )
   }
   # Si no hubo una familia plana que pudiera llevar el total fusionado, se
   # obtiene ahora, antes de pagar cualquier cardinalidad exacta.
@@ -16362,6 +16739,8 @@
                                 fraccion_muestra = NA_real_,
                                 campos_consolidados = NULL,
                                 campos_sql_consolidados = NULL,
+                                columnas_sql_originales_consolidados = NULL,
+                                columnas_double_originales = character(),
                                 es_numerico_consolidados = NULL,
                                 tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
                                 tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
@@ -16387,7 +16766,12 @@
                                 ),
                                 infinitos_como_numeric = FALSE,
                                 columnas_float8_numeric = character(),
-                                tipos_motor = NULL) {
+                                tipos_motor = NULL,
+                                sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+                                cadenas_ausencia = NULL,
+                                columnas_opcionales = character(),
+                                aplicabilidad = NULL,
+                                contar_faltantes = TRUE) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -16472,6 +16856,23 @@
   tipos_declarados_consolidados <- .alinear_atributos_columnas_dbi(
     campos_consolidados, tipos = tipos_declarados
   )$tipos
+  es_numerico_faltantes <- vapply(seq_along(campos), function(i) {
+    tipo <- .atributo_columna_dbi(tipos_declarados, campos[[i]], i) %||%
+      .atributo_columna_dbi(tipos_motor, campos[[i]], i) %||% NA_character_
+    .es_numerico_dbi(
+      .atributo_columna_dbi(prototipo, campos[[i]], i) %||% NA,
+      tipo
+    )
+  }, logical(1L))
+  names(es_numerico_faltantes) <- campos
+  politicas_faltantes <- if (isTRUE(contar_faltantes)) {
+    .politicas_faltantes_dbi(
+      conexion, campos, prototipo, tipos_declarados, tipos_motor,
+      es_numerico_faltantes, sentinelas_numericos, cadenas_ausencia,
+      columnas_opcionales = columnas_opcionales,
+      aplicabilidad = aplicabilidad
+    )
+  } else list()
   agregados <- .agregados_consolidados_dbi(
     conexion, tabla_metricas_sql, campos_consolidados,
     campos_sql_consolidados, es_numerico_consolidados, metricas_ejecucion,
@@ -16482,7 +16883,10 @@
     tipos_declarados = tipos_declarados_consolidados,
     columnas_float8_numeric = columnas_float8_numeric,
     infinitos_como_numeric = infinitos_como_numeric,
-    universo = universo, columnas_nan = columnas_nan
+    universo = universo, columnas_nan = columnas_nan,
+    politicas_faltantes = politicas_faltantes,
+    columnas_sql_originales = columnas_sql_originales_consolidados,
+    columnas_double_originales = columnas_double_originales
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -16826,6 +17230,28 @@
   resultados <- .valores_ausentes_por_cuenta_dbi(
     campos, resultados, metricas, agregados, universo = universo
   )
+  nombres_sql_faltantes <- stats::setNames(
+    campos_sql_consolidados, campos_consolidados
+  )
+  nombres_sql_originales_faltantes <- if (
+    is.null(columnas_sql_originales_consolidados)
+  ) {
+    nombres_sql_faltantes
+  } else {
+    stats::setNames(
+      columnas_sql_originales_consolidados, campos_consolidados
+    )
+  }
+  agregados <- .completar_guardas_faltantes_dbi(
+    conexion, tabla_metricas_sql, campos, nombres_sql_faltantes,
+    politicas_faltantes, agregados, resultados, presupuesto,
+    alias = function(nombre) .citar_identificador_dbi(conexion, nombre),
+    nombres_sql_originales = nombres_sql_originales_faltantes,
+    columnas_double_originales = columnas_double_originales
+  )
+  faltantes_disfrazados <- .faltantes_dbi_mapa(
+    agregados, resultados, politicas_faltantes, universo
+  )
   .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
   columnas <- if (length(resultados)) {
     filas <- lapply(
@@ -16835,6 +17261,17 @@
                   stringsAsFactors = FALSE)
   } else {
     .columnas_dbi_vacias()
+  }
+  if (isTRUE(contar_faltantes)) {
+    columnas$n_faltantes_disfrazados <- vapply(
+      names(faltantes_disfrazados), function(campo) {
+        item <- faltantes_disfrazados[[campo]]
+        if (isTRUE(item$exacta) && !isTRUE(item$parcial)) {
+          as.numeric(item$n)
+        } else NA_real_
+      }, numeric(1L)
+    )
+    names(columnas$n_faltantes_disfrazados) <- names(faltantes_disfrazados)
   }
   numericas <- intersect(
     c("prop_faltantes", "tasa_distintos", "minimo", "maximo", "media",
@@ -16853,7 +17290,7 @@
   }
   estado_n <- if (isTRUE(n_conocido)) "calculado" else "no_disponible"
   sql <- if (length(resultados)) {
-    rbind(
+    salida_sql <- rbind(
       .registro_sql_dbi(
         campos, rep("n", length(campos)), estado_n, motivo_n,
         sql_conteo_registro,
@@ -16873,6 +17310,71 @@
       ),
       do.call(rbind, lapply(resultados, `[[`, "sql"))
     )
+    filas_faltantes <- lapply(names(faltantes_disfrazados), function(campo) {
+      item <- faltantes_disfrazados[[campo]]
+      base <- agregados$faltantes[[campo]]
+      exacta <- isTRUE(item$exacta) && !isTRUE(item$parcial) &&
+        ((!is.null(base) && isTRUE(base$ok)) ||
+         isTRUE(item$inferida))
+      motivo <- if (exacta) {
+        NA_character_
+      } else {
+        item$motivo %||% "No se pudo reproducir la politica en SQL."
+      }
+      estado <- if (exacta) "calculado" else "no_disponible"
+      policy <- politicas_faltantes[[campo]]
+      if (!exacta && is.list(policy) &&
+          identical(policy$clase, "textual") &&
+          !isTRUE(policy$exacta) && !isTRUE(policy$parcial)) {
+        estado <- "no_aplica"
+      }
+      motivo_texto <- if (length(item$motivo)) {
+        as.character(item$motivo[[1L]])
+      } else ""
+      if (!exacta && grepl(
+        "normalizacion textual de", motivo_texto, fixed = TRUE,
+        useBytes = TRUE
+      )) {
+        estado <- "no_aplica"
+      }
+      medicion_faltantes <- if (isTRUE(item$inferida)) {
+        item$medicion
+      } else if (is.null(base)) {
+        NULL
+      } else {
+        base$total
+      }
+      metadatos <- .metadatos_sql_dbi(
+        alcance = if (identical(universo, "muestra_motor")) {
+          "muestra"
+        } else "tabla_completa",
+        universo = n_total,
+        tamano_muestra = if (identical(universo, "muestra_motor")) {
+          tamano_muestra
+        } else NA_real_,
+        fraccion = if (identical(universo, "muestra_motor")) {
+          fraccion_muestra
+        } else 1,
+        metodo = if (identical(universo, "muestra_motor")) {
+          "muestra_motor"
+        } else "tabla_completa",
+        error_esperado = if (identical(universo, "muestra_motor")) {
+          "muestra"
+        } else "no_aplica"
+      )
+      if (!is.null(base$metadatos)) {
+        metadatos <- .mezclar_metadatos_dbi(metadatos, base$metadatos)
+      }
+      .registro_sql_dbi(
+        campo, "n_faltantes_disfrazados", estado, motivo,
+        if (is.null(medicion_faltantes)) NA_character_ else
+          medicion_faltantes$sql,
+        metadatos = metadatos,
+        medicion = medicion_faltantes,
+        etapa = "faltantes_disfrazados"
+      )
+    })
+    rbind(salida_sql, do.call(rbind, filas_faltantes))
   } else {
     .registro_sql_dbi(character(), character(), character(), character(), character())
   }
@@ -16972,6 +17474,7 @@
   list(
     columnas = columnas,
     sql = sql,
+    faltantes_disfrazados = faltantes_disfrazados,
     cobertura = .cobertura_dbi_vacia(),
     literales = unlist(lapply(resultados, `[[`, "literales"), use.names = TRUE),
     meta = meta
@@ -17493,12 +17996,19 @@
   signo <- paste0("((", alto, " >> 31) & 1)")
   exponente <- paste0("((", alto, " >> 20) & 2047)")
   fraccion <- paste0("((", alto, " & 1048575) * 4294967296 + ", bajo, ")")
+  # `m / 2^k` tiene exactamente `k` decimales. La division de `numeric` elige
+  # una escala de unas veinte cifras salvo que el dividendo ya tenga mas:
+  # `1 / 2^46` sale redondeado y `-99` llegaba como `-99.0000000000000000179...`,
+  # distinto del `-99` de una comparacion en SQL. `ROUND(m, k)` le da al
+  # dividendo la escala `k` y la division sale exacta (hasta las 1000 cifras
+  # decimales que admite la division; mas abajo sigue volviendo al mismo double).
   absoluto <- paste0(
-    "CASE WHEN ", exponente, " = 0 THEN ", fraccion,
-    " / power(CAST(2 AS NUMERIC), 1074) ELSE (",
-    "power(CAST(2 AS NUMERIC), 52) + ", fraccion,
-    ") * CASE WHEN ", exponente, " >= 1075 THEN power(CAST(2 AS NUMERIC), ",
-    exponente, " - 1075) ELSE 1 / power(CAST(2 AS NUMERIC), 1075 - ",
+    "CASE WHEN ", exponente, " = 0 THEN ROUND(CAST(", fraccion,
+    " AS NUMERIC), 1074) / power(CAST(2 AS NUMERIC), 1074) ELSE CASE WHEN ",
+    exponente, " >= 1075 THEN (power(CAST(2 AS NUMERIC), 52) + ", fraccion,
+    ") * power(CAST(2 AS NUMERIC), ", exponente, " - 1075) ELSE ",
+    "ROUND(power(CAST(2 AS NUMERIC), 52) + ", fraccion, ", CAST(1075 - ",
+    exponente, " AS INTEGER)) / power(CAST(2 AS NUMERIC), 1075 - ",
     exponente, ") END END"
   )
   reconstruida <- paste0(
@@ -17936,7 +18446,9 @@
                                   consultas_decimales_max =
                                     consultas_decimales,
                                   n_sondas_magnitud = NULL,
-                                  n_sondas_magnitud_max = n_sondas_magnitud) {
+                                  n_sondas_magnitud_max = n_sondas_magnitud,
+                                  consultas_faltantes = 0L,
+                                  consultas_guardas_faltantes_max = 0L) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -18102,6 +18614,13 @@
       "muestra", consultas_muestra, .ALCANCE_BLOQUE_CLIENTE_DBI
     )
   }
+  if (consultas_faltantes > 0L || consultas_guardas_faltantes_max > 0L) {
+    clases[[length(clases) + 1L]] <- c(
+      "conteos de faltantes disfrazados",
+      n_metricas(consultas_faltantes), alcance_agregado,
+      n_metricas(consultas_faltantes + consultas_guardas_faltantes_max)
+    )
+  }
   plan <- data.frame(
     clase_consulta = vapply(clases, function(x) x[[1L]], character(1L)),
     n_consultas = vapply(clases, function(x) as.numeric(x[[2L]]), numeric(1L)),
@@ -18158,7 +18677,9 @@
 .plan_sql_dbi <- function(conexion, preparacion, es_numerico,
                           incluir_valores, tope_muestra, emitidas,
                           catalogo_aviso = 0L,
-                          decisiones_costo_resueltas = NULL) {
+                          decisiones_costo_resueltas = NULL,
+                          consultas_faltantes = 0L,
+                          consultas_guardas_faltantes_max = 0L) {
   # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
   # estructural ya leido puede fijar la decision; lo demas abre un rango entre
   # omitir y ejecutar la moda. La mediana queda fuera de ese criterio y la
@@ -18302,6 +18823,8 @@
     consultas_decimales = length(lotes_decimales),
     n_sondas_magnitud = n_sondas_magnitud,
     n_sondas_magnitud_max = n_sondas_magnitud_max,
+    consultas_faltantes = consultas_faltantes,
+    consultas_guardas_faltantes_max = consultas_guardas_faltantes_max,
     consultas_decimales_max = .consultas_maximas_lotes_decimales_dbi(
       lotes_decimales
     )
@@ -18961,6 +19484,15 @@
 #'   `perfil_muestra`; la mediana de un decimal cuyas centrales son dobles
 #'   distintos, su desvío centrado y la moda de un entero leído como doble los
 #'   piden los datos y van al extremo superior.
+#' @param columnas_opcionales Nombres de columnas que no se cuentan como
+#'   políticas exactas de faltantes porque sólo son aplicables a parte de las
+#'   filas.
+#' @param aplicabilidad Lista nombrada de reglas de aplicabilidad. Sus nombres
+#'   se excluyen de la predicción de consultas exactas de faltantes.
+#' @param sentinelas_numericos Valores numéricos que se consideran faltantes al
+#'   anticipar las consultas de la métrica nueva.
+#' @param cadenas_ausencia Cadenas adicionales que se consideran ausencia
+#'   textual al anticipar las consultas de la métrica nueva.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -19103,7 +19635,11 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                max_bytes_muestra = .MAX_BYTES_MUESTRA,
                                bloque_filas = NULL,
                                max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
-                               max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
+                               max_bytes_materializacion = .MAX_BYTES_MUESTRA,
+                               columnas_opcionales = character(),
+                               aplicabilidad = NULL,
+                               sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+                               cadenas_ausencia = NULL) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .fijar_senas_conexion_dbi(conexion)
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
@@ -19160,6 +19696,27 @@ plan_perfilado_dbi <- function(conexion, tabla,
     )
   }, logical(1L))
   names(es_numerico) <- preparacion$campos
+  contar_faltantes <- identical(preparacion$universo, "muestra_motor") ||
+    is.finite(preparacion$muestra)
+  politicas_faltantes <- if (isTRUE(contar_faltantes)) {
+    .politicas_faltantes_dbi(
+      conexion, preparacion$campos, preparacion$prototipo,
+      preparacion$tipos, preparacion$esquema$tipos_motor, es_numerico,
+      sentinelas_numericos, cadenas_ausencia, columnas_opcionales,
+      aplicabilidad
+    )
+  } else list()
+  consultas_faltantes <- if (length(politicas_faltantes)) {
+    sum(vapply(politicas_faltantes, function(policy) {
+      isTRUE(policy$exacta) && identical(policy$clase, "textual")
+    }, logical(1L)))
+  } else 0L
+  consultas_guardas_faltantes_max <- if (length(politicas_faltantes)) {
+    sum(vapply(politicas_faltantes, function(policy) {
+      isTRUE(policy$exacta) && identical(policy$clase, "numerica") &&
+        !isTRUE(policy$declarados)
+    }, logical(1L)))
+  } else 0L
   tope_muestra <- .tope_muestra_plan_dbi(
     preparacion$muestra, length(preparacion$campos),
     max_celdas_muestra, max_bytes_muestra
@@ -19208,7 +19765,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
   plan <- .plan_sql_dbi(
     conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = emitidas_plan,
-    catalogo_aviso = .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
+    catalogo_aviso = .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion),
+    consultas_faltantes = consultas_faltantes,
+    consultas_guardas_faltantes_max = consultas_guardas_faltantes_max
   )
   # Con el bloque de filas, la muestra del motor no corre los agregados SQL:
   # se materializa una vez y se calcula en R (ver `.plan_spool_dbi()`). La
@@ -22939,6 +23498,49 @@ print.plan_perfilado_dbi <- function(x, ...) {
       resumen$sql$sql <- .tapar_centros_sql_dbi(resumen$sql$sql)
     }
   }
+  # `n_faltantes_disfrazados` describe el mismo universo que las demas
+  # metricas de la muestra. Si ese universo quedo vacio o inestable, no puede
+  # publicar un cero calculado por una via distinta: hereda el estado y el
+  # motivo que ya declaro la columna.
+  if (is.data.frame(resumen$sql) && nrow(resumen$sql) &&
+      "n_faltantes_disfrazados" %in% as.character(resumen$sql$metrica)) {
+    materializacion <- if (is.list(resumen$meta)) {
+      resumen$meta$materializacion
+    } else NULL
+    motivo_materializacion <- if (is.list(materializacion)) {
+      materializacion$motivo
+    } else NULL
+    for (campo in unique(as.character(
+      resumen$sql$columna[as.character(resumen$sql$metrica) ==
+                            "n_faltantes_disfrazados"]
+    ))) {
+      motivos_universo <- as.character(resumen$sql$motivo[
+        as.character(resumen$sql$columna) == campo &
+          as.character(resumen$sql$metrica) != "n_faltantes_disfrazados"
+      ])
+      candidatos <- c(motivos_universo, motivo_materializacion)
+      candidatos <- candidatos[!is.na(candidatos) & nzchar(candidatos)]
+      candidatos <- candidatos[startsWith(
+        candidatos, "muestra_vacia:"
+      ) | startsWith(candidatos, "muestra_inestable:")]
+      if (length(candidatos)) {
+        fila <- as.character(resumen$sql$columna) == campo &
+          as.character(resumen$sql$metrica) == "n_faltantes_disfrazados"
+        motivo <- candidatos[[1L]]
+        resumen$sql$estado[fila] <- "no_disponible"
+        resumen$sql$motivo[fila] <- motivo
+        if (is.data.frame(resumen$columnas) &&
+            "n_faltantes_disfrazados" %in% names(resumen$columnas)) {
+          posicion <- .indice_nombre(
+            campo, as.character(resumen$columnas$columna)
+          )
+          if (!is.na(posicion)) {
+            resumen$columnas$n_faltantes_disfrazados[[posicion]] <- NA_real_
+          }
+        }
+      }
+    }
+  }
   resumen$meta$incluir_valores <- isTRUE(incluir_valores)
   resultado$resumen_tabla <- resumen
   if (is.list(perfil)) resultado$perfil_muestra <- perfil
@@ -24028,6 +24630,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `ROLLBACK`.
 #'
 #' @section Muestra y aproximaciones:
+#' La cuenta de faltantes disfrazados de la tabla completa se publica separada
+#' del perfil de muestra: `resumen_tabla$columnas$n_faltantes_disfrazados` y la
+#' fila homonima de `resumen_tabla$sql` describen el universo que figura en
+#' `alcance` y `universo`. `perfil_muestra` conserva sus propios conteos,
+#' hallazgos y severidades, y no se reemplaza con esta cifra. La cuenta SQL se
+#' publica como `calculado` solo cuando reproduce las guardas de [perfilar()];
+#' si no, queda `NA` y `resumen_tabla$cobertura` explica la degradacion.
 #' `universo = "muestra_motor"` sondea las formas declaradas por el adaptador y
 #' usa `TABLESAMPLE` cuando el motor lo acepta, o una función pseudoaleatoria con
 #' el límite del dialecto. Si ninguna forma es compatible, las métricas SQL
@@ -25527,7 +26136,11 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_muestra = max_bytes_muestra,
       bloque_filas = bloque_filas,
       max_bytes_procesamiento = max_bytes_procesamiento,
-      max_bytes_materializacion = max_bytes_materializacion
+      max_bytes_materializacion = max_bytes_materializacion,
+      columnas_opcionales = columnas_opcionales,
+      aplicabilidad = aplicabilidad,
+      sentinelas_numericos = sentinelas_numericos,
+      cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]]
     )
     resultado$resumen_tabla$meta$plan <- plan_corrida
     # Armar ese plan vuelve a preparar la tabla, y esas consultas viajan al
@@ -25751,6 +26364,49 @@ perfilar_dbi <- function(conexion, tabla,
       )
     }
   }
+  contar_faltantes_dbi <- identical(preparacion$universo, "muestra_motor") ||
+    is.finite(preparacion$muestra)
+  dobles_originales <- if (isTRUE(contar_faltantes_dbi) &&
+                          NROW(preparacion$lectura_convertida)) {
+    lecturas <- preparacion$lectura_convertida
+    as.character(lecturas$columna[vapply(
+      lecturas$lectura, .es_lectura_double_exacta_dbi, logical(1L)
+    )])
+  } else character()
+  alias_original_de <- stats::setNames(
+    vapply(seq_along(dobles_originales), function(i) {
+      .citar_identificador_dbi(
+        conexion, paste0("lupa_fd_original_", i)
+      )
+    }, character(1L), USE.NAMES = FALSE),
+    dobles_originales
+  )
+  proyeccion_faltantes_de <- function(indices = seq_along(preparacion$campos)) {
+    campos_indices <- preparacion$campos[indices]
+    originales <- campos_indices[campos_indices %in% dobles_originales]
+    extras <- if (length(originales)) {
+      vapply(originales, function(campo) {
+        # El double tal como esta en la tabla: `campos_sql` ya trae la lectura
+        # exacta por `float8send()`, y compararla obligaba a convertir cada
+        # fila (y contra un literal de 17 cifras no daba igual).
+        paste0(
+          .citar_identificador_dbi(conexion, campo), " AS ",
+          alias_original_de[[campo]]
+        )
+      }, character(1L), USE.NAMES = FALSE)
+    } else character()
+    c(preparacion$campos_sql_proyeccion[indices], extras)
+  }
+  columnas_sql_originales_de <- function(campos) {
+    vapply(campos, function(campo) {
+      if (campo %in% dobles_originales) alias_original_de[[campo]] else {
+        i <- match(campo, preparacion$campos)
+        if (NROW(preparacion$lectura_convertida)) {
+          .citar_identificador_dbi(conexion, campo)
+        } else preparacion$campos_sql[[i]]
+      }
+    }, character(1L), USE.NAMES = FALSE)
+  }
   tabla_metricas_sql <- preparacion$tabla_sql
   # Si alguna columna se lee convertida -`money` y `real` de PostgreSQL, ver
   # `.lectura_convertida_dbi()`-, los agregados se calculan sobre esa misma
@@ -25759,7 +26415,7 @@ perfilar_dbi <- function(conexion, tabla,
   # lectura convertida.
   if (NROW(preparacion$lectura_convertida)) {
     tabla_metricas_sql <- paste0(
-      "(SELECT ", paste(preparacion$campos_sql_proyeccion, collapse = ", "),
+      "(SELECT ", paste(proyeccion_faltantes_de(), collapse = ", "),
       " FROM ", preparacion$tabla_sql, ")",
       preparacion$dialecto$alias_tabla("lupa_lectura")
     )
@@ -25768,7 +26424,7 @@ perfilar_dbi <- function(conexion, tabla,
       !is.null(preparacion$muestreo) &&
       isTRUE(preparacion$muestreo$disponible)) {
     captura_fuente <- .capturar_fuente_muestreada_dbi(
-      preparacion$tabla_sql, preparacion$campos_sql_proyeccion,
+      preparacion$tabla_sql, proyeccion_faltantes_de(),
       preparacion$muestra_motor,
       preparacion$n_total, preparacion$dialecto, preparacion$muestreo
     )
@@ -25823,7 +26479,7 @@ perfilar_dbi <- function(conexion, tabla,
     # el conteo del universo, pero evita que un rechazo de capacidad vuelva a
     # caer accidentalmente sobre `tabla_sql` completa.
     tabla_metricas_sql <- paste0(
-      "(SELECT ", paste(preparacion$campos_sql_proyeccion, collapse = ", "),
+      "(SELECT ", paste(proyeccion_faltantes_de(), collapse = ", "),
       " FROM ", preparacion$tabla_sql, " WHERE 1 = 0)",
       preparacion$dialecto$alias_tabla("lupa_muestra")
     )
@@ -25849,7 +26505,7 @@ perfilar_dbi <- function(conexion, tabla,
       !is.null(fuente_muestreada)) {
     sondear_muestra <- function(indices) {
       captura <- .capturar_fuente_muestreada_dbi(
-        preparacion$tabla_sql, preparacion$campos_sql_proyeccion[indices],
+        preparacion$tabla_sql, proyeccion_faltantes_de(indices),
         preparacion$muestra_motor, preparacion$n_total, preparacion$dialecto,
         preparacion$muestreo
       )
@@ -25890,7 +26546,7 @@ perfilar_dbi <- function(conexion, tabla,
         quedan_muestra <- setdiff(seq_along(preparacion$campos), culpables_muestra)
         captura_fuente_legible <- .capturar_fuente_muestreada_dbi(
           preparacion$tabla_sql,
-          preparacion$campos_sql_proyeccion[quedan_muestra],
+          proyeccion_faltantes_de(quedan_muestra),
           preparacion$muestra_motor, preparacion$n_total, preparacion$dialecto,
           preparacion$muestreo
         )
@@ -25957,6 +26613,12 @@ perfilar_dbi <- function(conexion, tabla,
         fuente$fraccion,
       campos_consolidados = campos_consolidados,
       campos_sql_consolidados = campos_sql_consolidados,
+      columnas_sql_originales_consolidados = columnas_sql_originales_de(
+        campos_consolidados
+      ),
+      columnas_double_originales = intersect(
+        dobles_originales, campos_consolidados
+      ),
       es_numerico_consolidados = es_numerico_consolidados,
       infinitos_como_numeric = preparacion$infinitos_como_numeric,
       columnas_float8_numeric = preparacion$columnas_float8_numeric,
@@ -25970,7 +26632,13 @@ perfilar_dbi <- function(conexion, tabla,
       mediana_cte_ventana_motivo = preparacion$mediana_cte_ventana_motivo,
       fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
       estrategia_distintos = preparacion$estrategia_distintos,
-      politica_costo = preparacion$politica_costo
+      politica_costo = preparacion$politica_costo,
+      sentinelas_numericos = sentinelas_numericos,
+      cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]],
+      columnas_opcionales = columnas_opcionales,
+      aplicabilidad = aplicabilidad,
+      contar_faltantes = identical(preparacion$universo, "muestra_motor") ||
+        is.finite(preparacion$muestra)
     )
   }
   resumen <- ejecutar_resumen(tabla_metricas_sql, fuente_muestreada,
@@ -26039,7 +26707,7 @@ perfilar_dbi <- function(conexion, tabla,
         resolucion_reintento <- preparacion$muestreo
         resolucion_reintento$candidato <- alternativa
         captura_reintento <- .capturar_fuente_muestreada_dbi(
-          preparacion$tabla_sql, preparacion$campos_sql_proyeccion,
+          preparacion$tabla_sql, proyeccion_faltantes_de(),
           objetivo_reintento, preparacion$n_total, preparacion$dialecto,
           resolucion_reintento
         )
@@ -26361,6 +27029,10 @@ perfilar_dbi <- function(conexion, tabla,
       resumen$columnas, resumen$sql
     )
   )
+  cobertura <- rbind(
+    cobertura,
+    .cobertura_faltantes_dbi(resumen$faltantes_disfrazados, tabla)
+  )
   if (nrow(cobertura_aislamiento_muestra)) {
     cobertura <- rbind(cobertura, cobertura_aislamiento_muestra)
   }
@@ -26557,6 +27229,7 @@ perfilar_dbi <- function(conexion, tabla,
   }
   rownames(cobertura) <- NULL
   resumen$cobertura <- cobertura
+  resumen$faltantes_disfrazados <- NULL
 
   argumentos <- argumentos_muestra
   proteger <- .protege_argumentos(argumentos)

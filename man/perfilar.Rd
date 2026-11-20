@@ -1162,8 +1162,19 @@ Las convenciones legítimas avisan de la columna y no acusan filas: la
 longitud de 0 a 360 (o su mezcla con la de -180 a 180, que se nombra como
 problema de consistencia; sólo lo que no cabe en ninguna se acusa por fila)
 y el \code{9999-12-31} de un nombre de fin de vigencia
-(\code{hasta}, \code{fin}, \code{vigencia}, \code{vencimiento}). Las abreviaturas \code{lat}, \code{lon} y
-\code{lng} sólo infieren con su columna pareja en la tabla. En \code{\link[=perfilar_por]{perfilar_por()}}
+(\code{hasta}, \code{fin}, \code{vigencia}, \code{vencimiento}). Las abreviaturas \code{lat}, \code{lon},
+\code{lng} y \code{long} infieren con su columna pareja en la tabla (\code{long} sólo si su
+contenido parece una coordenada), y admiten calificativos como \code{wgs84},
+\code{geo} o \code{gps}. Sin pareja, \code{lat}, \code{lon} y \code{lng}
+infieren sólo si el contenido parece una coordenada (al menos 10 valores,
+como mucho la mitad fuera del rango y la mayoría de lo que cabe con 3 a 8
+decimales) y entonces sólo avisan de la columna, sin acusar filas: pueden
+ser otra cosa (\code{lat} de latencia). Si las fechas futuras de una columna
+forman una grilla regular sin huecos que arranca en el presente (todos los
+días, los hábiles, cada 7 o 14 días, o un día fijo o el fin de cada mes,
+trimestre, semestre o año), el aviso de fechas futuras lo dice y nombra la
+posibilidad de un calendario o un pronóstico; no se hace para nombres de
+registro o de modificación (\code{fecha_alta}, \code{fecha_actualizacion}). En \code{\link[=perfilar_por]{perfilar_por()}}
 la tabla manda: el sostén, el reescalado y el centinela mayoritario se
 deciden con la tabla entera, aunque un grupo esté entero en otro régimen. Un nombre que dice que lo de
 afuera es lo esperado (fechas previstas o de vencimiento, variaciones,
@@ -1696,27 +1707,41 @@ de valores distintos de al menos 0,5 y la ventaja sobre la moda sale sólo de
 valores del determinante que aparecen una vez, ni produce
 \code{casi_duplicados_vocabulario} entre dos valores de un solo carácter.
 
-Una columna de texto que la inferencia de tipo lee como \code{hora} o \code{fecha} emite
-\code{hora_invalida} o \code{fecha_invalida} cuando tiene valores con la forma pero que
-no existen: \code{"25:10"} o \code{"12:61"} en horas, \code{"2022-02-30"} o \code{"31/02/2022"}
-en fechas. La hora \code{24:00} se acepta como fin del día y no se cuenta; con
-barras, un valor es inválido sólo si lo es como día/mes y como mes/día. Se
-evalúan fechas de día con año de cuatro cifras y sin hora. Una columna
-mezclada, o un texto con forma de fecha que no es una columna de fechas, no
-recibe el hallazgo. Los minutos o segundos mayores que 59 son inválidos en
-cualquier columna; una hora de 24 o más con minutos válidos puede ser una
-duración, y sólo se acusa si el nombre de la columna dice que es una hora del
-día (\code{hora}, \code{horario}, \code{hour}, \code{time}, por palabra completa). Cuentan sobre
-el universo aplicable. Un \code{umbral_patron_raro = 0} apaga estos dos avisos de
-forma.
+Una columna de texto que la inferencia de tipo lee como \code{hora}, \code{fecha} o
+\code{fecha-hora} emite \code{hora_invalida} o \code{fecha_invalida} cuando tiene valores
+con la forma pero que no existen: \code{"25:10"} o \code{"12:61"} en horas,
+\code{"2022-02-30"}, \code{"31/02/2022"} o \code{"30/02/22"} en fechas. La hora \code{24:00} se
+acepta como fin del día y no se cuenta; con barras, un valor es inválido sólo
+si lo es como día/mes y como mes/día. Se evalúan todas las formas de fecha y
+fecha-hora -año de dos o cuatro cifras, mes y año, y con hora o zona
+horaria- salvo la compacta \code{AAAAMMDD}, que se parece demasiado a un código;
+también una fecha imposible escrita en un formato que ningún otro valor de
+la columna usa. Una columna mezclada, o un texto con forma de fecha que no es
+una columna de fechas, no recibe el hallazgo. Una columna \code{Date} o
+\code{POSIXct} no lo recibe: si el texto imposible ya se convirtió, el \code{NA} no
+conserva de dónde vino. Los minutos mayores que 59 y los segundos mayores que
+59 son inválidos en cualquier columna, salvo el segundo intercalar
+\code{23:59:60}, que ISO 8601 admite y se acepta sólo en esa hora y minuto; una
+hora de 24 o más con minutos válidos puede ser una duración, y sólo se acusa
+si el nombre de la columna dice que es una hora del día (\code{hora}, \code{horario},
+\code{hour}, \code{time}, por palabra completa). Cuentan sobre el universo aplicable. Un
+\code{umbral_patron_raro = 0} apaga estos dos avisos de forma.
 
 Una columna que es un posible identificador, con todos sus valores presentes
 distintos y entre el 0 y el 10 \% de ausentes, emite
 \code{identificador_con_ausentes} (severidad \code{ok}: sin \verb{clave=} no se sabe si es
-obligatorio; con las filas \code{NA} en la traza). Los valores se comparan como en
-el resto del perfil: un blanco o un espacio final no sostienen la unicidad.
-Se omite si está declarada en \code{clave}, donde la dice \code{clave_con_ausentes}.
-Un identificador opcional con muchos ausentes no se acusa.
+obligatorio; con las filas \code{NA} en la traza). También lo emite una columna
+numérica con valores enteros cuyo nombre tiene un token de identificador
+completo (\code{id}, \code{cliente_id}, \code{codigo_postal}; la lista de
+\code{\link[=sugerir_clave]{sugerir_clave()}}) y no una magnitud (\code{monto}, \code{importe}, \code{peso}, \code{ratio},
+\code{ventas}, \code{hijos}, \code{orden}), y cuyos valores exceden el número de filas: una
+numeración \verb{1..n} con ausentes, que es un conteo, no entra. Un nombre que sólo
+contiene la subcadena (\code{valid}, \code{paid}, \code{idx}, \code{pid}) o que acompaña a una
+magnitud (\code{id_ratio}, \code{documento_monto}) no basta. Los valores se comparan
+como en el resto del perfil: un blanco o un espacio final no sostienen la
+unicidad. Se omite si está declarada en \code{clave}, donde la dice
+\code{clave_con_ausentes}. Un identificador opcional con muchos ausentes no se
+acusa.
 
 La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
 valores finitos; las columnas compuestas —matrices, arreglos de más de una

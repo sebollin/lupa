@@ -820,27 +820,35 @@
 # numeracion -un `-9` en una numeracion de 1 a 1505- o su frecuencia **sobresale**
 # del resto. Un valor de la lista que aparece dentro del rango y sin destacarse no
 # es sospechoso de nada: es un numero mas de la numeracion.
-.sentinelas_que_abren_guarda <- function(valores, candidatos, rango,
-                                         secuencia_entera) {
+.sentinelas_que_abren_guarda_conteos <- function(
+    candidatos, rango, frecuencias_candidatos, frecuencia_moda,
+    moda_sobresale) {
   if (!length(candidatos)) return(numeric())
-  presentes <- !is.na(valores) & is.finite(valores)
-  if (!any(presentes)) return(numeric())
   fuera <- if (is.null(rango)) {
     rep(FALSE, length(candidatos))
   } else {
     candidatos < rango[[1L]] | candidatos > rango[[2L]]
   }
-  sobresale <- rep(FALSE, length(candidatos))
-  if (isTRUE(secuencia_entera$moda_sobresale)) {
-    distintos <- .sort_por_bytes(unique(valores[presentes]))
-    frecuencias <- tabulate(match(valores[presentes], distintos),
-                            nbins = length(distintos))
-    tope <- max(frecuencias)
-    sobresale <- vapply(candidatos, function(candidato) {
-      sum(presentes & valores == candidato) == tope
-    }, logical(1L))
-  }
+  sobresale <- isTRUE(moda_sobresale) &
+    frecuencias_candidatos == frecuencia_moda
   candidatos[fuera | sobresale]
+}
+
+.sentinelas_que_abren_guarda <- function(valores, candidatos, rango,
+                                         secuencia_entera) {
+  if (!length(candidatos)) return(numeric())
+  presentes <- !is.na(valores) & is.finite(valores)
+  if (!any(presentes)) return(numeric())
+  distintos <- .sort_por_bytes(unique(valores[presentes]))
+  frecuencias <- tabulate(match(valores[presentes], distintos),
+                          nbins = length(distintos))
+  frecuencias_candidatos <- vapply(candidatos, function(candidato) {
+    sum(presentes & valores == candidato)
+  }, numeric(1L))
+  .sentinelas_que_abren_guarda_conteos(
+    candidatos, rango, frecuencias_candidatos, max(frecuencias),
+    secuencia_entera$moda_sobresale
+  )
 }
 
 # Una sola decision para las dos puertas que miran una numeracion: el resumen
@@ -1095,6 +1103,21 @@
   #
   # Devolver la lista normalizada no cambia nada aguas abajo:
   # `.detectar_faltantes_disfrazados()` la normaliza igual antes de usarla.
+  normalizados <- .numeros_na(sentinelas_numericos)
+  normalizados[!(normalizados %in% descartados)]
+}
+
+.sentinelas_sin_apariciones_unicas_conteos <- function(
+    candidatos, frecuencias_candidatos, rango, sentinelas_numericos) {
+  if (!identical(.numeros_na(sentinelas_numericos),
+                 .numeros_na(.numeros_na_locales))) {
+    return(sentinelas_numericos)
+  }
+  if (!length(candidatos) || is.null(rango)) return(sentinelas_numericos)
+  unicos_en_rango <- candidatos >= rango[[1L]] &
+    candidatos <= rango[[2L]] & frecuencias_candidatos == 1L
+  if (!any(unicos_en_rango)) return(sentinelas_numericos)
+  descartados <- candidatos[unicos_en_rango]
   normalizados <- .numeros_na(sentinelas_numericos)
   normalizados[!(normalizados %in% descartados)]
 }

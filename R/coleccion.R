@@ -1542,7 +1542,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     }
 
     if (!is.na(estado_metricas$no_disponibles) &&
-        estado_metricas$no_disponibles > 0) {
+        estado_metricas$no_disponibles > 0 &&
+        (is.na(n_filas_tabla) || n_filas_tabla != 0)) {
       detalle <- estado_metricas$detalle
       rechazadas <- detalle[detalle$estado %in% "no_disponible", , drop = FALSE]
       ejemplos <- utils::head(

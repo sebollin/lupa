@@ -83,7 +83,8 @@ test_that("con muestra que no cubre, los NULL nuevos salen del resumen SQL", {
   expect_equal(as.numeric(fila$valor_actual), 0.25)
   expect_equal(fila$delta, 0.25)
   expect_identical(as.character(fila$severidad), "error")
-  expect_identical(c(fila$universo_anterior, fila$universo_actual), c("mixto", "mixto"))
+  expect_identical(c(fila$universo_anterior, fila$universo_actual),
+                   c("tabla_completa", "tabla_completa"))
   # El rango y la cardinalidad tambien son de la tabla entera.
   rango <- deriva[deriva$aspecto == "rango" & deriva$columna %in% "id", , drop = FALSE]
   expect_identical(rango$valor_actual, "[1, 6000]")
@@ -103,7 +104,12 @@ test_that("con muestra que no cubre, los NULL nuevos salen del resumen SQL", {
   expect_true(grepl("disfrazado", muestra$descripcion, fixed = TRUE, useBytes = TRUE))
   expect_true(grepl("(reproducible)", muestra$evidencia, fixed = TRUE, useBytes = TRUE))
   expect_false(any(deriva$aspecto %in% c("patron", "hallazgo", "severidad_hallazgo")))
-  expect_false(any(deriva$aspecto == "faltantes" & deriva$columna %in% "estado"))
+  estado <- deriva[deriva$aspecto == "faltantes" & deriva$columna %in% "estado", ,
+                   drop = FALSE]
+  expect_equal(nrow(estado), 1L)
+  expect_equal(as.numeric(estado$valor_actual), 0.1)
+  expect_identical(c(estado$universo_anterior, estado$universo_actual),
+                   c("tabla_completa", "tabla_completa"))
 })
 
 test_that("un NULL que pasa a centinela o a texto de ausencia no es una mejora", {

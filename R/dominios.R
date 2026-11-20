@@ -49,6 +49,20 @@
 # la columna lo usa como convencion (inicio o fin de vigencia abierto).
 .UMBRAL_CENTINELA_MAYORIA <- 0.5
 .MIN_VALORES_GUARDA_DOMINIO <- 5L
+# Una abreviatura de coordenada sin pareja (`lat`) solo se toma por coordenada
+# si hay con que juzgar (10 valores) y la mayoria (80%) esta escrita con los
+# decimales de una coordenada en grados (de 3 a 8): un entero o un valor de 15
+# decimales (un calculo) no lo es.
+.MIN_VALORES_COORDENADA_SOLA <- 10L
+.UMBRAL_DECIMALES_COORDENADA <- 0.8
+# Hasta la mitad de la columna puede estar fuera de rango y seguir pareciendo una
+# coordenada con errores (los decimales se miden en lo que cabe): sin acantilado
+# en una proporcion intermedia.
+.UMBRAL_COORDENADA_FUERA <- 0.5
+# Una columna de fechas es un calendario (o un pronostico, un periodo) si sus
+# fechas distintas forman una grilla sin huecos; con menos de 8 distintas no hay
+# con que distinguir una grilla de unas pocas fechas sueltas.
+.MIN_FECHAS_SERIE_REGULAR <- 8L
 
 .PALABRAS_EDAD_OBJETO <- c(
   "edificio", "edificios", "building", "buildings", "arbol", "arboles",
@@ -62,7 +76,38 @@
   "persona", "personas", "humano", "humanos", "paciente", "pacientes",
   "cliente", "clientes", "socio", "socios", "usuario", "usuarios",
   "estudiante", "estudiantes", "nino", "ninos", "adulto", "adultos",
-  "persona", "people", "human", "patient", "client", "customer", "user"
+  "persona", "people", "human", "patient", "client", "customer", "user",
+  # Parientes y roles de una persona: la edad de un conyuge, de un tutor o de
+  # un trabajador es una edad en anios como la de una madre.
+  "conyuge", "conyuges", "esposo", "esposa", "esposos", "esposas", "pareja",
+  "hermano", "hermana", "hermanos", "hermanas", "abuelo", "abuela", "abuelos",
+  "abuelas", "nieto", "nieta", "nietos", "nietas", "tio", "tia", "tios", "tias",
+  "sobrino", "sobrina", "sobrinos", "sobrinas", "primo", "prima", "suegro",
+  "suegra", "yerno", "nuera", "hijos", "hijas", "padres", "madres", "bebe",
+  "bebes", "nina", "ninas", "menor", "menores", "joven", "jovenes",
+  "adolescente", "adolescentes", "anciano", "anciana", "tutor", "tutora",
+  "tutores", "beneficiario", "beneficiaria", "beneficiarios", "beneficiarias",
+  "titular", "titulares", "afiliado", "afiliada", "afiliados", "afiliadas",
+  "jubilado", "jubilada", "jubilados", "jubiladas", "residente", "residentes",
+  "votante", "votantes", "postulante", "postulantes", "candidato", "candidata",
+  "candidatos", "candidatas", "victima", "victimas", "testigo", "testigos",
+  "imputado", "imputada", "imputados", "denunciante", "denunciantes",
+  "inquilino", "inquilina", "vecino", "vecina", "dueno", "duena", "propietario",
+  "propietaria", "pasajero", "pasajera", "pasajeros", "conductor", "conductora",
+  "chofer", "choferes", "trabajador", "trabajadora", "trabajadores",
+  "trabajadoras", "maestro", "maestra", "profesor",
+  "profesora", "profesores", "medico", "medica", "enfermero", "enfermera",
+  "funcionario", "funcionaria", "funcionarios", "obrero", "obrera", "jefe",
+  "jefa",
+  "wife", "husband", "spouse", "sibling", "brother", "sister",
+  "grandmother", "grandfather", "grandchild", "uncle", "aunt", "nephew", "niece",
+  "cousin", "baby", "infant", "minor", "teenager", "elder", "guardian",
+  "beneficiary", "resident", "voter", "applicant",
+  "candidate", "victim", "witness", "defendant", "tenant", "neighbor",
+  "owner", "passenger", "driver", "worker", "teacher", "doctor", "nurse",
+  "owners", "passengers", "drivers", "workers", "teachers", "doctors", "nurses",
+  "tenants", "victims", "witnesses", "residents", "voters", "babies",
+  "children", "kids", "parent", "parents", "daughter", "son"
 )
 
 .PALABRAS_PORCENTAJE_ABIERTO <- c(
@@ -81,7 +126,8 @@
   "dia", "dias", "day", "days", "mes", "meses", "month", "months",
   "semana", "semanas", "week", "weeks", "hora", "horas", "hour", "hours",
   "minuto", "minutos", "segundo", "segundos", "gestacional", "tenure",
-  "cuenta", "account"
+  "cuenta", "account", "seconds", "second", "minutes", "minute", "sec", "secs",
+  "ms", "millis", "milliseconds"
 )
 
 # Palabras que hacen del porcentaje uno relativo a otra cosa (`pct_of_sales`,
@@ -102,7 +148,10 @@
 .PALABRAS_COORDENADA <- c(
   "coord", "coordenada", "coordenadas", "grados", "deg", "decimal", "gps",
   "inicio", "fin", "origen", "destino", "start", "end", "from", "to",
-  "min", "max", "x", "y"
+  "min", "max", "x", "y",
+  # Sistemas de referencia y calificativos geograficos habituales.
+  "wgs84", "wgs", "geo", "geografica", "geografico", "epsg", "epsg4326",
+  "4326", "srid"
 )
 
 .PALABRAS_NACIMIENTO <- c(
@@ -112,7 +161,10 @@
 
 .TOKENS_LATITUD_COMPLETA <- c("latitud", "latitude")
 .TOKENS_LONGITUD_COMPLETA <- c("longitud", "longitude")
-.TOKENS_LONGITUD_ABREVIADA <- c("lon", "lng")
+# `long` es la abreviatura inglesa habitual, pero tambien el largo de algo: solo
+# forma pareja con una latitud; sola no infiere nada.
+.TOKENS_LONGITUD_ABREVIADA <- c("lon", "lng", "long")
+.TOKENS_LONGITUD_ABREVIADA_SOLA <- c("lon", "lng")
 .PALABRAS_COORDENADA_RELATIVA <- c(
   "rel", "relativa", "relativo", "relative", "delta", "dif", "diff", "offset",
   "desv", "error", "err"
@@ -120,6 +172,21 @@
 # Un 9999-12-31 en estos nombres es la convencion de "sin fin": vigencia abierta.
 .PALABRAS_FIN_VIGENCIA <- c(
   "hasta", "fin", "vigencia", "vencimiento", "until", "end", "expiry"
+)
+
+# Fechas de algo que ya ocurrio al registrarse: una serie de fechas seguidas
+# hacia adelante en una `fecha_alta` no es un calendario, es un registro con
+# fechas que todavia no pasaron.
+.PALABRAS_FECHA_REGISTRO <- c(
+  "alta", "altas", "registro", "registros", "ingreso", "ingresos", "creacion",
+  "carga", "emision", "firma", "inscripcion", "matricula", "compra", "compras",
+  "venta", "ventas", "pedido", "pedidos", "factura", "facturas", "operacion",
+  "transaccion", "egreso", "defuncion", "fallecimiento", "created",
+  "registered", "registration", "signup", "purchase", "sale", "order",
+  "invoice", "transaction", "entry", "admission", "death",
+  # Marcas de cuando se toco un registro: tampoco pueden ser futuras.
+  "modificacion", "actualizacion", "captura", "revision", "validacion",
+  "modified", "updated", "captured", "review", "validation"
 )
 
 .PALABRAS_FECHA_FUTURA <- c(
@@ -287,7 +354,8 @@
   list(inferir = inferir, declarados = declarados)
 }
 
-.dominio_regla_inferida <- function(nombre, tokens, nombres, indice, resultados) {
+.dominio_regla_inferida <- function(nombre, tokens, nombres, indice, resultados,
+                                    contenido = function(j) TRUE) {
   tipo <- as.character(resultados[[indice]]$inferencia$tipo)
   tokens_sin_objeto <- !any(tokens %in% .PALABRAS_EDAD_OBJETO) &&
     !any(tokens %in% .PALABRAS_UNIDAD_EDAD)
@@ -317,8 +385,9 @@
   # Coordenadas. Los nombres completos (`latitud`, `longitude`) bastan; las
   # abreviaturas (`lat`, `lon`, `lng`) necesitan la columna pareja en la tabla,
   # completa o abreviada, y admiten calificativos de coordenada (`coord_lat`,
-  # `lat_inicio`). `lat` o `lon` solas no infieren: son ambiguas (`latencia`,
-  # `lona`, `long_cable` no tienen nada que ver y no pasan por aca).
+  # `lat_inicio`). `lat`, `lon` o `lng` solas infieren solo si el contenido
+  # parece una coordenada, y solo avisan (`latencia`, `lona` y `long_cable` no
+  # son una abreviatura sin calificar: no pasan por aca).
   tiene_latitud <- any(tokens %in% .TOKENS_LATITUD_COMPLETA)
   tiene_longitud <- any(tokens %in% .TOKENS_LONGITUD_COMPLETA)
   relativa <- any(tokens %in% .PALABRAS_COORDENADA_RELATIVA)
@@ -333,9 +402,13 @@
   es_coordenada <- function(t, base) {
     any(t %in% base) && !length(setdiff(t, c(base, .PALABRAS_COORDENADA)))
   }
-  pareja_lon <- any(vapply(tokens_otras, es_coordenada, logical(1L),
-                           base = c(.TOKENS_LONGITUD_COMPLETA,
-                                    .TOKENS_LONGITUD_ABREVIADA)))
+  # `long` es tambien el largo de algo: como pareja exige que su contenido sea
+  # el de una coordenada (`contenido()` mira la columna `j` de la tabla).
+  pareja_lon <- any(vapply(seq_along(tokens_otras), function(k) {
+    t <- tokens_otras[[k]]
+    es_coordenada(t, c(.TOKENS_LONGITUD_COMPLETA, .TOKENS_LONGITUD_ABREVIADA)) &&
+      (!("long" %in% t) || isTRUE(contenido(otras[[k]])))
+  }, logical(1L)))
   pareja_lat <- any(vapply(tokens_otras, es_coordenada, logical(1L),
                            base = c(.TOKENS_LATITUD_COMPLETA, "lat")))
   hay_latitud_en_tabla <- pareja_lat
@@ -355,11 +428,36 @@
       fuente = "nombre_y_contenido"
     ))
   }
+  # La abreviatura sin pareja (`lat`, `lon`, `lng` a solas) puede ser una
+  # coordenada o no (`lat` de latencia): solo se infiere si el contenido parece
+  # una coordenada (se decide con los valores en `.dominio_decidir_inferida()`)
+  # y entonces solo avisa de la columna, sin acusar filas.
+  if (!relativa && "lat" %in% tokens && sin_calificar("lat") &&
+      !latitud_completa_aparte) {
+    return(list(
+      minimo = -90, maximo = 90, tipo_dominio = "latitud",
+      fuente = "nombre_y_contenido", solo_aviso = TRUE,
+      contenido_coordenada = TRUE
+    ))
+  }
+  if (!relativa && any(tokens %in% .TOKENS_LONGITUD_ABREVIADA_SOLA) &&
+      sin_calificar(.TOKENS_LONGITUD_ABREVIADA_SOLA) &&
+      !(any(tokens %in% .TOKENS_LONGITUD_ABREVIADA) && pareja_lat) &&
+      !longitud_completa_aparte) {
+    return(list(
+      minimo = -180, maximo = 180, tipo_dominio = "longitud",
+      fuente = "nombre_y_contenido", solo_aviso = TRUE,
+      contenido_coordenada = TRUE
+    ))
+  }
   if (!relativa && (tiene_longitud ||
       (any(tokens %in% .TOKENS_LONGITUD_ABREVIADA) &&
        sin_calificar(.TOKENS_LONGITUD_ABREVIADA) && pareja_lat &&
        !longitud_completa_aparte))) {
     ingles <- any(tokens %in% "longitude")
+    # Una `long` con pareja se toma por longitud solo si su contenido lo parece,
+    # pero entonces acusa filas como cualquier pareja.
+    contenido_largo <- !tiene_longitud && "long" %in% tokens
     calificada <- length(setdiff(tokens, c(
       .TOKENS_LONGITUD_COMPLETA, .PALABRAS_COORDENADA
     ))) > 0L
@@ -368,10 +466,12 @@
     if (tiene_longitud && !ingles && (calificada || !hay_latitud_en_tabla)) {
       return(NULL)
     }
-    return(list(
+    regla <- list(
       minimo = -180, maximo = 180, tipo_dominio = "longitud",
       fuente = "nombre_y_contenido"
-    ))
+    )
+    if (contenido_largo) regla$contenido_coordenada <- TRUE
+    return(regla)
   }
   if (tipo %in% c("fecha", "fecha-hora")) {
     futuro_legitimo <- any(tokens %in% .PALABRAS_FECHA_FUTURA)
@@ -385,6 +485,9 @@
     # de unidad o de escala.
     if (!futuro_legitimo && any(tokens %in% .PALABRAS_NACIMIENTO)) {
       regla$imposible_futuras <- TRUE
+    }
+    if (!futuro_legitimo && any(tokens %in% .PALABRAS_FECHA_REGISTRO)) {
+      regla$fecha_de_registro <- TRUE
     }
     if (any(tokens %in% .PALABRAS_FIN_VIGENCIA)) regla$fin_vigencia <- TRUE
     return(regla)
@@ -548,6 +651,66 @@
     (if (is.null(maximo)) FALSE else v > maximo)
 }
 
+# TRUE para los valores escritos con entre 3 y 8 decimales: lo que tiene una
+# coordenada en grados decimales (un GPS da de 4 a 7). Un valor con 15 decimales
+# es un calculo, y uno con 2 o menos (un entero, 95.5) es otra cosa.
+.dominio_decimales_coordenada <- function(v) {
+  tiene <- function(k) abs(v * 10^k - round(v * 10^k)) < 1e-5
+  tiene(8) & !tiene(2)
+}
+
+# El contenido de una columna se parece al de una coordenada: como mucho la
+# mitad queda fuera del rango y la mayoria de lo que cabe tiene los decimales de
+# una coordenada.
+.dominio_parece_coordenada <- function(v, regla) {
+  n <- length(v)
+  if (n < .MIN_VALORES_COORDENADA_SOLA) return(FALSE)
+  fuera <- .dominio_fuera_de(v, regla$minimo, regla$maximo)
+  if (sum(fuera) / n > .UMBRAL_COORDENADA_FUERA) return(FALSE)
+  mean(.dominio_decimales_coordenada(v[!fuera])) >=
+    .UMBRAL_DECIMALES_COORDENADA
+}
+
+# Si las fechas distintas de la columna (en segundos) forman una grilla regular
+# sin huecos, devuelve el paso en dias (el mayor, si es de dias habiles; 31 por
+# cada mes); si no, NA. Las grillas son: todos los dias, los dias habiles, cada
+# 7 o 14 dias, o un dia fijo del mes (o el fin de mes) cada 1, 3, 6 o 12 meses.
+# Es lo que tiene un calendario, un pronostico o una lista de periodos: un valor
+# suelto que se sale de la grilla la rompe, asi que un error de carga no se
+# confunde con uno.
+.dominio_serie_regular <- function(valores) {
+  dias <- unique(floor(valores[is.finite(valores)] / 86400))
+  n <- length(dias)
+  if (n < .MIN_FECHAS_SERIE_REGULAR) return(NA_real_)
+  minimo <- min(dias)
+  maximo <- max(dias)
+  for (paso in c(1, 7, 14)) {
+    if (all((dias - minimo) %% paso == 0) &&
+        (maximo - minimo) / paso + 1 == n) {
+      return(paso)
+    }
+  }
+  # El 1970-01-01 fue jueves: 0 es domingo.
+  semana <- (dias + 4) %% 7
+  if (all(semana %in% 1:5)) {
+    todos <- seq(minimo, maximo)
+    if (sum(((todos + 4) %% 7) %in% 1:5) == n) return(3)
+  }
+  fechas <- as.POSIXlt(as.Date(dias, origin = "1970-01-01"), tz = "UTC")
+  mes <- (fechas$year + 1900) * 12 + fechas$mon
+  dia_fijo <- length(unique(fechas$mday)) == 1L
+  fin_de_mes <- all(as.POSIXlt(as.Date(dias + 1, origin = "1970-01-01"),
+                               tz = "UTC")$mday == 1L)
+  if (!dia_fijo && !fin_de_mes) return(NA_real_)
+  for (paso in c(1, 3, 6, 12)) {
+    if (all((mes - min(mes)) %% paso == 0) &&
+        (max(mes) - min(mes)) / paso + 1 == n) {
+      return(31 * paso)
+    }
+  }
+  NA_real_
+}
+
 # Decide como se lee una regla INFERIDA sobre los valores de la columna. Cada
 # componente (`rango`, `futuras`, `centinelas`) toma uno de dos modos:
 # - "fila": la columna sostiene la regla; lo de afuera es un valor suelto y se
@@ -571,6 +734,12 @@
   n <- length(indices)
   suficiente <- n >= .MIN_VALORES_GUARDA_DOMINIO
   tope <- .UMBRAL_DOMINIO_INFERIDO_FUERA
+  # Una abreviatura sin pareja solo es una coordenada si el contenido lo parece.
+  if (isTRUE(regla$contenido_coordenada) &&
+      !.dominio_parece_coordenada(valores$valores[indices], regla)) {
+    salida$aplica <- FALSE
+    return(salida)
+  }
   if (!is.null(regla$minimo) || !is.null(regla$maximo)) {
     v <- valores$valores[indices]
     n_fuera <- sum(.dominio_fuera_de(v, regla$minimo, regla$maximo))
@@ -601,8 +770,21 @@
       )
       if (sum(futuras) > 0L) salida$hay <- TRUE
       salida$cuentas$futuras <- c(sum(futuras), n)
-      if (suficiente && sum(futuras) > 0L && sum(futuras) / n > tope &&
-          !isTRUE(regla$imposible_futuras)) {
+      paso <- if (suficiente && sum(futuras) > 0L &&
+                  !isTRUE(regla$imposible_futuras) &&
+                  !isTRUE(regla$fecha_de_registro)) {
+        .dominio_serie_regular(valores$valores[indices])
+      } else NA_real_
+      # Una grilla de fechas sin huecos que arranca en el presente (a lo sumo
+      # un paso adelante) es un calendario o un pronostico: lo futuro es de la
+      # serie. Una tanda de fechas seguidas que empieza lejos en el futuro
+      # (`fecha_registro` de 2030) no es eso: sigue siendo un aviso.
+      if (!is.na(paso) &&
+          floor(min(valores$valores[indices]) / 86400) <=
+            floor(referencia / 86400) + paso) {
+        salida$futuras <- "calendario"
+      } else if (suficiente && sum(futuras) > 0L && sum(futuras) / n > tope &&
+                 !isTRUE(regla$imposible_futuras)) {
         salida$futuras <- "columna"
       }
     }
@@ -908,8 +1090,14 @@
                       abierto = FALSE) {
     if (!length(indices)) return()
     por_columna <- identical(lectura, "columna")
+    evidencia_base <- evidencia
     if (por_columna) {
       proporcion <- length(indices) / length(indices_evaluados)
+      # Una abreviatura de coordenada solo avisa aunque lo de afuera sea una
+      # minoria: no se dice que sea mas de lo que una minoria explica.
+      aviso_coordenada <- isTRUE(regla$solo_aviso) &&
+        identical(tipo_hallazgo, "valor_fuera_dominio") &&
+        regla$tipo_dominio %in% c("latitud", "longitud")
       clave_cuenta <- switch(
         tipo_hallazgo, valor_fuera_dominio = "rango", fecha_futura = "futuras",
         "centinelas"
@@ -928,7 +1116,9 @@
             "; en este grupo, ", length(indices), " de ",
             length(indices_evaluados), " (",
             .formatear_decimal_publicado(proporcion), ")",
-            if (identical(tipo_hallazgo, "fecha_centinela")) "." else {
+            if (identical(tipo_hallazgo, "fecha_centinela")) "." else if (
+              aviso_coordenada
+            ) paste0(".", extra) else {
               paste0(". En la tabla es m\u00e1s de lo que una minor\u00eda de ",
                      "valores sueltos explica.", extra)
             }
@@ -941,14 +1131,23 @@
         } else {
           if (length(indices) == 1L) {
             paste0(") queda afuera.", extra)
+          } else if (aviso_coordenada) {
+            paste0(") quedan afuera.", extra)
           } else {
             paste0(") quedan afuera, m\u00e1s de lo que una minor\u00eda de ",
                    "valores sueltos explica.", extra)
           }
         })
       )
-      descripcion <- if (isTRUE(regla$solo_aviso) &&
-                         identical(tipo_hallazgo, "valor_fuera_dominio")) {
+      descripcion <- if (aviso_coordenada) {
+        paste0(
+          "Si es una coordenada, estos valores quedan fuera de [",
+          .dominio_evidencia_numero(regla), "]. El nombre abreviado puede ser ",
+          "otra cosa (`lat` de latencia) y ah\u00ed no es un error: por eso no ",
+          "se acusan filas."
+        )
+      } else if (isTRUE(regla$solo_aviso) &&
+                 identical(tipo_hallazgo, "valor_fuera_dominio")) {
         paste0(
           "Si es un porcentaje acotado, estos valores quedan fuera de [0, 100]. El ",
           "nombre puede ser relativo a otra cosa (`porcentaje_del_costo`) y ",
@@ -993,6 +1192,28 @@
       } else paste0(
         "Declarar el dominio de la columna con `dominios` si la unidad es ",
         "otra; si no, revisar la carga contra la fuente."
+      )
+    }
+    # Las fechas futuras de una grilla regular sin huecos: se dice lo observado
+    # y la posibilidad, sin acusar filas.
+    if (por_columna && identical(tipo_hallazgo, "fecha_futura") && inferida &&
+        identical(sostenimiento$futuras, "calendario")) {
+      evidencia <- paste0(
+        evidencia_base, " Lectura de columna: ", length(indices), " de ",
+        length(indices_evaluados), " valores (",
+        .formatear_decimal_publicado(proporcion), ") son posteriores a la ",
+        "fecha del perfil, y las fechas de la columna forman una grilla regular ",
+        "sin huecos."
+      )
+      descripcion <- paste0(
+        "Las fechas futuras forman una grilla regular sin huecos (diaria, ",
+        "mensual...): puede ser un calendario o un pron\u00f3stico. No se ",
+        "acusan filas."
+      )
+      sugerencia <- paste0(
+        "Si la columna no es un calendario ni un pron\u00f3stico, revisar la ",
+        "carga contra la fuente; declarar el dominio con `dominios` lo hace ",
+        "expl\u00edcito."
       )
     }
     hallazgo <- .nuevo_hallazgo(
@@ -1121,6 +1342,12 @@
               "restar 360 a los que pasan de 180 la lleva a [-180, 180]."
             )
           }
+        } else if (isTRUE(regla$solo_aviso) &&
+                   regla$tipo_dominio %in% c("latitud", "longitud")) {
+          paste0(
+            " Lo que cabe en el rango tiene los decimales de una coordenada, ",
+            "pero el nombre abreviado no alcanza para afirmar que lo sea."
+          )
         } else if (isTRUE(regla$solo_aviso)) {
           paste0(
             " ", sum(valores$valores[columna_idx] < 0),
@@ -1149,7 +1376,9 @@
       if (length(futuras)) {
         agregar(
           tipo_hallazgo = "fecha_futura", indices = futuras,
-          lectura = if (inferida) sostenimiento$futuras else "fila",
+          lectura = if (!inferida) "fila" else if (
+            identical(sostenimiento$futuras, "calendario")
+          ) "columna" else sostenimiento$futuras,
           paste0(
             "Fecha posterior a la fecha del perfil; fuente: ", regla$fuente,
             "; fecha de referencia UTC: ",
@@ -1208,9 +1437,41 @@
   salida
 }
 
+# Las filas de la columna `i` que cuentan para su regla: las de la muestra del
+# perfil que son aplicables.
+.dominio_universo <- function(datos, resultados, aplicables, i) {
+  universo <- rep(FALSE, length(datos[[i]]))
+  indices_muestra <- resultados[[i]]$indices_muestra
+  if (is.null(indices_muestra)) indices_muestra <- seq_along(universo)
+  indices_muestra <- as.integer(indices_muestra)
+  indices_muestra <- indices_muestra[
+    !is.na(indices_muestra) & indices_muestra >= 1L &
+      indices_muestra <= length(universo)
+  ]
+  aplicable <- aplicables[[i]]
+  if (is.null(aplicable)) aplicable <- rep(TRUE, length(universo))
+  universo[unique(indices_muestra)] <- as.logical(
+    aplicable[unique(indices_muestra)]
+  )
+  universo
+}
+
 .evaluar_dominios <- function(datos, nombres, resultados, dominios,
                               aplicables, fecha_hora,
                               fecha_es_date = FALSE) {
+  # El contenido de la columna `j` parece una coordenada (de longitud si su
+  # nombre lo es, de latitud si no): lo pide `long` como pareja.
+  contenido <- function(j) {
+    valores <- .dominio_valores(
+      datos[[j]], resultados[[j]], .dominio_universo(datos, resultados, aplicables, j)
+    )
+    if (is.null(valores)) return(FALSE)
+    t <- .dominio_tokens(nombres[[j]])
+    lon <- any(t %in% c(.TOKENS_LONGITUD_COMPLETA, .TOKENS_LONGITUD_ABREVIADA))
+    regla <- if (lon) list(minimo = -180, maximo = 180) else
+      list(minimo = -90, maximo = 90)
+    .dominio_parece_coordenada(valores$valores[valores$usable], regla)
+  }
   reglas <- vector("list", length(nombres))
   names(reglas) <- nombres
   inferidos <- list()
@@ -1239,13 +1500,20 @@
     } else if (isTRUE(dominios$inferir)) {
       inferida <- TRUE
       regla <- .dominio_regla_inferida(
-        nombre, .dominio_tokens(nombre), nombres, i, resultados
+        nombre, .dominio_tokens(nombre), nombres, i, resultados, contenido
       )
+      # En un grupo, la tabla decide si la abreviatura es una pareja o una
+      # sola: un grupo que perdio la columna pareja no baja la severidad.
+      if (isTRUE(regla$contenido_coordenada) &&
+          is.function(.CONTEXTO_POR$dominio_columna)) {
+        de_tabla <- .CONTEXTO_POR$dominio_columna(nombre)$regla
+        if (!is.null(de_tabla)) regla <- de_tabla
+      }
       # Una rebanada que perdio la columna pareja (`lng` toda ausente en el
       # grupo) no infiere la latitud por el nombre: la regla es la que infirio la
       # tabla entera.
       if (is.null(regla) && is.function(.CONTEXTO_POR$dominio_columna) &&
-          any(.dominio_tokens(nombre) %in% c("lat", "lon", "lng"))) {
+          any(.dominio_tokens(nombre) %in% c("lat", "lon", "lng", "long"))) {
         regla <- .CONTEXTO_POR$dominio_columna(nombre)$regla
       }
     } else {
@@ -1253,19 +1521,9 @@
     }
     reglas[[i]] <- regla
     if (!is.null(regla)) {
-      universo <- rep(FALSE, length(datos[[i]]))
-      indices_muestra <- resultados[[i]]$indices_muestra
-      if (is.null(indices_muestra)) indices_muestra <- seq_along(universo)
-      indices_muestra <- as.integer(indices_muestra)
-      indices_muestra <- indices_muestra[
-        !is.na(indices_muestra) & indices_muestra >= 1L &
-          indices_muestra <= length(universo)
-      ]
+      universo <- .dominio_universo(datos, resultados, aplicables, i)
       aplicable <- aplicables[[i]]
-      if (is.null(aplicable)) aplicable <- rep(TRUE, length(universo))
-      universo[unique(indices_muestra)] <- as.logical(
-        aplicable[unique(indices_muestra)]
-      )
+      if (is.null(aplicable)) aplicable <- rep(TRUE, length(datos[[i]]))
       valores <- .dominio_valores(datos[[i]], resultados[[i]], universo)
       sostenimiento <- if (inferida) {
         if (is.null(valores)) {
@@ -1275,6 +1533,14 @@
           decidido <- .dominio_decidir_inferida(
             valores, regla, fecha_hora, fecha_es_date
           )
+          # Que el contenido parezca una coordenada lo decide la tabla: un
+          # grupo chico no la toma por coordenada ni deja de tomarla por su
+          # cuenta.
+          if (isTRUE(regla$contenido_coordenada) &&
+              is.function(.CONTEXTO_POR$dominio_columna)) {
+            de_tabla <- .CONTEXTO_POR$dominio_columna(nombre)
+            if (!is.null(de_tabla$aplica)) decidido$aplica <- de_tabla$aplica
+          }
           # Lo que decide la tabla entera se captura para `perfilar_por()`.
           if (is.environment(.CONTEXTO_POR$captura_dominio)) {
             assign(.nombres_para_operar(nombre),
@@ -1286,7 +1552,11 @@
       } else list(rango = "fila", futuras = "fila", centinelas = "fila",
                   aplica = TRUE)
       aplicar_regla <- !inferida || isTRUE(sostenimiento$aplica)
-      if (inferida && aplicar_regla) inferidos[[nombre]] <- regla
+      # La marca de fecha de registro es de uso interno: no se publica en las
+      # reglas inferidas (el resto de la regla es la de siempre).
+      if (inferida && aplicar_regla) {
+        inferidos[[nombre]] <- regla[setdiff(names(regla), "fecha_de_registro")]
+      }
       if (!aplicar_regla) {
         resultados[[i]]$dominio <- NULL
         next

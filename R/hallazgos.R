@@ -441,7 +441,72 @@
   x
 }
 
-.identificador_con_ausentes <- function(x, fila, aplicable = NULL) {
+# Palabras que convierten un nombre de clave en una magnitud: `id_peso` es un
+# peso y no un identificador. Se comparan como tokens completos del nombre.
+.PALABRAS_MAGNITUD_IDENTIFICADOR <- c(
+  "monto", "montos", "importe", "importes", "peso", "pesos", "ratio",
+  "ventas", "venta", "hijos", "hijo", "orden", "cantidad", "cantidades",
+  "total", "totales", "ingreso", "ingresos", "puntaje", "puntajes",
+  "precio", "precios", "saldo", "saldos", "valor", "valores",
+  "promedio", "promedios", "suma", "sumas", "conteo", "conteos",
+  "edad", "edades", "distancia", "distancias", "duracion", "duraciones",
+  "tiempo", "tiempos", "temperatura", "temperaturas", "altura", "alturas",
+  "ancho", "anchos", "largo", "largos", "nota", "notas", "score", "scores",
+  "amount", "amounts", "price", "prices", "weight", "weights", "sales",
+  "children", "order", "orders", "count", "counts", "sum", "quantity",
+  "quantities", "income", "incomes", "value", "values", "balance",
+  "balances", "age", "ages", "distance", "distances", "duration",
+  "durations", "time", "times", "temperature", "temperatures", "height",
+  "heights", "width", "widths", "length", "lengths"
+)
+
+# Un nombre de columna que se lee como identificador por palabra completa: el
+# token `id` aparece como token, no dentro de `valid` o `paid`, y no lo
+# acompania una magnitud. `id_cliente` y `codigo_postal` si; `id_peso`,
+# `documento_monto` y `nro_orden` no.
+.nombre_es_identificador_numerico <- function(nombre) {
+  tokens <- .dominio_tokens(nombre)
+  if (!length(tokens)) return(FALSE)
+  if (any(tokens %in% .PALABRAS_MAGNITUD_IDENTIFICADOR)) return(FALSE)
+  any(tokens %in% .NOMBRES_CLAVE_PROBABLE)
+}
+
+# Un identificador numerico con ausentes no es una numeracion `1..n` con
+# ausentes: la primera es una clave y la segunda, un conteo. Se distinguen por
+# tres hechos medidos. El nombre tiene que traer una palabra de clave completa
+# -la lista de `.NOMBRES_CLAVE_PROBABLE`- y no una palabra de magnitud: `id_peso`
+# es un peso. Los valores tienen que ser enteros y exceder el numero de filas:
+# una numeracion `1..n`, con o sin ausentes, termina en `n` o antes, mientras
+# que un identificador como `1001..1500` sobre 500 filas no. Sin el nombre, una
+# magnitud unica con ausentes -un monto- entraria; sin el maximo, un conteo
+# `1..n` llamado `id` entraria.
+.es_identificador_numerico <- function(x, fila, aplicable, nombre) {
+  tipo <- as.character(fila$tipo_inferido)
+  if (length(tipo) != 1L ||
+      !tipo %in% c("entero", "doble", "integer64")) {
+    return(FALSE)
+  }
+  if (length(nombre) != 1L || is.na(nombre) || !nzchar(nombre) ||
+      !.nombre_es_identificador_numerico(nombre)) {
+    return(FALSE)
+  }
+  en_universo <- if (!is.null(aplicable) && length(aplicable) == length(x)) {
+    as.logical(aplicable)
+  } else rep(TRUE, length(x))
+  presentes <- x[!is.na(x) & en_universo]
+  if (!length(presentes)) return(FALSE)
+  numericos <- suppressWarnings(as.numeric(presentes))
+  if (any(!is.finite(numericos)) ||
+      any(numericos != trunc(numericos))) {
+    return(FALSE)
+  }
+  maximo <- max(numericos)
+  n_filas <- suppressWarnings(as.numeric(fila$n_aplicables))
+  isTRUE(is.finite(maximo) && is.finite(n_filas) && maximo > n_filas)
+}
+
+.identificador_con_ausentes <- function(x, fila, aplicable = NULL,
+                                        nombre = NULL) {
   n_filas <- suppressWarnings(as.numeric(fila$n_aplicables))
   n_ausentes <- suppressWarnings(as.numeric(fila$n_faltantes))
   distintos <- suppressWarnings(as.numeric(fila$n_distintos))
@@ -473,6 +538,8 @@
         length(unique(plegados)) != length(plegados)) {
       return(NULL)
     }
+  } else if (!.es_identificador_numerico(x, fila, aplicable, nombre)) {
+    return(NULL)
   }
   list(
     n_filas = n_filas, n_ausentes = n_ausentes, n_validos = n_validos,
@@ -5209,16 +5276,19 @@
     # opcional con muchos ausentes -un documento que no todos tienen- es dato
     # legitimo y no se acusa. Una clave declarada ya recibe `clave_con_ausentes`.
     #
-    # Solo el identificador con forma de tal -`tipos.R` lo infiere como
-    # `identificador`, texto con letras y digitos o ceros a la izquierda-. Una
-    # columna numerica con valores de 1 a n y algunos `NA` tambien se lee como
-    # numeracion, pero tambien es lo que da un conteo con ausentes declaradas, y
-    # no hay con que distinguirlos: ahi se calla.
-    if (isTRUE(decision_identificador$posible) &&
-        identical(as.character(fila$tipo_inferido), "identificador") &&
+    # El identificador de texto es el que `tipos.R` infiere como
+    # `identificador`. El numerico entra por otra puerta: nombre de clave y
+    # valores que exceden el numero de filas, que es lo que separa una clave de
+    # una numeracion `1..n` con ausentes. Ver `.es_identificador_numerico()`.
+    tipo_identificador <- as.character(fila$tipo_inferido)
+    es_numerico <- length(tipo_identificador) == 1L &&
+      tipo_identificador %in% c("entero", "doble", "integer64")
+    if ((isTRUE(decision_identificador$posible) || es_numerico) &&
         is.data.frame(datos) &&
         i <= ncol(datos) && !(nombre %in% clave_declarada)) {
-      sin_valor <- .identificador_con_ausentes(datos[[i]], fila, resultado$aplicable)
+      sin_valor <- .identificador_con_ausentes(
+        datos[[i]], fila, resultado$aplicable, nombre
+      )
       if (!is.null(sin_valor)) {
         hallazgo_ausentes <- .nuevo_hallazgo(
           nombre, "identificador_con_ausentes", "ok",
@@ -5237,7 +5307,12 @@
             " al menos ", .MIN_VALIDOS_IDENTIFICADOR_CON_AUSENTES,
             " valores presentes, todos distintos, y no m\u00e1s de ",
             .formatear_decimal_publicado(.MAX_PROPORCION_AUSENTES_IDENTIFICADOR),
-            " de ausentes."
+            " de ausentes.",
+            if (es_numerico) paste0(
+              " En una columna num\u00e9rica, adem\u00e1s, el nombre se lee",
+              " como clave y el m\u00e1ximo supera el n\u00famero de filas:",
+              " no es una numeraci\u00f3n 1..n."
+            ) else ""
           ),
           paste(
             "Si es la clave de la tabla, declararla con `clave=`: ah\u00ed",
@@ -5938,7 +6013,8 @@
           if (es_hora) {
             paste(
               "Hay valores con forma de hora que no son una hora v\u00e1lida:",
-              "minutos o segundos mayores que 59, u hora mayor que 23."
+              "minutos mayores que 59, segundos mayores que 59 salvo el",
+              "intercalar 23:59:60, u hora mayor que 23."
             )
           } else {
             paste(

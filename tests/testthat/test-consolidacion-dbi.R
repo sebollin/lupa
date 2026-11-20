@@ -187,9 +187,9 @@ test_that("el SQL mantiene una fila por campo y publica el lote compartido", {
   )
   expect_true(all(campos_antiguos %in% names(registros)))
   expect_true(all(c("lote", "columnas_compartidas") %in% names(registros)))
-  expect_equal(nrow(registros), 4L * 15L)
+  expect_equal(nrow(registros), 4L * 16L)
   expect_equal(
-    as.vector(table(registros$columna)[c("a", "b", "c", "d")]), rep(15L, 4L)
+    as.vector(table(registros$columna)[c("a", "b", "c", "d")]), rep(16L, 4L)
   )
 
   compartidas <- registros[

@@ -740,6 +740,13 @@ convierte un texto sucio— la deja abortada, y hay que cerrarla con
 
 \section{Muestra y aproximaciones}{
 
+La cuenta de faltantes disfrazados de la tabla completa se publica separada
+del perfil de muestra: \code{resumen_tabla$columnas$n_faltantes_disfrazados} y la
+fila homonima de \code{resumen_tabla$sql} describen el universo que figura en
+\code{alcance} y \code{universo}. \code{perfil_muestra} conserva sus propios conteos,
+hallazgos y severidades, y no se reemplaza con esta cifra. La cuenta SQL se
+publica como \code{calculado} solo cuando reproduce las guardas de \code{\link[=perfilar]{perfilar()}};
+si no, queda \code{NA} y \code{resumen_tabla$cobertura} explica la degradacion.
 \code{universo = "muestra_motor"} sondea las formas declaradas por el adaptador y
 usa \code{TABLESAMPLE} cuando el motor lo acepta, o una función pseudoaleatoria con
 el límite del dialecto. Si ninguna forma es compatible, las métricas SQL

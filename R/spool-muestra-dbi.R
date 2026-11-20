@@ -1926,6 +1926,17 @@
     # tamano de la materializacion completa que el resumen debia describir.
     columnas$n <- NA_real_
   }
+  faltantes_disfrazados <- rep(NA_real_, nrow(columnas))
+  if (!is.null(perfil_columnas) &&
+      "n_faltantes_disfrazados" %in% names(perfil_columnas)) {
+    posicion_faltantes <- .indice_nombre(
+      as.character(columnas$columna), as.character(perfil_columnas$columna)
+    )
+    faltantes_disfrazados <- suppressWarnings(as.numeric(
+      perfil_columnas$n_faltantes_disfrazados[posicion_faltantes]
+    ))
+  }
+  columnas$n_faltantes_disfrazados <- faltantes_disfrazados
   if (!is.null(motivo_muestra_sin_filas)) {
     for (nombre in setdiff(names(columnas), c("columna", "n"))) {
       columnas[[nombre]][] <- NA
@@ -1966,6 +1977,8 @@
     list(disponible = FALSE)
   } else preparacion$muestreo
   metadatos_muestra$fraccion_regla <- fraccion_muestra_metricas
+  metadatos_faltantes <- metadatos_muestra
+  metadatos_faltantes$error_esperado <- "muestra"
   campos_metricas_publicas <- unlist(
     .CAMPOS_METRICA_DBI[metricas_registro], use.names = FALSE
   )
@@ -2002,14 +2015,25 @@
     campos_metrica <- unlist(
       .CAMPOS_METRICA_DBI[metricas_registro], use.names = FALSE
     )
-    if (!length(campos_metrica)) next
+    if (length(campos_metrica)) {
+      registros[[length(registros) + 1L]] <- .registro_sql_dbi(
+        campos[[i]], campos_metrica,
+        estado_metricas,
+        motivos_metricas_publicas, sql_muestra,
+        metadatos = metadatos_muestra,
+        medicion = if (is.null(spool)) NULL else spool$consulta,
+        etapa = "lectura_spool_muestra"
+      )
+    }
+    faltante <- columnas$n_faltantes_disfrazados[[i]]
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
-      campos[[i]], campos_metrica,
-      estado_metricas,
-      motivos_metricas_publicas, sql_muestra,
-      metadatos = metadatos_muestra,
+      campos[[i]], "n_faltantes_disfrazados",
+      if (is.finite(faltante)) "calculado" else "no_disponible",
+      if (is.finite(faltante)) NA_character_ else
+        "No se pudo contar los faltantes disfrazados en la muestra.",
+      sql_muestra, metadatos = metadatos_faltantes,
       medicion = if (is.null(spool)) NULL else spool$consulta,
-      etapa = "lectura_spool_muestra"
+      etapa = "faltantes_disfrazados"
     )
   }
   # Las columnas que el esquema no pudo leer -sin permiso segun el catalogo,
@@ -2020,9 +2044,14 @@
   # no se leyeron.
   ilegibles <- preparacion$esquema$ilegibles
   if (length(ilegibles)) {
-    columnas <- rbind(columnas, do.call(rbind, lapply(ilegibles, function(campo) {
-      as.data.frame(.fila_resumen_dbi(campo, n_total), stringsAsFactors = FALSE)
-    })))
+    filas_ilegibles <- lapply(ilegibles, function(campo) {
+      fila <- as.data.frame(
+        .fila_resumen_dbi(campo, n_total), stringsAsFactors = FALSE
+      )
+      fila$n_faltantes_disfrazados <- NA_real_
+      fila
+    })
+    columnas <- rbind(columnas, do.call(rbind, filas_ilegibles))
     rownames(columnas) <- NULL
     campos_metrica <- unlist(.CAMPOS_METRICA_DBI[metricas_registro], use.names = FALSE)
     for (campo in ilegibles) {
@@ -2032,6 +2061,13 @@
         preparacion$esquema$motivos[[campo]], NA_character_,
         metadatos = .metadatos_sql_dbi(),
         medicion = list(consulta_id = NA_integer_, etapa = "esquema")
+      )
+      registros[[length(registros) + 1L]] <- .registro_sql_dbi(
+        campo, "n_faltantes_disfrazados", "no_disponible",
+        "No se pudo leer la columna para contar faltantes disfrazados.",
+        NA_character_, metadatos = metadatos_faltantes,
+        medicion = list(consulta_id = NA_integer_, etapa = "esquema"),
+        etapa = "faltantes_disfrazados"
       )
     }
   }
