@@ -9,13 +9,16 @@
   (`largo_codigo_inconsistente`, sospechoso): en una columna de texto
   con forma de código cuyo largo dominante se escribe con ceros a la
   izquierda, nombra los valores con menos dígitos (`"00123"` frente a
-  `"123"`, `"AB-00001"` frente a `"AB-1"`), con la traza de filas. Un
-  cero que encabeza casi todos los valores es un prefijo, no relleno
-  (celulares `09…` junto a fijos), hace falta más de un valor rellenado,
-  y una columna de documentos cuyos valores cortos cumplen su
-  verificador no se acusa. Cuando el largo distinto puede ser otra
-  numeración u otro formato válido (facturas que crecieron de cinco a
-  seis dígitos, códigos postales de dos países), la sugerencia lo dice.
+  `"123"`, `"AB-00001"` frente a `"AB-1"`), con la traza de filas. Acusa
+  los valores con menos dígitos sólo si, rellenados con ceros, empiezan
+  como empiezan los valores del largo dominante: un departamento `7`
+  junto a `01`… `09` se acusa, y un fijo `21234567` junto a celulares
+  `09…`, o un número local junto a otros con prefijo internacional
+  `00598`, no. Hace falta más de un valor rellenado, y los valores
+  cortos de una columna de documentos que cumplen su verificador no se
+  acusan. Cuando el largo distinto puede ser otra numeración u otro
+  formato válido (facturas que crecieron de cinco a seis dígitos,
+  códigos postales de dos países), la sugerencia lo dice.
   `umbral_patron_raro = 0` lo apaga.
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa los documentos que no cumplen su dígito verificador

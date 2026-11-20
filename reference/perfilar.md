@@ -170,8 +170,15 @@ perfilar(
   más cortos, por grupo de prefijo y sufijo, en columnas de texto donde
   al menos el 80 % de los valores tiene forma de código y el largo
   dominante cubre al menos el 80 % del grupo; un número sin relleno, un
-  largo a mitades o un código que desborda su ancho no se acusan. Es
-  `sospechoso`, con la traza de las filas, y su evidencia sólo lleva
+  largo a mitades o un código que desborda su ancho no se acusan. Un
+  valor corto sólo se acusa si, rellenado con ceros hasta el largo
+  dominante, su principio es uno que los valores dominantes tienen: un
+  fijo `21234567` frente a celulares `09...` o frente a teléfonos
+  `00598...` no perdió nada, y un departamento `7` frente a `01`..`09`
+  sí. En una columna de documentos que el verificador reconoce, los
+  cortos que lo cumplen se excluyen. Una numeración que creció o un
+  código de otro país pueden seguir acusándose, y la sugerencia lo dice.
+  Es `sospechoso`, con la traza de las filas, y su evidencia sólo lleva
   largos y conteos.
 
 - umbral_patron_dominante:
