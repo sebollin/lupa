@@ -206,6 +206,9 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     clase = c("vara", "habilita"), meta = "columnas_no_negativas",
     forma = "columnas", hallazgos = "negativos_no_permitidos"
   ),
+  dominios = list(
+    clase = "politica", fila = "configuracion_dominios"
+  ),
   columnas_codigo = list(clase = "vara", meta = "columnas_codigo"),
   clave = list(
     clase = "habilita", meta = "declaracion_clave", forma = "tabla",
@@ -413,6 +416,47 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   valores <- valores[!is.na(valores)]
   valores <- valores[!duplicated(.clave_bytes(valores))]
   .clave_bytes(.ordenar_por_bytes(valores))
+}
+
+.configuracion_dominios_perfil <- function(perfil) {
+  if (!"dominios" %in% names(perfil$meta)) return(NULL)
+  perfil$meta[["dominios"]]
+}
+
+.texto_dominios_deriva <- function(x) {
+  if (is.null(x)) return("no_registrado")
+  if (!is.list(x)) return(as.character(x))
+  regla <- function(valor) {
+    if (isFALSE(valor)) return("apagado")
+    if (!is.list(valor)) return(as.character(valor))
+    partes <- c(
+      if (!is.null(valor$minimo)) paste0("minimo=", valor$minimo),
+      if (!is.null(valor$maximo)) paste0("maximo=", valor$maximo),
+      if (!is.null(valor$no_futuras)) paste0("no_futuras=", valor$no_futuras),
+      if (length(valor$centinelas)) paste0(
+        "centinelas=", paste(valor$centinelas, collapse = ",")
+      ),
+      if (!is.null(valor$tipo_dominio)) paste0("tipo=", valor$tipo_dominio),
+      if (!is.null(valor$fuente)) paste0("fuente=", valor$fuente)
+    )
+    paste(partes, collapse = ",")
+  }
+  declarados <- x$declarados
+  inferidos <- x$inferidos
+  partes <- paste0("inferir=", isTRUE(x$inferir))
+  if (length(declarados)) {
+    partes <- c(partes, paste0(
+      "declarado:", names(declarados), "=",
+      vapply(declarados, regla, character(1L))
+    ))
+  }
+  if (length(inferidos)) {
+    partes <- c(partes, paste0(
+      "inferido:", names(inferidos), "=",
+      vapply(inferidos, regla, character(1L))
+    ))
+  }
+  paste(partes, collapse = "; ")
 }
 
 # Una lista de la configuracion como la publican las filas `configuracion_*`:
@@ -3593,6 +3637,38 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  dominios_a <- .configuracion_dominios_perfil(anterior)
+  dominios_b <- .configuracion_dominios_perfil(actual)
+  if (xor(is.null(dominios_a), is.null(dominios_b))) {
+    agregar(
+      NA_character_, "configuracion_dominios", "no_comparable", "sospechoso",
+      .texto_dominios_deriva(dominios_a), .texto_dominios_deriva(dominios_b),
+      descripcion = paste(
+        "Uno de los perfiles no registra `meta$dominios`; no se puede",
+        "atribuir la diferencia de hallazgos a los valores o a la politica."
+      ),
+      evidencia = paste(
+        "Para comparar los dominios, generar ambos perfiles con la politica",
+        "registrada en `meta$dominios`."
+      )
+    )
+  } else if (!is.null(dominios_a) && !is.null(dominios_b) &&
+      !isTRUE(all.equal(dominios_a, dominios_b, check.attributes = FALSE))) {
+    agregar(
+      NA_character_, "configuracion_dominios", "modificado", "error",
+      .texto_dominios_deriva(dominios_a),
+      .texto_dominios_deriva(dominios_b),
+      descripcion = paste(
+        "Cambiaron las reglas de dominio; la diferencia de hallazgos puede",
+        "venir de la politica declarada o inferida y no de los datos."
+      ),
+      evidencia = paste(
+        "Se conserva la comparacion de los hallazgos para mostrar tambien el",
+        "efecto observado de la configuracion vigente."
+      )
+    )
+  }
+
   # La misma declaracion de comparabilidad que ya existia para los centinelas,
   # para la tercera politica que redefine lo que se mide.
   aplicabilidad_a <- .configuracion_aplicabilidad_perfil(anterior)
@@ -3836,7 +3912,25 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     indice_b <- match(clave, hallazgos_b$clave)
     sa <- hallazgos_a$severidad[[indice_a]]
     sb <- hallazgos_b$severidad[[indice_b]]
-    if (sa != sb) {
+    if (sa != sb && as.character(hallazgos_b$tipo_hallazgo[[indice_b]]) %in%
+        .TIPOS_HALLAZGO_DOMINIO &&
+        "ok" %in% c(sa, sb)) {
+      # El mismo valor fuera del dominio se lee por filas (`sospechoso`) o por
+      # columna (`ok`) segun cuanto de la columna quede afuera. Pasar de una
+      # lectura a la otra no es mejorar ni resolver: la columna cruzo el
+      # tope de una minoria de valores sueltos, y eso es un cambio de los datos.
+      columna <- hallazgos_b$columna[[indice_b]]
+      agregar(
+        columna,
+        "severidad_hallazgo", "modificado", "sospechoso", sa, sb,
+        descripcion = paste(
+          "Cambi\u00f3 la lectura de un hallazgo de dominio: de valores",
+          "sueltos a la columna entera, o al rev\u00e9s. La proporci\u00f3n de",
+          "valores afuera cruz\u00f3 lo que una minor\u00eda explica."
+        ),
+        evidencia = hallazgos_b$evidencia[[indice_b]]
+      )
+    } else if (sa != sb) {
       columna <- hallazgos_b$columna[[indice_b]]
       agregar(
       columna,

@@ -35,7 +35,8 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
   "duplicados_aproximados", "duplicados_exactos_columnas",
   "duplicados_exactos_normalizados", "entidades_html",
   "espacios_sobrantes", "faltantes", "faltantes_disfrazados",
-  "fecha_fallecimiento_fuera_rango", "fecha_nacimiento_fuera_rango",
+  "fecha_centinela", "fecha_fallecimiento_fuera_rango", "fecha_futura",
+  "fecha_nacimiento_fuera_rango",
   "fecha_partida_columnas", "filas_duplicadas", "formato_fecha_ambiguo",
   "formatos_fecha_mixtos", "geometria_invalida", "geometria_vacia",
   "integer64_fuera_precision_double", "mayusculas_inconsistentes",
@@ -48,7 +49,8 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
   "relacion_orden_columnas",
   "separadores_en_campo", "tipo_compuesto_no_analizado",
   "tipo_declarado_distinto", "tipos_geometria_mixtos", "unidades_mixtas",
-  "valor_concentrado", "valor_fuera_de_aplicabilidad", "valores_no_finitos",
+  "valor_concentrado", "valor_fuera_de_aplicabilidad", "valor_fuera_dominio",
+  "valores_no_finitos",
   "valores_subnormales", "variantes_equifrecuentes_vocabulario",
   "zona_horaria_fecha_hora"
 ))

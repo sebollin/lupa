@@ -6,6 +6,11 @@ print.perfil <- function(x, ...) {
   errores <- sum(x$hallazgos$severidad == "error")
   sospechosos <- sum(x$hallazgos$severidad == "sospechoso")
   correctos <- sum(x$hallazgos$severidad == "ok")
+  # El aviso de columna de dominio no es una conformidad: se cuenta aparte.
+  avisos <- sum(x$hallazgos$severidad == "ok" &
+                  as.character(x$hallazgos$tipo_hallazgo) %in%
+                  .TIPOS_HALLAZGO_DOMINIO, na.rm = TRUE)
+  correctos <- correctos - avisos
   no_evaluados <- if (inherits(x$cobertura_diagnosticos, "data.frame")) {
     nrow(x$cobertura_diagnosticos)
   } else 0L
@@ -14,6 +19,11 @@ print.perfil <- function(x, ...) {
   cli::cli_alert_danger(.cli_literal(paste(errores, if (errores == 1L) "hallazgo con severidad error" else "hallazgos con severidad error")))
   cli::cli_alert_warning(.cli_literal(paste(sospechosos, if (sospechosos == 1L) "hallazgo sospechoso" else "hallazgos sospechosos")))
   cli::cli_alert_success(.cli_literal(paste(correctos, if (correctos == 1L) "hallazgo informativo ok" else "hallazgos informativos ok")))
+  if (avisos > 0L) {
+    cli::cli_alert_info(.cli_literal(paste(
+      avisos, if (avisos == 1L) "aviso de columna fuera de su dominio inferido (ver hallazgos())" else "avisos de columna fuera de su dominio inferido (ver hallazgos())"
+    )))
+  }
   cli::cli_alert_info(.cli_literal(paste(no_evaluados, if (no_evaluados == 1L) "diagn\u00f3stico no evaluado" else "diagn\u00f3sticos no evaluados")))
   # Lo que se midio sobre la muestra se dice aca, donde se lee el veredicto: un
   # "0 hallazgos sospechosos" sobre 10 de 10.000 filas no es lo mismo que sobre

@@ -3061,6 +3061,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
         recomendacion_grupo = "marcar_columnas_duplicadas",
         destructiva = TRUE
       ))
+    } else if (tipo %in% .TIPOS_HALLAZGO_DOMINIO) {
+      n <- .n_afectadas_del_hallazgo(hallazgo, fila)
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "revisar_dominio", TRUE,
+        paste(
+          "Conserva los valores originales y deja la decision en el dominio:",
+          "una fecha futura o un extremo puede ser valido para el proceso."
+        ), n, FALSE, estado = "informativa", aplicar = FALSE,
+        parametros = list(regla = "revisar_sin_modificar"), orden = 805L,
+        grupo = grupo_hallazgo, decision_grupo = "recomendada",
+        recomendacion_grupo = "revisar_dominio"
+      ))
     } else if (tipo %in% c(
       "alta_cardinalidad", "ceros_no_permitidos", "negativos_no_permitidos"
     )) {

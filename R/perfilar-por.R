@@ -698,6 +698,34 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     efectivos_numeracion[[posicion]]
   }
 
+  # El sostenimiento de la regla de dominio de cada columna, medido con la tabla
+  # ENTERA y no con la rebanada: la regla vive en `perfilar()`, que decide con
+  # el nombre, el contenido y las demas columnas (`lat` solo sabe que es una
+  # latitud si hay una `lng`). Se perfila la tabla una vez, la primera vez que un
+  # grupo lo pide, capturando lo que `perfilar()` decide, y se conserva.
+  decision_dominio <- NULL
+  dominio_de_la_columna <- function(nombre_columna) {
+    if (is.null(decision_dominio)) {
+      decision_dominio <<- tryCatch({
+        previo <- .fijar_contexto_por(NULL, NULL)
+        on.exit(.restaurar_contexto_por(previo), add = TRUE)
+        captura <- new.env(parent = emptyenv())
+        .CONTEXTO_POR$captura_dominio <- captura
+        # Los mismos argumentos que reciben los grupos (todos los de
+        # `perfilar()` que el usuario paso: `muestra`, `aplicabilidad`,
+        # `fecha`...), para que la tabla se mida tal como se perfila.
+        argumentos <- extras[intersect(names(extras), names(formals(perfilar)))]
+        argumentos$analizar_dependencias <- NULL
+        suppressWarnings(suppressMessages(do.call(
+          perfilar,
+          c(list(datos), argumentos, list(analizar_dependencias = FALSE))
+        )))
+        as.list(captura)
+      }, error = function(e) list())
+    }
+    decision_dominio[[.nombres_para_operar(nombre_columna)]]
+  }
+
   # Los indices de la traza salen de perfilar la REBANADA, asi que son
   # posiciones dentro del grupo. Publicados tal cual, con `localizador =
   # "indice_fila"` y `alcance = "completo"`, apuntan contra la tabla que el
@@ -791,6 +819,23 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
           ))
         }
         extras_grupo[[arg]] <- declaradas[!recortar]
+      }
+    }
+    if ("dominios" %in% names(extras_grupo) &&
+        is.list(extras_grupo$dominios) &&
+        !is.null(names(extras_grupo$dominios))) {
+      declaradas <- extras_grupo$dominios
+      indices_original <- .indice_nombre(names(declaradas), names(datos))
+      indices_rebanada <- .indice_nombre(names(declaradas), names(rebanada))
+      recortar <- !is.na(indices_original) & is.na(indices_rebanada)
+      if (any(recortar)) {
+        for (indice in which(recortar)) {
+          registrar_recorte(paste0(
+            names(declaradas)[[indice]],
+            " [dominios: la columna no esta en la rebanada]"
+          ))
+        }
+        extras_grupo$dominios <- declaradas[!recortar]
       }
     }
 
@@ -891,7 +936,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     # El perfil del grupo cuenta los faltantes disfrazados con la guarda de la
     # numeracion de la columna entera: ver `.disfrazados_con_la_columna_entera()`.
     protegidos_grupo <- list()
-    previo_contexto <- .fijar_contexto_por(guarda_de_la_columna)
+    previo_contexto <- .fijar_contexto_por(
+      guarda_de_la_columna, dominio_de_la_columna
+    )
     perfil <- tryCatch({
       perfil_grupo <- do.call(perfilar, c(list(rebanada), extras_grupo))
       protegidos_grupo <- .CONTEXTO_POR$protegidos
@@ -1389,13 +1436,25 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 .CONTEXTO_POR <- new.env(parent = emptyenv())
 .CONTEXTO_POR$guarda_columna <- NULL
 .CONTEXTO_POR$protegidos <- NULL
+# - `dominio_columna`: funcion que recibe el nombre de una columna y devuelve,
+#   por tipo de hallazgo de dominio, el modo con que la tabla entera lo publica
+#   (`fila` o `columna`), o `NULL` si no se pudo medir. El sosten de una regla
+#   inferida se decide con la tabla entera, no con la proporcion de cada grupo.
+.CONTEXTO_POR$dominio_columna <- NULL
+# - `captura_dominio`: entorno donde `.evaluar_dominios()` deja lo que decide por
+#   columna, mientras `perfilar_por()` mide la tabla entera.
+.CONTEXTO_POR$captura_dominio <- NULL
 
-.fijar_contexto_por <- function(guarda_columna) {
+.fijar_contexto_por <- function(guarda_columna, dominio_columna = NULL) {
   previo <- list(
     guarda_columna = .CONTEXTO_POR$guarda_columna,
-    protegidos = .CONTEXTO_POR$protegidos
+    protegidos = .CONTEXTO_POR$protegidos,
+    dominio_columna = .CONTEXTO_POR$dominio_columna,
+    captura_dominio = .CONTEXTO_POR$captura_dominio
   )
   .CONTEXTO_POR$guarda_columna <- guarda_columna
+  .CONTEXTO_POR$dominio_columna <- dominio_columna
+  .CONTEXTO_POR$captura_dominio <- NULL
   .CONTEXTO_POR$protegidos <- list()
   invisible(previo)
 }
@@ -1403,6 +1462,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 .restaurar_contexto_por <- function(previo) {
   .CONTEXTO_POR$guarda_columna <- previo$guarda_columna
   .CONTEXTO_POR$protegidos <- previo$protegidos
+  .CONTEXTO_POR$dominio_columna <- previo$dominio_columna
+  .CONTEXTO_POR$captura_dominio <- previo$captura_dominio
   invisible(NULL)
 }
 

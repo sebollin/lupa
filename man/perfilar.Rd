@@ -61,7 +61,8 @@ perfilar(
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
   avisar_costo_tabla_ancha = TRUE,
-  umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA
+  umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA,
+  dominios = NULL
 )
 }
 \arguments{
@@ -1102,6 +1103,55 @@ El aviso es una estimacion y queda en silencio en scripts no interactivos.}
 \item{umbral_celdas_aviso_tabla_ancha}{Cantidad de celdas a partir de la cual
 se emite el aviso de tabla ancha. Por defecto, \code{100000}; \code{Inf} lo desactiva
 explicitamente.}
+
+\item{dominios}{Reglas de validez por columna. Es una lista nombrada: cada
+elemento puede declarar \code{minimo}, \code{maximo}, \code{no_futuras} y/o \code{centinelas}.
+Los límites son inclusivos; \code{no_futuras = TRUE} compara las fechas con
+\code{fecha}. Una declaración tiene prioridad sobre la inferencia por nombre y
+contenido. \code{FALSE} apaga toda inferencia, y \code{dominios = list(columna = FALSE)} la apaga sólo para esa columna. Si se omite, se infieren rangos
+conservadores para edades, porcentajes acotados y coordenadas, además de
+fechas futuras y centinela. Una regla inferida se lee según cuánto de la
+columna queda afuera de su dominio. Con una minoría de valores sueltos
+(hasta el 10\%, o con menos de cinco valores evaluables) se publica como
+sospechosa y con las filas. Con más, la columna no sostiene la regla: o no
+está en la unidad o el dominio que sugiere su nombre, o tiene un error de
+carga sistemático, y los datos no deciden entre las dos lecturas; se
+publica entonces un aviso \code{ok} de la columna con las dos lecturas, sin
+acusar filas; lo que no admite la lectura de otra unidad (una edad
+negativa, un porcentaje negativo, una fecha de nacimiento futura, una
+latitud fuera de \link{-90, 90}) se acusa por fila con cualquier proporción. Un centinela de
+fecha que es la mayoría de la columna (un inicio o fin de vigencia abierto)
+se publica también como aviso \code{ok} de la columna. Los nombres relativos
+(\code{pct_of_sales}) o ambiguos (\code{longitud_cable}) no infieren dominio; un
+porcentaje con \code{de}, \code{del} o \code{por} (\code{porcentaje_de_avance}) lo infiere sólo
+para el aviso de la columna, nunca para acusar filas. Así lo que cae afuera de una regla inferida nunca queda sin
+decir: el aviso de columna nombra el factor si la columna es un
+reescalado (dividida por 10, 100, 1000, 10^4 a 10^6 o, en una edad, por 12,
+52, 365 u 8760, cae casi toda en el dominio: «puede estar multiplicada por
+10», «expresada en meses»), el valor repetido que concentra lo de afuera
+(posible centinela, como un 999) o, si no, el rango de lo de afuera y su
+distancia al dominio. Si además hay valores imposibles que ningún factor
+arregla (un negativo), estos se acusan por fila y lo que depende de la
+escala queda en su propio aviso. En \code{print()} y en \code{\link[=reportar]{reportar()}} los avisos
+de columna se cuentan aparte, no entre los correctos; en \code{hallazgos()}
+tienen severidad \code{ok}, así que un filtro por severidad los deja afuera.
+Las convenciones legítimas avisan de la columna y no acusan filas: la
+longitud de 0 a 360 (o su mezcla con la de -180 a 180, que se nombra como
+problema de consistencia; sólo lo que no cabe en ninguna se acusa por fila)
+y el \code{9999-12-31} de un nombre de fin de vigencia
+(\code{hasta}, \code{fin}, \code{vigencia}, \code{vencimiento}). Las abreviaturas \code{lat}, \code{lon} y
+\code{lng} sólo infieren con su columna pareja en la tabla. En \code{\link[=perfilar_por]{perfilar_por()}}
+la tabla manda: el sostén, el reescalado y el centinela mayoritario se
+deciden con la tabla entera, aunque un grupo esté entero en otro régimen. Un nombre que dice que lo de
+afuera es lo esperado (fechas previstas o de vencimiento, variaciones,
+edades en días o meses) no se infiere. En \code{\link[=perfilar_por]{perfilar_por()}} el sostén se
+decide con la tabla entera, no con cada grupo. Una regla declarada no
+pasa por esta lectura: se publica como error. Para una fecha de referencia
+\code{Date}, las horas del mismo día civil no son futuras. Un centinela
+inferido debe repetirse y estar separado del resto de las fechas; si el
+día aparece en una proporción plausible dentro del recorrido de la
+columna, no se acusa. Las reglas inferidas con filas se publican como
+sospechosas; las declaradas, como errores.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

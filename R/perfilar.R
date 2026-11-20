@@ -2161,6 +2161,55 @@
 #'   explicitamente.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
+#' @param dominios Reglas de validez por columna. Es una lista nombrada: cada
+#'   elemento puede declarar `minimo`, `maximo`, `no_futuras` y/o `centinelas`.
+#'   Los límites son inclusivos; `no_futuras = TRUE` compara las fechas con
+#'   `fecha`. Una declaración tiene prioridad sobre la inferencia por nombre y
+#'   contenido. `FALSE` apaga toda inferencia, y `dominios = list(columna =
+#'   FALSE)` la apaga sólo para esa columna. Si se omite, se infieren rangos
+#'   conservadores para edades, porcentajes acotados y coordenadas, además de
+#'   fechas futuras y centinela. Una regla inferida se lee según cuánto de la
+#'   columna queda afuera de su dominio. Con una minoría de valores sueltos
+#'   (hasta el 10%, o con menos de cinco valores evaluables) se publica como
+#'   sospechosa y con las filas. Con más, la columna no sostiene la regla: o no
+#'   está en la unidad o el dominio que sugiere su nombre, o tiene un error de
+#'   carga sistemático, y los datos no deciden entre las dos lecturas; se
+#'   publica entonces un aviso `ok` de la columna con las dos lecturas, sin
+#'   acusar filas; lo que no admite la lectura de otra unidad (una edad
+#'   negativa, un porcentaje negativo, una fecha de nacimiento futura, una
+#'   latitud fuera de [-90, 90]) se acusa por fila con cualquier proporción. Un centinela de
+#'   fecha que es la mayoría de la columna (un inicio o fin de vigencia abierto)
+#'   se publica también como aviso `ok` de la columna. Los nombres relativos
+#'   (`pct_of_sales`) o ambiguos (`longitud_cable`) no infieren dominio; un
+#'   porcentaje con `de`, `del` o `por` (`porcentaje_de_avance`) lo infiere sólo
+#'   para el aviso de la columna, nunca para acusar filas. Así lo que cae afuera de una regla inferida nunca queda sin
+#'   decir: el aviso de columna nombra el factor si la columna es un
+#'   reescalado (dividida por 10, 100, 1000, 10^4 a 10^6 o, en una edad, por 12,
+#'   52, 365 u 8760, cae casi toda en el dominio: «puede estar multiplicada por
+#'   10», «expresada en meses»), el valor repetido que concentra lo de afuera
+#'   (posible centinela, como un 999) o, si no, el rango de lo de afuera y su
+#'   distancia al dominio. Si además hay valores imposibles que ningún factor
+#'   arregla (un negativo), estos se acusan por fila y lo que depende de la
+#'   escala queda en su propio aviso. En `print()` y en [reportar()] los avisos
+#'   de columna se cuentan aparte, no entre los correctos; en `hallazgos()`
+#'   tienen severidad `ok`, así que un filtro por severidad los deja afuera.
+#'   Las convenciones legítimas avisan de la columna y no acusan filas: la
+#'   longitud de 0 a 360 (o su mezcla con la de -180 a 180, que se nombra como
+#'   problema de consistencia; sólo lo que no cabe en ninguna se acusa por fila)
+#'   y el `9999-12-31` de un nombre de fin de vigencia
+#'   (`hasta`, `fin`, `vigencia`, `vencimiento`). Las abreviaturas `lat`, `lon` y
+#'   `lng` sólo infieren con su columna pareja en la tabla. En [perfilar_por()]
+#'   la tabla manda: el sostén, el reescalado y el centinela mayoritario se
+#'   deciden con la tabla entera, aunque un grupo esté entero en otro régimen. Un nombre que dice que lo de
+#'   afuera es lo esperado (fechas previstas o de vencimiento, variaciones,
+#'   edades en días o meses) no se infiere. En [perfilar_por()] el sostén se
+#'   decide con la tabla entera, no con cada grupo. Una regla declarada no
+#'   pasa por esta lectura: se publica como error. Para una fecha de referencia
+#'   `Date`, las horas del mismo día civil no son futuras. Un centinela
+#'   inferido debe repetirse y estar separado del resto de las fechas; si el
+#'   día aparece en una proporción plausible dentro del recorrido de la
+#'   columna, no se acusa. Las reglas inferidas con filas se publican como
+#'   sospechosas; las declaradas, como errores.
 #' @param cadenas_ausencia Cadenas que el usuario declara como ausencia,
 #'   además de la lista incorporada. Lo declarado atraviesa la guarda del
 #'   vocabulario: `sd`, `nc` y `nd` sólo cuentan solas en columnas de pocos
@@ -3125,7 +3174,8 @@ perfilar <- function(datos,
                      max_bytes_muestra = .MAX_BYTES_MUESTRA,
                      avisar_costo_tabla_ancha = TRUE,
                      umbral_celdas_aviso_tabla_ancha =
-                       .UMBRAL_CELDAS_AVISO_TABLA_ANCHA) {
+                       .UMBRAL_CELDAS_AVISO_TABLA_ANCHA,
+                     dominios = NULL) {
   # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
   trazador_tiempos <- attr(
     datos, "lupa_trazador_tiempos_dbi", exact = TRUE
@@ -3198,6 +3248,7 @@ perfilar <- function(datos,
   }
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   fecha_declarada <- !missing(fecha)
+  fecha_es_date <- inherits(fecha, "Date")
   fecha_hora <- .fecha_argumento_utc(fecha)
   umbrales <- list(
     umbral_alta_cardinalidad, umbral_faltantes_sospechoso,
@@ -3472,6 +3523,7 @@ perfilar <- function(datos,
   # letra. Se marca una sola vez aca, no en la tabla, y se usa solo en los
   # canales que redactan mensajes.
   nombres_texto <- .marcar_utf8_textos(nombres)
+  dominios_resueltos <- .normalizar_dominios(dominios, nombres)
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )
@@ -3492,6 +3544,11 @@ perfilar <- function(datos,
       )
     })
   )
+  dominios_evaluados <- .evaluar_dominios(
+    datos, nombres, resultados, dominios_resueltos,
+    aplicabilidad_resuelta$mascaras, fecha_hora, fecha_es_date
+  )
+  resultados <- dominios_evaluados$resultados
   cobertura_texto_largo <- .cobertura_texto_largo_perfil(
     resultados, nombres, max_largo_valor_vocabulario,
     normalizacion = normalizacion_resuelta,
@@ -3643,6 +3700,7 @@ perfilar <- function(datos,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
     if (is.na(n_filas_en_grupos_duplicados)) 0L else
       n_filas_en_grupos_duplicados,
+    hallazgos_dominio = dominios_evaluados$hallazgos,
     clave_declarada = clave,
     evaluacion_clave = evaluacion_clave,
     relaciones_orden = relaciones_orden$hallazgos,
@@ -4026,6 +4084,9 @@ perfilar <- function(datos,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
     normalizacion_fusiones = normalizacion_fusiones
   )
+  if (!is.null(dominios_evaluados$meta)) {
+    meta$dominios <- dominios_evaluados$meta
+  }
   if (!is.null(alcance_muestra$huella)) {
     meta$muestra_huella <- alcance_muestra$huella
   }

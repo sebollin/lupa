@@ -3840,7 +3840,8 @@
       "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario",
       "fecha_nacimiento_fuera_rango", "fecha_fallecimiento_fuera_rango",
       "largo_codigo_inconsistente", "digito_verificador_invalido",
-      "posible_ausencia_estructural", "regla_silencia_ausencia"
+      "posible_ausencia_estructural", "regla_silencia_ausencia",
+      "valor_fuera_dominio", "fecha_futura", "fecha_centinela"
     ) &&
       is.list(trazabilidad_precalculada) &&
       !identical(trazabilidad_precalculada$estado, "no_disponible")) {
@@ -6520,6 +6521,7 @@
                                  max_trabajo = 2e10,
                                  max_largo_valor =
                                    .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+                                 hallazgos_dominio = list(),
                                  clave_declarada = NULL,
                                  evaluacion_clave = NULL,
                                  trazador_tiempos = NULL,
@@ -6844,6 +6846,9 @@
   }
   if (length(relaciones_funcionales)) {
     hallazgos <- c(hallazgos, relaciones_funcionales)
+  }
+  if (length(hallazgos_dominio)) {
+    hallazgos <- c(hallazgos, hallazgos_dominio)
   }
 
   if (length(hallazgos)) {

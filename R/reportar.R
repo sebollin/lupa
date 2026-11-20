@@ -299,7 +299,10 @@
   )
 }
 
-.resumen_severidades <- function(x, no_evaluados = 0L) {
+# `avisos` son los hallazgos `ok` que avisan de una columna cuyos valores caen
+# afuera de su dominio inferido: no son una conformidad, asi que no se cuentan
+# entre los correctos y tienen su propia tarjeta.
+.resumen_severidades <- function(x, no_evaluados = 0L, avisos = 0L) {
   severidades <- as.character(x)
   # Una severidad `NA` es una fila SIN veredicto -la deriva publica eso cuando
   # uno de los dos resultados no se evaluo- y las tres tarjetas la dejaban
@@ -318,7 +321,12 @@
       "Sospechosos", sum(severidades == "sospechoso", na.rm = TRUE),
       "sospechoso"
     ),
-    .tarjeta_reporte("Correctos", sum(severidades == "ok", na.rm = TRUE), "ok"),
+    .tarjeta_reporte(
+      "Correctos", sum(severidades == "ok", na.rm = TRUE) - avisos, "ok"
+    ),
+    if (isTRUE(avisos > 0L)) {
+      .tarjeta_reporte("Avisos de columna", avisos, "informativo")
+    } else "",
     if (isTRUE(diagnosticos > 0L)) {
       .tarjeta_reporte("No evaluados", diagnosticos, "informativo")
     } else "",
@@ -488,7 +496,15 @@
         }
       )
     } else "",
-    .resumen_severidades(severidades, nrow(cobertura_diagnosticos)),
+    .resumen_severidades(
+      severidades, nrow(cobertura_diagnosticos),
+      avisos = if (inherits(hallazgos, "data.frame") &&
+                   "tipo_hallazgo" %in% names(hallazgos)) {
+        sum(severidades == "ok" &
+              as.character(hallazgos$tipo_hallazgo) %in%
+              .TIPOS_HALLAZGO_DOMINIO, na.rm = TRUE)
+      } else 0L
+    ),
     "<h3>Resumen general</h3>", .html_tabla(general, Inf),
     "<h3>Hallazgos por severidad</h3>", .html_tabla(hallazgos, max_filas),
     "<h3>Resumen por columna</h3>", .html_tabla(x$columnas, max_filas),

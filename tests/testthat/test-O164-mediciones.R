@@ -684,6 +684,7 @@ test_that("la clase de cada argumento explica lo que cambia al moverlo", {
     umbral_faltantes_sospechoso = 0.3, umbral_faltantes_error = 0.6,
     umbral_patron_raro = 0.01, umbral_patron_dominante = 0.6, clave = "id",
     columnas_sin_ceros = "monto", columnas_no_negativas = "monto",
+    dominios = list(monto = list(minimo = 0, maximo = 200)),
     columnas_opcionales = "conyuge", columnas_codigo = "id",
     aplicabilidad = list(depto = ~ ciudad != "Salto"),
     ausencia_estructural = FALSE, sentinelas_numericos = numeric(),
