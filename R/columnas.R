@@ -4284,6 +4284,9 @@
     fila = fila,
     inferencia = inferencia,
     formatos = formatos,
+    # Interno: los meses en texto ya detectados, para que la validez de
+    # dominio no vuelva a recorrer los valores. No se publica.
+    meses_texto = meses_texto,
     patrones = patrones,
     indices_muestra = indices_muestra,
     total_muestra = total_muestra,

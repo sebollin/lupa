@@ -447,6 +447,9 @@
   cuantitativo <- tryCatch(
     .valores_cuantitativos(
       texto, resultado$inferencia, resultado$formatos,
+      # Los meses en texto ya los detecto el perfil de la columna: se reusan
+      # en vez de volver a recorrer los valores.
+      meses_texto = resultado$meses_texto,
       sentinelas_numericos = numeric()
     ),
     error = function(e) NULL
