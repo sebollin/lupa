@@ -290,6 +290,31 @@
   max(tabulate(match(particion$y, unique(particion$y))))
 }
 
+# Tasa de valores distintos del determinante desde la cual un par con dependiente
+# casi constante se descarta si su ventaja sale solo de grupos de una fila.
+# Medido: los determinantes del falso positivo -una fecha, un monto- tienen 0,6;
+# una categoria con 40 valores en 1000 filas, 0,04.
+.MIN_TASA_DETERMINANTE_VACUO <- 0.5
+
+# La dependencia le gana a la moda del dependiente dentro de los grupos del
+# determinante que tienen mas de una fila? Los grupos de una fila siempre
+# acierta su unico valor, asi que no prueban nada.
+.ventaja_en_grupos_repetidos <- function(particion) {
+  if (!particion$n) return(FALSE)
+  tamano <- tabulate(particion$grupo, nbins = particion$grupos)
+  repetidas <- tamano[particion$grupo] > 1L
+  if (!any(repetidas)) return(FALSE)
+  conteo_pareja <- particion$conteos
+  grupo_pareja <- integer(length(conteo_pareja))
+  primera <- !duplicated(particion$pareja)
+  grupo_pareja[particion$pareja[primera]] <- particion$grupo[primera]
+  maximos <- tapply(conteo_pareja, grupo_pareja, max)
+  conformes <- sum(maximos[tamano[as.integer(names(maximos))] > 1L])
+  claves_y <- match(particion$y, unique(particion$y))
+  moda_y <- which.max(tabulate(claves_y))
+  conformes > sum(claves_y[repetidas] == moda_y)
+}
+
 .poda_dependencia_pares <- function(particion, umbral) {
   if (!particion$n) return(FALSE)
   # Misma forma que la cota debil, y por el mismo motivo de exactitud.
@@ -317,7 +342,11 @@
 #' par cuyo determinante no acierta más filas que la moda del dependiente sin
 #' agrupar: con un dependiente casi constante —un `estado` que vale `"ACTIVO"`
 #' en el 99,7 % de las filas— cualquier columna alcanzaría el umbral sin
-#' aportar nada. El
+#' aportar nada. Si ese dependiente casi constante tiene una proporción modal de
+#' al menos `umbral_casi_constante`, tampoco se informa un par con determinante
+#' de tasa de valores distintos de 0,5 o más cuya ventaja sobre la moda sale sólo
+#' de valores del determinante que aparecen en una única fila: esa fila queda "explicada" por sí misma, sin que ningún grupo repetido
+#' la sostenga. El
 #' valor predeterminado de `umbral = 0.995` exige que como máximo 5 de cada
 #' 1.000 filas contradigan la relación. Los ausentes de cualquiera de las dos
 #' columnas no integran el cálculo.
@@ -683,6 +712,18 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
         # umbral se alcanza sin mirar el determinante.
         if (resumen$n - resumen$violaciones <=
             .conformes_sin_determinante(particion)) next
+        # Con un dependiente casi constante la ventaja sobre la moda puede venir
+        # solo de valores del determinante que aparecen una vez: la unica fila
+        # distinta cae en su propio grupo y "queda explicada" sin que ningun
+        # grupo con mas de una fila la sostenga. Con un `monto` casi unico, tres
+        # columnas "determinaban" a una columna con 298 `A` y 2 `B`. Solo se
+        # aplica a un determinante con tasa de distintos alta -muchos grupos de
+        # una fila-: una `ciudad` con 40 valores en 1000 filas, donde dos
+        # aparecen una vez, es una relacion real con categorias raras.
+        if (isTRUE(estadisticas[[j]]$proporcion_moda >= umbral_casi_constante) &&
+            isTRUE(estadisticas[[i]]$tasa_distintos >=
+                     .MIN_TASA_DETERMINANTE_VACUO) &&
+            !.ventaja_en_grupos_repetidos(particion)) next
         k <- k + 1L
         pares_publicados[[k]] <- c(seleccion[[i]], seleccion[[j]])
         filas[[k]] <- data.frame(

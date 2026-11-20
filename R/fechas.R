@@ -36,7 +36,7 @@
 }
 
 .es_fecha_valida <- function(x, formato, expresion, granularidad = "dia",
-                             designadores = TRUE) {
+                             designadores = TRUE, solo_forma = FALSE) {
   # Declarado, y solo lo legible: un texto que no es UTF-8 valido no es una
   # fecha en ninguna sesion, y bajo un locale UTF-8 hacia abortar el `grepl()`.
   x <- .declarar_utf8_valido(as.character(x))
@@ -55,6 +55,9 @@
   if (any(legibles)) {
     coincide[legibles] <- grepl(expresion, x[legibles], perl = TRUE)
   }
+  # `solo_forma`: cuales valores tienen la forma del formato, sin decidir si
+  # existen en el calendario. Lo usa el diagnostico de fechas imposibles.
+  if (isTRUE(solo_forma)) return(coincide)
   valido <- rep(FALSE, length(x))
   if (any(coincide)) {
     valores <- x[coincide]

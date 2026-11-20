@@ -51,6 +51,8 @@
 # distribucion lo dicen la media, la dispersion y el rango.
 .TIPOS_HALLAZGO_SIN_CONTEO_DERIVA <- c(
   "faltantes", "faltantes_disfrazados", "alta_cardinalidad", "outliers",
+  # Sus filas son las que `faltantes` ya cuenta en la misma columna.
+  "identificador_con_ausentes",
   "espacios_sobrantes", "mayusculas_inconsistentes", "normalizacion_unicode",
   # Cuentan coincidencias entre filas: filas repetidas, filas en colision de una
   # casi clave y la frecuencia de la moda. Con la misma distribucion, mas filas

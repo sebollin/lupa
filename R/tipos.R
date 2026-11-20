@@ -184,10 +184,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   dobles <- is.finite(suppressWarnings(
     .leer_numeros_texto(formas, convencion_numero_texto)
   ))
-  horas <- grepl(
-    "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$",
-    formas, perl = TRUE
-  )
+  horas <- grepl(.EXPRESION_HORA_VALIDA, formas, perl = TRUE)
 
   formatos <- .detectar_formatos_fecha_interno(
     valores, muestra = muestra, vocabulario = vocabulario

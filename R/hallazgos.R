@@ -426,6 +426,60 @@
   )
 }
 
+# Un identificador con ausentes: ver el llamado en `.hallazgos_columnas()`.
+.MIN_VALIDOS_IDENTIFICADOR_CON_AUSENTES <- 20L
+.MAX_PROPORCION_AUSENTES_IDENTIFICADOR <- 0.10
+
+# La columna con lo que esta fuera del universo aplicable declarado como `NA`:
+# lo que no pertenece al universo no se cuenta ni se acusa.
+.columna_en_el_universo <- function(x, aplicable) {
+  if (is.null(aplicable) || !is.atomic(x) || is.list(x) ||
+      length(aplicable) != length(x) || all(aplicable, na.rm = TRUE)) {
+    return(x)
+  }
+  x[!as.logical(aplicable)] <- NA
+  x
+}
+
+.identificador_con_ausentes <- function(x, fila, aplicable = NULL) {
+  n_filas <- suppressWarnings(as.numeric(fila$n_aplicables))
+  n_ausentes <- suppressWarnings(as.numeric(fila$n_faltantes))
+  distintos <- suppressWarnings(as.numeric(fila$n_distintos))
+  if (length(n_filas) != 1L || length(n_ausentes) != 1L ||
+      length(distintos) != 1L ||
+      !isTRUE(is.finite(n_filas) && is.finite(n_ausentes) &&
+                is.finite(distintos)) ||
+      n_ausentes < 1 || n_ausentes > .MAX_PROPORCION_AUSENTES_IDENTIFICADOR * n_filas) {
+    return(NULL)
+  }
+  n_validos <- n_filas - n_ausentes
+  if (n_validos < .MIN_VALIDOS_IDENTIFICADOR_CON_AUSENTES ||
+      distintos != n_validos || is.list(x) || .es_columna_compuesta(x)) {
+    return(NULL)
+  }
+  en_universo <- if (!is.null(aplicable) && length(aplicable) == length(x)) {
+    as.logical(aplicable)
+  } else rep(TRUE, length(x))
+  indices <- which(is.na(x) & en_universo)
+  # Si el conteo del resumen y el de la columna no coinciden no se afirma nada.
+  if (length(indices) != n_ausentes) return(NULL)
+  # La unicidad se mide como el resto del perfil: sin espacios de borde ni
+  # diferencia de mayusculas. Un blanco o `K1 ` junto a `K1` no son valores
+  # distintos, y un blanco no es un valor presente.
+  if (is.character(x) || is.factor(x)) {
+    presentes <- as.character(x)[!is.na(x) & en_universo]
+    plegados <- .minusculas_para_comparar(presentes)
+    if (anyNA(plegados) || any(!nzchar(plegados)) ||
+        length(unique(plegados)) != length(plegados)) {
+      return(NULL)
+    }
+  }
+  list(
+    n_filas = n_filas, n_ausentes = n_ausentes, n_validos = n_validos,
+    indices = indices
+  )
+}
+
 .cobertura_diagnosticos_vacia <- function() {
   data.frame(
     diagnostico = character(), columna = character(), motivo = character(),
@@ -1886,6 +1940,20 @@
         "lv", 1, bloque = min(1000L, length(indices_cortos)),
         max_resultados = 1L,
         on_pairs = function(fila_1, fila_2, distancia) {
+          # Dos valores de un solo caracter distintos no son uno la errata del
+          # otro: a esa longitud toda sustitucion es "un caracter de diferencia"
+          # y no queda nada comun que se haya escrito mal. `A` y `B` de una
+          # columna casi constante, o `M` y `F`, entraban como casi duplicados.
+          dos_de_un_caracter <-
+            .nchar_texto_seguro(valores_norm[fila_1]) == 1L &
+            .nchar_texto_seguro(valores_norm[fila_2]) == 1L
+          dos_de_un_caracter[is.na(dos_de_un_caracter)] <- FALSE
+          if (any(dos_de_un_caracter)) {
+            fila_1 <- fila_1[!dos_de_un_caracter]
+            fila_2 <- fila_2[!dos_de_un_caracter]
+            distancia <- distancia[!dos_de_un_caracter]
+          }
+          if (!length(fila_1)) return(invisible(NULL))
           registrar_candidatos(
             fila_1, fila_2, distancia, edicion_corta = TRUE
           )
@@ -3842,7 +3910,9 @@
       "largo_codigo_inconsistente", "digito_verificador_invalido",
       "posible_ausencia_estructural", "regla_silencia_ausencia",
       "faltantes_conjuntos", "ausencia_dependiente", "filas_vacias",
-      "valor_fuera_dominio", "fecha_futura", "fecha_centinela"
+      "valor_fuera_dominio", "fecha_futura", "fecha_centinela",
+      "casi_constante", "hora_invalida", "fecha_invalida",
+      "identificador_con_ausentes"
     ) &&
       is.list(trazabilidad_precalculada) &&
       !identical(trazabilidad_precalculada$estado, "no_disponible")) {
@@ -4569,7 +4639,8 @@
                                 umbral_patron_dominante,
                                 columnas_sin_ceros,
                                 columnas_no_negativas,
-                                datos = NULL) {
+                                datos = NULL,
+                                clave_declarada = NULL) {
   hallazgos <- list()
   cobertura <- list()
   k <- 0L
@@ -4984,6 +5055,60 @@
       ))
     }
 
+    # Casi constante: ver `.casi_constante()`. Se calla cuando `valor_concentrado`
+    # ya dijo lo mismo de la columna y cuando lo que domina son ausencias
+    # escritas de otra forma, que `faltantes_disfrazados` nombra.
+    casi_constante <- if (is.data.frame(datos) && i <= ncol(datos) &&
+        !(is.list(concentracion) && isTRUE(concentracion$dispara)) &&
+        !isTRUE(suppressWarnings(
+          as.numeric(fila$n_faltantes_disfrazados) > 0.5 * n_validos
+        ))) {
+      .casi_constante(
+        .columna_en_el_universo(datos[[i]], resultado$aplicable), fila
+      )
+    }
+    if (!is.null(casi_constante)) {
+      hallazgo_casi_constante <- .nuevo_hallazgo(
+        nombre, "casi_constante", "ok",
+        paste(
+          "La columna casi no var\u00eda: un valor ocupa casi todos los valores",
+          "presentes. Es una propiedad observada, no un defecto."
+        ),
+        paste0(
+          .formatear_numero_publicado(length(casi_constante$indices)),
+          " de ", .formatear_numero_publicado(casi_constante$n_validos),
+          " filas difieren del valor com\u00fan (", .texto_valor(casi_constante$valor),
+          ", ", .formatear_numero_publicado(casi_constante$frecuencia_moda),
+          "; ",
+          .formatear_decimal_publicado(
+            casi_constante$frecuencia_moda / casi_constante$n_validos
+          ),
+          "); valores distintos: ",
+          .formatear_numero_publicado(casi_constante$n_distintos),
+          "; raz\u00f3n de frecuencias (primero sobre segundo): ",
+          .formatear_decimal_publicado(casi_constante$razon_frecuencias, 1L),
+          "; porcentaje de valores \u00fanicos: ",
+          .formatear_decimal_publicado(casi_constante$porcentaje_unicos, 2L),
+          ". criterio_casi_constante: proporci\u00f3n de la moda>=",
+          .formatear_decimal_publicado(.UMBRAL_CASI_CONSTANTE),
+          " con al menos ", .MIN_VALIDOS_CASI_CONSTANTE, " valores presentes ",
+          "(varianza casi nula, como `caret::nearZeroVar()`, con un umbral m\u00e1s ",
+          "exigente)."
+        ),
+        paste(
+          "Seg\u00fan el uso: una columna que casi no var\u00eda aporta poco a un",
+          "an\u00e1lisis de varianza, pero puede ser un per\u00edodo, un pa\u00eds o un estado",
+          "\u00fanicos, o la marca de un evento raro. Si los pocos valores distintos",
+          "pudieran ser errores de carga, revisarlos."
+        ),
+        casi_constante$n_validos, length(casi_constante$indices), "fila"
+      )
+      hallazgo_casi_constante$trazabilidad <- I(list(
+        .trazabilidad_indices(casi_constante$indices, "completo", limite = Inf)
+      ))
+      agregar(hallazgo_casi_constante)
+    }
+
     casi_clave <- resultado$casi_clave
     if (!is.null(casi_clave) && isTRUE(casi_clave$es_casi_clave)) {
       agregar(.nuevo_hallazgo(
@@ -5060,6 +5185,56 @@
     # condicion de aca aceptaba ademas una secuencia densa y unica que esa
     # guarda rechazaba. Ver `.decision_identificador_numerico()`.
     decision_identificador <- .decision_identificador_numerico(fila)
+    # Un identificador que tiene `NA`. Sin una clave declarada nadie lo pregunto:
+    # `clave_con_ausentes` solo existe para la clave que el usuario declara.
+    # Se dice solo cuando la columna es un posible identificador, todos sus
+    # valores presentes son distintos y los ausentes son pocos; un identificador
+    # opcional con muchos ausentes -un documento que no todos tienen- es dato
+    # legitimo y no se acusa. Una clave declarada ya recibe `clave_con_ausentes`.
+    #
+    # Solo el identificador con forma de tal -`tipos.R` lo infiere como
+    # `identificador`, texto con letras y digitos o ceros a la izquierda-. Una
+    # columna numerica con valores de 1 a n y algunos `NA` tambien se lee como
+    # numeracion, pero tambien es lo que da un conteo con ausentes declaradas, y
+    # no hay con que distinguirlos: ahi se calla.
+    if (isTRUE(decision_identificador$posible) &&
+        identical(as.character(fila$tipo_inferido), "identificador") &&
+        is.data.frame(datos) &&
+        i <= ncol(datos) && !(nombre %in% clave_declarada)) {
+      sin_valor <- .identificador_con_ausentes(datos[[i]], fila, resultado$aplicable)
+      if (!is.null(sin_valor)) {
+        hallazgo_ausentes <- .nuevo_hallazgo(
+          nombre, "identificador_con_ausentes", "ok",
+          paste(
+            "La columna parece un identificador -todos sus valores presentes",
+            "son distintos- y tiene ausentes. Sin `clave=` no se sabe si es",
+            "obligatorio."
+          ),
+          paste0(
+            sin_valor$n_ausentes,
+            if (sin_valor$n_ausentes == 1L) " ausente de " else " ausentes de ",
+            sin_valor$n_filas, " filas (",
+            .formatear_decimal_publicado(sin_valor$n_ausentes / sin_valor$n_filas),
+            "); los ", sin_valor$n_validos,
+            " valores presentes son distintos. criterio_identificador_con_ausentes:",
+            " al menos ", .MIN_VALIDOS_IDENTIFICADOR_CON_AUSENTES,
+            " valores presentes, todos distintos, y no m\u00e1s de ",
+            .formatear_decimal_publicado(.MAX_PROPORCION_AUSENTES_IDENTIFICADOR),
+            " de ausentes."
+          ),
+          paste(
+            "Si es la clave de la tabla, declararla con `clave=`: ah\u00ed",
+            "`clave_con_ausentes` la mide y nombra las filas sin valor. Si es un",
+            "identificador opcional, es esperable."
+          ),
+          sin_valor$n_filas, sin_valor$n_ausentes, "fila"
+        )
+        hallazgo_ausentes$trazabilidad <- I(list(
+          .trazabilidad_indices(sin_valor$indices, "completo", limite = Inf)
+        ))
+        agregar(hallazgo_ausentes)
+      }
+    }
     if (isTRUE(decision_identificador$posible)) {
       # Una numeracion puede ser casi unica -un identificador de fila- o
       # repetirse mucho -un codigo de catalogo-, y son dos cosas distintas que
@@ -5729,6 +5904,68 @@
           .trazabilidad_indices(largo$indices, "completo", limite = Inf)
         ))
         agregar(hallazgo_largo)
+      }
+    }
+    # Horas y fechas con la forma pero que no existen. Es un aviso de forma:
+    # `umbral_patron_raro = 0` lo apaga igual que a `largo_codigo_inconsistente`.
+    if (is.finite(umbral_patron_raro) && umbral_patron_raro > 0 &&
+        is.data.frame(datos) && i <= ncol(datos)) {
+      temporal <- .temporales_imposibles(
+        .columna_en_el_universo(datos[[i]], resultado$aplicable),
+        fila$tipo_inferido, resultado$formatos, nombre
+      )
+      if (!is.null(temporal)) {
+        es_hora <- temporal$es_hora
+        hallazgo_temporal <- .nuevo_hallazgo(
+          nombre, if (es_hora) "hora_invalida" else "fecha_invalida", "sospechoso",
+          if (es_hora) {
+            paste(
+              "Hay valores con forma de hora que no son una hora v\u00e1lida:",
+              "minutos o segundos mayores que 59, u hora mayor que 23."
+            )
+          } else {
+            paste(
+              "Hay valores con forma de fecha que no existen en el calendario:",
+              "un d\u00eda o un mes fuera de rango, como el 30 de febrero."
+            )
+          },
+          paste0(
+            length(temporal$indices), " de ", temporal$n_evaluados,
+            if (es_hora) " valores con forma de hora" else
+              " valores con forma de fecha",
+            "; ejemplos: ",
+            paste0("\"", temporal$ejemplos, "\"", collapse = ", "),
+            if (es_hora) paste0(
+              "; minutos o segundos fuera de 0-59: ",
+              temporal$n_minutos_segundos,
+              "; hora 24 o mayor: ", temporal$n_horas_altas,
+              if (temporal$n_horas_altas > 0) paste(
+                " (si la columna es una duraci\u00f3n y no una hora del d\u00eda,",
+                "pueden ser v\u00e1lidas)"
+              ) else "",
+              if (temporal$n_fin_dia > 0) paste0(
+                "; no se cuentan los ", temporal$n_fin_dia,
+                " valores 24:00, que algunos sistemas usan como fin del d\u00eda"
+              ) else ""
+            ) else ""
+          ),
+          if (es_hora) {
+            paste(
+              "Revisar con la fuente los valores se\u00f1alados y corregirlos; al",
+              "convertir la columna a hora quedar\u00edan como NA."
+            )
+          } else {
+            paste(
+              "Revisar con la fuente los valores se\u00f1alados y corregirlos; al",
+              "convertir la columna a fecha quedar\u00edan como NA."
+            )
+          },
+          temporal$n_evaluados, length(temporal$indices), "fila"
+        )
+        hallazgo_temporal$trazabilidad <- I(list(
+          .trazabilidad_indices(temporal$indices, "completo", limite = Inf)
+        ))
+        agregar(hallazgo_temporal)
       }
     }
     if (isTRUE(fila$n_espacios_borde > 0L)) {
@@ -6545,7 +6782,8 @@
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
     umbral_patron_raro, umbral_patron_dominante,
-    columnas_sin_ceros, columnas_no_negativas, datos = datos
+    columnas_sin_ceros, columnas_no_negativas, datos = datos,
+    clave_declarada = clave_declarada
   )
   cobertura <- attr(hallazgos_columnas, "cobertura_diagnosticos", exact = TRUE)
   if (is.null(cobertura)) cobertura <- .cobertura_diagnosticos_vacia()

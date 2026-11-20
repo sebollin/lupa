@@ -2,6 +2,26 @@
 
 ## Perfilado
 
+- `perfilar()` informa las horas y fechas escritas como texto que no existen
+  (`hora_invalida`, `fecha_invalida`, sospechosos: `"12:61"`, `"2022-02-30"`,
+  con los bisiestos), con sus filas, en las columnas que el perfil lee como
+  hora o fecha. `24:00` se acepta como fin del día, y una hora de 24 o más con
+  minutos válidos sólo se acusa si el nombre de la columna dice hora del día
+  (puede ser una duración). `umbral_patron_raro = 0` los apaga.
+- `perfilar()` informa las columnas casi constantes (`casi_constante`, `ok`:
+  un valor ocupa el 99 % o más de los presentes, con al menos 100 valores; la
+  evidencia da la razón de frecuencias y el porcentaje de valores únicos, como
+  `nearZeroVar()` del paquete caret) y los identificadores de texto con hasta un
+  10 % de faltantes (`identificador_con_ausentes`, `ok`: si es la clave de la
+  tabla, declararla con `clave =` la acusa como `clave_con_ausentes`). Los dos
+  cuentan sobre el universo aplicable y, con `universo = "muestra_motor"`, se
+  declaran en la cobertura.
+- `detectar_dependencias()` y `perfilar()` ya no informan una dependencia
+  trivial hacia una columna casi constante cuando el determinante es casi único
+  y sólo lo explican valores que aparecen una vez; una dependencia con un
+  determinante de pocos valores (`ciudad -> pais`) se sigue informando.
+  `casi_duplicados_vocabulario` ya no toma dos valores de un solo carácter como
+  errata uno del otro.
 - `perfilar()` informa los patrones de ausencia: `faltantes_conjuntos` cuando
   varias columnas comparten un bloque de filas ausentes (se lee de la tabla de
   patrones de ausencia por fila, como `md.pattern()` del paquete mice, con un

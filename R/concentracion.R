@@ -61,3 +61,58 @@
       isTRUE(fraccion >= .MIN_FRACCION_VALOR_CONCENTRADO)
   )
 }
+
+# Columna casi constante: un valor ocupa casi todos los valores presentes y los
+# demas son pocos. Es la version "casi" de `constante`, y la senal que
+# `caret::nearZeroVar()` llama varianza casi nula: razon entre la frecuencia del
+# valor mas comun y la del segundo (por omision, mas de 19) y porcentaje de
+# valores unicos (por omision, menos del 10 %). Esa regla marca a una de cada
+# veinte filas distintas; aca se pide una proporcion modal de 0,99 porque el
+# perfil prefiere callar a acusar una columna con un 5 % de datos propios.
+#
+# Es una propiedad observada, no un defecto: una tabla de un solo anio, pais o
+# estado, una bandera `fallecido` con el 1 % de "si" o un conteo con el 99 % de
+# ceros tienen esta forma y son informacion. El hallazgo se publica siempre con
+# severidad `ok`, y la columna se describe sin calificarla.
+#
+# Con diez valores distintos o mas y una moda cinco veces mayor que la segunda
+# el perfil ya emite `valor_concentrado`: no se repite el aviso.
+.UMBRAL_CASI_CONSTANTE <- 0.99
+.MIN_VALIDOS_CASI_CONSTANTE <- 100L
+
+.casi_constante <- function(x, fila) {
+  n_validos <- suppressWarnings(as.numeric(fila$n_aplicables - fila$n_faltantes))
+  frecuencia <- suppressWarnings(as.numeric(fila$frecuencia_moda))
+  distintos <- suppressWarnings(as.numeric(fila$n_distintos))
+  if (length(n_validos) != 1L || length(frecuencia) != 1L ||
+      length(distintos) != 1L ||
+      !isTRUE(is.finite(n_validos) && is.finite(frecuencia) &&
+                is.finite(distintos)) ||
+      n_validos < .MIN_VALIDOS_CASI_CONSTANTE || distintos < 2 ||
+      frecuencia / n_validos < .UMBRAL_CASI_CONSTANTE) {
+    return(NULL)
+  }
+  if (!is.atomic(x) || is.raw(x) || is.list(x) || .es_columna_compuesta(x)) {
+    return(NULL)
+  }
+  validos <- which(!is.na(x))
+  if (length(validos) < .MIN_VALIDOS_CASI_CONSTANTE) return(NULL)
+  claves <- .valores_relacion(x[validos])
+  unicos <- unique(claves)
+  if (length(unicos) < 2L) return(NULL)
+  codigo <- match(claves, unicos)
+  cuentas <- tabulate(codigo, nbins = length(unicos))
+  moda <- which.max(cuentas)
+  n <- length(claves)
+  if (cuentas[[moda]] / n < .UMBRAL_CASI_CONSTANTE) return(NULL)
+  fuera <- validos[codigo != moda]
+  valor <- x[validos[match(moda, codigo)]]
+  segunda <- max(cuentas[-moda])
+  list(
+    valor = valor, frecuencia_moda = as.numeric(cuentas[[moda]]),
+    n_validos = as.numeric(n), n_distintos = as.numeric(length(unicos)),
+    razon_frecuencias = as.numeric(cuentas[[moda]]) / as.numeric(segunda),
+    porcentaje_unicos = 100 * length(unicos) / n,
+    indices = fuera
+  )
+}

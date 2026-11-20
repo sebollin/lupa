@@ -20519,21 +20519,48 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # El hallazgo no se apaga: se traslada a `cobertura_diagnosticos`, con el
 # tamano de la muestra y el de la tabla, para que quede escrito que se dejo de
 # decir y por que.
-.constante_no_medible_en_muestra_dbi <- function(perfil, muestreo) {
+.constante_no_medible_en_muestra_dbi <- function(
+    perfil, muestreo,
+    tipos = c("constante", "casi_constante", "identificador_con_ausentes")) {
   if (is.null(perfil) || isTRUE(muestreo$tabla_completa)) return(perfil)
   hallazgos <- perfil$hallazgos
   if (is.null(hallazgos) || !nrow(hallazgos)) return(perfil)
-  sobra <- as.character(hallazgos$tipo_hallazgo) == "constante"
+  # Lo mismo vale para dos hallazgos nuevos que miden una propiedad de toda la
+  # columna: `casi_constante` -una proporcion modal que la muestra puede
+  # exagerar o esconder- e `identificador_con_ausentes` -que todos los valores
+  # presentes sean distintos, que una muestra no puede mostrar-.
+  tipo_hallazgo <- as.character(hallazgos$tipo_hallazgo)
+  sobra <- tipo_hallazgo %in% tipos
   if (!any(sobra)) return(perfil)
   filas <- .entero_sql_dbi(muestreo$filas_obtenidas)
   total <- .entero_sql_dbi(muestreo$filas_totales_fuente)
   nuevas <- do.call(rbind, lapply(which(sobra), function(i) {
+    tipo <- tipo_hallazgo[[i]]
     .nuevo_diagnostico_no_evaluado(
-      "constante", as.character(hallazgos$columna[[i]]),
+      tipo, as.character(hallazgos$columna[[i]]),
       paste0(
-        "No se evalu\u00f3 si la columna es constante: el perfil describe ", filas,
-        if (filas == 1L) " fila de las " else " filas de las ", total, " de la tabla. En la muestra se observ\u00f3 un ",
-        "\u00fanico valor, y eso no prueba que sea el \u00fanico de la tabla."
+        "No se evalu\u00f3 ", switch(
+          tipo,
+          constante = "si la columna es constante",
+          casi_constante = "si la columna es casi constante",
+          "si la columna es un identificador con ausentes"
+        ), ": el perfil describe ", filas,
+        if (filas == 1L) " fila de las " else " filas de las ", total, " de la tabla. ",
+        switch(
+          tipo,
+          constante = paste0(
+            "En la muestra se observ\u00f3 un ",
+            "\u00fanico valor, y eso no prueba que sea el \u00fanico de la tabla."
+          ),
+          casi_constante = paste0(
+            "La proporci\u00f3n del valor m\u00e1s frecuente en la muestra no ",
+            "prueba que la tabla alcance el umbral."
+          ),
+          paste0(
+            "Que los valores presentes sean todos distintos en la muestra no ",
+            "prueba que lo sean en la tabla."
+          )
+        )
       ),
       paste(
         "Perfilar la tabla completa, o contar los valores distintos con",
@@ -25296,6 +25323,20 @@ perfilar_dbi <- function(conexion, tabla,
   # leidas: la comparacion de entregas lo necesita para no tomar por cambio de
   # tipo lo que es un cambio de la muestra (`preparacion` se resuelve al salir).
   con_fecha <- function(x) {
+    # Con `universo = "muestra_motor"` el perfil describe la muestra del motor:
+    # lo que pide la tabla entera se declara, no se publica.
+    if (identical(preparacion$universo, "muestra_motor") &&
+        is.list(x$perfil_muestra)) {
+      x$perfil_muestra <- .constante_no_medible_en_muestra_dbi(
+        x$perfil_muestra,
+        list(
+          tabla_completa = FALSE,
+          filas_obtenidas = x$perfil_muestra$general$filas,
+          filas_totales_fuente = preparacion$n_total
+        ),
+        tipos = c("casi_constante", "identificador_con_ausentes")
+      )
+    }
     .sellar_tipos_motor_dbi(
       .sellar_fecha_perfil_dbi(x, fecha_corrida), preparacion
     )
