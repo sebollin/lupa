@@ -657,6 +657,15 @@
   evaluar_numericos <- length(tipo_inferido) == 1L &&
     !is.na(tipo_inferido) &&
     tipo_inferido %in% c("entero", "doble", "integer64")
+  # Un numero escrito como texto se vuelve a leer para estos diagnosticos, y
+  # esa lectura es la cara (el perfil ya leyo la columna una vez). Se paga solo
+  # si algo la justifica: un nombre de magnitud que se apila, o valores alejados
+  # que puedan ser otra escala. Una columna numerica nativa no se relee.
+  if (evaluar_numericos && !is.numeric(x)) {
+    n_alejados <- suppressWarnings(as.numeric(fila$n_outliers[[1L]]))
+    evaluar_numericos <- .es_magnitud_apilable(nombre) ||
+      (length(n_alejados) == 1L && !is.na(n_alejados) && n_alejados > 0)
+  }
   numericos <- NULL
   if (evaluar_numericos) {
     cuantitativos <- .cuantitativos_en_el_universo(
