@@ -20580,6 +20580,47 @@ print.plan_perfilado_dbi <- function(x, ...) {
   perfil
 }
 
+# Una serie acumulada se mide sobre filas consecutivas en el orden de la tabla.
+# Una muestra parcial no conserva ese orden -aunque se pida `orden_muestra`, las
+# filas que faltan rompen la continuidad-, asi que el retroceso no se puede
+# distinguir de un salto entre filas muestreadas. El diagnostico no se publica
+# sobre la muestra y la cobertura lo declara, como con `constante`.
+.serie_no_evaluable_en_muestra_dbi <- function(perfil, muestreo) {
+  if (is.null(perfil) || isTRUE(muestreo$tabla_completa)) return(perfil)
+  filas <- .entero_sql_dbi(muestreo$filas_obtenidas)
+  total <- .entero_sql_dbi(muestreo$filas_totales_fuente)
+  nuevas <- .nuevo_diagnostico_no_evaluado(
+    "serie_acumulada_retrocede", NA_character_,
+    paste0(
+      "No se evalu\u00f3 el retroceso de una serie acumulada: la muestra tiene ",
+      filas, if (filas == 1L) " fila de las " else " filas de las ", total,
+      " y no conserva el orden de las filas de la tabla. Un salto entre dos ",
+      "filas muestreadas no es un retroceso de la serie."
+    ),
+    paste(
+      "Perfilar la tabla completa, o evaluar la serie sobre la fuente ordenada",
+      "antes de muestrear."
+    )
+  )
+  hallazgos <- perfil$hallazgos
+  if (is.data.frame(hallazgos) && nrow(hallazgos)) {
+    sobra <- as.character(hallazgos$tipo_hallazgo) ==
+      "serie_acumulada_retrocede"
+    if (any(sobra)) {
+      perfil$hallazgos <- hallazgos[!sobra, , drop = FALSE]
+      rownames(perfil$hallazgos) <- NULL
+    }
+  }
+  cobertura <- perfil$cobertura_diagnosticos
+  perfil$cobertura_diagnosticos <- if (is.null(cobertura) || !nrow(cobertura)) {
+    nuevas
+  } else {
+    rbind(cobertura, nuevas)
+  }
+  rownames(perfil$cobertura_diagnosticos) <- NULL
+  perfil
+}
+
 .prototipo_campo_muestra_dbi <- function(prototipo, campo, posicion) {
   .atributo_columna_dbi(prototipo, campo, posicion)
 }
@@ -22131,6 +22172,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     ))
   }
   perfil <- .constante_no_medible_en_muestra_dbi(perfil, muestreo_meta)
+  perfil <- .serie_no_evaluable_en_muestra_dbi(perfil, muestreo_meta)
   perfil$meta$origen_dbi <- list(
     tipo = "DBI",
     conexion = info_conexion,

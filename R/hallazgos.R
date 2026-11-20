@@ -3078,6 +3078,19 @@
 )
 
 .conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
+  # Los cuatro patrones de exactitud ya traen el denominador que midieron -los
+  # valores presentes, los enteros distintos de cero, los textos no vacios- y
+  # no el total de la columna. El conteo central no lo sabe y no debe pisarlo:
+  # una serie con tres ausentes se evaluo sobre 497 valores, no sobre 500.
+  if (tipo %in% c(
+    "texto_truncado", "apilamiento", "serie_acumulada_retrocede",
+    "escala_mixta"
+  )) {
+    return(list(
+      n_evaluados = NA_real_, n_afectados = NA_real_,
+      unidad_conteo = NA_character_
+    ))
+  }
   n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
     as.numeric(fila$n[[1L]])
   } else NA_real_
@@ -3912,7 +3925,9 @@
       "faltantes_conjuntos", "ausencia_dependiente", "filas_vacias",
       "valor_fuera_dominio", "fecha_futura", "fecha_centinela",
       "casi_constante", "hora_invalida", "fecha_invalida",
-      "identificador_con_ausentes"
+      "identificador_con_ausentes",
+      "texto_truncado", "apilamiento", "serie_acumulada_retrocede",
+      "escala_mixta"
     ) &&
       is.list(trazabilidad_precalculada) &&
       !identical(trazabilidad_precalculada$estado, "no_disponible")) {
@@ -4640,7 +4655,9 @@
                                 columnas_sin_ceros,
                                 columnas_no_negativas,
                                 datos = NULL,
-                                clave_declarada = NULL) {
+                                clave_declarada = NULL,
+                                distinguir_mayusculas = TRUE,
+                                expandir = FALSE) {
   hallazgos <- list()
   cobertura <- list()
   k <- 0L
@@ -6542,6 +6559,19 @@
         ))
       }
     }
+
+    # Los cuatro patrones de exactitud que el perfil no publicaba. Se emiten
+    # ADEMAS de `outliers`: ese hallazgo ya dice que hay valores alejados, y lo
+    # que faltaba era la causa. Una columna declarada codigo no es una cantidad
+    # ni un texto libre, y no recibe estos diagnosticos.
+    if (!is.null(datos) && !codigo_declarado) {
+      for (hallazgo_exactitud in .hallazgos_exactitud_columna(
+        nombre, datos[[i]], fila, resultado, datos,
+        distinguir_mayusculas = distinguir_mayusculas, expandir = expandir
+      )) {
+        agregar(hallazgo_exactitud)
+      }
+    }
   }
   salida <- hallazgos
   attr(salida, "cobertura_diagnosticos") <- if (length(cobertura)) {
@@ -6766,7 +6796,9 @@
                                  nombres_texto = NULL,
                                  duplicadas_texto = NULL,
                                  grupo_duplicadas = NULL,
-                                 posiciones_duplicadas = NULL) {
+                                 posiciones_duplicadas = NULL,
+                                 distinguir_mayusculas = TRUE,
+                                 expandir = FALSE) {
   if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(columnas)
   if (is.null(duplicadas_texto)) duplicadas_texto <- duplicadas
   if (is.null(grupo_duplicadas)) {
@@ -6783,7 +6815,8 @@
     umbral_faltantes_sospechoso, umbral_faltantes_error,
     umbral_patron_raro, umbral_patron_dominante,
     columnas_sin_ceros, columnas_no_negativas, datos = datos,
-    clave_declarada = clave_declarada
+    clave_declarada = clave_declarada,
+    distinguir_mayusculas = distinguir_mayusculas, expandir = expandir
   )
   cobertura <- attr(hallazgos_columnas, "cobertura_diagnosticos", exact = TRUE)
   if (is.null(cobertura)) cobertura <- .cobertura_diagnosticos_vacia()

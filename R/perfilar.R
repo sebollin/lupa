@@ -2984,6 +2984,23 @@
 #'   `20`. Si se omiten columnas, `cobertura_diagnosticos` declara el recorte y
 #'   `meta$aritmetica_columnas` conserva los conteos de combinaciones.
 #'
+#' @section Hallazgos de exactitud que se pueden apagar:
+#' El perfil emite cuatro hallazgos de exactitud. `texto_truncado` (valores
+#' cortados a mitad de palabra en un largo que se repite, con valores más cortos
+#' alrededor y sin un formato dominante; en los topes típicos con pocos valores
+#' se descartan los vocabularios discretos) y `apilamiento` (exceso de valores
+#' en múltiplos de 5 o 10 en magnitudes que se miden a mano, medido sobre la
+#' grilla de resolución de los datos —un aparato de 2 mmHg no apila— con el
+#' índice de Whipple y clasificado con las categorías de Naciones Unidas, de
+#' menos de 105 —muy preciso— a más de 175 —muy impreciso—) son `sospechoso`.
+#' `serie_acumulada_retrocede` acusa una columna acumulada que baja en filas que
+#' no son un reinicio: un reinicio vuelve cerca del comienzo en relación con lo
+#' acumulado hasta el pico, y los cortes regulares de bloques apilados también
+#' son reinicios.
+#' `escala_mixta` es informativo (`ok`): una minoría de valores separada del
+#' grueso por una potencia de diez puede ser una mezcla de unidades o dos
+#' poblaciones distintas. Los cuatro se filtran por su `tipo_hallazgo`.
+#'
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
 #'   declaradas (por ejemplo fila, columna, formato o par). En
@@ -3792,7 +3809,9 @@ perfilar <- function(datos,
     nombres_texto = nombres_texto,
     duplicadas_texto = duplicadas_texto,
     grupo_duplicadas = grupo_duplicadas,
-    posiciones_duplicadas = posiciones_duplicadas
+    posiciones_duplicadas = posiciones_duplicadas,
+    distinguir_mayusculas = distinguir_mayusculas,
+    expandir = expandir
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE

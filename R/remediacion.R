@@ -2121,6 +2121,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   grupo_ya_planificado <- !is.na(grupo_de_hallazgo) &
     duplicated(grupo_de_hallazgo)
+  # Una columna con `escala_mixta` mezcla unidades o poblaciones: recortar sus
+  # extremos con los limites de Tukey destruiria valores que el perfil acaba de
+  # describir como de otra escala. La marca de outlier se sigue ofreciendo; el
+  # recorte, no.
+  columnas_escala_mixta <- .nombres_para_operar(as.character(
+    hallazgos$columna[as.character(hallazgos$tipo_hallazgo) == "escala_mixta"]
+  ))
 
   for (i in seq_len(nrow(hallazgos))) {
     if (grupo_ya_planificado[[i]]) next
@@ -2886,34 +2893,38 @@ planificar_limpieza <- function(perfil, datos = NULL,
         decision_grupo = "pendiente",
         recomendacion_grupo = "marcar_outliers"
       ))
-      acciones <- .agregar_accion(acciones, .nueva_accion(
-        columna, tipo, "winsorizar_outliers", FALSE,
-        paste0(
-          "Sustituye los extremos por los l\u00edmites de Tukey y altera valores ",
-          "observados; s\u00f3lo debe elegirse con justificaci\u00f3n anal\u00edtica.",
-          if (winsor_pierde_entero) {
-            paste0(
-              " Los l\u00edmites de Tukey son cuartiles, as\u00ed que la columna deja ",
-              "de ser entera y queda en doble precisi\u00f3n."
-            )
-          } else {
-            ""
-          }
-        ), fila$n_outliers[[1L]], FALSE,
-        estado = if (winsor_disponible) estado_columna else "bloqueada",
-        aplicar = FALSE,
-        parametros = c(
-          list(regla = "Tukey 1,5 x IQR"),
-          if (winsor_pierde_entero) {
-            list(tipo_resultante = "doble", tipo_original = "entero")
-          } else {
-            list()
-          }
-        ), orden = 520L,
-        grupo = grupo_hallazgo, decision_grupo = "pendiente",
-        recomendacion_grupo = "marcar_outliers",
-        destructiva = winsor_pierde_entero
-      ))
+      sin_winsorizar <- !is.na(columna) &&
+        isTRUE(.nombres_para_operar(columna) %in% columnas_escala_mixta)
+      if (!sin_winsorizar) {
+        acciones <- .agregar_accion(acciones, .nueva_accion(
+          columna, tipo, "winsorizar_outliers", FALSE,
+          paste0(
+            "Sustituye los extremos por los l\u00edmites de Tukey y altera valores ",
+            "observados; s\u00f3lo debe elegirse con justificaci\u00f3n anal\u00edtica.",
+            if (winsor_pierde_entero) {
+              paste0(
+                " Los l\u00edmites de Tukey son cuartiles, as\u00ed que la columna deja ",
+                "de ser entera y queda en doble precisi\u00f3n."
+              )
+            } else {
+              ""
+            }
+          ), fila$n_outliers[[1L]], FALSE,
+          estado = if (winsor_disponible) estado_columna else "bloqueada",
+          aplicar = FALSE,
+          parametros = c(
+            list(regla = "Tukey 1,5 x IQR"),
+            if (winsor_pierde_entero) {
+              list(tipo_resultante = "doble", tipo_original = "entero")
+            } else {
+              list()
+            }
+          ), orden = 520L,
+          grupo = grupo_hallazgo, decision_grupo = "pendiente",
+          recomendacion_grupo = "marcar_outliers",
+          destructiva = winsor_pierde_entero
+        ))
+      }
     } else if (identical(tipo, "nombres_columnas_problematicos")) {
       nombres <- perfil$columnas$columna
       problema <- .nombres_columnas_problematicos(nombres)

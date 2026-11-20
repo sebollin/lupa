@@ -24,7 +24,8 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
 
 # Superficie completa que emite el paquete en esta version.
 .tipos_hallazgo_emitidos <- sort(c(
-  "alta_cardinalidad", "anio_de_dos_digitos", "ausencia_dependiente",
+  "alta_cardinalidad", "anio_de_dos_digitos", "apilamiento",
+  "ausencia_dependiente",
   "bloqueo_por_con_perdida", "casi_clave", "casi_constante",
   "casi_duplicados_vocabulario", "celdas_multivaluadas",
   "ceros_no_permitidos", "clave_con_ausentes", "clave_no_unica",
@@ -34,7 +35,7 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
   "crs_no_declarado", "dato_personal_posible", "desviacion_benford",
   "duplicados_aproximados", "duplicados_exactos_columnas",
   "duplicados_exactos_normalizados", "entidades_html",
-  "espacios_sobrantes", "faltantes", "faltantes_conjuntos",
+  "escala_mixta", "espacios_sobrantes", "faltantes", "faltantes_conjuntos",
   "faltantes_disfrazados", "fecha_centinela", "fecha_fallecimiento_fuera_rango", "fecha_futura",
   "fecha_nacimiento_fuera_rango",
   "fecha_partida_columnas", "filas_duplicadas", "filas_vacias",
@@ -49,7 +50,8 @@ ARTICULO_VOCABULARIO_PUBLICADO <- file.path(
   "posible_identificador", "regla_silencia_ausencia",
   "relacion_aritmetica_columnas", "relacion_funcional_columnas",
   "relacion_orden_columnas",
-  "separadores_en_campo", "tipo_compuesto_no_analizado",
+  "separadores_en_campo", "serie_acumulada_retrocede",
+  "texto_truncado", "tipo_compuesto_no_analizado",
   "tipo_declarado_distinto", "tipos_geometria_mixtos", "unidades_mixtas",
   "valor_concentrado", "valor_fuera_de_aplicabilidad", "valor_fuera_dominio",
   "valores_no_finitos",

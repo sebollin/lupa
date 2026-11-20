@@ -2,6 +2,17 @@
 
 ## Perfilado
 
+- `perfilar()` informa cuatro problemas de exactitud y consistencia:
+  `texto_truncado` (sospechoso: valores cortados a mitad de palabra en un largo
+  que se comporta como tope de campo, sin valores más largos y en una columna
+  de texto libre sin patrón dominante), `apilamiento` (sospechoso: exceso de
+  valores en múltiplos de 5 o 10 en edades y magnitudes medidas a mano —peso,
+  talla, perímetros, presión arterial—, medido con el índice de Whipple sobre
+  la resolución que tienen los datos y con las categorías de Naciones Unidas),
+  `serie_acumulada_retrocede` (sospechoso: una columna acumulada por su nombre
+  que baja; un reinicio que vuelve al nivel inicial y los tramos apilados no se
+  acusan) y `escala_mixta` (`ok`: una minoría de valores separada del resto por
+  una potencia de diez, que puede ser una mezcla de unidades o dos poblaciones).
 - `perfilar()` informa las horas y fechas escritas como texto que no existen
   (`hora_invalida`, `fecha_invalida`, sospechosos: `"12:61"`, `"2022-02-30"`,
   con los bisiestos), con sus filas, en las columnas que el perfil lee como
