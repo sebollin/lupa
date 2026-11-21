@@ -892,7 +892,14 @@ convierte un texto sucio— la deja abortada, y hay que cerrarla con
     <h2 id="muestra-y-aproximaciones">Muestra y aproximaciones<a class="anchor" aria-label="anchor" href="#muestra-y-aproximaciones"></a></h2>
 
 
-<p><code>universo = "muestra_motor"</code> sondea las formas declaradas por el adaptador y
+<p>La cuenta de faltantes disfrazados de la tabla completa se publica separada
+del perfil de muestra: <code>resumen_tabla$columnas$n_faltantes_disfrazados</code> y la
+fila homonima de <code>resumen_tabla$sql</code> describen el universo que figura en
+<code>alcance</code> y <code>universo</code>. <code>perfil_muestra</code> conserva sus propios conteos,
+hallazgos y severidades, y no se reemplaza con esta cifra. La cuenta SQL se
+publica como <code>calculado</code> solo cuando reproduce las guardas de <code><a href="perfilar.html">perfilar()</a></code>;
+si no, queda <code>NA</code> y <code>resumen_tabla$cobertura</code> explica la degradacion.
+<code>universo = "muestra_motor"</code> sondea las formas declaradas por el adaptador y
 usa <code>TABLESAMPLE</code> cuando el motor lo acepta, o una función pseudoaleatoria con
 el límite del dialecto. Si ninguna forma es compatible, las métricas SQL
 quedan en <code>no_disponible</code>: no se sustituyen por resultados de la tabla completa.

@@ -235,13 +235,13 @@ la tabla completa y el resto, de la muestra.
 
 sql <- en_motor$resumen_tabla$sql
 sql[sql$columna == "monto", c("columna", "metrica", "estado", "alcance")][1:6, ]
-#>    columna        metrica            estado        alcance
-#> 3    monto              n         calculado tabla_completa
-#> 33   monto      n_validos observado_muestra        muestra
-#> 34   monto    n_faltantes observado_muestra        muestra
-#> 35   monto prop_faltantes observado_muestra        muestra
-#> 36   monto    n_distintos observado_muestra        muestra
-#> 37   monto tasa_distintos observado_muestra        muestra
+#>     columna        metrica            estado        alcance
+#> 3     monto              n         calculado tabla_completa
+#> 110   monto      n_validos observado_muestra        muestra
+#> 22    monto    n_faltantes observado_muestra        muestra
+#> 32    monto prop_faltantes observado_muestra        muestra
+#> 42    monto    n_distintos observado_muestra        muestra
+#> 52    monto tasa_distintos observado_muestra        muestra
 ```
 
 El estado `observado_muestra` avisa que el valor describe la muestra. En
@@ -262,11 +262,11 @@ data.frame(
   )
 )
 #>           bloque calculado_en filas campos_analiticos
-#> 1  resumen_tabla     el motor  1000                15
+#> 1  resumen_tabla     el motor  1000                16
 #> 2 perfil_muestra            R   200               117
 ```
 
-El resumen tiene 15 campos analíticos por columna. Son los que SQL puede
+El resumen tiene 16 campos analíticos por columna. Son los que SQL puede
 calcular sin traer los datos: faltantes, distintos, moda, mínimo,
 máximo, media, mediana y desvío, entre otros. El perfil de la muestra
 tiene los 117 de
@@ -302,7 +302,7 @@ hallazgos(acotado)[, c("columna", "tipo_hallazgo", "severidad", "n_afectados")]
 #> 4 sucursal casi_duplicados_vocabulario         ok           0
 #> 5    fecha casi_duplicados_vocabulario         ok           0
 nrow(sql_perfil(acotado))
-#> [1] 60
+#> [1] 64
 ```
 
 El motor contó los 20 faltantes de `monto` en las 1.000 filas. En sus

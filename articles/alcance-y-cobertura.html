@@ -427,12 +427,12 @@ muestra del motor:</p>
 <span><span class="co"># moda de una columna sale estimada o no disponible según caigan repetidos.</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>estado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">estado</span>, error_esperado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">error_esperado</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span></span>
 <span><span class="co">#&gt;                    error_esperado</span></span>
-<span><span class="co">#&gt; estado              no_aplica no_estimable no_estimado</span></span>
-<span><span class="co">#&gt;   calculado              TRUE        FALSE       FALSE</span></span>
-<span><span class="co">#&gt;   estimado              FALSE         TRUE        TRUE</span></span>
-<span><span class="co">#&gt;   no_aplica             FALSE         TRUE        TRUE</span></span>
-<span><span class="co">#&gt;   no_disponible         FALSE         TRUE       FALSE</span></span>
-<span><span class="co">#&gt;   observado_muestra     FALSE         TRUE        TRUE</span></span>
+<span><span class="co">#&gt; estado              muestra no_aplica no_estimable no_estimado</span></span>
+<span><span class="co">#&gt;   calculado            TRUE      TRUE        FALSE       FALSE</span></span>
+<span><span class="co">#&gt;   estimado            FALSE     FALSE         TRUE        TRUE</span></span>
+<span><span class="co">#&gt;   no_aplica           FALSE     FALSE         TRUE        TRUE</span></span>
+<span><span class="co">#&gt;   no_disponible       FALSE     FALSE         TRUE       FALSE</span></span>
+<span><span class="co">#&gt;   observado_muestra   FALSE     FALSE         TRUE        TRUE</span></span>
 <span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 <p><code>observado_muestra</code> describe las filas que trajo la
@@ -881,7 +881,7 @@ autocontenidos.</li>
 <div class="section level2">
 <h2 id="el-vocabulario-completo-de-tipo_hallazgo">El vocabulario completo de <code>tipo_hallazgo</code><a class="anchor" aria-label="anchor" href="#el-vocabulario-completo-de-tipo_hallazgo"></a>
 </h2>
-<p>El paquete emite 72 nombres de <code>tipo_hallazgo</code>. Están en
+<p>El paquete emite 76 nombres de <code>tipo_hallazgo</code>. Están en
 castellano porque forman parte de la API pública: cambiar uno es un
 cambio incompatible.</p>
 <p>La lista se calcula a partir del código del paquete, al construir
@@ -904,29 +904,31 @@ coinciden, la página no se construye.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/formatc.html" class="external-link">formatC</a></span><span class="op">(</span><span class="va">izquierda</span>, width <span class="op">=</span> <span class="op">-</span><span class="fl">40</span><span class="op">)</span>, <span class="va">derecha</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; alta_cardinalidad                       filas_vacias</span></span>
 <span><span class="co">#&gt; anio_de_dos_digitos                     formato_fecha_ambiguo</span></span>
-<span><span class="co">#&gt; ausencia_dependiente                    formatos_fecha_mixtos</span></span>
-<span><span class="co">#&gt; bloqueo_por_con_perdida                 geometria_invalida</span></span>
-<span><span class="co">#&gt; casi_clave                              geometria_vacia</span></span>
-<span><span class="co">#&gt; casi_constante                          hora_invalida</span></span>
-<span><span class="co">#&gt; casi_duplicados_vocabulario             identificador_con_ausentes</span></span>
-<span><span class="co">#&gt; celdas_multivaluadas                    integer64_fuera_precision_double</span></span>
-<span><span class="co">#&gt; ceros_no_permitidos                     largo_codigo_inconsistente</span></span>
-<span><span class="co">#&gt; clave_con_ausentes                      mayusculas_inconsistentes</span></span>
-<span><span class="co">#&gt; clave_no_unica                          monedas_mixtas</span></span>
-<span><span class="co">#&gt; codificacion_invalida                   negativos_no_permitidos</span></span>
-<span><span class="co">#&gt; codificacion_rota                       nombres_columnas_problematicos</span></span>
-<span><span class="co">#&gt; columnas_duplicadas                     normalizacion_unicode</span></span>
-<span><span class="co">#&gt; constante                               numero_como_texto</span></span>
-<span><span class="co">#&gt; controles_invisibles                    outliers</span></span>
-<span><span class="co">#&gt; coordenada_fuera_dominio                patron_raro</span></span>
-<span><span class="co">#&gt; crs_no_declarado                        posible_ausencia_estructural</span></span>
-<span><span class="co">#&gt; dato_personal_posible                   posible_centinela_numerico</span></span>
-<span><span class="co">#&gt; desviacion_benford                      posible_identificador</span></span>
-<span><span class="co">#&gt; digito_verificador_invalido             regla_silencia_ausencia</span></span>
-<span><span class="co">#&gt; duplicados_aproximados                  relacion_aritmetica_columnas</span></span>
-<span><span class="co">#&gt; duplicados_exactos_columnas             relacion_funcional_columnas</span></span>
-<span><span class="co">#&gt; duplicados_exactos_normalizados         relacion_orden_columnas</span></span>
-<span><span class="co">#&gt; entidades_html                          separadores_en_campo</span></span>
+<span><span class="co">#&gt; apilamiento                             formatos_fecha_mixtos</span></span>
+<span><span class="co">#&gt; ausencia_dependiente                    geometria_invalida</span></span>
+<span><span class="co">#&gt; bloqueo_por_con_perdida                 geometria_vacia</span></span>
+<span><span class="co">#&gt; casi_clave                              hora_invalida</span></span>
+<span><span class="co">#&gt; casi_constante                          identificador_con_ausentes</span></span>
+<span><span class="co">#&gt; casi_duplicados_vocabulario             integer64_fuera_precision_double</span></span>
+<span><span class="co">#&gt; celdas_multivaluadas                    largo_codigo_inconsistente</span></span>
+<span><span class="co">#&gt; ceros_no_permitidos                     mayusculas_inconsistentes</span></span>
+<span><span class="co">#&gt; clave_con_ausentes                      monedas_mixtas</span></span>
+<span><span class="co">#&gt; clave_no_unica                          negativos_no_permitidos</span></span>
+<span><span class="co">#&gt; codificacion_invalida                   nombres_columnas_problematicos</span></span>
+<span><span class="co">#&gt; codificacion_rota                       normalizacion_unicode</span></span>
+<span><span class="co">#&gt; columnas_duplicadas                     numero_como_texto</span></span>
+<span><span class="co">#&gt; constante                               outliers</span></span>
+<span><span class="co">#&gt; controles_invisibles                    patron_raro</span></span>
+<span><span class="co">#&gt; coordenada_fuera_dominio                posible_ausencia_estructural</span></span>
+<span><span class="co">#&gt; crs_no_declarado                        posible_centinela_numerico</span></span>
+<span><span class="co">#&gt; dato_personal_posible                   posible_identificador</span></span>
+<span><span class="co">#&gt; desviacion_benford                      regla_silencia_ausencia</span></span>
+<span><span class="co">#&gt; digito_verificador_invalido             relacion_aritmetica_columnas</span></span>
+<span><span class="co">#&gt; duplicados_aproximados                  relacion_funcional_columnas</span></span>
+<span><span class="co">#&gt; duplicados_exactos_columnas             relacion_orden_columnas</span></span>
+<span><span class="co">#&gt; duplicados_exactos_normalizados         separadores_en_campo</span></span>
+<span><span class="co">#&gt; entidades_html                          serie_acumulada_retrocede</span></span>
+<span><span class="co">#&gt; escala_mixta                            texto_truncado</span></span>
 <span><span class="co">#&gt; espacios_sobrantes                      tipo_compuesto_no_analizado</span></span>
 <span><span class="co">#&gt; faltantes                               tipo_declarado_distinto</span></span>
 <span><span class="co">#&gt; faltantes_conjuntos                     tipos_geometria_mixtos</span></span>

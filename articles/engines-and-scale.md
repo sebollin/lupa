@@ -95,9 +95,10 @@ default is shown and, in parentheses, the others.
 | `bloque_filas` | `NULL` | `NULL` |
 | `max_bytes_procesamiento` | `536.870.912` (512 MiB) | `536.870.912` (512 MiB) |
 | `max_bytes_materializacion` | `536.870.912` (512 MiB) | `536.870.912` (512 MiB) |
-| `columnas_opcionales` | `character(0)` | — |
-| `aplicabilidad` | `NULL` | — |
-| `sentinelas_numericos` | `c(-9, -99, -999, -9999, 999)` | — |
+| `columnas_opcionales` | `character(0)` | `character(0)` |
+| `aplicabilidad` | `NULL` | `NULL` |
+| `sentinelas_numericos` | `c(-9, -99, -999, -9999, 999)` | `c(-9, -99, -999, -9999, 999)` |
+| `cadenas_ausencia` | — | `NULL` |
 
 Consequences for a run in production:
 

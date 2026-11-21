@@ -336,13 +336,13 @@ muestra.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sql</span> <span class="op">&lt;-</span> <span class="va">en_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span></span>
 <span><span class="va">sql</span><span class="op">[</span><span class="va">sql</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"monto"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"metrica"</span>, <span class="st">"estado"</span>, <span class="st">"alcance"</span><span class="op">)</span><span class="op">]</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, <span class="op">]</span></span>
-<span><span class="co">#&gt;    columna        metrica            estado        alcance</span></span>
-<span><span class="co">#&gt; 3    monto              n         calculado tabla_completa</span></span>
-<span><span class="co">#&gt; 33   monto      n_validos observado_muestra        muestra</span></span>
-<span><span class="co">#&gt; 34   monto    n_faltantes observado_muestra        muestra</span></span>
-<span><span class="co">#&gt; 35   monto prop_faltantes observado_muestra        muestra</span></span>
-<span><span class="co">#&gt; 36   monto    n_distintos observado_muestra        muestra</span></span>
-<span><span class="co">#&gt; 37   monto tasa_distintos observado_muestra        muestra</span></span></code></pre></div>
+<span><span class="co">#&gt;     columna        metrica            estado        alcance</span></span>
+<span><span class="co">#&gt; 3     monto              n         calculado tabla_completa</span></span>
+<span><span class="co">#&gt; 110   monto      n_validos observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 22    monto    n_faltantes observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 32    monto prop_faltantes observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 42    monto    n_distintos observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 52    monto tasa_distintos observado_muestra        muestra</span></span></code></pre></div>
 <p>El estado <code>observado_muestra</code> avisa que el valor describe
 la muestra. En particular, <code>n_distintos</code> es la cardinalidad
 observada en esas 150 filas, no una estimación de la cardinalidad de la
@@ -362,9 +362,9 @@ tabla.</p>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;           bloque calculado_en filas campos_analiticos</span></span>
-<span><span class="co">#&gt; 1  resumen_tabla     el motor  1000                15</span></span>
+<span><span class="co">#&gt; 1  resumen_tabla     el motor  1000                16</span></span>
 <span><span class="co">#&gt; 2 perfil_muestra            R   200               117</span></span></code></pre></div>
-<p>El resumen tiene 15 campos analíticos por columna. Son los que SQL
+<p>El resumen tiene 16 campos analíticos por columna. Son los que SQL
 puede calcular sin traer los datos: faltantes, distintos, moda, mínimo,
 máximo, media, mediana y desvío, entre otros. El perfil de la muestra
 tiene los 117 de <code><a href="../reference/perfilar.html">perfilar()</a></code>, pero sobre las filas leídas.
@@ -394,7 +394,7 @@ funcionan igual sobre el resultado de <code><a href="../reference/perfilar_dbi.h
 <span><span class="co">#&gt; 4 sucursal casi_duplicados_vocabulario         ok           0</span></span>
 <span><span class="co">#&gt; 5    fecha casi_duplicados_vocabulario         ok           0</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 60</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 64</span></span></code></pre></div>
 <p>El motor contó los 20 faltantes de <code>monto</code> en las 1.000
 filas. En sus 200 filas, el perfil por fila encontró que:</p>
 <ul>

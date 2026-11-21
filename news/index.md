@@ -5,23 +5,57 @@
 ### Perfilado
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa cuatro problemas de exactitud y consistencia: `texto_truncado`
+  (sospechoso: valores cortados a mitad de palabra en un largo que se
+  comporta como tope de campo, sin valores más largos y en una columna
+  de texto libre sin patrón dominante), `apilamiento` (sospechoso:
+  exceso de valores en múltiplos de 5 o 10 en edades y magnitudes
+  medidas a mano —peso, talla, perímetros, presión arterial—, medido con
+  el índice de Whipple sobre la resolución que tienen los datos y con
+  las categorías de Naciones Unidas), `serie_acumulada_retrocede`
+  (sospechoso: una columna acumulada por su nombre que baja; un reinicio
+  que vuelve al nivel inicial y los tramos apilados no se acusan) y
+  `escala_mixta` (`ok`: una minoría de valores separada del resto por
+  una potencia de diez, que puede ser una mezcla de unidades o dos
+  poblaciones).
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con `muestra` cuenta en el motor, sobre la tabla entera, los faltantes
+  disfrazados (centinelas numéricos como `-99` y cadenas de ausencia
+  como `"N/D"`) y los publica en
+  `resumen_tabla$columnas$n_faltantes_disfrazados`, dentro de la
+  consulta que ya contaba los `NULL`. Antes se contaban sólo en las
+  filas de la muestra: un `"N/D"` que aparecía fuera de ella no se veía
+  y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  callaba el deterioro. La cuenta sigue las reglas de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  (la convención decimal, la guarda de la numeración densa, las cadenas
+  ambiguas con vocabulario grande); donde un motor no puede
+  reproducirlas con exactitud —el texto en MySQL, MariaDB y SQL Server,
+  las cadenas no ASCII en SQLite, los números con separador de miles— la
+  cifra queda `NA` con el motivo, y nunca se publica un cero que no se
+  contó. Sin muestra no cambia nada: la tabla ya se lee entera.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa las horas y fechas escritas como texto que no existen
   (`hora_invalida`, `fecha_invalida`, sospechosos: `"12:61"`,
-  `"2022-02-30"`, con los bisiestos), con sus filas, en las columnas que
-  el perfil lee como hora o fecha. `24:00` se acepta como fin del día, y
-  una hora de 24 o más con minutos válidos sólo se acusa si el nombre de
-  la columna dice hora del día (puede ser una duración).
-  `umbral_patron_raro = 0` los apaga.
+  `"2022-02-30"`, con los bisiestos; también con año de dos cifras,
+  fechas parciales, fechas con hora y formatos minoritarios de la
+  columna; el segundo intercalar `23:59:60` es válido), con sus filas,
+  en las columnas que el perfil lee como hora o fecha. `24:00` se acepta
+  como fin del día, y una hora de 24 o más con minutos válidos sólo se
+  acusa si el nombre de la columna dice hora del día (puede ser una
+  duración). `umbral_patron_raro = 0` los apaga.
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa las columnas casi constantes (`casi_constante`, `ok`: un valor
   ocupa el 99 % o más de los presentes, con al menos 100 valores; la
   evidencia da la razón de frecuencias y el porcentaje de valores
   únicos, como `nearZeroVar()` del paquete caret) y los identificadores
   de texto con hasta un 10 % de faltantes (`identificador_con_ausentes`,
-  `ok`: si es la clave de la tabla, declararla con `clave =` la acusa
-  como `clave_con_ausentes`). Los dos cuentan sobre el universo
-  aplicable y, con `universo = "muestra_motor"`, se declaran en la
-  cobertura.
+  `ok`; también numéricos enteros con nombre de identificador, sin
+  confundirlos con una numeración: si es la clave de la tabla,
+  declararla con `clave =` la acusa como `clave_con_ausentes`). Los dos
+  cuentan sobre el universo aplicable y, con
+  `universo = "muestra_motor"`, se declaran en la cobertura.
 - [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
   y
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
@@ -68,7 +102,12 @@
   «sin fin». Un porcentaje con `de`, `del` o `por` en el nombre sólo
   avisa de la columna; los relativos (`of`, `sobre`, `respecto`) y los
   nombres que anuncian otra unidad (`edad_dias`, `longitud_cable`) no
-  infieren. `lat`, `lon` y `lng` infieren junto a su columna pareja.
+  infieren. `lat`, `lon`, `lng` y `long` infieren junto a su columna
+  pareja (también con calificativos como `wgs84` o `geo`); sueltas, sólo
+  si sus valores tienen decimales de coordenada, y sólo avisan. Cuando
+  las fechas futuras forman una grilla regular sin huecos, el aviso dice
+  que puede ser un calendario o un pronóstico. Las edades reconocen más
+  nombres de parientes y oficios.
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   decide con la tabla entera y lo dice en el texto;
   [`print()`](https://rdrr.io/r/base/print.html) y
@@ -372,6 +411,14 @@
   dirección; las columnas que ya publicaba no cambian.
 
 ### Correcciones
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  en PostgreSQL 9.3, o con `extra_float_digits <= 0`, lee un `double`
+  como `numeric` exacto a partir de sus ocho bytes, y esa lectura no era
+  exacta: `1 / 2^k` salía redondeado a unas veinte cifras y `-99`
+  llegaba como `-99.0000000000000000179…`. Las sumas y las medias no se
+  notaban, pero una comparación con un valor exacto daba falso. Ahora el
+  cociente tiene la escala exacta.
 
 - Los límites que se dan como enteros (`max_celdas_muestra`,
   `max_bytes_muestra`, `umbral_celdas_aviso_tabla_ancha`,

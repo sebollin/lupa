@@ -62,7 +62,11 @@ plan_perfilado_dbi(
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
   bloque_filas = NULL,
   max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
-  max_bytes_materializacion = .MAX_BYTES_MUESTRA
+  max_bytes_materializacion = .MAX_BYTES_MUESTRA,
+  columnas_opcionales = character(),
+  aplicabilidad = NULL,
+  sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+  cadenas_ausencia = NULL
 )
 ```
 
@@ -351,6 +355,26 @@ plan_perfilado_dbi(
   el primer bloque se acota antes de pedirlo y los siguientes se adaptan
   a los bytes medidos; el resultado conserva `meta$bytes_muestra` y
   `meta$tiempos`. `Inf` desactiva este límite.
+
+- columnas_opcionales:
+
+  Nombres de columnas que no se cuentan como políticas exactas de
+  faltantes porque sólo son aplicables a parte de las filas.
+
+- aplicabilidad:
+
+  Lista nombrada de reglas de aplicabilidad. Sus nombres se excluyen de
+  la predicción de consultas exactas de faltantes.
+
+- sentinelas_numericos:
+
+  Valores numéricos que se consideran faltantes al anticipar las
+  consultas de la métrica nueva.
+
+- cadenas_ausencia:
+
+  Cadenas adicionales que se consideran ausencia textual al anticipar
+  las consultas de la métrica nueva.
 
 ## Value
 

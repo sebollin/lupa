@@ -238,12 +238,12 @@ sql <- sql_perfil(muestreada)
 # moda de una columna sale estimada o no disponible según caigan repetidos.
 table(estado = sql$estado, error_esperado = sql$error_esperado) > 0
 #>                    error_esperado
-#> estado              no_aplica no_estimable no_estimado
-#>   calculado              TRUE        FALSE       FALSE
-#>   estimado              FALSE         TRUE        TRUE
-#>   no_aplica             FALSE         TRUE        TRUE
-#>   no_disponible         FALSE         TRUE       FALSE
-#>   observado_muestra     FALSE         TRUE        TRUE
+#> estado              muestra no_aplica no_estimable no_estimado
+#>   calculado            TRUE      TRUE        FALSE       FALSE
+#>   estimado            FALSE     FALSE         TRUE        TRUE
+#>   no_aplica           FALSE     FALSE         TRUE        TRUE
+#>   no_disponible       FALSE     FALSE         TRUE       FALSE
+#>   observado_muestra   FALSE     FALSE         TRUE        TRUE
 
 DBI::dbDisconnect(conexion)
 ```
@@ -686,7 +686,7 @@ parte de su contrato:
 
 ## El vocabulario completo de `tipo_hallazgo`
 
-El paquete emite 72 nombres de `tipo_hallazgo`. Están en castellano
+El paquete emite 76 nombres de `tipo_hallazgo`. Están en castellano
 porque forman parte de la API pública: cambiar uno es un cambio
 incompatible.
 
@@ -712,29 +712,31 @@ derecha <- c(tipos[-seq_len(mitad)], rep("", 2 * mitad - length(tipos)))
 writeLines(paste0(formatC(izquierda, width = -40), derecha))
 #> alta_cardinalidad                       filas_vacias
 #> anio_de_dos_digitos                     formato_fecha_ambiguo
-#> ausencia_dependiente                    formatos_fecha_mixtos
-#> bloqueo_por_con_perdida                 geometria_invalida
-#> casi_clave                              geometria_vacia
-#> casi_constante                          hora_invalida
-#> casi_duplicados_vocabulario             identificador_con_ausentes
-#> celdas_multivaluadas                    integer64_fuera_precision_double
-#> ceros_no_permitidos                     largo_codigo_inconsistente
-#> clave_con_ausentes                      mayusculas_inconsistentes
-#> clave_no_unica                          monedas_mixtas
-#> codificacion_invalida                   negativos_no_permitidos
-#> codificacion_rota                       nombres_columnas_problematicos
-#> columnas_duplicadas                     normalizacion_unicode
-#> constante                               numero_como_texto
-#> controles_invisibles                    outliers
-#> coordenada_fuera_dominio                patron_raro
-#> crs_no_declarado                        posible_ausencia_estructural
-#> dato_personal_posible                   posible_centinela_numerico
-#> desviacion_benford                      posible_identificador
-#> digito_verificador_invalido             regla_silencia_ausencia
-#> duplicados_aproximados                  relacion_aritmetica_columnas
-#> duplicados_exactos_columnas             relacion_funcional_columnas
-#> duplicados_exactos_normalizados         relacion_orden_columnas
-#> entidades_html                          separadores_en_campo
+#> apilamiento                             formatos_fecha_mixtos
+#> ausencia_dependiente                    geometria_invalida
+#> bloqueo_por_con_perdida                 geometria_vacia
+#> casi_clave                              hora_invalida
+#> casi_constante                          identificador_con_ausentes
+#> casi_duplicados_vocabulario             integer64_fuera_precision_double
+#> celdas_multivaluadas                    largo_codigo_inconsistente
+#> ceros_no_permitidos                     mayusculas_inconsistentes
+#> clave_con_ausentes                      monedas_mixtas
+#> clave_no_unica                          negativos_no_permitidos
+#> codificacion_invalida                   nombres_columnas_problematicos
+#> codificacion_rota                       normalizacion_unicode
+#> columnas_duplicadas                     numero_como_texto
+#> constante                               outliers
+#> controles_invisibles                    patron_raro
+#> coordenada_fuera_dominio                posible_ausencia_estructural
+#> crs_no_declarado                        posible_centinela_numerico
+#> dato_personal_posible                   posible_identificador
+#> desviacion_benford                      regla_silencia_ausencia
+#> digito_verificador_invalido             relacion_aritmetica_columnas
+#> duplicados_aproximados                  relacion_funcional_columnas
+#> duplicados_exactos_columnas             relacion_orden_columnas
+#> duplicados_exactos_normalizados         separadores_en_campo
+#> entidades_html                          serie_acumulada_retrocede
+#> escala_mixta                            texto_truncado
 #> espacios_sobrantes                      tipo_compuesto_no_analizado
 #> faltantes                               tipo_declarado_distinto
 #> faltantes_conjuntos                     tipos_geometria_mixtos

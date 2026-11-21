@@ -859,6 +859,15 @@ que cerrarla con `ROLLBACK`.
 
 ## Muestra y aproximaciones
 
+La cuenta de faltantes disfrazados de la tabla completa se publica
+separada del perfil de muestra:
+`resumen_tabla$columnas$n_faltantes_disfrazados` y la fila homonima de
+`resumen_tabla$sql` describen el universo que figura en `alcance` y
+`universo`. `perfil_muestra` conserva sus propios conteos, hallazgos y
+severidades, y no se reemplaza con esta cifra. La cuenta SQL se publica
+como `calculado` solo cuando reproduce las guardas de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
+si no, queda `NA` y `resumen_tabla$cobertura` explica la degradacion.
 `universo = "muestra_motor"` sondea las formas declaradas por el
 adaptador y usa `TABLESAMPLE` cuando el motor lo acepta, o una función
 pseudoaleatoria con el límite del dialecto. Si ninguna forma es
