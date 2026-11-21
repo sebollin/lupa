@@ -592,6 +592,14 @@
 #'   Curso CPAP, material *Evaluación de Calidad*: fórmula continua de
 #'   oportunidad implementada bajo los nombres `GradoOportunidadAtributo*`.
 #'
+#' `ReglaIntegridadIntraEntidad` acepta en `regla` tanto una función
+#' `function(d)` como una fórmula de un solo lado (por ejemplo
+#' `~ is.na(inicio) | is.na(fin) | inicio <= fin`). La fórmula admite sólo los
+#' atributos ligados, literales escritos en ella y una lista cerrada de
+#' operadores: no busca nombres en su entorno ni ejecuta código. Mantiene el
+#' contrato de `NA` de la función: si produce algún `NA`, la métrica queda
+#' `no_medible`.
+#'
 #' @examples
 #' nucleo <- metricas_nucleo()
 #' no_nulo <- especializar(
@@ -664,14 +672,6 @@
 #'   nucleo$Formato, nombre_especifico = "NumeroDocumentoDNIC",
 #'   validador = validar_ci_uy
 #' )
-#'
-#'
-#' `ReglaIntegridadIntraEntidad` acepta en `regla` tanto una función
-#' `function(d)` como una fórmula de un solo lado (por ejemplo
-#' `~ is.na(inicio) | is.na(fin) | inicio <= fin`). La fórmula ve sólo los
-#' atributos ligados, nunca ejecuta código fuera de la lista cerrada de
-#' operadores y literales, y mantiene el contrato de `NA` de la función: si
-#' produce algún `NA`, la métrica queda `no_medible`.
 #' @name modelo_calidad
 #' @seealso [referencial()], [agregar()], [medir()], [proponer_modelo()]
 NULL

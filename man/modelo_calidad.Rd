@@ -350,14 +350,6 @@ cedula_dnic <- especializar(
   nucleo$Formato, nombre_especifico = "NumeroDocumentoDNIC",
   validador = validar_ci_uy
 )
-
-
-`ReglaIntegridadIntraEntidad` acepta en `regla` tanto una función
-`function(d)` como una fórmula de un solo lado (por ejemplo
-`~ is.na(inicio) | is.na(fin) | inicio <= fin`). La fórmula ve sólo los
-atributos ligados, nunca ejecuta código fuera de la lista cerrada de
-operadores y literales, y mantiene el contrato de `NA` de la función: si
-produce algún `NA`, la métrica queda `no_medible`.
 }
 \references{
 \href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/}{AGESIC (2020)}.
@@ -367,6 +359,14 @@ Uruguay.
 
 Curso CPAP, material \emph{Evaluación de Calidad}: fórmula continua de
 oportunidad implementada bajo los nombres \verb{GradoOportunidadAtributo*}.
+
+\code{ReglaIntegridadIntraEntidad} acepta en \code{regla} tanto una función
+\verb{function(d)} como una fórmula de un solo lado (por ejemplo
+\code{~ is.na(inicio) | is.na(fin) | inicio <= fin}). La fórmula admite sólo los
+atributos ligados, literales escritos en ella y una lista cerrada de
+operadores: no busca nombres en su entorno ni ejecuta código. Mantiene el
+contrato de \code{NA} de la función: si produce algún \code{NA}, la métrica queda
+\code{no_medible}.
 }
 \seealso{
 \code{\link[=referencial]{referencial()}}, \code{\link[=agregar]{agregar()}}, \code{\link[=medir]{medir()}}, \code{\link[=proponer_modelo]{proponer_modelo()}}
