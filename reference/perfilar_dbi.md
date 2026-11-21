@@ -523,8 +523,25 @@ declara el motor o su controlador al leer el esquema, que no depende de
 las filas leídas, y en SQLite y DuckDB
 `resumen_tabla$meta$cotejamientos` el cotejamiento de cada columna,
 leído del `CREATE TABLE` en la misma consulta de la clave o del tipo:
-`binary`/`predeterminado` o el de su `COLLATE`. Una `fecha` declarada
-queda también en `resumen_tabla$meta$fecha_hora`, con
+`binary`/`predeterminado` o el de su `COLLATE`.
+`resumen_tabla$meta$catalogo` amplía la lectura del catálogo por motor
+con `identificacion` (clave primaria o restricción/índice único con su
+grado `total`, `parcial` o `ninguna`), `clave_primaria`, `claves_unicas`
+(incluyendo semántica de `NULL` e índices parciales o filtrados),
+`claves_foraneas` (con estado de validación en el motor: `convalidated`
+en PostgreSQL, `is_not_trusted` en SQL Server, InnoDB y
+`foreign_key_checks` en MySQL/MariaDB, `PRAGMA foreign_keys` en SQLite),
+`not_null` (marcando las columnas textuales `NOT NULL` que contienen
+blancos y avisando en `resumen_tabla$cobertura`) y `estado_lectura` con
+el motivo cuando algo no se pudo leer.
+`resumen_tabla$meta$duplicados_exactos` publica el conteo de filas
+duplicadas exactas (`filas_duplicadas` y `filas_en_grupos_duplicados`),
+su `estado` (`garantizado`, `calculado`, `estimado`, `no_disponible` o
+`no_solicitado`), el `criterio` textual de igualdad aplicado y
+`regla_columnas` por columna; la misma regla canónica se aplica en la
+muestra en R y, si el motor o la muestra no pueden reproducirla sin
+perder distinciones, la cifra queda `NA` con su `motivo`. Una `fecha`
+declarada queda también en `resumen_tabla$meta$fecha_hora`, con
 `resumen_tabla$meta$fecha_declarada = TRUE`, aunque no haya muestra
 (`bloque_muestra = "solo_agregados"`); sin `fecha`, esos campos no
 están.

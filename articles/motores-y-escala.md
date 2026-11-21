@@ -849,10 +849,10 @@ rbind(
   distintos_4 = consultas_por_lote(tamano_lote_distintos = 4)
 )
 #>             planos distintos total
-#> planos_1         6         2    24
-#> por_omision      3         2    21
-#> distintos_1      3         4    23
-#> distintos_4      3         1    20
+#> planos_1         6         2    25
+#> por_omision      3         2    22
+#> distintos_1      3         4    24
+#> distintos_4      3         1    21
 ```
 
 El valor de `tamano_lote_distintos` es un supuesto del código, anotado
@@ -969,10 +969,10 @@ por_politica <- c(
 )
 por_politica
 #>            todas por_cardinalidad 
-#>              334              256
+#>              335              257
 ```
 
-Con `"por_cardinalidad"`, la corrida ahorró 78 de 334 consultas, todas
+Con `"por_cardinalidad"`, la corrida ahorró 78 de 335 consultas, todas
 de moda.
 
 Las fuentes estructurales se resuelven siempre que la política necesita
@@ -1016,21 +1016,22 @@ knitr::kable(as.data.frame(plan))
 | portones (esquema y sondas) | 7 | una vez | 7 |
 | agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio) | 3 | escanea la tabla completa | 3 |
 | distintos por lotes (clase separada) | 2 | escanea la tabla completa | 2 |
+| duplicados exactos (GROUP BY) | 1 | escanea la tabla completa | 1 |
 | moda (GROUP BY + orden + limite) | 4 | ordena o agrupa la tabla completa | 4 |
 | mediana (orden total + limite/salto) | 3 | ordena la tabla completa | 3 |
 | muestra | 2 | lee las filas pedidas | 2 |
 
 El costo es un **rango**:
 
-- `attr(plan, "total")` (21 aquí) cuenta las consultas si ningún lote se
+- `attr(plan, "total")` (22 aquí) cuenta las consultas si ningún lote se
   rechaza. Con `politica_costo = "por_cardinalidad"`, supone que se
   omite la moda cuya cardinalidad no se conoce.
-- `attr(plan, "total_maximo")` (34) suma el camino que ejecuta esa moda
+- `attr(plan, "total_maximo")` (35) suma el camino que ejecuta esa moda
   y las sondas de bisección, si el motor rechazara todos los lotes. Son
   hasta `2n − 1` por lote de `n` columnas. `total_lotes_rechazados`
   publica el mismo número.
 
-La corrida por omisión del ejemplo emitió 21.
+La corrida por omisión del ejemplo emitió 22.
 
 El rango vale cuando el muestreo se puede construir. Si
 `universo = "muestra_motor"` y la forma no se puede construir,
@@ -1064,10 +1065,10 @@ c(
   solo_texto = attr(plan_perfilado_dbi(con, "ancha_texto"), "total")
 )
 #>                   ancha ancha_recorren_la_tabla              solo_texto 
-#>                     336                     327                     255
+#>                     337                     328                     256
 ```
 
-De las 336 consultas de la tabla ancha, 327 escanean, ordenan o agrupan
+De las 337 consultas de la tabla ancha, 328 escanean, ordenan o agrupan
 la tabla entera. Las columnas de texto cuestan menos, sobre todo porque
 la mediana —que ordena la tabla— se pide sólo sobre columnas numéricas.
 `muestra` no acota nada de eso: acota lo que se trae a R, no el trabajo

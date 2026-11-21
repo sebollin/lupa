@@ -880,10 +880,10 @@ rbind(
   distintos_4 = consultas_por_lote(tamano_lote_distintos = 4)
 )
 #>             planos distintos total
-#> planos_1         6         2    24
-#> por_omision      3         2    21
-#> distintos_1      3         4    23
-#> distintos_4      3         1    20
+#> planos_1         6         2    25
+#> por_omision      3         2    22
+#> distintos_1      3         4    24
+#> distintos_4      3         1    21
 ```
 
 The value of `tamano_lote_distintos` is an assumption of the code, noted
@@ -1001,10 +1001,10 @@ por_politica <- c(
 )
 por_politica
 #>            todas por_cardinalidad 
-#>              334              256
+#>              335              257
 ```
 
-With `"por_cardinalidad"`, the run saved 78 of 334 queries, all of them
+With `"por_cardinalidad"`, the run saved 78 of 335 queries, all of them
 of mode.
 
 The structural sources are resolved whenever the policy needs the
@@ -1048,21 +1048,22 @@ knitr::kable(as.data.frame(plan))
 | portones (esquema y sondas) | 7 | una vez | 7 |
 | agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio) | 3 | escanea la tabla completa | 3 |
 | distintos por lotes (clase separada) | 2 | escanea la tabla completa | 2 |
+| duplicados exactos (GROUP BY) | 1 | escanea la tabla completa | 1 |
 | moda (GROUP BY + orden + limite) | 4 | ordena o agrupa la tabla completa | 4 |
 | mediana (orden total + limite/salto) | 3 | ordena la tabla completa | 3 |
 | muestra | 2 | lee las filas pedidas | 2 |
 
 The cost is a **range**:
 
-- `attr(plan, "total")` (21 here) counts the queries if no batch is
+- `attr(plan, "total")` (22 here) counts the queries if no batch is
   rejected. With `politica_costo = "por_cardinalidad"`, it assumes that
   the mode whose cardinality is not known is omitted.
-- `attr(plan, "total_maximo")` (34) adds the path that runs that mode
+- `attr(plan, "total_maximo")` (35) adds the path that runs that mode
   and the bisection probes, if the engine rejected every batch. They are
   up to `2n − 1` per batch of `n` columns. `total_lotes_rechazados`
   publishes the same number.
 
-The default run of the example emitted 21.
+The default run of the example emitted 22.
 
 The range holds when the sampling can be built. If
 `universo = "muestra_motor"` and the form cannot be built,
@@ -1097,10 +1098,10 @@ c(
   solo_texto = attr(plan_perfilado_dbi(con, "ancha_texto"), "total")
 )
 #>                   ancha ancha_recorren_la_tabla              solo_texto 
-#>                     336                     327                     255
+#>                     337                     328                     256
 ```
 
-Of the 336 queries of the wide table, 327 scan, sort or group the whole
+Of the 337 queries of the wide table, 328 scan, sort or group the whole
 table. Text columns cost less, above all because the median —which sorts
 the table— is requested only on numeric columns. `muestra` bounds none
 of that: it bounds what is brought into R, not the work of the engine.

@@ -8,16 +8,39 @@
   informa cuatro problemas de exactitud y consistencia: `texto_truncado`
   (sospechoso: valores cortados a mitad de palabra en un largo que se
   comporta como tope de campo, sin valores más largos y en una columna
-  de texto libre sin patrón dominante), `apilamiento` (sospechoso:
-  exceso de valores en múltiplos de 5 o 10 en edades y magnitudes
-  medidas a mano —peso, talla, perímetros, presión arterial—, medido con
-  el índice de Whipple sobre la resolución que tienen los datos y con
-  las categorías de Naciones Unidas), `serie_acumulada_retrocede`
-  (sospechoso: una columna acumulada por su nombre que baja; un reinicio
-  que vuelve al nivel inicial y los tramos apilados no se acusan) y
-  `escala_mixta` (`ok`: una minoría de valores separada del resto por
-  una potencia de diez, que puede ser una mezcla de unidades o dos
-  poblaciones).
+  de texto libre sin patrón dominante; si son URL con esquema en un tope
+  de 250 caracteres o más, avisa de la columna como `ok`, porque puede
+  ser un corte o un largo fijo del sistema que las genera),
+  `apilamiento` (sospechoso: exceso de valores en múltiplos de 5 o 10 en
+  edades y magnitudes medidas a mano —peso, talla, perímetros, presión
+  arterial—, medido con el índice de Whipple sobre la resolución que
+  tienen los datos y con las categorías de Naciones Unidas),
+  `serie_acumulada_retrocede` (sospechoso: una columna acumulada por su
+  nombre que baja; un reinicio que vuelve al nivel inicial y los tramos
+  apilados no se acusan) y `escala_mixta` (`ok`: una minoría de valores
+  separada del resto por una potencia de diez, que puede ser una mezcla
+  de unidades o dos poblaciones).
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  lee del catálogo, además de la clave primaria, las restricciones e
+  índices únicos (con su semántica de `NULL`; los parciales o filtrados
+  son una garantía parcial), las claves foráneas y si el motor las
+  valida, y las columnas `NOT NULL`, cada una con su grado y, si no se
+  pudo leer, el motivo (`resumen_tabla$meta$catalogo`). Las usa: una
+  tabla con índice único ya no se describe como «sin clave»; una columna
+  `NOT NULL` no cuenta `NULL` —ahorra la consulta— pero sus blancos y
+  faltantes disfrazados se siguen contando y se dicen como tales; la
+  unicidad garantizada no se vuelve a medir.
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  cuenta las mismas consultas.
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  cuenta en el motor las filas repetidas exactas con una regla publicada
+  en `resumen_tabla$meta$duplicados_exactos`, igual en R y en los seis
+  motores: el texto se compara byte a byte (sin intercalaciones que
+  igualen mayúsculas ni espacios finales), `CHAR` sin el relleno, los
+  decimales y las fechas con su valor exacto. Antes la muestra pasaba
+  los decimales anchos a `double` y podía unir valores distintos. Donde
+  el motor no puede reproducir la regla, la cifra queda `NA` con el
+  motivo.
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   con `muestra` cuenta en el motor, sobre la tabla entera, los faltantes
   disfrazados (centinelas numéricos como `-99` y cadenas de ausencia
@@ -434,6 +457,17 @@
   dirección; las columnas que ya publicaba no cambian.
 
 ### Correcciones
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  anunciaba menos consultas de las que
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  emitía en tablas vacías, de una fila o con columnas numéricas toda
+  `NULL` (MySQL, MariaDB, SQL Server y `float8` de PostgreSQL), y en
+  MySQL y MariaDB cuando el motor rechazaba la consulta de la mediana
+  por la sintaxis de `LIMIT`/`OFFSET`: el desvío de una columna con
+  menos de dos valores ya no se consulta, la mediana escalar no se
+  intenta donde el motor no la acepta, y el número emitido coincide con
+  el planificado.
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   en PostgreSQL 9.3, o con `extra_float_digits <= 0`, lee un `double`

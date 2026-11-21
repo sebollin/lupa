@@ -1333,10 +1333,10 @@ to the plan:</p>
 <span>  distintos_4 <span class="op">=</span> <span class="fu">consultas_por_lote</span><span class="op">(</span>tamano_lote_distintos <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;             planos distintos total</span></span>
-<span><span class="co">#&gt; planos_1         6         2    24</span></span>
-<span><span class="co">#&gt; por_omision      3         2    21</span></span>
-<span><span class="co">#&gt; distintos_1      3         4    23</span></span>
-<span><span class="co">#&gt; distintos_4      3         1    20</span></span></code></pre></div>
+<span><span class="co">#&gt; planos_1         6         2    25</span></span>
+<span><span class="co">#&gt; por_omision      3         2    22</span></span>
+<span><span class="co">#&gt; distintos_1      3         4    24</span></span>
+<span><span class="co">#&gt; distintos_4      3         1    21</span></span></code></pre></div>
 <p>The value of <code>tamano_lote_distintos</code> is an assumption of
 the code, noted next to the constant (<code>R/perfilar-dbi.R</code>). In
 PostgreSQL, the read of the table is the same with any batch. The engine
@@ -1453,8 +1453,8 @@ table that follows has 200 rows and 158 columns:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">por_politica</span></span>
 <span><span class="co">#&gt;            todas por_cardinalidad </span></span>
-<span><span class="co">#&gt;              334              256</span></span></code></pre></div>
-<p>With <code>"por_cardinalidad"</code>, the run saved 78 of 334
+<span><span class="co">#&gt;              335              257</span></span></code></pre></div>
+<p>With <code>"por_cardinalidad"</code>, the run saved 78 of 335
 queries, all of them of mode.</p>
 <p>The structural sources are resolved whenever the policy needs the
 cardinality, even if <code>estrategia_distintos</code> is omitted or not
@@ -1522,18 +1522,24 @@ CASE + desvio)</td>
 <td align="right">2</td>
 </tr>
 <tr class="even">
+<td align="left">duplicados exactos (GROUP BY)</td>
+<td align="right">1</td>
+<td align="left">escanea la tabla completa</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
 <td align="left">moda (GROUP BY + orden + limite)</td>
 <td align="right">4</td>
 <td align="left">ordena o agrupa la tabla completa</td>
 <td align="right">4</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">mediana (orden total + limite/salto)</td>
 <td align="right">3</td>
 <td align="left">ordena la tabla completa</td>
 <td align="right">3</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">muestra</td>
 <td align="right">2</td>
 <td align="left">lee las filas pedidas</td>
@@ -1544,17 +1550,17 @@ CASE + desvio)</td>
 <p>The cost is a <strong>range</strong>:</p>
 <ul>
 <li>
-<code>attr(plan, "total")</code> (21 here) counts the queries if no
+<code>attr(plan, "total")</code> (22 here) counts the queries if no
 batch is rejected. With
 <code>politica_costo = "por_cardinalidad"</code>, it assumes that the
 mode whose cardinality is not known is omitted.</li>
 <li>
-<code>attr(plan, "total_maximo")</code> (34) adds the path that runs
+<code>attr(plan, "total_maximo")</code> (35) adds the path that runs
 that mode and the bisection probes, if the engine rejected every batch.
 They are up to <code>2n − 1</code> per batch of <code>n</code> columns.
 <code>total_lotes_rechazados</code> publishes the same number.</li>
 </ul>
-<p>The default run of the example emitted 21.</p>
+<p>The default run of the example emitted 22.</p>
 <p>The range holds when the sampling can be built. If
 <code>universo = "muestra_motor"</code> and the form cannot be built,
 <code>attr(plan, "muestreo")</code> declares it and the plan excludes
@@ -1586,8 +1592,8 @@ columns, all of them text:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     336                     327                     255</span></span></code></pre></div>
-<p>Of the 336 queries of the wide table, 327 scan, sort or group the
+<span><span class="co">#&gt;                     337                     328                     256</span></span></code></pre></div>
+<p>Of the 337 queries of the wide table, 328 scan, sort or group the
 whole table. Text columns cost less, above all because the median —which
 sorts the table— is requested only on numeric columns.
 <code>muestra</code> bounds none of that: it bounds what is brought into
