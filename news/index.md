@@ -302,10 +302,12 @@
   decimales y los enteros grandes se comparan en doble, como los lee R);
   lo que no puede reproducir queda `no_medible` con su motivo, nunca con
   otra cifra, o, con `estrategia_no_sql = "bloques"`, se mide en R
-  leyendo por bloques sólo esas columnas. Por ahora la traducción está
-  verificada en SQLite y DuckDB; en PostgreSQL, MySQL, MariaDB y SQL
-  Server las reglas quedan `no_medible` (o por bloques) hasta
-  verificarlas contra cada motor. Los rangos de texto no se traducen: su
+  leyendo por bloques sólo esas columnas. La traducción está verificada
+  regla por regla en los seis motores (SQLite, DuckDB, PostgreSQL,
+  MySQL, MariaDB y SQL Server), con la guarda que cada una necesita: el
+  huso de la sesión, intercalaciones binarias o deterministas, espacios
+  finales, la lógica de tres valores, cómo lee el controlador los
+  enteros grandes y sin signo. Los rangos de texto no se traducen: su
   orden depende del locale en R y de la intercalación en el motor.
 - `ReglaIntegridadIntraEntidad()` acepta una fórmula de fila
   (`regla = ~ is.na(inicio) | is.na(fin) | inicio <= fin`), que se

@@ -1,10 +1,10 @@
 # Medir un modelo de calidad dentro de una base de datos DBI
 
-Evalúa un modelo de calidad directamente en el motor SQL (SQLite y
-DuckDB verificados; los demás motores devuelven `no_medible` con su
-motivo según la política de motores) y devuelve un resumen de clase
-`medicion_resumen` con el mismo contrato de columnas que
-`medir(..., detalle = "resumen")`.
+Evalúa un modelo de calidad directamente en el motor SQL (SQLite,
+DuckDB, PostgreSQL actual y 9.3, MySQL, MariaDB y SQL Server verificados
+según la política de motores, sus verificaciones de metadatos y sus
+guardas) y devuelve un resumen de clase `medicion_resumen` con el mismo
+contrato de columnas que `medir(..., detalle = "resumen")`.
 
 ## Usage
 
