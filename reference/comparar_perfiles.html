@@ -241,15 +241,34 @@ ruido, así que cada fila exige además que la diferencia supere el ruido de
 muestreo con z = 3,29 (p = 0,001 bilateral). Las filas, con <code>cambio = "modificado"</code>, <code>delta</code> en la medida y su valor, los umbrales y el ruido en
 <code>evidencia</code>:</p><ul><li><p><code>deriva_media</code>: diferencia de medias estandarizada, <code>(media actual - media anterior) / sqrt((desvío anterior^2 + desvío actual^2) / 2)</code> (Cohen, 1988;
 Austin, 2009). <code>sospechoso</code> desde 0,2 y <code>error</code> desde 0,8, en cualquier
-sentido. Ruido: error típico de Welch.</p></li>
+sentido. Ruido: error típico de Welch. Si la grilla en la que caen los
+valores (el paso del redondeo, estimado por los decimales de los extremos y
+de la moda) cambia cuatro veces o más entre las entregas, o una no la tiene,
+y la de un lado es gruesa (valores repetidos y un paso mayor que su desvío),
+el corrimiento se evalúa descontando lo que el redondeo puede explicar, a lo
+sumo la mitad del paso en cada media, y la fila lo dice. Enteros dispersos
+en un rango ancho tienen la misma grilla que enteros juntos: no cuentan como
+un cambio.</p></li>
 <li><p><code>deriva_dispersion</code>: razón entre los desvíos. <code>delta</code> es desvío actual sobre
 anterior; <code>sospechoso</code> desde 1,5 veces (o 1/1,5) y <code>error</code> desde 2. Mira el
 cambio de varianza sin cambio de media. El perfil no guarda la curtosis, y
 el ruido de un desvío depende de ella: se la acota con los extremos y el
 desvío del propio perfil (una cota, así que no subestima el ruido). No se
-compara con menos de 50 valores por lado, ni si un solo valor explica más
+compara con menos de 20 valores por lado; entre 20 y 49 el error típico usa
+la varianza de Bonett (2006) con un piso de 6 para la curtosis, y se pide
+que cada lado tenga al menos tres valores distintos. Tampoco si un solo
+valor explica más
 de la cuarta parte de la suma de cuadrados (una columna casi constante con
-un valor lejano: su desvío es ese valor).</p></li>
+un valor lejano: su desvío es ese valor). Si la grilla de los valores
+cambia cuatro veces o más entre las entregas (otra resolución o
+un redondeo distinto), la razón se evalúa descontando lo que el redondeo
+puede explicar, a lo sumo la mitad del paso en cada desvío (desigualdad de
+Minkowski), y la fila lo dice; si el paso medio entre valores distintos no se calcula en un lado,
+no se compara.
+Con menos de 50 valores o con otro paso, tampoco se compara si algún lado
+tiene al menos dos atípicos de Tukey y el 2 % o más de sus valores (un
+centinela o una cola pesada que cae en una muestra y no en la otra), y el
+paso sólo se descuenta en un lado con valores repetidos.</p></li>
 <li><p><code>deriva_categorias</code>: PSI (índice de estabilidad poblacional; Siddiqi, 2006)
 del reparto entre los valores que están en las dos entregas, con los cortes
 convencionales 0,1 (<code>sospechoso</code>) y 0,25 (<code>error</code>). Los valores que
@@ -258,7 +277,11 @@ veces. Las clases que esperarían menos de cinco filas por lado se juntan
 (Cochran, 1954). El PSI equivale, a segundo orden, al chi-cuadrado de
 homogeneidad reescalado por <code>1/n1 + 1/n2</code> (Yurdakul, 2018), así que el
 ruido esperado es <code>qchisq(0,999, k - 1) * (1/n1 + 1/n2)</code>; la evidencia lo
-informa junto a la distancia de variación total.</p></li>
+informa junto a la distancia de variación total.
+Cuando esa vía calla porque una entrega tiene pocas filas, cada categoría
+se prueba contra el resto con la prueba exacta de Fisher, con Bonferroni
+sobre las categorías para sostener el nivel 0,001 de la columna, y con el
+PSI de esa categoría contra el resto (mismos cortes) como tamaño del efecto.</p></li>
 <li><p><code>conteo_hallazgo</code>: un hallazgo que sigue con la misma severidad pero afecta
 a más (o menos) filas, <code>agravado</code> o <code>atenuado</code>. Se compara la proporción de
 filas afectadas, y sólo si cambia al menos <code>umbral_cambio</code> y por encima del
@@ -306,7 +329,8 @@ Sciences</em>, Erlbaum; Austin, P. C. (2009), <em>Statistics in Medicine</em> 28
 Siddiqi, N. (2006), <em>Credit Risk Scorecards</em>, Wiley; Yurdakul, B. (2018),
 <em>Statistical Properties of Population Stability Index</em>, Western Michigan
 University; Lin, M., Lucas, H. C. y Shmueli, G. (2013), <em>Information Systems
-Research</em> 24(4); Cochran, W. G. (1954), <em>Biometrics</em> 10(4).</p>
+Research</em> 24(4); Cochran, W. G. (1954), <em>Biometrics</em> 10(4); Bonett, D. G.
+(2006), <em>Applied Psychological Measurement</em> 30(5).</p>
 <p>Las <strong>marcas del plan de limpieza</strong> —<code>.fila_duplicada</code>, <code>.grupo_duplicado</code>,
 <code>.ausente_&lt;columna&gt;</code> y <code>.outlier_&lt;columna&gt;</code>— se reconocen por lo que deja
 <code><a href="planificar_limpieza.html">aplicar()</a></code>, no por el nombre: el atributo <code>marcas_limpieza</code> de sus datos

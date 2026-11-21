@@ -13,22 +13,23 @@ representación aparte. Se aceptan días y meses con uno o dos dígitos.
 Los años de dos dígitos se detectan, pero siempre quedan como candidatos
 y se señalan en la columna `anio_dos_digitos`: el siglo no se interpreta
 en silencio. También reconoce meses escritos en español rioplatense
-(`setiembre` y `set`) y en inglés, con la estructura completa de una
-fecha o como mes y año. La tabla interna de nombres no usa `LC_TIME`,
-por lo que el resultado es independiente del locale del proceso; los
-nombres de mes dentro de una oración no se reconocen. Un mes escrito
-desambigua día/mes, pero un año de dos dígitos sigue siendo candidato.
-Los formatos escritos de mes y año, igual que las fechas compactas,
-exigen un año entre 1800 y 2100. El formato compacto `%Y%m%d` exige un
-año entre 1800 y 2100 para evitar que identificadores de ocho dígitos se
-clasifiquen parcialmente como fechas. Una hora con segundo 60 no se
-acepta: R la leería como el minuto siguiente. Tampoco la hora `24:00`: R
-la leería como la medianoche del día siguiente, y el perfil publicaría
-una fecha que nadie escribió. El separador `T` y la zona `Z` de una
-fecha-hora se reconocen también en minúscula (`2020-01-31t23:30:00z`),
-como lo admite RFC 3339 (sección 5.6). Un `POSIXlt` se lee como el
-`POSIXct` del mismo instante: el atributo
-`n_filas_fecha_civil_distinta_utc` cuenta igual en las dos clases.
+(`setiembre` y `set`) y en inglés, incluida la abreviatura `sept`, con
+la estructura completa de una fecha o como mes y año. La tabla interna
+de nombres no usa `LC_TIME`, por lo que el resultado es independiente
+del locale del proceso; los nombres de mes dentro de una oración no se
+reconocen. Un mes escrito desambigua día/mes, pero un año de dos dígitos
+sigue siendo candidato. Los formatos escritos de mes y año, igual que
+las fechas compactas, exigen un año entre 1800 y 2100. El formato
+compacto `%Y%m%d` exige un año entre 1800 y 2100 para evitar que
+identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
+Una hora con segundo 60 no se acepta: R la leería como el minuto
+siguiente. Tampoco la hora `24:00`: R la leería como la medianoche del
+día siguiente, y el perfil publicaría una fecha que nadie escribió. El
+separador `T` y la zona `Z` de una fecha-hora se reconocen también en
+minúscula (`2020-01-31t23:30:00z`), como lo admite RFC 3339 (sección
+5.6). Un `POSIXlt` se lee como el `POSIXct` del mismo instante: el
+atributo `n_filas_fecha_civil_distinta_utc` cuenta igual en las dos
+clases.
 
 ## Usage
 

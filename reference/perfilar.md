@@ -1959,36 +1959,53 @@ horas, `"2022-02-30"`, `"31/02/2022"` o `"30/02/22"` en fechas. La hora
 `24:00` se acepta como fin del día y no se cuenta; con barras, un valor
 es inválido sólo si lo es como día/mes y como mes/día. Se evalúan todas
 las formas de fecha y fecha-hora -año de dos o cuatro cifras, mes y año,
-y con hora o zona horaria- salvo la compacta `AAAAMMDD`, que se parece
-demasiado a un código; también una fecha imposible escrita en un formato
-que ningún otro valor de la columna usa. Una columna mezclada, o un
-texto con forma de fecha que no es una columna de fechas, no recibe el
-hallazgo. Una columna `Date` o `POSIXct` no lo recibe: si el texto
-imposible ya se convirtió, el `NA` no conserva de dónde vino. Los
-minutos mayores que 59 y los segundos mayores que 59 son inválidos en
-cualquier columna, salvo el segundo intercalar `23:59:60`, que ISO 8601
-admite y se acepta sólo en esa hora y minuto; una hora de 24 o más con
-minutos válidos puede ser una duración, y sólo se acusa si el nombre de
-la columna dice que es una hora del día (`hora`, `horario`, `hour`,
-`time`, por palabra completa). Cuentan sobre el universo aplicable. Un
-`umbral_patron_raro = 0` apaga estos dos avisos de forma.
+meses escritos en castellano o en inglés, y con hora o zona horaria-. La
+forma compacta `AAAAMMDD` entra sólo cuando la columna es, sin duda
+razonable, una fecha compacta: casi todos sus valores de ocho cifras
+existen en el calendario con un año plausible, en texto o en una columna
+numérica entera; un código, un teléfono o un monto no cumplen esa
+proporción. También una fecha imposible escrita en un formato que ningún
+otro valor de la columna usa. Un valor con forma de fecha hecho sólo de
+ceros o sólo de nueves, repetido al menos dos veces, es una marca de
+ausencia: se informa como `faltantes_disfrazados` y no como
+`fecha_invalida`; una aparición sola sigue siendo una fecha imposible.
+Una columna mezclada, o un texto con forma de fecha que no es una
+columna de fechas, no recibe el hallazgo. Una columna `Date` o `POSIXct`
+no lo recibe: si el texto imposible ya se convirtió, el `NA` no conserva
+de dónde vino. Los minutos mayores que 59 y los segundos mayores que 59
+son inválidos en cualquier columna, salvo el segundo intercalar
+`23:59:60`, que ISO 8601 admite y se acepta sólo en esa hora y minuto;
+una hora de 24 o más con minutos válidos puede ser una duración, y sólo
+se acusa si el nombre de la columna dice que es una hora del día
+(`hora`, `horario`, `hour`, `time`, por palabra completa). Cuentan sobre
+el universo aplicable. Un `umbral_patron_raro = 0` apaga estos dos
+avisos de forma.
 
 Una columna que es un posible identificador, con todos sus valores
 presentes distintos y entre el 0 y el 10 % de ausentes, emite
 `identificador_con_ausentes` (severidad `ok`: sin `clave=` no se sabe si
 es obligatorio; con las filas `NA` en la traza). También lo emite una
-columna numérica con valores enteros cuyo nombre tiene un token de
-identificador completo (`id`, `cliente_id`, `codigo_postal`; la lista de
+columna numérica con valores enteros cuyo nombre se lee como clave: un
+token de identificador completo (`id`, `cliente_id`, `codigo_postal`; la
+lista de
 [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md))
-y no una magnitud (`monto`, `importe`, `peso`, `ratio`, `ventas`,
-`hijos`, `orden`), y cuyos valores exceden el número de filas: una
-numeración `1..n` con ausentes, que es un conteo, no entra. Un nombre
-que sólo contiene la subcadena (`valid`, `paid`, `idx`, `pid`) o que
-acompaña a una magnitud (`id_ratio`, `documento_monto`) no basta. Los
-valores se comparan como en el resto del perfil: un blanco o un espacio
-final no sostienen la unicidad. Se omite si está declarada en `clave`,
-donde la dice `clave_con_ausentes`. Un identificador opcional con muchos
-ausentes no se acusa.
+y no una magnitud (`monto`, `importe`, `costo`, `cost`, `peso`, `ratio`,
+`ventas`, `hijos`) ni una numeración declarada (`conteo`,
+`id_secuencia`). No importa dónde empiece ni si sus valores forman una
+progresión: una clave `1..n`, `2:(n+1)` o `1001..1500` con ausentes es
+una clave autoincremental con faltantes, y eso es lo que el aviso
+informa. Un número de algo seguido de un sustantivo en plural es un
+conteo (`num_votos`, `num_visits`, `number_of_items`); seguido de uno en
+singular, o precedido por el sustantivo, es un identificador
+(`num_documento`, `order_number`). En castellano `orden` es ambiguo —una
+posición en una lista o un pedido—, así que `nro_orden`, `numero_orden`
+y `num_orden` no se acusan. Un nombre que sólo contiene la subcadena
+(`valid`, `paid`, `idx`, `pid`) o que acompaña a una magnitud
+(`id_ratio`, `documento_monto`) no basta. Los valores se comparan como
+en el resto del perfil: un blanco o un espacio final no sostienen la
+unicidad. Se omite si está declarada en `clave`, donde la dice
+`clave_con_ausentes`. Un identificador opcional con muchos ausentes no
+se acusa.
 
 La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
 valores finitos; las columnas compuestas —matrices, arreglos de más de
