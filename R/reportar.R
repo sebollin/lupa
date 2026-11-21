@@ -502,7 +502,7 @@
                    "tipo_hallazgo" %in% names(hallazgos)) {
         sum(severidades == "ok" &
               as.character(hallazgos$tipo_hallazgo) %in%
-              .TIPOS_HALLAZGO_DOMINIO, na.rm = TRUE)
+              c(.TIPOS_HALLAZGO_DOMINIO, "texto_truncado"), na.rm = TRUE)
       } else 0L
     ),
     "<h3>Resumen general</h3>", .html_tabla(general, Inf),

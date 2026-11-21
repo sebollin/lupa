@@ -372,9 +372,14 @@ necesita. La política por omisión es \code{"todas"}: el paquete no elige por e
 usuario.
 Una fuente estructural se resuelve aunque la estrategia de distintos este
 omitida o no disponible; esta ultima solo gobierna si se puede medir.
-El catalogo de la clave primaria se consulta siempre para conservar esa
-respuesta en \code{resumen_tabla$meta$clave}; es una lectura de metadatos y no
-un recorrido de la tabla.
+El catálogo se consulta siempre por la vía del controlador para publicar
+\code{resumen_tabla$meta$clave}, \code{resumen_tabla$meta$catalogo} y
+\code{attr(plan, "catalogo")} (clave primaria, restricciones e índices únicos,
+claves foráneas y columnas \verb{NOT NULL}); es una lectura de metadatos y no
+un recorrido de la tabla. Las garantías de grado \code{total} permiten omitir
+consultas redundantes (\code{COUNT(col)} en \verb{NOT NULL}, \code{COUNT(DISTINCT)} en
+unicidad simple, verificación de \code{orden_muestra} y conteo de duplicados
+exactos en tabla completa) y quedan reflejadas en el conteo de consultas.
 
 Contar sólo el motor daría juicios falsos con números ciertos: una tabla
 chica con una columna de geometría en texto pide pocas lecturas —magnitud

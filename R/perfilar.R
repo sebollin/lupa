@@ -3053,6 +3053,14 @@
 #' no son un reinicio: un reinicio vuelve cerca del comienzo en relación con lo
 #' acumulado hasta el pico, y los cortes regulares de bloques apilados también
 #' son reinicios.
+#' Una columna de URL con esquema (`https://`) donde al menos tres URL
+#' distintas tienen el largo máximo, en un tope de 250 caracteres o más (1024 y
+#' 2048 incluidos), y triplican a las de cada uno de los cinco largos anteriores,
+#' emite `texto_truncado` como aviso de columna `ok`: dice lo observado y que
+#' puede ser el tope de un campo o un largo fijo del sistema que las genera. No
+#' cubre un log donde las URL se repiten (menos del 25 % de valores distintos),
+#' una columna con todo en el tope y ninguna URL más corta, ni los esquemas sin
+#' `//` como `data:` o `mailto:`.
 #' `escala_mixta` es informativo (`ok`): una minoría de valores separada del
 #' grueso por una potencia de diez puede ser una mezcla de unidades o dos
 #' poblaciones distintas. Los cuatro se filtran por su `tipo_hallazgo`.

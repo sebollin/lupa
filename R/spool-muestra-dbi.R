@@ -2132,6 +2132,7 @@
       "positiva de snapshot cuando el adaptador la demuestra."
     ),
     clave = preparacion$catalogo_cardinalidad,
+    catalogo = preparacion$catalogo_garantias,
     estrategia_mediana = .publicar_estrategia_mediana_dbi(preparacion),
     metricas = preparacion$metricas, metricas_ejecucion = metricas,
     politica_costo = preparacion$politica_costo,

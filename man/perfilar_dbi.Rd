@@ -416,6 +416,23 @@ declara el motor o su controlador al leer el esquema, que no depende de las
 filas leídas, y en SQLite y DuckDB \code{resumen_tabla$meta$cotejamientos} el
 cotejamiento de cada columna, leído del \verb{CREATE TABLE} en la misma consulta
 de la clave o del tipo: \code{binary}/\code{predeterminado} o el de su \code{COLLATE}.
+\code{resumen_tabla$meta$catalogo} amplía la lectura del catálogo por motor
+con \code{identificacion} (clave primaria o restricción/índice único con su
+grado \code{total}, \code{parcial} o \code{ninguna}), \code{clave_primaria}, \code{claves_unicas}
+(incluyendo semántica de \code{NULL} e índices parciales o filtrados),
+\code{claves_foraneas} (con estado de validación en el motor: \code{convalidated} en
+PostgreSQL, \code{is_not_trusted} en SQL Server, InnoDB y \code{foreign_key_checks}
+en MySQL/MariaDB, \verb{PRAGMA foreign_keys} en SQLite), \code{not_null} (marcando
+las columnas textuales \verb{NOT NULL} que contienen blancos y avisando en
+\code{resumen_tabla$cobertura}) y \code{estado_lectura} con el motivo cuando algo no
+se pudo leer.
+\code{resumen_tabla$meta$duplicados_exactos} publica el conteo de filas
+duplicadas exactas (\code{filas_duplicadas} y \code{filas_en_grupos_duplicados}), su
+\code{estado} (\code{garantizado}, \code{calculado}, \code{estimado}, \code{no_disponible} o
+\code{no_solicitado}), el \code{criterio} textual de igualdad aplicado y
+\code{regla_columnas} por columna; la misma regla canónica se aplica en la
+muestra en R y, si el motor o la muestra no pueden reproducirla sin perder
+distinciones, la cifra queda \code{NA} con su \code{motivo}.
 Una \code{fecha} declarada queda también en \code{resumen_tabla$meta$fecha_hora}, con
 \code{resumen_tabla$meta$fecha_declarada = TRUE}, aunque no haya muestra
 (\code{bloque_muestra = "solo_agregados"}); sin \code{fecha}, esos campos no están.

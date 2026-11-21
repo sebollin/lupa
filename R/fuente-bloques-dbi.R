@@ -2399,6 +2399,7 @@
       "`bloque_filas`, y no es un error de ninguno de los dos"
     ),
     clave = preparacion$catalogo_cardinalidad,
+    catalogo = preparacion$catalogo_garantias,
     metricas = metricas_publicas, metricas_ejecucion = metricas,
     incluir_valores = incluir_valores,
     solo_lectura = TRUE, objetos_temporales = FALSE,

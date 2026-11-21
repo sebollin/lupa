@@ -10,7 +10,11 @@ print.perfil <- function(x, ...) {
   avisos <- sum(x$hallazgos$severidad == "ok" &
                   as.character(x$hallazgos$tipo_hallazgo) %in%
                   .TIPOS_HALLAZGO_DOMINIO, na.rm = TRUE)
-  correctos <- correctos - avisos
+  # El aviso de URL en un largo fijo tampoco: dice lo observado y no concluye.
+  avisos_largo <- sum(x$hallazgos$severidad == "ok" &
+                        as.character(x$hallazgos$tipo_hallazgo) ==
+                          "texto_truncado", na.rm = TRUE)
+  correctos <- correctos - avisos - avisos_largo
   no_evaluados <- if (inherits(x$cobertura_diagnosticos, "data.frame")) {
     nrow(x$cobertura_diagnosticos)
   } else 0L
@@ -22,6 +26,11 @@ print.perfil <- function(x, ...) {
   if (avisos > 0L) {
     cli::cli_alert_info(.cli_literal(paste(
       avisos, if (avisos == 1L) "aviso de columna fuera de su dominio inferido (ver hallazgos())" else "avisos de columna fuera de su dominio inferido (ver hallazgos())"
+    )))
+  }
+  if (avisos_largo > 0L) {
+    cli::cli_alert_info(.cli_literal(paste(
+      avisos_largo, if (avisos_largo == 1L) "aviso de columna sobre un largo de texto que puede ser un tope (ver hallazgos())" else "avisos de columna sobre un largo de texto que puede ser un tope (ver hallazgos())"
     )))
   }
   cli::cli_alert_info(.cli_literal(paste(no_evaluados, if (no_evaluados == 1L) "diagn\u00f3stico no evaluado" else "diagn\u00f3sticos no evaluados")))

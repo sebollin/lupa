@@ -304,7 +304,7 @@
       "SELECT a.attnum AS posicion, a.attname AS columna, ",
       "has_column_privilege(a.attrelid, a.attnum, 'SELECT') AS legible, ",
       "format_type(a.atttypid, a.atttypmod) AS tipo_motor, ",
-      "NULL::text AS tipo_objeto ",
+      "NULL::text AS tipo_objeto, a.attnotnull AS not_null ",
       "FROM pg_catalog.pg_attribute a WHERE a.attrelid = ", literal,
       "::regclass AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum"
     )
@@ -331,7 +331,8 @@
       "THEN TYPE_NAME(c.system_type_id) + '(' + CAST(c.precision AS VARCHAR(3)) + ",
       "',' + CAST(c.scale AS VARCHAR(3)) + ')' ELSE TYPE_NAME(c.system_type_id) ",
       "END AS tipo_motor, TYPE_NAME(c.system_type_id) AS tipo_declarado_motor, ",
-      "o.type AS tipo_objeto FROM tempdb.sys.columns c JOIN tempdb.sys.objects o ",
+      "o.type AS tipo_objeto, CASE WHEN c.is_nullable = 0 THEN 1 ELSE 0 END AS not_null ",
+      "FROM tempdb.sys.columns c JOIN tempdb.sys.objects o ",
       "ON o.object_id = c.object_id WHERE c.object_id = OBJECT_ID(N", temporal,
       ") ORDER BY c.column_id"
     )
@@ -360,7 +361,8 @@
       "',' + CAST(c.scale AS VARCHAR(3)) + ')' ELSE COALESCE(TYPE_NAME(c.system_type_id), ",
       "TYPE_NAME(c.user_type_id)) END AS tipo_motor, ",
       "TYPE_NAME(c.user_type_id) AS tipo_declarado_motor, ",
-    "o.type AS tipo_objeto FROM sys.columns c ",
+    "o.type AS tipo_objeto, CASE WHEN c.is_nullable = 0 THEN 1 ELSE 0 END AS not_null ",
+    "FROM sys.columns c ",
     "JOIN sys.objects o ON o.object_id = c.object_id WHERE c.object_id = OBJECT_ID(", objeto,
     ") AND ", misma_base, " ORDER BY c.column_id"
   )
@@ -421,7 +423,8 @@
     "CONCAT(LOWER(DATA_TYPE), ' unsigned') WHEN LOWER(DATA_TYPE) IN ",
     "('decimal', 'numeric') THEN LOWER(COLUMN_TYPE) ELSE LOWER(DATA_TYPE) END ",
     "AS tipo_motor, ",
-    "CAST(NULL AS CHAR) AS tipo_objeto ",
+    "CAST(NULL AS CHAR) AS tipo_objeto, ",
+    "CAST(CASE WHEN UPPER(IS_NULLABLE) = 'NO' THEN 1 ELSE 0 END AS SIGNED) AS not_null ",
     "FROM information_schema.columns WHERE TABLE_SCHEMA = ", esquema,
     " AND TABLE_NAME = ", tabla_literal, " ORDER BY ORDINAL_POSITION"
   )
@@ -457,7 +460,11 @@
           paste(base, "unsigned"),
           ifelse(base %in% c("decimal", "numeric"), tipo, base)
         ),
-        tipo_objeto = NA_character_, stringsAsFactors = FALSE
+        tipo_objeto = NA_character_,
+        not_null = if ("Null" %in% names(mostradas)) {
+          as.integer(.mayusculas_ascii(trimws(as.character(mostradas$Null))) == "NO")
+        } else rep(NA_integer_, nrow(mostradas)),
+        stringsAsFactors = FALSE
       )
     }
   }
@@ -494,6 +501,15 @@
   salida$tipo_declarado_motor <- if ("tipo_declarado_motor" %in% names(columnas)) {
     as.character(columnas$tipo_declarado_motor)
   } else rep(NA_character_, length(nombres))
+  salida$not_null <- if ("not_null" %in% names(columnas)) {
+    val_nn <- columnas$not_null
+    if (is.logical(val_nn)) {
+      val_nn
+    } else {
+      num_nn <- suppressWarnings(as.numeric(as.character(val_nn)))
+      ifelse(is.na(num_nn), NA, num_nn != 0)
+    }
+  } else rep(NA, length(nombres))
   if (is.data.frame(mascaras) && nrow(mascaras) &&
       "columna" %in% names(mascaras)) {
     sin_mascara <- function(campo) {
@@ -604,12 +620,18 @@
     valores <- as.character(permisos$tipo_motor[posiciones])
     stats::setNames(valores, campos)
   } else NULL
+  not_null_cols <- if ("not_null" %in% names(permisos) &&
+                       any(!is.na(permisos$not_null))) {
+    valores_nn <- permisos$not_null[posiciones]
+    stats::setNames(as.logical(valores_nn), campos)
+  } else NULL
   list(
     campos = campos, ilegibles = campos[ilegible],
     enmascaradas = campos[enmascarada], mascaras = mascaras,
     proyectar = isTRUE(attr(permisos, "proyectar")) && any(ilegible),
     catalogo = TRUE, sql_catalogo = attr(permisos, "sql"),
     tipos_motor = tipos_motor,
+    not_null = not_null_cols,
     tipo_objeto = attr(permisos, "tipo_objeto"),
     error = if (length(campos)) NULL else error,
     permisos_sin_consultar = if (isTRUE(attr(permisos, "mascaras_sin_respuesta"))) {
@@ -5732,6 +5754,7 @@
 .candidatos_mediana_escalar_dbi <- function(conexion, dialecto) {
   forma <- dialecto$mediana_escalar
   if (is.null(forma)) return(list())
+  if (.es_mysql_dbi(.senas_conexion_dbi(conexion))) return(list())
   valor <- .citar_identificador_dbi(conexion, "valor")
   construir <- function(expr, tabla, alias, materializar = FALSE,
                         doble_exacto = FALSE) {
@@ -10907,7 +10930,9 @@
 }
 
 .resolver_fuentes_cardinalidad_dbi <- function(conexion, tabla, columnas,
-                                               estrategia, presupuesto) {
+                                               estrategia, presupuesto,
+                                               not_null_columnas = NULL,
+                                               tipo_objeto = NA_character_) {
   fuentes <- .fuentes_cardinalidad_vacias_dbi(columnas)
   if (identical(estrategia$estrategia_solicitada, "catalogo") &&
       is.list(estrategia$fuentes)) {
@@ -10918,61 +10943,84 @@
       fuentes[[indices_fuentes[[i]]]] <- estrategia$fuentes[[i]]
     }
   }
-  # La clave se lee siempre para publicarla en `meta$clave`. Su resultado solo
-  # gobierna la politica de costo cuando esa politica lo necesita.
+  # El catalogo completo se lee una vez por controlador para publicar `meta$clave`
+  # y `meta$catalogo`, y aprovechar garantias estructurales sin volver a medirlas.
   piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
-  catalogo <- .clave_primaria_dbi(
-    conexion, piezas$tabla, piezas$esquema, presupuesto = presupuesto
+  leido <- .catalogo_garantias_dbi(
+    conexion, piezas$tabla, piezas$esquema, campos = columnas,
+    not_null_columnas = not_null_columnas, tipo_objeto = tipo_objeto,
+    presupuesto = presupuesto
   )
-  # Red universal, por encima del filtro de cada motor: una clave cuyas columnas
-  # no estan entre las que se acaban de medir no puede ser de la tabla medida.
-  #
-  # Existe porque el filtro por esquema resuelve el caso de CADA motor conocido,
-  # y esta clase de fallo aparece justamente en los que no se conocen: el
-  # catalogo contesta por una homonima y la respuesta llega con la forma de una
-  # respuesta buena. Esta comprobacion no necesita saber la precedencia de nadie
-  # -compara contra las columnas que el propio perfilado leyo-, asi que cubre
-  # tambien al motor que todavia no se probo. Se descubrio sobre SQL Server el
-  # 2026-08-30: publicaba clave en `x` para una tabla de columnas `y, dato`.
-  # `length(columnas)` no es defensa de rutina: si el esquema de la tabla no se
-  # pudo leer, la lista llega vacia y TODA columna de la clave pareceria ajena.
-  # Descartar una clave buena porque no se sabe contra que compararla seria
-  # silenciar por ignorancia, que es el error opuesto y de igual importancia.
-  if (length(catalogo$columnas) && length(columnas)) {
-    ajenas <- catalogo$columnas[
-      is.na(.resolver_columnas_dbi(catalogo$columnas, columnas))
-    ]
-    if (length(ajenas)) catalogo <- .clave_de_otra_relacion(catalogo, ajenas)
-  }
-  # Una clave compuesta no vuelve unica cada columna por separado. Solo una
-  # clave primaria simple, aplicada y validada, permite afirmar que su columna
-  # tiene tantos distintos como valores validos, sin contarla.
-  if (isTRUE(estrategia$para_costo) &&
-      length(catalogo$columnas) == 1L &&
-      identical(catalogo$garantia, "garantizada")) {
-    posicion <- .resolver_columnas_dbi(catalogo$columnas, columnas)
-    if (length(posicion) == 1L && !is.na(posicion)) {
-      columna <- columnas[[posicion]]
-      fuentes[[columna]] <- list(
-        nombre = "clave_primaria_garantizada", exacta = TRUE,
-        proporcion_distintos = 1, motivo = paste(
-          "La clave primaria simple est\u00e1 declarada y garantizada por el",
-          "cat\u00e1logo; sus valores v\u00e1lidos son \u00fanicos."
+  catalogo <- leido$clave
+  catalogo_garantias <- leido$catalogo
+  unicidad_estructural <- .columnas_unicidad_simple_dbi(
+    catalogo_garantias, columnas
+  )
+  # Para la politica de costo (`por_cardinalidad`), toda columna con PK simple
+  # garantizada o restriccion/indice unico simple no parcial valido tiene
+  # proporcion de distintos = 1 sin recorrer la tabla.
+  if (isTRUE(estrategia$para_costo) && length(unicidad_estructural)) {
+    for (columna in names(unicidad_estructural)) {
+      if (columna %in% names(fuentes)) {
+        info <- unicidad_estructural[[columna]]
+        fuentes[[columna]] <- list(
+          nombre = info$nombre, exacta = TRUE,
+          proporcion_distintos = 1, motivo = info$motivo
         )
-      )
+      }
     }
   }
-  list(fuentes = fuentes, catalogo = catalogo)
+  list(
+    fuentes = fuentes,
+    catalogo = catalogo,
+    catalogo_garantias = catalogo_garantias,
+    unicidad_estructural = unicidad_estructural,
+    tipos_pragma = leido$tipos_pragma
+  )
+}
+
+.columnas_unicidad_omitibles_dbi <- function(campos, metricas, universo,
+                                             estrategia_distintos,
+                                             unicidad_estructural = NULL,
+                                             columnas_not_null_skip = character()) {
+  if (!identical(universo, "tabla_completa") ||
+      !length(unicidad_estructural) ||
+      identical(estrategia_distintos$estrategia_solicitada, "catalogo") ||
+      identical(estrategia_distintos$estrategia_solicitada, "omitida")) {
+    return(character())
+  }
+  tiene_validos <- "validos" %in% metricas
+  omitibles <- character()
+  for (col in intersect(campos, names(unicidad_estructural))) {
+    info <- unicidad_estructural[[col]]
+    if (!is.list(info) || !isTRUE(info$exacta)) next
+    # Si se conoce `n_validos` (por `"validos"` o por NOT NULL garantizado
+    # fuera de NaN), `n_distintos` coincide exactamente con `n_validos`.
+    if (isTRUE(tiene_validos) ||
+        (!isTRUE(info$requiere_validos) && col %in% columnas_not_null_skip)) {
+      omitibles <- c(omitibles, col)
+    }
+  }
+  omitibles
 }
 
 .columnas_distintos_ejecucion_dbi <- function(
     metricas, estrategia_distintos, campos,
-    fuentes_cardinalidad_costo = NULL, politica_costo = NULL) {
+    fuentes_cardinalidad_costo = NULL, politica_costo = NULL,
+    unicidad_estructural = NULL, universo = "tabla_completa",
+    columnas_not_null_skip = character()) {
   if (!"distintos" %in% metricas) return(character())
   if (identical(estrategia_distintos$estado, "estimado_catalogo")) {
     return(character())
   }
-  if (isTRUE(estrategia_distintos$publica)) return(campos)
+  if (isTRUE(estrategia_distintos$publica)) {
+    omitibles <- .columnas_unicidad_omitibles_dbi(
+      campos, metricas, universo, estrategia_distintos,
+      unicidad_estructural = unicidad_estructural,
+      columnas_not_null_skip = columnas_not_null_skip
+    )
+    return(setdiff(campos, omitibles))
+  }
   if (is.null(fuentes_cardinalidad_costo)) return(NULL)
   if (!is.null(politica_costo) &&
       identical(politica_costo$nombre, "por_cardinalidad")) {
@@ -10982,6 +11030,30 @@
     )])
   }
   character()
+}
+
+# Unica regla compartida entre `.agregados_consolidados_dbi()` y `.plan_sql_dbi()`
+# para decidir que columnas entran a los lotes planos: ahorra COUNT(col) en las
+# columnas NOT NULL garantizadas y mantiene el conteo de `n_blancos` en las
+# textuales NOT NULL cuando se pide `"validos"`.
+.columnas_planas_ejecucion_dbi <- function(columnas, es_numerico,
+                                           metricas_consulta,
+                                           campos_faltantes = character(),
+                                           columnas_not_null_skip = character(),
+                                           columnas_not_null_texto = character(),
+                                           metricas_originales = metricas_consulta) {
+  cols_validos <- if ("validos" %in% metricas_consulta) {
+    setdiff(columnas, columnas_not_null_skip)
+  } else character()
+  cols_blancos <- if ("validos" %in% metricas_originales) {
+    intersect(columnas, columnas_not_null_texto)
+  } else character()
+  cols_num <- if (any(c("basicos", "desvio") %in% metricas_consulta)) {
+    columnas[es_numerico]
+  } else character()
+  cols_falt <- intersect(campos_faltantes, columnas)
+  seleccionadas <- unique(c(cols_validos, cols_blancos, cols_num, cols_falt))
+  columnas[columnas %in% seleccionadas]
 }
 
 # Los dos conteos recorren la misma tabla, asi que se piden juntos: una
@@ -12812,12 +12884,17 @@
         consulta, sql, aliases$total, metadatos
       )
     }
-    if ("validos" %in% metricas) {
+    if ("validos" %in% metricas && !is.null(aliases$validos)) {
       resultado$validos <- .resultado_lote_dbi(
         consulta, sql, aliases$validos, metadatos
       )
       resultado$validos <- .adjuntar_denominador_consulta_dbi(
         resultado$validos, consulta, aliases$total
+      )
+    }
+    if (!is.null(aliases$blancos)) {
+      resultado$blancos <- .resultado_lote_dbi(
+        consulta, sql, aliases$blancos, metadatos
       )
     }
     if (!is.null(aliases$nan)) {
@@ -12887,7 +12964,9 @@
     decimales_exactos = NULL, incluir_cuenta = FALSE,
     incluir_magnitud = FALSE, columnas_nan = character(),
     politicas_faltantes = NULL, columnas_sql_originales = NULL,
-    columnas_double_originales = character()) {
+    columnas_double_originales = character(),
+    columnas_not_null_skip = character(),
+    columnas_not_null_texto = character()) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -12945,8 +13024,11 @@
       nan_marca = if (isTRUE(candidata_nan) && isTRUE(ventana_desvio)) {
         .alias_agregado_dbi(alias, numero, i, "n_nan_marca")
       },
-      validos = if ("validos" %in% metricas) {
+      validos = if ("validos" %in% metricas && !(campo %in% columnas_not_null_skip)) {
         .alias_agregado_dbi(alias, numero, i, "n_validos")
+      },
+      blancos = if ("validos" %in% metricas && campo %in% columnas_not_null_texto) {
+        .alias_agregado_dbi(alias, numero, i, "n_blancos")
       },
       basicos = if ("basicos" %in% metricas && es_numerico[[i]]) {
         salida <- lapply(
@@ -13178,9 +13260,24 @@
       campo %in% columnas_float8_numeric ||
       .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
     c(
-      if ("validos" %in% metricas) paste0(
+      if ("validos" %in% metricas && !is.null(aliases$validos)) paste0(
         .contar_no_nulos_sql_dbi(columna, senas), " AS ", aliases$validos
       ),
+      if (!is.null(aliases$blancos)) {
+        norm_b <- .normalizador_texto_faltantes_dbi(conexion, nombres_sql[[campo]])
+        if (!is.null(norm_b)) {
+          paste0(
+            .conteo_sql_dbi(
+              .suma_condicion_faltantes_dbi(
+                paste0(nombres_sql[[campo]], " IS NOT NULL AND ", norm_b, " = ''"),
+                senas
+              ),
+              senas
+            ),
+            " AS ", aliases$blancos
+          )
+        }
+      },
       if (isTRUE(incluir_faltantes) && !is.null(aliases$faltantes)) {
         faltantes <- aliases$faltantes
         .expresiones_faltantes_dbi(
@@ -13545,7 +13642,12 @@
         )
       }
     }
-    if ("desvio" %in% metricas && es_numerico[[i]]) {
+    n_val_ind <- if (!is.null(individual$validos) &&
+                     isTRUE(individual$validos$ok)) {
+      .numero_dbi(individual$validos$valor)
+    } else NA_real_
+    if ("desvio" %in% metricas && es_numerico[[i]] &&
+        !(length(n_val_ind) == 1L && is.finite(n_val_ind) && n_val_ind < 2)) {
       individual$desvio <- .desvio_columna_dbi(
         conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
         presupuesto, metadatos,
@@ -14018,6 +14120,29 @@
     .soporta_ventana_desvio_dbi(conexion)
 }
 
+.n_validos_resultado_plano_dbi <- function(resultado, campo, n_total = NA_real_,
+                                           columnas_not_null_skip = character()) {
+  if (is.list(resultado)) {
+    if (!is.null(resultado$validos) && isTRUE(resultado$validos$ok)) {
+      v <- .numero_dbi(resultado$validos$valor)
+      if (length(v) == 1L && is.finite(v)) return(v)
+    }
+    if (!is.null(resultado$cuenta_valores)) {
+      v <- .numero_dbi(resultado$cuenta_valores$n)
+      if (length(v) == 1L && is.finite(v)) return(v)
+    }
+    if (!is.null(resultado$exacto_decimal)) {
+      v <- .numero_dbi(resultado$exacto_decimal$finitos)
+      if (length(v) == 1L && is.finite(v)) return(v)
+    }
+  }
+  if (campo %in% columnas_not_null_skip &&
+      length(n_total) == 1L && is.finite(.numero_dbi(n_total))) {
+    return(.numero_dbi(n_total))
+  }
+  NA_real_
+}
+
 .desvio_separado_dbi <- function(conexion, metricas, universo,
                                  columnas_float8_numeric = character()) {
   if (!"desvio" %in% metricas || !identical(universo, "tabla_completa")) {
@@ -14047,7 +14172,9 @@
                                         columnas_nan = character(),
                                         politicas_faltantes = NULL,
                                         columnas_sql_originales = NULL,
-                                        columnas_double_originales = character()) {
+                                        columnas_double_originales = character(),
+                                        columnas_not_null_skip = character(),
+                                        columnas_not_null_texto = character()) {
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
@@ -14058,7 +14185,7 @@
   }
   agregados <- list(
     conteos = por_columna(), basicos = por_columna(), desvio = por_columna(),
-    nan = por_columna(), faltantes = por_columna()
+    nan = por_columna(), faltantes = por_columna(), blancos = por_columna()
   )
   configuracion_aviso <- function(nombre, defecto) {
     valor <- if (is.null(presupuesto)) NULL else presupuesto[[nombre]]
@@ -14150,11 +14277,7 @@
   metricas_consulta <- metricas_planas
   if (separar_desvio) metricas_consulta <- unique(c(metricas_consulta, "basicos"))
   numericas <- columnas[es_numerico]
-  columnas_planas <- if ("validos" %in% metricas_planas) {
-    columnas
-  } else {
-    numericas
-  }
+  columnas_planas <- character()
   # La cuenta de faltantes disfrazados es independiente de que el usuario
   # haya pedido `validos` y tambien puede ser la unica metrica de una columna
   # textual. Mantener esas columnas en el mismo lote evita perderla cuando el
@@ -14183,7 +14306,13 @@
       )
     )
   }
-  columnas_planas <- unique(c(columnas_planas, intersect(campos_faltantes, columnas)))
+  columnas_planas <- .columnas_planas_ejecucion_dbi(
+    columnas, es_numerico, metricas_consulta,
+    campos_faltantes = campos_faltantes,
+    columnas_not_null_skip = columnas_not_null_skip,
+    columnas_not_null_texto = columnas_not_null_texto,
+    metricas_originales = metricas
+  )
   if (length(metricas_consulta) && length(columnas_planas)) {
     if (isTRUE(ventana_desvio)) {
       forma <- .forma_desvio_ventana_dbi(conexion)
@@ -14224,7 +14353,9 @@
         columnas_nan = columnas_nan,
         politicas_faltantes = politicas_faltantes_planos,
         columnas_sql_originales = nombres_sql_originales,
-        columnas_double_originales = dobles_originales
+        columnas_double_originales = dobles_originales,
+        columnas_not_null_skip = columnas_not_null_skip,
+        columnas_not_null_texto = columnas_not_null_texto
       )
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
@@ -14276,10 +14407,17 @@
           suppressWarnings(as.numeric(resultado$desvio$valor %||% NA_real_))
         }
         mysql <- .es_mysql_dbi(senas) && .es_conexion_mysql_dbi(conexion)
+        n_val_plano <- .n_validos_resultado_plano_dbi(
+          resultado, campo, n_total = n_total,
+          columnas_not_null_skip = columnas_not_null_skip
+        )
+        desvio_sin_muestra <- length(n_val_plano) == 1L &&
+          is.finite(n_val_plano) && n_val_plano < 2
         desvio_no_utilizable <- !is.null(resultado$desvio) && (
           !isTRUE(resultado$desvio$ok) ||
-            (mysql && (length(desvio_consolidado) != 1L ||
-                       !is.finite(desvio_consolidado)))
+            (mysql && !desvio_sin_muestra &&
+               (length(desvio_consolidado) != 1L ||
+                !is.finite(desvio_consolidado)))
         )
         # Bajo la muestra del motor la repeticion sortearia otra muestra: el
         # desvio queda el del lote, y la cuenta del lote dice si faltaban
@@ -14317,12 +14455,15 @@
             )
           }
         }
-        if ("validos" %in% metricas) {
+        if ("validos" %in% metricas && !is.null(resultado$validos)) {
           base_conteos <- agregados$conteos[[campo]]
           if (is.null(base_conteos)) base_conteos <- list(consolidada = TRUE)
           agregados$conteos[[campo]] <- utils::modifyList(
             base_conteos, list(validos = resultado$validos)
           )
+        }
+        if (!is.null(resultado$blancos)) {
+          agregados$blancos[[campo]] <- resultado$blancos
         }
         if (!is.null(resultado$nan)) {
           agregados$nan[[campo]] <- resultado$nan
@@ -14412,6 +14553,12 @@
         for (campo in lote[es_numerico_lote]) {
           if (!is.null(agregados$desvio[[campo]]) &&
               isTRUE(agregados$desvio[[campo]]$ok)) next
+          n_val_sep <- .n_validos_resultado_plano_dbi(
+            resultado_lote[[campo]], campo, n_total = n_total,
+            columnas_not_null_skip = columnas_not_null_skip
+          )
+          if (length(n_val_sep) == 1L && is.finite(n_val_sep) &&
+              n_val_sep < 2) next
           resultado <- .desvio_columna_dbi(
             conexion, tabla_sql, columna_operacion_de(campo), alias, forma,
             presupuesto, .metadatos_lote_dbi(numero, campo),
@@ -15117,6 +15264,14 @@
   conteo_mediana_pendiente <- function() {
     if (!sin_conteo || is.finite(n_validos_sondeado)) return(FALSE)
     if (es_muestreado) return(TRUE)
+    if (!is.null(agregados) && !is.null(agregados$cuentas[[columna]])) {
+      n_lote <- .numero_dbi(agregados$cuentas[[columna]]$n)
+      if (length(n_lote) == 1L && is.finite(n_lote) && n_lote >= 0) {
+        n_validos_sondeado <<- n_lote
+        conteo_mediana_propio <<- TRUE
+        return(FALSE)
+      }
+    }
     senas <- .senas_conexion_dbi(conexion)
     sql <- paste0(
       "SELECT ", .conteo_sql_dbi(.contar_no_nulos_sql_dbi(columna_sql, senas),
@@ -15346,12 +15501,14 @@
             error_esperado = estrategia_distintos$error_esperado
           )
         )
-        if (identical(estrategia_distintos$estado, "estimado_motor")) {
-          distintos$estado <- "estimado_motor"
-        } else if (identical(
-          estrategia_distintos$estado, "estimado_catalogo"
-        )) {
-          distintos$estado <- "estimado_catalogo"
+        if (!identical(distintos$estado, "garantizado")) {
+          if (identical(estrategia_distintos$estado, "estimado_motor")) {
+            distintos$estado <- "estimado_motor"
+          } else if (identical(
+            estrategia_distintos$estado, "estimado_catalogo"
+          )) {
+            distintos$estado <- "estimado_catalogo"
+          }
         }
         candidato <- .conteo_dbi(distintos$valor)
         guardian <- .guardian_distintos_dbi(distintos)
@@ -16311,6 +16468,17 @@
       is.finite(n_validos_sondeado)) {
     n_validos_desvio <- n_validos_sondeado
   }
+  if (!es_muestreado && (!length(n_validos_desvio) || is.na(n_validos_desvio)) &&
+      !is.null(agregados)) {
+    cuenta_d <- agregados$cuentas[[columna]]
+    if (is.null(cuenta_d) && !is.null(agregados$exactos[[columna]])) {
+      cuenta_d <- list(n = agregados$exactos[[columna]]$finitos)
+    }
+    if (!is.null(cuenta_d)) {
+      n_d <- .numero_dbi(cuenta_d$n)
+      if (length(n_d) == 1L && is.finite(n_d)) n_validos_desvio <- n_d
+    }
+  }
   puede_replegar_desvio_infinito <- infinitos_motor &&
     (.es_mysql_dbi(.senas_conexion_dbi(conexion)) || grepl(
       "sql server|microsoft sql|sqlserver|mssql",
@@ -16324,6 +16492,18 @@
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "desvio", "no_disponible", motivo_magnitud, NA_character_,
         metadatos = metadatos
+      )))
+    } else if (!es_muestreado && length(n_validos_desvio) == 1L &&
+               is.finite(n_validos_desvio) && n_validos_desvio == 0) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "desvio", "sin_valores",
+        if (isTRUE(nan_presente)) {
+          paste(
+            "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+            "se calculan s\u00f3lo con valores finitos."
+          )
+        } else "La columna no contiene valores no nulos.",
+        NA_character_, metadatos = metadatos
       )))
     } else if (length(n_validos_desvio) == 1L &&
                is.finite(n_validos_desvio) && n_validos_desvio < 2) {
@@ -16693,24 +16873,74 @@
   )
 }
 
-.incorporar_distintos_estructurales_dbi <- function(agregados, fuentes,
-                                                     n_total, universo) {
-  if (is.null(fuentes) || !length(fuentes)) return(agregados)
-  for (columna in names(fuentes)) {
-    fuente <- fuentes[[columna]]
-    if (is.null(fuente) || !isTRUE(fuente$exacta) ||
-        !is.finite(fuente$proporcion_distintos) ||
-        fuente$proporcion_distintos != 1 || is.na(n_total) ||
-        identical(universo, "muestra_motor")) {
-      next
-    }
+.incorporar_validos_estructurales_dbi <- function(agregados,
+                                                   columnas_not_null_skip,
+                                                   n_total, universo) {
+  if (!length(columnas_not_null_skip) || is.na(n_total) ||
+      identical(universo, "muestra_motor")) {
+    return(agregados)
+  }
+  for (columna in columnas_not_null_skip) {
+    base <- agregados$conteos[[columna]]
+    if (!is.null(base) && !is.null(base$validos)) next
+    if (is.null(base)) base <- list(consolidada = TRUE)
     resultado <- list(
       ok = TRUE, valor = n_total, motivo = NA_character_, sql = NA_character_,
       estado = "garantizado",
-      metadatos = list(fuente = fuente$nombre)
+      metadatos = list(
+        fuente = "not_null_catalogo",
+        n_total_consulta = n_total
+      )
     )
+    agregados$conteos[[columna]] <- utils::modifyList(
+      base, list(validos = resultado)
+    )
+  }
+  agregados
+}
+
+.incorporar_distintos_estructurales_dbi <- function(agregados, fuentes,
+                                                     n_total, universo,
+                                                     unicidad_estructural = NULL) {
+  if (is.na(n_total) || identical(universo, "muestra_motor")) return(agregados)
+  candidatas <- list()
+  if (is.list(unicidad_estructural) && length(unicidad_estructural)) {
+    for (col in names(unicidad_estructural)) {
+      candidatas[[col]] <- unicidad_estructural[[col]]
+    }
+  }
+  if (is.list(fuentes) && length(fuentes)) {
+    for (col in names(fuentes)) {
+      if (is.null(candidatas[[col]])) candidatas[[col]] <- fuentes[[col]]
+    }
+  }
+  if (!length(candidatas)) return(agregados)
+  for (columna in names(candidatas)) {
+    fuente <- candidatas[[columna]]
+    if (is.null(fuente) || !isTRUE(fuente$exacta) ||
+        !is.finite(fuente$proporcion_distintos) ||
+        fuente$proporcion_distintos != 1) {
+      next
+    }
     base <- agregados$conteos[[columna]]
     if (!is.null(base) && !is.null(base$distintos)) next
+    valor_dist <- if (!is.null(base) && !is.null(base$validos) &&
+                      isTRUE(base$validos$ok) && !is.na(base$validos$valor)) {
+      base$validos$valor
+    } else if (!isTRUE(fuente$requiere_validos)) {
+      n_total
+    } else {
+      next
+    }
+    resultado <- list(
+      ok = TRUE, valor = valor_dist, motivo = NA_character_, sql = NA_character_,
+      estado = "garantizado",
+      metadatos = list(
+        fuente = fuente$nombre,
+        n_validos_guard = .numero_dbi(valor_dist),
+        cota_comprobable = TRUE
+      )
+    )
     if (is.null(base)) base <- list(consolidada = TRUE)
     agregados$conteos[[columna]] <- utils::modifyList(
       base, list(distintos = resultado)
@@ -16771,7 +17001,12 @@
                                 cadenas_ausencia = NULL,
                                 columnas_opcionales = character(),
                                 aplicabilidad = NULL,
-                                contar_faltantes = TRUE) {
+                                contar_faltantes = TRUE,
+                                catalogo_garantias = NULL,
+                                unicidad_estructural = NULL,
+                                columnas_not_null_skip = character(),
+                                columnas_not_null_texto = character(),
+                                plan_duplicados = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -16848,7 +17083,10 @@
   )
   columnas_distintos_resumen <- .columnas_distintos_ejecucion_dbi(
     metricas_ejecucion, estrategia_distintos, campos_consolidados,
-    fuentes_cardinalidad_costo, politica_costo
+    fuentes_cardinalidad_costo, politica_costo,
+    unicidad_estructural = unicidad_estructural,
+    universo = universo,
+    columnas_not_null_skip = columnas_not_null_skip
   )
   columnas_distintos_resumen <- columnas_distintos_resumen[
     !vapply(columnas_distintos_resumen, tipo_sin_agregados_de, logical(1L))
@@ -16886,7 +17124,9 @@
     universo = universo, columnas_nan = columnas_nan,
     politicas_faltantes = politicas_faltantes,
     columnas_sql_originales = columnas_sql_originales_consolidados,
-    columnas_double_originales = columnas_double_originales
+    columnas_double_originales = columnas_double_originales,
+    columnas_not_null_skip = columnas_not_null_skip,
+    columnas_not_null_texto = columnas_not_null_texto
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -16915,8 +17155,16 @@
     }
     n_total <- NA_real_
   }
+  agregados <- .incorporar_validos_estructurales_dbi(
+    agregados, columnas_not_null_skip, n_total, universo
+  )
   agregados <- .incorporar_distintos_estructurales_dbi(
-    agregados, fuentes_cardinalidad_costo, n_total, universo
+    agregados, fuentes_cardinalidad_costo, n_total, universo,
+    unicidad_estructural = unicidad_estructural
+  )
+  duplicados_exactos <- .calcular_duplicados_exactos_dbi(
+    conexion, tabla_metricas_sql, plan_duplicados, dialecto, universo,
+    presupuesto = presupuesto
   )
   sql_conteo_registro <- if (is.null(conteo) || is.null(conteo$sql)) {
     sql_conteo
@@ -17471,6 +17719,23 @@
   if (!identical(universo, "muestra_motor")) {
     meta$filas_obtenidas_muestra <- NULL
   }
+  if (is.list(catalogo_garantias) && is.data.frame(catalogo_garantias$not_null) &&
+      nrow(catalogo_garantias$not_null) && is.list(agregados$blancos)) {
+    nn_df <- catalogo_garantias$not_null
+    for (i in seq_len(nrow(nn_df))) {
+      col_nn <- as.character(nn_df$columna[[i]])
+      res_b <- agregados$blancos[[col_nn]]
+      if (is.list(res_b) && isTRUE(res_b$ok) && !is.na(res_b$valor)) {
+        n_b <- .numero_dbi(res_b$valor)
+        nn_df$n_blancos[[i]] <- n_b
+        nn_df$not_null_con_blancos[[i]] <- isTRUE(nn_df$not_null[[i]]) &&
+          is.finite(n_b) && n_b > 0
+      }
+    }
+    catalogo_garantias$not_null <- nn_df
+  }
+  meta$catalogo <- catalogo_garantias
+  meta$duplicados_exactos <- duplicados_exactos
   list(
     columnas = columnas,
     sql = sql,
@@ -17638,7 +17903,7 @@
   literal <- function(x) as.character(DBI::dbQuoteString(conexion, x))
   sql_tabla <- if (!is.na(piezas$tabla)) {
     paste0(
-      "SELECT column_name, column_type, (SELECT sql FROM duckdb_tables() ",
+      "SELECT column_name, column_type, \"null\" AS column_null, (SELECT sql FROM duckdb_tables() ",
       "WHERE table_name = ", literal(piezas$tabla),
       if (!is.na(piezas$esquema)) paste0(" AND schema_name = ", literal(piezas$esquema)) else "",
       " LIMIT 1) AS lupa_sql_tabla FROM (DESCRIBE ", tabla_sql, ")"
@@ -17667,6 +17932,18 @@
   names(salida) <- campos
   if ("lupa_sql_tabla" %in% names(datos) && nrow(datos)) {
     attr(salida, "sql_tabla") <- as.character(datos$lupa_sql_tabla[[1L]])
+  }
+  col_null <- if ("column_null" %in% names(datos)) "column_null" else if ("null" %in% names(datos)) "null" else NULL
+  if (!is.null(col_null) && nrow(datos)) {
+    nn_vals <- rep(NA, length(campos))
+    for (i in seq_along(campos)) {
+      posicion <- .indice_nombre(campos[[i]], datos$column_name)
+      if (!is.na(posicion)) {
+        txt_n <- .mayusculas_ascii(trimws(as.character(datos[[col_null]][[posicion]])))
+        nn_vals[[i]] <- if (identical(txt_n, "NO")) TRUE else if (identical(txt_n, "YES")) FALSE else NA
+      }
+    }
+    attr(salida, "not_null") <- stats::setNames(nn_vals, campos)
   }
   salida
 }
@@ -17784,6 +18061,7 @@
       campos = campos, campos_sql = campos_sql, prototipo = prototipo,
       tipos = tipos, tipos_motor = tipos_motor, sql = sql,
       sql_tabla = attr(tipos, "sql_tabla", exact = TRUE),
+      not_null = attr(tipos, "not_null", exact = TRUE),
       ilegibles = no_representables, motivos = motivos_no_representables,
       sondeo = FALSE, no_representables = no_representables
     ))
@@ -18448,7 +18726,9 @@
                                   n_sondas_magnitud = NULL,
                                   n_sondas_magnitud_max = n_sondas_magnitud,
                                   consultas_faltantes = 0L,
-                                  consultas_guardas_faltantes_max = 0L) {
+                                  consultas_guardas_faltantes_max = 0L,
+                                  n_columnas_planas = NULL,
+                                  consultas_duplicados = 0L) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -18466,7 +18746,9 @@
   extra_biseccion <- function(n, tamano) {
     sum(2 * tamanos_lotes(n, tamano) - 1)
   }
-  columnas_planas <- if ("validos" %in% metricas) n_columnas else n_numericas
+  columnas_planas <- if (!is.null(n_columnas_planas)) {
+    as.numeric(n_columnas_planas)
+  } else if ("validos" %in% metricas) n_columnas else n_numericas
   hay_planos <- any(c("validos", "basicos", "desvio") %in% metricas) &&
     columnas_planas > 0
   mide_metricas <- !identical(universo, "muestra_motor") ||
@@ -18563,6 +18845,12 @@
     clases[[length(clases) + 1L]] <- c(
       "distintos por lotes (clase separada)",
       n_metricas(n_lotes(n_distintos, tamano_lote_distintos)), alcance_agregado
+    )
+  }
+  if (as.numeric(consultas_duplicados) > 0) {
+    clases[[length(clases) + 1L]] <- c(
+      "duplicados exactos (GROUP BY)",
+      n_metricas(as.numeric(consultas_duplicados)), alcance_agregado
     )
   }
   clases <- c(
@@ -18679,7 +18967,8 @@
                           catalogo_aviso = 0L,
                           decisiones_costo_resueltas = NULL,
                           consultas_faltantes = 0L,
-                          consultas_guardas_faltantes_max = 0L) {
+                          consultas_guardas_faltantes_max = 0L,
+                          campos_faltantes_planos = character()) {
   # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
   # estructural ya leido puede fijar la decision; lo demas abre un rango entre
   # omitir y ejecutar la moda. La mediana queda fuera de ese criterio y la
@@ -18787,10 +19076,34 @@
                          preparacion$metricas_ejecucion)) {
     n_sondas_magnitud <- 0
   }
+  separar_desvio_plan <- .desvio_separado_dbi(
+    conexion, preparacion$metricas_ejecucion, preparacion$universo,
+    preparacion$columnas_float8_numeric
+  )
+  metricas_planas_plan <- intersect(
+    c("validos", "basicos", "desvio"), preparacion$metricas_ejecucion
+  )
+  if (separar_desvio_plan) {
+    metricas_planas_plan <- setdiff(metricas_planas_plan, "desvio")
+  }
+  metricas_consulta_plan <- metricas_planas_plan
+  if (separar_desvio_plan) {
+    metricas_consulta_plan <- unique(c(metricas_consulta_plan, "basicos"))
+  }
+  cols_planas_plan <- if (length(metricas_consulta_plan)) {
+    .columnas_planas_ejecucion_dbi(
+      preparacion$campos, es_numerico, metricas_consulta_plan,
+      campos_faltantes = campos_faltantes_planos,
+      columnas_not_null_skip = preparacion$columnas_not_null_skip %||% character(),
+      columnas_not_null_texto = preparacion$columnas_not_null_texto %||% character(),
+      metricas_originales = preparacion$metricas_ejecucion
+    )
+  } else character()
   .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
-      .solicita_muestra_dbi(preparacion$bloque_muestra), preparacion$dialecto,
+      .solicita_muestra_dbi(preparacion$bloque_muestra) &&
+      !isTRUE(preparacion$orden_garantizado_unico), preparacion$dialecto,
     emitidas = emitidas,
     universo = preparacion$universo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
@@ -18825,6 +19138,10 @@
     n_sondas_magnitud_max = n_sondas_magnitud_max,
     consultas_faltantes = consultas_faltantes,
     consultas_guardas_faltantes_max = consultas_guardas_faltantes_max,
+    n_columnas_planas = length(cols_planas_plan),
+    consultas_duplicados = if (is.list(preparacion$plan_duplicados)) {
+      preparacion$plan_duplicados$n_consultas
+    } else 0L,
     consultas_decimales_max = .consultas_maximas_lotes_decimales_dbi(
       lotes_decimales
     )
@@ -19592,9 +19909,14 @@
 #'   usuario.
 #'   Una fuente estructural se resuelve aunque la estrategia de distintos este
 #'   omitida o no disponible; esta ultima solo gobierna si se puede medir.
-#'   El catalogo de la clave primaria se consulta siempre para conservar esa
-#'   respuesta en `resumen_tabla$meta$clave`; es una lectura de metadatos y no
-#'   un recorrido de la tabla.
+#'   El catálogo se consulta siempre por la vía del controlador para publicar
+#'   `resumen_tabla$meta$clave`, `resumen_tabla$meta$catalogo` y
+#'   `attr(plan, "catalogo")` (clave primaria, restricciones e índices únicos,
+#'   claves foráneas y columnas `NOT NULL`); es una lectura de metadatos y no
+#'   un recorrido de la tabla. Las garantías de grado `total` permiten omitir
+#'   consultas redundantes (`COUNT(col)` en `NOT NULL`, `COUNT(DISTINCT)` en
+#'   unicidad simple, verificación de `orden_muestra` y conteo de duplicados
+#'   exactos en tabla completa) y quedan reflejadas en el conteo de consultas.
 #'
 #'   Contar sólo el motor daría juicios falsos con números ciertos: una tabla
 #'   chica con una columna de geometría en texto pide pocas lecturas —magnitud
@@ -19762,12 +20084,18 @@ plan_perfilado_dbi <- function(conexion, tabla,
   emitidas_plan <- emitidas_plan + .prueba_cte_mediana_plan_dbi(
     conexion, preparacion, es_numerico, incluir_valores
   )
+  campos_faltantes_planos <- if (length(politicas_faltantes)) {
+    names(politicas_faltantes)[vapply(politicas_faltantes, function(policy) {
+      isTRUE(policy$exacta) && !identical(policy$clase, "textual")
+    }, logical(1L))]
+  } else character()
   plan <- .plan_sql_dbi(
     conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = emitidas_plan,
     catalogo_aviso = .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion),
     consultas_faltantes = consultas_faltantes,
-    consultas_guardas_faltantes_max = consultas_guardas_faltantes_max
+    consultas_guardas_faltantes_max = consultas_guardas_faltantes_max,
+    campos_faltantes_planos = campos_faltantes_planos
   )
   # Con el bloque de filas, la muestra del motor no corre los agregados SQL:
   # se materializa una vez y se calcula en R (ver `.plan_spool_dbi()`). La
@@ -19843,6 +20171,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
   )
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
+  attr(plan, "catalogo") <- preparacion$catalogo_garantias
+  attr(plan, "duplicados_exactos") <- preparacion$plan_duplicados
   attr(plan, "estimacion_derrame") <- preparacion$estimacion_derrame
   attr(plan, "estimacion_derrame_moda") <- preparacion$estimacion_derrame_moda
   attr(plan, "estimacion_derrame_mediana") <- preparacion$estimacion_derrame_mediana
@@ -21991,7 +22321,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
                                 trazador = NULL,
                                 max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                                 max_bytes_muestra = .MAX_BYTES_MUESTRA,
-                                enmascaradas = character()) {
+                                enmascaradas = character(),
+                                orden_garantizado_unico = FALSE,
+                                sql_tabla = NULL,
+                                tipos_pragma = NULL,
+                                duplicados_sql = NULL) {
   cobertura <- .cobertura_dbi_vacia()
   # Una columna enmascarada (DDM de SQL Server) no entra en la muestra: sus
   # valores son la mascara -`xxxx`, `1900-01-01`, `0`- y la muestra publicaba
@@ -22061,7 +22395,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )
     ))
   }
-  verificacion <- if (length(orden_sql)) {
+  verificacion <- if (length(orden_sql) && isTRUE(orden_garantizado_unico)) {
+    list(
+      unico = TRUE, sql = NA_character_,
+      motivo = "La unicidad de `orden_muestra` est\u00e1 garantizada por el cat\u00e1logo del motor."
+    )
+  } else if (length(orden_sql)) {
     .verificar_orden_dbi(conexion, tabla_sql, orden_sql, dialecto, presupuesto)
   } else {
     list(
@@ -22617,6 +22956,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     ))
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
   }
+  datos_crudos_muestra <- consulta$datos
   datos_muestra <- .ajustar_sentinelas_real_dbi(
     consulta$datos, campos, tipos_declarados,
     argumentos[["sentinelas_numericos"]], tipos_motor = tipos_motor
@@ -22707,6 +23047,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     perfil, .columnas_desvio_decimal_doble_dbi(
       datos_muestra, campos, tipos_declarados, perfil$columnas, conexion
     )
+  )
+  perfil <- .reconciliar_duplicados_muestra_dbi(
+    perfil, datos_crudos_muestra, datos_muestra, campos,
+    tipos_declarados, tipos_motor, columnas_castadas,
+    sql_tabla = sql_tabla, tipos_pragma = tipos_pragma,
+    duplicados_sql = duplicados_sql,
+    tabla_completa = isTRUE(muestreo_meta$tabla_completa)
   )
   if (nrow(conversion_muestra$cobertura)) {
     perfil$cobertura_diagnosticos <- rbind(
@@ -24025,11 +24372,21 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # una garantia estructural que no recorre la tabla. La consulta de catalogo
   # tampoco recorre la tabla y se hace en todas las corridas para publicar la
   # misma informacion en `meta$clave`.
+  not_null_previo <- if (!is.null(permisos) && !is.null(permisos$not_null)) {
+    permisos$not_null
+  } else if (!is.null(esquema$not_null)) {
+    esquema$not_null
+  } else NULL
   fuentes <- .resolver_fuentes_cardinalidad_dbi(
-    conexion, tabla, campos, estrategia_distintos, presupuesto
+    conexion, tabla, campos, estrategia_distintos, presupuesto,
+    not_null_columnas = not_null_previo,
+    tipo_objeto = lista_campos$tipo_objeto %||% NA_character_
   )
   fuentes_cardinalidad_costo <- fuentes$fuentes
   catalogo_cardinalidad <- fuentes$catalogo
+  catalogo_garantias <- fuentes$catalogo_garantias
+  unicidad_estructural <- fuentes$unicidad_estructural
+  tipos_pragma <- fuentes$tipos_pragma
   fuentes_no_exactas <- vapply(
     fuentes_cardinalidad_costo,
     function(x) !isTRUE(x$exacta), logical(1L)
@@ -24192,9 +24549,40 @@ print.plan_perfilado_dbi <- function(x, ...) {
     any(metricas %in% c("validos", "distintos")) ||
       any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
   )
+  columnas_nan_prep <- .columnas_candidatas_nan_dbi(
+    conexion, campos, es_numerico, esquema$tipos, prototipo
+  )
+  columnas_not_null_garantizadas <- .columnas_not_null_garantizadas_dbi(
+    catalogo_garantias, campos
+  )
+  columnas_not_null_skip <- if (identical(universo, "tabla_completa")) {
+    setdiff(columnas_not_null_garantizadas, columnas_nan_prep)
+  } else character()
+  columnas_not_null_texto <- if (identical(universo, "tabla_completa") &&
+                                 length(columnas_not_null_garantizadas)) {
+    norm_sop <- !is.null(.normalizador_texto_faltantes_dbi(conexion, "x"))
+    if (norm_sop) {
+      columnas_not_null_garantizadas[vapply(columnas_not_null_garantizadas, function(c_nn) {
+        pos_nn <- .indice_nombre(c_nn, campos)
+        if (is.na(pos_nn)) return(FALSE)
+        tm_nn <- tipos_motor[[pos_nn]] %||% NA_character_
+        td_nn <- .atributo_columna_dbi(esquema$tipos, c_nn, pos_nn) %||% NA_character_
+        tp_nn <- if (!is.na(tm_nn) && nzchar(tm_nn)) tm_nn else td_nn
+        proto_nn <- .atributo_columna_dbi(prototipo, c_nn, pos_nn)
+        !isTRUE(tipos_sin_agregados[[pos_nn]]) &&
+          !.faltantes_dbi_tipo_binario(tm_nn) &&
+          .faltantes_dbi_tipo_texto(proto_nn, tp_nn)
+      }, logical(1L))]
+    } else character()
+  } else character()
+  orden_garantizado_unico <- identical(universo, "tabla_completa") &&
+    .orden_garantizado_unico_dbi(catalogo_garantias, orden_muestra, campos)
   columnas_distintos_ejecucion <- .columnas_distintos_ejecucion_dbi(
     metricas, estrategia_distintos, campos,
-    fuentes_cardinalidad_costo, politica_costo
+    fuentes_cardinalidad_costo, politica_costo,
+    unicidad_estructural = unicidad_estructural,
+    universo = universo,
+    columnas_not_null_skip = columnas_not_null_skip
   )
   columnas_distintos_ejecucion <- setdiff(
     columnas_distintos_ejecucion, campos[tipos_sin_agregados]
@@ -24262,6 +24650,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
     tipos_motor = esquema$tipos_motor,
     version_sqlserver = .version_servidor_sqlserver_dbi(conexion)
   )
+  sql_tabla_dup <- esquema$sql_tabla %||% attr(catalogo_cardinalidad, "sql_tabla", exact = TRUE)
+  tipos_pragma_dup <- tipos_pragma
+  plan_duplicados <- .planificar_duplicados_exactos_dbi(
+    conexion, campos, esquema$campos_sql, esquema$tipos_motor,
+    tipos_declarados, prototipo, catalogo_garantias,
+    universo = universo, metricas_ejecucion = metricas_ejecucion,
+    ilegibles = esquema$ilegibles, enmascaradas = enmascaradas,
+    sql_tabla = sql_tabla_dup, tipos_pragma = tipos_pragma_dup
+  )
   list(
     universo = universo, muestra_motor = muestra_motor,
     estrategia_mediana = estrategia_mediana,
@@ -24314,6 +24711,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
     estrategia_distintos = estrategia_distintos,
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo,
     catalogo_cardinalidad = catalogo_cardinalidad,
+    catalogo_garantias = catalogo_garantias,
+    unicidad_estructural = unicidad_estructural,
+    tipos_pragma = tipos_pragma,
+    columnas_not_null_garantizadas = columnas_not_null_garantizadas,
+    columnas_not_null_skip = columnas_not_null_skip,
+    columnas_not_null_texto = columnas_not_null_texto,
+    orden_garantizado_unico = orden_garantizado_unico,
+    plan_duplicados = plan_duplicados,
     columnas_distintos_ejecucion = columnas_distintos_ejecucion,
     estimacion_derrame = presupuesto$estimacion_derrame,
     estimacion_derrame_moda = presupuesto$estimacion_derrame_moda,
@@ -25910,6 +26315,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   filas leídas, y en SQLite y DuckDB `resumen_tabla$meta$cotejamientos` el
 #'   cotejamiento de cada columna, leído del `CREATE TABLE` en la misma consulta
 #'   de la clave o del tipo: `binary`/`predeterminado` o el de su `COLLATE`.
+#'   `resumen_tabla$meta$catalogo` amplía la lectura del catálogo por motor
+#'   con `identificacion` (clave primaria o restricción/índice único con su
+#'   grado `total`, `parcial` o `ninguna`), `clave_primaria`, `claves_unicas`
+#'   (incluyendo semántica de `NULL` e índices parciales o filtrados),
+#'   `claves_foraneas` (con estado de validación en el motor: `convalidated` en
+#'   PostgreSQL, `is_not_trusted` en SQL Server, InnoDB y `foreign_key_checks`
+#'   en MySQL/MariaDB, `PRAGMA foreign_keys` en SQLite), `not_null` (marcando
+#'   las columnas textuales `NOT NULL` que contienen blancos y avisando en
+#'   `resumen_tabla$cobertura`) y `estado_lectura` con el motivo cuando algo no
+#'   se pudo leer.
+#'   `resumen_tabla$meta$duplicados_exactos` publica el conteo de filas
+#'   duplicadas exactas (`filas_duplicadas` y `filas_en_grupos_duplicados`), su
+#'   `estado` (`garantizado`, `calculado`, `estimado`, `no_disponible` o
+#'   `no_solicitado`), el `criterio` textual de igualdad aplicado y
+#'   `regla_columnas` por columna; la misma regla canónica se aplica en la
+#'   muestra en R y, si el motor o la muestra no pueden reproducirla sin perder
+#'   distinciones, la cifra queda `NA` con su `motivo`.
 #'   Una `fecha` declarada queda también en `resumen_tabla$meta$fecha_hora`, con
 #'   `resumen_tabla$meta$fecha_declarada = TRUE`, aunque no haya muestra
 #'   (`bloque_muestra = "solo_agregados"`); sin `fecha`, esos campos no están.
@@ -26313,7 +26735,7 @@ perfilar_dbi <- function(conexion, tabla,
   # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
   # pidio, muestra- se reservan para que el presupuesto no se las coma.
   presupuesto$reserva <- if (.solicita_muestra_dbi(preparacion$bloque_muestra)) {
-    (if (length(preparacion$orden_sql)) 2 else 1) +
+    (if (length(preparacion$orden_sql) && !isTRUE(preparacion$orden_garantizado_unico)) 2 else 1) +
       if (isTRUE(tope_muestra$requiere_sonda_bytes)) 1 else 0
   } else {
     0
@@ -26654,7 +27076,12 @@ perfilar_dbi <- function(conexion, tabla,
       columnas_opcionales = columnas_opcionales,
       aplicabilidad = aplicabilidad,
       contar_faltantes = identical(preparacion$universo, "muestra_motor") ||
-        is.finite(preparacion$muestra)
+        is.finite(preparacion$muestra),
+      catalogo_garantias = preparacion$catalogo_garantias,
+      unicidad_estructural = preparacion$unicidad_estructural,
+      columnas_not_null_skip = preparacion$columnas_not_null_skip,
+      columnas_not_null_texto = preparacion$columnas_not_null_texto,
+      plan_duplicados = preparacion$plan_duplicados
     )
   }
   resumen <- ejecutar_resumen(tabla_metricas_sql, fuente_muestreada,
@@ -27049,6 +27476,34 @@ perfilar_dbi <- function(conexion, tabla,
     cobertura,
     .cobertura_faltantes_dbi(resumen$faltantes_disfrazados, tabla)
   )
+  cat_res <- resumen$meta$catalogo
+  if (is.list(cat_res) && is.data.frame(cat_res$not_null) && nrow(cat_res$not_null)) {
+    con_blancos <- which(!is.na(cat_res$not_null$not_null_con_blancos) &
+                         cat_res$not_null$not_null_con_blancos)
+    for (idx_b in con_blancos) {
+      col_b <- as.character(cat_res$not_null$columna[[idx_b]])
+      n_b <- cat_res$not_null$n_blancos[[idx_b]]
+      cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+        "resumen_tabla", col_b, "advertido",
+        paste0(
+          "NOT NULL con blancos: la restricci\u00f3n NOT NULL garantiza 0 valores NULL, ",
+          "pero la columna contiene ", .entero_sql_dbi(n_b),
+          if (identical(as.numeric(n_b), 1)) " valor en blanco" else " valores en blanco",
+          " (cadena vac\u00eda o s\u00f3lo espacios)."
+        ),
+        "Normalizar cadenas vac\u00edas y espacios a NULL o restringirlas con un CHECK en el motor."
+      ))
+    }
+  }
+  dup_res <- resumen$meta$duplicados_exactos
+  if (is.list(dup_res) && identical(dup_res$estado, "no_disponible") &&
+      length(dup_res$motivo) == 1L && !is.na(dup_res$motivo)) {
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "resumen_tabla", .texto_tabla_dbi(tabla), "no_disponible",
+      paste0("Duplicados exactos no medidos: ", dup_res$motivo),
+      "Revisar el motivo en `resumen_tabla$meta$duplicados_exactos`."
+    ))
+  }
   if (nrow(cobertura_aislamiento_muestra)) {
     cobertura <- rbind(cobertura, cobertura_aislamiento_muestra)
   }
@@ -27152,7 +27607,12 @@ perfilar_dbi <- function(conexion, tabla,
       tipos_motor = preparacion$esquema$tipos_motor,
       max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra,
-      enmascaradas = preparacion$enmascaradas
+      enmascaradas = preparacion$enmascaradas,
+      orden_garantizado_unico = isTRUE(preparacion$orden_garantizado_unico),
+      sql_tabla = preparacion$esquema$sql_tabla %||%
+        attr(preparacion$catalogo_cardinalidad, "sql_tabla", exact = TRUE),
+      tipos_pragma = preparacion$tipos_pragma,
+      duplicados_sql = resumen$meta$duplicados_exactos
     )
   } else {
     .registrar_etapa_dbi(
@@ -27350,7 +27810,7 @@ perfilar_dbi <- function(conexion, tabla,
   con_fecha(estructura)
 }
 
-.texto_clave_dbi <- function(clave) {
+.texto_clave_dbi <- function(clave, catalogo = NULL) {
   if (!is.list(clave) || is.null(clave$garantia)) return(NULL)
   columnas <- if (length(clave$columnas)) {
     paste0("`", paste(as.character(clave$columnas), collapse = "`, `"), "`")
@@ -27372,6 +27832,23 @@ perfilar_dbi <- function(conexion, tabla,
     paste(as.character(clave$motivo), collapse = " ")
   } else {
     ""
+  }
+  ident <- if (is.list(catalogo)) catalogo$identificacion else NULL
+  tiene_unica_alt <- identical(clave$garantia, "no_declarada") &&
+    is.list(ident) && isTRUE(ident$tiene_clave) &&
+    ident$tipo %in% c("restriccion_unica", "indice_unico") &&
+    length(ident$columnas) > 0L
+  if (tiene_unica_alt) {
+    cols_u <- paste0("`", paste(as.character(ident$columnas), collapse = "`, `"), "`")
+    etiqueta <- if (identical(ident$tipo, "restriccion_unica")) {
+      "restricci\u00f3n \u00fanica"
+    } else {
+      "\u00edndice \u00fanico"
+    }
+    return(paste0(
+      "Identificaci\u00f3n: sin clave primaria; ", etiqueta, " (grado `",
+      ident$grado, "`) en ", cols_u, fuente, "."
+    ))
   }
   if (is.na(visible)) {
     texto <- "no se pudo preguntar al cat\u00e1logo"
@@ -27440,8 +27917,36 @@ print.perfil_dbi <- function(x, ...) {
   cli::cli_text(
     "Resumen de {alcance}: {n_columnas} columna{?s} sobre {meta$filas} {palabra_filas}"
   )
-  texto_clave <- .texto_clave_dbi(meta$clave)
+  texto_clave <- .texto_clave_dbi(meta$clave, meta$catalogo)
   if (!is.null(texto_clave)) cli::cli_text(.cli_literal(texto_clave))
+  if (is.list(meta$catalogo) && is.data.frame(meta$catalogo$not_null) &&
+      nrow(meta$catalogo$not_null)) {
+    idx_bl <- which(!is.na(meta$catalogo$not_null$not_null_con_blancos) &
+                    meta$catalogo$not_null$not_null_con_blancos)
+    if (length(idx_bl)) {
+      res_bl <- paste0(
+        "`", meta$catalogo$not_null$columna[idx_bl], "` (",
+        meta$catalogo$not_null$n_blancos[idx_bl], ")",
+        collapse = ", "
+      )
+      cli::cli_text(.cli_literal(paste0("NOT NULL con blancos: ", res_bl, ".")))
+    }
+  }
+  if (is.list(meta$duplicados_exactos) &&
+      !identical(meta$duplicados_exactos$estado, "no_solicitado")) {
+    dup_m <- meta$duplicados_exactos
+    if (dup_m$estado %in% c("calculado", "garantizado", "estimado") &&
+        !is.na(dup_m$filas_duplicadas)) {
+      cli::cli_text(.cli_literal(paste0(
+        "Duplicados exactos: ", dup_m$filas_duplicadas,
+        " excedente(s) (", dup_m$estado, ")."
+      )))
+    } else if (identical(dup_m$estado, "no_disponible")) {
+      cli::cli_text(.cli_literal(paste0(
+        "Duplicados exactos: no disponible (", dup_m$motivo, ")."
+      )))
+    }
+  }
   estados <- table(.factor_por_bytes(x$resumen_tabla$sql$estado))
   if (length(estados)) {
     detalle <- paste0(names(estados), " ", as.integer(estados), collapse = ", ")

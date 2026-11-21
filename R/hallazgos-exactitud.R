@@ -42,6 +42,8 @@
   # largo maximo. Un texto con valores mas largos alrededor no esta cortado.
   tope <- max(largos)
   if (tope < 8L) return(NULL)
+  url <- .detectar_url_truncada(texto, largos, tope, posiciones)
+  if (!is.null(url)) return(url)
   n_tope <- sum(largos == tope)
   if (n_tope < 3L) return(NULL)
   proporcion <- n_tope / n
@@ -158,7 +160,70 @@
     largo = tope,
     proporcion = proporcion,
     n_anterior = n_anterior,
-    n_siguiente = n_siguiente
+    n_siguiente = n_siguiente,
+    variante = "palabras"
+  )
+}
+
+# Topes que una URL alcanza: los de campo desde 250 y los dos largos que fijan
+# los navegadores y los servidores web. Por debajo, 100 o 200 caracteres son
+# largos que una URL comun alcanza sin que nada la corte.
+.topes_de_url <- c(.topes_de_campo[.topes_de_campo >= 250L], 1024L, 2048L)
+
+# URL cortada por un tope: un valor sin espacios no tiene palabras que cortar, asi
+# que la evidencia es otra. Todos los valores del tope empiezan con un esquema
+# (`https://`), hay al menos tres DISTINTOS -una URL canonica que se repite
+# arma un pico de filas sin ningun corte- y esos valores distintos triplican al
+# mayor de los cinco largos anteriores medido tambien en valores distintos.
+# Ninguno pasa del tope (es el maximo de la columna). Una ruta de archivo o un
+# JSON no tienen esquema y quedan afuera.
+#
+# Un largo no distingue un corte de un largo fijo que un sistema genera siempre
+# (URL firmadas, enlaces con un token de ancho fijo), asi que el hallazgo es un
+# aviso de columna `ok`, no una sospecha: dice lo observado y las dos lecturas.
+# Quedan sin cubrir, a proposito, un log donde las URL se repiten (menos del 25 %
+# de valores distintos), una columna donde todo esta en el tope y ninguna URL es
+# mas corta, y los esquemas sin `//` (`data:`, `mailto:`).
+.detectar_url_truncada <- function(texto, largos, tope, posiciones) {
+  if (!tope %in% .topes_de_url) return(NULL)
+  en_tope <- largos == tope
+  cortados <- texto[en_tope]
+  # `://` en vector y de forma fija descarta de un golpe una columna que no es
+  # de URL, sin depender de que valor cae primero.
+  if (mean(grepl("://", cortados, fixed = TRUE, useBytes = TRUE)) < 0.9) {
+    return(NULL)
+  }
+  es_url <- grepl("^[A-Za-z][A-Za-z0-9+.-]*://", cortados, perl = TRUE,
+                  useBytes = TRUE) &
+    !grepl(" ", cortados, fixed = TRUE, useBytes = TRUE)
+  if (mean(es_url) < 0.9) return(NULL)
+  # Solo las URL del tope se cuentan y se nombran: un valor que no lo es y cae
+  # justo en ese largo no es parte de lo observado.
+  cortados <- cortados[es_url]
+  distintos_tope <- length(unique(cortados))
+  if (distintos_tope < 3L) return(NULL)
+  previos <- largos >= tope - 5L & largos < tope
+  distintos_previos <- tabulate(
+    as.integer(factor(largos[previos], levels = (tope - 5L):(tope - 1L)))[
+      !duplicated(texto[previos])
+    ],
+    nbins = 5L
+  )
+  if (distintos_tope < 3 * max(distintos_previos, 1L)) return(NULL)
+  if (sum(largos < tope) < 3L) return(NULL)
+  if (length(unique(texto)) < max(10L, ceiling(0.25 * length(texto)))) {
+    return(NULL)
+  }
+  list(
+    indices = posiciones[en_tope][es_url],
+    n_evaluados = length(texto),
+    n_afectados = sum(es_url),
+    n_distintos = distintos_tope,
+    largo = tope,
+    proporcion = sum(es_url) / length(texto),
+    n_anterior = sum(largos == tope - 1L),
+    n_siguiente = 0L,
+    variante = "url"
   )
 }
 
@@ -617,14 +682,24 @@
       distinguir_mayusculas = distinguir_mayusculas, expandir = expandir
     )
     if (!is.null(truncado)) {
+      es_url <- identical(truncado$variante, "url")
       agregar(list(
         indices = truncado$indices,
         hallazgo = .nuevo_hallazgo(
-          nombre, "texto_truncado", "sospechoso",
-          paste0(
-            "La columna acumula valores en un largo que parece un tope de ",
-            "campo y los corta a mitad de palabra."
-          ),
+          nombre, "texto_truncado", if (es_url) "ok" else "sospechoso",
+          if (es_url) {
+            paste0(
+              "Aviso de columna: ", truncado$n_distintos, " URL distintas ",
+              "tienen exactamente ", truncado$largo, " caracteres y ninguna es ",
+              "m\u00e1s larga. Puede ser el tope de un campo que las cort\u00f3 o ",
+              "un largo fijo del sistema que las genera."
+            )
+          } else {
+            paste0(
+              "La columna acumula valores en un largo que parece un tope de ",
+              "campo y los corta a mitad de palabra."
+            )
+          },
           paste0(
             "Largo m\u00e1ximo: ", truncado$largo, " caracteres; ",
             truncado$n_afectados, " de ", truncado$n_evaluados,
@@ -633,12 +708,28 @@
             " %) est\u00e1n en ese largo; los largos inmediatamente anterior y ",
             "posterior tienen ", truncado$n_anterior, " y ",
             truncado$n_siguiente, " valores. ",
-            "Los valores del tope tienen palabras y terminan en letra o d\u00edgito."
+            if (es_url) {
+              paste0(
+                "Los valores del tope empiezan con un esquema y no tienen ",
+                "espacios; ", truncado$n_distintos, " son distintos y triplican ",
+                "a los de cada uno de los cinco largos anteriores."
+              )
+            } else {
+              "Los valores del tope tienen palabras y terminan en letra o d\u00edgito."
+            }
           ),
-          paste0(
-            "Revisar el ancho declarado de la columna en la fuente y recuperar ",
-            "los valores completos; no volver a cargarlos a mano."
-          ),
+          if (es_url) {
+            paste0(
+              "Comprobar en la fuente si el campo tiene un ancho declarado ",
+              "igual a ese largo, o si el sistema que genera las URL produce ",
+              "siempre ese largo. El plan de limpieza no modifica estos valores."
+            )
+          } else {
+            paste0(
+              "Revisar el ancho declarado de la columna en la fuente y recuperar ",
+              "los valores completos; no volver a cargarlos a mano."
+            )
+          },
           truncado$n_evaluados, truncado$n_afectados, "fila"
         )
       ))
