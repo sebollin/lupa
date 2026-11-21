@@ -75,10 +75,11 @@ Un \code{data.frame} de clase \code{medicion_resumen} (sin heredar de
 \code{medir(detalle = "resumen")} más \code{ejecucion_dbi}.
 }
 \description{
-Evalúa un modelo de calidad directamente en el motor SQL (SQLite y DuckDB
-verificados; los demás motores devuelven \code{no_medible} con su motivo según la
-política de motores) y devuelve un resumen de clase \code{medicion_resumen} con el
-mismo contrato de columnas que \code{medir(..., detalle = "resumen")}.
+Evalúa un modelo de calidad directamente en el motor SQL (SQLite, DuckDB,
+PostgreSQL actual y 9.3, MySQL, MariaDB y SQL Server verificados según la
+política de motores, sus verificaciones de metadatos y sus guardas) y
+devuelve un resumen de clase \code{medicion_resumen} con el mismo contrato de
+columnas que \code{medir(..., detalle = "resumen")}.
 }
 \details{
 Lo que el motor no puede reproducir con la semántica exacta de R se declara

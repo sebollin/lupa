@@ -15,11 +15,11 @@
 )
 
 .POLITICA_MOTORES_MEDICION <- local({
-  f <- function(regla, sqlite, duckdb, postgresql, mysql, sqlserver) {
+  f <- function(regla, sqlite, duckdb, postgresql, mysql, mariadb, sqlserver) {
     data.frame(
       regla = regla,
       motor = c("sqlite", "duckdb", "postgresql", "mysql", "mariadb", "sqlserver"),
-      politica = c(sqlite, duckdb, postgresql, mysql, mysql, sqlserver),
+      politica = c(sqlite, duckdb, postgresql, mysql, mariadb, sqlserver),
       stringsAsFactors = FALSE
     )
   }
@@ -27,95 +27,112 @@
     f("no_ausente sin centinela (toda clase)",
       "sql",
       "sql (NaN -> NULL)",
-      "sql (NaN -> NULL; declarado)",
-      "sql (declarado)",
-      "sql: COUNT_BIG y SUM(CAST(... AS BIGINT)) (declarado)"),
+      "sql (NaN -> NULL)",
+      "sql (BIT y binarios no_medible bajo RMySQL)",
+      "sql",
+      "sql: COUNT_BIG y SUM(CAST(... AS BIGINT))"),
     f("no_ausente con centinela numerico o de fecha",
       "sql; fecha solo con tipos extendidos (si no, R lee un numero y la clase no coincide)",
       "sql",
-      "sql; instante solo sobre timestamp o con la sesion en UTC (verificacion SHOW TimeZone) (declarado)",
-      "sql; instante solo sobre DATETIME o con time_zone '+00:00' (verificacion de sesion) (declarado)",
-      "sql; instante solo sobre DATETIME2; DATETIMEOFFSET no_medible (declarado)"),
+      "sql; timestamptz exige sesion en UTC; float4 no_medible y float8 exige extra_float_digits exacto",
+      "sql; TIMESTAMP exige sesion en UTC; tipos temporales leidos como texto y FLOAT bajo RMySQL no_medible",
+      "sql; TIMESTAMP exige sesion en UTC",
+      "sql sobre DATE, DATETIME y DATETIME2; DATETIMEOFFSET no_medible"),
     f("no_ausente con centinela de texto ASCII",
       "sql: TRIM de espacio, tab, LF, CR + REPLACE(U+0130, 'i') + LOWER, solo si el valor es ASCII",
       "sql: TRIM con chr() + REPLACE(U+0130, 'i') + LOWER, solo si el valor es ASCII",
-      "sql_con_verificacion: lower('I') = 'i' y BTRIM con espacio/tab/LF/CR; char(n) no_medible (declarado)",
-      "sql_con_verificacion: colacion de la columna con PAD_ATTRIBUTE = 'NO PAD'; REPLACE de tab antes de TRIM (declarado)",
+      "sql_con_verificacion: colacion determinista, UTF8, lower('I') = 'i' y BTRIM; bpchar no_medible",
+      "sql_con_verificacion: colacion binaria NO PAD, lower('I') = 'i' y REGEXP_REPLACE en bordes",
+      "sql_con_verificacion: colacion binaria NO PAD (_nopad_bin), lower('I') = 'i' y REGEXP_REPLACE en bordes",
       "no_medible: los espacios finales se ignoran en = e IN y el plegado depende de la colacion"),
     f("no_ausente con centinela no ASCII",
       "no_medible: LOWER de SQLite no pliega fuera de ASCII",
       "no_medible: LOWER(U+212A) = 'k' en DuckDB y no en el paquete",
-      "no_medible", "no_medible", "no_medible"),
+      "no_medible", "no_medible", "no_medible", "no_medible"),
     f("en_conjunto / Formato(diccionario) sobre numero, fecha o logico",
       "sql (logico: R lee entero; la clase no coincide con TRUE/FALSE y declina)",
       "sql",
-      "sql (declarado)",
-      "sql: literal de la misma clase, nunca numero contra texto (declarado)",
-      "sql (declarado)"),
+      "sql; timestamptz exige sesion en UTC; float4 no_medible",
+      "sql: literal de la misma clase, nunca numero contra texto; temporal como texto y FLOAT bajo RMySQL no_medible",
+      "sql: literal de la misma clase; TIMESTAMP exige sesion en UTC; BIT como 1/0",
+      "sql sobre numero, BIT, DATE, DATETIME y DATETIME2; DATETIMEOFFSET no_medible"),
     f("en_conjunto / Formato(diccionario) sobre texto",
       "sql_con_guarda: texto no ASCII = 0 (SQLite no valida UTF-8 y R lee el byte invalido como NA); colacion BINARY",
       "sql: colacion por omision binaria",
-      "sql_con_verificacion: colacion determinista; char(n)/bpchar no_medible (declarado)",
-      "sql_con_guarda: colacion binaria NO PAD, o guarda de espacios finales = 0 (declarado)",
-      "sql_con_guarda: colacion _BIN2 y guarda de espacios finales = 0 en columna y dominio (declarado)"),
+      "sql_con_verificacion: colacion determinista; char(n)/bpchar no_medible",
+      "sql_con_guarda: colacion binaria NO PAD, o binaria PAD SPACE con espacios finales = 0 en columna y dominio",
+      "sql_con_guarda: colacion binaria NO PAD (_nopad_bin), o binaria PAD SPACE con espacios finales = 0 en columna y dominio",
+      "sql_con_guarda: colacion _BIN2 sobre varchar/nvarchar y espacios finales = 0 en columna y dominio; char/nchar no_medible"),
     f("en_rango sobre numero, fecha o instante",
       "sql (fecha e instante solo con tipos extendidos)",
       "sql",
-      "sql; timestamptz con verificacion de huso (declarado)",
-      "sql; TIMESTAMP con verificacion de huso (declarado)",
-      "sql sobre DATETIME2; DATETIMEOFFSET no_medible (declarado)"),
+      "sql; timestamptz exige sesion en UTC; float4 no_medible",
+      "sql; TIMESTAMP exige sesion en UTC; temporal como texto y FLOAT bajo RMySQL no_medible",
+      "sql; TIMESTAMP exige sesion en UTC",
+      "sql sobre numero, DATE, DATETIME y DATETIME2; DATETIMEOFFSET no_medible"),
     f("en_rango sobre texto",
-      "no_medible", "no_medible", "no_medible", "no_medible", "no_medible"),
+      "no_medible", "no_medible", "no_medible", "no_medible", "no_medible", "no_medible"),
     f("fecha_en_rango (Oportunidad*)",
       "sql en segundos: col * 86400 o col (tipos extendidos); sin ellos R lee numero y las dos vias se abstienen",
       "sql en segundos: epoch()",
-      "sql: extract(epoch from ...) sobre timestamp; timestamptz con verificacion de huso (declarado)",
-      "sql: UNIX_TIMESTAMP sobre DATETIME con verificacion de huso (declarado)",
-      "sql: DATEDIFF_BIG(second, '1970-01-01', col) sobre DATETIME2 (declarado)"),
+      "sql: extract(epoch from ...) sobre DATE/TIMESTAMP; TIMESTAMPTZ exige sesion en UTC",
+      "sql: DATEDIFF / TIMESTAMPDIFF en microsegundos (si RMySQL lee texto, ambas vias se abstienen)",
+      "sql: DATEDIFF / TIMESTAMPDIFF en microsegundos sobre DATE/DATETIME; TIMESTAMP exige sesion en UTC",
+      "sql: DATEDIFF_BIG en microsegundos sobre DATE/DATETIME/DATETIME2; DATETIMEOFFSET no_medible"),
     f("duplicado sobre numero, fecha o instante",
       "sql (GROUP BY)",
       "sql (GROUP BY; NaN agrupa aparte de NULL, como R)",
-      "sql (declarado)", "sql (declarado)", "sql (declarado)"),
+      "sql (GROUP BY; NaN agrupa aparte de NULL en conjunto y se excluye en atributo; float4 no_medible)",
+      "sql (GROUP BY; temporal como texto y FLOAT bajo RMySQL no_medible)",
+      "sql (GROUP BY; TIMESTAMP exige sesion en UTC)",
+      "sql (GROUP BY con COUNT_BIG; DATETIMEOFFSET no_medible)"),
     f("duplicado sobre texto",
       "sql_con_guarda: texto no ASCII = 0 (AtributoDuplicado); ConjuntoAtributosDuplicado compara bytes en las dos vias",
       "sql",
-      "sql_con_verificacion: colacion determinista; bpchar no_medible (declarado)",
-      "sql_con_guarda: NO PAD binaria o espacios finales = 0 (declarado)",
-      "sql_con_guarda: _BIN2 y espacios finales = 0 (declarado)"),
+      "sql_con_verificacion: colacion determinista; bpchar no_medible",
+      "sql_con_guarda: binaria NO PAD, o binaria PAD SPACE con espacios finales = 0",
+      "sql_con_guarda: binaria NO PAD (_nopad_bin), o binaria PAD SPACE con espacios finales = 0",
+      "sql_con_guarda: _BIN2 sobre varchar/nvarchar y espacios finales = 0; char/nchar no_medible"),
     f("predicado de fila con numeros y fechas (==, !=, <, <=, >, >=, is.na, %in%, !, &, |)",
       "sql", "sql",
-      "sql (declarado)", "sql (declarado)",
-      "no_medible: T-SQL no tiene valores logicos; falta componer la logica de tres valores con CASE"),
+      "sql (timestamptz exige sesion en UTC; float4 no_medible)",
+      "sql (TIMESTAMP exige sesion en UTC; temporal como texto y FLOAT bajo RMySQL no_medible)",
+      "sql (TIMESTAMP exige sesion en UTC)",
+      "sql: logica de tres valores compuesta con CASE; DATETIMEOFFSET no_medible"),
     f("predicado de fila con texto (==, !=, %in%, is.na)",
       "sql (colacion BINARY)",
       "sql (colacion binaria)",
-      "sql_con_verificacion: colacion determinista (declarado)",
-      "sql_con_guarda: NO PAD o espacios finales = 0 (declarado)",
-      "no_medible: T-SQL"),
+      "sql_con_verificacion: colacion determinista; bpchar no_medible",
+      "sql_con_guarda: binaria NO PAD, o binaria PAD SPACE con espacios finales = 0 en columna y literales",
+      "sql_con_guarda: binaria NO PAD (_nopad_bin), o binaria PAD SPACE con espacios finales = 0 en columna y literales",
+      "sql_con_guarda: _BIN2 con CASE de tres valores y espacios finales = 0 en columna y literales; char/nchar no_medible"),
     f("predicado de fila con orden sobre texto (<, <=, >, >=)",
       "no_medible: R ordena con el locale de la sesion",
       "no_medible: R ordena con el locale de la sesion",
-      "no_medible", "no_medible", "no_medible"),
+      "no_medible", "no_medible", "no_medible", "no_medible"),
     f("predicado de fila con columna logica",
       "no_medible: SQLite guarda el logico como entero",
       "sql",
-      "sql (declarado)",
-      "no_medible: MySQL/MariaDB guarda BOOLEAN como TINYINT(1) y R lee entero",
-      "no_medible: T-SQL BIT y sin tipo logico"),
+      "sql",
+      "no_medible: MySQL guarda BOOLEAN como TINYINT(1) y RMySQL lee entero (y BIT no es fiable)",
+      "sql sobre BIT(1) (leido como logico); BOOLEAN/TINYINT(1) se lee como entero y declina por clase",
+      "sql sobre BIT con CASE de tres valores"),
     f("predicado de fila con %in% que incluye NA sobre doble con NaN",
       "sql (SQLite no guarda NaN)",
       "no_medible: R no iguala NaN con NA",
       "no_medible: PostgreSQL guarda NaN y R no lo iguala con NA",
-      "sql (MySQL no guarda NaN; declarado)",
-      "no_medible: T-SQL"),
+      "sql (MySQL no guarda NaN)",
+      "sql (MariaDB no guarda NaN)",
+      "sql (SQL Server no guarda NaN)"),
     f("cobertura_referencial (misma clase; o texto contra entero)",
       "sql_con_guarda: texto no ASCII = 0",
       "sql",
-      "sql_con_verificacion: colacion determinista (declarado)",
-      "sql_con_guarda: NO PAD o espacios finales = 0 (declarado)",
-      "sql_con_guarda: _BIN2 y espacios finales = 0 (declarado)"),
+      "sql_con_verificacion: colacion determinista; CAST(entero AS TEXT); bpchar y float4 no_medible",
+      "sql_con_guarda: binaria NO PAD o espacios finales = 0; CAST(entero AS CHAR) COLLATE",
+      "sql_con_guarda: binaria NO PAD o espacios finales = 0; CAST(entero AS CHAR) COLLATE",
+      "sql_con_guarda: _BIN2 y espacios finales = 0; CAST(entero AS VARCHAR(20)/NVARCHAR(20)) COLLATE"),
     f("cobertura_referencial (doble contra texto, integer64 contra doble, fecha contra instante)",
-      "no_medible", "no_medible", "no_medible", "no_medible", "no_medible")
+      "no_medible", "no_medible", "no_medible", "no_medible", "no_medible", "no_medible")
   )
 })
 
@@ -150,20 +167,27 @@
   )
 }
 
-.precondicion_motor_medicion <- function(motor, nodo, clases) {
+.precondicion_motor_medicion <- function(motor, nodo, clases, sesion = NULL) {
   if (motor %in% c("sqlite", "duckdb")) return(NULL)
   if (motor %in% c("postgresql", "mysql", "mariadb", "sqlserver")) {
-    regla <- .regla_politica_nodo(nodo, clases)
-    fila <- .POLITICA_MOTORES_MEDICION[
-      .POLITICA_MOTORES_MEDICION$motor == motor &
-        .POLITICA_MOTORES_MEDICION$regla == regla, , drop = FALSE
-    ]
-    detalle <- if (nrow(fila)) paste0(" (", fila$politica[[1L]], ")") else ""
-    return(paste0(
-      "la traducci\u00f3n a SQL para `", motor,
-      "` no est\u00e1 habilitada sin verificaci\u00f3n de equivalencia en ese motor",
-      detalle
-    ))
+    if (is.null(sesion) || !isTRUE(sesion$ok)) {
+      regla <- .regla_politica_nodo(nodo, clases)
+      fila <- .POLITICA_MOTORES_MEDICION[
+        .POLITICA_MOTORES_MEDICION$motor == motor &
+          .POLITICA_MOTORES_MEDICION$regla == regla, , drop = FALSE
+      ]
+      detalle <- if (nrow(fila)) paste0(" (", fila$politica[[1L]], ")") else ""
+      motivo_base <- if (!is.null(sesion) && !is.null(sesion$motivo)) {
+        sesion$motivo
+      } else {
+        paste0(
+          "no se pudo verificar la conexi\u00f3n ni los metadatos del motor `",
+          motor, "`"
+        )
+      }
+      return(paste0(motivo_base, detalle))
+    }
+    return(NULL)
   }
   paste0(
     "motor no reconocido (`", motor,
@@ -345,7 +369,168 @@
   "otro"
 }
 
-.esquema_medicion_dbi <- function(conexion, ref_tabla, motor, contador = NULL) {
+.verificar_sesion_medicion_dbi <- function(conexion, motor, contador = NULL) {
+  if (motor %in% c("sqlite", "duckdb")) {
+    return(list(ok = TRUE, motor = motor, n_consultas = 0L))
+  }
+  if (!motor %in% c("postgresql", "mysql", "mariadb", "sqlserver")) {
+    return(list(
+      ok = FALSE, motor = motor, n_consultas = 0L,
+      motivo = paste0(
+        "motor no reconocido (`", motor,
+        "`): no se puede garantizar la equivalencia con R"
+      )
+    ))
+  }
+  motor_real <- .motor_medicion_dbi(conexion, "auto")
+  compatible <- if (motor %in% c("mysql", "mariadb")) {
+    motor_real %in% c("mysql", "mariadb")
+  } else {
+    identical(motor_real, motor)
+  }
+  if (!compatible) {
+    return(list(
+      ok = FALSE, motor = motor, n_consultas = 0L,
+      motivo = paste0(
+        "la conexi\u00f3n no corresponde al motor `", motor,
+        "` (detectado `", motor_real,
+        "`): no se pueden verificar sus metadatos para traducir con garant\u00eda"
+      )
+    ))
+  }
+  consultar <- function(sql) {
+    if (is.null(contador)) {
+      .traer_consulta_dbi(conexion, sql)
+    } else {
+      .consultar_medicion_dbi(conexion, sql, contador, registrar_sql = FALSE)
+    }
+  }
+  if (identical(motor, "postgresql")) {
+    sql <- paste0(
+      "SELECT current_setting('TimeZone') AS tz, ",
+      "current_setting('server_version_num') AS vnum, ",
+      "current_setting('server_encoding') AS enc, ",
+      "current_setting('extra_float_digits') AS efd, ",
+      "lower('I') AS li"
+    )
+    info <- tryCatch(
+      consultar(sql),
+      lupa_presupuesto_medicion_dbi = function(e) e,
+      error = function(e) e
+    )
+    if (inherits(info, "lupa_presupuesto_medicion_dbi")) .detener(info)
+    if (inherits(info, "error") || !is.data.frame(info) || !nrow(info)) {
+      return(list(
+        ok = FALSE, motor = motor, n_consultas = 1L,
+        motivo = paste0(
+          "no se pudieron consultar los metadatos de sesi\u00f3n de `",
+          motor, "`"
+        )
+      ))
+    }
+    tz <- trimws(as.character(info$tz[[1L]]))
+    tz_u <- .mayusculas_ascii(tz)
+    enc <- .mayusculas_ascii(trimws(as.character(info$enc[[1L]])))
+    vnum <- suppressWarnings(as.integer(info$vnum[[1L]]))
+    efd <- suppressWarnings(as.integer(info$efd[[1L]]))
+    float8_exacto <- !is.na(vnum) && !is.na(efd) &&
+      ((vnum >= 120000L && efd >= 1L) || (vnum < 120000L && efd >= 3L))
+    return(list(
+      ok = TRUE,
+      motor = motor,
+      n_consultas = 1L,
+      tz = tz,
+      es_utc = tz_u %in% c(
+        "UTC", "ETC/UTC", "GMT", "ETC/GMT", "Z", "+00:00", "00:00",
+        "UTC0", "UCT", "UNIVERSAL"
+      ),
+      version_num = vnum,
+      enc = enc,
+      es_utf8 = identical(enc, "UTF8"),
+      efd = efd,
+      float8_exacto = float8_exacto,
+      lower_i_es_i = identical(as.character(info$li[[1L]]), "i")
+    ))
+  }
+  if (motor %in% c("mysql", "mariadb")) {
+    sql <- paste0(
+      "SELECT @@session.time_zone AS stz, ",
+      "@@system_time_zone AS systz, ",
+      "@@sql_mode AS sql_mode, ",
+      "LOWER('I') AS li, ",
+      "VERSION() AS ver"
+    )
+    info <- tryCatch(
+      consultar(sql),
+      lupa_presupuesto_medicion_dbi = function(e) e,
+      error = function(e) e
+    )
+    if (inherits(info, "lupa_presupuesto_medicion_dbi")) .detener(info)
+    if (inherits(info, "error") || !is.data.frame(info) || !nrow(info)) {
+      return(list(
+        ok = FALSE, motor = motor, n_consultas = 1L,
+        motivo = paste0(
+          "no se pudieron consultar los metadatos de sesi\u00f3n de `",
+          motor, "`"
+        )
+      ))
+    }
+    stz <- trimws(as.character(info$stz[[1L]]))
+    systz <- trimws(as.character(info$systz[[1L]]))
+    stz_u <- .mayusculas_ascii(stz)
+    systz_u <- .mayusculas_ascii(systz)
+    utc_set <- c("+00:00", "00:00", "UTC", "ETC/UTC", "GMT", "Z")
+    es_utc <- (stz_u %in% utc_set) ||
+      (identical(stz_u, "SYSTEM") && systz_u %in% utc_set)
+    sql_mode <- .mayusculas_ascii(as.character(info$sql_mode[[1L]]))
+    return(list(
+      ok = TRUE,
+      motor = motor,
+      n_consultas = 1L,
+      tz = if (identical(stz_u, "SYSTEM")) paste0("SYSTEM(", systz, ")") else stz,
+      es_utc = es_utc,
+      pad_char_full = grepl(
+        "PAD_CHAR_TO_FULL_LENGTH", sql_mode, fixed = TRUE, useBytes = TRUE
+      ),
+      lower_i_es_i = identical(as.character(info$li[[1L]]), "i"),
+      es_rmysql = inherits(conexion, "MySQLConnection"),
+      es_mariadb = grepl("mariadb", .minusculas_ascii(as.character(info$ver[[1L]])),
+                         fixed = TRUE, useBytes = TRUE)
+    ))
+  }
+  # sqlserver
+  sql <- paste0(
+    "SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS VARCHAR(20)) AS maj, ",
+    "CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS VARCHAR(128)) AS db_coll, ",
+    "LOWER('I') AS li"
+  )
+  info <- tryCatch(
+    consultar(sql),
+    lupa_presupuesto_medicion_dbi = function(e) e,
+    error = function(e) e
+  )
+  if (inherits(info, "lupa_presupuesto_medicion_dbi")) .detener(info)
+  if (inherits(info, "error") || !is.data.frame(info) || !nrow(info)) {
+    return(list(
+      ok = FALSE, motor = motor, n_consultas = 1L,
+      motivo = paste0(
+        "no se pudieron consultar los metadatos de sesi\u00f3n de `",
+        motor, "`"
+      )
+    ))
+  }
+  list(
+    ok = TRUE,
+    motor = motor,
+    n_consultas = 1L,
+    version_mayor = suppressWarnings(as.integer(info$maj[[1L]])),
+    db_coll = as.character(info$db_coll[[1L]]),
+    lower_i_es_i = identical(as.character(info$li[[1L]]), "i")
+  )
+}
+
+.esquema_medicion_dbi <- function(conexion, ref_tabla, motor, contador = NULL,
+                                  sesion = NULL) {
   consultar <- function(sql) {
     if (is.null(contador)) {
       .traer_consulta_dbi(conexion, sql)
@@ -377,6 +562,12 @@
   campos <- names(proto)
   clases <- vapply(proto, .clase_r_columna_dbi, character(1L))
   tipos <- stats::setNames(rep(NA_character_, length(campos)), campos)
+  tipos_base <- stats::setNames(rep(NA_character_, length(campos)), campos)
+  cotejamientos <- stats::setNames(rep(NA_character_, length(campos)), campos)
+  colacion_determinista <- stats::setNames(rep(NA, length(campos)), campos)
+  colacion_binaria <- stats::setNames(rep(NA, length(campos)), campos)
+  colacion_no_pad <- stats::setNames(rep(NA, length(campos)), campos)
+  colacion_bin2 <- stats::setNames(rep(NA, length(campos)), campos)
   crear <- NA_character_
   if (identical(motor, "sqlite")) {
     info <- consultar(paste0("PRAGMA table_info(", q, ")"))
@@ -430,8 +621,181 @@
       cotejamientos[is.na(cotejamientos) | cotejamientos == "predeterminado"] <-
         defecto[[1L]]
     }
-  } else {
-    cotejamientos <- stats::setNames(rep(NA_character_, length(campos)), campos)
+  } else if (identical(motor, "postgresql") && isTRUE(sesion$ok)) {
+    tiene_det <- !is.null(sesion$version_num) &&
+      !is.na(sesion$version_num) && sesion$version_num >= 120000L
+    filtro_rel <- if (!is.na(esquema_cat)) {
+      paste0(
+        "n.nspname = ", DBI::dbQuoteString(conexion, esquema_cat),
+        " AND c.relname = ", DBI::dbQuoteString(conexion, nombre_cat)
+      )
+    } else {
+      paste0(
+        "c.relname = ", DBI::dbQuoteString(conexion, nombre_cat),
+        " AND pg_catalog.pg_table_is_visible(c.oid)"
+      )
+    }
+    sql_pg <- paste0(
+      "SELECT a.attname AS column_name, t.typname AS typname, ",
+      "pg_catalog.format_type(a.atttypid, a.atttypmod) AS formatted_type, ",
+      "co.collname AS collation_name, ",
+      if (tiene_det) "co.collisdeterministic" else "TRUE",
+      " AS coll_det ",
+      "FROM pg_catalog.pg_attribute a ",
+      "JOIN pg_catalog.pg_class c ON c.oid = a.attrelid ",
+      "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace ",
+      "JOIN pg_catalog.pg_type t ON t.oid = a.atttypid ",
+      "LEFT JOIN pg_catalog.pg_collation co ON co.oid = a.attcollation ",
+      "WHERE ", filtro_rel,
+      " AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum"
+    )
+    info <- consultar(sql_pg)
+    n_consultas <- n_consultas + 1L
+    if (is.data.frame(info) && nrow(info)) {
+      for (i in seq_len(nrow(info))) {
+        col_i <- as.character(info$column_name[[i]])
+        if (!col_i %in% campos) next
+        tp_base <- .minusculas_ascii(as.character(info$typname[[i]]))
+        tipos_base[[col_i]] <- tp_base
+        tipos[[col_i]] <- .mayusculas_ascii(as.character(info$formatted_type[[i]]))
+        cn <- as.character(info$collation_name[[i]])
+        if (!is.na(cn) && nzchar(cn)) cotejamientos[[col_i]] <- cn
+        det_val <- info$coll_det[[i]]
+        es_det <- if (is.logical(det_val)) {
+          isTRUE(det_val)
+        } else {
+          .minusculas_ascii(as.character(det_val)) %in% c("t", "true", "1")
+        }
+        colacion_determinista[[col_i]] <- isTRUE(es_det) &&
+          !is.na(cn) && nzchar(cn) && !identical(tp_base, "citext")
+      }
+    }
+  } else if (motor %in% c("mysql", "mariadb") && isTRUE(sesion$ok)) {
+    filtro_esq <- if (!is.na(esquema_cat)) {
+      paste0("c.table_schema = ", DBI::dbQuoteString(conexion, esquema_cat))
+    } else {
+      "c.table_schema = DATABASE()"
+    }
+    con_pad_attr <- !isTRUE(sesion$es_mariadb)
+    sql_my <- if (con_pad_attr) {
+      paste0(
+        "SELECT c.column_name, c.data_type, c.column_type, ",
+        "c.collation_name, co.pad_attribute ",
+        "FROM information_schema.columns c ",
+        "LEFT JOIN information_schema.collations co ",
+        "ON co.collation_name = c.collation_name ",
+        "WHERE ", filtro_esq, " AND c.table_name = ",
+        DBI::dbQuoteString(conexion, nombre_cat),
+        " ORDER BY c.ordinal_position"
+      )
+    } else {
+      paste0(
+        "SELECT c.column_name, c.data_type, c.column_type, ",
+        "c.collation_name ",
+        "FROM information_schema.columns c ",
+        "WHERE ", filtro_esq, " AND c.table_name = ",
+        DBI::dbQuoteString(conexion, nombre_cat),
+        " ORDER BY c.ordinal_position"
+      )
+    }
+    info <- tryCatch(
+      consultar(sql_my),
+      lupa_presupuesto_medicion_dbi = function(e) e,
+      error = function(e) {
+        if (!con_pad_attr) .detener(e)
+        consultar(paste0(
+          "SELECT c.column_name, c.data_type, c.column_type, ",
+          "c.collation_name ",
+          "FROM information_schema.columns c ",
+          "WHERE ", filtro_esq, " AND c.table_name = ",
+          DBI::dbQuoteString(conexion, nombre_cat),
+          " ORDER BY c.ordinal_position"
+        ))
+      }
+    )
+    if (inherits(info, "lupa_presupuesto_medicion_dbi")) .detener(info)
+    n_consultas <- n_consultas + 1L
+    if (is.data.frame(info) && nrow(info)) {
+      names(info) <- .minusculas_ascii(names(info))
+      tiene_pad <- "pad_attribute" %in% names(info)
+      for (i in seq_len(nrow(info))) {
+        col_i <- as.character(info$column_name[[i]])
+        idx <- match(.minusculas_ascii(col_i), .minusculas_ascii(campos))
+        if (is.na(idx)) next
+        col_real <- campos[[idx]]
+        tp_base <- .minusculas_ascii(as.character(info$data_type[[i]]))
+        tipos_base[[col_real]] <- tp_base
+        tipos[[col_real]] <- .mayusculas_ascii(as.character(info$column_type[[i]]))
+        cn <- as.character(info$collation_name[[i]])
+        if (!is.na(cn) && nzchar(cn)) {
+          cotejamientos[[col_real]] <- cn
+          cn_l <- .minusculas_ascii(cn)
+          colacion_binaria[[col_real]] <- grepl(
+            "(_bin|binary)$", cn_l, perl = TRUE, useBytes = TRUE
+          )
+          if (tiene_pad && !is.na(info$pad_attribute[[i]])) {
+            colacion_no_pad[[col_real]] <- identical(
+              .mayusculas_ascii(trimws(as.character(info$pad_attribute[[i]]))),
+              "NO PAD"
+            )
+          } else {
+            colacion_no_pad[[col_real]] <- grepl(
+              "_nopad_", cn_l, fixed = TRUE, useBytes = TRUE
+            ) || identical(cn_l, "binary")
+          }
+        }
+      }
+    }
+  } else if (identical(motor, "sqlserver") && isTRUE(sesion$ok)) {
+    sql_ss <- if (!is.na(esquema_cat)) {
+      paste0(
+        "SELECT c.name AS column_name, t.name AS data_type, ",
+        "c.collation_name, c.precision, c.scale ",
+        "FROM sys.columns c ",
+        "JOIN sys.objects o ON o.object_id = c.object_id ",
+        "JOIN sys.schemas s ON s.schema_id = o.schema_id ",
+        "JOIN sys.types t ON t.user_type_id = c.user_type_id ",
+        "WHERE s.name = ", DBI::dbQuoteString(conexion, esquema_cat),
+        " AND o.name = ", DBI::dbQuoteString(conexion, nombre_cat),
+        " ORDER BY c.column_id"
+      )
+    } else {
+      paste0(
+        "SELECT c.name AS column_name, t.name AS data_type, ",
+        "c.collation_name, c.precision, c.scale ",
+        "FROM sys.columns c ",
+        "JOIN sys.types t ON t.user_type_id = c.user_type_id ",
+        "WHERE c.object_id = OBJECT_ID(",
+        DBI::dbQuoteString(conexion, nombre_cat),
+        ") ORDER BY c.column_id"
+      )
+    }
+    info <- consultar(sql_ss)
+    n_consultas <- n_consultas + 1L
+    if (is.data.frame(info) && nrow(info)) {
+      names(info) <- .minusculas_ascii(names(info))
+      for (i in seq_len(nrow(info))) {
+        col_i <- as.character(info$column_name[[i]])
+        idx <- match(.minusculas_ascii(col_i), .minusculas_ascii(campos))
+        if (is.na(idx)) next
+        col_real <- campos[[idx]]
+        tp_base <- .minusculas_ascii(as.character(info$data_type[[i]]))
+        tipos_base[[col_real]] <- tp_base
+        tipos[[col_real]] <- if (tp_base %in% c("decimal", "numeric")) {
+          sprintf("%s(%d,%d)", .mayusculas_ascii(tp_base),
+                  as.integer(info$precision[[i]]), as.integer(info$scale[[i]]))
+        } else {
+          .mayusculas_ascii(tp_base)
+        }
+        cn <- as.character(info$collation_name[[i]])
+        if (!is.na(cn) && nzchar(cn)) {
+          cotejamientos[[col_real]] <- cn
+          colacion_bin2[[col_real]] <- grepl(
+            "_bin2(_utf8)?$", .minusculas_ascii(cn), perl = TRUE, useBytes = TRUE
+          )
+        }
+      }
+    }
   }
   cotejamientos[is.na(cotejamientos)] <- "desconocido"
   list(
@@ -441,7 +805,13 @@
     campos = campos,
     clases = clases,
     tipos = tipos,
+    tipos_base = tipos_base,
     cotejamientos = cotejamientos,
+    colacion_determinista = colacion_determinista,
+    colacion_binaria = colacion_binaria,
+    colacion_no_pad = colacion_no_pad,
+    colacion_bin2 = colacion_bin2,
+    sesion = sesion,
     n_campos = length(campos),
     prototipo = .normalizar_columnas_texto(proto),
     n_consultas_esquema = n_consultas
@@ -476,12 +846,222 @@
     motor,
     sqlite = c %in% c("binary"),
     duckdb = c %in% c("predeterminado", "binary", ""),
+    postgresql = isTRUE(esq$colacion_determinista[[columna]]),
+    mysql = , mariadb = isTRUE(esq$colacion_binaria[[columna]]),
+    sqlserver = isTRUE(esq$colacion_bin2[[columna]]),
     FALSE
   )
 }
 
+.requiere_guarda_espacios_dbi <- function(esq, columna, motor) {
+  if (!identical(esq$clases[[columna]], "texto")) return(FALSE)
+  if (motor %in% c("mysql", "mariadb")) {
+    return(isTRUE(esq$colacion_binaria[[columna]]) &&
+             !isTRUE(esq$colacion_no_pad[[columna]]))
+  }
+  if (identical(motor, "sqlserver")) {
+    return(isTRUE(esq$colacion_bin2[[columna]]))
+  }
+  FALSE
+}
+
+.sql_guarda_espacios_dbi <- function(expr, motor) {
+  switch(
+    motor,
+    mysql = , mariadb = paste0(
+      "(CHAR_LENGTH(", expr, ") <> CHAR_LENGTH(TRIM(TRAILING ' ' FROM ", expr, ")))"
+    ),
+    sqlserver = paste0("(DATALENGTH(", expr, ") <> DATALENGTH(RTRIM(", expr, ")))"),
+    .no_traducible_dbi("la guarda de espacios finales en ", motor)
+  )
+}
+
+.motivo_guarda_dbi <- function(motor, colacion = NULL, sujeto = "la columna") {
+  if (identical(motor, "sqlite")) {
+    return(paste0(
+      "SQLite no valida UTF-8 y ", sujeto, " tiene texto no ASCII: no se puede ",
+      "garantizar que el motor lea los mismos valores que R"
+    ))
+  }
+  if (motor %in% c("mysql", "mariadb")) {
+    det <- if (!is.null(colacion) && length(colacion) == 1L &&
+               !is.na(colacion) && nzchar(colacion)) {
+      paste0(" (`", colacion, "`)")
+    } else ""
+    return(paste0(
+      "la columna de texto tiene espacios finales y el cotejamiento del motor",
+      det, " es PAD SPACE: no se puede garantizar la igualdad exacta con R"
+    ))
+  }
+  if (identical(motor, "sqlserver")) {
+    return(paste(
+      "la columna de texto tiene espacios finales y SQL Server los ignora al",
+      "comparar o agrupar: no se puede garantizar la igualdad exacta con R"
+    ))
+  }
+  "el motor no garantiza la equivalencia con R sobre estos valores"
+}
+
+.verificar_literal_espacios_dbi <- function(valores, esq, columna, motor) {
+  if (!.requiere_guarda_espacios_dbi(esq, columna, motor)) return(invisible(NULL))
+  vals <- as.character(valores)
+  vals <- vals[!is.na(vals)]
+  if (any(grepl(" $", vals, useBytes = TRUE))) {
+    .no_traducible_dbi(
+      "un valor de texto termina en espacio y ", motor,
+      " ignora espacios finales al comparar (cotejamiento `",
+      esq$cotejamientos[[columna]], "`)"
+    )
+  }
+  invisible(NULL)
+}
+
+.validar_columna_base_dbi <- function(esq, columna, motor) {
+  tp <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
+  if (is.na(tp) || !nzchar(tp)) return(invisible(NULL))
+  if (motor %in% c("mysql", "mariadb")) {
+    if (tp %in% c("binary", "varbinary", "tinyblob", "blob",
+                  "mediumblob", "longblob", "json", "geometry")) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` tiene tipo `", tp,
+        "` no escalar para traducci\u00f3n SQL en ", motor
+      )
+    }
+    if (identical(tp, "bit") && isTRUE(esq$sesion$es_rmysql)) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` es `BIT` y RMySQL no la lee con fidelidad"
+      )
+    }
+  }
+  if (identical(motor, "sqlserver")) {
+    if (tp %in% c("text", "ntext", "image", "xml", "geography", "geometry",
+                  "hierarchyid", "sql_variant", "binary", "varbinary")) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` tiene tipo `", tp,
+        "` no admitido en consultas de calidad en SQL Server"
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+.validar_columna_comparacion_dbi <- function(esq, columna, motor,
+                                             requiere_no_pad = FALSE) {
+  .validar_columna_base_dbi(esq, columna, motor)
+  clase <- esq$clases[[columna]]
+  tp <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
+  sesion <- esq$sesion
+  # Un entero sin signo que el controlador entrega como entero de 32 bits con
+  # signo: los valores mayores que 2^31 - 1 llegan a R cambiados (4294967295
+  # llega como -1), y el motor compararia el valor verdadero. No se reproduce un
+  # desborde: la comparacion queda sin traducir. Contar presentes no depende del
+  # valor y sigue midiendose.
+  tipo_completo <- if (!is.null(esq$tipos)) esq$tipos[[columna]] else NA_character_
+  if (motor %in% c("mysql", "mariadb") && identical(clase, "entero") &&
+      length(tipo_completo) == 1L && !is.na(tipo_completo) &&
+      grepl("UNSIGNED", tipo_completo, fixed = TRUE, useBytes = TRUE)) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es un entero sin signo (`", tipo_completo,
+      "`) y el controlador la lee como entero de 32 bits con signo: los ",
+      "valores mayores que 2^31 - 1 llegan a R cambiados"
+    )
+  }
+  if (identical(motor, "postgresql") && identical(tp, "float4")) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es `real` (`float4`): RPostgres la lee v\u00eda ",
+      "texto decimal y no coincide bit a bit con el doble del motor"
+    )
+  }
+  if (identical(motor, "postgresql") && identical(tp, "float8") &&
+      !isTRUE(sesion$float8_exacto)) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es `double precision` (`float8`) en PostgreSQL ",
+      "con `extra_float_digits = ", sesion$efd %||% "desconocido",
+      "`: el controlador recibe menos cifras que las que compara el motor ",
+      "(activar `SET extra_float_digits = 3` en PostgreSQL < 12)"
+    )
+  }
+  if (identical(motor, "mysql") && isTRUE(sesion$es_rmysql) &&
+      identical(tp, "float")) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es `FLOAT` de 32 bits: RMySQL la lee v\u00eda ",
+      "texto decimal y no coincide bit a bit con el doble del motor"
+    )
+  }
+  if (identical(clase, "texto") && !is.na(tp) &&
+      .tipo_declarado_temporal_dbi(tp)) {
+    .no_traducible_dbi(
+      "el controlador lee la columna temporal `", columna, "` (`", tp,
+      "`) como texto; el motor no compara texto sobre un tipo temporal como R"
+    )
+  }
+  if (identical(motor, "postgresql") && identical(tp, "timestamptz") &&
+      !isTRUE(sesion$es_utc)) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es `timestamptz` y la sesi\u00f3n de PostgreSQL ",
+      "no est\u00e1 en UTC (TimeZone = `", sesion$tz %||% "desconocido", "`)"
+    )
+  }
+  if (motor %in% c("mysql", "mariadb") && identical(tp, "timestamp") &&
+      !isTRUE(sesion$es_utc)) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es `TIMESTAMP` y la sesi\u00f3n de ", motor,
+      " no est\u00e1 en UTC (time_zone = `", sesion$tz %||% "desconocido", "`)"
+    )
+  }
+  if (identical(motor, "sqlserver") && identical(tp, "datetimeoffset")) {
+    .no_traducible_dbi(
+      "la columna `", columna, "` es `DATETIMEOFFSET`: no se traduce en SQL Server"
+    )
+  }
+  if (identical(clase, "texto")) {
+    if (identical(motor, "postgresql") && identical(tp, "bpchar")) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` es `char(n)` (`bpchar`): PostgreSQL ignora ",
+        "sus espacios finales al comparar pero R los lee con relleno"
+      )
+    }
+    if (identical(motor, "sqlserver") && tp %in% c("char", "nchar")) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` es `", tp, "(n)`: SQL Server ignora sus ",
+        "espacios finales al comparar pero R los lee con relleno"
+      )
+    }
+    if (motor %in% c("mysql", "mariadb") && identical(tp, "char") &&
+        isTRUE(sesion$pad_char_full)) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` es `CHAR(n)` con `PAD_CHAR_TO_FULL_LENGTH` ",
+        "activo: R lee relleno que el motor ignora"
+      )
+    }
+    if (!.cotejamiento_binario_dbi(esq, columna, motor)) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` no compara por bytes (cotejamiento `",
+        esq$cotejamientos[[columna]], "`)"
+      )
+    }
+    if (isTRUE(requiere_no_pad) && motor %in% c("mysql", "mariadb") &&
+        !isTRUE(esq$colacion_no_pad[[columna]])) {
+      .no_traducible_dbi(
+        "la columna `", columna, "` usa cotejamiento `",
+        esq$cotejamientos[[columna]], "` (PAD SPACE); se requiere NO PAD"
+      )
+    }
+  }
+  invisible(NULL)
+}
+
 .citar_col_dbi <- function(conexion, nombre) {
   as.character(DBI::dbQuoteIdentifier(conexion, nombre))
+}
+
+.tipo_doble_sql_dbi <- function(motor) {
+  switch(
+    motor,
+    postgresql = "DOUBLE PRECISION",
+    sqlserver = "FLOAT",
+    "DOUBLE"
+  )
 }
 
 .columna_sql_medicion <- function(conexion, esq, columna, motor, alias = NULL,
@@ -490,12 +1070,12 @@
   if (!is.null(alias)) ref <- paste0(alias, ".", ref)
   tipo <- esq$tipos[[columna]]
   doble_declarado <- !is.na(tipo) && grepl(
-    "^(DOUBLE|FLOAT|REAL|DECIMAL|NUMERIC|NUMBER)(\\(|$)",
+    "^(DOUBLE|FLOAT|REAL|DECIMAL|NUMERIC|NUMBER|MONEY|SMALLMONEY)(\\(|$| )",
     tipo, useBytes = TRUE
   ) || .tipo_declarado_entero_ancho_dbi(tipo)
   if (identical(esq$clases[[columna]], "doble") && doble_declarado &&
-      motor %in% c("sqlite", "duckdb")) {
-    ref <- paste0("CAST(", ref, " AS DOUBLE)")
+      motor %in% c("sqlite", "duckdb", "postgresql", "mysql", "mariadb", "sqlserver")) {
+    ref <- paste0("CAST(", ref, " AS ", .tipo_doble_sql_dbi(motor), ")")
   }
   if (normalizar_nan && identical(esq$clases[[columna]], "doble") &&
       motor %in% c("duckdb", "postgresql") &&
@@ -517,7 +1097,8 @@
     (clase_col %in% c("entero", "doble") && clase_lit %in% c("entero", "doble"))
 }
 
-.literal_sql_medicion <- function(conexion, valor, clase_col, motor) {
+.literal_sql_medicion <- function(conexion, valor, clase_col, motor,
+                                  esq = NULL, columna = NULL) {
   if (length(valor) != 1L) {
     .no_traducible_dbi("se esperaba un valor escalar, no ", length(valor))
   }
@@ -529,6 +1110,9 @@
       "`: R convierte uno de los dos y el motor no lo hace igual"
     )
   }
+  tp_base <- if (!is.null(esq) && !is.null(columna) && !is.null(esq$tipos_base)) {
+    esq$tipos_base[[columna]]
+  } else NA_character_
   switch(
     clase_lit,
     entero = as.character(valor),
@@ -537,6 +1121,12 @@
       if (is.infinite(valor)) {
         if (identical(motor, "duckdb")) {
           if (valor > 0) "CAST('Infinity' AS DOUBLE)" else "CAST('-Infinity' AS DOUBLE)"
+        } else if (identical(motor, "postgresql")) {
+          if (valor > 0) {
+            "CAST('Infinity' AS DOUBLE PRECISION)"
+          } else {
+            "CAST('-Infinity' AS DOUBLE PRECISION)"
+          }
         } else if (identical(motor, "sqlite")) {
           if (valor > 0) "9e999" else "-9e999"
         } else {
@@ -545,7 +1135,7 @@
       } else {
         literal <- formatC(valor, digits = 17, format = "g")
         if (identical(clase_col, "doble")) {
-          paste0("CAST(", literal, " AS DOUBLE)")
+          paste0("CAST(", literal, " AS ", .tipo_doble_sql_dbi(motor), ")")
         } else {
           literal
         }
@@ -554,18 +1144,29 @@
     texto = {
       texto <- enc2utf8(as.character(valor))
       if (!validUTF8(texto)) .no_traducible_dbi("un texto con bytes inv\u00e1lidos")
-      as.character(DBI::dbQuoteString(conexion, texto))
+      citado <- as.character(DBI::dbQuoteString(conexion, texto))
+      if (identical(motor, "sqlserver") &&
+          (tp_base %in% c("nvarchar", "nchar") ||
+           grepl("[^\\001-\\177]", texto, perl = TRUE, useBytes = TRUE))) {
+        paste0("N", citado)
+      } else {
+        citado
+      }
     },
     logico = switch(
       motor,
       duckdb = , postgresql = if (valor) "TRUE" else "FALSE",
+      mariadb = , sqlserver = if (valor) "1" else "0",
       .no_traducible_dbi(
         "un l\u00f3gico en ", motor, ", que lo guarda como entero"
       )
     ),
     fecha = switch(
       motor,
-      duckdb = paste0("DATE '", format(valor, "%Y-%m-%d"), "'"),
+      duckdb = , postgresql = , mysql = , mariadb = paste0(
+        "DATE '", format(valor, "%Y-%m-%d"), "'"
+      ),
+      sqlserver = paste0("CAST('", format(valor, "%Y-%m-%d"), "' AS DATE)"),
       sqlite = as.character(as.integer(unclass(valor))),
       .no_traducible_dbi("una fecha en ", motor)
     ),
@@ -574,17 +1175,39 @@
       if (seg != floor(seg)) {
         .no_traducible_dbi("un instante con fracci\u00f3n de segundo")
       }
+      txt_ts <- format(valor, "%Y-%m-%d %H:%M:%S", tz = "UTC")
       switch(
         motor,
-        duckdb = paste0(
-          "TIMESTAMP '", format(valor, "%Y-%m-%d %H:%M:%S", tz = "UTC"), "'"
-        ),
+        duckdb = paste0("TIMESTAMP '", txt_ts, "'"),
+        postgresql = if (identical(tp_base, "timestamptz")) {
+          paste0("TIMESTAMPTZ '", txt_ts, "+00'")
+        } else {
+          paste0("TIMESTAMP '", txt_ts, "'")
+        },
+        mysql = , mariadb = paste0("CAST('", txt_ts, "' AS DATETIME)"),
+        sqlserver = paste0("CAST('", txt_ts, "' AS DATETIME2)"),
         sqlite = formatC(seg, digits = 17, format = "g"),
         .no_traducible_dbi("un instante en ", motor)
       )
     },
     .no_traducible_dbi("un valor de clase ", class(valor)[[1L]])
   )
+}
+
+.sql_es_nulo_predicado <- function(pred, motor) {
+  if (identical(motor, "sqlserver")) {
+    paste0("(CASE WHEN ", pred, " THEN 1 WHEN NOT (", pred, ") THEN 0 ELSE NULL END IS NULL)")
+  } else {
+    paste0("(", pred, " IS NULL)")
+  }
+}
+
+.sql_como_valor_logico <- function(pred, motor) {
+  if (identical(motor, "sqlserver")) {
+    paste0("(CASE WHEN ", pred, " THEN 1 WHEN NOT (", pred, ") THEN 0 ELSE NULL END)")
+  } else {
+    pred
+  }
 }
 
 # Traduce una expresion de formula a SQL sin usar nunca `eval()`: primero
@@ -603,6 +1226,18 @@
   if (inherits(val_ast, "condition")) {
     return(list(sql = NULL, motivo = conditionMessage(val_ast)))
   }
+  guardas <- character()
+  motivo_guarda <- NULL
+  registrar_guarda_col <- function(nombre, sql_col) {
+    if (.requiere_guarda_espacios_dbi(esq, nombre, motor)) {
+      g <- paste0("(", sql_col, " IS NOT NULL AND ",
+                  .sql_guarda_espacios_dbi(sql_col, motor), ")")
+      if (!g %in% guardas) guardas <<- c(guardas, g)
+      if (is.null(motivo_guarda)) {
+        motivo_guarda <<- .motivo_guarda_dbi(motor, esq$cotejamientos[[nombre]])
+      }
+    }
+  }
   tiene_columna <- function(e) {
     any(all.names(e, functions = FALSE) %in% names(visibles))
   }
@@ -616,16 +1251,21 @@
         .no_traducible_dbi("una constante l\u00f3gica de largo ", length(v))
       }
       r$sql <- if (is.na(v)) {
-        "CAST(NULL AS BOOLEAN)"
+        if (identical(motor, "sqlserver")) "(CAST(NULL AS INT) = 1)" else "CAST(NULL AS BOOLEAN)"
       } else if (v) {
         "(1 = 1)"
       } else {
         "(1 = 0)"
       }
+      r$es_predicado <- TRUE
+    } else if (!is.null(r$columna) && motor %in% c("sqlserver", "mariadb")) {
+      r$sql <- paste0("(", r$sql, " = 1)")
+      r$es_predicado <- TRUE
+      r$columna <- NULL
     }
     r
   }
-  trad <- function(e) {
+  trad <- function(e, para_nulo = FALSE) {
     if (!tiene_columna(e)) {
       v <- tryCatch(
         .evaluar_constante_formula_segura(e, entorno),
@@ -636,42 +1276,47 @@
     if (is.symbol(e)) {
       nombre <- as.character(e)
       clase <- visibles[[nombre]]
-      if (identical(clase, "logico") && identical(motor, "sqlite")) {
-        .no_traducible_dbi("SQLite guarda el l\u00f3gico como entero")
-      }
-      if (identical(clase, "texto") &&
-          !.cotejamiento_binario_dbi(esq, nombre, motor)) {
-        .no_traducible_dbi(
-          "la columna `", nombre, "` no compara por bytes (cotejamiento `",
-          esq$cotejamientos[[nombre]], "`)"
-        )
+      .validar_columna_base_dbi(esq, nombre, motor)
+      if (!isTRUE(para_nulo)) {
+        if (identical(clase, "logico") && identical(motor, "sqlite")) {
+          .no_traducible_dbi("SQLite guarda el l\u00f3gico como entero")
+        }
+        .validar_columna_comparacion_dbi(esq, nombre, motor)
       }
       return(list(
         sql = .columna_sql_medicion(conexion, esq, nombre, motor, alias = alias),
         clase = clase,
-        columna = nombre
+        columna = nombre,
+        es_predicado = FALSE
       ))
     }
     if (!is.call(e)) .no_traducible_dbi("una expresi\u00f3n que no es llamada")
     f <- as.character(e[[1L]])
     args <- as.list(e)[-1L]
-    if (identical(f, "(")) return(trad(args[[1L]]))
+    if (identical(f, "(")) return(trad(args[[1L]], para_nulo = para_nulo))
     if (identical(f, "!")) {
       a <- como_logico(trad(args[[1L]]))
-      return(list(sql = paste0("(NOT ", a$sql, ")"), clase = "logico"))
+      return(list(sql = paste0("(NOT ", a$sql, ")"), clase = "logico",
+                  es_predicado = TRUE))
     }
     if (f %in% c("&", "|")) {
       a <- como_logico(trad(args[[1L]]))
       b <- como_logico(trad(args[[2L]]))
       return(list(
         sql = paste0("(", a$sql, if (f == "&") " AND " else " OR ", b$sql, ")"),
-        clase = "logico"
+        clase = "logico",
+        es_predicado = TRUE
       ))
     }
     if (identical(f, "is.na")) {
-      a <- trad(args[[1L]])
+      a <- trad(args[[1L]], para_nulo = TRUE)
       if (is.null(a$sql)) .no_traducible_dbi("is.na() de una constante")
-      return(list(sql = paste0("(", a$sql, " IS NULL)"), clase = "logico"))
+      sql_na <- if (isTRUE(a$es_predicado)) {
+        .sql_es_nulo_predicado(a$sql, motor)
+      } else {
+        paste0("(", a$sql, " IS NULL)")
+      }
+      return(list(sql = sql_na, clase = "logico", es_predicado = TRUE))
     }
     if (f %in% c("==", "!=", "<", "<=", ">", ">=")) {
       a <- trad(args[[1L]])
@@ -687,16 +1332,44 @@
           ": R ordena el texto con el locale de la sesi\u00f3n"
         )
       }
+      lado_a <- if (isTRUE(a$es_predicado)) {
+        .sql_como_valor_logico(a$sql, motor)
+      } else {
+        a$sql
+      }
       lado_b <- if (!is.null(b$sql)) {
         if (!.clases_compatibles_sql(a$clase, b$clase)) {
           .no_traducible_dbi("compara `", a$clase, "` con `", b$clase, "`")
         }
-        b$sql
+        if (identical(a$clase, "texto") && identical(b$clase, "texto") &&
+            motor %in% c("mysql", "mariadb", "sqlserver") &&
+            !is.null(a$columna) && !is.null(b$columna) &&
+            !identical(esq$cotejamientos[[a$columna]],
+                       esq$cotejamientos[[b$columna]])) {
+          .no_traducible_dbi(
+            "compara dos columnas de texto con distinto cotejamiento (`",
+            esq$cotejamientos[[a$columna]], "` y `",
+            esq$cotejamientos[[b$columna]], "`)"
+          )
+        }
+        if (!is.null(a$columna)) registrar_guarda_col(a$columna, a$sql)
+        if (!is.null(b$columna)) registrar_guarda_col(b$columna, b$sql)
+        if (isTRUE(b$es_predicado)) {
+          .sql_como_valor_logico(b$sql, motor)
+        } else {
+          b$sql
+        }
       } else {
-        .literal_sql_medicion(conexion, b$valor, a$clase, motor)
+        if (!is.null(a$columna)) {
+          .verificar_literal_espacios_dbi(b$valor, esq, a$columna, motor)
+          registrar_guarda_col(a$columna, a$sql)
+        }
+        .literal_sql_medicion(conexion, b$valor, a$clase, motor,
+                              esq = esq, columna = a$columna)
       }
       op <- switch(f, "==" = "=", "!=" = "<>", f)
-      return(list(sql = paste0("(", a$sql, " ", op, " ", lado_b, ")"), clase = "logico"))
+      return(list(sql = paste0("(", lado_a, " ", op, " ", lado_b, ")"),
+                  clase = "logico", es_predicado = TRUE))
     }
     if (identical(f, "%in%")) {
       a <- trad(args[[1L]])
@@ -722,9 +1395,12 @@
       if (length(resto) > max_valores_in) {
         .no_traducible_dbi("conjunto de m\u00e1s de ", max_valores_in, " valores")
       }
+      .verificar_literal_espacios_dbi(resto, esq, a$columna, motor)
+      registrar_guarda_col(a$columna, a$sql)
       lista <- vapply(
         as.list(resto),
-        function(v) .literal_sql_medicion(conexion, v, a$clase, motor),
+        function(v) .literal_sql_medicion(conexion, v, a$clase, motor,
+                                          esq = esq, columna = a$columna),
         character(1L)
       )
       dentro <- if (length(lista)) {
@@ -737,7 +1413,7 @@
       } else {
         paste0("(", a$sql, " IS NOT NULL AND ", dentro, ")")
       }
-      return(list(sql = sql, clase = "logico"))
+      return(list(sql = sql, clase = "logico", es_predicado = TRUE))
     }
     if (f %in% c("+", "-", "*", "/", "^", "%%", "%/%")) {
       .no_traducible_dbi("aritm\u00e9tica con columnas fuera del subconjunto SQL")
@@ -765,21 +1441,45 @@
       motivo = paste0("la f\u00f3rmula no da un l\u00f3gico (", r$clase, ")")
     ))
   }
-  list(sql = r$sql, motivo = NULL)
+  list(sql = r$sql, motivo = NULL, guardas = guardas,
+       motivo_guarda = motivo_guarda)
 }
 
 .sql_dentro <- function(pred) {
   paste0("(CASE WHEN ", pred, " THEN 1 ELSE 0 END = 1)")
 }
 
-.sql_suma <- function(cond) {
-  paste0("COALESCE(SUM(CASE WHEN ", cond, " THEN 1 ELSE 0 END), 0)")
+.sql_suma <- function(cond, motor = "sqlite") {
+  if (identical(motor, "sqlserver")) {
+    return(paste0(
+      "COALESCE(SUM(CAST(CASE WHEN ", cond,
+      " THEN 1 ELSE 0 END AS BIGINT)), CAST(0 AS BIGINT))"
+    ))
+  }
+  expr <- paste0("COALESCE(SUM(CASE WHEN ", cond, " THEN 1 ELSE 0 END), 0)")
+  if (motor %in% c("mysql", "mariadb")) {
+    paste0("CAST(", expr, " AS CHAR)")
+  } else {
+    expr
+  }
+}
+
+.sql_conteo_total <- function(motor = "sqlite") {
+  if (identical(motor, "sqlserver")) return("COUNT_BIG(*)")
+  if (motor %in% c("mysql", "mariadb")) return("CAST(COUNT(*) AS CHAR)")
+  "COUNT(*)"
 }
 
 .sql_y <- function(...) {
   partes <- unlist(list(...))
-  partes <- partes[nzchar(partes)]
+  partes <- partes[!is.na(partes) & nzchar(partes)]
   if (!length(partes)) "(1 = 1)" else paste0("(", paste(partes, collapse = " AND "), ")")
+}
+
+.sql_o <- function(...) {
+  partes <- unlist(list(...))
+  partes <- unique(partes[!is.na(partes) & nzchar(partes)])
+  if (!length(partes)) NULL else paste0("(", paste(partes, collapse = " OR "), ")")
 }
 
 .sql_no_ascii <- function(expr, motor) {
@@ -787,19 +1487,27 @@
     motor,
     sqlite = paste0("(", expr, " GLOB '*[^' || char(1) || '-' || char(127) || ']*')"),
     duckdb = paste0("(strlen(", expr, ") <> length(", expr, "))"),
+    postgresql = paste0("(octet_length(", expr, ") <> char_length(", expr, "))"),
+    mysql = , mariadb = paste0("(OCTET_LENGTH(", expr, ") <> CHAR_LENGTH(", expr, "))"),
     .no_traducible_dbi("la guarda de texto no ASCII en ", motor)
   )
 }
 
 .sql_plegado_centinela <- function(col, motor, conexion) {
-  blancos <- switch(
+  i_punto <- as.character(DBI::dbQuoteString(conexion, intToUtf8(0x0130L)))
+  recortado <- switch(
     motor,
-    sqlite = "' ' || char(9) || char(10) || char(13)",
-    duckdb = "' ' || chr(9) || chr(10) || chr(13)",
+    sqlite = paste0("TRIM(", col, ", ' ' || char(9) || char(10) || char(13))"),
+    duckdb = paste0("TRIM(", col, ", ' ' || chr(9) || chr(10) || chr(13))"),
+    postgresql = paste0("BTRIM(", col, ", E' \\t\\n\\r')"),
+    mysql = , mariadb = paste0(
+      "REGEXP_REPLACE(", col, ", ",
+      as.character(DBI::dbQuoteString(conexion, "^[ \t\n\r]+|[ \t\n\r]+$")),
+      ", '')"
+    ),
     .no_traducible_dbi("el recorte de bordes en ", motor)
   )
-  i_punto <- as.character(DBI::dbQuoteString(conexion, intToUtf8(0x0130L)))
-  paste0("REPLACE(TRIM(", col, ", ", blancos, "), ", i_punto, ", 'i')")
+  paste0("REPLACE(", recortado, ", ", i_punto, ", 'i')")
 }
 
 # ---------------------------------------------------------------------------
@@ -836,38 +1544,44 @@
       }
     ))
   }
-  clases <- esq$clases[columnas]
-  no_escalares <- columnas[unname(clases) == "otro"]
-  if (length(no_escalares)) {
-    return(no(
-      "la columna `", no_escalares[[1L]],
-      "` no es un tipo escalar que R pueda leer para esta metrica"
-    ))
-  }
-  lecturas_no_doble <- columnas[vapply(columnas, function(c) {
-    clase <- esq$clases[[c]]
-    !clase %in% c("doble", "entero") &&
-      .tipo_declarado_entero_ancho_dbi(esq$tipos[[c]])
-  }, logical(1L))]
-  if (length(lecturas_no_doble)) {
-    columna_no_doble <- lecturas_no_doble[[1L]]
-    clase_lectura <- switch(
-      esq$clases[[columna_no_doble]],
-      entero64 = "entero de 64 bits (`integer64`)",
-      texto = "texto",
-      esq$clases[[columna_no_doble]]
-    )
-    tipo_real <- esq$tipos[[columna_no_doble]]
-    if (is.null(tipo_real) || !length(tipo_real) || is.na(tipo_real)) {
-      tipo_real <- "tipo num\u00e9rico no especificado"
+  validar_tipos_esquema <- function(esq_t, cols_t) {
+    cl_t <- esq_t$clases[cols_t]
+    no_esc <- cols_t[unname(cl_t) == "otro"]
+    if (length(no_esc)) {
+      return(no(
+        "la columna `", no_esc[[1L]],
+        "` no es un tipo escalar que R pueda leer para esta metrica"
+      ))
     }
-    return(no(
-      "R lee la columna `", columna_no_doble, "` como ", clase_lectura,
-      ", pero la base la declara como `", as.character(tipo_real),
-      "`; la medici\u00f3n no puede reproducir la lectura de R"
-    ))
+    lecturas_no_doble <- cols_t[vapply(cols_t, function(c) {
+      clase <- esq_t$clases[[c]]
+      !clase %in% c("doble", "entero") &&
+        .tipo_declarado_entero_ancho_dbi(esq_t$tipos[[c]])
+    }, logical(1L))]
+    if (length(lecturas_no_doble)) {
+      columna_no_doble <- lecturas_no_doble[[1L]]
+      clase_lectura <- switch(
+        esq_t$clases[[columna_no_doble]],
+        entero64 = "entero de 64 bits (`integer64`)",
+        texto = "texto",
+        esq_t$clases[[columna_no_doble]]
+      )
+      tipo_real <- esq_t$tipos[[columna_no_doble]]
+      if (is.null(tipo_real) || !length(tipo_real) || is.na(tipo_real)) {
+        tipo_real <- "tipo num\u00e9rico no especificado"
+      }
+      return(no(
+        "R lee la columna `", columna_no_doble, "` como ", clase_lectura,
+        ", pero la base la declara como `", as.character(tipo_real),
+        "`; la medici\u00f3n no puede reproducir la lectura de R"
+      ))
+    }
+    NULL
   }
-  pre <- .precondicion_motor_medicion(motor, spec$nodo, clases)
+  clases <- esq$clases[columnas]
+  fallo_tipo <- validar_tipos_esquema(esq, columnas)
+  if (!is.null(fallo_tipo)) return(fallo_tipo)
+  pre <- .precondicion_motor_medicion(motor, spec$nodo, clases, sesion = esq$sesion)
   if (!is.null(pre)) return(no(pre))
   U <- universos[[ent_esq]](instancia)
   if (!is.null(U$motivo)) {
@@ -876,21 +1590,22 @@
   col <- function(c, nan = TRUE) {
     .columna_sql_medicion(conexion, esq, c, motor, normalizar_nan = nan)
   }
-  binario <- function(c) {
-    if (identical(esq$clases[[c]], "texto") &&
-        !.cotejamiento_binario_dbi(esq, c, motor)) {
-      .no_traducible_dbi(
-        "la columna `", c, "` no compara por bytes (cotejamiento `",
-        esq$cotejamientos[[c]], "`)"
-      )
-    }
+  combinar_guardas <- function(g_local = NULL, mot_local = NULL,
+                               g_extra = character(), mot_extra = NULL) {
+    todas <- c(U$guardas, g_extra, g_local)
+    g_final <- .sql_o(todas)
+    mot_final <- mot_local %||% mot_extra %||% U$motivo_guarda
+    list(guarda = g_final, motivo = mot_final)
   }
   r <- tryCatch(switch(
     spec$nodo,
     no_ausente = {
+      .validar_columna_base_dbi(esq, spec$columna, motor)
       x <- col(spec$columna)
       clase <- esq$clases[[spec$columna]]
       aplicable <- ""
+      g_apl <- character()
+      mot_apl <- NULL
       if (!is.null(spec$aplicable)) {
         t <- .traducir_predicado_dbi(
           spec$aplicable[[2L]], environment(spec$aplicable),
@@ -898,6 +1613,8 @@
         )
         if (is.null(t$sql)) .no_traducible_dbi("`aplicable`: ", t$motivo)
         aplicable <- .sql_dentro(t$sql)
+        g_apl <- t$guardas
+        mot_apl <- t$motivo_guarda
       }
       presentes <- if (isTRUE(spec$opcional)) paste0("(", x, " IS NOT NULL)") else ""
       universo <- .sql_y(U$sql, aplicable, presentes)
@@ -912,7 +1629,33 @@
               "`: R compara el texto de cada valor"
             )
           }
-          binario(spec$columna)
+          if (identical(motor, "sqlserver")) {
+            .no_traducible_dbi(
+              "centinela de texto en SQL Server: los espacios finales se ignoran ",
+              "en `=` e `IN` y el plegado depende de la colaci\u00f3n"
+            )
+          }
+          .validar_columna_comparacion_dbi(
+            esq, spec$columna, motor, requiere_no_pad = TRUE
+          )
+          if (identical(motor, "postgresql")) {
+            if (!isTRUE(esq$sesion$es_utf8)) {
+              .no_traducible_dbi(
+                "centinela de texto en PostgreSQL: la codificaci\u00f3n del servidor ",
+                "no es UTF8 (`", esq$sesion$enc %||% "desconocida", "`)"
+              )
+            }
+            if (!isTRUE(esq$sesion$lower_i_es_i)) {
+              .no_traducible_dbi(
+                "centinela de texto en PostgreSQL: `lower('I')` no da `'i'` en este locale"
+              )
+            }
+          }
+          if (motor %in% c("mysql", "mariadb") && !isTRUE(esq$sesion$lower_i_es_i)) {
+            .no_traducible_dbi(
+              "centinela de texto en ", motor, ": `LOWER('I')` no da `'i'`"
+            )
+          }
           objetivos <- unique(.minusculas_para_comparar(.texto_analizable(vn)$valores))
           objetivos <- objetivos[!is.na(objetivos)]
           if (any(grepl("[^\\001-\\177]", objetivos, useBytes = TRUE, perl = TRUE))) {
@@ -933,6 +1676,7 @@
             )
           }
         } else {
+          .validar_columna_comparacion_dbi(esq, spec$columna, motor)
           lits <- unique(vn[!is.na(vn)])
           if (length(lits) > max_valores_in) {
             .no_traducible_dbi("demasiados centinelas")
@@ -941,30 +1685,57 @@
             centinela <- paste0(
               "(", x, " IN (",
               paste(vapply(as.list(lits), function(v) {
-                .literal_sql_medicion(conexion, v, clase, motor)
+                .literal_sql_medicion(conexion, v, clase, motor,
+                                      esq = esq, columna = spec$columna)
               }, character(1L)), collapse = ", "), "))"
             )
           }
         }
       }
       cumple <- paste0("(", x, " IS NOT NULL AND NOT ", centinela, ")")
+      cg <- combinar_guardas(g_extra = g_apl, mot_extra = mot_apl)
       list(
         via = "sql_consolidado",
         universo = universo,
         evaluable = universo,
         cumple = cumple,
         sin_valor = paste0("(", x, " IS NULL)"),
+        guarda = cg$guarda,
+        motivo_guarda = cg$motivo,
         columnas_completas = spec$columna,
         aplicable_sql = .sql_y(aplicable, presentes)
       )
     },
     en_conjunto = , en_rango = , fecha_en_rango = {
-      x <- col(spec$columna)
       clase <- esq$clases[[spec$columna]]
-      guarda <- NULL
+      if (identical(spec$nodo, "fecha_en_rango") &&
+          !clase %in% c("fecha", "instante")) {
+        return(list(
+          via = "no_medible_metodo",
+          motivo = if (isTRUE(spec$contrato_columna)) {
+            "La columna de actualizaci\u00f3n debe ser Date o POSIXt."
+          } else {
+            "La oportunidad requiere un atributo Date o POSIXt."
+          }
+        ))
+      }
+      if (identical(spec$nodo, "en_rango") && identical(clase, "texto")) {
+        .no_traducible_dbi(
+          "rango sobre texto: R ordena con el locale de la sesi\u00f3n"
+        )
+      }
+      .validar_columna_comparacion_dbi(esq, spec$columna, motor)
+      x <- col(spec$columna)
+      guarda_local <- NULL
+      motivo_local <- NULL
       if (identical(clase, "texto")) {
-        binario(spec$columna)
-        if (identical(motor, "sqlite")) guarda <- .sql_no_ascii(x, motor)
+        if (identical(motor, "sqlite")) {
+          guarda_local <- .sql_no_ascii(x, motor)
+          motivo_local <- .motivo_guarda_dbi(motor)
+        } else if (.requiere_guarda_espacios_dbi(esq, spec$columna, motor)) {
+          guarda_local <- .sql_guarda_espacios_dbi(x, motor)
+          motivo_local <- .motivo_guarda_dbi(motor, esq$cotejamientos[[spec$columna]])
+        }
       }
       cumple <- if (identical(spec$nodo, "en_conjunto")) {
         conjunto <- spec$conjunto
@@ -979,39 +1750,39 @@
         if (length(lits) > max_valores_in) {
           .no_traducible_dbi("dominio de m\u00e1s de ", max_valores_in, " valores")
         }
+        .verificar_literal_espacios_dbi(lits, esq, spec$columna, motor)
         if (length(lits)) {
           paste0(
             "(", x, " IN (",
             paste(vapply(as.list(lits), function(v) {
-              .literal_sql_medicion(conexion, v, clase, motor)
+              .literal_sql_medicion(conexion, v, clase, motor,
+                                    esq = esq, columna = spec$columna)
             }, character(1L)), collapse = ", "), "))"
           )
         } else {
           "(1 = 0)"
         }
       } else if (identical(spec$nodo, "en_rango")) {
-        if (identical(clase, "texto")) {
-          .no_traducible_dbi(
-            "rango sobre texto: R ordena con el locale de la sesi\u00f3n"
-          )
-        }
-        lo <- .literal_sql_medicion(conexion, spec$minimo, clase, motor)
-        hi <- .literal_sql_medicion(conexion, spec$maximo, clase, motor)
+        lo <- .literal_sql_medicion(conexion, spec$minimo, clase, motor,
+                                    esq = esq, columna = spec$columna)
+        hi <- .literal_sql_medicion(conexion, spec$maximo, clase, motor,
+                                    esq = esq, columna = spec$columna)
         paste0(
           "(", x, if (spec$inclusivo[[1L]]) " >= " else " > ", lo,
           " AND ", x, if (spec$inclusivo[[2L]]) " <= " else " < ", hi, ")"
         )
       } else {
-        if (!clase %in% c("fecha", "instante")) {
-          return(list(
-            via = "no_medible_metodo",
-            motivo = if (isTRUE(spec$contrato_columna)) {
-              "La columna de actualizaci\u00f3n debe ser Date o POSIXt."
-            } else {
-              "La oportunidad requiere un atributo Date o POSIXt."
-            }
-          ))
+        if (identical(motor, "sqlserver") &&
+            (is.null(esq$sesion$version_mayor) ||
+             is.na(esq$sesion$version_mayor) ||
+             esq$sesion$version_mayor < 13L)) {
+          .no_traducible_dbi(
+            "SQL Server anterior a 2016 no dispone de `DATEDIFF_BIG`"
+          )
         }
+        usa_micro <- (motor %in% c("mysql", "mariadb") &&
+                        identical(clase, "instante")) ||
+          identical(motor, "sqlserver")
         seg <- switch(
           motor,
           duckdb = if (identical(clase, "fecha")) {
@@ -1019,9 +1790,24 @@
           } else {
             paste0("epoch(", x, ")")
           },
-          sqlite = if (identical(clase, "fecha")) paste0("(", x, " * 86400)") else x
+          sqlite = if (identical(clase, "fecha")) paste0("(", x, " * 86400)") else x,
+          postgresql = paste0("extract(epoch from ", x, ")"),
+          mysql = , mariadb = if (identical(clase, "fecha")) {
+            paste0("(DATEDIFF(", x, ", '1970-01-01') * 86400)")
+          } else {
+            paste0("TIMESTAMPDIFF(MICROSECOND, '1970-01-01 00:00:00', ", x, ")")
+          },
+          sqlserver = paste0(
+            "DATEDIFF_BIG(microsecond, '1970-01-01', CAST(", x, " AS DATETIME2))"
+          )
         )
-        lit <- function(v) formatC(.fecha_numerica(v), digits = 17, format = "g")
+        lit <- function(v) {
+          if (usa_micro) {
+            format(round(.fecha_numerica(v) * 1e6), scientific = FALSE, trim = TRUE)
+          } else {
+            formatC(.fecha_numerica(v), digits = 17, format = "g")
+          }
+        }
         partes <- c(
           if (!is.null(spec$desde)) paste0(seg, " >= ", lit(spec$desde)),
           if (!is.null(spec$hasta)) paste0(seg, " <= ", lit(spec$hasta))
@@ -1029,13 +1815,16 @@
         paste0("(", paste(partes, collapse = " AND "), ")")
       }
       evaluable <- .sql_y(U$sql, paste0("(", x, " IS NOT NULL)"))
+      g_local_ev <- if (!is.null(guarda_local)) .sql_y(evaluable, guarda_local)
+      cg <- combinar_guardas(g_local = g_local_ev, mot_local = motivo_local)
       list(
         via = "sql_consolidado",
         universo = U$sql,
         evaluable = evaluable,
         cumple = cumple,
         sin_valor = paste0("(", x, " IS NULL)"),
-        guarda = if (!is.null(guarda)) .sql_y(evaluable, guarda),
+        guarda = cg$guarda,
+        motivo_guarda = cg$motivo,
         columnas_completas = spec$columna
       )
     },
@@ -1056,17 +1845,23 @@
         ))
       }
       if (is.null(t$sql)) .no_traducible_dbi("la f\u00f3rmula: ", t$motivo)
+      g_pred <- if (length(t$guardas)) .sql_y(U$sql, .sql_o(t$guardas))
+      cg <- combinar_guardas(g_local = g_pred, mot_local = t$motivo_guarda)
       list(
         via = "sql_consolidado",
         universo = U$sql,
         evaluable = U$sql,
         cumple = t$sql,
-        na_regla = .sql_y(U$sql, paste0("(", t$sql, " IS NULL)")),
+        na_regla = .sql_y(U$sql, .sql_es_nulo_predicado(t$sql, motor)),
+        guarda = cg$guarda,
+        motivo_guarda = cg$motivo,
         columnas_completas = instancia$atributos
       )
     },
     duplicado = {
-      for (c in spec$columnas) binario(c)
+      for (c in spec$columnas) {
+        .validar_columna_comparacion_dbi(esq, c, motor)
+      }
       cols_g <- vapply(
         spec$columnas,
         function(c) col(c, nan = isTRUE(spec$excluir_na)),
@@ -1075,27 +1870,63 @@
       filtro <- if (isTRUE(spec$excluir_na)) {
         paste0("(", cols_g[[1L]], " IS NOT NULL)")
       } else ""
-      guarda <- if (isTRUE(spec$excluir_na) && identical(motor, "sqlite") &&
-                    identical(esq$clases[[spec$columnas]], "texto")) {
-        .sql_y(U$sql, filtro, .sql_no_ascii(cols_g[[1L]], motor))
+      guardas_dup <- character()
+      motivo_dup <- NULL
+      if (isTRUE(spec$excluir_na) && identical(motor, "sqlite") &&
+          identical(esq$clases[[spec$columnas]], "texto")) {
+        guardas_dup <- c(guardas_dup, .sql_no_ascii(cols_g[[1L]], motor))
+        motivo_dup <- .motivo_guarda_dbi(motor)
       }
+      for (i_c in seq_along(spec$columnas)) {
+        cn <- spec$columnas[[i_c]]
+        if (.requiere_guarda_espacios_dbi(esq, cn, motor)) {
+          guardas_dup <- c(
+            guardas_dup,
+            paste0("(", cols_g[[i_c]], " IS NOT NULL AND ",
+                   .sql_guarda_espacios_dbi(cols_g[[i_c]], motor), ")")
+          )
+          if (is.null(motivo_dup)) {
+            motivo_dup <- .motivo_guarda_dbi(motor, esq$cotejamientos[[cn]])
+          }
+        }
+      }
+      g_local_dup <- if (length(guardas_dup)) {
+        .sql_y(U$sql, filtro, .sql_o(guardas_dup))
+      }
+      cg <- combinar_guardas(g_local = g_local_dup, mot_local = motivo_dup)
+      cnt_inner <- if (identical(motor, "sqlserver")) "COUNT_BIG(*)" else "COUNT(*)"
       sub <- paste0(
-        "SELECT ", paste(cols_g, collapse = ", "), ", COUNT(*) AS lupa_c FROM ",
+        "SELECT ", cnt_inner, " AS lupa_c FROM ",
         esq$sql, " WHERE ", .sql_y(U$sql, filtro), " GROUP BY ",
         paste(cols_g, collapse = ", ")
       )
-      list(
-        via = "sql_dedicado",
-        consulta = paste0(
+      consulta_dup <- if (identical(motor, "sqlserver")) {
+        paste0(
+          "SELECT COALESCE(SUM(CASE WHEN lupa_c > 1 THEN lupa_c ",
+          "ELSE CAST(0 AS BIGINT) END), CAST(0 AS BIGINT)) AS num, ",
+          "COALESCE(SUM(lupa_c), CAST(0 AS BIGINT)) AS den FROM (", sub, ") lupa_g"
+        )
+      } else if (motor %in% c("mysql", "mariadb")) {
+        paste0(
+          "SELECT CAST(COALESCE(SUM(CASE WHEN lupa_c > 1 THEN lupa_c ELSE 0 END), 0) AS CHAR)",
+          " AS num, CAST(COALESCE(SUM(lupa_c), 0) AS CHAR) AS den FROM (", sub, ") lupa_g"
+        )
+      } else {
+        paste0(
           "SELECT COALESCE(SUM(CASE WHEN lupa_c > 1 THEN lupa_c ELSE 0 END), 0)",
           " AS num, COALESCE(SUM(lupa_c), 0) AS den FROM (", sub, ") lupa_g"
-        ),
+        )
+      }
+      list(
+        via = "sql_dedicado",
+        consulta = consulta_dup,
         universo = U$sql,
         evaluable = .sql_y(U$sql, filtro),
         sin_valor = if (isTRUE(spec$excluir_na)) {
           paste0("(", cols_g[[1L]], " IS NULL)")
         },
-        guarda = guarda,
+        guarda = cg$guarda,
+        motivo_guarda = cg$motivo,
         columnas_completas = spec$columnas
       )
     },
@@ -1113,34 +1944,62 @@
           )
         ))
       }
+      fallo_ref <- validar_tipos_esquema(esq_ref, spec$pk)
+      if (!is.null(fallo_ref)) .no_traducible_dbi(fallo_ref$motivo)
       pre_ref <- .precondicion_motor_medicion(
-        motor, spec$nodo, esq_ref$clases[[spec$pk]]
+        motor, spec$nodo, esq_ref$clases[[spec$pk]], sesion = esq_ref$sesion
       )
       if (!is.null(pre_ref)) .no_traducible_dbi(pre_ref)
+      .validar_columna_comparacion_dbi(esq, spec$fk, motor)
+      .validar_columna_comparacion_dbi(esq_ref, spec$pk, motor)
       cp <- esq_ref$clases[[spec$pk]]
       cf <- esq$clases[[spec$fk]]
-      pk <- .columna_sql_medicion(conexion, esq_ref, spec$pk, motor, alias = "lupa_r")
-      fk <- .columna_sql_medicion(conexion, esq, spec$fk, motor, alias = "lupa_d")
-      texto_cast <- if (identical(motor, "duckdb")) "VARCHAR" else "TEXT"
+      pk <- .columna_sql_medicion(conexion, esq_ref, spec$pk, motor,
+                                  alias = "lupa_r", normalizar_nan = FALSE)
+      fk <- .columna_sql_medicion(conexion, esq, spec$fk, motor,
+                                  alias = "lupa_d", normalizar_nan = FALSE)
+      fk_nulo <- .columna_sql_medicion(conexion, esq, spec$fk, motor,
+                                       alias = "lupa_d", normalizar_nan = TRUE)
+      cast_entero_a_texto <- function(expr_int, esq_txt, col_txt) {
+        tp_txt <- if (!is.null(esq_txt$tipos_base)) esq_txt$tipos_base[[col_txt]] else NA_character_
+        coll_txt <- esq_txt$cotejamientos[[col_txt]]
+        coll_ok <- !is.null(coll_txt) && !is.na(coll_txt) &&
+          grepl("^[A-Za-z0-9_]+$", coll_txt, perl = TRUE, useBytes = TRUE)
+        sufijo_coll <- if (motor %in% c("mysql", "mariadb", "sqlserver") && coll_ok) {
+          paste0(" COLLATE ", coll_txt)
+        } else ""
+        tipo_txt <- switch(
+          motor,
+          duckdb = "VARCHAR",
+          mysql = , mariadb = "CHAR",
+          sqlserver = if (identical(tp_txt, "nvarchar")) "NVARCHAR(20)" else "VARCHAR(20)",
+          "TEXT"
+        )
+        paste0("CAST(", expr_int, " AS ", tipo_txt, ")", sufijo_coll)
+      }
+      if (identical(cp, "texto") && identical(cf, "texto") &&
+          motor %in% c("mysql", "mariadb", "sqlserver") &&
+          !identical(esq_ref$cotejamientos[[spec$pk]],
+                     esq$cotejamientos[[spec$fk]])) {
+        .no_traducible_dbi(
+          "claves de texto con distinto cotejamiento (`",
+          esq$cotejamientos[[spec$fk]], "` y `",
+          esq_ref$cotejamientos[[spec$pk]], "`)"
+        )
+      }
       igualdad <- if ((.clases_compatibles_sql(cp, cf) &&
                        !(cp %in% "entero64" || cf %in% "entero64")) ||
                       identical(cp, cf)) {
         paste0(pk, " = ", fk)
       } else if (identical(cp, "texto") && identical(cf, "entero")) {
-        paste0(pk, " = CAST(", fk, " AS ", texto_cast, ")")
+        paste0(pk, " = ", cast_entero_a_texto(fk, esq_ref, spec$pk))
       } else if (identical(cp, "entero") && identical(cf, "texto")) {
-        paste0("CAST(", pk, " AS ", texto_cast, ") = ", fk)
+        paste0(cast_entero_a_texto(pk, esq, spec$fk), " = ", fk)
       } else {
         .no_traducible_dbi(
           "clave `", cp, "` contra `", cf,
           "`: R compara por el texto can\u00f3nico de cada valor y el motor no escribe igual ese tipo"
         )
-      }
-      if ("texto" %in% c(cp, cf)) {
-        if ((identical(cp, "texto") && !.cotejamiento_binario_dbi(esq_ref, spec$pk, motor)) ||
-            (identical(cf, "texto") && !.cotejamiento_binario_dbi(esq, spec$fk, motor))) {
-          .no_traducible_dbi("clave de texto sin cotejamiento binario")
-        }
       }
       U_ref <- universos[[spec$entidad_ref]](instancia, columnas = spec$pk, alias = "lupa_r")
       if (!is.null(U_ref$motivo)) {
@@ -1155,34 +2014,117 @@
         "EXISTS (SELECT 1 FROM ", esq_ref$sql, " lupa_r WHERE ",
         .sql_y(U_ref$sql, paste0("(", pk, " IS NOT NULL)"), igualdad), ")"
       )
-      guarda <- if (identical(motor, "sqlite") && "texto" %in% c(cp, cf)) {
-        c(
-          if (identical(cf, "texto")) {
-            .sql_suma(.sql_y(evaluable, .sql_no_ascii(fk, motor)))
-          },
-          if (identical(cp, "texto")) {
-            paste0(
-              "(SELECT ",
-              .sql_suma(.sql_y(U_ref$sql, paste0("(", pk, " IS NOT NULL)"),
-                               .sql_no_ascii(pk, motor))),
-              " FROM ", esq_ref$sql, " lupa_r)"
-            )
-          }
+      guardas_dep <- character()
+      guardas_ref <- character()
+      motivo_guarda_ref <- NULL
+      agregar_guarda_dep <- function(cond, mot) {
+        guardas_dep <<- c(guardas_dep, cond)
+        if (is.null(motivo_guarda_ref)) motivo_guarda_ref <<- mot
+      }
+      agregar_guarda_ref <- function(cond, mot) {
+        guardas_ref <<- c(guardas_ref, cond)
+        if (is.null(motivo_guarda_ref)) motivo_guarda_ref <<- mot
+      }
+      if (identical(motor, "sqlite") && "texto" %in% c(cp, cf)) {
+        mot_sq <- .motivo_guarda_dbi("sqlite", sujeto = "la clave")
+        if (identical(cf, "texto")) {
+          agregar_guarda_dep(.sql_y(evaluable, .sql_no_ascii(fk, motor)), mot_sq)
+        }
+        if (identical(cp, "texto")) {
+          agregar_guarda_ref(
+            .sql_y(U_ref$sql, paste0("(", pk, " IS NOT NULL)"),
+                   .sql_no_ascii(pk, motor)),
+            mot_sq
+          )
+        }
+      }
+      if (.requiere_guarda_espacios_dbi(esq, spec$fk, motor)) {
+        agregar_guarda_dep(
+          .sql_y(evaluable, .sql_guarda_espacios_dbi(fk, motor)),
+          .motivo_guarda_dbi(motor, esq$cotejamientos[[spec$fk]])
         )
       }
-      consulta <- paste0(
-        "SELECT ", .sql_suma(.sql_y(evaluable, existe)), " AS num, ",
-        .sql_suma(evaluable), " AS den, ",
-        .sql_suma(.sql_y(U_dep$sql)), " AS univ, ",
-        .sql_suma(.sql_y(U_dep$sql, paste0("(", fk, " IS NULL)"))), " AS sin_valor, ",
-        "COUNT(*) AS n_filas",
-        if (length(guarda)) {
-          paste0(", (", paste(paste0("COALESCE(", guarda, ", 0)"),
-                              collapse = " + "), ") AS guarda")
-        } else "",
-        " FROM ", esq$sql, " lupa_d"
+      if (.requiere_guarda_espacios_dbi(esq_ref, spec$pk, motor)) {
+        agregar_guarda_ref(
+          .sql_y(U_ref$sql, paste0("(", pk, " IS NOT NULL)"),
+                 .sql_guarda_espacios_dbi(pk, motor)),
+          .motivo_guarda_dbi(motor, esq_ref$cotejamientos[[spec$pk]])
+        )
+      }
+      if (length(U_dep$guardas)) {
+        agregar_guarda_dep(.sql_o(U_dep$guardas), U_dep$motivo_guarda)
+      }
+      if (length(U_ref$guardas)) {
+        agregar_guarda_ref(.sql_o(U_ref$guardas), U_ref$motivo_guarda)
+      }
+      cond_gd <- .sql_o(guardas_dep)
+      cond_gr <- .sql_o(guardas_ref)
+      if (identical(motor, "sqlserver")) {
+        # T-SQL no admite una subconsulta `EXISTS` dentro de `SUM(...)`;
+        # se proyectan los indicadores por fila en una tabla derivada.
+        partes_guarda <- c(
+          if (!is.null(cond_gd)) {
+            "COALESCE(SUM(CAST(lupa_gd AS BIGINT)), CAST(0 AS BIGINT))"
+          },
+          if (!is.null(cond_gr)) {
+            paste0("(SELECT ", .sql_suma(cond_gr, motor),
+                   " FROM ", esq_ref$sql, " lupa_r)")
+          }
+        )
+        expr_guarda_ss <- if (length(partes_guarda)) {
+          paste0(", (", paste(partes_guarda, collapse = " + "), ") AS guarda")
+        } else ""
+        consulta <- paste0(
+          "SELECT ",
+          "COALESCE(SUM(CAST(lupa_ev_ex AS BIGINT)), CAST(0 AS BIGINT)) AS num, ",
+          "COALESCE(SUM(CAST(lupa_ev AS BIGINT)), CAST(0 AS BIGINT)) AS den, ",
+          "COALESCE(SUM(CAST(lupa_u AS BIGINT)), CAST(0 AS BIGINT)) AS univ, ",
+          "COALESCE(SUM(CAST(lupa_sv AS BIGINT)), CAST(0 AS BIGINT)) AS sin_valor, ",
+          "COUNT_BIG(*) AS n_filas",
+          expr_guarda_ss,
+          " FROM (SELECT ",
+          "CASE WHEN ", .sql_y(evaluable, existe), " THEN 1 ELSE 0 END AS lupa_ev_ex, ",
+          "CASE WHEN ", evaluable, " THEN 1 ELSE 0 END AS lupa_ev, ",
+          "CASE WHEN ", .sql_y(U_dep$sql), " THEN 1 ELSE 0 END AS lupa_u, ",
+          "CASE WHEN ", .sql_y(U_dep$sql, paste0("(", fk_nulo, " IS NULL)")),
+          " THEN 1 ELSE 0 END AS lupa_sv",
+          if (!is.null(cond_gd)) {
+            paste0(", CASE WHEN ", cond_gd, " THEN 1 ELSE 0 END AS lupa_gd")
+          } else "",
+          " FROM ", esq$sql, " lupa_d) lupa_s"
+        )
+      } else {
+        guarda_sumas <- c(
+          if (!is.null(cond_gd)) .sql_suma(cond_gd, motor),
+          if (!is.null(cond_gr)) {
+            paste0("(SELECT ", .sql_suma(cond_gr, motor),
+                   " FROM ", esq_ref$sql, " lupa_r)")
+          }
+        )
+        expr_guarda_ref <- if (length(guarda_sumas)) {
+          if (motor %in% c("mysql", "mariadb")) {
+            sumas_num <- paste0("CAST(", guarda_sumas, " AS SIGNED)")
+            paste0(", CAST((", paste(sumas_num, collapse = " + "), ") AS CHAR) AS guarda")
+          } else {
+            paste0(", (", paste(paste0("COALESCE(", guarda_sumas, ", 0)"),
+                                collapse = " + "), ") AS guarda")
+          }
+        } else ""
+        consulta <- paste0(
+          "SELECT ", .sql_suma(.sql_y(evaluable, existe), motor), " AS num, ",
+          .sql_suma(evaluable, motor), " AS den, ",
+          .sql_suma(.sql_y(U_dep$sql), motor), " AS univ, ",
+          .sql_suma(.sql_y(U_dep$sql, paste0("(", fk_nulo, " IS NULL)")), motor), " AS sin_valor, ",
+          .sql_conteo_total(motor), " AS n_filas",
+          expr_guarda_ref,
+          " FROM ", esq$sql, " lupa_d"
+        )
+      }
+      list(
+        via = "sql_dedicado_referencial",
+        consulta = consulta,
+        motivo_guarda = motivo_guarda_ref
       )
-      list(via = "sql_dedicado_referencial", consulta = consulta)
     }
   ), lupa_no_traducible_dbi = function(e) e)
   if (inherits(r, "condition")) return(no(conditionMessage(r)))
@@ -1223,10 +2165,16 @@
                                     max_valores_in) {
   lapply(esquemas, function(esq) {
     function(instancia, columnas = instancia$atributos, alias = NULL) {
-      if (is.null(aplicabilidad) || !length(columnas)) return(list(sql = ""))
+      if (is.null(aplicabilidad) || !length(columnas)) {
+        return(list(sql = "", guardas = character(), motivo_guarda = NULL))
+      }
       reglas <- aplicabilidad[names(aplicabilidad) %in% intersect(columnas, esq$campos)]
-      if (!length(reglas)) return(list(sql = ""))
+      if (!length(reglas)) {
+        return(list(sql = "", guardas = character(), motivo_guarda = NULL))
+      }
       partes <- character()
+      guardas <- character()
+      motivo_guarda <- NULL
       for (f in reglas) {
         if (!.aplicabilidad_es_predicado_fila(f[[2L]])) {
           return(list(motivo = "no es una condici\u00f3n por fila"))
@@ -1237,8 +2185,12 @@
         )
         if (is.null(t$sql)) return(list(motivo = t$motivo))
         partes <- c(partes, .sql_dentro(t$sql))
+        if (length(t$guardas)) guardas <- unique(c(guardas, t$guardas))
+        if (is.null(motivo_guarda) && !is.null(t$motivo_guarda)) {
+          motivo_guarda <- t$motivo_guarda
+        }
       }
-      list(sql = .sql_y(partes))
+      list(sql = .sql_y(partes), guardas = guardas, motivo_guarda = motivo_guarda)
     }
   })
 }
@@ -1358,10 +2310,31 @@
   con <- resuelto$conexion
   entidades <- resuelto$entidades
   fisicas <- resuelto$fisicas
+  error_sesion <- NULL
+  sesion <- tryCatch(
+    .verificar_sesion_medicion_dbi(con, motor, contador = contador),
+    lupa_presupuesto_medicion_dbi = function(err) {
+      error_sesion <<- conditionMessage(err)
+      list(ok = FALSE, motor = motor, n_consultas = 0L, motivo = error_sesion)
+    },
+    error = function(err) {
+      list(
+        ok = FALSE, motor = motor, n_consultas = 0L,
+        motivo = paste0(
+          "no se pudieron consultar los metadatos de sesi\u00f3n de `", motor, "`"
+        )
+      )
+    }
+  )
   errores_esquema <- stats::setNames(vector("list", length(entidades)), entidades)
   esquemas <- stats::setNames(lapply(entidades, function(e) {
+    if (!is.null(error_sesion)) {
+      errores_esquema[[e]] <<- error_sesion
+      return(NULL)
+    }
     tryCatch(
-      .esquema_medicion_dbi(con, fisicas[[e]], motor, contador = contador),
+      .esquema_medicion_dbi(con, fisicas[[e]], motor,
+                            contador = contador, sesion = sesion),
       error = function(err) {
         errores_esquema[[e]] <<- if (
           inherits(err, "lupa_presupuesto_medicion_dbi")
@@ -1440,7 +2413,7 @@
     if (identical(comp$via, "no_medible")) return(a_bloques(comp$motivo))
     c(base, comp, list(columnas_bloque = cols_bloq))
   })
-  n_esquema_estimadas <- sum(vapply(
+  n_esquema_estimadas <- as.integer(sesion$n_consultas %||% 0L) + sum(vapply(
     Filter(Negate(is.null), esquemas),
     function(e) as.integer(e$n_consultas_esquema),
     integer(1L)
@@ -1485,34 +2458,35 @@
   .traer_consulta_dbi(conexion, sql)
 }
 
-.consolidada_medicion_dbi <- function(conexion, esq, items, contador) {
+.consolidada_medicion_dbi <- function(conexion, esq, items, contador,
+                                      motor = "sqlite") {
   agregados <- function(it) {
     j <- it$j
     c(
-      sprintf("%s AS m%d_rec", .sql_suma(.sql_y(it$universo_aplicabilidad)), j),
-      sprintf("%s AS m%d_univ", .sql_suma(.sql_y(it$universo)), j),
-      sprintf("%s AS m%d_den", .sql_suma(.sql_y(it$evaluable)), j),
+      sprintf("%s AS m%d_rec", .sql_suma(.sql_y(it$universo_aplicabilidad), motor), j),
+      sprintf("%s AS m%d_univ", .sql_suma(.sql_y(it$universo), motor), j),
+      sprintf("%s AS m%d_den", .sql_suma(.sql_y(it$evaluable), motor), j),
       if (identical(it$via, "sql_consolidado")) {
-        sprintf("%s AS m%d_num", .sql_suma(.sql_y(it$evaluable, it$cumple)), j)
+        sprintf("%s AS m%d_num", .sql_suma(.sql_y(it$evaluable, it$cumple), motor), j)
       },
       if (!is.null(it$sin_valor)) {
-        sprintf("%s AS m%d_sv", .sql_suma(.sql_y(it$universo_dentro, it$sin_valor)), j)
+        sprintf("%s AS m%d_sv", .sql_suma(.sql_y(it$universo_dentro, it$sin_valor), motor), j)
       },
       sprintf(
         "%s AS m%d_apl",
-        .sql_suma(.sql_y(it$universo_aplicabilidad, it$aplicable_sql %||% "")), j
+        .sql_suma(.sql_y(it$universo_aplicabilidad, it$aplicable_sql %||% ""), motor), j
       ),
       sprintf(
         "%s AS m%d_comp",
-        .sql_suma(.sql_y(it$universo_aplicabilidad, it$completas)), j
+        .sql_suma(.sql_y(it$universo_aplicabilidad, it$completas), motor), j
       ),
-      if (!is.null(it$guarda)) sprintf("%s AS m%d_g", .sql_suma(it$guarda), j),
-      if (!is.null(it$na_regla)) sprintf("%s AS m%d_na", .sql_suma(it$na_regla), j)
+      if (!is.null(it$guarda)) sprintf("%s AS m%d_g", .sql_suma(it$guarda, motor), j),
+      if (!is.null(it$na_regla)) sprintf("%s AS m%d_na", .sql_suma(it$na_regla, motor), j)
     )
   }
   correr <- function(grupo) {
     sql <- paste0(
-      "SELECT COUNT(*) AS n_filas, ",
+      "SELECT ", .sql_conteo_total(motor), " AS n_filas, ",
       paste(unlist(lapply(grupo, agregados)), collapse = ", "),
       " FROM ", esq$sql
     )
@@ -2003,10 +2977,11 @@ print.plan_medicion_dbi <- function(x, ...) {
 
 #' Medir un modelo de calidad dentro de una base de datos DBI
 #'
-#' Evalúa un modelo de calidad directamente en el motor SQL (SQLite y DuckDB
-#' verificados; los demás motores devuelven `no_medible` con su motivo según la
-#' política de motores) y devuelve un resumen de clase `medicion_resumen` con el
-#' mismo contrato de columnas que `medir(..., detalle = "resumen")`.
+#' Evalúa un modelo de calidad directamente en el motor SQL (SQLite, DuckDB,
+#' PostgreSQL actual y 9.3, MySQL, MariaDB y SQL Server verificados según la
+#' política de motores, sus verificaciones de metadatos y sus guardas) y
+#' devuelve un resumen de clase `medicion_resumen` con el mismo contrato de
+#' columnas que `medir(..., detalle = "resumen")`.
 #'
 #' Lo que el motor no puede reproducir con la semántica exacta de R se declara
 #' `no_medible` en `attr(resultado, "cobertura_metricas")` —nunca se aproxima
@@ -2159,7 +3134,8 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     if (!length(items)) next
     lotes <- .lotes_consolidada_medicion(items, senas, args$tamano_lote)
     for (lote in lotes) {
-      r <- .consolidada_medicion_dbi(con, p$esquemas[[e]], lote, contador)
+      r <- .consolidada_medicion_dbi(con, p$esquemas[[e]], lote, contador,
+                                     motor = motor)
       for (it in lote) {
         j <- it$j
         fallo <- if (!is.null(r$fallo)) r$fallo[as.character(j)] else NA_character_
@@ -2243,10 +3219,7 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       if (!is.null(q$guarda) && as.numeric(q$guarda) > 0) {
         cob(.no_medible_dbi(
           instancia, id_medicion, fecha,
-          paste(
-            "SQLite no valida UTF-8 y la clave tiene texto no ASCII: no se puede",
-            "garantizar que el motor lea los mismos valores que R"
-          ),
+          x$motivo_guarda %||% .motivo_guarda_dbi(motor),
           en_base = TRUE
         ))
         next
@@ -2302,10 +3275,7 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       next
     }
     if (!is.na(res$g) && res$g > 0) {
-      motivo_g <- paste(
-        "SQLite no valida UTF-8 y la columna tiene texto no ASCII: no se puede",
-        "garantizar que el motor lea los mismos valores que R"
-      )
+      motivo_g <- x$motivo_guarda %||% .motivo_guarda_dbi(motor)
       if (identical(estrategia_no_sql, "bloques") &&
           .separable_medicion_dbi(instancia, x$spec) &&
           length(instancia$entidad) == 1L &&
