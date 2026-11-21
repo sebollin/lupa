@@ -200,7 +200,29 @@ test_that("PostgreSQL aplica guardas de bpchar, float4, BIGINT, colacion no dete
   expect_identical(vias_utc[["NN_ch"]], "sql_consolidado")
   expect_identical(vias_utc[["VE_ch"]], "no_medible")
   expect_identical(vias_utc[["NN_fl4"]], "sql_consolidado")
-  expect_identical(vias_utc[["VE_fl4"]], "no_medible")
+  local({
+    datos <- list(g = DBI::dbReadTable(con, "lupa_medir_pg_g"))
+    esperado <- suppressWarnings(medir(
+      mod, datos, id_medicion = "pg_guardas", fecha = as.POSIXct(
+        "2026-11-21 12:00:00", tz = "UTC"
+      ), detalle = "resumen"
+    ))
+    obtenido <- suppressWarnings(medir_dbi(
+      mod, con, tablas = c(g = "lupa_medir_pg_g"),
+      id_medicion = "pg_guardas", fecha = as.POSIXct(
+        "2026-11-21 12:00:00", tz = "UTC"
+      )
+    ))
+    expect_identical(
+      attr(obtenido, "ejecucion_dbi", exact = TRUE)$vias[["VE_fl4"]],
+      "sql_consolidado"
+    )
+    .lmd_comparar_resumen(
+      esperado[esperado$metrica_instanciada == "VE_fl4", , drop = FALSE],
+      obtenido[obtenido$metrica_instanciada == "VE_fl4", , drop = FALSE],
+      info = "pg_ve_fl4"
+    )
+  })
   expect_identical(vias_utc[["NN_big"]], "no_medible")
   expect_identical(vias_utc[["OP_tz"]], "sql_consolidado")
   expect_identical(vias_utc[["OP_ts"]], "sql_consolidado")
@@ -209,7 +231,29 @@ test_that("PostgreSQL aplica guardas de bpchar, float4, BIGINT, colacion no dete
   DBI::dbExecute(con, "SET TIME ZONE 'America/Montevideo'")
   p_mvd <- plan_medicion_dbi(mod, con, tablas = c(g = "lupa_medir_pg_g"))
   vias_mvd <- stats::setNames(p_mvd$via, p_mvd$metrica_instanciada)
-  expect_identical(vias_mvd[["OP_tz"]], "no_medible")
+  local({
+    datos <- list(g = DBI::dbReadTable(con, "lupa_medir_pg_g"))
+    esperado <- suppressWarnings(medir(
+      mod, datos, id_medicion = "pg_huso", fecha = as.POSIXct(
+        "2026-11-21 12:00:00", tz = "UTC"
+      ), detalle = "resumen"
+    ))
+    obtenido <- suppressWarnings(medir_dbi(
+      mod, con, tablas = c(g = "lupa_medir_pg_g"),
+      id_medicion = "pg_huso", fecha = as.POSIXct(
+        "2026-11-21 12:00:00", tz = "UTC"
+      )
+    ))
+    expect_identical(
+      attr(obtenido, "ejecucion_dbi", exact = TRUE)$vias[["OP_tz"]],
+      "sql_consolidado"
+    )
+    .lmd_comparar_resumen(
+      esperado[esperado$metrica_instanciada == "OP_tz", , drop = FALSE],
+      obtenido[obtenido$metrica_instanciada == "OP_tz", , drop = FALSE],
+      info = "pg_op_tz"
+    )
+  })
   expect_identical(vias_mvd[["OP_ts"]], "sql_consolidado")
   DBI::dbExecute(con, "SET TIME ZONE 'UTC'")
 
@@ -289,7 +333,7 @@ test_that("PostgreSQL 9.3 traduce sin to_regclass ni collisdeterministic y guard
   p0 <- plan_medicion_dbi(mod, con, tablas = tablas)
   vias0 <- stats::setNames(p0$via, p0$metrica_instanciada)
   expect_identical(vias0[["NN_nd"]], "sql_consolidado")
-  expect_identical(vias0[["DUP_nd"]], "no_medible")
+  expect_identical(vias0[["DUP_nd"]], "sql_dedicado")
   expect_identical(vias0[["NN_txt"]], "sql_consolidado")
   expect_identical(vias0[["VE_dc"]], "sql_consolidado")
   expect_identical(vias0[["VE_txt"]], "sql_consolidado")
@@ -454,9 +498,22 @@ test_that("SQL Server aplica guardas de espacios finales, _BIN2, CHAR, DATETIMEO
   tablas <- c(g = "lupa_medir_ss_g", r = "lupa_medir_ss_gr")
   r <- suppressWarnings(medir_dbi(mod, con, tablas = tablas, id_medicion = "ssg", fecha = fecha))
   cob <- attr(r, "cobertura_metricas", exact = TRUE)
-  expect_setequal(r$metrica_instanciada, c("NN_ch", "NN_ci", "NN_dto"))
-  expect_true(all(c("VE_ch", "VE_ci", "VE_sp_data", "VE_sp_dom", "DUP_sp",
-                    "NN_cent_txt", "NN_big", "OP_dto", "REF_pk_sp") %in% cob$metrica_instanciada))
+  expect_identical(
+    attr(r, "ejecucion_dbi", exact = TRUE)$vias[c("NN_cent_txt", "OP_dto")],
+    c(NN_cent_txt = "sql_consolidado", OP_dto = "sql_consolidado")
+  )
+  .lmd_comparar_resumen(
+    suppressWarnings(medir(
+      mod,
+      list(
+        g = DBI::dbReadTable(con, "lupa_medir_ss_g"),
+        r = DBI::dbReadTable(con, "lupa_medir_ss_gr")
+      ),
+      id_medicion = "ssg", fecha = fecha, detalle = "resumen"
+    )),
+    r,
+    info = "ssg"
+  )
   expect_true(all(cob$estado == "no_medible"))
 
   # Con estrategia_no_sql = "bloques", VE_sp_data se resuelve por bloques con 0 diferencias

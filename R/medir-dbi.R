@@ -28,34 +28,37 @@
       "sql",
       "sql (NaN -> NULL)",
       "sql (NaN -> NULL)",
-      "sql (BIT y binarios no_medible bajo RMySQL)",
+      "sql (binarios no_medible bajo RMySQL)",
       "sql",
       "sql: COUNT_BIG y SUM(CAST(... AS BIGINT))"),
     f("no_ausente con centinela numerico o de fecha",
       "sql; fecha solo con tipos extendidos (si no, R lee un numero y la clase no coincide)",
       "sql",
-      "sql; timestamptz exige sesion en UTC; float4 no_medible y float8 exige extra_float_digits exacto",
-      "sql; TIMESTAMP exige sesion en UTC; tipos temporales leidos como texto y FLOAT bajo RMySQL no_medible",
+      "sql; float4, float8 y timestamptz emulan la lectura de R",
+      "sql; TIMESTAMP exige sesion en UTC; tipos temporales leidos como texto no_medible",
       "sql; TIMESTAMP exige sesion en UTC",
-      "sql sobre DATE, DATETIME y DATETIME2; DATETIMEOFFSET no_medible"),
+      "sql sobre DATE, DATETIME, DATETIME2 y DATETIMEOFFSET por epoca"),
     f("no_ausente con centinela de texto ASCII",
       "sql: TRIM de espacio, tab, LF, CR + REPLACE(U+0130, 'i') + LOWER, solo si el valor es ASCII",
       "sql: TRIM con chr() + REPLACE(U+0130, 'i') + LOWER, solo si el valor es ASCII",
       "sql_con_verificacion: colacion determinista, UTF8, lower('I') = 'i' y BTRIM; bpchar no_medible",
       "sql_con_verificacion: colacion binaria NO PAD, lower('I') = 'i' y REGEXP_REPLACE en bordes",
       "sql_con_verificacion: colacion binaria NO PAD (_nopad_bin), lower('I') = 'i' y REGEXP_REPLACE en bordes",
-      "no_medible: los espacios finales se ignoran en = e IN y el plegado depende de la colacion"),
+      "sql_con_guarda: _BIN2 y sin espacios finales; char/nchar no_medible"),
     f("no_ausente con centinela no ASCII",
-      "no_medible: LOWER de SQLite no pliega fuera de ASCII",
-      "no_medible: LOWER(U+212A) = 'k' en DuckDB y no en el paquete",
-      "no_medible", "no_medible", "no_medible", "no_medible"),
+      "sql_con_guarda: pliegue explicito; Unicode fuera del mapa no_medible",
+      "sql_con_guarda: pliegue explicito; Unicode fuera del mapa no_medible",
+      "sql_con_guarda: pliegue explicito; Unicode fuera del mapa no_medible",
+      "sql_con_guarda: pliegue explicito; Unicode fuera del mapa no_medible",
+      "sql_con_guarda: pliegue explicito; Unicode fuera del mapa no_medible",
+      "sql_con_guarda: pliegue explicito; Unicode fuera del mapa no_medible"),
     f("en_conjunto / Formato(diccionario) sobre numero, fecha o logico",
       "sql (logico: R lee entero; la clase no coincide con TRUE/FALSE y declina)",
       "sql",
-      "sql; timestamptz exige sesion en UTC; float4 no_medible",
-      "sql: literal de la misma clase, nunca numero contra texto; temporal como texto y FLOAT bajo RMySQL no_medible",
+      "sql; float4, float8 y timestamptz emulan la lectura de R",
+      "sql: literal de la misma clase; FLOAT bajo RMySQL emula su lectura textual",
       "sql: literal de la misma clase; TIMESTAMP exige sesion en UTC; BIT como 1/0",
-      "sql sobre numero, BIT, DATE, DATETIME y DATETIME2; DATETIMEOFFSET no_medible"),
+      "sql sobre numero, BIT, DATE, DATETIME, DATETIME2 y DATETIMEOFFSET por epoca"),
     f("en_conjunto / Formato(diccionario) sobre texto",
       "sql_con_guarda: texto no ASCII = 0 (SQLite no valida UTF-8 y R lee el byte invalido como NA); colacion BINARY",
       "sql: colacion por omision binaria",
@@ -66,26 +69,26 @@
     f("en_rango sobre numero, fecha o instante",
       "sql (fecha e instante solo con tipos extendidos)",
       "sql",
-      "sql; timestamptz exige sesion en UTC; float4 no_medible",
-      "sql; TIMESTAMP exige sesion en UTC; temporal como texto y FLOAT bajo RMySQL no_medible",
+      "sql; float4, float8 y timestamptz emulan la lectura de R",
+      "sql; TIMESTAMP exige sesion en UTC; FLOAT bajo RMySQL emula su lectura textual",
       "sql; TIMESTAMP exige sesion en UTC",
-      "sql sobre numero, DATE, DATETIME y DATETIME2; DATETIMEOFFSET no_medible"),
+      "sql sobre numero, DATE, DATETIME, DATETIME2 y DATETIMEOFFSET por epoca"),
     f("en_rango sobre texto",
       "no_medible", "no_medible", "no_medible", "no_medible", "no_medible", "no_medible"),
     f("fecha_en_rango (Oportunidad*)",
       "sql en segundos: col * 86400 o col (tipos extendidos); sin ellos R lee numero y las dos vias se abstienen",
       "sql en segundos: epoch()",
-      "sql: extract(epoch from ...) sobre DATE/TIMESTAMP; TIMESTAMPTZ exige sesion en UTC",
-      "sql: DATEDIFF / TIMESTAMPDIFF en microsegundos (si RMySQL lee texto, ambas vias se abstienen)",
+      "sql: extract(epoch from ...) sobre DATE/TIMESTAMP/TIMESTAMPTZ",
+      "sql: DATEDIFF / TIMESTAMPDIFF en microsegundos (la lectura textual de FLOAT se emula)",
       "sql: DATEDIFF / TIMESTAMPDIFF en microsegundos sobre DATE/DATETIME; TIMESTAMP exige sesion en UTC",
-      "sql: DATEDIFF_BIG en microsegundos sobre DATE/DATETIME/DATETIME2; DATETIMEOFFSET no_medible"),
+      "sql: DATEDIFF_BIG en microsegundos sobre DATE/DATETIME/DATETIME2/DATETIMEOFFSET"),
     f("duplicado sobre numero, fecha o instante",
       "sql (GROUP BY)",
       "sql (GROUP BY; NaN agrupa aparte de NULL, como R)",
-      "sql (GROUP BY; NaN agrupa aparte de NULL en conjunto y se excluye en atributo; float4 no_medible)",
-      "sql (GROUP BY; temporal como texto y FLOAT bajo RMySQL no_medible)",
+      "sql (GROUP BY; NaN agrupa aparte de NULL en conjunto y se excluye en atributo)",
+      "sql (GROUP BY; la lectura textual de FLOAT bajo RMySQL se emula)",
       "sql (GROUP BY; TIMESTAMP exige sesion en UTC)",
-      "sql (GROUP BY con COUNT_BIG; DATETIMEOFFSET no_medible)"),
+      "sql (GROUP BY con COUNT_BIG; DATETIMEOFFSET por epoca)"),
     f("duplicado sobre texto",
       "sql_con_guarda: texto no ASCII = 0 (AtributoDuplicado); ConjuntoAtributosDuplicado compara bytes en las dos vias",
       "sql",
@@ -95,10 +98,10 @@
       "sql_con_guarda: _BIN2 sobre varchar/nvarchar y espacios finales = 0; char/nchar no_medible"),
     f("predicado de fila con numeros y fechas (==, !=, <, <=, >, >=, is.na, %in%, !, &, |)",
       "sql", "sql",
-      "sql (timestamptz exige sesion en UTC; float4 no_medible)",
-      "sql (TIMESTAMP exige sesion en UTC; temporal como texto y FLOAT bajo RMySQL no_medible)",
+      "sql (float4, float8 y timestamptz emulan la lectura de R)",
+      "sql (TIMESTAMP exige sesion en UTC; FLOAT bajo RMySQL emula su lectura textual)",
       "sql (TIMESTAMP exige sesion en UTC)",
-      "sql: logica de tres valores compuesta con CASE; DATETIMEOFFSET no_medible"),
+      "sql: logica de tres valores compuesta con CASE; DATETIMEOFFSET por epoca"),
     f("predicado de fila con texto (==, !=, %in%, is.na)",
       "sql (colacion BINARY)",
       "sql (colacion binaria)",
@@ -114,8 +117,8 @@
       "no_medible: SQLite guarda el logico como entero",
       "sql",
       "sql",
-      "no_medible: MySQL guarda BOOLEAN como TINYINT(1) y RMySQL lee entero (y BIT no es fiable)",
-      "sql sobre BIT(1) (leido como logico); BOOLEAN/TINYINT(1) se lee como entero y declina por clase",
+      "sql sobre TINYINT(1); BIT no se compara bajo RMySQL",
+      "sql sobre BIT(1); BOOLEAN/TINYINT(1) conserva la comparacion logica",
       "sql sobre BIT con CASE de tres valores"),
     f("predicado de fila con %in% que incluye NA sobre doble con NaN",
       "sql (SQLite no guarda NaN)",
@@ -865,6 +868,29 @@
   FALSE
 }
 
+.es_tinyint_logico_dbi <- function(esq, columna, motor) {
+  if (!motor %in% c("mysql", "mariadb") ||
+      !identical(esq$clases[[columna]], "entero")) {
+    return(FALSE)
+  }
+  tipo <- if (!is.null(esq$tipos[[columna]])) esq$tipos[[columna]] else NA_character_
+  tipo <- gsub("[[:space:]]+", "", .minusculas_ascii(as.character(tipo)))
+  grepl("^tinyint\\(1\\)$", tipo, perl = TRUE, useBytes = TRUE)
+}
+
+.logico_entero_compatible_dbi <- function(esq, columna, clase_col,
+                                          clase_lit, motor) {
+  identical(clase_col, "entero") && identical(clase_lit, "logico") &&
+    !is.null(columna) && .es_tinyint_logico_dbi(esq, columna, motor)
+}
+
+.columna_como_epoca_dbi <- function(esq, columna, motor) {
+  tipo <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
+  (identical(motor, "postgresql") && identical(tipo, "timestamptz") &&
+     !isTRUE(esq$sesion$es_utc)) ||
+    (identical(motor, "sqlserver") && identical(tipo, "datetimeoffset"))
+}
+
 .sql_guarda_espacios_dbi <- function(expr, motor) {
   switch(
     motor,
@@ -916,7 +942,7 @@
   invisible(NULL)
 }
 
-.validar_columna_base_dbi <- function(esq, columna, motor) {
+.validar_columna_base_dbi <- function(esq, columna, motor, requiere_valor = TRUE) {
   tp <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
   if (is.na(tp) || !nzchar(tp)) return(invisible(NULL))
   if (motor %in% c("mysql", "mariadb")) {
@@ -927,7 +953,8 @@
         "` no escalar para traducci\u00f3n SQL en ", motor
       )
     }
-    if (identical(tp, "bit") && isTRUE(esq$sesion$es_rmysql)) {
+    if (identical(tp, "bit") && isTRUE(esq$sesion$es_rmysql) &&
+        isTRUE(requiere_valor)) {
       .no_traducible_dbi(
         "la columna `", columna, "` es `BIT` y RMySQL no la lee con fidelidad"
       )
@@ -966,28 +993,6 @@
       "valores mayores que 2^31 - 1 llegan a R cambiados"
     )
   }
-  if (identical(motor, "postgresql") && identical(tp, "float4")) {
-    .no_traducible_dbi(
-      "la columna `", columna, "` es `real` (`float4`): RPostgres la lee v\u00eda ",
-      "texto decimal y no coincide bit a bit con el doble del motor"
-    )
-  }
-  if (identical(motor, "postgresql") && identical(tp, "float8") &&
-      !isTRUE(sesion$float8_exacto)) {
-    .no_traducible_dbi(
-      "la columna `", columna, "` es `double precision` (`float8`) en PostgreSQL ",
-      "con `extra_float_digits = ", sesion$efd %||% "desconocido",
-      "`: el controlador recibe menos cifras que las que compara el motor ",
-      "(activar `SET extra_float_digits = 3` en PostgreSQL < 12)"
-    )
-  }
-  if (identical(motor, "mysql") && isTRUE(sesion$es_rmysql) &&
-      identical(tp, "float")) {
-    .no_traducible_dbi(
-      "la columna `", columna, "` es `FLOAT` de 32 bits: RMySQL la lee v\u00eda ",
-      "texto decimal y no coincide bit a bit con el doble del motor"
-    )
-  }
   if (identical(clase, "texto") && !is.na(tp) &&
       .tipo_declarado_temporal_dbi(tp)) {
     .no_traducible_dbi(
@@ -995,23 +1000,11 @@
       "`) como texto; el motor no compara texto sobre un tipo temporal como R"
     )
   }
-  if (identical(motor, "postgresql") && identical(tp, "timestamptz") &&
-      !isTRUE(sesion$es_utc)) {
-    .no_traducible_dbi(
-      "la columna `", columna, "` es `timestamptz` y la sesi\u00f3n de PostgreSQL ",
-      "no est\u00e1 en UTC (TimeZone = `", sesion$tz %||% "desconocido", "`)"
-    )
-  }
   if (motor %in% c("mysql", "mariadb") && identical(tp, "timestamp") &&
       !isTRUE(sesion$es_utc)) {
     .no_traducible_dbi(
       "la columna `", columna, "` es `TIMESTAMP` y la sesi\u00f3n de ", motor,
       " no est\u00e1 en UTC (time_zone = `", sesion$tz %||% "desconocido", "`)"
-    )
-  }
-  if (identical(motor, "sqlserver") && identical(tp, "datetimeoffset")) {
-    .no_traducible_dbi(
-      "la columna `", columna, "` es `DATETIMEOFFSET`: no se traduce en SQL Server"
     )
   }
   if (identical(clase, "texto")) {
@@ -1069,11 +1062,37 @@
   ref <- .citar_col_dbi(conexion, columna)
   if (!is.null(alias)) ref <- paste0(alias, ".", ref)
   tipo <- esq$tipos[[columna]]
+  tipo_base <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
+  lectura_controlador <- FALSE
+  if (identical(motor, "postgresql") && identical(tipo_base, "float4")) {
+    ref <- .lectura_real_postgresql_dbi(ref, version = esq$sesion$version_num)
+    lectura_controlador <- TRUE
+  } else if (identical(motor, "postgresql") && identical(tipo_base, "float8") &&
+             !isTRUE(esq$sesion$float8_exacto)) {
+    ref <- paste0("CAST(CAST(", ref, " AS TEXT) AS DOUBLE PRECISION)")
+    lectura_controlador <- TRUE
+  } else if (identical(motor, "mysql") && isTRUE(esq$sesion$es_rmysql) &&
+             identical(tipo_base, "float")) {
+    ref <- paste0("CAST(CAST(", ref, " AS CHAR) AS DOUBLE)")
+    lectura_controlador <- TRUE
+  }
+  if (.columna_como_epoca_dbi(esq, columna, motor)) {
+    ref <- if (identical(motor, "postgresql")) {
+      paste0("EXTRACT(EPOCH FROM ", ref, ")")
+    } else {
+      paste0(
+        "(CAST(DATEDIFF_BIG(microsecond, ",
+        "CAST('1970-01-01T00:00:00+00:00' AS DATETIMEOFFSET), ",
+        "SWITCHOFFSET(", ref, ", '+00:00')) AS FLOAT) / 1000000.0)"
+      )
+    }
+  }
   doble_declarado <- !is.na(tipo) && grepl(
     "^(DOUBLE|FLOAT|REAL|DECIMAL|NUMERIC|NUMBER|MONEY|SMALLMONEY)(\\(|$| )",
     tipo, useBytes = TRUE
   ) || .tipo_declarado_entero_ancho_dbi(tipo)
   if (identical(esq$clases[[columna]], "doble") && doble_declarado &&
+      !isTRUE(lectura_controlador) && !.columna_como_epoca_dbi(esq, columna, motor) &&
       motor %in% c("sqlite", "duckdb", "postgresql", "mysql", "mariadb", "sqlserver")) {
     ref <- paste0("CAST(", ref, " AS ", .tipo_doble_sql_dbi(motor), ")")
   }
@@ -1104,7 +1123,9 @@
   }
   if (is.na(valor) && !is.nan(valor)) return("NULL")
   clase_lit <- .clase_r_columna_dbi(valor)
-  if (!.clases_compatibles_sql(clase_col, clase_lit)) {
+  compatible_logico <- !is.null(esq) &&
+    .logico_entero_compatible_dbi(esq, columna, clase_col, clase_lit, motor)
+  if (!.clases_compatibles_sql(clase_col, clase_lit) && !compatible_logico) {
     .no_traducible_dbi(
       "compara una columna `", clase_col, "` con un valor `", clase_lit,
       "`: R convierte uno de los dos y el motor no lo hace igual"
@@ -1153,14 +1174,18 @@
         citado
       }
     },
-    logico = switch(
-      motor,
-      duckdb = , postgresql = if (valor) "TRUE" else "FALSE",
-      mariadb = , sqlserver = if (valor) "1" else "0",
-      .no_traducible_dbi(
-        "un l\u00f3gico en ", motor, ", que lo guarda como entero"
+    logico = if (compatible_logico) {
+      if (valor) "1" else "0"
+    } else {
+      switch(
+        motor,
+        duckdb = , postgresql = if (valor) "TRUE" else "FALSE",
+        mariadb = , sqlserver = if (valor) "1" else "0",
+        .no_traducible_dbi(
+          "un l\u00f3gico en ", motor, ", que lo guarda como entero"
+        )
       )
-    ),
+    },
     fecha = switch(
       motor,
       duckdb = , postgresql = , mysql = , mariadb = paste0(
@@ -1176,6 +1201,10 @@
         .no_traducible_dbi("un instante con fracci\u00f3n de segundo")
       }
       txt_ts <- format(valor, "%Y-%m-%d %H:%M:%S", tz = "UTC")
+      if (!is.null(esq) && !is.null(columna) &&
+          .columna_como_epoca_dbi(esq, columna, motor)) {
+        return(formatC(seg, digits = 17, format = "g"))
+      }
       switch(
         motor,
         duckdb = paste0("TIMESTAMP '", txt_ts, "'"),
@@ -1338,7 +1367,10 @@
         a$sql
       }
       lado_b <- if (!is.null(b$sql)) {
-        if (!.clases_compatibles_sql(a$clase, b$clase)) {
+        if (!.clases_compatibles_sql(a$clase, b$clase) &&
+            !.logico_entero_compatible_dbi(
+              esq, a$columna, a$clase, b$clase, motor
+            )) {
           .no_traducible_dbi("compara `", a$clase, "` con `", b$clase, "`")
         }
         if (identical(a$clase, "texto") && identical(b$clase, "texto") &&
@@ -1489,12 +1521,59 @@
     duckdb = paste0("(strlen(", expr, ") <> length(", expr, "))"),
     postgresql = paste0("(octet_length(", expr, ") <> char_length(", expr, "))"),
     mysql = , mariadb = paste0("(OCTET_LENGTH(", expr, ") <> CHAR_LENGTH(", expr, "))"),
+    sqlserver = paste0(
+      "(", expr, " COLLATE Latin1_General_100_BIN2 LIKE '%[^ -~]%')"
+    ),
     .no_traducible_dbi("la guarda de texto no ASCII en ", motor)
   )
 }
 
-.sql_plegado_centinela <- function(col, motor, conexion) {
-  i_punto <- as.character(DBI::dbQuoteString(conexion, intToUtf8(0x0130L)))
+.citar_texto_centinela_dbi <- function(conexion, motor, texto) {
+  citado <- as.character(DBI::dbQuoteString(conexion, enc2utf8(texto)))
+  if (identical(motor, "sqlserver")) paste0("N", citado) else citado
+}
+
+.mapa_plegado_centinela_dbi <- function(objetivos) {
+  objetivos <- unique(as.character(objetivos))
+  caracteres <- unique(unlist(lapply(objetivos, function(x) {
+    intToUtf8(utf8ToInt(x), multiple = TRUE)
+  }), use.names = FALSE))
+  no_ascii <- caracteres[grepl("[^\\001-\\177]", caracteres,
+                               perl = TRUE, useBytes = TRUE)]
+  if (!length(no_ascii) && !"i" %in% caracteres) return(data.frame())
+  candidatos <- intToUtf8(seq.int(0x00C0L, 0x024FL), multiple = TRUE)
+  filas <- lapply(no_ascii, function(objetivo) {
+    iguales <- vapply(candidatos, function(candidato) {
+      identical(as.character(.minusculas_para_comparar(candidato)), objetivo)
+    }, logical(1L))
+    candidatos[iguales & candidatos != objetivo]
+  })
+  altos <- unique(unlist(filas, use.names = FALSE))
+  if ("i" %in% caracteres) altos <- c(altos, intToUtf8(0x0130L))
+  altos <- unique(as.character(altos))
+  if (!length(altos)) return(data.frame())
+  bajos <- vapply(altos, function(alto) {
+    as.character(.minusculas_para_comparar(alto))
+  }, character(1L), USE.NAMES = FALSE)
+  data.frame(alto = altos, bajo = bajos, stringsAsFactors = FALSE)
+}
+
+.sql_centinela_sin_no_ascii_dbi <- function(expr, motor, conexion, objetivos) {
+  mapa <- .mapa_plegado_centinela_dbi(objetivos)
+  if (!nrow(mapa)) return(.sql_no_ascii(expr, motor))
+  resto <- expr
+  for (i in seq_len(nrow(mapa))) {
+    for (texto in c(mapa$alto[[i]], mapa$bajo[[i]])) {
+      resto <- paste0(
+        "REPLACE(", resto, ", ",
+        .citar_texto_centinela_dbi(conexion, motor, texto), ", '')"
+      )
+    }
+  }
+  .sql_no_ascii(resto, motor)
+}
+
+.sql_plegado_centinela <- function(col, motor, conexion, objetivos = character()) {
   recortado <- switch(
     motor,
     sqlite = paste0("TRIM(", col, ", ' ' || char(9) || char(10) || char(13))"),
@@ -1505,9 +1584,21 @@
       as.character(DBI::dbQuoteString(conexion, "^[ \t\n\r]+|[ \t\n\r]+$")),
       ", '')"
     ),
+    sqlserver = paste0("LTRIM(RTRIM(", col, "))"),
     .no_traducible_dbi("el recorte de bordes en ", motor)
   )
-  paste0("REPLACE(", recortado, ", ", i_punto, ", 'i')")
+  mapa <- .mapa_plegado_centinela_dbi(objetivos)
+  plegado <- recortado
+  if (nrow(mapa)) {
+    for (i in seq_len(nrow(mapa))) {
+      plegado <- paste0(
+        "REPLACE(", plegado, ", ",
+        .citar_texto_centinela_dbi(conexion, motor, mapa$alto[[i]]), ", ",
+        .citar_texto_centinela_dbi(conexion, motor, mapa$bajo[[i]]), ")"
+      )
+    }
+  }
+  paste0("LOWER(", plegado, ")")
 }
 
 # ---------------------------------------------------------------------------
@@ -1600,12 +1691,16 @@
   r <- tryCatch(switch(
     spec$nodo,
     no_ausente = {
-      .validar_columna_base_dbi(esq, spec$columna, motor)
+      .validar_columna_base_dbi(
+        esq, spec$columna, motor, requiere_valor = FALSE
+      )
       x <- col(spec$columna)
       clase <- esq$clases[[spec$columna]]
       aplicable <- ""
       g_apl <- character()
       mot_apl <- NULL
+      g_texto <- character()
+      mot_texto <- NULL
       if (!is.null(spec$aplicable)) {
         t <- .traducir_predicado_dbi(
           spec$aplicable[[2L]], environment(spec$aplicable),
@@ -1627,12 +1722,6 @@
             .no_traducible_dbi(
               "centinela de texto sobre una columna `", clase,
               "`: R compara el texto de cada valor"
-            )
-          }
-          if (identical(motor, "sqlserver")) {
-            .no_traducible_dbi(
-              "centinela de texto en SQL Server: los espacios finales se ignoran ",
-              "en `=` e `IN` y el plegado depende de la colaci\u00f3n"
             )
           }
           .validar_columna_comparacion_dbi(
@@ -1658,20 +1747,26 @@
           }
           objetivos <- unique(.minusculas_para_comparar(.texto_analizable(vn)$valores))
           objetivos <- objetivos[!is.na(objetivos)]
-          if (any(grepl("[^\\001-\\177]", objetivos, useBytes = TRUE, perl = TRUE))) {
-            .no_traducible_dbi(
-              "centinela no ASCII: el plegado de may\u00fasculas del motor no es el del paquete"
-            )
-          }
           if (length(objetivos) > max_valores_in) {
             .no_traducible_dbi("demasiados centinelas")
           }
           if (length(objetivos)) {
-            plegado <- .sql_plegado_centinela(x, motor, conexion)
+            plegado <- .sql_plegado_centinela(
+              x, motor, conexion, objetivos = objetivos
+            )
+            no_admitido <- .sql_centinela_sin_no_ascii_dbi(
+              plegado, motor, conexion, objetivos
+            )
+            g_texto <- no_admitido
+            mot_texto <- paste0(
+              "la columna `", spec$columna,
+              "` contiene texto fuera del subconjunto de plegado Unicode ",
+              "que el motor puede reproducir con exactitud"
+            )
             centinela <- paste0(
-              "(NOT ", .sql_no_ascii(plegado, motor), " AND LOWER(", plegado, ") IN (",
+              "(NOT ", no_admitido, " AND ", plegado, " IN (",
               paste(vapply(objetivos, function(o) {
-                as.character(DBI::dbQuoteString(conexion, o))
+                .citar_texto_centinela_dbi(conexion, motor, o)
               }, character(1L)), collapse = ", "), "))"
             )
           }
@@ -1693,7 +1788,10 @@
         }
       }
       cumple <- paste0("(", x, " IS NOT NULL AND NOT ", centinela, ")")
-      cg <- combinar_guardas(g_extra = g_apl, mot_extra = mot_apl)
+      cg <- combinar_guardas(
+        g_extra = c(g_apl, g_texto),
+        mot_extra = mot_apl %||% mot_texto
+      )
       list(
         via = "sql_consolidado",
         universo = universo,
@@ -1780,10 +1878,11 @@
             "SQL Server anterior a 2016 no dispone de `DATEDIFF_BIG`"
           )
         }
-        usa_micro <- (motor %in% c("mysql", "mariadb") &&
+        usa_epoca <- .columna_como_epoca_dbi(esq, spec$columna, motor)
+        usa_micro <- !usa_epoca && ((motor %in% c("mysql", "mariadb") &&
                         identical(clase, "instante")) ||
-          identical(motor, "sqlserver")
-        seg <- switch(
+          identical(motor, "sqlserver"))
+        seg <- if (usa_epoca) x else switch(
           motor,
           duckdb = if (identical(clase, "fecha")) {
             paste0("epoch(CAST(", x, " AS TIMESTAMP))")

@@ -237,8 +237,11 @@
   los seis motores (SQLite, DuckDB, PostgreSQL, MySQL, MariaDB y SQL Server),
   con la guarda que cada una necesita: el huso de la sesión, intercalaciones
   binarias o deterministas, espacios finales, la lógica de tres valores, cómo
-  lee el controlador los enteros grandes y sin signo. Los rangos de texto no se
-  traducen: su orden depende del locale en R y de la intercalación en el motor.
+  lee el controlador los enteros grandes y sin signo; los tipos que el
+  controlador lee con fidelidad (`REAL`, `timestamptz` con cualquier huso,
+  `DATETIMEOFFSET`, `BIT`, `TINYINT(1)`) se miden en el motor como los ve R. Los
+  rangos de texto no se traducen: su orden depende del locale en R y de la
+  intercalación en el motor.
 - `ReglaIntegridadIntraEntidad()` acepta una fórmula de fila
   (`regla = ~ is.na(inicio) | is.na(fin) | inicio <= fin`), que se interpreta
   como un árbol cerrado de columnas, literales y operadores, sin ejecutar

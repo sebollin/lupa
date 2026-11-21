@@ -180,9 +180,25 @@ test_that("MySQL reproduce memoria con utf8mb4_0900_bin NO PAD y aplica guardas 
     id_medicion = "myg", fecha = fecha
   ))
   cob_g <- attr(rg, "cobertura_metricas", exact = TRUE)
-  expect_setequal(rg$metrica_instanciada, c("NN_ci", "VE_pad_ok"))
-  expect_true(all(c("VE_ci", "VE_pad_sp", "VE_pad_dom", "NN_pad_cent",
-                    "VE_fl", "NN_bit", "VE_imp", "REF_pk_sp") %in% cob_g$metrica_instanciada))
+  expect_identical(
+    attr(rg, "ejecucion_dbi", exact = TRUE)$vias[
+      c("NN_ci", "VE_pad_ok", "VE_fl", "NN_bit")
+    ],
+    c(NN_ci = "sql_consolidado", VE_pad_ok = "sql_consolidado",
+      VE_fl = "sql_consolidado", NN_bit = "sql_consolidado")
+  )
+  .lmd_comparar_my(
+    suppressWarnings(medir(
+      mod_g,
+      list(
+        g = DBI::dbReadTable(con, "lupa_medir_my_g"),
+        r = DBI::dbReadTable(con, "lupa_medir_my_gr")
+      ),
+      id_medicion = "myg", fecha = fecha, detalle = "resumen"
+    )),
+    rg,
+    info = "myg"
+  )
   expect_true(all(cob_g$estado == "no_medible"))
 
   mod_b <- modelo(.lmd_inst_my(nuc$ValoresPosiblesPorExtension, "VE_pad_sp", "g", "v_pad", valores = c("a", "b")))
