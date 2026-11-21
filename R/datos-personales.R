@@ -4784,7 +4784,32 @@
     coinciden <- vapply(seq_along(textos_sensibles), function(k) {
       any(startsWith(evidencia, prefijos[c(k, length(textos_sensibles) + k)]))
     }, logical(1L))
-    if (!any(coinciden)) next
+    if (!any(coinciden)) {
+      # Una dependencia por interaccion nombra dos determinantes en la misma
+      # evidencia. Si uno esta protegido, reconocerlo con el prefijo del texto
+      # no alcanza porque puede ser el segundo de la pareja.
+      interaccion <- vapply(textos_sensibles, function(texto) {
+        grepl(
+          paste0("`", texto, "` = "), evidencia,
+          fixed = TRUE, useBytes = TRUE
+        )
+      }, logical(1L))
+      if (!any(interaccion)) next
+      determinantes <- textos_sensibles[interaccion]
+      hallazgos$evidencia[[i]] <- paste0(
+        "[evidencia protegida] La proporci\u00f3n de ausentes cambia seg\u00fan ",
+        "una combinaci\u00f3n que incluye ",
+        paste0("`", determinantes, "`", collapse = " y "),
+        "; no se publican sus valores ni la comparaci\u00f3n entre celdas."
+      )
+      hallazgos$sugerencia[[i]] <- paste0(
+        "Revisar si la ausencia depende de la combinaci\u00f3n de los ",
+        "determinantes protegidos y declarar el universo confirmado con ",
+        "`aplicabilidad`; el criterio no se reproduce porque una columna ",
+        "esta protegida."
+      )
+      next
+    }
     candidatos <- textos_sensibles[coinciden]
     determinante <- candidatos[[which.max(nchar(candidatos, type = "bytes"))]]
     hallazgos$evidencia[[i]] <- paste0(

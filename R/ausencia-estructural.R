@@ -637,9 +637,27 @@
       identical(as.character(h$tipo_hallazgo[[1L]]), tipo)
     }, logical(1L))]
     if (!length(senales_tipo)) next
+    frase <- frases[[tipo]]
+    if (identical(tipo, "ausencia_dependiente")) {
+      es_interaccion <- any(vapply(senales_tipo, function(h) {
+        traza <- h$trazabilidad[[1L]]
+        is.list(traza) && identical(traza$tipo_dependencia, "interaccion")
+      }, logical(1L)))
+      if (es_interaccion) {
+        frase <- paste0(
+          ". Hay adem\u00e1s un hallazgo `ausencia_dependiente`: la proporci\u00f3n ",
+          "de ausentes cambia seg\u00fan los valores de otras columnas, lo que ",
+          "puede ser un bloque que no se carg\u00f3 o una columna que s\u00f3lo se ",
+          "completa en ciertos grupos."
+        )
+      }
+    }
     columnas <- unique(unlist(lapply(senales_tipo, function(h) {
       traza <- h$trazabilidad[[1L]]
-      if (is.list(traza) && length(traza$columnas)) {
+      if (identical(tipo, "ausencia_dependiente") &&
+          is.list(traza) && length(traza$columna_objetivo)) {
+        as.character(traza$columna_objetivo)
+      } else if (is.list(traza) && length(traza$columnas)) {
         as.character(traza$columnas)
       } else if (identical(tipo, "faltantes_conjuntos")) {
         .separar_nombres_columnas_historico(
@@ -656,7 +674,7 @@
     if (!any(objetivo)) next
     hallazgos$evidencia[objetivo] <- paste0(
       sub("[.[:space:]]*$", "", hallazgos$evidencia[objetivo]),
-      frases[[tipo]]
+      frase
     )
   }
   hallazgos
@@ -952,6 +970,18 @@
 .min_ausentes_grupo_dependiente <- 10L
 .max_columnas_dependiente <- 40L
 .max_determinantes_dependiente <- 40L
+# Una interaccion se arma solo con candidatos por niveles: el producto de sus
+# cardinalidades acota la grilla y permite exigir soporte en cada celda.
+.max_pares_interaccion_ausencia <- 120L
+.min_celdas_interaccion_ausencia <- 4L
+.min_prop_celdas_interaccion_ausencia <- 0.50
+# El p ajustado debe ser muy pequeno porque la tabla elige una pareja extrema
+# entre muchas combinaciones; Bonferroni ya corrige la cantidad de pruebas, y
+# este nivel protege el objetivo de falsos positivos en tablas pequenas.
+.max_p_ajustado_ausencia_dependiente <- 0.0001
+# En parejas, la diferencia sola puede ser grande en una celda elegida al azar;
+# V de Cramer exige que la asociacion global tambien tenga magnitud suficiente.
+.min_v_cramer_interaccion_ausencia <- 0.23
 
 .cobertura_patron_ausencia <- function(diagnostico, columna, motivo, como,
                                        columnas = NULL) {
@@ -1099,6 +1129,318 @@
   )
 }
 
+# La eleccion de la celda mas alta y la mas baja es descriptiva, no una prueba:
+# elegir extremos entre muchos grupos sesga la diferencia hacia arriba. La tabla
+# completa se contrasta primero con una prueba global. Se usa Fisher cuando hay
+# esperados chicos y chi-cuadrado en el resto; V de Cramer queda basado en el
+# mismo estadistico de Pearson y no en el p-valor elegido.
+.prueba_global_ausencia <- function(n_ausentes, n_totales) {
+  if (length(n_ausentes) < 2L || length(n_ausentes) != length(n_totales)) {
+    return(NULL)
+  }
+  n_ausentes <- as.numeric(n_ausentes)
+  n_totales <- as.numeric(n_totales)
+  presentes <- n_totales - n_ausentes
+  if (any(!is.finite(n_ausentes)) || any(!is.finite(n_totales)) ||
+      any(n_ausentes < 0) || any(presentes < 0) ||
+      any(n_totales <= 0)) {
+    return(NULL)
+  }
+  proporciones <- n_ausentes / n_totales
+  diferencia <- max(proporciones) - min(proporciones)
+  # Una diferencia menor al efecto minimo no puede publicar un hallazgo,
+  # aunque la tabla tenga un p-valor pequeno por su tamano. Se descarta antes
+  # de armar la contingencia y de calcular esperados.
+  if (!is.finite(diferencia) ||
+      diferencia < .min_diferencia_ausencia_dependiente) {
+    return(NULL)
+  }
+  total <- sum(n_totales)
+  total_ausentes <- sum(n_ausentes)
+  total_presentes <- total - total_ausentes
+  esperado_ausente <- n_totales * total_ausentes / total
+  esperado_presente <- n_totales * total_presentes / total
+  estadistico <- sum(
+    (n_ausentes - esperado_ausente)^2 / esperado_ausente,
+    (presentes - esperado_presente)^2 / esperado_presente,
+    na.rm = TRUE
+  )
+  esperados <- c(esperado_ausente, esperado_presente)
+  grados_libertad <- length(n_totales) - 1L
+  p_chi <- stats::pchisq(estadistico, grados_libertad, lower.tail = FALSE)
+  p_valor <- p_chi
+  metodo <- "chi-cuadrado"
+  if (any(esperados < 5)) {
+    # Fisher solo se arma cuando el soporte esperado es chico; en el camino
+    # habitual el chi-cuadrado usa las dos columnas vectorizadas de arriba.
+    tabla <- cbind(
+      ausentes = n_ausentes,
+      presentes = presentes
+    )
+    fisher <- tryCatch(
+      suppressWarnings(stats::fisher.test(
+        tabla, hybrid = TRUE, workspace = 2e6
+      )),
+      error = function(e) NULL
+    )
+    if (!is.null(fisher) && is.finite(fisher$p.value)) {
+      p_valor <- fisher$p.value
+      metodo <- "Fisher"
+    }
+  }
+  list(
+    p_valor = as.numeric(p_valor),
+    estadistico = as.numeric(estadistico),
+    v_cramer = sqrt(max(0, estadistico / total)),
+    diferencia = diferencia,
+    metodo = metodo
+  )
+}
+
+.extremos_proporcion_ausencia <- function(proporciones) {
+  alto <- which.max(proporciones)
+  bajo <- which.min(proporciones)
+  # Con todas las proporciones iguales `which.max()` y `which.min()` devuelven
+  # la misma celda. Se conserva una pareja determinista para que la prueba
+  # siga contando y el filtro de efecto sea el que calle el hallazgo.
+  if (alto == bajo && length(proporciones) > 1L) {
+    bajo <- if (alto == 1L) 2L else 1L
+  }
+  c(alto = alto, bajo = bajo)
+}
+
+.ajuste_simple_ausencia <- function(ausente, determinante, candidato) {
+  n_ausentes_grupo <- tabulate(
+    candidato$codigos[ausente[determinante$usable]],
+    length(candidato$n_por)
+  )
+  prueba <- .prueba_global_ausencia(n_ausentes_grupo, candidato$n_por)
+  if (is.null(prueba)) return(NULL)
+  proporciones <- n_ausentes_grupo / candidato$n_por
+  extremos <- .extremos_proporcion_ausencia(proporciones)
+  alto <- extremos[["alto"]]
+  bajo <- extremos[["bajo"]]
+  razon <- if (proporciones[[bajo]] > 0) {
+    proporciones[[alto]] / proporciones[[bajo]]
+  } else {
+    Inf
+  }
+  c(
+    list(
+      tipo = candidato$tipo,
+      etiqueta_alta = candidato$etiquetas[[alto]],
+      etiqueta_baja = candidato$etiquetas[[bajo]],
+      n_alto = candidato$n_por[[alto]],
+      n_bajo = candidato$n_por[[bajo]],
+      n_ausentes_alto = n_ausentes_grupo[[alto]],
+      n_ausentes_bajo = n_ausentes_grupo[[bajo]],
+      proporcion_alta = proporciones[[alto]],
+      proporcion_baja = proporciones[[bajo]],
+      diferencia = prueba$diferencia,
+      razon = razon,
+      n_grupos = length(candidato$n_por),
+      n_celdas = length(candidato$n_por),
+      n_evaluados = determinante$n_usables,
+      n_afectados = sum(n_ausentes_grupo),
+      detalle = determinante,
+      candidato = candidato
+    ),
+    list(
+      p_valor = prueba$p_valor, v_cramer = prueba$v_cramer,
+      metodo_prueba = prueba$metodo, p_ajustado = NA_real_
+    )
+  )
+}
+
+.p_ajustado_ausencia_texto <- function(p) {
+  if (!is.finite(p)) return("no disponible")
+  if (p < 0.0001) return("<0.0001")
+  .formatear_decimal_publicado(p, 4L)
+}
+
+.evidencia_prueba_ausencia <- function(ajuste, unidad) {
+  paste0(
+    ". La mayor y la menor proporci\u00f3n se eligieron entre ",
+    ajuste$n_grupos, " ", unidad,
+    "; prueba global de independencia (", ajuste$metodo_prueba,
+    ") con V de Cram\u00e9r ",
+    .formatear_decimal_publicado(ajuste$v_cramer, 3L),
+    " y p ajustado ", .p_ajustado_ausencia_texto(ajuste$p_ajustado),
+    " (Bonferroni sobre ", ajuste$n_pruebas,
+    if (ajuste$n_pruebas == 1L) " prueba en la tabla)" else
+      " pruebas en la tabla)"
+  )
+}
+
+# Las parejas se ordenan por el tamano de la grilla antes que por los nombres:
+# una tabla de dos binarias es barata y tiene celdas con buen soporte, mientras
+# que una grilla de veinte por veinte consume mas y ofrece mas oportunidades de
+# encontrar una diferencia por azar. El orden por bytes hace que el tope sea
+# reproducible entre locales.
+.pares_interaccion_ausencia <- function(determinantes) {
+  if (length(determinantes) < 2L) return(list())
+  tiene_niveles <- vapply(determinantes, function(det) {
+    any(vapply(det$candidatos, function(candidato) {
+      identical(candidato$tipo, "niveles")
+    }, logical(1L)))
+  }, logical(1L))
+  indices <- which(tiene_niveles)
+  if (length(indices) < 2L) return(list())
+  nivel <- lapply(determinantes[indices], function(det) {
+    det$candidatos[[which(vapply(det$candidatos, function(candidato) {
+      identical(candidato$tipo, "niveles")
+    }, logical(1L)))[[1L]]]]
+  })
+  usables <- lapply(determinantes[indices], `[[`, "usable")
+  codigos_completos <- lapply(seq_along(indices), function(i) {
+    codigos <- integer(length(usables[[i]]))
+    codigos[usables[[i]]] <- nivel[[i]]$codigos
+    codigos
+  })
+  nombres <- vapply(determinantes[indices], `[[`, character(1L), "nombre")
+  pares <- list()
+  for (i in seq_len(length(indices) - 1L)) {
+    for (j in seq.int(i + 1L, length(indices))) {
+      n_niveles_primero <- length(nivel[[i]]$n_por)
+      n_niveles_segundo <- length(nivel[[j]]$n_por)
+      usable <- usables[[i]] & usables[[j]]
+      n_celdas <- n_niveles_primero * n_niveles_segundo
+      cache <- list(usable = usable, n_celdas = n_celdas)
+      if (sum(usable) >= 2L * .min_grupo_ausencia_dependiente) {
+        celdas <- (codigos_completos[[i]][usable] - 1L) *
+          n_niveles_segundo + codigos_completos[[j]][usable]
+        por_celda <- tabulate(celdas, nbins = n_celdas)
+        observadas <- which(por_celda > 0L)
+        cache$celdas <- celdas
+        cache$por_celda <- por_celda
+        cache$observadas <- observadas
+        cache$soporte <- length(observadas) >= .min_celdas_interaccion_ausencia &&
+          length(observadas) >= n_celdas * .min_prop_celdas_interaccion_ausencia &&
+          !any(por_celda[observadas] < .min_grupo_ausencia_dependiente)
+      } else {
+        cache$soporte <- FALSE
+      }
+      pares[[length(pares) + 1L]] <- list(
+        primero = indices[[i]], segundo = indices[[j]],
+        candidato_primero = nivel[[i]], candidato_segundo = nivel[[j]],
+        cardinalidad = n_celdas,
+        clave = paste(nombres[[i]], nombres[[j]], sep = "\001"),
+        cache = cache
+      )
+    }
+  }
+  if (length(pares) < 2L) return(pares)
+  orden <- .orden_por_bytes(
+    vapply(pares, `[[`, numeric(1L), "cardinalidad"),
+    vapply(pares, `[[`, character(1L), "clave")
+  )
+  pares[orden]
+}
+
+# Evalua una pareja sobre las filas donde ambos determinantes estan presentes.
+# Las celdas sin filas no se rellenan: una interaccion no puede sostenerse en un
+# nivel que no aparecio en la muestra.
+.determinacion_interaccion_ausencia <- function(presente, primero, segundo,
+                                                candidato_primero,
+                                                candidato_segundo,
+                                                cache = NULL) {
+  n_niveles_primero <- length(candidato_primero$n_por)
+  n_niveles_segundo <- length(candidato_segundo$n_por)
+  if (is.null(cache)) {
+    codigo_primero <- integer(length(presente))
+    codigo_segundo <- integer(length(presente))
+    codigo_primero[primero$usable] <- candidato_primero$codigos
+    codigo_segundo[segundo$usable] <- candidato_segundo$codigos
+    usable <- primero$usable & segundo$usable
+    if (sum(usable) < 2L * .min_grupo_ausencia_dependiente) return(NULL)
+    celdas <- (codigo_primero[usable] - 1L) * n_niveles_segundo +
+      codigo_segundo[usable]
+    n_celdas <- n_niveles_primero * n_niveles_segundo
+    por_celda <- tabulate(celdas, nbins = n_celdas)
+    observadas <- which(por_celda > 0L)
+    soporte <- length(observadas) >= .min_celdas_interaccion_ausencia &&
+      length(observadas) >= n_celdas * .min_prop_celdas_interaccion_ausencia &&
+      !any(por_celda[observadas] < .min_grupo_ausencia_dependiente)
+  } else {
+    usable <- cache$usable
+    n_celdas <- cache$n_celdas
+    celdas <- cache$celdas
+    por_celda <- cache$por_celda
+    observadas <- cache$observadas
+    soporte <- cache$soporte
+  }
+  if (!isTRUE(soporte)) {
+    return(NULL)
+  }
+  ausentes <- if (!is.null(cache) && !is.null(cache$ausentes)) {
+    cache$ausentes
+  } else {
+    tabulate(celdas[!presente[usable]], nbins = n_celdas)
+  }
+  prueba <- .prueba_global_ausencia(
+    ausentes[observadas], por_celda[observadas]
+  )
+  if (is.null(prueba)) return(NULL)
+  proporciones <- ausentes / por_celda
+  extremos <- .extremos_proporcion_ausencia(proporciones[observadas])
+  alto <- observadas[[extremos[["alto"]]]]
+  bajo <- observadas[[extremos[["bajo"]]]]
+  diferencia <- prueba$diferencia
+  # La misma pareja de celdas tiene que sostener el efecto en dos mitades
+  # alternas de cada celda. La particion evita que la eleccion de la celda mas
+  # extrema se justifique solo con las filas que la eligieron; cada mitad
+  # conserva la mitad del soporte minimo, sin agregar otra dependencia.
+  valida_mitad <- function(mitad) {
+    cuenta_mitad <- tabulate(celdas[mitad], nbins = n_celdas)
+    if (any(cuenta_mitad[observadas] <
+            ceiling(.min_grupo_ausencia_dependiente / 2))) {
+      return(FALSE)
+    }
+    ausentes_mitad <- tabulate(
+      celdas[mitad & !presente[usable]], nbins = n_celdas
+    )
+    diferencia_mitad <- ausentes_mitad[[alto]] / cuenta_mitad[[alto]] -
+      ausentes_mitad[[bajo]] / cuenta_mitad[[bajo]]
+    diferencia_mitad >= .min_diferencia_ausencia_dependiente &&
+      ausentes_mitad[[alto]] >= ceiling(.min_ausentes_grupo_dependiente / 2)
+  }
+  mitad <- seq_along(celdas) %% 2L == 0L
+  if (!valida_mitad(mitad) || !valida_mitad(!mitad)) return(NULL)
+  codigo_de_celda <- function(celda) {
+    c(
+      (celda - 1L) %/% n_niveles_segundo + 1L,
+      (celda - 1L) %% n_niveles_segundo + 1L
+    )
+  }
+  indices_alto <- codigo_de_celda(alto)
+  indices_bajo <- codigo_de_celda(bajo)
+  razon <- if (proporciones[[bajo]] > 0) {
+    proporciones[[alto]] / proporciones[[bajo]]
+  } else {
+    Inf
+  }
+  list(
+    tipo = "interaccion",
+    etiqueta_alta = c(
+      candidato_primero$etiquetas[[indices_alto[[1L]]]],
+      candidato_segundo$etiquetas[[indices_alto[[2L]]]]
+    ),
+    etiqueta_baja = c(
+      candidato_primero$etiquetas[[indices_bajo[[1L]]]],
+      candidato_segundo$etiquetas[[indices_bajo[[2L]]]]
+    ),
+    n_alto = por_celda[[alto]], n_bajo = por_celda[[bajo]],
+    n_ausentes_alto = ausentes[[alto]], n_ausentes_bajo = ausentes[[bajo]],
+    proporcion_alta = proporciones[[alto]],
+    proporcion_baja = proporciones[[bajo]], diferencia = diferencia,
+    razon = razon, n_grupos = length(observadas),
+    n_celdas = n_celdas, n_evaluados = sum(usable),
+    n_afectados = sum(ausentes[observadas]), usable = usable,
+    p_valor = prueba$p_valor, v_cramer = prueba$v_cramer,
+    metodo_prueba = prueba$metodo, p_ajustado = NA_real_
+  )
+}
+
 .hallazgo_faltantes_conjuntos <- function(nombres_grupo, n_ausentes_grupo,
                                           interseccion, n, jaccard, lift,
                                           columnas_texto,
@@ -1190,6 +1532,7 @@
       } else {
         "infinito"
       },
+      .evidencia_prueba_ausencia(ajuste, "grupos"),
       ". Medido sobre ", ajuste$n_evaluados,
       if (ajuste$n_evaluados == 1L) " fila con el determinante presente." else
         " filas con el determinante presente."
@@ -1199,6 +1542,64 @@
       "es, declararlo con `aplicabilidad` o `columnas_opcionales`. Si la ",
       "ausencia depende del valor -por ejemplo, un registro que se corta al ",
       "llegar a un tope-, documentarlo antes de imputar o de comparar grupos."
+    ),
+    ajuste$n_evaluados, ajuste$n_afectados, "fila"
+  )
+}
+
+.hallazgo_ausencia_interaccion <- function(columna, determinante_primero,
+                                           determinante_segundo, ajuste,
+                                           columna_texto,
+                                           determinante_primero_texto,
+                                           determinante_segundo_texto) {
+  combinacion <- function(texto_determinante, texto_valor) {
+    paste0("`", texto_determinante, "` = ", .texto_valores_nivel(texto_valor))
+  }
+  grupo_alto <- paste(
+    combinacion(determinante_primero_texto, ajuste$etiqueta_alta[[1L]]),
+    combinacion(determinante_segundo_texto, ajuste$etiqueta_alta[[2L]]),
+    sep = " y "
+  )
+  grupo_bajo <- paste(
+    combinacion(determinante_primero_texto, ajuste$etiqueta_baja[[1L]]),
+    combinacion(determinante_segundo_texto, ajuste$etiqueta_baja[[2L]]),
+    sep = " y "
+  )
+  .nuevo_hallazgo(
+    columna, "ausencia_dependiente", "ok",
+    paste0(
+      "La ausencia de esta columna depende de la combinaci\u00f3n de dos columnas: ",
+      "falta m\u00e1s en una celda que en otra. Puede ser un bloque que no se carg\u00f3 ",
+      "o una columna que s\u00f3lo se completa en ciertos grupos; la asociaci\u00f3n ",
+      "describe la estructura de la ausencia y no prueba un defecto."
+    ),
+    paste0(
+      "En la combinaci\u00f3n ", grupo_alto, " faltan ", ajuste$n_ausentes_alto,
+      " de ", ajuste$n_alto, " (",
+      .formatear_decimal_publicado(100 * ajuste$proporcion_alta, 1L),
+      " %); en ", grupo_bajo, " faltan ", ajuste$n_ausentes_bajo, " de ",
+      ajuste$n_bajo, " (",
+      .formatear_decimal_publicado(100 * ajuste$proporcion_baja, 1L),
+      " %). Diferencia: ",
+      .formatear_decimal_publicado(100 * ajuste$diferencia, 1L),
+      " puntos porcentuales; cociente de riesgos: ",
+      if (is.finite(ajuste$razon)) {
+        .formatear_decimal_publicado(ajuste$razon, 2L)
+      } else {
+        "infinito"
+      },
+      .evidencia_prueba_ausencia(
+        ajuste,
+        paste0("celdas observadas (de ", ajuste$n_celdas, " posibles)")
+      ),
+      ". Medido sobre ", ajuste$n_evaluados,
+      if (ajuste$n_evaluados == 1L) " fila con ambos determinantes presentes." else
+        " filas con ambos determinantes presentes."
+    ),
+    paste0(
+      "Revisar si la ausencia depende de la combinaci\u00f3n observada; si es un ",
+      "universo distinto, declararlo con `aplicabilidad` o `columnas_opcionales`.",
+      " La se\u00f1al no reemplaza la confirmaci\u00f3n de la regla del dato."
     ),
     ajuste$n_evaluados, ajuste$n_afectados, "fila"
   )
@@ -1548,59 +1949,149 @@
     }
   }
 
+  # Se guardan todas las tablas con soporte antes de elegir los extremos. Asi
+  # la cantidad de pruebas no depende de que una diferencia grande haya ganado
+  # la seleccion previa, y el ajuste de Bonferroni cubre simples e interacciones
+  # en una sola familia por tabla.
+  pruebas <- list()
+  n_candidatos_prueba <- 0L
   for (objetivo in indices_dependencia) {
     ausente_objetivo <- ausentes[[objetivo]]
-    mejor <- NULL
     for (det in determinantes) {
       if (det$indice == objetivo) next
       if (nombres_operativos[[det$indice]] %in% excluidas_determinante) next
       for (candidato in det$candidatos) {
-        n_ausentes_grupo <- tabulate(
-          candidato$codigos[ausente_objetivo[det$usable]],
-          length(candidato$n_por)
+        n_candidatos_prueba <- n_candidatos_prueba + 1L
+        ajuste <- .ajuste_simple_ausencia(
+          ausente_objetivo, det, candidato
         )
-        proporciones <- n_ausentes_grupo / candidato$n_por
-        alto <- which.max(proporciones)
-        bajo <- which.min(proporciones)
-        if (alto == bajo) next
-        diferencia <- proporciones[[alto]] - proporciones[[bajo]]
-        if (diferencia < .min_diferencia_ausencia_dependiente) next
-        if (n_ausentes_grupo[[alto]] < .min_ausentes_grupo_dependiente) next
-        if (candidato$n_por[[alto]] < .min_grupo_ausencia_dependiente ||
-            candidato$n_por[[bajo]] < .min_grupo_ausencia_dependiente) {
-          next
-        }
-        razon <- if (proporciones[[bajo]] > 0) {
-          proporciones[[alto]] / proporciones[[bajo]]
-        } else {
-          Inf
-        }
-                  ajuste <- list(
-                    tipo = candidato$tipo,
-                    etiqueta_alta = candidato$etiquetas[[alto]],
-                    etiqueta_baja = candidato$etiquetas[[bajo]],
-                    n_alto = candidato$n_por[[alto]],
-                    n_bajo = candidato$n_por[[bajo]],
-                    n_ausentes_alto = n_ausentes_grupo[[alto]],
-                    n_ausentes_bajo = n_ausentes_grupo[[bajo]],
-                    proporcion_alta = proporciones[[alto]],
-                    proporcion_baja = proporciones[[bajo]],
-                    diferencia = diferencia,
-                    razon = razon,
-                    n_grupos = length(candidato$n_por),
-                    n_evaluados = det$n_usables,
-                    n_afectados = sum(n_ausentes_grupo),
-                    detalle = det
-                  )
-                  if (is.null(mejor) || diferencia > mejor$diferencia ||
-                      (diferencia == mejor$diferencia &&
-                         ajuste$n_grupos < mejor$n_grupos)) {
-                    mejor <- ajuste
-                  }
+        if (is.null(ajuste)) next
+        ajuste$familia <- "simple"
+        ajuste$objetivo <- objetivo
+        pruebas[[length(pruebas) + 1L]] <- ajuste
       }
     }
+  }
+
+  # La interaccion es la segunda lectura del mismo indicador de ausencia. Se
+  # cuentan todas las parejas con soporte, aunque luego solo se publique una si
+  # ninguna dependencia simple pasa los dos filtros.
+  pares <- .pares_interaccion_ausencia(determinantes)
+  if (length(pares) > .max_pares_interaccion_ausencia) {
+    omitidas <- length(pares) - .max_pares_interaccion_ausencia
+    cobertura <- rbind(cobertura, .cobertura_patron_ausencia(
+      "ausencia_dependiente", NA_character_,
+      paste0(
+        "Se examinaron ", .max_pares_interaccion_ausencia,
+        " parejas de determinantes y se omitieron ", omitidas,
+        " de las ", length(pares),
+        " parejas posibles para acotar el costo; el orden prioriza las grillas ",
+        "con menos combinaciones."
+      ),
+      "Perfilar por subconjuntos de columnas si interesa probar todas las parejas."
+    ))
+    pares <- pares[seq_len(.max_pares_interaccion_ausencia)]
+  }
+  if (length(pares) && length(indices_dependencia)) {
+    ausentes_dependencia <- do.call(cbind, lapply(
+      ausentes[indices_dependencia], as.integer
+    ))
+    conteos_pares <- lapply(pares, function(par) {
+      if (!isTRUE(par$cache$soporte)) return(NULL)
+      conteos <- rowsum(
+        ausentes_dependencia[par$cache$usable, , drop = FALSE],
+        par$cache$celdas, reorder = FALSE
+      )
+      conteos_completos <- matrix(
+        0, nrow = par$cache$n_celdas,
+        ncol = length(indices_dependencia)
+      )
+      conteos_completos[as.integer(rownames(conteos)), ] <- conteos
+      conteos_completos
+    })
+    for (objetivo in indices_dependencia) {
+      ausente_objetivo <- ausentes[[objetivo]]
+      for (indice_par in seq_along(pares)) {
+        par <- pares[[indice_par]]
+        primero <- determinantes[[par$primero]]
+        segundo <- determinantes[[par$segundo]]
+        if (nombres_operativos[[primero$indice]] %in% excluidas_determinante ||
+            nombres_operativos[[segundo$indice]] %in% excluidas_determinante) {
+          next
+        }
+        if (isTRUE(par$cache$soporte)) {
+          n_candidatos_prueba <- n_candidatos_prueba + 1L
+        }
+        # Si el objetivo es uno de los determinantes, la interseccion ya exige
+        # que ese objetivo este presente; no puede aportar una ausencia en esas
+        # celdas y probarla solo repite una tabulacion vacia.
+        if (objetivo == primero$indice || objetivo == segundo$indice) next
+        if (!isTRUE(par$cache$soporte)) next
+        cache <- par$cache
+        cache$ausentes <- conteos_pares[[indice_par]][
+          , match(objetivo, indices_dependencia)
+        ]
+        ajuste <- .determinacion_interaccion_ausencia(
+          !ausente_objetivo, primero, segundo,
+          par$candidato_primero, par$candidato_segundo,
+          cache = cache
+        )
+        if (is.null(ajuste)) next
+        ajuste$familia <- "interaccion"
+        ajuste$objetivo <- objetivo
+        ajuste$par <- par
+        pruebas[[length(pruebas) + 1L]] <- ajuste
+      }
+    }
+  }
+
+  n_pruebas <- n_candidatos_prueba
+  if (n_pruebas && length(pruebas)) {
+    ajustados <- stats::p.adjust(
+      c(vapply(pruebas, `[[`, numeric(1L), "p_valor"),
+        rep(1, n_pruebas - length(pruebas))),
+      method = "bonferroni"
+    )
+    for (i in seq_along(pruebas)) {
+      pruebas[[i]]$p_ajustado <- ajustados[[i]]
+      pruebas[[i]]$n_pruebas <- n_pruebas
+    }
+  }
+
+  elegible <- function(ajuste) {
+    is.finite(ajuste$p_ajustado) &&
+      ajuste$p_ajustado <= .max_p_ajustado_ausencia_dependiente &&
+      ajuste$diferencia >= .min_diferencia_ausencia_dependiente &&
+      ajuste$n_ausentes_alto >= .min_ausentes_grupo_dependiente &&
+      (!identical(ajuste$familia, "interaccion") ||
+       ajuste$v_cramer >= .min_v_cramer_interaccion_ausencia)
+  }
+  mejor_ajuste <- function(candidatos) {
+    candidatos <- candidatos[vapply(candidatos, elegible, logical(1L))]
+    if (!length(candidatos)) return(NULL)
+    mejor <- candidatos[[1L]]
+    if (length(candidatos) == 1L) return(mejor)
+    for (candidato in candidatos[-1L]) {
+      if (candidato$diferencia > mejor$diferencia ||
+          (candidato$diferencia == mejor$diferencia &&
+           candidato$n_grupos < mejor$n_grupos)) {
+        mejor <- candidato
+      }
+    }
+    mejor
+  }
+  de_objetivo <- function(objetivo, familia) {
+    pruebas[vapply(pruebas, function(x) {
+      identical(x$objetivo, objetivo) && identical(x$familia, familia)
+    }, logical(1L))]
+  }
+
+  explicadas_dependencia <- character()
+  for (objetivo in indices_dependencia) {
+    mejor <- mejor_ajuste(de_objetivo(objetivo, "simple"))
     if (is.null(mejor)) next
-    filas <- which(ausente_objetivo & mejor$detalle$usable)
+    explicadas_dependencia <- c(explicadas_dependencia, nombres[[objetivo]])
+    filas <- which(ausentes[[objetivo]] & mejor$detalle$usable)
     hallazgos[[length(hallazgos) + 1L]] <- .con_filas_de_ausencia(
       .hallazgo_ausencia_dependiente(
         nombres[[objetivo]], mejor$detalle$nombre, mejor,
@@ -1609,6 +2100,31 @@
       ),
       filas
     )
+  }
+
+  objetivos_interaccion <- indices_dependencia[
+    !(nombres_operativos[indices_dependencia] %in%
+        .nombres_para_operar(explicadas_dependencia))
+  ]
+  for (objetivo in objetivos_interaccion) {
+    mejor <- mejor_ajuste(de_objetivo(objetivo, "interaccion"))
+    if (is.null(mejor)) next
+    primero <- determinantes[[mejor$par$primero]]
+    segundo <- determinantes[[mejor$par$segundo]]
+    hallazgo <- .hallazgo_ausencia_interaccion(
+      nombres[[objetivo]], primero$nombre, segundo$nombre, mejor,
+      nombres_texto[[objetivo]], nombres_texto[[primero$indice]],
+      nombres_texto[[segundo$indice]]
+    )
+    filas <- which(ausentes[[objetivo]] & mejor$usable)
+    hallazgo <- .con_filas_de_ausencia(hallazgo, filas,
+                                        columnas = c(
+                                          nombres[[objetivo]], primero$nombre,
+                                          segundo$nombre
+                                        ))
+    hallazgo$trazabilidad[[1L]]$columna_objetivo <- nombres[[objetivo]]
+    hallazgo$trazabilidad[[1L]]$tipo_dependencia <- "interaccion"
+    hallazgos[[length(hallazgos) + 1L]] <- hallazgo
   }
 
   list(

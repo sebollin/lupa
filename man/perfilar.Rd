@@ -290,8 +290,25 @@ exige una diferencia de al menos 20 puntos entre dos grupos de otra
 columna, con al menos 20 filas por grupo y 10 ausentes en el grupo más
 incompleto; los grupos son los niveles de una columna categórica de hasta
 20 valores, o el máximo observado de una columna numérica contra el resto.
-Una columna casi clave —casi un valor por fila— no se usa para agrupar. La
-evidencia publica las proporciones y el tamaño del efecto, no un p-valor.
+Una columna casi clave —casi un valor por fila— no se usa para agrupar. Como
+entre muchas columnas siempre aparece alguna diferencia por azar, la señal
+sólo se publica si además una prueba global de independencia entre la
+ausencia y los grupos (chi-cuadrado, o la exacta de Fisher con esperados
+chicos) rechaza con un p ajustado por Bonferroni —sobre todas las
+comparaciones de la tabla— de 0,0001 o menos. La evidencia publica las
+proporciones, el cociente de riesgos, la V de Cramér y ese p ajustado.
+Si ninguna de las dos columnas por separado explica la ausencia, también se
+busca una dependencia de la combinación de dos determinantes de pocos
+niveles. Cada celda observada de la grilla necesita al menos 20 filas, la
+grilla debe cubrir al menos la mitad de sus combinaciones y la diferencia
+entre la celda más ausente y la menos ausente conserva el mínimo de 20
+puntos y 10 ausentes. Se examinan como máximo 120 parejas, priorizando las
+grillas pequeñas; las parejas omitidas se declaran en
+\code{cobertura_diagnosticos}. El hallazgo usa el mismo tipo
+\code{ausencia_dependiente}, con las dos celdas, el efecto y el cociente de
+riesgos, y no cambia el universo automáticamente; la combinación necesita
+además una V de Cramér de 0,23 o más y que el efecto se sostenga en dos
+mitades de cada celda.
 El examen se detiene en 40 columnas candidatas y 40 determinantes, y lo que
 queda afuera se declara en \code{cobertura_diagnosticos}. Los tres patrones usan
 este mismo interruptor y \code{FALSE} los apaga junto con

@@ -38,10 +38,10 @@
   evidencia da la razón de frecuencias y el porcentaje de valores únicos, como
   `nearZeroVar()` del paquete caret) y los identificadores de texto con hasta un
   10 % de faltantes (`identificador_con_ausentes`, `ok`; también numéricos
-  enteros con nombre de identificador, sin confundirlos con una numeración: si es la clave de la
-  tabla, declararla con `clave =` la acusa como `clave_con_ausentes`). Los dos
-  cuentan sobre el universo aplicable y, con `universo = "muestra_motor"`, se
-  declaran en la cobertura.
+  enteros con nombre de identificador, sin confundirlos con una numeración: si
+  es la clave de la tabla, declararla con `clave =` la acusa como
+  `clave_con_ausentes`). Los dos cuentan sobre el universo aplicable y, con
+  `universo = "muestra_motor"`, se declaran en la cobertura.
 - `detectar_dependencias()` y `perfilar()` ya no informan una dependencia
   trivial hacia una columna casi constante cuando el determinante es casi único
   y sólo lo explican valores que aparecen una vez; una dependencia con un
@@ -52,9 +52,12 @@
   varias columnas comparten un bloque de filas ausentes (se lee de la tabla de
   patrones de ausencia por fila, como `md.pattern()` del paquete mice, con un
   mínimo de 10 filas y el 1 % de la tabla), `ausencia_dependiente` cuando la
-  proporción de faltantes de una columna cambia entre los grupos de otra o en
-  el tope de una numérica (con el efecto y el cociente de riesgos, no un
-  p-valor), y `filas_vacias` cuando una fila no tiene ningún valor. Los dos
+  proporción de faltantes de una columna cambia entre los grupos de otra, en
+  el tope de una numérica o en la combinación de dos columnas cuando ninguna
+  sola la explica (con el efecto, el cociente de riesgos y una prueba global
+  de independencia con Bonferroni sobre todas las comparaciones de la tabla:
+  entre muchas columnas siempre aparece alguna diferencia por azar, y esa no
+  se publica), y `filas_vacias` cuando una fila no tiene ningún valor. Los dos
   primeros son informativos (`ok`): describen la estructura de la ausencia
   —un bloque que no se cargó, o columnas que sólo se completan juntas— y no
   prueban un defecto; `filas_vacias` es `error`. Los tres traen las filas
@@ -79,7 +82,14 @@
   longitud y el `9999-12-31` de una vigencia «sin fin». Un porcentaje con
   `de`, `del` o `por` en el nombre sólo avisa de la columna; los relativos
   (`of`, `sobre`, `respecto`) y los nombres que anuncian otra unidad
-  (`edad_dias`, `longitud_cable`) no infieren. `lat`, `lon`, `lng` y `long` infieren junto a su columna pareja (también con calificativos como `wgs84` o `geo`); sueltas, sólo si sus valores tienen decimales de coordenada, y sólo avisan. Cuando las fechas futuras forman una grilla regular sin huecos, el aviso dice que puede ser un calendario o un pronóstico. Las edades reconocen más nombres de parientes y oficios. `perfilar_por()` decide con la tabla entera y lo
+  (`edad_dias`, `longitud_cable`) no infieren. `lat`, `lon`, `lng` y `long`
+  infieren junto a su columna pareja (también con calificativos como `wgs84` o
+  `geo`); `lat`, `lon` y `lng` sueltas, sólo si sus valores tienen decimales
+  de coordenada, y sólo avisan (`long` sola no infiere: puede ser un largo).
+  Cuando las fechas futuras forman una grilla regular sin huecos, el aviso
+  dice que puede ser un calendario o un pronóstico. Las edades reconocen más
+  nombres de parientes y oficios. `perfilar_por()` decide con la tabla entera
+  y lo
   dice en el texto; `print()` y `reportar()` cuentan estos avisos aparte de los
   correctos; `comparar_perfiles()` informa el paso de filas a columna.
   `dominios` declara la regla de una columna o, con `FALSE`, apaga la
