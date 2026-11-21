@@ -35,11 +35,19 @@
   max(3, (max(abs(extremos - media)) / desvio)^2)
 }
 
-# La dispersion se compara con al menos 50 valores por lado (el error tipico de
-# un desvio de pocos datos no es normal), y sin que un solo valor explique mas
-# de esta parte de la suma de cuadrados.
+# La dispersion se compara con al menos 20 valores por lado; con menos de 50 el
+# error tipico de ln(s) usa la varianza de Bonett (2006) y no la sencilla. Y sin
+# que un solo valor explique mas de esta parte de la suma de cuadrados.
 .N_MINIMO_DISPERSION_DERIVA <- 50
+.N_MINIMO_ABSOLUTO_DISPERSION_DERIVA <- 20
 .CONCENTRACION_MAXIMA_DERIVA <- 0.25
+
+# Con menos de 50 valores la curtosis muestral no dice la de la poblacion: una
+# cola pesada o una asimetria fuerte casi no asoman en 30 valores. Piso de la
+# curtosis que se usa alli (medido: con 3 pasaban 5 de 40.000 pares nulos de
+# colas pesadas, con 6 pasan 2, y la potencia con 40 valores y desvios 1 y 3
+# baja de 87 a 85 %).
+.CURTOSIS_MINIMA_CHICA_DERIVA <- 6
 
 # Los hallazgos cuyo conteo no se compara entre entregas. `faltantes`,
 # `faltantes_disfrazados` y `alta_cardinalidad` ya tienen su aspecto propio:
@@ -131,6 +139,46 @@
   (extremos[[2L]] - extremos[[1L]]) / (distintos - 1)
 }
 
+# La grilla en la que caen los valores de una columna: 10^-d, con d los decimales
+# de sus extremos y de su moda. El perfil no guarda los decimales de la columna
+# entera, pero un redondeo a d decimales deja esos valores con d. No es la
+# distancia media entre valores distintos: unos enteros dispersos en un rango
+# ancho tienen grilla 1 aunque esten separados por 7. Es una estimacion con tres
+# valores: si los tres caen en una grilla mas gruesa que la de los datos, se
+# descuenta de mas (el descuento solo se aplica con valores repetidos y un paso
+# mayor que el desvio); si el redondeo fue a multiplos mayores (de 5, de 1.000),
+# se descuenta de menos. Devuelve 0 si no caen en una grilla de hasta 8
+# decimales (valores continuos): no hay redondeo que descontar.
+.grilla_deriva <- function(fila) {
+  extremos <- c(
+    .valor_columna_deriva(fila, "minimo"), .valor_columna_deriva(fila, "maximo")
+  )
+  if (!all(is.finite(extremos))) return(0)
+  # La moda tambien es un valor de la columna: si trae mas decimales que los
+  # extremos, la grilla es mas fina de lo que ellos muestran.
+  moda <- if ("moda" %in% names(fila)) {
+    suppressWarnings(as.numeric(as.character(fila[["moda"]][[1L]])))
+  } else NA_real_
+  valores <- c(extremos, if (is.finite(moda)) moda)
+  for (d in 0:8) {
+    e <- valores * 10^d
+    if (all(abs(e - round(e)) <= pmax(1e-9, 4 * .Machine$double.eps * abs(e)))) {
+      return(10^-d)
+    }
+  }
+  0
+}
+
+# Una cola que el desvio y su cota de curtosis no recogen: al menos dos valores
+# fuera de los limites de Tukey y el 2 % o mas de los valores. Es lo que dejan un
+# centinela (999, 9999) o una cola pesada en una columna chica: segun cuantas
+# veces caiga en cada muestra, el desvio cambia por mucho sin que cambie la
+# poblacion. Sin el recuento de atipicos en el perfil, no se puede decir.
+.cola_pesada_deriva <- function(fila, n) {
+  atipicos <- .valor_columna_deriva(fila, "n_outliers")
+  isTRUE(is.finite(atipicos) && atipicos >= 2 && atipicos / n >= 0.02)
+}
+
 .resolucion_cambio_deriva <- function(a, b) {
   paso <- c(.paso_distintos_deriva(a), .paso_distintos_deriva(b))
   # Con menos de tres valores distintos en un solo lado el paso no se calcula, y
@@ -209,15 +257,51 @@
     )
   }
   filas <- list()
+  texto_grilla <- function(g) {
+    if (g > 0) .texto_numero_deriva(signif(g, 3L)) else "ninguna visible"
+  }
+  # El paso con que se escribio cada columna, si cambio entre las entregas. El
+  # error de redondear con paso h no pasa de h / 2 en ningun valor: la media
+  # observada queda a lo sumo a h / 2 de la de los valores sin redondear, y el
+  # desvio tambien (desigualdad de Minkowski). Con otro paso en cada lado, un
+  # corrimiento menor que la suma de las dos mitades puede ser solo redondeo, y
+  # el tamano y la prueba se evaluan descontandolo, en la direccion que menos
+  # acusa. Con el mismo paso no se toca nada.
+  cambio_resolucion <- .resolucion_cambio_deriva(a, b)
+  paso_ab <- c(.paso_distintos_deriva(a), .paso_distintos_deriva(b))
+  grilla <- c(.grilla_deriva(a), .grilla_deriva(b))
+  # Solo cuenta como redondeo el paso de un lado con valores repetidos: en una
+  # columna de valores todos distintos el "paso" medio es el rango sobre n, no
+  # una grilla, y descontarlo taparia un corrimiento real.
+  # Y solo si el paso es mayor que el desvio de ese lado: con una grilla fina
+  # frente a la dispersion el error de redondeo promedia casi cero (su
+  # promedio tiene desvio h / sqrt(12 n)) y no corre la
+  # media; con una gruesa los valores se amontonan en pocos puntos y el
+  # redondeo puede mover la media hasta medio paso.
+  con_grilla <- c(
+    .valor_columna_deriva(a, "n_distintos") <= n_a / 2,
+    .valor_columna_deriva(b, "n_distintos") <= n_b / 2
+  )
+  # La grilla cambio de verdad si una entrega no tiene (valores continuos) y la
+  # otra si, o si una es cuatro veces la otra. Dos lados con la misma grilla no
+  # cambiaron, aunque uno tenga dos valores distintos y el otro tres, o valores
+  # dispersos en un rango ancho.
+  cambio_paso <- max(grilla) > 0 && (min(grilla) == 0 || max(grilla) / min(grilla) >= 4)
+  pasos_media <- if (cambio_paso) {
+    grilla * (con_grilla & c(s_a, s_b) < grilla)
+  } else c(0, 0)
+  s_ef <- c(s_a, s_b) + pasos_media / 2
   s_comun <- sqrt((s_a^2 + s_b^2) / 2)
   d <- (m_b - m_a) / s_comun
-  z_media <- abs(m_b - m_a) / sqrt(s_a^2 / n_a + s_b^2 / n_b)
+  salto <- max(abs(m_b - m_a) - sum(pasos_media) / 2, 0)
+  d_cota <- salto / sqrt((s_ef[[1L]]^2 + s_ef[[2L]]^2) / 2)
+  z_media <- salto / sqrt(s_ef[[1L]]^2 / n_a + s_ef[[2L]]^2 / n_b)
   # Con pocos valores el cuantil es el de una t de Welch, no el normal.
-  v_a <- s_a^2 / n_a
-  v_b <- s_b^2 / n_b
+  v_a <- s_ef[[1L]]^2 / n_a
+  v_b <- s_ef[[2L]]^2 / n_b
   grados <- (v_a + v_b)^2 / (v_a^2 / (n_a - 1) + v_b^2 / (n_b - 1))
   critico_media <- stats::qt(0.9995, df = grados)
-  severidad <- .severidad_por_umbrales_deriva(abs(d), .UMBRALES_DERIVA_MEDIA)
+  severidad <- .severidad_por_umbrales_deriva(d_cota, .UMBRALES_DERIVA_MEDIA)
   if (severidad != "ok" && z_media >= critico_media) {
     filas[[length(filas) + 1L]] <- list(
       aspecto = "deriva_media", severidad = severidad, medida = d,
@@ -234,7 +318,15 @@
         " (umbrales: ", fmt(.UMBRALES_DERIVA_MEDIA[["sospechoso"]]),
         " sospechoso, ", fmt(.UMBRALES_DERIVA_MEDIA[["error"]]),
         " error); distancia a su ruido de muestreo: ", fmt(z_media),
-        " errores t\u00edpicos (se exige ", fmt(critico_media), ")."
+        " errores t\u00edpicos (se exige ", fmt(critico_media), ").",
+        if (any(pasos_media > 0)) paste0(
+          " Grilla de los valores (paso del redondeo): entrega anterior, ",
+          texto_grilla(grilla[[1L]]), "; actual, ",
+          texto_grilla(grilla[[2L]]), ". El corrimiento se ",
+          "evalu\u00f3 descontando lo que el redondeo puede explicar (a lo sumo ",
+          .texto_numero_deriva(signif(sum(pasos_media) / 2, 3L)), "), y qued\u00f3 en ",
+          fmt(d_cota), " desv\u00edos."
+        )
       )
     )
   }
@@ -246,26 +338,81 @@
   # desvio es ese valor y no la dispersion de la columna: no se compara. Es el
   # caso de una columna casi constante con un valor lejano.
   if (max(k_a / (n_a - 1), k_b / (n_b - 1)) > .CONCENTRACION_MAXIMA_DERIVA ||
-      min(n_a, n_b) < .N_MINIMO_DISPERSION_DERIVA) {
+      min(n_a, n_b) < .N_MINIMO_ABSOLUTO_DISPERSION_DERIVA) {
     return(filas)
   }
-  if (.resolucion_cambio_deriva(a, b)) return(filas)
-  se_log <- sqrt((k_a - 1) / (4 * n_a) + (k_b - 1) / (4 * n_b))
-  z_desvio <- abs(log(s_b / s_a)) / se_log
-  severidad <- .severidad_por_umbrales_deriva(razon, .UMBRALES_DERIVA_DISPERSION)
+  # Cada desvio se acota por el redondeo con que se escribieron los valores: el
+  # error de redondear con paso h no pasa de h / 2 en ningun valor, asi que su
+  # desvio tampoco, y el desvio de los valores sin redondear queda a lo sumo a
+  # h / 2 del observado (desigualdad de Minkowski). No supone una densidad
+  # suave, como la correccion de Sheppard, que con una distribucion de pocos
+  # grupos (99,4 y 100,6 que pasan a 99 y 101) descuenta mucho menos de lo que
+  # el redondeo agrego. Con el mismo paso en los dos lados no se descuenta nada.
+  # Con pocos valores y menos de tres valores distintos en un lado el redondeo
+  # puede ser todo lo que mueve el desvio (dos grupos que pasan de 99,4 y 100,6 a
+  # 99 y 101) y no hay paso con que acotarlo: no se compara.
+  if (min(n_a, n_b) < .N_MINIMO_DISPERSION_DERIVA &&
+      !all(is.finite(c(.paso_distintos_deriva(a), .paso_distintos_deriva(b))))) {
+    return(filas)
+  }
+  # Con pocos valores o con otro paso, una cola que mueve el desvio segun cuantas
+  # veces caiga en cada muestra (un centinela, una cola pesada) y que la cota de
+  # la curtosis no ve: no se compara.
+  if ((min(n_a, n_b) < .N_MINIMO_DISPERSION_DERIVA || cambio_resolucion) &&
+      (.cola_pesada_deriva(a, n_a) || .cola_pesada_deriva(b, n_b))) {
+    return(filas)
+  }
+  # Con el paso medio incalculable en un lado (dos valores distintos contra tres o
+  # mas) no se puede decidir que el redondeo no explica el desvio: no se compara.
+  if (cambio_resolucion && !all(is.finite(paso_ab))) return(filas)
+  # El redondeo se descuenta si la grilla cambio de verdad, y solo en un lado con
+  # valores repetidos.
+  pasos <- if (cambio_resolucion && cambio_paso) grilla * con_grilla else c(0, 0)
+  # La razon mas baja que cabe una vez descontado el redondeo, en la direccion
+  # que menos acusa.
+  s_menor <- pmax(c(s_a, s_b) - pasos / 2, 0)
+  s_mayor <- c(s_a, s_b) + pasos / 2
+  razon_cota <- if (s_b >= s_a) s_menor[[2L]] / s_mayor[[1L]] else s_menor[[1L]] / s_mayor[[2L]]
+  if (!isTRUE(razon_cota > 1)) return(filas)
+  # Con menos de 50 valores por lado el error tipico de ln(s) usa la varianza
+  # de Bonett (2006), (k - (n - 3) / n) / (n - 1) para ln(s^2), con la cota de
+  # la curtosis en lugar de la muestral; con 50 o mas se conserva la formula
+  # sencilla.
+  var_log <- function(k, n) {
+    if (n >= .N_MINIMO_DISPERSION_DERIVA) return((k - 1) / (4 * n))
+    k <- max(k, .CURTOSIS_MINIMA_CHICA_DERIVA)
+    (k - (n - 3) / n) / (4 * (n - 1))
+  }
+  se_log <- sqrt(var_log(k_a, n_a) + var_log(k_b, n_b))
+  z_desvio <- log(razon_cota) / se_log
+  severidad <- .severidad_por_umbrales_deriva(
+    razon_cota, .UMBRALES_DERIVA_DISPERSION
+  )
   if (severidad != "ok" && z_desvio >= .Z_RUIDO_DERIVA) {
+    nota_resolucion <- if (any(pasos > 0)) {
+      paste0(
+        " Grilla de los valores (paso del redondeo): entrega anterior, ",
+        texto_grilla(grilla[[1L]]), "; actual, ",
+        texto_grilla(grilla[[2L]]), ". La raz\u00f3n ",
+        "se evalu\u00f3 descontando lo ",
+        "que el redondeo puede explicar, a lo sumo la mitad del paso en cada ",
+        "desv\u00edo."
+      )
+    } else ""
     filas[[length(filas) + 1L]] <- list(
       aspecto = "deriva_dispersion", severidad = severidad,
       medida = s_b / s_a,
       valor_anterior = cifras(m_a, s_a, n_a),
       valor_actual = cifras(m_b, s_b, n_b),
-      descripcion = paste(
-        "La dispersi\u00f3n de la columna cambi\u00f3 respecto de la entrega",
-        "anterior, aunque la media pueda seguir donde estaba."
+      descripcion = paste0(
+        "La dispersi\u00f3n de la columna cambi\u00f3 respecto de la entrega ",
+        "anterior, aunque la media pueda seguir donde estaba.", nota_resolucion
       ),
       evidencia = paste0(
         "Raz\u00f3n entre el desv\u00edo actual y el anterior = ", fmt(s_b / s_a),
-        " (la mayor de la raz\u00f3n y su inversa: ", fmt(razon), "; umbrales: ",
+        " (la mayor de la raz\u00f3n y su inversa: ", fmt(razon),
+        if (any(pasos > 0)) paste0("; descontado el redondeo: ", fmt(razon_cota)),
+        "; umbrales: ",
         fmt(.UMBRALES_DERIVA_DISPERSION[["sospechoso"]]), " sospechoso, ",
         fmt(.UMBRALES_DERIVA_DISPERSION[["error"]]),
         " error); distancia a su ruido de muestreo: ", fmt(z_desvio),
@@ -308,6 +455,64 @@
   if (!all(is.finite(c(total_a, total_b))) || total_a < 1 || total_b < 1) {
     return(NULL)
   }
+  # Con pocas filas las clases raras se juntan (mas abajo) y un cambio real de una
+  # categoria chica queda dentro de "(otras)" o debajo del ruido del PSI. Se
+  # mira entonces cada categoria contra el resto con la prueba exacta de Fisher
+  # (no supone muestras grandes), con Bonferroni sobre las categorias que se
+  # comparan para sostener el nivel 0,001 de toda la columna, y con el tamano
+  # del efecto en el mismo PSI y sus mismos cortes, calculado sobre la tabla de
+  # dos clases: un reparto que no cambia lo bastante no se publica aunque la
+  # prueba lo detecte. Como juntar clases solo puede bajar el PSI, esta via no
+  # acusa nada que el PSI de la columna entera no acuse con mas filas.
+  exacta <- function() {
+    k0 <- length(comunes)
+    psi_dos <- function(x, y) {
+      q_a <- c(x + 0.5, total_a - x + 0.5) / (total_a + 1)
+      q_b <- c(y + 0.5, total_b - y + 0.5) / (total_b + 1)
+      sum((q_a - q_b) * log(q_a / q_b))
+    }
+    psi_i <- mapply(psi_dos, f_a, f_b)
+    candidatas <- which(psi_i >= .UMBRALES_DERIVA_PSI[["sospechoso"]])
+    if (!length(candidatas)) return(NULL)
+    nivel <- 0.001 / k0
+    p_i <- vapply(candidatas, function(i) {
+      stats::fisher.test(matrix(
+        c(f_a[i], total_a - f_a[i], f_b[i], total_b - f_b[i]), nrow = 2L
+      ))$p.value
+    }, numeric(1L))
+    quedan <- candidatas[p_i < nivel]
+    if (!length(quedan)) return(NULL)
+    quedan <- quedan[.orden_por_bytes(-psi_i[quedan], seq_along(quedan))]
+    psi <- psi_i[[quedan[[1L]]]]
+    severidad <- .severidad_por_umbrales_deriva(psi, .UMBRALES_DERIVA_PSI)
+    fmt <- function(x) .formatear_decimal_publicado(x, 4L)
+    mostradas <- quedan[seq_len(min(5L, length(quedan)))]
+    texto <- function(f, total) {
+      paste0(valores[mostradas], " (", fmt(f[mostradas] / total), ")",
+             collapse = " | ")
+    }
+    list(
+      severidad = severidad, medida = psi,
+      valor_anterior = texto(f_a, total_a), valor_actual = texto(f_b, total_b),
+      descripcion = paste(
+        "Cambi\u00f3 el peso de una o m\u00e1s categor\u00edas de la columna entre",
+        "las dos entregas, con pocas filas: la prueba exacta de cada categor\u00eda",
+        "contra el resto supera el ruido de muestreo al nivel 0,001 de la",
+        "columna."
+      ),
+      evidencia = paste0(
+        "Prueba exacta de Fisher de cada categor\u00eda contra el resto, con ",
+        "Bonferroni sobre ", k0, " categor\u00edas: p = ",
+        .formatear_decimal_publicado(min(p_i[p_i < nivel]), 6L),
+        " (se exige menos de ", .formatear_decimal_publicado(nivel, 6L),
+        "); PSI de la categor\u00eda contra el resto = ", fmt(psi), " (umbrales: ",
+        fmt(.UMBRALES_DERIVA_PSI[["sospechoso"]]), " sospechoso, ",
+        fmt(.UMBRALES_DERIVA_PSI[["error"]]), " error). Se muestran las ",
+        "proporciones de las categor\u00edas que pasan la prueba; las que ",
+        "aparecen o desaparecen los dice la fila de vocabulario."
+      )
+    )
+  }
   # Las clases que esperarian menos de cinco filas en algun lado se juntan: el
   # PSI y el chi-cuadrado de homogeneidad no sirven con celdas casi vacias
   # (Cochran, 1954), y un vocabulario de muchas clases raras acusaria el ruido.
@@ -332,7 +537,7 @@
   }
   g <- agrupar(f_a, f_b, valores)
   k <- length(g$a)
-  if (k < 2L) return(NULL)
+  if (k < 2L) return(exacta())
   p_a <- g$a / total_a
   p_b <- g$b / total_b
   # Con una clase en cero en un lado el PSI no esta definido; el suavizado de
@@ -342,7 +547,7 @@
   psi <- sum((q_a - q_b) * log(q_a / q_b))
   ruido <- stats::qchisq(0.999, df = k - 1L) * (1 / total_a + 1 / total_b)
   severidad <- .severidad_por_umbrales_deriva(psi, .UMBRALES_DERIVA_PSI)
-  if (severidad == "ok" || psi <= ruido) return(NULL)
+  if (severidad == "ok" || psi <= ruido) return(exacta())
   orden <- .orden_por_bytes(-abs(p_a - p_b), seq_len(k))
   orden <- orden[seq_len(min(5L, k))]
   fmt <- function(x) .formatear_decimal_publicado(x, 4L)

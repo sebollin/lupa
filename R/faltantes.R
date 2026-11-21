@@ -134,10 +134,57 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 # lado de la misma cifra escrita `"-999.00"`, que si contaba.
 # Sin convencion -o vacia: la columna no se lee como numero- la lectura es la
 # de siempre.
+# Las formas de fecha escritas solo con ceros o solo con nueves -`00-00-00`,
+# `9999-99-99`, `0000-00-00`, `00000000`- no son fechas mal escritas: son
+# marcas de "sin dato". Se reconocen por la forma y por los digitos, no por el
+# tipo, y se exigen repetidas: una aparicion sola puede ser un error de carga y
+# sigue siendo una fecha imposible. La misma regla la usan el detector de
+# faltantes disfrazados y el diagnostico de fechas imposibles.
+.centinelas_fecha_texto <- function(
+    valores, minimo = .MIN_REPETICIONES_CENTINELA_FECHA, pesos = NULL) {
+  valores <- trimws(as.character(valores))
+  n <- length(valores)
+  if (!n) return(rep(FALSE, n))
+  # Una fecha centinela solo tiene ceros y nueves: si aparece cualquier digito
+  # del 1 al 8 no puede serlo. La guarda es una sola pasada barata y evita la
+  # expresion completa sobre una columna de fechas normales, donde el dia
+  # puede empezar con cero.
+  inicio <- !is.na(valores) & !grepl("[1-8]", valores, useBytes = TRUE)
+  if (!any(inicio)) return(rep(FALSE, n))
+  forma <- rep(FALSE, n)
+  forma[inicio] <- grepl(
+    paste0(
+      "^(?:[0-9]{8}|[0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4}",
+      "(?:[ T][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\\.[0-9]+)?)?",
+      "(?:Z|[+-][0-9]{2}:[0-9]{2})?)?)$"
+    ),
+    valores[inicio], perl = TRUE, useBytes = TRUE
+  )
+  if (!any(forma)) return(rep(FALSE, n))
+  digitos <- gsub("[^0-9]", "", valores)
+  candidato <- forma & !is.na(digitos) &
+    (grepl("^0+$", digitos) | grepl("^9+$", digitos))
+  if (!any(candidato)) return(rep(FALSE, n))
+  unicos <- unique(valores[candidato])
+  indices <- match(valores[candidato], unicos)
+  if (is.null(pesos)) {
+    cuentas <- tabulate(indices, nbins = length(unicos))
+  } else {
+    pesos <- rep(pesos, length.out = n)[candidato]
+    cuentas <- numeric(length(unicos))
+    for (i in seq_along(indices)) {
+      cuentas[indices[[i]]] <- cuentas[indices[[i]]] + pesos[[i]]
+    }
+  }
+  repetidos <- unicos[cuentas >= minimo]
+  candidato & valores %in% repetidos
+}
+
 .detectar_faltantes_disfrazados <- function(
     x, sentinelas_numericos = .numeros_na_locales,
     detectar_sentinelas_numericos = TRUE,
-    cadenas_ausencia = NULL, convencion = NULL) {
+    cadenas_ausencia = NULL, convencion = NULL, fechas = FALSE,
+    centinelas_fecha = NULL) {
   n <- length(x)
   numeros_na <- .numeros_na(sentinelas_numericos)
   if (!n) {
@@ -161,6 +208,13 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     normalizados <- .minusculas_para_comparar(textos)
     cadenas <- .cadenas_ausencia_columna(normalizados, cadenas_ausencia)
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
+    if (isTRUE(fechas)) {
+      mascara_textual <- mascara_textual | if (is.null(centinelas_fecha)) {
+        .centinelas_fecha_texto(textos)
+      } else {
+        !is.na(textos) & trimws(textos) %in% centinelas_fecha
+      }
+    }
     numericos <- .leer_numeros_texto_centinela(normalizados, convencion)
     identidad <- .identidades_sentinelas_texto(
       normalizados, numeros_na, convencion, valores_leidos = numericos

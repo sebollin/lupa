@@ -441,14 +441,20 @@
   x
 }
 
-# Palabras que convierten un nombre de clave en una magnitud: `id_peso` es un
-# peso y no un identificador. Se comparan como tokens completos del nombre.
+# Palabras que convierten un nombre de clave en una magnitud o en una
+# numeracion: `id_peso` es un peso e `id_secuencia` es la numeracion de la
+# tabla, no una clave. Se comparan como tokens completos del nombre. Las
+# palabras de dinero salen de la lista unica `.PALABRAS_DE_IMPORTE`, para no
+# mantener una segunda copia que se desincronice.
 .PALABRAS_MAGNITUD_IDENTIFICADOR <- c(
-  "monto", "montos", "importe", "importes", "peso", "pesos", "ratio",
-  "ventas", "venta", "hijos", "hijo", "orden", "cantidad", "cantidades",
-  "total", "totales", "ingreso", "ingresos", "puntaje", "puntajes",
-  "precio", "precios", "saldo", "saldos", "valor", "valores",
+  .PALABRAS_DE_IMPORTE,
+  "peso", "pesos", "ratio",
+  "ventas", "venta", "hijos", "hijo",
+  "ingreso", "ingresos", "puntaje", "puntajes",
+  "precio", "precios", "valor", "valores",
   "promedio", "promedios", "suma", "sumas", "conteo", "conteos",
+  "numeracion", "numeraciones", "secuencia", "secuencias",
+  "correlativo", "correlativos", "consecutivo", "consecutivos",
   "edad", "edades", "distancia", "distancias", "duracion", "duraciones",
   "tiempo", "tiempos", "temperatura", "temperaturas", "altura", "alturas",
   "ancho", "anchos", "largo", "largos", "nota", "notas", "score", "scores",
@@ -460,26 +466,95 @@
   "heights", "width", "widths", "length", "lengths"
 )
 
+# Palabras que piden un numero de algo. Seguidas de un sustantivo en plural
+# nombran un conteo (`num_votos`, `number_of_items`); seguidas de uno en
+# singular, o precedidas por el sustantivo (`order_number`), nombran un
+# identificador. Es la unica diferencia que separa `num_votos` de
+# `num_documento`, y se mide sobre el nombre, no sobre los valores.
+.PALABRAS_NUMERO_NOMBRE <- c("num", "numero", "nro", "number")
+
+# En castellano "numero de orden" es ambiguo: puede ser una posicion en una
+# lista o un pedido. Ante la ambiguedad el paquete no afirma, asi que cualquier
+# nombre con el token `orden` queda del lado que no se acusa. El ingles
+# `order_number` si nombra un pedido y sigue del lado de las claves.
+.PALABRAS_ORDEN_AMBIGUAS <- c("orden", "ordenes")
+
+# Conectores que no cambian de que habla el numero: `numero_de_hijos` y
+# `number_of_items` cuentan lo mismo que `num_hijos` y `num_items`.
+.CONECTORES_NUMERO_NOMBRE <- c(
+  "de", "del", "of", "the", "la", "el", "los", "las", "y", "and"
+)
+
+# Singulares que terminan en `s` y que la terminacion sola confundiria con un
+# plural. Los plurales regulares del castellano y del ingles terminan en `s`;
+# un nombre como `status_number` o `numero_mes` no es un conteo.
+.SINGULARES_TERMINADOS_EN_S <- c(
+  "mes", "pais", "autobus", "compas", "atlas", "virus", "caos", "gas",
+  "lunes", "martes", "miercoles", "jueves", "viernes",
+  "status", "analysis", "basis", "series", "species", "address", "class"
+)
+
+.es_plural_numero_nombre <- function(token) {
+  if (!nzchar(token) || token %in% .SINGULARES_TERMINADOS_EN_S) return(FALSE)
+  grepl("[^s]s$", token, perl = TRUE, useBytes = TRUE)
+}
+
+# Lo que el nombre con un numero de algo decide, o `NA` si no trae esa forma:
+# `TRUE` identificador, `FALSE` conteo. Se mira el sustantivo que acompana al
+# numero -el siguiente, saltando conectores, o el anterior cuando el numero
+# cierra el nombre-. Un plural es un conteo; un singular es un identificador,
+# como `num_documento` y `order_number`. La ambiguedad de `orden` se resuelve
+# antes, en `.nombre_es_identificador_numerico()`.
+.veredicto_numero_nombre <- function(tokens) {
+  posiciones <- which(tokens %in% .PALABRAS_NUMERO_NOMBRE)
+  if (!length(posiciones)) return(NA)
+  for (i in posiciones) {
+    posteriores <- if (i < length(tokens)) tokens[(i + 1L):length(tokens)]
+    if (!length(posteriores) ||
+        all(posteriores %in% .CONECTORES_NUMERO_NOMBRE)) {
+      j <- i - 1L
+      while (j >= 1L && tokens[[j]] %in% .CONECTORES_NUMERO_NOMBRE) {
+        j <- j - 1L
+      }
+      if (j >= 1L) {
+        return(!.es_plural_numero_nombre(tokens[[j]]))
+      }
+    } else {
+      j <- i + 1L
+      while (j <= length(tokens) && tokens[[j]] %in% .CONECTORES_NUMERO_NOMBRE) {
+        j <- j + 1L
+      }
+      if (j <= length(tokens)) {
+        return(!.es_plural_numero_nombre(tokens[[j]]))
+      }
+    }
+  }
+  NA
+}
+
 # Un nombre de columna que se lee como identificador por palabra completa: el
 # token `id` aparece como token, no dentro de `valid` o `paid`, y no lo
-# acompania una magnitud. `id_cliente` y `codigo_postal` si; `id_peso`,
-# `documento_monto` y `nro_orden` no.
+# acompania una magnitud. `id_cliente` y `codigo_postal` si; `id_peso` y
+# `documento_monto` no. Un numero de algo decide antes que la lista de
+# palabras: `num_votos` cuenta votos y `num_documento` identifica. La palabra
+# `orden` es ambigua y se decide antes que el numero: `nro_orden` no se acusa.
 .nombre_es_identificador_numerico <- function(nombre) {
   tokens <- .dominio_tokens(nombre)
   if (!length(tokens)) return(FALSE)
+  if (any(tokens %in% .PALABRAS_ORDEN_AMBIGUAS)) return(FALSE)
+  veredicto <- .veredicto_numero_nombre(tokens)
+  if (identical(veredicto, FALSE)) return(FALSE)
+  if (identical(veredicto, TRUE)) return(TRUE)
   if (any(tokens %in% .PALABRAS_MAGNITUD_IDENTIFICADOR)) return(FALSE)
   any(tokens %in% .NOMBRES_CLAVE_PROBABLE)
 }
 
-# Un identificador numerico con ausentes no es una numeracion `1..n` con
-# ausentes: la primera es una clave y la segunda, un conteo. Se distinguen por
-# tres hechos medidos. El nombre tiene que traer una palabra de clave completa
-# -la lista de `.NOMBRES_CLAVE_PROBABLE`- y no una palabra de magnitud: `id_peso`
-# es un peso. Los valores tienen que ser enteros y exceder el numero de filas:
-# una numeracion `1..n`, con o sin ausentes, termina en `n` o antes, mientras
-# que un identificador como `1001..1500` sobre 500 filas no. Sin el nombre, una
-# magnitud unica con ausentes -un monto- entraria; sin el maximo, un conteo
-# `1..n` llamado `id` entraria.
+# Un identificador numerico con ausentes es una columna entera cuyo nombre se
+# lee como clave, con todos sus valores presentes distintos y pocos ausentes.
+# No importa donde empiece ni si sus valores son una numeracion: una clave
+# autoincremental `1..n` con faltantes es justamente lo que hay que informar,
+# y una numeracion que no es clave la deja afuera el nombre (`conteo`,
+# `id_secuencia`), no el maximo. Asi lo decide `.nombre_es_identificador_numerico()`.
 .es_identificador_numerico <- function(x, fila, aplicable, nombre) {
   tipo <- as.character(fila$tipo_inferido)
   if (length(tipo) != 1L ||
@@ -496,13 +571,7 @@
   presentes <- x[!is.na(x) & en_universo]
   if (!length(presentes)) return(FALSE)
   numericos <- suppressWarnings(as.numeric(presentes))
-  if (any(!is.finite(numericos)) ||
-      any(numericos != trunc(numericos))) {
-    return(FALSE)
-  }
-  maximo <- max(numericos)
-  n_filas <- suppressWarnings(as.numeric(fila$n_aplicables))
-  isTRUE(is.finite(maximo) && is.finite(n_filas) && maximo > n_filas)
+  !any(!is.finite(numericos)) && !any(numericos != trunc(numericos))
 }
 
 .identificador_con_ausentes <- function(x, fila, aplicable = NULL,
@@ -5278,8 +5347,8 @@
     #
     # El identificador de texto es el que `tipos.R` infiere como
     # `identificador`. El numerico entra por otra puerta: nombre de clave y
-    # valores que exceden el numero de filas, que es lo que separa una clave de
-    # una numeracion `1..n` con ausentes. Ver `.es_identificador_numerico()`.
+    # valores enteros distintos. El nombre decide si la columna es una clave o
+    # una numeracion o un conteo. Ver `.es_identificador_numerico()`.
     tipo_identificador <- as.character(fila$tipo_inferido)
     es_numerico <- length(tipo_identificador) == 1L &&
       tipo_identificador %in% c("entero", "doble", "integer64")
@@ -5310,8 +5379,8 @@
             " de ausentes.",
             if (es_numerico) paste0(
               " En una columna num\u00e9rica, adem\u00e1s, el nombre se lee",
-              " como clave y el m\u00e1ximo supera el n\u00famero de filas:",
-              " no es una numeraci\u00f3n 1..n."
+              " como clave: una numeraci\u00f3n 1..n con ausentes tambi\u00e9n",
+              " se informa."
             ) else ""
           ),
           paste(

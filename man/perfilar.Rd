@@ -1730,10 +1730,17 @@ con la forma pero que no existen: \code{"25:10"} o \code{"12:61"} en horas,
 \code{"2022-02-30"}, \code{"31/02/2022"} o \code{"30/02/22"} en fechas. La hora \code{24:00} se
 acepta como fin del día y no se cuenta; con barras, un valor es inválido sólo
 si lo es como día/mes y como mes/día. Se evalúan todas las formas de fecha y
-fecha-hora -año de dos o cuatro cifras, mes y año, y con hora o zona
-horaria- salvo la compacta \code{AAAAMMDD}, que se parece demasiado a un código;
-también una fecha imposible escrita en un formato que ningún otro valor de
-la columna usa. Una columna mezclada, o un texto con forma de fecha que no es
+fecha-hora -año de dos o cuatro cifras, mes y año, meses escritos en
+castellano o en inglés, y con hora o zona horaria-. La forma compacta
+\code{AAAAMMDD} entra sólo cuando la columna es, sin duda razonable, una fecha
+compacta: casi todos sus valores de ocho cifras existen en el calendario con
+un año plausible, en texto o en una columna numérica entera; un código, un
+teléfono o un monto no cumplen esa proporción. También una fecha imposible
+escrita en un formato que ningún otro valor de la columna usa. Un valor con
+forma de fecha hecho sólo de ceros o sólo de nueves, repetido al menos dos
+veces, es una marca de ausencia: se informa como \code{faltantes_disfrazados} y
+no como \code{fecha_invalida}; una aparición sola sigue siendo una fecha
+imposible. Una columna mezclada, o un texto con forma de fecha que no es
 una columna de fechas, no recibe el hallazgo. Una columna \code{Date} o
 \code{POSIXct} no lo recibe: si el texto imposible ya se convirtió, el \code{NA} no
 conserva de dónde vino. Los minutos mayores que 59 y los segundos mayores que
@@ -1748,11 +1755,18 @@ Una columna que es un posible identificador, con todos sus valores presentes
 distintos y entre el 0 y el 10 \% de ausentes, emite
 \code{identificador_con_ausentes} (severidad \code{ok}: sin \verb{clave=} no se sabe si es
 obligatorio; con las filas \code{NA} en la traza). También lo emite una columna
-numérica con valores enteros cuyo nombre tiene un token de identificador
-completo (\code{id}, \code{cliente_id}, \code{codigo_postal}; la lista de
-\code{\link[=sugerir_clave]{sugerir_clave()}}) y no una magnitud (\code{monto}, \code{importe}, \code{peso}, \code{ratio},
-\code{ventas}, \code{hijos}, \code{orden}), y cuyos valores exceden el número de filas: una
-numeración \verb{1..n} con ausentes, que es un conteo, no entra. Un nombre que sólo
+numérica con valores enteros cuyo nombre se lee como clave: un token de
+identificador completo (\code{id}, \code{cliente_id}, \code{codigo_postal}; la lista de
+\code{\link[=sugerir_clave]{sugerir_clave()}}) y no una magnitud (\code{monto}, \code{importe}, \code{costo}, \code{cost},
+\code{peso}, \code{ratio}, \code{ventas}, \code{hijos}) ni una numeración declarada
+(\code{conteo}, \code{id_secuencia}). No importa dónde empiece ni si sus valores forman
+una progresión: una clave \verb{1..n}, \code{2:(n+1)} o \verb{1001..1500} con ausentes es una
+clave autoincremental con faltantes, y eso es lo que el aviso informa. Un
+número de algo seguido de un sustantivo en plural es un conteo (\code{num_votos},
+\code{num_visits}, \code{number_of_items}); seguido de uno en singular, o precedido por
+el sustantivo, es un identificador (\code{num_documento}, \code{order_number}). En
+castellano \code{orden} es ambiguo —una posición en una lista o un pedido—, así
+que \code{nro_orden}, \code{numero_orden} y \code{num_orden} no se acusan. Un nombre que sólo
 contiene la subcadena (\code{valid}, \code{paid}, \code{idx}, \code{pid}) o que acompaña a una
 magnitud (\code{id_ratio}, \code{documento_monto}) no basta. Los valores se comparan
 como en el resto del perfil: un blanco o un espacio final no sostienen la

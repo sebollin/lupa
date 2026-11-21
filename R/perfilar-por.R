@@ -703,6 +703,36 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     efectivos_numeracion[[posicion]]
   }
 
+  # Los codigos de ceros o nueves que se repiten en la columna ENTERA y que,
+  # por lo tanto, son marcas de ausencia tambien cuando un grupo los ve una sola
+  # vez. Se calcula una vez por columna, cuando un grupo la pide.
+  centinelas_fecha_calculadas <- list()
+  centinelas_fecha_de_la_columna <- function(nombre_columna) {
+    indice_columna <- .indice_nombre(nombre_columna, names(datos))
+    if (is.na(indice_columna) || indice_columna == indice_por) return(NULL)
+    nombre_columna <- names(datos)[[indice_columna]]
+    if (!is.null(centinelas_fecha_calculadas[[nombre_columna]])) {
+      return(centinelas_fecha_calculadas[[nombre_columna]])
+    }
+    valores <- datos[[indice_columna]]
+    if (!(is.character(valores) || is.factor(valores))) return(NULL)
+    mascara <- if (length(mascaras_universo) >= indice_columna) {
+      mascaras_universo[[indice_columna]]
+    } else NULL
+    if (!is.null(mascara) && length(mascara) == length(valores) &&
+        !all(mascara)) {
+      valores[!as.logical(mascara)] <- NA
+    }
+    marca <- .centinelas_fecha_texto(valores)
+    salida <- if (any(marca)) {
+      unique(trimws(as.character(valores)[marca]))
+    } else {
+      character()
+    }
+    centinelas_fecha_calculadas[[nombre_columna]] <<- salida
+    salida
+  }
+
   # El sostenimiento de la regla de dominio de cada columna, medido con la tabla
   # ENTERA y no con la rebanada: la regla vive en `perfilar()`, que decide con
   # el nombre, el contenido y las demas columnas (`lat` solo sabe que es una
@@ -942,7 +972,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     # numeracion de la columna entera: ver `.disfrazados_con_la_columna_entera()`.
     protegidos_grupo <- list()
     previo_contexto <- .fijar_contexto_por(
-      guarda_de_la_columna, dominio_de_la_columna
+      guarda_de_la_columna, dominio_de_la_columna,
+      centinelas_fecha_de_la_columna
     )
     .CONTEXTO_POR$filas_vacias_tabla <- vacias_enteras[filas]
     perfil <- tryCatch({
@@ -1442,6 +1473,12 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 .CONTEXTO_POR <- new.env(parent = emptyenv())
 .CONTEXTO_POR$guarda_columna <- NULL
 .CONTEXTO_POR$protegidos <- NULL
+# - `centinelas_fecha_columna`: funcion que recibe el nombre de una columna y
+#   devuelve los valores con forma de fecha hechos solo de ceros o de nueves
+#   que se repiten en la columna entera, o `NULL` si no es una columna de texto.
+#   La repeticion que convierte el codigo en marca de ausencia se mide sobre la
+#   tabla, no sobre la rebanada de cada grupo.
+.CONTEXTO_POR$centinelas_fecha_columna <- NULL
 # - `filas_vacias_tabla`: mascara logica de la rebanada que dice cuales de sus
 #   filas estan vacias en la tabla entera. Una fila con el grupo presente no es
 #   vacia aunque falten todas las demas columnas.
@@ -1455,17 +1492,20 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 #   columna, mientras `perfilar_por()` mide la tabla entera.
 .CONTEXTO_POR$captura_dominio <- NULL
 
-.fijar_contexto_por <- function(guarda_columna, dominio_columna = NULL) {
+.fijar_contexto_por <- function(guarda_columna, dominio_columna = NULL,
+                                centinelas_fecha_columna = NULL) {
   previo <- list(
     guarda_columna = .CONTEXTO_POR$guarda_columna,
     protegidos = .CONTEXTO_POR$protegidos,
     dominio_columna = .CONTEXTO_POR$dominio_columna,
     captura_dominio = .CONTEXTO_POR$captura_dominio,
+    centinelas_fecha_columna = .CONTEXTO_POR$centinelas_fecha_columna,
     filas_vacias_tabla = .CONTEXTO_POR$filas_vacias_tabla
   )
   .CONTEXTO_POR$guarda_columna <- guarda_columna
   .CONTEXTO_POR$dominio_columna <- dominio_columna
   .CONTEXTO_POR$captura_dominio <- NULL
+  .CONTEXTO_POR$centinelas_fecha_columna <- centinelas_fecha_columna
   .CONTEXTO_POR$protegidos <- list()
   .CONTEXTO_POR$filas_vacias_tabla <- NULL
   invisible(previo)
@@ -1476,6 +1516,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   .CONTEXTO_POR$protegidos <- previo$protegidos
   .CONTEXTO_POR$dominio_columna <- previo$dominio_columna
   .CONTEXTO_POR$captura_dominio <- previo$captura_dominio
+  .CONTEXTO_POR$centinelas_fecha_columna <- previo$centinelas_fecha_columna
   .CONTEXTO_POR$filas_vacias_tabla <- previo$filas_vacias_tabla
   invisible(NULL)
 }

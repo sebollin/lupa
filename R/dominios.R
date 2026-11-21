@@ -622,7 +622,14 @@
   coincide <- rowSums(abs(outer(
     valores[indices], candidatos_validos, "-"
   )) == 0) > 0
-  list(indices = indices[coincide], observados = centinelas[validos])
+  # Un centinela declarado vale aunque no aparezca, pero la evidencia nombra
+  # solo los que se observaron: decir que un valor ausente esta en la columna
+  # es falso.
+  presentes <- vapply(candidatos, function(valor) {
+    any(abs(valores[indices] - valor) == 0)
+  }, logical(1L))
+  list(indices = indices[coincide],
+       observados = centinelas[validos & presentes])
 }
 
 .dominio_no_futuro <- function(valores, referencia, fecha_es_date) {

@@ -481,8 +481,13 @@
   character()
 }
 
-.PALABRAS_DE_IMPORTE <- c("cantidad", "cant", "total", "monto", "importe",
-                          "saldo")
+# La unica lista de palabras de dinero del paquete. La usan la proteccion de
+# telefonos escritos como cifras sueltas y la clasificacion de nombres de
+# identificador, para que `costo` y `cost` pesen lo mismo que `monto`.
+.PALABRAS_DE_IMPORTE <- c(
+  "cantidad", "cantidades", "cant", "total", "totales", "monto", "montos",
+  "importe", "importes", "saldo", "saldos", "costo", "costos", "cost", "costs"
+)
 
 # Si los valores de una columna son fechas: de clase fecha, o textos que la
 # inferencia, sobre sus distintos, lee como fecha.

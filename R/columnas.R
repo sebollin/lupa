@@ -3675,6 +3675,19 @@
   # La convencion decimal que la fila publica: un centinela escrito con ella
   # -`"-999,00"` en una columna `decimal_coma`- se lee como lo lee el resumen.
   convencion <- inferencia[["convencion_numero_texto"]]
+  # Las marcas de ausencia con forma de fecha (`00-00-00`) solo se buscan en
+  # una columna que el perfil ya lee como fecha: en un codigo de texto no son
+  # una marca de nada.
+  es_fecha <- as.character(inferencia$tipo) %in% c("fecha", "fecha-hora")
+  # Dentro de `perfilar_por()`, la repeticion que convierte un codigo de ceros o
+  # nueves en marca de ausencia se mide en la columna entera, no en la rebanada:
+  # un centinela partido entre dos grupos sigue siendo una marca de la columna.
+  centinelas_fecha <- NULL
+  consultar_fecha <- .CONTEXTO_POR$centinelas_fecha_columna
+  if (isTRUE(es_fecha) && is.function(consultar_fecha) &&
+      length(nombre) == 1L && !is.na(nombre)) {
+    centinelas_fecha <- consultar_fecha(nombre)
+  }
   detectar <- function(efectivos, detectar_numericos) {
     .restringir_disfrazados(.detectar_faltantes_disfrazados(
       x_analisis, sentinelas_numericos = efectivos,
@@ -3682,7 +3695,8 @@
       # Una numeracion compacta no apaga por si sola la corazonada: un candidato
       # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
       # abrirla. Una declaracion explicita siempre atraviesa la guarda.
-      detectar_sentinelas_numericos = detectar_numericos
+      detectar_sentinelas_numericos = detectar_numericos,
+      fechas = es_fecha, centinelas_fecha = centinelas_fecha
     ), aplicable)
   }
   faltantes_disfrazados <- detectar(sentinelas_efectivos, detectar_sentinelas)

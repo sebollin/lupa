@@ -21067,6 +21067,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
 }
 
+# El tamano de la muestra, con el de la tabla solo cuando se conoce. Con
+# `universo = "muestra_motor"` el total puede no venir informado; nombrarlo
+# igual publicaba "500 filas de las NA de la tabla", que no dice nada.
+.texto_muestra_filas_dbi <- function(filas, total) {
+  numero <- function(x) suppressWarnings(as.numeric(x))
+  filas_n <- if (length(filas) == 1L) numero(filas) else NA_real_
+  if (!is.finite(filas_n)) return("la muestra")
+  texto <- paste0(filas, if (filas_n == 1) " fila" else " filas")
+  total_n <- if (length(total) == 1L) numero(total) else NA_real_
+  if (is.finite(total_n) && total_n >= 0) {
+    paste0(texto, " de las ", total, " de la tabla")
+  } else {
+    paste0(texto, " de la tabla")
+  }
+}
+
 # `constante` afirma que la columna tiene un unico valor no ausente. Sobre una
 # muestra esa afirmacion no se puede sostener: basta una fila no leida para
 # desmentirla, y una tabla de 200 filas con tres valores donde 50 filas traen
@@ -21103,8 +21119,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
           constante = "si la columna es constante",
           casi_constante = "si la columna es casi constante",
           "si la columna es un identificador con ausentes"
-        ), ": el perfil describe ", filas,
-        if (filas == 1L) " fila de las " else " filas de las ", total, " de la tabla. ",
+        ), ": el perfil describe ",
+        .texto_muestra_filas_dbi(filas, total), ". ",
         switch(
           tipo,
           constante = paste0(
@@ -21152,7 +21168,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     "serie_acumulada_retrocede", NA_character_,
     paste0(
       "No se evalu\u00f3 el retroceso de una serie acumulada: la muestra tiene ",
-      filas, if (filas == 1L) " fila de las " else " filas de las ", total,
+      .texto_muestra_filas_dbi(filas, total),
       " y no conserva el orden de las filas de la tabla. Un salto entre dos ",
       "filas muestreadas no es un retroceso de la serie."
     ),

@@ -292,7 +292,7 @@
   junio = 6L, jun = 6L, june = 6L,
   julio = 7L, jul = 7L, july = 7L,
   agosto = 8L, ago = 8L, august = 8L, aug = 8L,
-  septiembre = 9L, sep = 9L, september = 9L,
+  septiembre = 9L, sep = 9L, sept = 9L, september = 9L,
   setiembre = 9L, set = 9L,
   octubre = 10L, oct = 10L, october = 10L,
   noviembre = 11L, nov = 11L, november = 11L,
@@ -314,6 +314,15 @@
 }
 
 .detectar_meses_texto <- function(valores) {
+  .parsear_meses_texto(valores, solo_forma = FALSE)
+}
+
+# `solo_forma = TRUE` devuelve tambien la forma de los valores que no existen en
+# el calendario: el diagnostico de fechas imposibles necesita saber que
+# `30 de febrero de 2022` esta escrito como fecha aunque no sea una fecha. La
+# deteccion de formatos usa la forma estricta: un valor imposible no convierte
+# la columna en fecha por si solo.
+.parsear_meses_texto <- function(valores, solo_forma = FALSE) {
   n <- length(valores)
   formatos <- rep("", n)
   dias <- rep(NA_integer_, n)
@@ -321,6 +330,7 @@
   anios <- rep(NA_integer_, n)
   dos_digitos <- rep(FALSE, n)
   validos <- rep(FALSE, n)
+  formados <- rep(FALSE, n)
   nombres_mes <- rep(NA_character_, n)
   patrones <- list(
     list(
@@ -377,7 +387,11 @@
         .detectar_meses_regexec(patron$expresion, texto)
       )
       indices_locales <- which(
-        !validos[indices_candidatos] & lengths(coincidencias) > 1L
+        if (isTRUE(solo_forma)) {
+          !formados[indices_candidatos] & lengths(coincidencias) > 1L
+        } else {
+          !validos[indices_candidatos] & lengths(coincidencias) > 1L
+        }
       )
       if (!length(indices_locales)) next
       indices <- indices_candidatos[indices_locales]
@@ -402,46 +416,56 @@
       validos_candidatos <- .fecha_mes_valida(
         dias_candidatos, meses_candidatos, anios_candidatos, dos_candidatos
       )
-      if (!any(validos_candidatos)) next
-      indices_validos <- indices[validos_candidatos]
-      nombres_validos <- nombres_candidatos[validos_candidatos]
-      dos_validos <- dos_candidatos[validos_candidatos]
+      if (!isTRUE(solo_forma) && !any(validos_candidatos)) next
+      filas_asignar <- if (isTRUE(solo_forma)) {
+        seq_along(indices)
+      } else {
+        which(validos_candidatos)
+      }
+      indices_asignar <- indices[filas_asignar]
+      nombres_asignar <- nombres_candidatos[filas_asignar]
+      dos_asignar <- dos_candidatos[filas_asignar]
       nombre_formato <- if (identical(patron$formato, "de")) {
-        paste0("%d de %", ifelse(nchar(nombres_validos) > 3L, "B", "b"),
-               " de %", ifelse(dos_validos, "y", "Y"))
+        paste0("%d de %", ifelse(nchar(nombres_asignar) > 3L, "B", "b"),
+               " de %", ifelse(dos_asignar, "y", "Y"))
       } else if (identical(patron$formato, "separado")) {
         separadores <- lapply(
           regmatches(
-            texto[match(indices_validos, indices_candidatos)],
+            texto[match(indices_asignar, indices_candidatos)],
             regexec("^[0-9]{1,2}([-[:space:]])[^-[:space:]]+([-[:space:]])",
-                    texto[match(indices_validos, indices_candidatos)], perl = TRUE)
+                    texto[match(indices_asignar, indices_candidatos)], perl = TRUE)
           ),
           function(partes) partes[-1L]
         )
         paste0(
           "%d", vapply(separadores, `[[`, character(1L), 1L), "%",
-          ifelse(nchar(nombres_validos) > 3L, "B", "b"),
+          ifelse(nchar(nombres_asignar) > 3L, "B", "b"),
           vapply(separadores, `[[`, character(1L), 2L), "%",
-          ifelse(dos_validos, "y", "Y")
+          ifelse(dos_asignar, "y", "Y")
         )
       } else if (identical(patron$formato, "ingles")) {
-        comas <- grepl(",", texto[match(indices_validos, indices_candidatos)],
+        comas <- grepl(",", texto[match(indices_asignar, indices_candidatos)],
                        fixed = TRUE, useBytes = TRUE)
         paste0(
-          "%", ifelse(nchar(nombres_validos) > 3L, "B", "b"),
+          "%", ifelse(nchar(nombres_asignar) > 3L, "B", "b"),
           " %d", ifelse(comas, ",", ""), " %",
-          ifelse(dos_validos, "y", "Y")
+          ifelse(dos_asignar, "y", "Y")
         )
       } else {
-        paste0("%", ifelse(nchar(nombres_validos) > 3L, "B", "b"), " %Y")
+        paste0("%", ifelse(nchar(nombres_asignar) > 3L, "B", "b"), " %Y")
       }
-      formatos[indices_validos] <- nombre_formato
-      dias[indices_validos] <- dias_candidatos[validos_candidatos]
-      meses[indices_validos] <- meses_candidatos[validos_candidatos]
-      anios[indices_validos] <- anios_candidatos[validos_candidatos]
-      dos_digitos[indices_validos] <- dos_validos
-      validos[indices_validos] <- TRUE
-      nombres_mes[indices_validos] <- nombres_validos
+      formatos[indices_asignar] <- nombre_formato
+      dias[indices_asignar] <- dias_candidatos[filas_asignar]
+      meses[indices_asignar] <- meses_candidatos[filas_asignar]
+      anios[indices_asignar] <- anios_candidatos[filas_asignar]
+      dos_digitos[indices_asignar] <- dos_asignar
+      validos[indices_asignar] <- if (isTRUE(solo_forma)) {
+        validos_candidatos[filas_asignar]
+      } else {
+        TRUE
+      }
+      if (isTRUE(solo_forma)) formados[indices_asignar] <- TRUE
+      nombres_mes[indices_asignar] <- nombres_asignar
     }
   }
   # `%B` o `%b` se decide por el largo del nombre, y `may` es las dos cosas: el
@@ -538,8 +562,9 @@
 #' detectan, pero siempre quedan como candidatos y se señalan en la columna
 #' `anio_dos_digitos`: el siglo no se interpreta en silencio.
 #' También reconoce meses escritos en español rioplatense (`setiembre` y
-#' `set`) y en inglés, con la estructura completa de una fecha o como mes y
-#' año. La tabla interna de nombres no usa `LC_TIME`, por lo que el resultado
+#' `set`) y en inglés, incluida la abreviatura `sept`, con la estructura
+#' completa de una fecha o como mes y año. La tabla interna de nombres no usa
+#' `LC_TIME`, por lo que el resultado
 #' es independiente del locale del proceso; los nombres de mes dentro de una
 #' oración no se reconocen. Un mes escrito desambigua día/mes, pero un año de
 #' dos dígitos sigue siendo candidato. Los formatos escritos de mes y año,

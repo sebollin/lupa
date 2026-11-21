@@ -28,18 +28,28 @@
 - `perfilar()` informa las horas y fechas escritas como texto que no existen
   (`hora_invalida`, `fecha_invalida`, sospechosos: `"12:61"`, `"2022-02-30"`,
   con los bisiestos; también con año de dos cifras, fechas parciales, fechas
-  con hora y formatos minoritarios de la columna; el segundo intercalar
-  `23:59:60` es válido), con sus filas, en las columnas que el perfil lee como
-  hora o fecha. `24:00` se acepta como fin del día, y una hora de 24 o más con
-  minutos válidos sólo se acusa si el nombre de la columna dice hora del día
-  (puede ser una duración). `umbral_patron_raro = 0` los apaga.
+  con hora, formatos minoritarios de la columna, la forma compacta `AAAAMMDD`
+  —cuando la columna es sin duda razonable una fecha compacta, en texto o en
+  enteros— y el nombre del mes en castellano o en inglés; el segundo
+  intercalar `23:59:60` es válido), con sus filas, en las columnas que el
+  perfil lee como hora o fecha. Un valor hecho sólo de ceros o de nueves con
+  forma de fecha (`00-00-00`, `9999-99-99`, `00000000`) que se repite es una
+  marca de «sin dato» y sale como `faltantes_disfrazados`; una aparición sola
+  sigue siendo una fecha imposible. `24:00` se acepta como fin del día, y una
+  hora de 24 o más con minutos válidos sólo se acusa si el nombre de la
+  columna dice hora del día (puede ser una duración).
+  `umbral_patron_raro = 0` los apaga.
 - `perfilar()` informa las columnas casi constantes (`casi_constante`, `ok`:
   un valor ocupa el 99 % o más de los presentes, con al menos 100 valores; la
   evidencia da la razón de frecuencias y el porcentaje de valores únicos, como
   `nearZeroVar()` del paquete caret) y los identificadores de texto con hasta un
   10 % de faltantes (`identificador_con_ausentes`, `ok`; también numéricos
-  enteros con nombre de identificador, sin confundirlos con una numeración: si
-  es la clave de la tabla, declararla con `clave =` la acusa como
+  enteros cuyo nombre se lee como clave, sea `1..n` o disperso: el nombre
+  decide. Un número de algo en plural es un conteo —`num_votos`,
+  `number_of_items`—, y uno en singular un identificador —`num_documento`,
+  `order_number`—; `nro_orden` no se acusa porque en castellano también es una
+  posición, y `costo` o `cost` vuelven magnitud un nombre de clave. Si es la
+  clave de la tabla, declararla con `clave =` la acusa como
   `clave_con_ausentes`). Los dos cuentan sobre el universo aplicable y, con
   `universo = "muestra_motor"`, se declaran en la cobertura.
 - `detectar_dependencias()` y `perfilar()` ya no informan una dependencia
@@ -93,7 +103,8 @@
   dice en el texto; `print()` y `reportar()` cuentan estos avisos aparte de los
   correctos; `comparar_perfiles()` informa el paso de filas a columna.
   `dominios` declara la regla de una columna o, con `FALSE`, apaga la
-  inferencia.
+  inferencia; de las fechas centinela declaradas, la evidencia nombra sólo las
+  que aparecen en la columna.
 - `perfilar()` informa los códigos que perdieron los ceros a la izquierda
   (`largo_codigo_inconsistente`, sospechoso): en una columna de texto con forma
   de código cuyo largo dominante se escribe con ceros a la izquierda, nombra
@@ -199,10 +210,16 @@
   exige además que la diferencia supere el ruido de muestreo (nivel 0,001), y
   la comparación se abstiene, columna por columna, cuando no puede decidir que
   las cifras miden lo mismo: unidad, política de centinelas, aplicabilidad o
-  columnas opcionales distintas, campos que un perfil de otra versión no trae,
-  un cambio de resolución o un lado que es muestra. Antes una media corrida 25
-  con desvío 15 salía sólo como cambio de rango, y un reparto 50/50 que pasaba
-  a 80/20 no salía.
+  columnas opcionales distintas, campos que un perfil de otra versión no trae
+  o un lado que es muestra. Cuando la grilla de los valores (el paso del
+  redondeo, estimado por los decimales de los extremos y de la moda) cambia
+  entre las entregas, la media y la dispersión se comparan descontando lo que
+  el redondeo puede explicar, y la fila lo dice; con 20 a 49 valores por lado,
+  la dispersión usa el error típico de Bonett (2006) y se abstiene si un lado
+  tiene una cola (un centinela que no se reconoció); y una categoría que crece
+  en una tabla chica se prueba contra el resto con la exacta de Fisher. Antes
+  una media corrida 25 con desvío 15 salía sólo como cambio de rango, y un
+  reparto 50/50 que pasaba a 80/20 no salía.
 - `comparar_perfiles()` publica `conteo_hallazgo` cuando un hallazgo sigue con
   la misma severidad pero afecta a una proporción de filas materialmente
   distinta (al menos `umbral_cambio` y por encima del ruido). Quedan fuera los

@@ -2361,15 +2361,34 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' * `deriva_media`: diferencia de medias estandarizada, `(media actual - media
 #'   anterior) / sqrt((desvío anterior^2 + desvío actual^2) / 2)` (Cohen, 1988;
 #'   Austin, 2009). `sospechoso` desde 0,2 y `error` desde 0,8, en cualquier
-#'   sentido. Ruido: error típico de Welch.
+#'   sentido. Ruido: error típico de Welch. Si la grilla en la que caen los
+#'   valores (el paso del redondeo, estimado por los decimales de los extremos y
+#'   de la moda) cambia cuatro veces o más entre las entregas, o una no la tiene,
+#'   y la de un lado es gruesa (valores repetidos y un paso mayor que su desvío),
+#'   el corrimiento se evalúa descontando lo que el redondeo puede explicar, a lo
+#'   sumo la mitad del paso en cada media, y la fila lo dice. Enteros dispersos
+#'   en un rango ancho tienen la misma grilla que enteros juntos: no cuentan como
+#'   un cambio.
 #' * `deriva_dispersion`: razón entre los desvíos. `delta` es desvío actual sobre
 #'   anterior; `sospechoso` desde 1,5 veces (o 1/1,5) y `error` desde 2. Mira el
 #'   cambio de varianza sin cambio de media. El perfil no guarda la curtosis, y
 #'   el ruido de un desvío depende de ella: se la acota con los extremos y el
 #'   desvío del propio perfil (una cota, así que no subestima el ruido). No se
-#'   compara con menos de 50 valores por lado, ni si un solo valor explica más
+#'   compara con menos de 20 valores por lado; entre 20 y 49 el error típico usa
+#'   la varianza de Bonett (2006) con un piso de 6 para la curtosis, y se pide
+#'   que cada lado tenga al menos tres valores distintos. Tampoco si un solo
+#'   valor explica más
 #'   de la cuarta parte de la suma de cuadrados (una columna casi constante con
-#'   un valor lejano: su desvío es ese valor).
+#'   un valor lejano: su desvío es ese valor). Si la grilla de los valores
+#'   cambia cuatro veces o más entre las entregas (otra resolución o
+#'   un redondeo distinto), la razón se evalúa descontando lo que el redondeo
+#'   puede explicar, a lo sumo la mitad del paso en cada desvío (desigualdad de
+#'   Minkowski), y la fila lo dice; si el paso medio entre valores distintos no se calcula en un lado,
+#'   no se compara.
+#'   Con menos de 50 valores o con otro paso, tampoco se compara si algún lado
+#'   tiene al menos dos atípicos de Tukey y el 2 % o más de sus valores (un
+#'   centinela o una cola pesada que cae en una muestra y no en la otra), y el
+#'   paso sólo se descuenta en un lado con valores repetidos.
 #' * `deriva_categorias`: PSI (índice de estabilidad poblacional; Siddiqi, 2006)
 #'   del reparto entre los valores que están en las dos entregas, con los cortes
 #'   convencionales 0,1 (`sospechoso`) y 0,25 (`error`). Los valores que
@@ -2379,6 +2398,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #'   homogeneidad reescalado por `1/n1 + 1/n2` (Yurdakul, 2018), así que el
 #'   ruido esperado es `qchisq(0,999, k - 1) * (1/n1 + 1/n2)`; la evidencia lo
 #'   informa junto a la distancia de variación total.
+#'   Cuando esa vía calla porque una entrega tiene pocas filas, cada categoría
+#'   se prueba contra el resto con la prueba exacta de Fisher, con Bonferroni
+#'   sobre las categorías para sostener el nivel 0,001 de la columna, y con el
+#'   PSI de esa categoría contra el resto (mismos cortes) como tamaño del efecto.
 #' * `conteo_hallazgo`: un hallazgo que sigue con la misma severidad pero afecta
 #'   a más (o menos) filas, `agravado` o `atenuado`. Se compara la proporción de
 #'   filas afectadas, y sólo si cambia al menos `umbral_cambio` y por encima del
@@ -2428,7 +2451,8 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' Siddiqi, N. (2006), *Credit Risk Scorecards*, Wiley; Yurdakul, B. (2018),
 #' *Statistical Properties of Population Stability Index*, Western Michigan
 #' University; Lin, M., Lucas, H. C. y Shmueli, G. (2013), *Information Systems
-#' Research* 24(4); Cochran, W. G. (1954), *Biometrics* 10(4).
+#' Research* 24(4); Cochran, W. G. (1954), *Biometrics* 10(4); Bonett, D. G.
+#' (2006), *Applied Psychological Measurement* 30(5).
 #'
 #' Las **marcas del plan de limpieza** —`.fila_duplicada`, `.grupo_duplicado`,
 #' `.ausente_<columna>` y `.outlier_<columna>`— se reconocen por lo que deja
@@ -3966,11 +3990,15 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         columna, "deriva_categorias", "modificado", categorias$severidad,
         categorias$valor_anterior, categorias$valor_actual,
         delta = categorias$medida,
-        descripcion = paste(
-          "Cambi\u00f3 el reparto de la columna entre los valores que siguen",
-          "en las dos entregas: el PSI supera el umbral y el ruido de muestreo",
-          "esperado al nivel 0,001."
-        ),
+        descripcion = if (!is.null(categorias$descripcion)) {
+          categorias$descripcion
+        } else {
+          paste(
+            "Cambi\u00f3 el reparto de la columna entre los valores que siguen",
+            "en las dos entregas: el PSI supera el umbral y el ruido de muestreo",
+            "esperado al nivel 0,001."
+          )
+        },
         evidencia = categorias$evidencia
       )
     }
