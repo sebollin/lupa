@@ -665,6 +665,13 @@
 #'   validador = validar_ci_uy
 #' )
 #'
+#'
+#' `ReglaIntegridadIntraEntidad` acepta en `regla` tanto una función
+#' `function(d)` como una fórmula de un solo lado (por ejemplo
+#' `~ is.na(inicio) | is.na(fin) | inicio <= fin`). La fórmula ve sólo los
+#' atributos ligados, nunca ejecuta código fuera de la lista cerrada de
+#' operadores y literales, y mantiene el contrato de `NA` de la función: si
+#' produce algún `NA`, la métrica queda `no_medible`.
 #' @name modelo_calidad
 #' @seealso [referencial()], [agregar()], [medir()], [proponer_modelo()]
 NULL
@@ -1067,8 +1074,13 @@ modelo <- function(..., marco = NULL) {
 
 .validar_config_regla <- function(configuracion) {
   configuracion <- .validar_propiedades_base(configuracion, "regla")
-  if (!is.function(configuracion$regla)) {
-    .detener("`regla` debe ser una funci\u00f3n.", call. = FALSE)
+  regla <- configuracion$regla
+  if (!is.function(regla) &&
+      !(inherits(regla, "formula") && length(regla) == 2L)) {
+    .detener(
+      "`regla` debe ser una funci\u00f3n o una f\u00f3rmula de un solo lado.",
+      call. = FALSE
+    )
   }
   configuracion
 }
@@ -1155,7 +1167,9 @@ modelo <- function(..., marco = NULL) {
 # columna. Va aca, y no en el metodo, para que las dos
 # preguntas sigan contestandose con el mismo universo.
 .mascara_aplicable_instancia <- function(tabla, instancia,
-                                         entidad = instancia$entidad[[1L]]) {
+                                         entidad = instancia$entidad[[1L]],
+                                         mascara = NULL) {
+  if (!is.null(mascara)) return(mascara)
   n <- nrow(tabla)
   presentes <- rep(TRUE, n)
   if (isTRUE(instancia$configuracion$opcional)) {
@@ -1185,52 +1199,7 @@ modelo <- function(..., marco = NULL) {
 }
 
 .metodo_no_nulo <- function(tablas, instancia) {
-  .validar_vinculo(instancia, 1L, 1L)
-  entidad <- instancia$entidad[[1L]]
-  atributo <- instancia$atributos[[1L]]
-  tabla <- .obtener_tabla_modelo(tablas, entidad)
-  x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  filas <- seq_len(nrow(tabla))
-  # El universo declarado recorta las filas antes de medir. Sin `aplicable`, el
-  # universo es la tabla entera y esto no cambia nada. Con `aplicable`, las
-  # filas donde la columna no corresponde salen del denominador en vez de
-  # contarse como incompletas: es el mismo criterio que `perfilar()`.
-  dentro <- .mascara_aplicable_instancia(tabla, instancia, entidad)
-  if (!all(dentro)) {
-    filas <- filas[dentro]
-    x <- x[dentro]
-  }
-  ausente <- is.na(x)
-  valores_nulos <- instancia$configuracion$valores_nulos
-  if (length(valores_nulos)) {
-    # El centinela de otra clase temporal que la columna es el peor caso de la
-    # familia: no coincide con nada y la metrica de COMPLETITUD publica que no
-    # falta nada. Medido sobre una columna `Date` con `1900-01-01` como ausencia
-    # disfrazada: `1 1 1` con el centinela declarado `POSIXct` y `1 0 1` con el
-    # mismo centinela como fecha de calendario.
-    .declarar_mezcla_de_husos(
-      instancia$declaracion$nombre, atributo, x, list(valores_nulos),
-      consecuencia = paste0(
-        "as\u00ed que el centinela no coincide con ning\u00fan valor y la m\u00e9trica publica ",
-        "como presentes las ausencias disfrazadas"
-      )
-    )
-    es_texto <- is.character(x) || is.factor(x) ||
-      is.character(valores_nulos) || is.factor(valores_nulos)
-    coincide <- if (es_texto) {
-      x_texto <- .texto_analizable(x)$valores
-      nulos_texto <- .texto_analizable(valores_nulos)$valores
-      .minusculas_para_comparar(x_texto) %in%
-        .minusculas_para_comparar(nulos_texto)
-    } else {
-      .en_conjunto_por_valor(x, valores_nulos)
-    }
-    ausente <- ausente | (!is.na(x) & coincide)
-  }
-  .salida_metodo(
-    !ausente, entidad, atributo, filas,
-    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
-  )
+  .metodo_especificado(tablas, instancia)
 }
 
 .resultado_validador <- function(resultado, n, nombre) {
@@ -1245,6 +1214,9 @@ modelo <- function(..., marco = NULL) {
 }
 
 .metodo_formato <- function(tablas, instancia) {
+  if (!is.null(instancia$configuracion$diccionario)) {
+    return(.metodo_especificado(tablas, instancia))
+  }
   .validar_vinculo(instancia, 1L, 1L)
   entidad <- instancia$entidad[[1L]]
   atributo <- instancia$atributos[[1L]]
@@ -1259,24 +1231,6 @@ modelo <- function(..., marco = NULL) {
     resultado <- grepl(
       config$expresion_regular, as.character(valores), perl = TRUE
     )
-  } else if (!is.null(config$diccionario)) {
-    # Un diccionario temporal de otra clase que la columna no coincide con ningun
-    # valor: medido, `0 0 0` con el diccionario declarado como instantes y `1 1 0`
-    # con el mismo diccionario como fechas -o como texto-.
-    .declarar_mezcla_de_husos(
-      instancia$declaracion$nombre, atributo, valores, list(config$diccionario),
-      consecuencia = paste0(
-        "as\u00ed que ning\u00fan valor coincide con el diccionario y la m\u00e9trica publica ",
-        "un incumplimiento que no existe"
-      )
-    )
-    if (texto || is.character(config$diccionario) ||
-        is.factor(config$diccionario)) {
-      diccionario <- .texto_analizable(config$diccionario)$valores
-      resultado <- .clave_bytes(valores) %in% .clave_bytes(diccionario)
-    } else {
-      resultado <- .en_conjunto_por_valor(valores, config$diccionario)
-    }
   } else {
     resultado <- .resultado_validador(
       config$validador(valores), length(valores), "Formato"
@@ -1289,44 +1243,13 @@ modelo <- function(..., marco = NULL) {
 }
 
 .metodo_valores_posibles <- function(tablas, instancia) {
-  .validar_vinculo(instancia, 1L, 1L)
-  entidad <- instancia$entidad[[1L]]
-  atributo <- instancia$atributos[[1L]]
-  tabla <- .obtener_tabla_modelo(tablas, entidad)
-  x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  texto <- is.character(x) || is.factor(x)
-  if (texto) x <- .texto_analizable(x)$valores
-  filas <- which(!is.na(x))
-  valores <- x[!is.na(x)]
-  dominio <- instancia$configuracion$valores
-  # Un dominio temporal de otra clase que la columna no desplaza el numero: lo
-  # rompe. `%in%` compara `Date` contra `POSIXct` por su texto, no coincide
-  # ninguno, y la metrica publica que NINGUN valor esta en el dominio. Medido:
-  # `0 0 0` con el dominio como instantes y `1 1 0` con el mismo dominio como
-  # fechas. Lo encontro el recorrido del catalogo, no una revision de este
-  # archivo: la propiedad es "comparar temporales de clases distintas", y aparece
-  # en metricas que no tienen nada que ver entre si.
-  .declarar_mezcla_de_husos(
-    instancia$declaracion$nombre, atributo, valores, list(dominio),
-    consecuencia = paste0(
-      "as\u00ed que un valor que S\u00cd est\u00e1 en el dominio no coincide con ninguno y la ",
-      "m\u00e9trica publica un incumplimiento que no existe"
-    )
-  )
-  if (texto || is.character(dominio) || is.factor(dominio)) {
-    dominio <- .texto_analizable(dominio)$valores
-    resultado <- .clave_bytes(valores) %in% .clave_bytes(dominio)
-  } else {
-    resultado <- .en_conjunto_por_valor(valores, dominio)
-  }
-  .salida_metodo(
-    resultado,
-    entidad, atributo, filas,
-    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
-  )
+  .metodo_especificado(tablas, instancia)
 }
 
 .metodo_regla_intra <- function(tablas, instancia) {
+  if (inherits(instancia$configuracion$regla, "formula")) {
+    return(.metodo_especificado(tablas, instancia))
+  }
   if (length(instancia$entidad) != 1L || !length(instancia$atributos)) {
     .detener(
       "ReglaIntegridadIntraEntidad requiere una entidad y al menos un atributo.",
@@ -1354,38 +1277,7 @@ modelo <- function(..., marco = NULL) {
 }
 
 .metodo_regla_inter <- function(tablas, instancia) {
-  .validar_vinculo(instancia, 2L, 2L)
-  entidad_referencia <- instancia$entidad[[1L]]
-  entidad_dependiente <- instancia$entidad[[2L]]
-  atributo_pk <- instancia$atributos[[1L]]
-  atributo_fk <- instancia$atributos[[2L]]
-  tabla_referencia <- .obtener_tabla_modelo(tablas, entidad_referencia)
-  tabla_dependiente <- .obtener_tabla_modelo(tablas, entidad_dependiente)
-  .obtener_columna_modelo(tabla_referencia, atributo_pk, entidad_referencia)
-  .obtener_columna_modelo(tabla_dependiente, atributo_fk, entidad_dependiente)
-  if (!nrow(tabla_dependiente)) {
-    # Una tabla dependiente vacia no tiene claves foraneas que comprobar. La
-    # relacion queda sin valores, y `medir()` publica la cobertura con el
-    # motivo correspondiente en vez de convertir `NA` en un error de contrato.
-    return(.salida_metodo(
-      numeric(), entidad_dependiente, atributo_fk, integer(), character()
-    ))
-  }
-  relacion <- detectar_relaciones(
-    .seleccionar_columnas(tabla_referencia, atributo_pk),
-    .seleccionar_columnas(tabla_dependiente, atributo_fk),
-    muestra = instancia$configuracion$muestra,
-    # La metrica publica la cobertura; las filas huerfanas no se usan aca.
-    .trazar_huerfanas = FALSE
-  )
-  .salida_metodo(
-    relacion$cobertura_tabla2_en_tabla1,
-    entidad_dependiente, atributo_fk, NA_integer_,
-    .pegar_texto0(
-      entidad_dependiente, "$", atributo_fk, " -> ",
-      entidad_referencia, "$", atributo_pk
-    )
-  )
+  .metodo_especificado(tablas, instancia)
 }
 
 .metodo_error_estandar <- function(tablas, instancia) {
@@ -2020,86 +1912,50 @@ metricas_nucleo <- function() {
   nrow(tablas[[indice]])
 }
 
-.cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
-                                           fecha, tablas_originales = NULL) {
+.cobertura_metrica_desde_conteos <- function(instancia, id_medicion, fecha,
+                                             conteos) {
   entidad <- instancia$entidad[[1L]]
-  # "Dependiente" es la segunda entidad de una metrica entre dos, y nada mas. Se
-  # buscaba entre TODAS las ligadas, la principal incluida, asi que `NoNulo` sobre
-  # una tabla vacia publicaba "la entidad dependiente `t`" -una palabra de
-  # `ReglaIntegridadInterEntidad`- en una metrica que no tiene dependiente. La
-  # principal vacia es el caso de abajo: un alcance vacio.
-  entidades_ligadas <- .identificadores_intersect(instancia$entidad[-1L], names(tablas))
-  indices_entidades <- .indice_identificador(entidades_ligadas, names(tablas))
-  entidades_vacias <- entidades_ligadas[vapply(
-    tablas[indices_entidades], function(tabla) !nrow(tabla), logical(1L)
-  )]
-  indice_entidad <- .indice_identificador(entidad, names(tablas))
-  tabla <- if (is.na(indice_entidad)) NULL else tablas[[indice_entidad]]
   nombre <- instancia$nombre
   sujeto <- paste0("la m\u00e9trica `", nombre, "`")
   sin_medidas <- FALSE
-  if (length(entidades_vacias)) {
+  if (!is.null(conteos$entidad_dependiente_vacia)) {
     motivo <- paste0(
       sujeto, " no se pudo medir: la entidad dependiente `",
-      entidades_vacias[[1L]], "` tiene cero filas. No hay nada que medir;",
+      conteos$entidad_dependiente_vacia, "` tiene cero filas. No hay nada que medir;",
       " no es un alcance vac\u00edo."
     )
-  } else if (!is.null(tabla) && !nrow(tabla) &&
-             .filas_originales_entidad(tablas_originales, entidad) > 0L) {
-    # La tabla RECORTADA quedo vacia, no la del usuario: decia "la entidad tiene
-    # cero filas" sobre una entidad de tres, porque esta funcion recibe las tablas
-    # ya recortadas por `aplicabilidad`.
+  } else if (isTRUE(conteos$entidad_presente) && conteos$n_recortada == 0 &&
+             conteos$n_original > 0) {
     motivo <- paste0(
       sujeto, " no se pudo medir: el universo aplicable de la entidad `", entidad,
-      "` qued\u00f3 vac\u00edo -ninguna de sus ",
-      .filas_originales_entidad(tablas_originales, entidad),
-      if (.filas_originales_entidad(tablas_originales, entidad) == 1L) {
+      "` qued\u00f3 vac\u00edo -ninguna de sus ", conteos$n_original,
+      if (conteos$n_original == 1) {
         " fila cumple la regla de `aplicabilidad`-. No hay nada que medir; no es "
       } else " filas cumplen la regla de `aplicabilidad`-. No hay nada que medir; no es ",
       "un fallo, es un alcance vac\u00edo."
     )
-  } else if (is.null(tabla) || !nrow(tabla)) {
+  } else if (!isTRUE(conteos$entidad_presente) || conteos$n_recortada == 0) {
     motivo <- paste0(
       sujeto, " no se pudo medir: la entidad `", entidad,
       "` tiene cero filas. No hay nada que medir; no es un fallo, es un",
       " alcance vac\u00edo."
     )
-  } else if (!is.null(instancia$configuracion$aplicable) && !any(tryCatch(
-    .mascara_aplicable_instancia(tabla, instancia),
-    error = function(e) TRUE
-  ))) {
-    # Y el mismo caso con el universo que declara la METRICA: con la propiedad
-    # `aplicable` de `NoNulo` excluyendo todas las filas, decia "su metodo no
-    # devolvio ninguna medida".
+  } else if (!is.null(instancia$configuracion$aplicable) &&
+             isTRUE(conteos$aplicable_vacio)) {
     motivo <- paste0(
       sujeto, " no se pudo medir: el universo que la m\u00e9trica declara con ",
-      "`aplicable` qued\u00f3 vac\u00edo -ninguna de las ", nrow(tabla),
-      if (nrow(tabla) == 1L) {
+      "`aplicable` qued\u00f3 vac\u00edo -ninguna de las ", conteos$n_recortada,
+      if (conteos$n_recortada == 1) {
         " fila lo cumple-. No hay nada que medir; no es un fallo, es un alcance "
       } else " filas lo cumplen-. No hay nada que medir; no es un fallo, es un alcance ",
       "vac\u00edo."
     )
-  } else if (length(instancia$atributos)) {
-    indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
-    columnas <- names(tabla)[indices_atributos[!is.na(indices_atributos)]]
-    comparables <- if (length(columnas)) {
-      .seleccionar_columnas(tabla, columnas)
-    } else NULL
-    sin_valores <- !is.null(comparables) &&
-      (!nrow(comparables) || !any(.filas_completas(comparables)))
-    motivo <- if (sin_valores) {
-      paste0(
-        sujeto, " no se pudo medir: los atributos ligados quedaron sin valores",
-        " no nulos en el universo aplicable. No hay nada que medir; no es un",
-        " fallo, es un alcance vac\u00edo."
-      )
-    } else {
-      sin_medidas <- TRUE
-      paste0(
-        sujeto, " no se pudo medir: su m\u00e9todo no devolvi\u00f3 ninguna medida",
-        " para el universo recibido."
-      )
-    }
+  } else if (length(instancia$atributos) && isTRUE(conteos$sin_valores_atributos)) {
+    motivo <- paste0(
+      sujeto, " no se pudo medir: los atributos ligados quedaron sin valores",
+      " no nulos en el universo aplicable. No hay nada que medir; no es un",
+      " fallo, es un alcance vac\u00edo."
+    )
   } else {
     sin_medidas <- TRUE
     motivo <- paste0(
@@ -2107,12 +1963,6 @@ metricas_nucleo <- function() {
       " para el universo recibido."
     )
   }
-  # Esas dos ramas publicaban `sin_valores` con "aportar valores no nulos", y el
-  # universo SI tenia valores: era el metodo el que no midio. `?medir` define
-  # `sin_valores` como un universo sin valores, asi que la etiqueta afirmaba algo
-  # falso. Es `no_medible`, y `medir()` avisa por ese estado. Ningun metodo del
-  # paquete llega aca en las pruebas de `medir()` -medido recorriendolas con la
-  # funcion envuelta-: es la puerta de un metodo propio.
   if (sin_medidas) {
     return(data.frame(
       id_medicion = as.character(id_medicion), fecha = as.POSIXct(fecha),
@@ -2143,6 +1993,45 @@ metricas_nucleo <- function() {
       "interpreta como cero."
     ), stringsAsFactors = FALSE
   )
+}
+
+.cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
+                                           fecha, tablas_originales = NULL) {
+  entidad <- instancia$entidad[[1L]]
+  entidades_ligadas <- .identificadores_intersect(instancia$entidad[-1L], names(tablas))
+  indices_entidades <- .indice_identificador(entidades_ligadas, names(tablas))
+  entidades_vacias <- entidades_ligadas[vapply(
+    tablas[indices_entidades], function(tabla) !nrow(tabla), logical(1L)
+  )]
+  indice_entidad <- .indice_identificador(entidad, names(tablas))
+  tabla <- if (is.na(indice_entidad)) NULL else tablas[[indice_entidad]]
+  aplicable_vacio <- FALSE
+  sin_valores_atributos <- FALSE
+  if (!is.null(tabla) && nrow(tabla)) {
+    if (!is.null(instancia$configuracion$aplicable)) {
+      aplicable_vacio <- !any(tryCatch(
+        .mascara_aplicable_instancia(tabla, instancia),
+        error = function(e) TRUE
+      ))
+    }
+    if (!aplicable_vacio && length(instancia$atributos)) {
+      indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
+      columnas <- names(tabla)[indices_atributos[!is.na(indices_atributos)]]
+      comparables <- if (length(columnas)) {
+        .seleccionar_columnas(tabla, columnas)
+      } else NULL
+      sin_valores_atributos <- !is.null(comparables) &&
+        (!nrow(comparables) || !any(.filas_completas(comparables)))
+    }
+  }
+  .cobertura_metrica_desde_conteos(instancia, id_medicion, fecha, list(
+    entidad_dependiente_vacia = if (length(entidades_vacias)) entidades_vacias[[1L]] else NULL,
+    entidad_presente = !is.null(tabla),
+    n_recortada = if (is.null(tabla)) 0L else nrow(tabla),
+    n_original = .filas_originales_entidad(tablas_originales, entidad),
+    aplicable_vacio = aplicable_vacio,
+    sin_valores_atributos = sin_valores_atributos
+  ))
 }
 
 # `format(%OS6)` escribe la fraccion con la marca de `LC_NUMERIC`: con coma el
@@ -2180,45 +2069,15 @@ metricas_nucleo <- function() {
 # Se declara en un atributo -no en una columna nueva ni en `cobertura_metricas`-
 # porque las dos cosas tienen consumidores que leen "no se pudo medir" donde esto
 # dice "se midio una parte", y son afirmaciones distintas.
-.alcance_medidas_instancia <- function(tablas_instancia, instancia, n_medidas) {
+.alcance_medidas_desde_conteos <- function(instancia, esperadas, n_medidas,
+                                           sin_valor) {
   granularidad <- as.character(instancia$declaracion$granularidad)[1L]
   if (!granularidad %in% c("instanciaAtributo", "instanciaEntidad")) {
     return(NULL)
   }
-  tabla <- tablas_instancia[[instancia$entidad]]
-  if (!inherits(tabla, "data.frame")) return(NULL)
-  atributos <- instancia$atributos
-  # El universo es el de la METRICA, no la tabla: `medir()` ya recorto por su
-  # `aplicabilidad`, y aca se recorta ademas por la propiedad `aplicable` que la
-  # metrica declara. Si la mascara no se puede resolver, el metodo ya lo habria
-  # dicho y aca no se afirma un universo.
-  dentro <- tryCatch(
-    .mascara_aplicable_instancia(tabla, instancia),
-    error = function(e) NULL
-  )
-  if (is.null(dentro)) return(NULL)
-  filas_universo <- sum(dentro)
-  esperadas <- if (identical(granularidad, "instanciaAtributo")) {
-    if (!length(atributos)) return(NULL)
-    filas_universo * length(atributos)
-  } else {
-    filas_universo
-  }
   if (!is.finite(esperadas) || esperadas <= 0 || n_medidas >= esperadas) {
     return(NULL)
   }
-  # "Las que no tienen valor no producen medida" es una CAUSA, y se afirma solo
-  # si las cuentas la sostienen: un metodo propio que mide cinco filas de diez por
-  # decision suya recibia ese motivo sin tener un solo ausente.
-  indices <- .indice_nombre(atributos, names(tabla))
-  sin_valor <- if (length(atributos) && !anyNA(indices)) {
-    celdas <- lapply(indices, function(i) is.na(tabla[[i]])[dentro])
-    if (identical(granularidad, "instanciaAtributo")) {
-      sum(vapply(celdas, sum, numeric(1L)))
-    } else {
-      sum(Reduce(`|`, celdas))
-    }
-  } else NA_real_
   no_medidas <- esperadas - n_medidas
   causa <- if (!is.na(sin_valor) && sin_valor == no_medidas) {
     paste0(
@@ -2232,9 +2091,6 @@ metricas_nucleo <- function() {
       if (no_medidas == 1L) " no produjo medida y no cuenta como " else
         " no produjeron medida y no cuentan como ",
       "incumplimiento",
-      # Solo si cierra: un metodo que mide filas FUERA del universo deja menos no
-      # medidas que celdas sin valor, y la frase decia "las otras 1 ... (2 de
-      # ellas sin valor)".
       if (!is.na(sin_valor) && sin_valor <= no_medidas) {
         paste0(" (", .formatear_numero_publicado(sin_valor),
                if (sin_valor == 1L) " de ella sin valor)" else " de ellas sin valor)")
@@ -2242,6 +2098,7 @@ metricas_nucleo <- function() {
       "."
     )
   }
+  atributos <- instancia$atributos
   data.frame(
     metrica_instanciada = instancia$nombre,
     entidad = instancia$entidad,
@@ -2261,6 +2118,44 @@ metricas_nucleo <- function() {
     ),
     stringsAsFactors = FALSE
   )
+}
+
+.alcance_medidas_instancia <- function(tablas_instancia, instancia, n_medidas,
+                                       mascara_aplicable = NULL) {
+  granularidad <- as.character(instancia$declaracion$granularidad)[1L]
+  if (!granularidad %in% c("instanciaAtributo", "instanciaEntidad")) {
+    return(NULL)
+  }
+  tabla <- tablas_instancia[[instancia$entidad]]
+  if (!inherits(tabla, "data.frame")) return(NULL)
+  atributos <- instancia$atributos
+  dentro <- tryCatch(
+    .mascara_aplicable_instancia(
+      tabla, instancia, mascara = mascara_aplicable
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(dentro)) return(NULL)
+  filas_universo <- sum(dentro)
+  esperadas <- if (identical(granularidad, "instanciaAtributo")) {
+    if (!length(atributos)) return(NULL)
+    filas_universo * length(atributos)
+  } else {
+    filas_universo
+  }
+  if (!is.finite(esperadas) || esperadas <= 0 || n_medidas >= esperadas) {
+    return(NULL)
+  }
+  indices <- .indice_nombre(atributos, names(tabla))
+  sin_valor <- if (length(atributos) && !anyNA(indices)) {
+    celdas <- lapply(indices, function(i) is.na(tabla[[i]])[dentro])
+    if (identical(granularidad, "instanciaAtributo")) {
+      sum(vapply(celdas, sum, numeric(1L)))
+    } else {
+      sum(Reduce(`|`, celdas))
+    }
+  } else NA_real_
+  .alcance_medidas_desde_conteos(instancia, esperadas, n_medidas, sin_valor)
 }
 
 # Resuelve el universo aplicable de cada tabla una sola vez, para no repetir el
@@ -2398,6 +2293,15 @@ metricas_nucleo <- function() {
 #'   de otro lado —una tabla que no se le pasó a `medir()`— no se puede
 #'   reconocer, y publicarlo es responsabilidad de quien escribe el método.
 #'
+#' @param detalle Nivel de detalle de la salida: `"completo"` (por omisión,
+#'   una fila por objeto medido, clase `medicion`) o `"resumen"` (una fila
+#'   por métrica instanciada y objeto de destino con `numerador`,
+#'   `denominador`, `n_universo`, `n_no_evaluados`, `motivo_no_evaluados` y
+#'   `unidad_conteo`, clase propia `medicion_resumen` sin herencia de
+#'   `medicion`). El resumen produce el mismo [tablero_calidad()],
+#'   [indice_calidad()] y [cobertura_analisis()] que la medición completa;
+#'   [evaluar()], [agregar()], [historico_calidad()] y [reportar()] lo
+#'   rechazan indicando qué hacer.
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
 #'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`.
 #'   `orientacion` conserva si un valor alto expresa conformidad, si un valor
@@ -2437,6 +2341,14 @@ metricas_nucleo <- function() {
 #'   llama: el metodo por omision de una metrica es del paquete y su identidad ya
 #'   viaja en el nombre de la metrica, de modo que un cambio interno de lupa no
 #'   se lee como un cambio del modelo del usuario.
+#'
+#'   Con `detalle = "resumen"`, devuelve un `data.frame` S3 de clase
+#'   `medicion_resumen` (sin heredar de `medicion`) con una fila por métrica
+#'   instanciada y objeto de destino. Las métricas no acotadas por celda
+#'   (`duracion`, `entero`, `numero_real` por celda) no se promedian y quedan
+#'   en `cobertura_metricas` con estado `no_resumible`.
+#' @seealso [medir_dbi()], [plan_medicion_dbi()], [tablero_calidad()],
+#'   [indice_calidad()], [evaluar()], [agregar()]
 #' @export
 #'
 #' @examples
@@ -2447,7 +2359,19 @@ metricas_nucleo <- function() {
 medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
                   aplicabilidad = NULL, proteger_datos_personales = FALSE,
                   columnas_personales = character(),
-                  validadores_personales = NULL) {
+                  validadores_personales = NULL,
+                  detalle = c("completo", "resumen")) {
+  detalle <- .elegir_opcion(detalle)
+  if (identical(detalle, "resumen")) {
+    return(.medir_resumen(
+      modelo = modelo, datos = datos, id_medicion = id_medicion,
+      fecha = fecha, fecha_declarada = !missing(fecha),
+      aplicabilidad = aplicabilidad,
+      proteger_datos_personales = proteger_datos_personales,
+      columnas_personales = columnas_personales,
+      validadores_personales = validadores_personales
+    ))
+  }
   if (!inherits(modelo, "modelo_calidad")) {
     .detener("`modelo` debe provenir de modelo().", call. = FALSE)
   }

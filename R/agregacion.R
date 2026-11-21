@@ -314,10 +314,11 @@ transiciones_granularidad <- function() {
 .calcular_agregacion <- function(valores, funcion, umbral, pesos) {
   switch(
     funcion,
-    ratio = mean(valores == 1),
+    ratio = sum(valores == 1) / length(valores),
     # Con tolerancia de redondeo: `1 - 0.9` da 0,0999...9, que se imprime 0,1 y
     # no alcanzaba el umbral 0,1. Medido.
-    ratio_umbral = mean(valores >= umbral - 64 * .Machine$double.eps),
+    ratio_umbral = sum(valores >= umbral - 64 * .Machine$double.eps) /
+      length(valores),
     promedio = mean(valores),
     promedio_ponderado = sum(valores * pesos)
   )
@@ -1247,6 +1248,12 @@ transiciones_granularidad <- function() {
 #'   niega y explica cómo declararla, que es distinto de inventar una frontera
 #'   que nadie nombró.
 #'
+#'
+#' `ratio` y `ratio_umbral` se calculan como `numerador / denominador`.
+#' Un objeto `medicion_resumen` de `medir(detalle = "resumen")` o
+#' [medir_dbi()] se rechaza con clase `lupa_resumen_no_admitido`: cada fila
+#' ya está agregada al atributo o a la tabla y para subir a otro nivel se
+#' requiere `medir(detalle = "completo")`.
 #' @return Objeto `medicion` agregado, con una fila por objeto de destino.
 #' @export
 #'
@@ -1264,6 +1271,19 @@ agregar <- function(medidas, destino,
                     umbral = NULL, pesos = NULL, coleccion = NULL,
                     colecciones = NULL, organizacion = NULL,
                     organizaciones = NULL) {
+  if (.es_medicion_resumen(medidas)) {
+    .rechazar_resumen(
+      "agregar",
+      paste(
+        "cada fila ya est\u00e1 agregada al atributo o a la tabla con su",
+        "numerador y su denominador."
+      ),
+      paste(
+        "El agregado de cada m\u00e9trica est\u00e1 en el resumen y en",
+        "`tablero_calidad()`; para otro nivel, medir con `detalle = \"completo\"`."
+      )
+    )
+  }
   medidas <- .validar_medidas_agregacion(medidas)
   # Se acepta el nombre relacional —`tabla`, `columna`, `celda`— igual que en
   # `metrica()`: el mensaje de error ya los enumera, asi que rechazarlos aca era

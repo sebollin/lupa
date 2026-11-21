@@ -555,13 +555,18 @@ test_that("Guarda: toda exportada que lee de una conexion lee con LC_NUMERIC en 
   declarada <- suppressMessages(coleccion(con, tablas))
   pares <- data.frame(tabla_1 = "o154_a", tabla_2 = "o154_b",
                       stringsAsFactors = FALSE)
+  modelo_o154 <- modelo(instanciar(
+    especializar(metricas_nucleo()$NoNulo), "o154_a", "x"
+  ))
   llamadas <- list(
     coleccion = function() coleccion(con, tablas),
     perfilar_dbi = function() perfilar_dbi(con, "o154_a"),
     plan_perfilado_dbi = function() plan_perfilado_dbi(con, "o154_a"),
     perfilar_coleccion = function() perfilar_coleccion(declarada),
     estimar_costo_coleccion = function() estimar_costo_coleccion(declarada),
-    relaciones_coleccion = function() relaciones_coleccion(declarada, pares = pares)
+    relaciones_coleccion = function() relaciones_coleccion(declarada, pares = pares),
+    medir_dbi = function() medir_dbi(modelo_o154, con),
+    plan_medicion_dbi = function() plan_medicion_dbi(modelo_o154, con)
   )
   # Una exportada nueva que recibe una conexion tiene que entrar a esta lista.
   expect_identical(lectoras, sort(names(llamadas)))

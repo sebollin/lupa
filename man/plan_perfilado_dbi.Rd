@@ -495,5 +495,5 @@ if (requireNamespace("DBI", quietly = TRUE) &&
 }
 }
 \seealso{
-\code{\link[=perfilar_dbi]{perfilar_dbi()}}
+\code{\link[=perfilar_dbi]{perfilar_dbi()}}, \code{\link[=plan_medicion_dbi]{plan_medicion_dbi()}}, \code{\link[=medir_dbi]{medir_dbi()}}
 }

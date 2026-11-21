@@ -41,6 +41,11 @@ una regla tiene medidas, \code{evaluar()} se niega y nombra las solicitadas y la
 disponibles.
 Conserva además, en atributos, la configuración del modelo, la
 aplicabilidad y el perfil de evaluación que produjo el resultado.
+
+Un objeto \code{medicion_resumen} (de \code{medir(detalle = "resumen")} o
+\code{\link[=medir_dbi]{medir_dbi()}}) se rechaza con clase \code{lupa_resumen_no_admitido}: las
+reglas se aplican medida por medida y para evaluar se requiere
+\code{medir(detalle = "completo")}.
 }
 \description{
 Ejecuta la cadena formal: condición por medida, proporción de medidas que

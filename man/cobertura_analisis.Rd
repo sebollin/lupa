@@ -13,7 +13,7 @@ existe; un perfil por agregados usa el resumen de la tabla y cubre la
 tabla completa. Cuando corresponde, cada motivo indica que la cobertura
 es la de la muestra y no la de la tabla completa.}
 
-\item{medicion}{\strong{Segundo argumento, opcional.} Objeto creado por
+\item{medicion}{\strong{Segundo argumento, opcional.} Objeto creado por Acepta también \code{medicion_resumen} de \code{medir(detalle = "resumen")} o \code{\link[=medir_dbi]{medir_dbi()}}.
 \code{\link[=medir]{medir()}}, con métricas ejecutadas que pueden completar esa cobertura.
 No es un perfil creado por \code{\link[=perfilar]{perfilar()}}.
 

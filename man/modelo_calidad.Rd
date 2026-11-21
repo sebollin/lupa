@@ -351,6 +351,13 @@ cedula_dnic <- especializar(
   validador = validar_ci_uy
 )
 
+
+`ReglaIntegridadIntraEntidad` acepta en `regla` tanto una función
+`function(d)` como una fórmula de un solo lado (por ejemplo
+`~ is.na(inicio) | is.na(fin) | inicio <= fin`). La fórmula ve sólo los
+atributos ligados, nunca ejecuta código fuera de la lista cerrada de
+operadores y literales, y mantiene el contrato de `NA` de la función: si
+produce algún `NA`, la métrica queda `no_medible`.
 }
 \references{
 \href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/}{AGESIC (2020)}.

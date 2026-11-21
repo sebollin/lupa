@@ -72,7 +72,11 @@ completa, el perfil se arma con la proteccion activa.
 Un \code{resultado_limpieza} agrega una seccion con las acciones ejecutadas y
 fallidas, el motivo de cada falla, los cambios contados por accion y
 columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
-perfil y el plan que lo originaron.}
+perfil y el plan que lo originaron.
+
+Un objeto \code{medicion_resumen} se rechaza con clase
+\code{lupa_resumen_no_admitido}; publicar la medición completa o el resumen
+con \code{print()} y su \code{\link[=tablero_calidad]{tablero_calidad()}}.}
 }
 \value{
 La ruta normalizada del archivo, de forma invisible.

@@ -12,7 +12,8 @@ medir(
   aplicabilidad = NULL,
   proteger_datos_personales = FALSE,
   columnas_personales = character(),
-  validadores_personales = NULL
+  validadores_personales = NULL,
+  detalle = c("completo", "resumen")
 )
 }
 \arguments{
@@ -80,6 +81,16 @@ de la organización, un identificador interno—. Sólo tiene efecto con
 \item{validadores_personales}{Pack o lista nombrada de funciones de
 validación, con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}. Sin esto, la
 medición usa el léxico por omisión.}
+
+\item{detalle}{Nivel de detalle de la salida: \code{"completo"} (por omisión,
+una fila por objeto medido, clase \code{medicion}) o \code{"resumen"} (una fila
+por métrica instanciada y objeto de destino con \code{numerador},
+\code{denominador}, \code{n_universo}, \code{n_no_evaluados}, \code{motivo_no_evaluados} y
+\code{unidad_conteo}, clase propia \code{medicion_resumen} sin herencia de
+\code{medicion}). El resumen produce el mismo \code{\link[=tablero_calidad]{tablero_calidad()}},
+\code{\link[=indice_calidad]{indice_calidad()}} y \code{\link[=cobertura_analisis]{cobertura_analisis()}} que la medición completa;
+\code{\link[=evaluar]{evaluar()}}, \code{\link[=agregar]{agregar()}}, \code{\link[=historico_calidad]{historico_calidad()}} y \code{\link[=reportar]{reportar()}} lo
+rechazan indicando qué hacer.}
 }
 \value{
 Data frame S3 de clase \code{medicion}, con una fila por objeto medido.
@@ -121,6 +132,12 @@ parte del modelo, porque el metodo recibe las columnas en ese orden. Y el
 llama: el metodo por omision de una metrica es del paquete y su identidad ya
 viaja en el nombre de la metrica, de modo que un cambio interno de lupa no
 se lee como un cambio del modelo del usuario.
+
+Con \code{detalle = "resumen"}, devuelve un \code{data.frame} S3 de clase
+\code{medicion_resumen} (sin heredar de \code{medicion}) con una fila por métrica
+instanciada y objeto de destino. Las métricas no acotadas por celda
+(\code{duracion}, \code{entero}, \code{numero_real} por celda) no se promedian y quedan
+en \code{cobertura_metricas} con estado \code{no_resumible}.
 }
 \description{
 Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es
@@ -131,4 +148,8 @@ nucleo <- metricas_nucleo()
 especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
+}
+\seealso{
+\code{\link[=medir_dbi]{medir_dbi()}}, \code{\link[=plan_medicion_dbi]{plan_medicion_dbi()}}, \code{\link[=tablero_calidad]{tablero_calidad()}},
+\code{\link[=indice_calidad]{indice_calidad()}}, \code{\link[=evaluar]{evaluar()}}, \code{\link[=agregar]{agregar()}}
 }

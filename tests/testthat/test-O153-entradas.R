@@ -121,6 +121,14 @@ test_that("H1: las funciones con la bandera de proteccion la rechazan igual", {
                        paste0(destino, ".rds"), proteger_datos_personales = v)
     },
     medir = function(v) medir(mod, d, fecha = f, proteger_datos_personales = v),
+    medir_dbi = function(v) {
+      skip_if_not_installed("DBI")
+      skip_if_not_installed("RSQLite")
+      con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+      on.exit(DBI::dbDisconnect(con), add = TRUE)
+      DBI::dbWriteTable(con, "t", d)
+      medir_dbi(mod, con, fecha = f, proteger_datos_personales = v)
+    },
     perfilar = function(v) perfilar(d, fecha = f, proteger_datos_personales = v),
     reportar = function(v) {
       reportar(p, archivo = paste0(destino, ".html"),

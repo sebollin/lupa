@@ -1416,6 +1416,15 @@
     clase <- .clase_objeto_reporte(x)
     if (!is.na(clase)) {
       salida[[length(salida) + 1L]] <<- x
+    } else if (.es_medicion_resumen(x)) {
+      .rechazar_resumen(
+        "reportar",
+        "el informe todav\u00eda no tiene una secci\u00f3n para el resumen.",
+        paste(
+          "Publicar la medici\u00f3n completa, o el resumen con `print()` y su",
+          "tablero con `tablero_calidad()`."
+        )
+      )
     } else if (inherits(x, "perfil_dbi")) {
       # Sin esto, el objeto de `perfilar_dbi()` caia en la rama de lista, se
       # recorria por dentro y el error salia sobre alguno de sus componentes:
@@ -1735,6 +1744,10 @@
 #'   columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
 #'   perfil y el plan que lo originaron.
 #'
+#'
+#'   Un objeto `medicion_resumen` se rechaza con clase
+#'   `lupa_resumen_no_admitido`; publicar la medición completa o el resumen
+#'   con `print()` y su [tablero_calidad()].
 #' @return La ruta normalizada del archivo, de forma invisible.
 #' @export
 #' @seealso [perfilar()], [medir()], [evaluar()], [historico_calidad()],

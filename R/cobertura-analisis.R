@@ -80,7 +80,7 @@
 #'   existe; un perfil por agregados usa el resumen de la tabla y cubre la
 #'   tabla completa. Cuando corresponde, cada motivo indica que la cobertura
 #'   es la de la muestra y no la de la tabla completa.
-#' @param medicion **Segundo argumento, opcional.** Objeto creado por
+#' @param medicion **Segundo argumento, opcional.** Objeto creado por Acepta también `medicion_resumen` de `medir(detalle = "resumen")` o [medir_dbi()].
 #'   [medir()], con métricas ejecutadas que pueden completar esa cobertura.
 #'   No es un perfil creado por [perfilar()].
 #'
@@ -159,7 +159,7 @@ cobertura_analisis <- function(perfil, medicion = NULL,
       " perfilar_dbi(); no es un perfil de evaluaci\u00f3n.", call. = FALSE
     )
   }
-  if (!is.null(medicion) && !inherits(medicion, "medicion")) {
+  if (!is.null(medicion) && !inherits(medicion, "medicion") && !.es_medicion_resumen(medicion)) {
     .detener(
       "El segundo argumento `medicion` debe ser NULL o un objeto creado por ",
       "medir().", call. = FALSE

@@ -97,6 +97,11 @@ historico_calidad(medidas, evaluacion)
 \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, sección 9.5, Presidencia de la
 República, Uruguay.
+
+Un objeto \code{medicion_resumen} se rechaza con clase
+\code{lupa_resumen_no_admitido}: el histórico de una medición conserva una fila
+por medida y para seguir la serie se guarda la medición completa o su
+evaluación.
 }
 \seealso{
 \code{\link[=medir]{medir()}}, \code{\link[=evaluar]{evaluar()}}, \code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}}, \code{\link[=reportar]{reportar()}}

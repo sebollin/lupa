@@ -805,7 +805,7 @@
 #' publica además `medidos_fuera_del_marco`, que **no** suma con las otras cuatro
 #' casillas, y el atributo `pares_fuera_del_marco` los nombra.
 #'
-#' @param medidas Objeto creado por [medir()] o [agregar()].
+#' @param medidas Objeto creado por [medir()] (completo o con `detalle = "resumen"`), [medir_dbi()] o [agregar()]. Con un resumen, `ratio` coincide exactamente (`numerador / denominador`), no se admiten `agregaciones` ni `umbrales` propios y se rechaza si el resumen dejó métricas `no_resumible`.
 #' @param agregaciones `NULL`, una agregación para todas las métricas, un
 #'   vector con nombres de métrica instanciada o un data frame con
 #'   `metrica_instanciada`, `agregacion` y, opcionalmente, `umbral`.
@@ -840,6 +840,12 @@
 #' tablero_calidad(medidas)
 tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
                             marco = NULL, cobertura = NULL) {
+  if (.es_medicion_resumen(medidas)) {
+    return(.tablero_desde_resumen(
+      medidas, agregaciones = agregaciones, umbrales = umbrales,
+      marco = marco, cobertura = cobertura
+    ))
+  }
   if (inherits(medidas, "analisis")) {
     return(.proteger_tablero_desenlaces(
       medidas$tablero, .desenlaces_de_objeto(medidas)
@@ -1329,7 +1335,7 @@ print.tablero_calidad <- function(x, ...) {
 #' objeto desmentiría en su columna `universo`—, y nombra los componentes, que
 #' es justamente lo que promete declarar.
 #'
-#' @param medidas Medición, tablero o análisis de `lupa`.
+#' @param medidas Medición (completa o `medicion_resumen` de [medir()] / [medir_dbi()]), tablero o análisis de `lupa`.
 #' @param pesos Vector numérico nombrado por dimensión, en `[0, 1]` y con
 #'   suma uno. Si se omite, se devuelve el tablero.
 #' @param pesos_internos Vector opcional nombrado por `componente`; es

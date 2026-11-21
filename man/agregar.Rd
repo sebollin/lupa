@@ -61,7 +61,13 @@ no siempre tiene una organización detrás —una entrega suelta, un archivo
 que alguien mandó, una base sin dueño declarado—, y nada obliga a pasar por
 ellos. Existen para quien los necesita, y sin declaración \code{agregar()} se
 niega y explica cómo declararla, que es distinto de inventar una frontera
-que nadie nombró.}
+que nadie nombró.
+
+\code{ratio} y \code{ratio_umbral} se calculan como \code{numerador / denominador}.
+Un objeto \code{medicion_resumen} de \code{medir(detalle = "resumen")} o
+\code{\link[=medir_dbi]{medir_dbi()}} se rechaza con clase \code{lupa_resumen_no_admitido}: cada fila
+ya está agregada al atributo o a la tabla y para subir a otro nivel se
+requiere \code{medir(detalle = "completo")}.}
 }
 \value{
 Objeto \code{medicion} agregado, con una fila por objeto de destino.

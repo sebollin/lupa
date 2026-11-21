@@ -1029,6 +1029,13 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 
 #' @export
 rbind.medicion <- function(..., deparse.level = 1) {
+  if (any(vapply(list(...), .es_medicion_resumen, logical(1L)))) {
+    .rechazar_resumen(
+      "rbind",
+      "un resumen y una medici\u00f3n por celda son niveles distintos.",
+      "Unir res\u00famenes entre s\u00ed o mediciones completas entre s\u00ed."
+    )
+  }
   resultado <- .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
   mediciones <- Filter(function(parte) inherits(parte, "medicion"), list(...))
   if (length(mediciones) < 2L || !inherits(resultado, "data.frame")) {
@@ -1325,6 +1332,11 @@ print.evaluacion_calidad <- function(x, ...) {
 #'   disponibles.
 #'   Conserva además, en atributos, la configuración del modelo, la
 #'   aplicabilidad y el perfil de evaluación que produjo el resultado.
+#'
+#'   Un objeto `medicion_resumen` (de `medir(detalle = "resumen")` o
+#'   [medir_dbi()]) se rechaza con clase `lupa_resumen_no_admitido`: las
+#'   reglas se aplican medida por medida y para evaluar se requiere
+#'   `medir(detalle = "completo")`.
 #' @export
 #'
 #' @examples
@@ -1335,6 +1347,19 @@ print.evaluacion_calidad <- function(x, ...) {
 #' regla <- regla_evaluacion("Al menos 90%", function(x) x > 0.9)
 #' evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 evaluar <- function(medicion, perfil) {
+  if (.es_medicion_resumen(medicion)) {
+    .rechazar_resumen(
+      "evaluar",
+      paste(
+        "sus reglas se aplican a cada medida, y un resumen tiene una fila por",
+        "m\u00e9trica y objeto: la misma regla dar\u00eda otro veredicto."
+      ),
+      paste(
+        "Para evaluar, medir con `detalle = \"completo\"`; para leer el",
+        "resumen, `tablero_calidad()` o `indice_calidad()`."
+      )
+    )
+  }
   if (inherits(medicion, "data.frame")) medicion <- .tabla_base(medicion)
   medicion <- .validar_medicion_evaluacion(medicion)
   if (!inherits(perfil, "perfil_evaluacion")) {

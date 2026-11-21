@@ -148,6 +148,8 @@ reference:
   - granularidades
   - transiciones_granularidad
   - medir
+  - medir_dbi
+  - plan_medicion_dbi
   - agregar
   - tablero_calidad
   - indice_calidad

@@ -7,7 +7,7 @@
 indice_calidad(medidas, pesos, pesos_internos = NULL, ...)
 }
 \arguments{
-\item{medidas}{Medición, tablero o análisis de \code{lupa}.}
+\item{medidas}{Medición (completa o \code{medicion_resumen} de \code{\link[=medir]{medir()}} / \code{\link[=medir_dbi]{medir_dbi()}}), tablero o análisis de \code{lupa}.}
 
 \item{pesos}{Vector numérico nombrado por dimensión, en \verb{[0, 1]} y con
 suma uno. Si se omite, se devuelve el tablero.}

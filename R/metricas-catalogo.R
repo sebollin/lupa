@@ -52,6 +52,9 @@
 }
 
 .metodo_valores_comprension <- function(tablas, instancia) {
+  if (is.null(instancia$configuracion$predicado)) {
+    return(.metodo_especificado(tablas, instancia))
+  }
   .validar_vinculo(instancia, 1L, 1L)
   entidad <- instancia$entidad[[1L]]
   atributo <- instancia$atributos[[1L]]
@@ -60,41 +63,10 @@
   x <- .texto_analizable(x)$valores
   filas <- which(!is.na(x))
   valores <- x[filas]
-  config <- instancia$configuracion
-  if (!is.null(config$predicado)) {
-    resultado <- .resultado_validador(
-      config$predicado(valores), length(valores),
-      "ValoresPosiblesPorComprension"
-    )
-  } else {
-    # Un rango de otra clase que la columna no corre el numero: lo vacia. R avisa
-    # a su manera -«Metodos incompatibles ("Ops.Date", "Ops.POSIXt")»-, que no
-    # dice que hacer, y el resultado es `0 0 0` contra el `1 1 0` del mismo rango
-    # declarado como fechas de calendario.
-    .declarar_mezcla_de_husos(
-      instancia$declaracion$nombre, atributo, valores,
-      list(config$minimo, config$maximo),
-      consecuencia = paste0(
-        "as\u00ed que el rango no se puede comparar con la columna y la m\u00e9trica ",
-        "publica que ning\u00fan valor lo cumple"
-      )
-    )
-    izquierda <- if (config$inclusivo[[1L]]) {
-      valores >= config$minimo
-    } else {
-      valores > config$minimo
-    }
-    derecha <- if (config$inclusivo[[2L]]) {
-      valores <= config$maximo
-    } else {
-      valores < config$maximo
-    }
-    resultado <- izquierda & derecha
-    if (!is.logical(resultado) || anyNA(resultado)) {
-      .detener("El rango no se puede comparar con el atributo ligado.",
-           call. = FALSE)
-    }
-  }
+  resultado <- .resultado_validador(
+    instancia$configuracion$predicado(valores), length(valores),
+    "ValoresPosiblesPorComprension"
+  )
   .salida_metodo(
     resultado, entidad, atributo, filas,
     .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
@@ -116,17 +88,7 @@
 }
 
 .metodo_atributo_duplicado <- function(tablas, instancia) {
-  .validar_vinculo(instancia, 1L, 1L)
-  entidad <- instancia$entidad[[1L]]
-  atributo <- instancia$atributos[[1L]]
-  tabla <- .obtener_tabla_modelo(tablas, entidad)
-  x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  x <- .texto_analizable(x)$valores
-  filas <- which(!is.na(x))
-  .salida_metodo(
-    .duplicados_completos(x[filas]), entidad, atributo, filas,
-    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
-  )
+  .metodo_especificado(tablas, instancia)
 }
 
 .validar_atributos_tabla <- function(tabla, instancia, minimo = 1L) {
@@ -152,22 +114,7 @@
 }
 
 .metodo_conjunto_duplicado <- function(tablas, instancia) {
-  if (length(instancia$entidad) != 1L) {
-    .detener(
-      "ConjuntoAtributosDuplicado requiere una entidad y al menos dos atributos.",
-      call. = FALSE
-    )
-  }
-  entidad <- instancia$entidad[[1L]]
-  tabla <- .obtener_tabla_modelo(tablas, entidad)
-  .validar_atributos_tabla(tabla, instancia, minimo = 2L)
-  valores <- .seleccionar_columnas(tabla, instancia$atributos)
-  filas <- seq_len(nrow(tabla))
-  .salida_metodo(
-    .duplicados_completos(valores), entidad, NA_character_, filas,
-    paste0(entidad, "[", filas, ",",
-           paste(instancia$atributos, collapse = "+"), "]")
-  )
+  .metodo_especificado(tablas, instancia)
 }
 
 .metodo_entidad_duplicada <- function(tablas, instancia) {
@@ -536,11 +483,10 @@
 }
 
 .metodo_oportunidad_fecha <- function(tablas, instancia) {
+  if (length(instancia$configuracion$fecha_limite) == 1L) {
+    return(.metodo_especificado(tablas, instancia))
+  }
   datos <- .datos_oportunidad(tablas, instancia)
-  # La misma guarda que las metricas por entidad. Medido con una columna `Date` y
-  # un `fecha_limite` `POSIXct` leido sin huso, la fila que cae EXACTAMENTE en el
-  # limite daba `1 1 0` con `TZ=UTC` y `1 0 0` con `TZ=Asia/Tokyo`, sin que nada
-  # lo dijera: cuatro metricas avisaban y sus cuatro gemelas por atributo no.
   .declarar_mezcla_de_husos(
     instancia$declaracion$nombre, datos$atributo, datos$x,
     list(instancia$configuracion$fecha_limite)
@@ -553,8 +499,11 @@
 }
 
 .metodo_oportunidad_intervalo <- function(tablas, instancia) {
-  datos <- .datos_oportunidad(tablas, instancia)
   config <- instancia$configuracion
+  if (length(config$inicio_vigencia) == 1L && length(config$fin_vigencia) == 1L) {
+    return(.metodo_especificado(tablas, instancia))
+  }
+  datos <- .datos_oportunidad(tablas, instancia)
   .declarar_mezcla_de_husos(
     instancia$declaracion$nombre, datos$atributo, datos$x,
     list(config$inicio_vigencia, config$fin_vigencia)

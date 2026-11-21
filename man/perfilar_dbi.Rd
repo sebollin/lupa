@@ -1708,5 +1708,5 @@ if (requireNamespace("DBI", quietly = TRUE) &&
 }
 }
 \seealso{
-\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=perfilar]{perfilar()}}
+\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=perfilar]{perfilar()}}, \code{\link[=medir_dbi]{medir_dbi()}}, \code{\link[=plan_medicion_dbi]{plan_medicion_dbi()}}
 }

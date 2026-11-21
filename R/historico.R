@@ -1115,6 +1115,13 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 }
 
 .normalizar_objeto_historico <- function(x, detalle) {
+  if (.es_medicion_resumen(x)) {
+    .rechazar_resumen(
+      "historico_calidad",
+      "el hist\u00f3rico de una medici\u00f3n guarda una fila por medida y un resumen no las tiene.",
+      "Para seguir la serie, guardar la medici\u00f3n completa o su evaluaci\u00f3n."
+    )
+  }
   if (inherits(x, "historico_calidad")) return(.validar_historico(x))
   if (inherits(x, "medicion")) return(.normalizar_medicion_historico(x))
   if (inherits(x, "evaluacion_calidad")) {
@@ -1238,6 +1245,11 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #'   de Datos en Gobierno Digital*, versión 1.6, sección 9.5, Presidencia de la
 #'   República, Uruguay.
 #'
+#'
+#' Un objeto `medicion_resumen` se rechaza con clase
+#' `lupa_resumen_no_admitido`: el histórico de una medición conserva una fila
+#' por medida y para seguir la serie se guarda la medición completa o su
+#' evaluación.
 #' @export
 #' @seealso [medir()], [evaluar()], [detectar_deriva_calidad()], [reportar()]
 #'

@@ -217,6 +217,34 @@
   textos distintos pasa de 0,2 a 6,5 segundos y de 50 a 498 MB. Son medianas en
   Linux de `benchmark/medir_costo_huella.R`.
 
+## Medir la calidad
+
+- `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una fila por
+  métrica y objeto, con numerador, denominador, no evaluados y su motivo, sin
+  una fila por celda. Con 1.000.000 de filas y 20 columnas, la medición completa
+  tarda unos 150 s y ocupa 5,5 GB; el resumen, unos 16 s y 30 KB. El tablero,
+  el índice y la cobertura del marco dan con el resumen lo mismo que con la
+  medición completa; `evaluar()`, `agregar()`, `historico_calidad()` y
+  `reportar()` lo rechazan con un mensaje que dice qué hacer.
+- `medir_dbi()` y `plan_medicion_dbi()` miden un modelo de calidad dentro de la
+  base, con el mismo resumen: completitud, dominios, rangos, oportunidad,
+  reglas de fila, claves repetidas e integridad referencial, varias por
+  consulta. El motor calcula lo que R calcularía con el dato tal como R lo lee
+  (los decimales y los enteros grandes se comparan en doble, como los lee R);
+  lo que no puede reproducir queda `no_medible` con su motivo, nunca con otra
+  cifra, o, con `estrategia_no_sql = "bloques"`, se mide en R leyendo por
+  bloques sólo esas columnas. Por ahora la traducción está verificada en
+  SQLite y DuckDB; en PostgreSQL, MySQL, MariaDB y SQL Server las reglas quedan
+  `no_medible` (o por bloques) hasta verificarlas contra cada motor. Los
+  rangos de texto no se traducen: su orden depende del locale en R y de la
+  intercalación en el motor.
+- `ReglaIntegridadIntraEntidad()` acepta una fórmula de fila
+  (`regla = ~ is.na(inicio) | is.na(fin) | inicio <= fin`), que se interpreta
+  como un árbol cerrado de columnas, literales y operadores, sin ejecutar
+  código ni buscar nombres en el entorno.
+- El `ratio` de `agregar()` y del tablero se calcula como numerador sobre
+  denominador, para que el resumen y la medición completa coincidan exactamente.
+
 ## Comparar entregas
 
 - `comparar_perfiles()` mide la deriva de la distribución entre dos entregas,

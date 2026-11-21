@@ -829,9 +829,37 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 # las frecuencias de los valores de `x` que tambien estan en `y`. `presentes`
 # es la mascara de esos valores: quien ya la tiene la pasa, porque de ella salen
 # tambien los huerfanos y calcularla es lo caro del par.
+.conteo_cobertura_relacion <- function(x, y, presentes = x$unicos %in% y$unicos) {
+  denominador <- as.numeric(x$n_filas)
+  if (!denominador) {
+    return(list(numerador = 0, denominador = 0, cobertura = NA_real_))
+  }
+  numerador <- as.numeric(sum(x$frecuencias[presentes]))
+  list(
+    numerador = numerador,
+    denominador = denominador,
+    cobertura = numerador / denominador
+  )
+}
+
 .cobertura_relacion <- function(x, y, presentes = x$unicos %in% y$unicos) {
-  if (!x$n_filas) return(NA_real_)
-  sum(x$frecuencias[presentes]) / x$n_filas
+  .conteo_cobertura_relacion(x, y, presentes)$cobertura
+}
+
+# Cobertura referencial de una clave foranea contra su referencia, usando el
+# mismo resumen y conteo que `detectar_relaciones()`.
+.cobertura_referencial_par <- function(pk, fk, muestra = Inf) {
+  .validar_muestra(muestra)
+  x <- .resumir_columna_relacion(pk)
+  y <- .resumir_columna_relacion(fk)
+  if (setequal(c(x$familia, y$familia), c("fecha", "fecha-hora")) ||
+      !is.null(x$no_comparable) || !is.null(y$no_comparable)) {
+    return(list(
+      cobertura = NA_real_, numerador = NA_real_,
+      denominador = as.numeric(y$n_filas)
+    ))
+  }
+  .conteo_cobertura_relacion(y, x)
 }
 
 # Lo que la cobertura deja afuera: los valores de `x` que no estan en la otra

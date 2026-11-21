@@ -366,6 +366,9 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
 }
 
 .metodo_oportunidad_entidad <- function(tablas, instancia, intervalo) {
+  if (!is.null(.especificacion_metrica(instancia))) {
+    return(.metodo_especificado(tablas, instancia))
+  }
   datos <- .actualizaciones_vigencia(tablas, instancia)
   contrato <- datos$contrato
   if (intervalo) {

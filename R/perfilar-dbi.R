@@ -19927,7 +19927,7 @@
 #'   nombra las palancas para acotarla, que no son las mismas de un lado que
 #'   del otro.
 #' @export
-#' @seealso [perfilar_dbi()]
+#' @seealso [perfilar_dbi()], [plan_medicion_dbi()], [medir_dbi()]
 #'
 #' @examples
 #' if (requireNamespace("DBI", quietly = TRUE) &&
@@ -26336,7 +26336,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `resumen_tabla$meta$fecha_declarada = TRUE`, aunque no haya muestra
 #'   (`bloque_muestra = "solo_agregados"`); sin `fecha`, esos campos no están.
 #' @export
-#' @seealso [plan_perfilado_dbi()], [perfilar()]
+#' @seealso [plan_perfilado_dbi()], [perfilar()], [medir_dbi()], [plan_medicion_dbi()]
 #'
 #' @examples
 #' if (requireNamespace("DBI", quietly = TRUE) &&
