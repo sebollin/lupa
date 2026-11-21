@@ -22,8 +22,14 @@ tablero_calidad(
 - medidas:
 
   Objeto creado por
-  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) o
-  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md).
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  (completo o con `detalle = "resumen"`),
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  o [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md).
+  Con un resumen, `ratio` coincide exactamente
+  (`numerador / denominador`), no se admiten `agregaciones` ni
+  `umbrales` propios y se rechaza si el resumen dejó métricas
+  `no_resumible`.
 
 - agregaciones:
 

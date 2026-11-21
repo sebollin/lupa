@@ -102,6 +102,11 @@ reportar(
   columna, y las filas y columnas retiradas. Se puede pasar solo o junto
   al perfil y el plan que lo originaron.
 
+  Un objeto `medicion_resumen` se rechaza con clase
+  `lupa_resumen_no_admitido`; publicar la medición completa o el resumen
+  con [`print()`](https://rdrr.io/r/base/print.html) y su
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md).
+
 ## Value
 
 La ruta normalizada del archivo, de forma invisible.

@@ -109,6 +109,11 @@ como `NA`.
 Digital*, versión 1.6, sección 9.5, Presidencia de la República,
 Uruguay.
 
+Un objeto `medicion_resumen` se rechaza con clase
+`lupa_resumen_no_admitido`: el histórico de una medición conserva una
+fila por medida y para seguir la serie se guarda la medición completa o
+su evaluación.
+
 ## See also
 
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),

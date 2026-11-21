@@ -30,7 +30,9 @@ cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 
 - medicion:
 
-  **Segundo argumento, opcional.** Objeto creado por
+  **Segundo argumento, opcional.** Objeto creado por Acepta también
+  `medicion_resumen` de `medir(detalle = "resumen")` o
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md).
   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), con
   métricas ejecutadas que pueden completar esa cobertura. No es un
   perfil creado por

@@ -148,7 +148,12 @@ no siempre tiene una organización detrás —una entrega suelta, un archivo
 que alguien mandó, una base sin dueño declarado—, y nada obliga a pasar por
 ellos. Existen para quien los necesita, y sin declaración <code>agregar()</code> se
 niega y explica cómo declararla, que es distinto de inventar una frontera
-que nadie nombró.</p></dd>
+que nadie nombró.</p>
+<p><code>ratio</code> y <code>ratio_umbral</code> se calculan como <code>numerador / denominador</code>.
+Un objeto <code>medicion_resumen</code> de <code>medir(detalle = "resumen")</code> o
+<code><a href="medir_dbi.html">medir_dbi()</a></code> se rechaza con clase <code>lupa_resumen_no_admitido</code>: cada fila
+ya está agregada al atributo o a la tabla y para subir a otro nivel se
+requiere <code>medir(detalle = "completo")</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -254,9 +259,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261121T151122.129201-8261-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261121T164430.948919-8386-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261121T151122.129201-8261 2026-11-21 15:11:22  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261121T164430.948919-8386 2026-11-21 16:44:30  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

@@ -100,6 +100,13 @@ agregar(
   declaración `agregar()` se niega y explica cómo declararla, que es
   distinto de inventar una frontera que nadie nombró.
 
+  `ratio` y `ratio_umbral` se calculan como `numerador / denominador`.
+  Un objeto `medicion_resumen` de `medir(detalle = "resumen")` o
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  se rechaza con clase `lupa_resumen_no_admitido`: cada fila ya está
+  agregada al atributo o a la tabla y para subir a otro nivel se
+  requiere `medir(detalle = "completo")`.
+
 ## Value
 
 Objeto `medicion` agregado, con una fila por objeto de destino.
@@ -212,9 +219,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                                                                     id_medida
-#> 1 medicion-20261121T151122.129201-8261-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad
+#> 1 medicion-20261121T164430.948919-8386-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261121T151122.129201-8261 2026-11-21 15:11:22  NoNulo
+#> 1 medicion-20261121T164430.948919-8386 2026-11-21 16:44:30  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

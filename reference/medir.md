@@ -15,7 +15,8 @@ medir(
   aplicabilidad = NULL,
   proteger_datos_personales = FALSE,
   columnas_personales = character(),
-  validadores_personales = NULL
+  validadores_personales = NULL,
+  detalle = c("completo", "resumen")
 )
 ```
 
@@ -115,6 +116,26 @@ medir(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
   Sin esto, la medición usa el léxico por omisión.
 
+- detalle:
+
+  Nivel de detalle de la salida: `"completo"` (por omisión, una fila por
+  objeto medido, clase `medicion`) o `"resumen"` (una fila por métrica
+  instanciada y objeto de destino con `numerador`, `denominador`,
+  `n_universo`, `n_no_evaluados`, `motivo_no_evaluados` y
+  `unidad_conteo`, clase propia `medicion_resumen` sin herencia de
+  `medicion`). El resumen produce el mismo
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md),
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+  y
+  [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  que la medición completa;
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md),
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  y
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  lo rechazan indicando qué hacer.
+
 ## Value
 
 Data frame S3 de clase `medicion`, con una fila por objeto medido. Los
@@ -158,6 +179,21 @@ declaro quien llama: el metodo por omision de una metrica es del paquete
 y su identidad ya viaja en el nombre de la metrica, de modo que un
 cambio interno de lupa no se lee como un cambio del modelo del usuario.
 
+Con `detalle = "resumen"`, devuelve un `data.frame` S3 de clase
+`medicion_resumen` (sin heredar de `medicion`) con una fila por métrica
+instanciada y objeto de destino. Las métricas no acotadas por celda
+(`duracion`, `entero`, `numero_real` por celda) no se promedian y quedan
+en `cobertura_metricas` con estado `no_resumible`.
+
+## See also
+
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md),
+[`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md),
+[`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md),
+[`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md),
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+
 ## Examples
 
 ``` r
@@ -166,13 +202,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261121T151132.388690-8261-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261121T151132.388690-8261-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261121T151132.388690-8261-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261121T164445.146320-8386-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261121T164445.146320-8386-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261121T164445.146320-8386-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261121T151132.388690-8261 2026-11-21 15:11:32  NoNulo
-#> 2 medicion-20261121T151132.388690-8261 2026-11-21 15:11:32  NoNulo
-#> 3 medicion-20261121T151132.388690-8261 2026-11-21 15:11:32  NoNulo
+#> 1 medicion-20261121T164445.146320-8386 2026-11-21 16:44:45  NoNulo
+#> 2 medicion-20261121T164445.146320-8386 2026-11-21 16:44:45  NoNulo
+#> 3 medicion-20261121T164445.146320-8386 2026-11-21 16:44:45  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

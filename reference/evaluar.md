@@ -58,6 +58,12 @@ regla tiene medidas, `evaluar()` se niega y nombra las solicitadas y las
 disponibles. Conserva además, en atributos, la configuración del modelo,
 la aplicabilidad y el perfil de evaluación que produjo el resultado.
 
+Un objeto `medicion_resumen` (de `medir(detalle = "resumen")` o
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md))
+se rechaza con clase `lupa_resumen_no_admitido`: las reglas se aplican
+medida por medida y para evaluar se requiere
+`medir(detalle = "completo")`.
+
 ## Examples
 
 ``` r
@@ -73,13 +79,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                                         id_medida
-#>  medicion-20261121T151130.402941-8261-NoNulo@personas.edad-000001
-#>  medicion-20261121T151130.402941-8261-NoNulo@personas.edad-000002
-#>  medicion-20261121T151130.402941-8261-NoNulo@personas.edad-000003
+#>  medicion-20261121T164442.255614-8386-NoNulo@personas.edad-000001
+#>  medicion-20261121T164442.255614-8386-NoNulo@personas.edad-000002
+#>  medicion-20261121T164442.255614-8386-NoNulo@personas.edad-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%
-#>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%
-#>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%
+#>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%
+#>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%
+#>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -87,13 +93,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%
+#>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado        1
+#>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

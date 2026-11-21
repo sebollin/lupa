@@ -1890,7 +1890,9 @@ ella.
 ## See also
 
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md),
+[`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
 
 ## Examples
 

@@ -559,7 +559,9 @@ la corrida repite para publicar su plan en `meta$plan`.
 
 ## See also
 
-[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+[`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md),
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
 
 ## Examples
 

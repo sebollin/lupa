@@ -138,6 +138,10 @@ Declarar métricas, referenciales, granularidad y agregaciones.
   : Granularidades y transiciones de agregación
 - [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) :
   Medir un modelo de calidad
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  : Medir un modelo de calidad dentro de una base de datos DBI
+- [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
+  : Planificar una medición de calidad en una base de datos DBI
 - [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) :
   Agregar medidas entre granularidades
 - [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)

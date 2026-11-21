@@ -120,6 +120,10 @@ una regla tiene medidas, <code>evaluar()</code> se niega y nombra las solicitada
 disponibles.
 Conserva además, en atributos, la configuración del modelo, la
 aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
+<p>Un objeto <code>medicion_resumen</code> (de <code>medir(detalle = "resumen")</code> o
+<code><a href="medir_dbi.html">medir_dbi()</a></code>) se rechaza con clase <code>lupa_resumen_no_admitido</code>: las
+reglas se aplican medida por medida y para evaluar se requiere
+<code>medir(detalle = "completo")</code>.</p>
     </div>
 
     <div class="section level2">
@@ -136,13 +140,13 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de medidas</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                         id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261-NoNulo@personas.edad-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261-NoNulo@personas.edad-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261-NoNulo@personas.edad-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386-NoNulo@personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386-NoNulo@personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386-NoNulo@personas.edad-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_instanciada orientacion resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad      TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad     FALSE</span>
@@ -150,13 +154,13 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de reglas</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado Al menos 90%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  n_medidas resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          3 0.6666667</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Perfiles de madurez</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil n_reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T151130.402941-8261 2026-11-21 15:11:30 Avanzado        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261121T164442.255614-8386 2026-11-21 16:44:42 Avanzado        1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  0.6666667</span>
 </code></pre></div>
