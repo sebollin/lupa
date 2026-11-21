@@ -71,14 +71,18 @@
   patrones de ausencia por fila, como `md.pattern()` del paquete mice,
   con un mínimo de 10 filas y el 1 % de la tabla),
   `ausencia_dependiente` cuando la proporción de faltantes de una
-  columna cambia entre los grupos de otra o en el tope de una numérica
-  (con el efecto y el cociente de riesgos, no un p-valor), y
-  `filas_vacias` cuando una fila no tiene ningún valor. Los dos primeros
-  son informativos (`ok`): describen la estructura de la ausencia —un
-  bloque que no se cargó, o columnas que sólo se completan juntas— y no
-  prueban un defecto; `filas_vacias` es `error`. Los tres traen las
-  filas afectadas y se apagan con `ausencia_estructural = FALSE`. Un
-  identificador casi clave no se usa para explicar la ausencia. En
+  columna cambia entre los grupos de otra, en el tope de una numérica o
+  en la combinación de dos columnas cuando ninguna sola la explica (con
+  el efecto, el cociente de riesgos y una prueba global de independencia
+  con Bonferroni sobre todas las comparaciones de la tabla: entre muchas
+  columnas siempre aparece alguna diferencia por azar, y esa no se
+  publica), y `filas_vacias` cuando una fila no tiene ningún valor. Los
+  dos primeros son informativos (`ok`): describen la estructura de la
+  ausencia —un bloque que no se cargó, o columnas que sólo se completan
+  juntas— y no prueban un defecto; `filas_vacias` es `error`. Los tres
+  traen las filas afectadas y se apagan con
+  `ausencia_estructural = FALSE`. Un identificador casi clave no se usa
+  para explicar la ausencia. En
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   una fila es vacía sólo si lo es en la tabla entera. El plan de
   limpieza no propone borrar filas por estos hallazgos.
@@ -103,10 +107,11 @@
   avisa de la columna; los relativos (`of`, `sobre`, `respecto`) y los
   nombres que anuncian otra unidad (`edad_dias`, `longitud_cable`) no
   infieren. `lat`, `lon`, `lng` y `long` infieren junto a su columna
-  pareja (también con calificativos como `wgs84` o `geo`); sueltas, sólo
-  si sus valores tienen decimales de coordenada, y sólo avisan. Cuando
-  las fechas futuras forman una grilla regular sin huecos, el aviso dice
-  que puede ser un calendario o un pronóstico. Las edades reconocen más
+  pareja (también con calificativos como `wgs84` o `geo`); `lat`, `lon`
+  y `lng` sueltas, sólo si sus valores tienen decimales de coordenada, y
+  sólo avisan (`long` sola no infiere: puede ser un largo). Cuando las
+  fechas futuras forman una grilla regular sin huecos, el aviso dice que
+  puede ser un calendario o un pronóstico. Las edades reconocen más
   nombres de parientes y oficios.
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   decide con la tabla entera y lo dice en el texto;
