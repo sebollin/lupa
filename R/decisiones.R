@@ -1407,19 +1407,44 @@ guardar_decisiones <- function(decisiones, archivo, sobrescribir = FALSE,
   # La marca de orden de bytes (BOM) es lo que le dice a una planilla que el
   # archivo es UTF-8: sin ella, Excel lo abre como Windows-1252 y los acentos se
   # rompen. `leer_decisiones()` la quita al leer.
-  conexion <- file(temporal, "w", encoding = "UTF-8")
-  tryCatch({
-    writeLines("\ufeff", conexion, sep = "")
-    utils::write.table(
-      plano, conexion, sep = separador, row.names = FALSE, na = "",
-      qmethod = "double", dec = "."
-    )
-  }, finally = close(conexion))
+  # El CSV se arma en memoria y se escribe como bytes: un archivo abierto en modo
+  # texto convierte en Windows cada salto de linea, tambien el que va dentro de un
+  # campo entre comillas, en un retorno de carro mas un salto, y el motivo volvia
+  # cambiado. Los registros terminan en `\n` en todo sistema.
+  writeBin(c(as.raw(c(0xef, 0xbb, 0xbf)), .csv_bytes_decisiones(plano, separador)), temporal)
   if (!file.copy(temporal, archivo, overwrite = sobrescribir)) {
     .detener("No se pudo guardar las decisiones en el destino indicado.",
              call. = FALSE)
   }
   invisible(normalizePath(archivo, mustWork = TRUE))
+}
+
+# El CSV de las decisiones como bytes UTF-8, con la forma que daba
+# `write.table()`: texto entre comillas dobles (una comilla se escribe doble),
+# numeros y logicos sin comillas, `NA` vacio, registros terminados en `\n`. Se
+# arma a mano porque `write.table()` pasa el texto al encoding de la sesion antes
+# de escribir, y bajo `C` un acento del motivo volvia escapado.
+.csv_bytes_decisiones <- function(plano, separador) {
+  citar <- function(v) {
+    v <- enc2utf8(as.character(v))
+    salida <- paste0("\"", gsub("\"", "\"\"", v, fixed = TRUE), "\"")
+    salida[is.na(v)] <- ""
+    salida
+  }
+  campo <- function(v) {
+    if (is.factor(v) || is.character(v)) return(citar(v))
+    salida <- as.character(v)
+    salida[is.na(v)] <- ""
+    salida
+  }
+  encabezado <- paste(citar(names(plano)), collapse = separador)
+  filas <- if (nrow(plano)) {
+    do.call(paste, c(unname(lapply(plano, campo)), list(sep = separador)))
+  } else {
+    character()
+  }
+  lineas <- enc2utf8(c(encabezado, filas))
+  unlist(lapply(lineas, function(l) c(charToRaw(l), as.raw(0x0a))), use.names = FALSE)
 }
 
 # La marca para el retorno de carro DENTRO de un campo entre comillas: la

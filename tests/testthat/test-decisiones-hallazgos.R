@@ -471,7 +471,28 @@ test_that("el retorno de carro y el salto de linea del motivo vuelven byte a byt
     )
     guardar_decisiones(decisiones, archivo, sobrescribir = TRUE)
     expect_identical(leer_decisiones(archivo)$motivo, rep(motivo, nrow(decisiones)))
+    # El archivo se escribe como bytes: un salto dentro de un campo no se
+    # convierte en retorno de carro mas salto (en Windows, un archivo en modo
+    # texto lo hacia), y ningun registro termina en retorno de carro.
+    crudo <- readBin(archivo, "raw", n = file.info(archivo)$size)
+    if (!grepl("\r", motivo, fixed = TRUE)) {
+      expect_false(any(crudo == as.raw(0x0d)))
+    }
   }
+  # Un acento del motivo vuelve igual, tambien con la sesion en `C`.
+  motivo <- paste0("acento ", intToUtf8(0xf1L))
+  decisiones <- decidir_hallazgos(
+    perfil, "aceptado", motivo = motivo, quien = "q", columna = "id"
+  )
+  guardar_decisiones(decisiones, archivo, sobrescribir = TRUE)
+  expect_identical(leer_decisiones(archivo)$motivo[[1L]], motivo)
+  local({
+    viejo_locale <- Sys.getlocale("LC_CTYPE")
+    on.exit(suppressWarnings(Sys.setlocale("LC_CTYPE", viejo_locale)), add = TRUE)
+    suppressWarnings(Sys.setlocale("LC_CTYPE", "C"))
+    guardar_decisiones(decisiones, archivo, sobrescribir = TRUE)
+  })
+  expect_identical(leer_decisiones(archivo)$motivo[[1L]], motivo)
   # Un archivo de planilla, con CRLF entre registros: los registros se leen igual.
   decisiones <- decidir_hallazgos(
     perfil, "aceptado", motivo = "m", quien = "q", columna = c("id", "monto")
