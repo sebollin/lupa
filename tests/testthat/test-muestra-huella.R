@@ -80,7 +80,8 @@ test_that("la huella es igual bajo C y C.UTF-8", {
   resultados <- lapply(locales, function(locale) {
     anterior <- Sys.getlocale("LC_CTYPE")
     on.exit(Sys.setlocale("LC_CTYPE", anterior), add = TRUE)
-    if (is.na(Sys.setlocale("LC_CTYPE", locale))) return(NULL)
+    # En Windows `C.UTF-8` no existe: avisa y devuelve vacio, y la prueba se saltea.
+    if (!nzchar(suppressWarnings(Sys.setlocale("LC_CTYPE", locale)))) return(NULL)
     lupa:::.indices_huella_tabla(datos, 50L)$indices
   })
   testthat::skip_if(any(vapply(resultados, is.null, logical(1L))))
