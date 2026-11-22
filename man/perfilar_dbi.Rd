@@ -1130,7 +1130,7 @@ puede, la métrica queda \code{no_disponible} con su falla en
 valores distintos. \code{perfilar()} y \code{perfilar_dbi(..., bloque_filas = n)}
 suman los cuadrados sin error en una unidad que es potencia de dos —la que
 deja el mayor valor en 2^400— y que sube cuando llega un bloque que no
-cubre: el desvío es el doble más cercano también en esas magnitudes. Las columnas de magnitud común no cambian de consulta ni de cifra.
+cubre: el desvío es el doble más cercano también en esas magnitudes, salvo cuando el desvío verdadero ya no cabe en un doble (dos valores de ±1,7e308 lo tienen en 2,4e308): ahí queda \code{NA}, igual que en el motor, y no \code{Inf}. Las columnas de magnitud común no cambian de consulta ni de cifra.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R. La media y el desvío de R

@@ -1404,7 +1404,7 @@
   clases <- c(
     "analisis", "perfil", "medicion", "evaluacion_calidad", "historico_calidad",
     "deriva_perfil", "deriva_calidad", "plan_limpieza",
-    "duplicados_aproximados", "resultado_limpieza"
+    "duplicados_aproximados", "resultado_limpieza", "perfil_coleccion"
   )
   coincidencias <- clases[vapply(clases, inherits, logical(1L), x = x)]
   if (length(coincidencias)) coincidencias[[1L]] else NA_character_
@@ -1440,8 +1440,8 @@
     } else {
       .detener(
         "Cada objeto debe ser un an\u00e1lisis, perfil, medici\u00f3n, evaluacion_calidad, ",
-        "historico_calidad, deriva_perfil, deriva_calidad, plan_limpieza o ",
-        "duplicados_aproximados o resultado_limpieza.",
+        "historico_calidad, deriva_perfil, deriva_calidad, plan_limpieza, ",
+        "duplicados_aproximados, resultado_limpieza o perfil_coleccion.",
         call. = FALSE
       )
     }
@@ -1538,7 +1538,10 @@
     duplicados_aproximados = .seccion_duplicados_aproximados(
       x, max_filas, proteger_datos_personales
     ),
-    resultado_limpieza = .seccion_resultado_limpieza(x, max_filas)
+    resultado_limpieza = .seccion_resultado_limpieza(x, max_filas),
+    perfil_coleccion = .seccion_coleccion(
+      x, max_filas, proteger_datos_personales
+    )
   )
   if (nzchar(nota)) seccion <- sub("</h2>", paste0("</h2>", nota), seccion, fixed = TRUE)
   seccion
@@ -1698,8 +1701,8 @@
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
 #'   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
-#'   `deriva_calidad`, `plan_limpieza`, `resultado_limpieza` o
-#'   `duplicados_aproximados`.
+#'   `deriva_calidad`, `plan_limpieza`, `resultado_limpieza`,
+#'   `duplicados_aproximados` o `perfil_coleccion`.
 #' @param archivo Ruta de salida. De forma predeterminada crea un archivo en
 #'   `tempdir()`. Una ruta que ya es un directorio se rechaza.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
@@ -1743,6 +1746,22 @@
 #'   fallidas, el motivo de cada falla, los cambios contados por accion y
 #'   columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
 #'   perfil y el plan que lo originaron.
+#'
+#'   Un `perfil_coleccion` de [perfilar_coleccion()] agrega una sección con
+#'   las tablas de [as.data.frame.perfil_coleccion()]: cuántas tablas se
+#'   declararon, perfilaron, quedaron vacías, sin medición, con error o sin
+#'   medir por su tipo; el índice de tablas con su estado y su motivo; la
+#'   matriz de tablas por dimensión y factor del marco que
+#'   [cobertura_analisis()] usa por omisión, con el estado que le da a cada
+#'   perfil; lo no medido con el
+#'   motivo de cada cobertura; y los hallazgos de cada tabla. Ninguna cifra
+#'   resume la colección. La matriz y los hallazgos necesitan
+#'   `conservar_perfiles = TRUE`: sin los perfiles, la sección lo dice. Con
+#'   `proteger_datos_personales = TRUE`, cada perfil de muestra se vuelve a
+#'   proteger antes de publicar sus hallazgos, como un perfil suelto, y la
+#'   sección dice cuántos se armaron sin la protección; los motivos de la
+#'   cobertura se publican como los dejó [perfilar_coleccion()], que los
+#'   protege sólo si la colección se perfiló con la protección activa.
 #'
 #'
 #'   Un objeto `medicion_resumen` se rechaza con clase

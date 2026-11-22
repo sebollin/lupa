@@ -6096,6 +6096,27 @@
   resultado
 }
 
+# El candidato de mediana consolidada trae, ademas de sus datos, las funciones
+# que arman su SQL. Publicarlas hacia que el perfil guardado arrastrara el
+# entorno donde nacieron: en DuckDB un perfil de 200 filas pesaba 15 MB
+# serializado en vez de 75 KB. Como las otras dos decisiones de la mediana y la
+# moda, se publica lo que se decidio y por que, no el codigo que lo ejecuta.
+.publicar_mediana_consolidada_dbi <- function(resolucion) {
+  if (is.null(resolucion)) return(NULL)
+  candidato <- resolucion$candidato
+  if (is.list(candidato)) {
+    es_codigo <- vapply(
+      candidato,
+      function(e) is.function(e) || is.environment(e) ||
+        identical(typeof(e), "externalptr"),
+      logical(1L)
+    )
+    candidato <- candidato[!es_codigo]
+  }
+  resolucion$candidato <- candidato
+  resolucion
+}
+
 .publicar_moda_guardian_dbi <- function(resolucion) {
   if (is.null(resolucion)) return(NULL)
   candidato <- resolucion$candidato
@@ -20179,7 +20200,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
   )
-  attr(plan, "mediana_consolidada") <- preparacion$mediana_consolidada_resolucion
+  attr(plan, "mediana_consolidada") <- .publicar_mediana_consolidada_dbi(
+    preparacion$mediana_consolidada_resolucion
+  )
   attr(plan, "mediana_escalar") <- .publicar_mediana_escalar_dbi(
     preparacion$mediana_escalar_resolucion
   )
@@ -25419,7 +25442,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   valores distintos. `perfilar()` y `perfilar_dbi(..., bloque_filas = n)`
 #'   suman los cuadrados sin error en una unidad que es potencia de dos —la que
 #'   deja el mayor valor en 2^400— y que sube cuando llega un bloque que no
-#'   cubre: el desvío es el doble más cercano también en esas magnitudes. Las columnas de magnitud común no cambian de consulta ni de cifra.
+#'   cubre: el desvío es el doble más cercano también en esas magnitudes, salvo cuando el desvío verdadero ya no cabe en un doble (dos valores de ±1,7e308 lo tienen en 2,4e308): ahí queda `NA`, igual que en el motor, y no `Inf`. Las columnas de magnitud común no cambian de consulta ni de cifra.
 #' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R. La media y el desvío de R
@@ -27396,8 +27419,9 @@ perfilar_dbi <- function(conexion, tabla,
   resumen$meta$moda_guardian <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
   )
-  resumen$meta$mediana_consolidada <-
+  resumen$meta$mediana_consolidada <- .publicar_mediana_consolidada_dbi(
     preparacion$mediana_consolidada_resolucion
+  )
   resumen$meta$mediana_escalar <-
     .publicar_mediana_escalar_dbi(preparacion$mediana_escalar_resolucion)
   # La salida del catalogo sigue la misma ruta `meta$clave` que la salida en

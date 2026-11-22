@@ -383,8 +383,9 @@ viajan además con el paquete (`vignette("lupa")` abre la primera); de la 7 a la
 8.  [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html): un marco propio, métricas en tres niveles, el tablero, un índice con pesos declarados y los marcos incluidos.
 9.  [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html): comparar entregas, separar un cambio real de un redondeo y buscar deriva en un histórico.
 10. [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html): los dos bloques de `perfilar_dbi()`, qué trae a R cada opción y dónde queda el metadato del muestreo.
-11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html): perfilar las tablas de una base, leer lo que no se pudo medir y buscar relaciones entre ellas.
+11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html): perfilar las tablas de una base, leer lo que no se pudo medir, armar el informe de la colección y buscar relaciones entre ellas.
 12. [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html): pedir la comparación aproximada, estimar su costo, saber cuándo entra LSH y qué recorta cada tope.
+13. [Cruzar dos bases](https://sebollin.github.io/lupa/articles/cruzar-dos-bases.html): comparar una tabla de cada una de dos conexiones: perfilar cada lado en su motor, leer sólo las claves por bloques y medir la cobertura y la integridad referencial en R.
 
 ## Para usuarios avanzados
 

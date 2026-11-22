@@ -1,3 +1,10 @@
+# Los cuatro estados de `cobertura_analisis()`, en su orden. Estaban escritos en
+# tres lugares -la funcion y dos en el tablero, que los valida y los vuelve a
+# armar-; el informe de una coleccion es el cuarto que los lee.
+.ESTADOS_COBERTURA_ANALISIS <- c(
+  "medida", "no_declarada", "no_aplica", "fuera_de_alcance"
+)
+
 .resolver_factor <- function(dimension, factor, catalogo = NULL,
                              especificaciones = NULL) {
   if (is.null(catalogo)) catalogo <- catalogo_agesic()
@@ -293,8 +300,7 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     )
   }
   factores$estado <- factor(
-    factores$estado,
-    levels = c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")
+    factores$estado, levels = .ESTADOS_COBERTURA_ANALISIS
   )
   factores$marco <- modelo$nombre
   factores <- factores[c(

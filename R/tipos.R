@@ -207,7 +207,22 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   tiene_letras_numeros <- grepl("[[:alpha:]]", formas, perl = TRUE) &
     grepl("[[:digit:]]", formas, perl = TRUE) &
     !.forma_cientifica_numero_texto(formas)
-  estructura_id <- forma_id & (tiene_cero_inicial | tiene_letras_numeros)
+  # Un numero DECIMAL con una unidad de medida conocida pegada (`4197.38ml`)
+  # tiene letras y digitos pero no es un codigo: es el mismo numero con unidad
+  # que `4197.38 ml`, que la separacion deja fuera de la forma de
+  # identificador. Solo las unidades de la lista cerrada: `1.0beta`, `1.01a` o
+  # `12.5s` son versiones, secciones o coordenadas, y siguen siendo codigo, como
+  # `101a`. Se pregunta solo por las formas que traen letras, digitos y
+  # separador decimal.
+  con_unidad <- tiene_letras_numeros &
+    grepl("[0-9][.,][0-9]|^[+-]?[.,][0-9]", formas, perl = TRUE)
+  if (any(con_unidad)) {
+    componentes <- .componentes_numero_texto(formas[con_unidad])
+    con_unidad[con_unidad] <- componentes$compatible &
+      .unidad_de_medida_conocida(componentes$unidad)
+  }
+  estructura_id <- forma_id &
+    (tiene_cero_inicial | (tiene_letras_numeros & !con_unidad))
   n_id <- sum(estructura_id * pesos)
 
   conteos <- c(

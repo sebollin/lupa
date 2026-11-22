@@ -1737,6 +1737,12 @@
   # Ahorrar un recorrido no vale cambiar un numero que se publica.
   mediana <- stats::median(valores)
   desvio <- basicos$desvio
+  # El desvio de valores finitos puede no caber en un doble -dos valores de
+  # +-1,7e308 tienen un desvio de 2,4e308-, y el doble mas cercano seria `Inf`.
+  # Un infinito no es un desvio: se publica `NA`, como el resumen que el motor
+  # calcula, y no un `Inf` con estado `calculados`. `valores_no_finitos` sigue
+  # diciendo si la columna trae infinitos de verdad.
+  if (length(desvio) == 1L && is.infinite(desvio)) desvio <- NA_real_
   # `valores` ya fue filtrado con `is.finite()`: `na.rm = TRUE` conserva la
   # semántica del IQR anterior y también deja la llamada segura si este bloque
   # vuelve a recibir valores ausentes en el futuro.
@@ -2011,9 +2017,15 @@
 # Un codigo de tres mayusculas solo es moneda separado del numero: pegado
 # (`35USD`) es un codigo como `12A`.
 .simbolo_moneda_numero <- "(?:U\\$S|\\p{Sc})"
-.espacio_moneda_numero <- "[[:space:]\\p{Z}]*"
+.clase_espacio_numero <- "[[:space:]\\p{Z}]"
+.espacio_moneda_numero <- paste0(.clase_espacio_numero, "*")
+# El codigo de tres letras se separa del numero con la misma clase de espacio
+# que el simbolo: `USD` + espacio duro + `35` es el mismo importe que con el
+# espacio comun. Es la unica escritura de esa regla: la forma completa y la
+# extraccion de abajo la usan las dos.
+.espacio_codigo_numero <- paste0(.clase_espacio_numero, "+")
 .moneda_delante_numero <- paste0(
-  "(?:[[:upper:]]{3}[[:space:]]+|", .simbolo_moneda_numero,
+  "(?:[[:upper:]]{3}", .espacio_codigo_numero, "|", .simbolo_moneda_numero,
   .espacio_moneda_numero, ")"
 )
 
@@ -2038,9 +2050,75 @@
 # veces por columna en cada perfil. Quien lo usa le pasa el vector entero y no
 # valor por valor: `.detectar_multivaluados()` lo llamaba una vez por cada celda
 # con coma, y en una columna de 200.000 decimales eso era casi todo el perfil.
+# Las unidades de medida que el paquete reconoce sin duda: es UNA lista para las
+# dos formas -`4.25 kg` separada y `4.25kg` pegada-; la diferencia entre ellas es
+# solo si la conversion se marca por omision, y se decide en el plan.
+# Las unidades de medida que el paquete reconoce sin duda. La forma de numero
+# con unidad acepta cualquier tramo de letras que termina en minuscula, y eso
+# alcanza para LEER `12 kg` o `1.5 beta`, pero no para decidir nada sobre una
+# columna: `1.0beta`, `1.01a` y `12.5s` son versiones, secciones y coordenadas, y
+# quitarles la letra es perder el dato. Quien decide si un sufijo es una unidad
+# -la inferencia de tipo y el plan de conversion- pregunta aca, y solo aca.
+.UNIDADES_MEDIDA_NUMERO <- c(
+  # longitud, superficie y volumen
+  "mm", "cm", "dm", "m", "km", "ha", "m2", "m3", "km2", "cm2", "mm2",
+  "m\u00b2", "m\u00b3", "km\u00b2", "cm\u00b2", "mm\u00b2",
+  "ml", "cl", "dl", "l", "lt", "cc", "gal",
+  # masa
+  "mg", "g", "kg", "t", "tn", "ton", "oz", "lb", "lbs",
+  # energia, potencia y carga
+  "cal", "kcal", "j", "kj", "mj", "wh", "kwh", "mwh", "mah", "ah",
+  "w", "kw", "mw", "v", "kv", "va", "kva", "ohm", "hz", "khz", "mhz", "ghz",
+  # tiempo
+  "s", "ms", "min", "h", "hs", "hr", "hrs", "seg",
+  # temperatura, presion y otras
+  "\u00b0c", "\u00b0f", "pa", "kpa", "hpa", "mpa", "bar", "psi", "ppm", "rpm", "db",
+  "mol", "rad", "deg", "lbf",
+  # longitud y superficie en unidades inglesas, velocidad, volumen culinario
+  "in", "ft", "yd", "mi", "nmi", "sqft", "sqm", "mph", "kph", "kn",
+  "qt", "pt", "cup", "tbsp", "tsp",
+  # pantalla y datos
+  "px", "dpi", "bit", "byte", "bps",
+  # datos
+  "kb", "mb", "gb", "tb", "pb", "kib", "mib", "gib"
+)
+.unidad_de_medida_conocida <- function(unidad) {
+  unidad <- as.character(unidad)
+  !is.na(unidad) &
+    .minusculas_para_comparar(unidad, recortar = FALSE) %in%
+      .UNIDADES_MEDIDA_NUMERO
+}
+# Dos formas de escribir un numero con algo pegado que el perfil lee como numero
+# pero que tambien puede ser un codigo, y cuya conversion borra lo que lo
+# acompana: la unidad PEGADA al numero (`1.5m`, `2.0l`: puede ser una version o un
+# codigo de producto; `50%` no, es un porcentaje) y un importe con codigo de
+# moneda -codigo o simbolo- y ceros a la izquierda en la parte entera (`USD 000101`,
+# `$ 000101`: puede ser un codigo de documento). El plan las ofrece, pero no las marca.
+.celdas_con_unidad_pegada <- function(texto) {
+  texto <- .texto_legible_recortado(texto)
+  !is.na(texto) & grepl("[0-9][[:alpha:]]", texto, perl = TRUE)
+}
+.celdas_con_moneda_y_ceros <- function(texto) {
+  texto <- .texto_legible_recortado(texto)
+  moneda_delante <- paste0(
+    "(?:[[:upper:]]{3}", .espacio_codigo_numero, "|", .simbolo_moneda_numero,
+    .espacio_moneda_numero, ")"
+  )
+  moneda_detras <- paste0(
+    "(?:", .espacio_codigo_numero, "[[:upper:]]{3}|", .espacio_moneda_numero,
+    .simbolo_moneda_numero, ")"
+  )
+  !is.na(texto) & grepl(
+    paste0(
+      "^", moneda_delante, "[+-]?0[0-9]|^[+-]?0[0-9][0-9.,]*", moneda_detras, "$"
+    ),
+    texto, perl = TRUE
+  )
+}
 .unidad_detras_numero <- "[[:space:]]*(?:%|[[:alpha:]]*[[:lower:]])"
 .moneda_detras_numero <- paste0(
-  "[[:space:]]+[[:upper:]]{3}|", .espacio_moneda_numero, .simbolo_moneda_numero
+  .espacio_codigo_numero, "[[:upper:]]{3}|", .espacio_moneda_numero,
+  .simbolo_moneda_numero
 )
 .forma_numero_texto <- function(numero, unidad = .unidad_detras_numero) {
   paste0(
@@ -2115,7 +2193,9 @@
   # sin `(?s)` el `.*` no llegaba al final, el reemplazo no ocurria y la
   # validacion ISO recibia el texto entero, que no es un codigo: el valor
   # dejaba de ser un numero.
-  patron_codigo_prefijo <- "^[[:space:]]*([[:upper:]]{3})[[:space:]]+"
+  patron_codigo_prefijo <- paste0(
+    "^[[:space:]]*([[:upper:]]{3})", .espacio_codigo_numero
+  )
   codigo_prefijo <- compatible & grepl(
     patron_codigo_prefijo, texto, perl = TRUE
   )
@@ -2124,7 +2204,9 @@
     paste0("(?s)", patron_codigo_prefijo, ".*$"), "\\1", texto[codigo_prefijo],
     perl = TRUE
   )
-  patron_codigo_sufijo <- "[[:space:]]+([[:upper:]]{3})$"
+  patron_codigo_sufijo <- paste0(
+    .espacio_codigo_numero, "([[:upper:]]{3})$"
+  )
   codigo_sufijo <- compatible & grepl(patron_codigo_sufijo, texto, perl = TRUE)
   codigo_detras <- rep("", length(texto))
   codigo_detras[codigo_sufijo] <- sub(
@@ -2999,6 +3081,42 @@
   .codigos_etiquetas_unicode
 )
 
+# El espacio duro o el fino entre el simbolo de moneda -o el codigo- y el numero
+# (`$ 35`, `USD 35`) es la escritura del importe, no un invisible perdido: la
+# forma de numero con moneda lo admite a proposito. Acusarlo como control
+# invisible daba un `error` sobre una columna de importes correcta. Solo se
+# perdona UN espacio invisible: la celda entera es un numero con su moneda, ese
+# espacio no esta en el borde ni pegado a otro espacio, y la celda no trae
+# ningun otro invisible. Dos espacios duros, o un duro junto a uno comun, son
+# basura que el perfil sigue acusando, y un duro dentro de texto libre tambien.
+# Quien normaliza espacios (`.normalizar_espacios_invisibles()`) usa esta misma
+# pregunta para no tocar lo que el perfil no cuenta.
+.celdas_importe_con_espacio_duro <- function(textos) {
+  salida <- rep(FALSE, length(textos))
+  candidatas <- which(
+    !is.na(textos) & grepl("[^\\x01-\\x7F]", textos, perl = TRUE, useBytes = TRUE)
+  )
+  if (!length(candidatas)) return(salida)
+  forma <- .compatibles_numero_texto(textos[candidatas])
+  # Un codigo de moneda con ceros a la izquierda (`PEN<NBSP>000001`) puede ser un
+  # codigo de documento, y su espacio duro es parte de el: se sigue acusando.
+  es_numero <- which(
+    forma$compatible & forma$texto == textos[candidatas] &
+      !.celdas_con_moneda_y_ceros(textos[candidatas])
+  )
+  blancos <- c(9:13, 32L, .codigos_espacios_invisibles)
+  for (k in es_numero) {
+    codigos <- .codigos_decodificables(textos[[candidatas[[k]]]])
+    if (is.null(codigos)) next
+    p <- which(codigos %in% .codigos_espacios_invisibles)
+    if (length(p) != 1L || p == 1L || p == length(codigos)) next
+    if (codigos[[p - 1L]] %in% blancos || codigos[[p + 1L]] %in% blancos) next
+    if (any(.codigos_control_invisible(codigos[-p]))) next
+    salida[[candidatas[[k]]]] <- TRUE
+  }
+  salida
+}
+
 .predicados_invisibles <- function(textos, codificacion = NULL) {
   n <- length(textos)
   salida <- list(
@@ -3089,6 +3207,17 @@
         separador, .reemplazar_separadores, nuevos_separadores
       )
     }
+  }
+  # El espacio duro de un importe (`$ 35`, `USD 35`) no es un invisible perdido:
+  # ver `.celdas_importe_con_espacio_duro()`.
+  candidatas <- which(
+    salida$espacio & !salida$eliminable & !salida$significativo &
+      !salida$separador & !ambiguo
+  )
+  if (length(candidatas)) {
+    importe <- candidatas[.celdas_importe_con_espacio_duro(textos[candidatas])]
+    salida$espacio[importe] <- FALSE
+    salida$control[importe] <- FALSE
   }
   attr(salida, "ambiguo") <- ambiguo
   salida

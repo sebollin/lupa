@@ -21,8 +21,8 @@ reportar(
 
 \item{...}{Objetos adicionales de clase \code{analisis}, \code{perfil}, \code{medicion},
 \code{evaluacion_calidad}, \code{historico_calidad}, \code{deriva_perfil},
-\code{deriva_calidad}, \code{plan_limpieza}, \code{resultado_limpieza} o
-\code{duplicados_aproximados}.}
+\code{deriva_calidad}, \code{plan_limpieza}, \code{resultado_limpieza},
+\code{duplicados_aproximados} o \code{perfil_coleccion}.}
 
 \item{archivo}{Ruta de salida. De forma predeterminada crea un archivo en
 \code{tempdir()}. Una ruta que ya es un directorio se rechaza.}
@@ -73,6 +73,22 @@ Un \code{resultado_limpieza} agrega una seccion con las acciones ejecutadas y
 fallidas, el motivo de cada falla, los cambios contados por accion y
 columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
 perfil y el plan que lo originaron.
+
+Un \code{perfil_coleccion} de \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} agrega una sección con
+las tablas de \code{\link[=as.data.frame.perfil_coleccion]{as.data.frame.perfil_coleccion()}}: cuántas tablas se
+declararon, perfilaron, quedaron vacías, sin medición, con error o sin
+medir por su tipo; el índice de tablas con su estado y su motivo; la
+matriz de tablas por dimensión y factor del marco que
+\code{\link[=cobertura_analisis]{cobertura_analisis()}} usa por omisión, con el estado que le da a cada
+perfil; lo no medido con el
+motivo de cada cobertura; y los hallazgos de cada tabla. Ninguna cifra
+resume la colección. La matriz y los hallazgos necesitan
+\code{conservar_perfiles = TRUE}: sin los perfiles, la sección lo dice. Con
+\code{proteger_datos_personales = TRUE}, cada perfil de muestra se vuelve a
+proteger antes de publicar sus hallazgos, como un perfil suelto, y la
+sección dice cuántos se armaron sin la protección; los motivos de la
+cobertura se publican como los dejó \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, que los
+protege sólo si la colección se perfiló con la protección activa.
 
 Un objeto \code{medicion_resumen} se rechaza con clase
 \code{lupa_resumen_no_admitido}; publicar la medición completa o el resumen

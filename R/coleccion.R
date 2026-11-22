@@ -2322,6 +2322,15 @@ print.perfil_coleccion <- function(x, ...) {
       "Con agregados no calculados: {x$meta$n_con_metricas_rechazadas} (ver `cobertura_metricas`)"
     )
   }
+  # El recorte de `cobertura_metricas` solo estaba en `meta`: la consola
+  # mostraba la coleccion como si la tabla listara todo lo no medido.
+  if (isTRUE(x$meta$cobertura_metricas_truncada)) {
+    cli::cli_text(
+      "M\u00e9tricas no medidas: {x$meta$n_metricas_no_medidas}; ",
+      "`cobertura_metricas` lista {nrow(x$cobertura_metricas)} (recortada a ",
+      "`tope_cobertura_metricas` = {x$meta$tope_cobertura_metricas})"
+    )
+  }
   cli::cli_text("Sin lectura instant\u00e1nea: cada tabla trae su `momento`.")
   invisible(original)
 }

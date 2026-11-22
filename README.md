@@ -386,8 +386,9 @@ one); 7 to 12 are on the website only.
 8.  [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) (*Quality frameworks and models*): a custom framework, metrics at three levels, the dashboard, an index with declared weights and the included frameworks.
 9.  [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) (*Comparing deliveries and tracking quality*): compare deliveries, tell a real change from a rounding difference and look for drift in a history.
 10. [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) (*Profiling a database*): the two blocks of `perfilar_dbi()`, what each option brings into R and where the sampling metadata is kept.
-11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) (*Collections*): profile the tables of a database, read what could not be measured and look for relationships between them.
+11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) (*Collections*): profile the tables of a database, read what could not be measured, build the collection report and look for relationships between them.
 12. [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) (*Scale and approximate duplicates*): request the approximate comparison, estimate its cost, know when LSH takes over and what each cap trims.
+13. [Cruzar dos bases](https://sebollin.github.io/lupa/articles/cruzar-dos-bases.html) (*Crossing two databases*): compare a table from each of two connections: profile each side in its engine, read only the keys in blocks and measure coverage and referential integrity in R. Also in English: [Crossing two databases](https://sebollin.github.io/lupa/articles/crossing-two-databases.html).
 
 ## For advanced users
 

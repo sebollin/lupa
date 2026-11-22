@@ -562,23 +562,17 @@ transiciones_granularidad <- function() {
     } else {
       faltantes[faltantes$alcance %in% explican_la_tabla, , drop = FALSE]
     }
-    if (!is.null(faltantes$alcance)) {
-      faltantes <- faltantes[faltantes$alcance == "tabla", , drop = FALSE]
-    }
     # Con el catalogo: la identidad completa es `catalogo.esquema.tabla`, y
     # reconstruirla sin el catalogo publica otra tabla.
-    ids_faltantes <- identificador(
-      faltantes$esquema, faltantes$tabla, faltantes$catalogo
-    )
     ids_con_motivo <- identificador(
       con_motivo$esquema, con_motivo$tabla, con_motivo$catalogo
     )
     primeros <- !duplicated(.nombres_para_operar(ids_con_motivo))
     return(list(
       nombre = coleccion$meta$nombre,
-      declaradas = c(
-        coleccion$resumen_coleccion$identificador, ids_faltantes
-      ),
+      # Las perfiladas y despues las del alcance `tabla`, con el catalogo: la
+      # misma lectura que el informe de la coleccion.
+      declaradas = .tablas_declaradas_perfil_coleccion(coleccion)$identificador,
       motivo_faltantes = stats::setNames(
         con_motivo$motivo[primeros], ids_con_motivo[primeros]
       )

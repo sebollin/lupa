@@ -217,6 +217,34 @@
   textos distintos pasa de 0,2 a 6,5 segundos y de 50 a 498 MB. Son medianas en
   Linux de `benchmark/medir_costo_huella.R`.
 
+- `perfilar_coleccion()` tiene un informe de colección. `summary()` y
+  `as.data.frame()` sobre el perfil de colección devuelven tablas planas, sin
+  columnas lista y listas para `write.csv()`: el índice de tablas con su estado
+  (`perfilada`, `vacia`, `medicion_incompleta`, `con_error` o `no_medida`), el
+  motivo que registró la cobertura y cuántas métricas no medidas no se listaron
+  por `tope_cobertura_metricas` (`parte = "tablas"`, por omisión); la matriz de
+  tablas por dimensión y factor del marco, con el estado de
+  `cobertura_analisis()` de cada perfil (`"matriz"` y, en largo,
+  `"dimensiones"`); lo no medido con el motivo de cada cobertura
+  (`"no_medido"`); y los hallazgos de cada tabla (`"hallazgos"`). Ninguna parte
+  calcula un puntaje: no se promedian factores, dimensiones ni tablas.
+  `reportar()` acepta un perfil de colección (antes lo rechazaba) y publica las
+  mismas tablas en una sección propia.
+- Un número con una unidad de medida conocida pegada (`4197.38ml`) se lee como
+  número escrito como texto y no como identificador; su conversión se ofrece
+  sin marcar, porque puede ser un código o una versión, salvo que el resto de
+  la columna establezca la misma unidad. Con la unidad separada por un espacio,
+  una lista cerrada de unidades comunes (longitud, masa, volumen, energía,
+  presión, electricidad, tiempo, pantalla y datos) decide qué conversión se
+  marca por omisión: `120 kcal` sí, `1.0 beta` no.
+- El código de moneda (`USD 35`) acepta el espacio duro o fino entre el código
+  y el número, como ya lo aceptaba el símbolo, y un espacio duro dentro de un
+  importe ya no se acusa como control invisible (dos espacios, uno al borde o
+  junto a otro invisible, o uno en texto libre, se siguen acusando). Un importe
+  con ceros a la izquierda (`USD 000101`, `$ 000101`) ofrece su conversión sin
+  marcar, porque puede ser un código de documento, salvo que el resto de la
+  columna sean importes de la misma moneda.
+
 ## Medir la calidad
 
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una fila por
@@ -380,7 +408,34 @@
   `asociacion_con_signo`, el coeficiente con su dirección; las columnas que ya
   publicaba no cambian.
 
+## Documentación
+
+- El sitio publica «Cruzar dos bases», una guía para comparar una tabla de cada
+  una de dos conexiones: perfilar cada lado en su motor con `perfilar_dbi()`,
+  leer sólo las claves por bloques y medir la cobertura y la integridad
+  referencial en R con `detectar_relaciones()` y `medir()` con
+  `ReglaIntegridadInterEntidad`. También está en inglés, como «Crossing two
+  databases».
+- El artículo de colecciones muestra el informe de colección: el índice, la
+  matriz por dimensión y lo no medido.
+
 ## Correcciones
+
+- Un centinela declarado como entero de 64 bits, o escrito como texto con más
+  de 15 cifras significativas en cualquier notación, se compara con el valor
+  exacto en el perfil, el plan, `aplicar()`, `perfilar_por()` y
+  `perfilar_dbi()`: `9007199254740992` ya no arrastra a su vecino `…993`, y
+  `aplicar()` ya no lo borra.
+- Un desvío que no cabe en un doble (valores cercanos a ±1,7e308) se publica
+  `NA` con su fila de cobertura, en memoria y en `perfil_muestra` de
+  `perfilar_dbi()`, en vez de `Inf`.
+- La normalización de espacios invisibles cambia exactamente las celdas que el
+  plan anuncia.
+- `perfilar_dbi()` publicaba en `resumen_tabla$meta$mediana_consolidada`, y
+  `plan_perfilado_dbi()` en su atributo del mismo nombre, las funciones que
+  arman el SQL de la mediana, con el entorno donde nacieron: en DuckDB un
+  perfil de 200 filas pesaba 15 MB serializado en vez de 75 KB. Se publica lo
+  que se decidió y por qué, como ya se hacía con la moda y la mediana escalar.
 
 - `plan_perfilado_dbi()` anunciaba menos consultas de las que `perfilar_dbi()`
   emitía en tablas vacías, de una fila o con columnas numéricas toda `NULL`

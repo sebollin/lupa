@@ -82,7 +82,7 @@
     )
   }
   estados <- as.character(cobertura$estado)
-  validos <- c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")
+  validos <- .ESTADOS_COBERTURA_ANALISIS
   if (anyNA(estados) || any(!estados %in% validos)) {
     .detener("`cobertura` contiene estados no reconocidos.", call. = FALSE)
   }
@@ -166,7 +166,7 @@
   }
   cobertura$estado <- factor(
     cobertura$estado,
-    levels = c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")
+    levels = .ESTADOS_COBERTURA_ANALISIS
   )
   rownames(cobertura) <- NULL
   cobertura

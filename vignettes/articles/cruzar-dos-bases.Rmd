@@ -1,0 +1,432 @@
+---
+title: "13. Cruzar dos bases"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# knitr teje cada guía en su propia sesión; igual se devuelve el ancho al
+# terminar, como pide el CRAN Cookbook para toda opción que se cambie.
+.opciones_previas <- options(width = 90)
+# Sin DBI, RSQLite ni duckdb (son sugeridos) los bloques que consultan las
+# bases no corren y la guía se construye igual; las cifras en línea dicen
+# entonces "varios".
+tiene_motores <- requireNamespace("DBI", quietly = TRUE) &&
+  requireNamespace("RSQLite", quietly = TRUE) &&
+  requireNamespace("duckdb", quietly = TRUE)
+knitr::opts_chunk$set(eval = tiene_motores)
+cifra <- function(x) {
+  if (is.null(x) || !length(x) || is.na(x)) return("varios")
+  format(x, big.mark = ".", decimal.mark = ",", scientific = FALSE)
+}
+porcentaje <- function(x) {
+  if (is.null(x) || !length(x) || is.na(x)) return("varios")
+  paste0(cifra(round(100 * x, 1)), " %")
+}
+n_padron <- n_visitas <- n_cubiertas <- n_huerfanas <- NA
+cobertura_cruda <- cobertura <- NA_real_
+```
+
+Un padrón vive en una base SQLite. Las visitas, en una base DuckDB. La
+credencial que abre una no abre la otra, y ninguna consulta puede nombrar las
+dos a la vez. ¿Cómo se sabe si cada visita encuentra a su persona? ¿Y cómo se
+convierte esa pregunta en una medida que se repita con cada entrega?
+
+> **En esta guía:**
+>
+> - perfilar cada tabla en su motor con `perfilar_dbi()`;
+> - leer sólo las claves, por bloques, con `DBI::dbSendQuery()` y
+>   `DBI::dbFetch()`;
+> - comparar la cobertura en R con `detectar_relaciones()`;
+> - convertir la comparación en una métrica con `medir()` y
+>   `ReglaIntegridadInterEntidad`;
+> - decidir qué hacer cuando las claves no tienen el mismo tipo o la misma
+>   forma.
+
+## Dos bases, una pregunta {#dos-bases-una-pregunta}
+
+El ejemplo tiene 8 personas en el padrón y 20 visitas. Las visitas guardan la
+persona como texto de 2 cifras, con cero a la izquierda. Dos visitas citan a
+las personas 9 y 10, que no están en el padrón. Todo es sintético.
+
+```{r datos, eval = TRUE}
+library(lupa)
+
+padron <- data.frame(
+  id_persona = 1:8,
+  sector = rep(c("Norte", "Sur"), each = 4),
+  stringsAsFactors = FALSE
+)
+visitas <- data.frame(
+  id_visita = 1:20,
+  id_persona = sprintf("%02d", c(rep(1:8, 2), 1, 2, 9, 10)),
+  motivo = rep(c("control", "consulta"), length.out = 20),
+  stringsAsFactors = FALSE
+)
+head(visitas, 3)
+```
+
+Las tablas se escriben en bases en memoria. Es sólo la preparación del ejemplo:
+`lupa` no escribe en la base.
+
+```{r conexiones}
+con_padron <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(con_padron, "padron", padron)
+con_visitas <- suppressMessages(DBI::dbConnect(duckdb::duckdb()))
+DBI::dbWriteTable(con_visitas, "visitas", visitas)
+```
+
+## Perfilar cada tabla en su motor
+
+Cada tabla se perfila con la conexión que la ve. `perfilar_dbi()` devuelve los
+2 bloques de [Perfilar una base](perfilar-una-base.html): el resumen que calcula
+el motor y el perfil de las filas que se leyeron.
+
+```{r perfiles}
+perfil_padron <- perfilar_dbi(con_padron, "padron")
+perfil_visitas <- perfilar_dbi(con_visitas, "visitas")
+```
+
+Para el cruce importa una sola cosa del perfil: cómo está guardada la clave. El
+tipo declarado lo dice el motor; el inferido, las filas que se leyeron.
+
+```{r clave-declarada}
+clave_de <- function(perfil, columna) {
+  fila <- perfil$perfil_muestra$columnas
+  fila[
+    fila$columna == columna,
+    c("columna", "tipo_declarado", "tipo_inferido", "n", "n_distintos")
+  ]
+}
+rbind(
+  cbind(tabla = "padron", clave_de(perfil_padron, "id_persona")),
+  cbind(tabla = "visitas", clave_de(perfil_visitas, "id_persona"))
+)
+```
+
+```{r clave-declarada-cifras, include=FALSE}
+stopifnot(
+  identical(clave_de(perfil_padron, "id_persona")$tipo_declarado, "entero"),
+  identical(clave_de(perfil_visitas, "id_persona")$tipo_declarado, "texto"),
+  identical(clave_de(perfil_visitas, "id_persona")$tipo_inferido, "entero"),
+  clave_de(perfil_padron, "id_persona")$n_distintos == nrow(padron),
+  nrow(visitas) == 20L
+)
+```
+
+El motor del padrón declara `id_persona` como entero. El de las visitas la
+declara texto, aunque el perfil, al leerla, infiere entero. No es un error del
+perfil: es la primera señal de que la clave no está guardada igual de los dos
+lados. El perfil de las visitas lo anota como hallazgo:
+
+```{r hallazgo}
+hallazgos(perfil_visitas)[
+  hallazgos(perfil_visitas)$columna == "id_persona",
+  c("columna", "tipo_hallazgo", "severidad")
+]
+```
+
+`tipo_declarado_distinto` no dice que haya un valor malo; dice que el texto se
+parece a un número. En el padrón, la misma columna es entera. Ahí empieza el
+problema del cruce. `perfilar_dbi()` no compara las dos tablas: cada llamada ve
+una sola conexión.
+
+## Leer sólo las claves
+
+Para comparar no hacen falta las filas enteras: alcanzan las claves. Y conviene
+leerlas por bloques, para que el pico de memoria no dependa del tamaño de la
+tabla sino del bloque. El paquete no exporta un lector de claves; se arma con
+`DBI::dbSendQuery()` y `DBI::dbFetch()`, las mismas funciones con que
+`perfilar_dbi()` lee del motor.
+
+```{r lector}
+leer_por_bloques <- function(conexion, consulta, bloque = 1000) {
+  resultado <- DBI::dbSendQuery(conexion, consulta)
+  on.exit(DBI::dbClearResult(resultado), add = TRUE)
+  partes <- list()
+  repeat {
+    parte <- DBI::dbFetch(resultado, n = bloque)
+    if (!nrow(parte)) break
+    partes[[length(partes) + 1L]] <- parte
+  }
+  if (length(partes)) do.call(rbind, partes) else parte
+}
+```
+
+Acá el bloque es de 10 filas para que se vea el recorrido; en una tabla real,
+elegí el tamaño por la memoria disponible, no por la cantidad de filas. Se lee
+el identificador de la visita junto con la clave: después sirve para ubicar las
+filas huérfanas.
+
+```{r claves}
+claves_padron <- leer_por_bloques(
+  con_padron, "SELECT id_persona FROM padron ORDER BY id_persona",
+  bloque = 10
+)
+claves_visitas_crudas <- leer_por_bloques(
+  con_visitas, "SELECT id_visita, id_persona FROM visitas ORDER BY id_visita",
+  bloque = 10
+)
+data.frame(
+  lado = c("padron", "visitas"),
+  clase = c(
+    class(claves_padron$id_persona),
+    class(claves_visitas_crudas$id_persona)
+  ),
+  ejemplo = c(
+    claves_padron$id_persona[[1]],
+    claves_visitas_crudas$id_persona[[1]]
+  )
+)
+```
+
+```{r claves-cifras, include=FALSE}
+n_padron <- nrow(claves_padron)
+n_visitas <- nrow(claves_visitas_crudas)
+stopifnot(
+  n_padron == 8L,
+  n_visitas == 20L,
+  is.integer(claves_padron$id_persona),
+  is.character(claves_visitas_crudas$id_persona)
+)
+```
+
+El padrón llega con `r cifra(n_padron)` claves enteras; las visitas, con
+`r cifra(n_visitas)` claves de texto. La primera del padrón es `1`; la primera
+de las visitas, `"01"`. A la vista son la misma persona; para la comparación,
+todavía no.
+
+## Comparar en R
+
+`detectar_relaciones()` compara 2 data frames en memoria. La primera tabla es
+la referencia; la segunda, la que depende de ella. `columnas_candidatas` dice
+qué par comparar: sin eso, prueba todas las combinaciones y puede encontrar
+coincidencias que son sólo códigos parecidos.
+
+```{r cruce-crudo}
+cruce_crudo <- detectar_relaciones(
+  claves_padron, claves_visitas_crudas,
+  columnas_candidatas = list("id_persona", "id_persona")
+)
+cruce_crudo[, c(
+  "cardinalidad", "n_valores_comunes", "cobertura_tabla2_en_tabla1",
+  "n_filas_huerfanas_tabla2"
+)]
+```
+
+```{r cruce-crudo-cifras, include=FALSE}
+stopifnot(
+  identical(cruce_crudo$cardinalidad, "sin_coincidencias"),
+  cruce_crudo$n_valores_comunes == 0,
+  cruce_crudo$cobertura_tabla2_en_tabla1 == 0
+)
+cobertura_cruda <- cruce_crudo$cobertura_tabla2_en_tabla1
+```
+
+La cobertura de las visitas en el padrón es `r porcentaje(cobertura_cruda)`:
+ninguna de las 20 claves de visita coincide con las 8 del padrón. No es que
+falten todas las personas: es que `"01"` y `1` no son el mismo valor para la
+comparación.
+
+## Arreglar la forma en el origen
+
+El cero a la izquierda es relleno, no parte del código. Se corrige en la
+consulta, antes de que el valor llegue a R: así la clave viaja con el tipo que
+se va a comparar y la receta queda escrita en un solo lugar. `BIGINT` es el
+nombre de DuckDB para el entero; cada motor tiene el suyo.
+
+```{r claves-corregidas}
+claves_visitas <- leer_por_bloques(
+  con_visitas,
+  paste(
+    "SELECT id_visita, CAST(id_persona AS BIGINT) AS id_persona",
+    "FROM visitas ORDER BY id_visita"
+  ),
+  bloque = 10
+)
+cruce <- detectar_relaciones(
+  claves_padron, claves_visitas,
+  columnas_candidatas = list("id_persona", "id_persona")
+)
+cruce[, c(
+  "cardinalidad", "n_valores_comunes", "cobertura_tabla2_en_tabla1",
+  "n_filas_huerfanas_tabla2"
+)]
+```
+
+```{r cruce-cifras, include=FALSE}
+stopifnot(
+  identical(cruce$cardinalidad, "1:m"),
+  cruce$n_valores_comunes == 8L,
+  isTRUE(all.equal(cruce$cobertura_tabla2_en_tabla1, 0.9)),
+  identical(as.integer(cruce$n_filas_huerfanas_tabla2), 2L)
+)
+cobertura <- cruce$cobertura_tabla2_en_tabla1
+n_huerfanas <- as.integer(cruce$n_filas_huerfanas_tabla2)
+n_cubiertas <- n_visitas - n_huerfanas
+```
+
+Ahora la cobertura es `r porcentaje(cobertura)`: `r cifra(n_cubiertas)` de las
+`r cifra(n_visitas)` visitas encuentran su persona. Quedan
+`r cifra(n_huerfanas)` visitas huérfanas, las de las personas 9 y 10, que no
+están en el padrón.
+
+```{r huerfanas}
+huerfanas <- cruce$huerfanas_tabla2[[1]]
+data.frame(
+  total = huerfanas$total,
+  mostradas = huerfanas$mostrados,
+  estado = huerfanas$estado,
+  alcance = huerfanas$alcance
+)
+claves_visitas$id_visita[huerfanas$indices_fila]
+```
+
+La traza no publica los valores de las claves; publica las posiciones de las
+filas. Con `id_visita` leído al lado, esas posiciones se traducen a las visitas
+19 y 20. En una tabla grande, el orden de lectura tiene que ser estable para que
+la posición siga sirviendo: por eso la consulta lleva `ORDER BY`.
+
+## De la comparación a la métrica
+
+Una cobertura suelta sirve para esta entrega. Para comparar entregas hace falta
+una medida con nombre, fecha e identificador. `ReglaIntegridadInterEntidad`
+mide la proporción de claves no ausentes de la segunda entidad que existen en
+la primera.
+
+```{r metrica}
+nucleo <- metricas_nucleo()
+regla <- instanciar(
+  especializar(
+    nucleo$ReglaIntegridadInterEntidad,
+    nombre_especifico = "VisitaTienePersona"
+  ),
+  entidad = c("padron", "visitas"),
+  atributos = c("id_persona", "id_persona")
+)
+medicion <- medir(
+  modelo(regla),
+  list(padron = claves_padron, visitas = claves_visitas),
+  id_medicion = "cruce-2026-01",
+  fecha = "2026-01-31"
+)
+medicion[, c("metrica_especifica", "objeto_medible", "resultado")]
+```
+
+```{r metrica-cifras, include=FALSE}
+stopifnot(
+  nrow(medicion) == 1L,
+  isTRUE(all.equal(medicion$resultado, cobertura)),
+  identical(medicion$entidad, "visitas"),
+  identical(medicion$atributo, "id_persona")
+)
+```
+
+La métrica devuelve una sola fila: la cobertura de la clave foránea, con el
+nombre de la regla, la entidad dependiente y el objeto medido. El
+`id_medicion` y la `fecha` son los que permiten comparar esta corrida con la
+próxima. Un `NA` en la clave foránea no cuenta como huérfano: no es un valor
+que se haya buscado, y por eso no entra en el denominador.
+
+La métrica no normaliza nada. Si se le pasan las claves crudas, mide
+`r porcentaje(cobertura_cruda)`, que es el dato correcto para esa forma. La
+corrección se hace antes, en la consulta, y se aplica a los dos lados.
+
+## Cuando las claves no tienen la misma forma {#cuando-las-claves-no-tienen-la-misma-forma}
+
+El caso de las visitas era un cero a la izquierda. Hay otros dos que aparecen
+seguido: mayúsculas y espacios de borde. La comparación en memoria no los
+ignora.
+
+```{r formas}
+codigos_a <- data.frame(codigo = c("A-01", "B-02", " C-03"))
+codigos_b <- data.frame(codigo = c("a-01", "b-02", "c-03"))
+comparar <- function(a, b) {
+  detectar_relaciones(
+    a, b, columnas_candidatas = list("codigo", "codigo")
+  )$n_valores_comunes
+}
+c(
+  crudo = comparar(codigos_a, codigos_b),
+  normalizado = comparar(
+    data.frame(codigo = toupper(trimws(codigos_a$codigo))),
+    data.frame(codigo = toupper(trimws(codigos_b$codigo)))
+  )
+)
+```
+
+```{r formas-cifras, include=FALSE}
+stopifnot(
+  comparar(codigos_a, codigos_b) == 0,
+  comparar(
+    data.frame(codigo = toupper(trimws(codigos_a$codigo))),
+    data.frame(codigo = toupper(trimws(codigos_b$codigo)))
+  ) == 3
+)
+```
+
+Texto contra número no es un problema de clases, sino de escritura. Un entero y
+un doble con el mismo valor entero coinciden, y un texto `"1"` coincide con el
+número `1`; pero `"01"`, `"1.0"` o `" 1"` no. La comparación usa la identidad
+exacta del valor: no recorta espacios ni cambia mayúsculas. Con fechas pasa lo
+mismo: `"2026-01-31"` coincide con un `Date`, pero `"31/01/2026"` no.
+
+La decisión de cuál es la forma canónica es de los datos, no del paquete. Si el
+cero a la izquierda es relleno, quitalo al leer; si es parte del código,
+reponelo en los dos lados. Si las mayúsculas no distinguen, normalizá las dos
+tablas con la misma función; si distinguen, normalizarlas sería un error. Y si
+los espacios son accidentales, recortalos en los dos lados. Lo que no podés
+hacer es corregir un solo lado y llamar al resultado cobertura.
+
+## Lo que el paquete no hace {#lo-que-el-paquete-no-hace}
+
+No une dos conexiones en una sola consulta. `perfilar_dbi()`, `medir_dbi()`,
+`perfilar_coleccion()` y `relaciones_coleccion()` reciben una conexión o una
+colección; `detectar_relaciones()` y `medir()` comparan data frames en R. La
+frontera es esa: cada motor perfila y proyecta lo suyo, y R junta las claves.
+
+Si las dos tablas estuvieran en la misma base, `medir_dbi()` podría resolver la
+regla en el motor, con la vía `sql_dedicado_referencial`. Con dos conexiones no
+hay una consulta que las vea a las dos, y por eso la receta trae las claves. Esa
+lectura acotada también cuida los datos: no viajan las filas completas, sólo los
+identificadores que hacen falta para comparar.
+
+Tampoco normaliza por vos: la comparación es exacta. Y no decide si una relación
+es una clave foránea de verdad. La cobertura es evidencia; el diccionario de
+datos y las restricciones del motor son los que confirman. La cobertura se
+calcula sobre todas las claves que se le pasan: no hay una muestra implícita que
+pueda alinearse con los datos. Si se lee un subconjunto, la cobertura es de ese
+subconjunto y hay que decirlo.
+
+Las dos lecturas son de momentos distintos. Si las bases cambian entre una y
+otra, la cobertura mezcla dos fotos: conviene leer las claves lo más cerca
+posible y anotar la fecha de la corrida, como se hace con la métrica.
+
+## Resumen
+
+- `perfilar_dbi()` describe cada tabla en su motor. El tipo declarado de la
+  clave y el hallazgo `tipo_declarado_distinto` avisan si los dos lados no están
+  escritos igual.
+- Leer sólo las claves y por bloques acota el pico de memoria: `dbSendQuery()` +
+  `dbFetch(n)` recorren la tabla sin traer las filas completas.
+- `detectar_relaciones()` mide la cobertura en las 2 direcciones y nombra las
+  filas huérfanas; `medir()` con `ReglaIntegridadInterEntidad` la convierte en
+  una medida con fecha e identificador.
+- La comparación es exacta: ceros a la izquierda, mayúsculas y espacios son
+  valores distintos. Normalizar los dos lados con la misma regla, o corregir el
+  tipo en la consulta, es parte de la receta.
+- El paquete no cruza dos conexiones en una consulta: cada base se lee por
+  separado y R es el punto de encuentro.
+
+## 🧭 Paso siguiente {#paso-siguiente}
+
+Para elegir el tamaño de los bloques y entender qué dialectos y costos tiene
+cada motor, [Motores y escala](motores-y-escala.html) reúne el detalle.
+
+```{r cierre-conexion}
+DBI::dbDisconnect(con_padron)
+DBI::dbDisconnect(con_visitas, shutdown = TRUE)
+```
+
+```{r cierre, include=FALSE, eval=TRUE}
+options(.opciones_previas)
+```

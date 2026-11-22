@@ -171,7 +171,8 @@ as_tibble.perfil <- function(x, ...) {
 # tiene hallazgos" aunque los perfiles conservados tuvieran decenas. Se unen los
 # de cada perfil con la identidad de la tabla adelante -como `sql_perfil()`- y
 # lo que no esta se dice: sin perfiles conservados, y las tablas sin muestra.
-.hallazgos_coleccion <- function(x) {
+# `avisar = FALSE` lo usa `reportar()`, que dice lo mismo dentro del informe.
+.hallazgos_coleccion <- function(x, avisar = TRUE) {
   identidad <- c("tabla", "esquema", "identificador")
   con_identidad <- function(h, fila) {
     marca <- attr(h, "datos_personales_sin_proteger", exact = TRUE)
@@ -190,7 +191,7 @@ as_tibble.perfil <- function(x, ...) {
   }
   perfiles <- x$perfiles
   if (!length(perfiles)) {
-    .avisar(
+    if (avisar) .avisar(
       "Esta colecci\u00f3n no conserv\u00f3 los perfiles de sus tablas, as\u00ed que no hay ",
       "hallazgos por fila. Se conservan con perfilar_coleccion(..., ",
       "conservar_perfiles = TRUE); el resumen por tabla sigue en columnas() y ",
@@ -211,7 +212,7 @@ as_tibble.perfil <- function(x, ...) {
     if (!nrow(fila)) fila <- list(tabla = id, esquema = NA, identificador = id)
     partes[[length(partes) + 1L]] <- con_identidad(h, fila)
   }
-  if (length(sin_muestra)) {
+  if (avisar && length(sin_muestra)) {
     .avisar(
       "Sin muestra le\u00edda no hay hallazgos por fila de ",
       if (length(sin_muestra) == 1L) "la tabla " else "las tablas ",

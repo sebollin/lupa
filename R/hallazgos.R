@@ -5758,6 +5758,31 @@
       )
     }
 
+    # Un desvio `NA` con dos o mas valores finitos resumidos no es un desvio que
+    # falta: es uno que no cabe en un doble -dos valores de +-1,7e308 tienen un
+    # desvio de 2,4e308-, y publicar `Inf` seria publicar un infinito donde hay
+    # un numero finito. Se declara en vez de dejar un `NA` que se lee igual que
+    # "no se calculo"; el resumen que calcula el motor dice lo mismo.
+    n_resumidos_desvio <- suppressWarnings(as.numeric(
+      resultado$cuantitativo$n_resumidos[1L]
+    ))
+    if (as.character(fila$tipo_inferido[[1L]]) %in% c("entero", "doble") &&
+        as.character(fila$estado_resumen_cuantitativo[[1L]]) %in%
+          c("calculados", "calculados_sobre_valores") &&
+        isTRUE(is.na(fila$desvio[[1L]])) && isTRUE(is.finite(fila$minimo[[1L]])) &&
+        length(n_resumidos_desvio) == 1L && isTRUE(n_resumidos_desvio >= 2)) {
+      agregar_cobertura(
+        "resumen_cuantitativo", nombre,
+        paste0(
+          "No se public\u00f3 el desv\u00edo est\u00e1ndar: el desv\u00edo verdadero de los ",
+          .formatear_numero_publicado(n_resumidos_desvio),
+          " valores finitos no cabe en un n\u00famero de doble precisi\u00f3n ",
+          "(m\u00e1s de 1,8e308), y se deja `NA` en vez de `Inf`."
+        ),
+        "Reescalar la columna o calcular el desv\u00edo en otra unidad antes de usarlo."
+      )
+    }
+
     # Un texto con el desplazamiento escrito -`2020-01-31T23:30:00-03:00`- se
     # publica como instante UTC -`2020-02-01 02:30:00 UTC`-, y su fecha civil
     # puede no ser la escrita: es la pregunta de `zona_horaria_fecha_hora`. El

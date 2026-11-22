@@ -191,6 +191,35 @@ En `ventas`, las 2 filas que citan la sucursal 9 aparecen como valores atípicos
 de `id_sucursal`. Sin `conservar_perfiles = TRUE`, lo mismo se obtiene con
 `perfilar_dbi()` sobre la tabla que interesa.
 
+## 📋 Un informe de la colección {#un-informe-de-la-coleccion}
+
+Con cientos de tablas, el perfil no se lee tabla por tabla. `summary()` devuelve
+el índice: una fila por tabla declarada, con su estado y el motivo que registró
+la cobertura. `devoluciones` queda `vacia` y `pagos`, `con_error`; ninguna se
+cuenta como una tabla sana:
+
+```{r indice}
+indice <- summary(perfil)
+indice[, c("tabla", "estado", "n_filas", "n_hallazgos_sospechoso")]
+```
+
+`as.data.frame()` da las otras tablas planas, listas para `write.csv()`.
+`parte = "matriz"` ubica cada tabla en las dimensiones y factores del marco, con
+el estado que `cobertura_analisis()` da a su perfil; las celdas no se combinan
+en ninguna cifra, porque la jerarquía del marco es taxonómica.
+`parte = "no_medido"` junta lo que no se midió con el motivo de cada cobertura, y
+`parte = "hallazgos"`, los hallazgos de cada tabla:
+
+```{r matriz}
+matriz <- as.data.frame(perfil, parte = "matriz")
+matriz[, c("tabla", "estado_tabla", "Completitud / Densidad", "Frescura / Actualidad")]
+table(as.data.frame(perfil, parte = "no_medido")$origen)
+```
+
+`reportar(perfil)` publica las mismas tablas en un HTML autocontenido. La
+matriz y los hallazgos necesitan los perfiles: sin `conservar_perfiles = TRUE`,
+el índice y lo no medido se arman igual, y el informe dice lo que falta.
+
 ## Cuánto cuesta buscar relaciones
 
 Buscar claves foráneas compara columnas de una tabla con columnas de otra. Una

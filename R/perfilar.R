@@ -2370,10 +2370,12 @@
 #'   En una columna de texto, una celda es el centinela si el número que
 #'   escribe, leído con la convención de la columna (signo, ceros a la
 #'   izquierda, miles, marca decimal, exponente), es exactamente el valor
-#'   declarado, o si tiene a lo sumo 17 cifras significativas y R lo lee como
+#'   declarado, o si tiene a lo sumo 15 cifras significativas y R lo lee como
 #'   ese valor: `"-999"`, `"-999.0"` y `"-9.99e2"` son el mismo centinela en toda
-#'   plataforma. Un texto con más cifras de las que distingue un doble sólo es el
-#'   centinela si lo escribe exacto.
+#'   plataforma. Un texto con más cifras de las que un doble distingue (más de
+#'   15) sólo es el centinela si escribe exactamente el valor, en cualquier
+#'   notación: `"9007199254740993"`, `"9.007199254740993e15"` y
+#'   `"9007199254740991.5"` no se confunden con el centinela `9007199254740992`.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
 #'   pares de columnas. Se aplica una sola muestra común a toda la tabla. Una
 #'   dependencia publicada que no es exacta es además el hallazgo

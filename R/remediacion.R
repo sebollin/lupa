@@ -2570,8 +2570,55 @@ planificar_limpieza <- function(perfil, datos = NULL,
       identificador <- identical(
         as.character(fila$tipo_inferido[[1L]]), "identificador"
       )
+      # Y una conversion que borra un sufijo que no es una unidad de medida
+      # conocida (`1.0 beta`, `5 puntos`) tampoco sale marcada: el sufijo puede
+      # ser parte del dato, y quien sabe que es una unidad la marca.
+      unidad_columna <- as.character(parametros_numero$unidad)
+      unidad_desconocida <- length(unidad_columna) == 1L &&
+        !is.na(unidad_columna) && nzchar(unidad_columna) &&
+        !identical(unidad_columna, "%") &&
+        !.unidad_de_medida_conocida(unidad_columna)
+      # Lo que se ofrece pero no se marca: una unidad pegada al numero (`1.5m`,
+      # `2.0l`) puede ser una version o un codigo, y un importe con codigo de
+      # moneda y ceros a la izquierda (`USD 000101`) puede ser un codigo de
+      # documento. La conversion queda `lista`, con su nota, y la activa quien
+      # sabe que son magnitudes o importes. `%` pegado es un porcentaje.
+      texto_columna <- if (!is.null(datos) && is.data.frame(datos) &&
+                           columna %in% names(datos)) {
+        datos[[columna]]
+      } else NULL
+      # La ambiguedad se decide en el contexto de la columna, no celda por
+      # celda: una celda pegada (`4.25kg`) o con ceros (`USD 000101`) junto a
+      # otras que no lo son -`4.25 kg`, `USD 1.25`- es del
+      # mismo dato y se convierte como las demas. La columna es ambigua solo
+      # cuando lo es su forma dominante: hay mas celdas ambiguas que celdas que no
+      # lo son (con la mitad y la mitad, la unidad ya esta establecida). Una celda de otra unidad o
+      # de otro codigo no la resuelve la columna: ya hace `unidades_mixtas` o
+      # `monedas_mixtas`, la conversion queda sin marcar y su nota las nombra,
+      # como con cualquier valor que la conversion no puede leer.
+      contexto <- if (is.null(texto_columna)) NULL else {
+        partes <- .componentes_numero_texto(texto_columna)
+        pegada <- partes$compatible & nzchar(partes$unidad) &
+          !identical(unidad_columna, "%") & partes$unidad != "%" &
+          .celdas_con_unidad_pegada(texto_columna)
+        ceros <- partes$compatible & .celdas_con_moneda_y_ceros(texto_columna)
+        list(
+          unidad_pegada = sum(pegada),
+          unidad_establecida = sum(partes$compatible & !pegada),
+          moneda_con_ceros = sum(ceros),
+          moneda_establecida = sum(partes$compatible & !ceros)
+        )
+      }
+      unidad_pegada <- !is.null(contexto) && length(unidad_columna) == 1L &&
+        !is.na(unidad_columna) && nzchar(unidad_columna) &&
+        contexto$unidad_pegada > 0L &&
+        contexto$unidad_pegada > contexto$unidad_establecida
+      codigo_con_ceros <- !is.null(contexto) && contexto$moneda_con_ceros > 0L &&
+        contexto$moneda_con_ceros > contexto$moneda_establecida
+      conversion_ambigua <- unidad_desconocida || unidad_pegada ||
+        codigo_con_ceros
       conversion_numero_segura <- seguro && !identificador &&
-        isTRUE(comprobacion_numero$reversible)
+        !conversion_ambigua && isTRUE(comprobacion_numero$reversible)
       # Una conversion que el plan sabe que no se puede ejecutar sobre estos
       # datos no sale `lista`: sobre una columna que no es texto su propio
       # `motivo_no_reversible` decia "requiere una columna de texto", el
@@ -2599,6 +2646,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
             "La columna usa una convenci\u00f3n decimal coherente (",
             fila$numero_texto_convencion[[1L]],
             ") y puede convertirse sin elegir entre interpretaciones.",
+            .nota_unidad_numero(parametros_numero)
+          )
+        } else if (seguro && conversion_ambigua &&
+                   isTRUE(comprobacion_numero$reversible)) {
+          paste0(
+            if (unidad_desconocida) {
+              "El sufijo de los valores no es una unidad de medida conocida y la conversi\u00f3n lo descartar\u00eda."
+            } else if (unidad_pegada) {
+              "La unidad va pegada al n\u00famero (`1.5m`): puede ser un c\u00f3digo o una versi\u00f3n, y la conversi\u00f3n descartar\u00eda lo que lo acompa\u00f1a."
+            } else {
+              "El importe lleva una moneda -c\u00f3digo o s\u00edmbolo- y ceros a la izquierda (`USD 000101`, `$ 000101`): puede ser un c\u00f3digo de documento, y la conversi\u00f3n descartar\u00eda la moneda y los ceros."
+            },
+            " La acci\u00f3n queda lista sin activar.",
             .nota_unidad_numero(parametros_numero)
           )
         } else if (seguro && identificador &&
@@ -3720,7 +3780,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else {
     .detener("Los sentinelas num\u00e9ricos requieren texto o n\u00fameros.", call. = FALSE)
   }
-  !is.na(x) & !is.na(numeros) & numeros %in% valores
+  # La misma comparacion que el perfil: ver `.identidad_sentinelas_numericas()`.
+  !is.na(x) & !is.na(numeros) &
+    !is.na(.identidad_sentinelas_numericas(x, valores, numeros))
 }
 
 .reemplazar_sentinelas_numericos <- function(x, parametros, aplicable = NULL,
@@ -4769,6 +4831,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   )
   nuevo <- protegido$valor
   cambio <- protegido$cambiadas
+  # El espacio duro de un importe no se cuenta como invisible en el perfil (ver
+  # `.celdas_importe_con_espacio_duro()`), asi que la accion tampoco lo toca: el
+  # plan anuncia lo que `aplicar()` cambia.
+  importes <- .celdas_importe_con_espacio_duro(anterior)
+  if (any(importes)) {
+    nuevo[importes] <- anterior[importes]
+    cambio[importes] <- FALSE
+  }
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
        n_no_reversibles = sum(.celdas_que_pierden_valor(
          anterior, nuevo, cambio

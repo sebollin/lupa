@@ -180,6 +180,32 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   candidato & valores %in% repetidos
 }
 
+# A que centinela de la lista corresponde cada celda numerica, o `NA`. La regla
+# es una sola y la usan el perfil y la accion que reemplaza los centinelas, para
+# que `aplicar()` cambie lo que el plan conto. `unclass()` de un `integer64` es
+# un `double` cuyos bits son el entero, y `as.numeric()` lo redondea por encima
+# de 2^53, donde `9007199254740993` pasaba por el centinela
+# `9007199254740992`: el doble solo decide quien PUEDE coincidir -el redondeo es
+# monotono: lo que es igual exacto tambien lo es redondeado-, y la coincidencia
+# se confirma con el entero exacto.
+.identidad_sentinelas_numericas <- function(x, numeros_na,
+                                            numero = suppressWarnings(as.numeric(x))) {
+  identidad <- match(numero, numeros_na)
+  if (inherits(x, "integer64") && .bit64_disponible()) {
+    candidatas <- which(!is.na(identidad))
+    if (length(candidatas)) {
+      exactos <- bit64::as.character.integer64(x[candidatas])
+      referencias <- numeros_na[identidad[candidatas]]
+      iguales <- referencias == trunc(referencias) &
+        exactos == bit64::as.character.integer64(
+          suppressWarnings(bit64::as.integer64(referencias))
+        )
+      identidad[candidatas[!(iguales %in% TRUE)]] <- NA_integer_
+    }
+  }
+  identidad
+}
+
 .detectar_faltantes_disfrazados <- function(
     x, sentinelas_numericos = .numeros_na_locales,
     detectar_sentinelas_numericos = TRUE,
@@ -239,22 +265,23 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     # `Date` y `POSIXt` siguen afuera a proposito: un `-9999` en un calendario es
     # una fecha de 1942, no un codigo de ausencia.
     #
-    # `integer64` tampoco entra, y NO por olvido: `unclass()` de un `integer64` es
-    # un `double` cuyos bits son el entero, asi que comparar contra la lista de
-    # centinelas compararia basura. Esa clase necesita su propia comparacion y
-    # queda declarada como pendiente, no resuelta a medias.
-    #
     # La comparacion se hace sobre el numero, que es donde viven los centinelas:
-    # `as.numeric()` de un `difftime` de minutos da los minutos.
+    # `as.numeric()` de un `difftime` de minutos da los minutos. Un `integer64`
+    # se compara con su propia regla, la de `.identidad_sentinelas_numericas()`.
     numero <- suppressWarnings(as.numeric(x))
-    identidad <- match(numero, numeros_na)
+    identidad <- .identidad_sentinelas_numericas(x, numeros_na, numero)
+    es_entero64 <- inherits(x, "integer64") && .bit64_disponible()
     mascara_numerica <- detectar_sentinelas_numericos &
       !is.na(numero) & !is.na(identidad)
     mascara <- mascara_numerica
     # La etiqueta del valor, no su escritura en la sesion: con `scipen = -9` el
     # centinela -99 salia `-9.9e+01` en la evidencia, que ademas se relee como
-    # lista de marcadores.
-    etiquetas <- .etiqueta_numero_reversible(numero[mascara])
+    # lista de marcadores. Un `integer64` la publica con sus digitos exactos.
+    etiquetas <- if (es_entero64) {
+      bit64::as.character.integer64(x[mascara])
+    } else {
+      .etiqueta_numero_reversible(numero[mascara])
+    }
   } else {
     etiquetas <- character()
   }

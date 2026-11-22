@@ -48,11 +48,12 @@ articles:
 - title: Bases y escala
   navbar: Bases y escala
   desc: >
-    Perfilar en el motor, declarar una base de varias tablas y buscar
-    duplicados en tablas grandes.
+    Perfilar en el motor, declarar una base de varias tablas, cruzar dos
+    conexiones y buscar duplicados en tablas grandes.
   contents:
   - articles/perfilar-una-base
   - articles/colecciones
+  - articles/cruzar-dos-bases
   - articles/escala-y-duplicados
 
 - title: Referencia en línea
@@ -78,6 +79,7 @@ articles:
   contents:
   - articles/getting-started
   - articles/profiling-a-database
+  - articles/crossing-two-databases
   - articles/engines-and-scale
   - articles/from-findings-to-metrics
 
@@ -161,6 +163,7 @@ reference:
   contents:
   - coleccion
   - perfilar_coleccion
+  - as.data.frame.perfil_coleccion
   - estimar_costo_coleccion
   - relaciones_coleccion
 

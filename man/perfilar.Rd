@@ -339,10 +339,12 @@ estas relaciones la fila que contiene el valor declarado no se evalúa.
 En una columna de texto, una celda es el centinela si el número que
 escribe, leído con la convención de la columna (signo, ceros a la
 izquierda, miles, marca decimal, exponente), es exactamente el valor
-declarado, o si tiene a lo sumo 17 cifras significativas y R lo lee como
+declarado, o si tiene a lo sumo 15 cifras significativas y R lo lee como
 ese valor: \code{"-999"}, \code{"-999.0"} y \code{"-9.99e2"} son el mismo centinela en toda
-plataforma. Un texto con más cifras de las que distingue un doble sólo es el
-centinela si lo escribe exacto.}
+plataforma. Un texto con más cifras de las que un doble distingue (más de
+15) sólo es el centinela si escribe exactamente el valor, en cualquier
+notación: \code{"9007199254740993"}, \code{"9.007199254740993e15"} y
+\code{"9007199254740991.5"} no se confunden con el centinela \code{9007199254740992}.}
 
 \item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
 además de la lista incorporada. Lo declarado atraviesa la guarda del

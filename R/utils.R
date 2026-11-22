@@ -2568,9 +2568,16 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
     if (is.na(centinela) || !is.finite(centinela)) next
     exactos <- vapply(piezas_texto, .mismos_decimales,
                       logical(1L), b = piezas_sentinelas[[j]])
+    # Una escritura decimal de mas de 15 cifras significativas no distingue a su
+    # vecino en un doble: `9007199254740993`, `9.007199254740993e15`,
+    # `9007199254740993e0` y `9007199254740991.5` se leen como `9007199254740992`,
+    # y contarlos borraria un dato real que el centinela no es. Esos solo
+    # coinciden si el texto escribe exactamente el valor del centinela -la
+    # comparacion de cadenas de arriba: signo, digitos y exponente, sin pasar por
+    # doble-. Una forma de hasta 15 cifras si se lee por el doble.
     cortos <- vapply(normalizados[indices], function(valor) {
       !is.null(.piezas_decimal_texto(valor)) &&
-        .cifras_significativas_decimal(valor) <= 17L
+        .cifras_significativas_decimal(valor) <= 15L
     }, logical(1L))
     leidos <- !is.na(valores_leidos[indices]) &
       valores_leidos[indices] == centinela
