@@ -410,6 +410,16 @@
   }
 }
 
+# El manifiesto se escribe en bytes: `cat(file =)` abre el archivo en modo
+# texto, y en Windows cada salto se vuelve retorno mas salto. La lectura tolera
+# igual el retorno, para los manifiestos que se escribieron asi.
+.agregar_al_manifiesto <- function(corrida, texto) {
+  conexion <- file(file.path(corrida, "manifiesto.txt"), open = "ab")
+  on.exit(close(conexion), add = TRUE)
+  writeBin(charToRaw(texto), conexion)
+  invisible(TRUE)
+}
+
 # Una linea del manifiesto: campos ASCII separados por tabulador y la ficha
 # final `FIN`, asi ningun pedazo de una linea cortada parece una linea entera.
 .anotar_reanudacion <- function(corrida, campos) {
@@ -418,7 +428,7 @@
                  useBytes = TRUE)
   linea <- paste0(paste(c(campos, "FIN"), collapse = "\t"), "\n")
   hecho <- tryCatch({
-    cat(linea, file = file.path(corrida, "manifiesto.txt"), append = TRUE)
+    .agregar_al_manifiesto(corrida, linea)
     TRUE
   }, error = function(e) conditionMessage(e))
   if (!isTRUE(hecho)) {
@@ -447,6 +457,7 @@
   salida$cortada <- bytes[[length(bytes)]] != as.raw(10L)
   bytes[bytes == as.raw(0L)] <- as.raw(63L)
   lineas <- strsplit(rawToChar(bytes), "\n", fixed = TRUE, useBytes = TRUE)[[1L]]
+  lineas <- sub("\r$", "", lineas, useBytes = TRUE)
   if (salida$cortada && length(lineas)) {
     lineas <- lineas[-length(lineas)]
     salida$descartadas <- 1L
@@ -781,7 +792,7 @@
     }
   }
   if (manifiesto$cortada) {
-    cat("\n", file = file.path(corrida, "manifiesto.txt"), append = TRUE)
+    .agregar_al_manifiesto(corrida, "\n")
   }
   intento <- previo + 1L
   .anotar_reanudacion(corrida, c(

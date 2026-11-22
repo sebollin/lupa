@@ -453,6 +453,32 @@ test_that("un manifiesto danado: linea cortada, suma distinta, huerfanos", {
   expect_true(all(endsWith(nuevas, "\tFIN")))
 })
 
+# En Windows `cat(file =)` escribia el manifiesto en modo texto: cada salto con
+# retorno, la ficha final quedaba `FIN\r` y ninguna tabla se reusaba. Ahora se
+# escribe en bytes, y uno escrito asi se lee igual.
+test_that("el manifiesto se escribe en bytes y uno con retorno de carro se lee igual", {
+  base <- .rc_base("sqlite")
+  on.exit(unlink(base$carpeta, recursive = TRUE), add = TRUE)
+  con <- .rc_conectar(base)
+  on.exit(.rc_desconectar(con), add = TRUE, after = FALSE)
+  col <- coleccion(con, .rc_declaradas("sqlite")[1:4, ])
+  directorio <- file.path(base$carpeta, "reanudacion")
+  A <- .rc_correr(col, conservar_perfiles = TRUE)
+  invisible(.rc_correr(col, conservar_perfiles = TRUE, directorio_reanudacion = directorio))
+  corrida <- .rc_corrida(directorio)
+  manifiesto <- file.path(corrida, "manifiesto.txt")
+  expect_false(any(readBin(manifiesto, "raw", file.size(manifiesto)) == as.raw(13L)))
+  .rc_cortar_manifiesto(corrida, 2L)
+  lineas <- .rc_lineas(corrida)
+  writeBin(charToRaw(paste0(paste(lineas, collapse = "\r\n"), "\r\n")), manifiesto)
+  B <- .rc_correr(col, conservar_perfiles = TRUE, directorio_reanudacion = directorio,
+                  reanudar = TRUE)
+  .rc_esperar_igual(B, A)
+  tablas <- B$x$meta$reanudacion$tablas
+  expect_identical(sum(tablas$origen == "reusada"), 2L)
+  expect_identical(B$x$meta$reanudacion$lineas_descartadas, 0L)
+})
+
 test_that("la reanudacion usa la fecha de la corrida original y lo avisa", {
   base <- .rc_base("sqlite")
   on.exit(unlink(base$carpeta, recursive = TRUE), add = TRUE)
