@@ -3358,7 +3358,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
   attr(resultado, "hallazgos_sin_accion_por_columna_ambigua") <- ambiguos
   attr(resultado, "hallazgos_sin_accion") <-
     .hallazgos_sin_accion_declarados(perfil, resultado, ambiguos)
-  .proteger_plan_limpieza(resultado, perfil, datos)
+  .respetar_decisiones_en_plan(
+    .proteger_plan_limpieza(resultado, perfil, datos), perfil
+  )
 }
 
 .columnas_plan <- function() {

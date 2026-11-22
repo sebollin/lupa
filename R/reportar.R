@@ -1401,6 +1401,12 @@
 }
 
 .clase_objeto_reporte <- function(x) {
+  # El resultado de `perfilar_por()` solo entra al informe con decisiones
+  # aplicadas, que es lo que tiene una seccion.
+  if (inherits(x, "hallazgos_por_grupo") &&
+      !is.null(attr(x, "decisiones_hallazgos", exact = TRUE))) {
+    return("hallazgos_por_grupo")
+  }
   clases <- c(
     "analisis", "perfil", "medicion", "evaluacion_calidad", "historico_calidad",
     "deriva_perfil", "deriva_calidad", "plan_limpieza",
@@ -1541,9 +1547,24 @@
     resultado_limpieza = .seccion_resultado_limpieza(x, max_filas),
     perfil_coleccion = .seccion_coleccion(
       x, max_filas, proteger_datos_personales
-    )
+    ),
+    hallazgos_por_grupo = .seccion_por_grupo_decisiones(x, max_filas)
   )
   if (nzchar(nota)) seccion <- sub("</h2>", paste0("</h2>", nota), seccion, fixed = TRUE)
+  # Lo decidido sobre los hallazgos se publica con su motivo, antes de cerrar la
+  # seccion del perfil o del analisis.
+  if (inherits(x, c("perfil", "analisis"))) {
+    decididos <- .seccion_decisiones_reporte(x, max_filas)
+    if (nzchar(decididos)) {
+      cierre <- regexpr("</section>[^<]*$", seccion)
+      if (cierre > 0L) {
+        seccion <- paste0(
+          substr(seccion, 1L, cierre - 1L), decididos,
+          substr(seccion, cierre, nchar(seccion))
+        )
+      }
+    }
+  }
   seccion
 }
 

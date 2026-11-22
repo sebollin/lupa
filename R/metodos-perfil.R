@@ -5,6 +5,12 @@ print.perfil <- function(x, ...) {
   x <- .marcar_objeto_para_exhibir(x)
   errores <- sum(x$hallazgos$severidad == "error")
   sospechosos <- sum(x$hallazgos$severidad == "sospechoso")
+  resumen_decisiones <- .resumen_estados_decision(original)
+  if (!is.null(resumen_decisiones)) {
+    # Lo decidido no cuenta como pendiente: se declara aparte, mas abajo.
+    errores <- resumen_decisiones$n_error_pendiente
+    sospechosos <- resumen_decisiones$n_sospechoso_pendiente
+  }
   correctos <- sum(x$hallazgos$severidad == "ok")
   # El aviso de columna de dominio no es una conformidad: se cuenta aparte.
   avisos <- sum(x$hallazgos$severidad == "ok" &
@@ -86,6 +92,7 @@ print.perfil <- function(x, ...) {
     )
   }
   .print_data_frame_bytes(vista, row.names = FALSE)
+  .imprimir_decisiones(original)
   # El mismo paquete declara cada recorte en sus informes -"Se muestran 2 de 6
   # filas"- y esta impresion mostraba cinco campos de ciento catorce sin decir
   # nada. Una tabla recortada que no dice que lo es se lee como la tabla
@@ -111,7 +118,12 @@ print.perfil <- function(x, ...) {
 
 #' @export
 summary.perfil <- function(object, ...) {
-  object$columnas
+  salida <- object$columnas
+  # Con decisiones aplicadas, el resumen dice tambien cuanto queda pendiente y
+  # cuanto esta decidido; sin ellas, es la tabla de siempre.
+  conteo <- .tabla_conteo_estados(object)
+  if (!is.null(conteo)) attr(salida, "decisiones") <- conteo
+  salida
 }
 
 #' @export
@@ -289,7 +301,8 @@ as_tibble.perfil <- function(x, ...) {
 #' aviso**, no una tabla que aparente que se midió y no había nada.
 #'
 #' @param x Objeto de [perfilar()], [analizar()], [perfilar_dbi()] o
-#'   [perfilar_coleccion()].
+#'   [perfilar_coleccion()]. `hallazgos()` acepta además el resultado de
+#'   [perfilar_por()], que ya es la tabla de hallazgos por grupo.
 #' @param ... Sin uso, para compatibilidad de métodos.
 #'
 #' @return `hallazgos()` devuelve un `data.frame` con una fila por hallazgo
@@ -333,6 +346,20 @@ as_tibble.perfil <- function(x, ...) {
 #' n_filas(perfil)
 #' nrow(cobertura(perfil))
 hallazgos <- function(x, ...) {
+  # El resultado de `perfilar_por()` ES la tabla de hallazgos (una fila por
+  # grupo, con `grupo` y `n_filas_grupo` delante): se devuelve con la misma
+  # forma de tabla que la de un perfil, y con las columnas de decision si trae.
+  if (inherits(x, "hallazgos_por_grupo")) {
+    .advertir_incoherencias_trazabilidad(x)
+    # La misma forma de tabla que la de un perfil: sin la clase ni los atributos
+    # propios de `perfilar_por()` (la cobertura por grupo vive en el objeto).
+    marca <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
+    tabla <- x
+    attributes(tabla) <- attributes(x)[c("names", "row.names")]
+    class(tabla) <- "data.frame"
+    if (length(marca)) attr(tabla, "datos_personales_sin_proteger") <- marca
+    return(.tabla_lupa(tabla))
+  }
   .exigir_forma_conocida(x, "hallazgos")
   salida <- .fuente_hallazgos(x)
   if (is.null(salida)) {
@@ -362,7 +389,7 @@ hallazgos <- function(x, ...) {
   # contempla ese caso: dice que, si se modifico el objeto a mano, esa es la
   # causa mas probable.
   .advertir_incoherencias_trazabilidad(salida)
-  .tabla_lupa(salida)
+  .hallazgos_con_estado(.tabla_lupa(salida), x)
 }
 
 #' @rdname accesores_perfil

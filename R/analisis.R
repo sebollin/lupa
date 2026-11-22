@@ -734,6 +734,7 @@ print.analisis <- function(x, ...) {
       "no conservado"
     }
   )))
+  .imprimir_decisiones(original)
   cli::cli_h2("Tablero de calidad")
   print(tablero_calidad(x))
   cli::cli_h2("Cobertura conceptual")

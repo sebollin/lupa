@@ -80,15 +80,63 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.}
 
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
-argumento, DBI no garantiza el orden ni la pertenencia de una muestra
-limitada, y \code{meta} lo declara expresamente. No se usa cuando
-\code{bloque_muestra = "solo_agregados"}. Con la lectura por bloques, la identidad de la
-fuente por bloques gobierna el recorrido y este pedido queda declarado en
-\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via. Si
-el motor falla al evaluar una columna del \verb{ORDER BY}, la vía prueba cada
-componente, recupera las columnas legibles sin ese orden cuando puede y
-publica \code{alcance_distinto} con el motivo de que el orden pedido no se pudo
-aplicar; no lo presenta como si ninguna columna fallara.}
+argumento, cuando se recorta una muestra sobre \code{universo = "tabla_completa"}
+y existe una clave primaria o única de grado \code{total} en \code{meta$catalogo}, o
+se declara \verb{clave =} (vía \code{...}), el motor muestrea automáticamente por una
+huella determinista de esa clave (\code{md5()} en PostgreSQL, MySQL, MariaDB y
+DuckDB; \code{HASHBYTES('MD5', ...)} en SQL Server; huella aritmética
+determinista en SQLite) con desempate por la clave y prefiltro por umbral
+en tablas grandes, declarando \code{metodo = "muestra_huella_motor"} y
+\code{reproducible = TRUE}. Cuando el motor calcula MD5 sobre UTF-8 (PostgreSQL,
+MySQL, MariaDB, DuckDB y SQL Server 2019 o posterior) y todas las columnas
+de la clave son de tipos canónicos (enteros, decimales sin ceros de escala,
+fechas ISO, UUID en minúsculas o texto UTF-8), se publica
+\code{alcance_reproducibilidad = "entre_motores_md5"}; en SQLite, en SQL Server
+anterior a 2019 o con otros tipos dependientes del motor se publica
+\code{alcance_reproducibilidad = "motor"} (reproducible en ese motor, sin
+prometer la misma selección en otros motores). Si no hay clave disponible
+ni \verb{clave =}, DBI no garantiza el orden ni la pertenencia de la muestra
+limitada y \code{meta} lo declara expresamente. No se usa cuando
+\code{bloque_muestra = "solo_agregados"}. Con la lectura por bloques, la
+identidad de la fuente por bloques gobierna el recorrido y este pedido
+queda declarado en \code{meta$orden_muestra} con el motivo estable de que no
+gobierna esa vía. Si el motor falla al evaluar una columna del \verb{ORDER BY},
+la vía prueba cada componente, recupera las columnas legibles sin ese orden
+cuando puede y publica \code{alcance_distinto} con el motivo de que el orden
+pedido no se pudo aplicar; no lo presenta como si ninguna columna fallara.
+Además, \code{resumen_tabla$meta$estabilidad} informa si la tabla cambió durante
+la lectura cuando la corrida emite dos o más consultas de datos sobre la
+tabla completa (con o sin recorte de muestra): usa contadores síncronos de
+modificaciones del motor cuando están activos (\code{xmin} en tablas
+base/particionadas de PostgreSQL, \code{rowversion} o
+\code{sys.dm_db_index_operational_stats} en SQL Server, \code{performance_schema}
+verificando \code{setup_instruments}, \code{setup_consumers}, \code{setup_objects},
+\code{setup_actors} (comodín activo sin exclusiones) y \code{threads} (sin hilos no
+instrumentados) en MySQL, \code{INNODB_SYS_TABLESTATS} y \code{UPDATE_TIME} en
+MariaDB) y emite el cierre más barato posible (\code{"sin_cambio_observado"} /
+\code{"cambio_detectado"}). En PostgreSQL y SQL Server un \code{UPDATE} que reescribe
+el mismo valor —y en PostgreSQL 9.3 un \verb{VACUUM FREEZE}, que reescribe
+\code{xmin}— se informan de forma conservadora como \code{"cambio_detectado"} porque
+avanza la versión física o el contador de escrituras. En PostgreSQL sobre
+tablas de un millón de filas, la selección por huella y la verificación por
+\code{xmin} agregan en conjunto alrededor de 6 a 10 \% al tiempo total del perfil
+completo. Cuando no existe un contador activo de modificaciones por tabla
+(por ejemplo en SQLite, DuckDB, vistas, MySQL con \code{performance_schema}
+parcial o con hilos/actores sin instrumentar, o sin permiso de DMV), el
+cierre consulta únicamente \verb{COUNT(*)} y el máximo de la clave indexada de
+una columna (nunca agregados que barran columnas no indexadas) y publica
+\code{"sin_cambio_en_los_controles"} con la lista exacta de controles en
+\code{controles} y \code{cambio_detectado = NA}, porque un cambio fuera de esos
+controles no se detecta; cuando no se pudo verificar, declara
+\code{"no_verificada"} con su motivo. Si la consulta con huella falla en el
+motor en cualquier etapa (preparar, leer filas o cerrar), la vía no pierde
+\code{perfil_muestra}: reintenta la lectura sin orden garantizado (y, si hace
+falta, el descarte por columnas sin huella) con \code{reproducible = FALSE} y el
+motivo del motor. Como límite de la representación \code{bit64::integer64} en R,
+el entero de 64 bits \code{-9223372036854775808} (\code{-2^63}) comparte el patrón de
+bits de \code{NA_integer64_}: al materializarse en \code{perfil_muestra} se trata como
+valor ausente tanto en columnas comunes como al evaluar \verb{clave =} sobre la
+muestra.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El

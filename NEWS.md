@@ -245,6 +245,50 @@
   marcar, porque puede ser un código de documento, salvo que el resto de la
   columna sean importes de la misma moneda.
 
+- `decidir_hallazgos()`, `guardar_decisiones()`, `leer_decisiones()`,
+  `aplicar_decisiones()` e `identificar_hallazgos()` permiten decidir una vez
+  sobre los hallazgos y que la decisión valga en la entrega siguiente: un
+  hallazgo se acepta como defecto, o se descarta como falso positivo o como
+  propiedad legítima del dato, con su motivo, quién y cuándo, en un CSV que se
+  edita y se versiona (UTF-8, con coma o punto y coma, y que una planilla abre).
+  Cada hallazgo tiene una identidad que no depende del orden de las filas: la
+  tabla calificada con su esquema, el grupo, la columna y el tipo. `aplicar_decisiones()`
+  funciona sobre `perfilar()`, `analizar()`, `perfilar_por()`, `perfilar_dbi()` y
+  `perfilar_coleccion()`; `hallazgos()` acepta ahora el resultado de
+  `perfilar_por()`. Lo decidido no desaparece: `hallazgos()` lo muestra con su
+  `estado_decision` y su motivo, y `print()`, `summary()` y `reportar()` lo
+  cuentan aparte de lo pendiente.
+- Una decisión nunca se aplica en silencio sobre un hallazgo que cambió o que no
+  se pudo comprobar. Cada tipo de hallazgo se verifica con lo que puede cambiar
+  sin que cambie la cuenta: los valores afectados (pasando `datos` o con
+  `analizar(conservar_datos = TRUE)`), las filas afectadas (con una `clave`), la
+  estructura de las columnas o un detalle que el perfil ya publica, como los
+  centinelas de los faltantes o el valor constante. Si algo de eso cambió, el
+  hallazgo vuelve como `revisar`; si no se pudo comparar, queda como
+  `decidido_sin_verificar` con lo que faltó en `verificacion`. Sobre un
+  `analizar()`, las acciones del plan de limpieza de un hallazgo descartado
+  quedan sin aplicar (también las de un descarte sin verificar, con una nota que
+  pide revisarlo), el plan se recalcula siempre desde las decisiones vigentes y
+  conserva las ediciones a mano; `planificar_limpieza()` las respeta igual.
+  `perfilar_dbi()` con un `DBI::Id` publica ahora `meta$tabla` calificada con su
+  esquema (antes publicaba la descripción de la clase).
+- `perfilar_dbi()` con `muestra` y una clave (la declarada con `clave =`, o la
+  primaria o un índice único de grado total leídos del catálogo) elige las filas
+  por una huella de la clave calculada en el motor: dos corridas sobre la misma
+  tabla leen las mismas filas, y PostgreSQL, MySQL, MariaDB, SQL Server y DuckDB
+  eligen las mismas para los mismos datos (en SQLite, o donde la codificación de
+  la clave depende del motor, `meta` dice que es reproducible en ese motor). Si
+  la huella falla en cualquier etapa, la muestra se conserva con la lectura de
+  siempre, `reproducible = FALSE` y el motivo. Con un millón de filas en
+  PostgreSQL cuesta entre un 8 y un 10 % más. `resumen_tabla$meta$estabilidad`
+  dice si la tabla cambió durante la lectura con los contadores de
+  modificaciones del motor (`xmin` en PostgreSQL, `rowversion` o las
+  estadísticas de índice en SQL Server, `performance_schema` en MySQL cuando
+  cuenta todas las escrituras, los contadores de InnoDB en MariaDB) y, donde no
+  los hay, con `COUNT(*)` y el máximo de una clave indexada: entonces dice
+  `cambio_detectado = NA` con la lista de lo controlado, nunca que no cambió lo
+  que no pudo ver. `plan_perfilado_dbi()` cuenta esas consultas.
+
 ## Medir la calidad
 
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una fila por
@@ -410,6 +454,8 @@
 
 ## Documentación
 
+- La viñeta «Leer un perfil» muestra cómo decidir sobre los hallazgos y que la
+  decisión valga en la entrega siguiente.
 - El sitio publica «Cruzar dos bases», una guía para comparar una tabla de cada
   una de dos conexiones: perfilar cada lado en su motor con `perfilar_dbi()`,
   leer sólo las claves por bloques y medir la cobertura y la integridad

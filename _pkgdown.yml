@@ -201,6 +201,14 @@ reference:
   - aplicar
   - sentinelas_naniar
 
+- title: Triaje de hallazgos
+  desc: Decidir sobre los hallazgos y que la decisión valga en la corrida siguiente.
+  contents:
+  - identificar_hallazgos
+  - decidir_hallazgos
+  - guardar_decisiones
+  - aplicar_decisiones
+
 - title: Monitorear
   desc: Acumular corridas y detectar cambios entre entregas.
   contents:

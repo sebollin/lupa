@@ -304,8 +304,10 @@
       "SELECT a.attnum AS posicion, a.attname AS columna, ",
       "has_column_privilege(a.attrelid, a.attnum, 'SELECT') AS legible, ",
       "format_type(a.atttypid, a.atttypmod) AS tipo_motor, ",
-      "NULL::text AS tipo_objeto, a.attnotnull AS not_null ",
-      "FROM pg_catalog.pg_attribute a WHERE a.attrelid = ", literal,
+      "c.relkind::text AS tipo_objeto, a.attnotnull AS not_null ",
+      "FROM pg_catalog.pg_attribute a ",
+      "JOIN pg_catalog.pg_class c ON c.oid = a.attrelid ",
+      "WHERE a.attrelid = ", literal,
       "::regclass AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum"
     )
     return(.interpretar_permisos_columnas_dbi(
@@ -6853,6 +6855,21 @@
 # ---- Consultas -----------------------------------------------------------
 
 .texto_tabla_dbi <- function(tabla) {
+  # Un `DBI::Id` no se convierte con `as.character()`, y `format()` devolvia la
+  # descripcion de la clase S4: todas las tablas con `Id` compartian el mismo
+  # nombre publicado. Se arma con sus partes, en el orden catalogo, esquema,
+  # tabla, como `.identificadores_tabla()`.
+  if (inherits(tabla, "Id") && isS4(tabla)) {
+    partes <- tabla@name
+    orden <- match(names(partes), c("catalog", "cluster", "schema", "table"))
+    if (!anyNA(orden) && length(partes)) partes <- partes[.orden_por_bytes(orden)]
+    # Un componente que lleva un punto se cita, para que `Id(table = "s1.t")` y
+    # `Id(schema = "s1", table = "t")` no se publiquen igual.
+    partes <- vapply(unname(partes), function(p) {
+      if (grepl("[.\"]", p)) paste0("\"", gsub("\"", "\"\"", p, fixed = TRUE), "\"") else p
+    }, character(1L))
+    return(paste(partes, collapse = "."))
+  }
   texto <- tryCatch(as.character(tabla), error = function(e) character())
   if (!length(texto)) texto <- tryCatch(format(tabla), error = function(e) "")
   paste(texto, collapse = ".")
@@ -6893,6 +6910,18 @@
   finalizar <- function(salida, medicion) {
     salida <- .adjuntar_medicion_dbi(salida, medicion)
     .registrar_falla_consulta_dbi(salida, presupuesto)
+    if (!is.null(presupuesto) && isTRUE(salida$ok) &&
+        is.data.frame(salida$datos) && nrow(salida$datos) == 1L) {
+      celda_tot <- .valor_campo_dbi(salida$datos, "n_total_consulta")
+      if (isTRUE(celda_tot$ok)) {
+        n_obs <- .conteo_dbi(celda_tot$valor)
+        if (is.finite(n_obs)) {
+          presupuesto$conteos_observados <- c(
+            presupuesto$conteos_observados %||% numeric(), n_obs
+          )
+        }
+      }
+    }
     salida
   }
   if (!.gastar_dbi(presupuesto)) {
@@ -6918,14 +6947,20 @@
   }
   resultado <- NULL
   on.exit(
-    if (!is.null(resultado)) .limpiar_consulta_dbi(resultado, conexion),
+    if (!is.null(resultado)) {
+      try(.limpiar_consulta_dbi(resultado, conexion), silent = TRUE)
+    },
     add = TRUE
   )
   salida <- tryCatch({
     resultado <- .enviar_consulta_dbi(conexion, sql)
-    list(ok = TRUE, datos = .marcar_utf8_tabla(
+    datos_leidos <- .marcar_utf8_tabla(
       .traer_filas_dbi(resultado, n = filas, conexion)
-    ), motivo = NA_character_)
+    )
+    resultado_cerrar <- resultado
+    resultado <- NULL
+    .limpiar_consulta_dbi(resultado_cerrar, conexion)
+    list(ok = TRUE, datos = datos_leidos, motivo = NA_character_)
   }, error = function(e) {
     if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
     list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e),
@@ -12987,7 +13022,8 @@
     politicas_faltantes = NULL, columnas_sql_originales = NULL,
     columnas_double_originales = character(),
     columnas_not_null_skip = character(),
-    columnas_not_null_texto = character()) {
+    columnas_not_null_texto = character(),
+    contador_estabilidad = NULL) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -13437,11 +13473,20 @@
     "(SELECT ", .conteo_sql_dbi("COUNT(*)", senas), " FROM ",
     tabla_total_sql, ") AS ", universo_alias
   )
+  exprs_contador_est <- if (identical(numero, 1L) && isTRUE(incluir_total) &&
+                            !is.null(contador_estabilidad)) {
+    .expresiones_contador_estabilidad_dbi(
+      conexion, contador_estabilidad, tabla_sql, tabla_agregados_sql
+    )
+  } else character()
+  usar_cnt_ini <- length(exprs_contador_est) > 0L &&
+    identical(tabla_total_sql, tabla_sql)
   construir <- function(indices, con_total = FALSE, con_universo = FALSE,
-                        incluir_faltantes = TRUE) {
+                        incluir_faltantes = TRUE, con_contador = FALSE) {
     expresiones <- c(
       if (isTRUE(con_total)) expresion_total,
       if (isTRUE(con_universo)) expresion_universo,
+      if (isTRUE(con_contador)) exprs_contador_est,
       unlist(lapply(
         indices, expresiones_columna,
         incluir_faltantes = incluir_faltantes
@@ -13455,6 +13500,7 @@
 
   cache <- list()
   sondeo_sin_faltantes <- FALSE
+  completo <- seq_along(lote)
   clave <- function(indices) paste(indices, collapse = ",")
   sondear <- function(indices, con_total = incluir_total,
                       con_universo = FALSE) {
@@ -13462,9 +13508,12 @@
       clave(indices), isTRUE(con_total), isTRUE(con_universo), sep = "|"
     )
     if (!is.null(cache[[llave]])) return(isTRUE(cache[[llave]]$ok))
+    con_cnt <- isTRUE(usar_cnt_ini) && identical(indices, completo) &&
+      isTRUE(con_total) && !isTRUE(con_universo)
     sql <- construir(
       indices, con_total = con_total, con_universo = con_universo,
-      incluir_faltantes = !isTRUE(sondeo_sin_faltantes)
+      incluir_faltantes = !isTRUE(sondeo_sin_faltantes),
+      con_contador = con_cnt
     )
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = etapa
@@ -13473,13 +13522,25 @@
     isTRUE(consulta$ok)
   }
 
-  completo <- seq_along(lote)
   universo_separado <- !identical(tabla_total_sql, tabla_sql)
   inicial <- sondear(
     completo, con_total = incluir_total,
     con_universo = incluir_total && universo_separado
   )
+  if (!isTRUE(inicial) && isTRUE(usar_cnt_ini)) {
+    llave_ini <- paste(
+      clave(completo), isTRUE(incluir_total),
+      isTRUE(incluir_total && universo_separado), sep = "|"
+    )
+    cache[[llave_ini]] <- NULL
+    usar_cnt_ini <- FALSE
+    inicial <- sondear(
+      completo, con_total = incluir_total,
+      con_universo = incluir_total && universo_separado
+    )
+  }
   conteo <- NULL
+  contador_estabilidad_antes <- NULL
   if (isTRUE(incluir_total)) {
     entrada_total <- cache[[paste(
       clave(completo), isTRUE(incluir_total),
@@ -13490,6 +13551,12 @@
         entrada_total$consulta, entrada_total$sql,
         if (isTRUE(universo_separado)) universo_alias else total_alias
       )
+      if (isTRUE(usar_cnt_ini) && !is.null(contador_estabilidad)) {
+        n_est_ini <- if (!is.null(conteo)) .conteo_dbi(conteo$valor) else NA_real_
+        contador_estabilidad_antes <- .leer_contador_estabilidad_dbi(
+          entrada_total$consulta$datos, contador_estabilidad, n_filas = n_est_ini
+        )
+      }
     }
     if (is.null(conteo)) {
       sql_total <- paste0(
@@ -13830,7 +13897,8 @@
   }
   list(
     resultados = resultado, sondas = sondas, agotado = agotado,
-    inicial = inicial, conteo = conteo
+    inicial = inicial, conteo = conteo,
+    contador_estabilidad_antes = contador_estabilidad_antes
   )
 }
 
@@ -14195,7 +14263,8 @@
                                         columnas_sql_originales = NULL,
                                         columnas_double_originales = character(),
                                         columnas_not_null_skip = character(),
-                                        columnas_not_null_texto = character()) {
+                                        columnas_not_null_texto = character(),
+                                        contador_estabilidad = NULL) {
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
@@ -14376,8 +14445,13 @@
         columnas_sql_originales = nombres_sql_originales,
         columnas_double_originales = dobles_originales,
         columnas_not_null_skip = columnas_not_null_skip,
-        columnas_not_null_texto = columnas_not_null_texto
+        columnas_not_null_texto = columnas_not_null_texto,
+        contador_estabilidad = if (identical(numero, 1L)) contador_estabilidad else NULL
       )
+      if (identical(numero, 1L) && is.null(agregados$contador_estabilidad_antes) &&
+          !is.null(resultado_lote$contador_estabilidad_antes)) {
+        agregados$contador_estabilidad_antes <- resultado_lote$contador_estabilidad_antes
+      }
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
       for (campo in lote) {
@@ -14660,16 +14734,45 @@
   # obtiene ahora, antes de pagar cualquier cardinalidad exacta.
   if (is.null(conteo)) {
     total_alias <- alias("lupa_n_total")
-    sql_total <- paste0(
-      "SELECT ", .conteo_sql_dbi("COUNT(*)", senas), " AS ",
-      total_alias, " FROM ", tabla_total_sql
-    )
-    conteo <- .escalar_dbi(
-      conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
-      etapa = "conteo_filas"
-    )
-    conteo$sql <- sql_total
-    n_total <- .conteo_dbi(conteo$valor)
+    exprs_cnt <- if (!is.null(contador_estabilidad) &&
+                     identical(tabla_total_sql, tabla_sql)) {
+      .expresiones_contador_estabilidad_dbi(
+        conexion, contador_estabilidad, tabla_total_sql, tabla_total_sql
+      )
+    } else character()
+    if (length(exprs_cnt)) {
+      sql_total <- paste0(
+        "SELECT ", paste(c(
+          paste0(.conteo_sql_dbi("COUNT(*)", senas), " AS ", total_alias),
+          exprs_cnt
+        ), collapse = ", "),
+        " FROM ", tabla_total_sql
+      )
+      consulta_tot <- .consultar_dbi(
+        conexion, sql_total, presupuesto, etapa = "conteo_filas"
+      )
+      if (isTRUE(consulta_tot$ok)) {
+        conteo <- .conteo_desde_consulta_dbi(
+          consulta_tot, sql_total, total_alias
+        )
+        n_total <- if (!is.null(conteo)) .conteo_dbi(conteo$valor) else NA_real_
+        agregados$contador_estabilidad_antes <- .leer_contador_estabilidad_dbi(
+          consulta_tot$datos, contador_estabilidad, n_filas = n_total
+        )
+      }
+    }
+    if (is.null(conteo)) {
+      sql_total <- paste0(
+        "SELECT ", .conteo_sql_dbi("COUNT(*)", senas), " AS ",
+        total_alias, " FROM ", tabla_total_sql
+      )
+      conteo <- .escalar_dbi(
+        conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
+        etapa = "conteo_filas"
+      )
+      conteo$sql <- sql_total
+      n_total <- .conteo_dbi(conteo$valor)
+    }
   }
   if (!is.null(presupuesto) && !is.null(conteo) && isTRUE(conteo$ok)) {
     duracion_lectura <- .numero_dbi(conteo$duracion_ms)
@@ -17027,7 +17130,8 @@
                                 unicidad_estructural = NULL,
                                 columnas_not_null_skip = character(),
                                 columnas_not_null_texto = character(),
-                                plan_duplicados = NULL) {
+                                plan_duplicados = NULL,
+                                contador_estabilidad = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -17147,7 +17251,8 @@
     columnas_sql_originales = columnas_sql_originales_consolidados,
     columnas_double_originales = columnas_double_originales,
     columnas_not_null_skip = columnas_not_null_skip,
-    columnas_not_null_texto = columnas_not_null_texto
+    columnas_not_null_texto = columnas_not_null_texto,
+    contador_estabilidad = contador_estabilidad
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -17763,6 +17868,12 @@
     faltantes_disfrazados = faltantes_disfrazados,
     cobertura = .cobertura_dbi_vacia(),
     literales = unlist(lapply(resultados, `[[`, "literales"), use.names = TRUE),
+    agregados_estabilidad = list(
+      basicos = agregados$basicos,
+      conteos = agregados$conteos,
+      nan = agregados$nan,
+      contador_antes = agregados$contador_estabilidad_antes
+    ),
     meta = meta
   )
 }
@@ -18749,7 +18860,9 @@
                                   consultas_faltantes = 0L,
                                   consultas_guardas_faltantes_max = 0L,
                                   n_columnas_planas = NULL,
-                                  consultas_duplicados = 0L) {
+                                  consultas_duplicados = 0L,
+                                  verificar_clave_muestra = FALSE,
+                                  alcance_estabilidad = "escanea la tabla completa") {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -18918,6 +19031,12 @@
       )
     )
   )
+  if (isTRUE(verificar_clave_muestra)) {
+    clases[[length(clases) + 1L]] <- c(
+      .CLASE_PLAN_VERIFICACION_CLAVE_DBI, 1,
+      "ordena o agrupa la tabla completa"
+    )
+  }
   if (isTRUE(incluir_muestra)) {
     clases[[length(clases) + 1L]] <- c(
       "muestra", consultas_muestra, .ALCANCE_BLOQUE_CLIENTE_DBI
@@ -18928,6 +19047,68 @@
       "conteos de faltantes disfrazados",
       n_metricas(consultas_faltantes), alcance_agregado,
       n_metricas(consultas_faltantes + consultas_guardas_faltantes_max)
+    )
+  }
+  # Contar solo las consultas que leen datos de la tabla (sin portones,
+  # catalogo ni las pruebas literales de forma del desvio) para decidir si hace
+  # falta la consulta de cierre de estabilidad.
+  n_lotes_planos_datos <- if (hay_planos) {
+    n_lotes(columnas_planas, tamano_lote_planos) +
+      if ("desvio" %in% metricas && isTRUE(desvio_en_lotes)) {
+        n_lotes(n_numericas, tamano_lote_planos)
+      } else 0
+  } else {
+    1
+  }
+  n_mediana_plan <- if ("mediana" %in% metricas && con_valores && acota_con_salto) {
+    if (isTRUE(mediana_consolidada)) {
+      n_lotes(n_mediana - n_mediana_centrales, tamano_lote_planos) +
+        n_mediana_centrales
+    } else n_mediana
+  } else 0
+  n_mediana_plan_max <- if ("mediana" %in% metricas && con_valores && acota_con_salto) {
+    if (isTRUE(mediana_consolidada)) {
+      n_lotes(n_mediana_max - n_mediana_centrales_max, tamano_lote_planos) +
+        n_mediana_centrales_max
+    } else n_mediana_max
+  } else 0
+  n_datos_min <- n_metricas(
+    n_lotes_planos_datos +
+      n_sondas_magnitud +
+      (if ("distintos" %in% metricas && n_distintos > 0) {
+        n_lotes(n_distintos, tamano_lote_distintos)
+      } else 0) +
+      as.numeric(consultas_duplicados) +
+      (if ("moda" %in% metricas && con_valores) n_moda else 0) +
+      n_mediana_plan +
+      as.numeric(consultas_decimales) +
+      as.numeric(consultas_faltantes)
+  ) +
+    (if (isTRUE(con_orden)) 1 else 0) +
+    (if (isTRUE(verificar_clave_muestra)) 1 else 0) +
+    (if (isTRUE(incluir_muestra)) as.numeric(consultas_muestra) else 0)
+  n_datos_max <- n_metricas(
+    n_lotes_planos_datos +
+      n_sondas_magnitud_max +
+      (if ("distintos" %in% metricas && n_distintos > 0) {
+        n_lotes(n_distintos, tamano_lote_distintos)
+      } else 0) +
+      as.numeric(consultas_duplicados) +
+      (if ("moda" %in% metricas && con_valores) n_moda_max else 0) +
+      n_mediana_plan_max +
+      as.numeric(consultas_decimales_max) +
+      as.numeric(consultas_faltantes + consultas_guardas_faltantes_max)
+  ) +
+    (if (isTRUE(con_orden)) 1 else 0) +
+    (if (isTRUE(verificar_clave_muestra)) 1 else 0) +
+    (if (isTRUE(incluir_muestra)) as.numeric(consultas_muestra) else 0)
+  est_req <- .requiere_verificacion_estabilidad_dbi(
+    universo, n_datos_min, n_datos_max
+  )
+  if (est_req$min > 0L || est_req$max > 0L) {
+    clases[[length(clases) + 1L]] <- c(
+      .CLASE_PLAN_ESTABILIDAD_DBI, est_req$min,
+      alcance_estabilidad, est_req$max
     )
   }
   plan <- data.frame(
@@ -18941,6 +19122,8 @@
   )
   plan <- plan[plan$n_consultas > 0 | plan$n_consultas_max > 0, , drop = FALSE]
   rownames(plan) <- NULL
+  attr(plan, "verificar_estabilidad_min") <- est_req$min
+  attr(plan, "verificar_estabilidad_max") <- est_req$max
   # El total NO es un techo cuando el motor rechaza lotes. La biseccion vuelve a
   # sondear el grupo y puede recorrer el arbol hasta 2n - 1 nodos adicionales
   # para un lote de n columnas; las respuestas de los grupos aceptados se
@@ -18964,7 +19147,9 @@
     "portones (esquema y sondas)",
     "estimacion de filas del catalogo (aviso de costo)",
     "lectura de comprobacion de la muestra", "muestra",
-    "verificacion de unicidad del orden"
+    "verificacion de unicidad del orden",
+    .CLASE_PLAN_VERIFICACION_CLAVE_DBI,
+    .CLASE_PLAN_ESTABILIDAD_DBI
   )
   attr(plan, "extra_si_se_reintenta_muestreo") <- if (
     isTRUE(reintento_muestreo) && mide_metricas
@@ -19165,7 +19350,13 @@
     } else 0L,
     consultas_decimales_max = .consultas_maximas_lotes_decimales_dbi(
       lotes_decimales
-    )
+    ),
+    verificar_clave_muestra = .verificar_clave_muestra_necesaria_dbi(
+      preparacion$clave_muestra_motor, preparacion$muestra,
+      preparacion$bloque_muestra, preparacion$universo,
+      preparacion$orden_muestra
+    ),
+    alcance_estabilidad = .alcance_estabilidad_plan_dbi(conexion, preparacion)
   )
 }
 
@@ -19831,6 +20022,10 @@
 #'   anticipar las consultas de la métrica nueva.
 #' @param cadenas_ausencia Cadenas adicionales que se consideran ausencia
 #'   textual al anticipar las consultas de la métrica nueva.
+#' @param clave Vector opcional con nombres de columnas clave para el muestreo
+#'   reproducible por huella en el motor cuando no se especifica `orden_muestra`.
+#'   Si el catálogo ya garantiza su unicidad no agrega consultas; si no, el plan
+#'   cuenta la consulta de verificación de unicidad.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -19982,7 +20177,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                columnas_opcionales = character(),
                                aplicabilidad = NULL,
                                sentinelas_numericos = c(-9, -99, -999, -9999, 999),
-                               cadenas_ausencia = NULL) {
+                               cadenas_ausencia = NULL,
+                               clave = NULL) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .fijar_senas_conexion_dbi(conexion)
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
@@ -20025,7 +20221,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
     politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad,
     max_bytes_procesamiento = max_bytes_procesamiento,
-    max_bytes_materializacion = max_bytes_materializacion
+    max_bytes_materializacion = max_bytes_materializacion,
+    clave = clave
   )
   filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
@@ -22348,7 +22545,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
                                 orden_garantizado_unico = FALSE,
                                 sql_tabla = NULL,
                                 tipos_pragma = NULL,
-                                duplicados_sql = NULL) {
+                                duplicados_sql = NULL,
+                                clave_muestra_motor = NULL) {
   cobertura <- .cobertura_dbi_vacia()
   # Una columna enmascarada (DDM de SQL Server) no entra en la muestra: sus
   # valores son la mascara -`xxxx`, `1900-01-01`, `0`- y la muestra publicaba
@@ -22418,19 +22616,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )
     ))
   }
-  verificacion <- if (length(orden_sql) && isTRUE(orden_garantizado_unico)) {
-    list(
-      unico = TRUE, sql = NA_character_,
-      motivo = "La unicidad de `orden_muestra` est\u00e1 garantizada por el cat\u00e1logo del motor."
-    )
-  } else if (length(orden_sql)) {
-    .verificar_orden_dbi(conexion, tabla_sql, orden_sql, dialecto, presupuesto)
-  } else {
-    list(
-      unico = FALSE, sql = NA_character_,
-      motivo = "No se declar\u00f3 `orden_muestra`; SQL no garantiza el orden de las filas."
-    )
-  }
   total_numero <- .numero_dbi(n_total)
   total_conocido <- length(total_numero) == 1L &&
     !is.na(total_numero) && is.finite(total_numero)
@@ -22440,6 +22625,72 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   n_obtener <- alcance$filas_efectivas
   usa_muestreo <- !is.null(muestreo) && isTRUE(muestreo$disponible)
+  recorta_muestra_inicial <- !usa_muestreo && is.finite(n_obtener) &&
+    (!total_conocido || n_obtener < total_numero)
+  clave_huella_cols <- if (!usa_muestreo && !length(orden_sql) &&
+                           is.list(clave_muestra_motor) &&
+                           isTRUE(clave_muestra_motor$disponible)) {
+    pos_ch <- .resolver_columnas_dbi(clave_muestra_motor$columnas, campos)
+    if (length(pos_ch) && !anyNA(pos_ch)) campos[pos_ch] else character()
+  } else character()
+  clave_huella_sql <- if (length(clave_huella_cols)) {
+    vapply(clave_huella_cols, function(col) {
+      .citar_identificador_dbi(conexion, col)
+    }, character(1L), USE.NAMES = FALSE)
+  } else character()
+  verificacion <- if (length(orden_sql) && isTRUE(orden_garantizado_unico)) {
+    list(
+      unico = TRUE, sql = NA_character_,
+      motivo = "La unicidad de `orden_muestra` est\u00e1 garantizada por el cat\u00e1logo del motor."
+    )
+  } else if (length(orden_sql)) {
+    .verificar_orden_dbi(conexion, tabla_sql, orden_sql, dialecto, presupuesto)
+  } else if (length(clave_huella_sql) &&
+             isTRUE(clave_muestra_motor$requiere_verificacion) &&
+             is.finite(muestra)) {
+    # La verificacion de `clave =` no garantizada por el catalogo se emite con
+    # la misma regla que `plan_perfilado_dbi()`.
+    res_vc <- .verificar_orden_dbi(
+      conexion, tabla_sql, clave_huella_sql, dialecto, presupuesto
+    )
+    if (!isTRUE(res_vc$unico)) {
+      res_vc$motivo <- paste0(
+        res_vc$motivo, " SQL no garantiza el orden de las filas."
+      )
+    } else {
+      res_vc$motivo <- paste0(
+        "Muestra reproducible por huella de `clave` (`",
+        paste(clave_huella_cols, collapse = "`, `"),
+        "`), verificada como \u00fanica en toda la tabla."
+      )
+    }
+    res_vc
+  } else if (length(clave_huella_sql) &&
+             isTRUE(clave_muestra_motor$garantizada_catalogo) &&
+             isTRUE(recorta_muestra_inicial)) {
+    list(
+      unico = TRUE, sql = NA_character_,
+      motivo = clave_muestra_motor$motivo
+    )
+  } else {
+    list(
+      unico = FALSE, sql = NA_character_,
+      motivo = if (isTRUE(recorta_muestra_inicial) &&
+                   is.list(clave_muestra_motor) &&
+                   length(clave_muestra_motor$motivo) == 1L &&
+                   !is.na(clave_muestra_motor$motivo) &&
+                   !isTRUE(clave_muestra_motor$disponible)) {
+        as.character(clave_muestra_motor$motivo)
+      } else {
+        "No se declar\u00f3 `orden_muestra`; SQL no garantiza el orden de las filas."
+      }
+    )
+  }
+  usa_huella_motor <- !usa_muestreo && !length(orden_sql) &&
+    length(clave_huella_sql) > 0L && (
+      isTRUE(clave_muestra_motor$garantizada_catalogo) ||
+        isTRUE(verificacion$unico)
+    )
   proyeccion_muestra <- .campos_sql_muestra_dbi(
     conexion, campos, campos_sql, prototipo, tipos_declarados, dialecto,
     tipos_motor = tipos_motor,
@@ -22448,7 +22699,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   campos_sql_muestra <- proyeccion_muestra$campos_sql
   columnas_castadas <- proyeccion_muestra$columnas_castadas
   tabla_es_derivada <- grepl("^\\s*\\(", tabla_sql, perl = TRUE)
-  alias_orden <- if (length(orden_sql)) {
+  necesita_alias_orden <- length(orden_sql) > 0L || isTRUE(usa_huella_motor)
+  alias_orden <- if (isTRUE(necesita_alias_orden)) {
     if (tabla_es_derivada && grepl("\\s+AS\\s+[^[:space:]]+$", tabla_sql,
                                    perl = TRUE)) {
       sub("^.*\\s+AS\\s+([^[:space:]]+)$", "\\1", tabla_sql,
@@ -22460,11 +22712,32 @@ print.plan_perfilado_dbi <- function(x, ...) {
   tabla_sql_orden <- if (!nzchar(alias_orden) || tabla_es_derivada) {
     tabla_sql
   } else {
-    paste0(tabla_sql, " AS ", alias_orden)
+    paste0(tabla_sql, dialecto$alias_tabla(alias_orden))
   }
   orden_sql_orden <- if (nzchar(alias_orden)) {
     paste0(alias_orden, ".", orden_sql)
   } else orden_sql
+  clave_huella_sql_orden <- if (isTRUE(usa_huella_motor)) {
+    if (nzchar(alias_orden)) {
+      paste0(alias_orden, ".", clave_huella_sql)
+    } else clave_huella_sql
+  } else character()
+  tipos_canonicos_huella <- if (isTRUE(usa_huella_motor)) {
+    .tipos_canonicos_clave_dbi(
+      clave_huella_cols, campos,
+      tipos_motor = tipos_motor, tipos_declarados = tipos_declarados
+    )
+  } else character()
+  huella_sql <- if (isTRUE(usa_huella_motor)) {
+    .expresion_huella_motor_dbi(
+      clave_huella_sql_orden, clave_muestra_motor$motor_hash,
+      version_sqlserver = .version_servidor_sqlserver_dbi(conexion),
+      tipos_canonicos = tipos_canonicos_huella
+    )
+  } else NULL
+  indices_clave_huella <- if (length(clave_huella_cols)) {
+    .resolver_columnas_dbi(clave_huella_cols, campos)
+  } else integer()
   indices_orden_todos <- if (length(orden_muestra)) {
     .resolver_columnas_dbi(orden_muestra, campos)
   } else {
@@ -22476,7 +22749,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # `TABLESAMPLE`. Ahora la arma la misma funcion para cualquier subconjunto de
   # columnas, y lo que se declara sale de lo que se emitio.
   armar_muestra_dbi <- function(indices, filas_solicitadas = n_obtener,
-                                aplicar_orden = TRUE, orden_indices = NULL) {
+                                aplicar_orden = TRUE, orden_indices = NULL,
+                                usar_prefiltro = TRUE) {
     sub_sql <- campos_sql_muestra[indices]
     indices_orden_subconjunto <- if (is.null(orden_indices)) {
       indices_orden_todos
@@ -22489,6 +22763,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       character()
     }
+    recorta_ahora <- is.finite(filas_solicitadas) &&
+      (!total_conocido || filas_solicitadas < total_numero)
+    aplica_huella <- isTRUE(usa_huella_motor) && isTRUE(aplicar_orden) &&
+      isTRUE(recorta_ahora) && !is.null(huella_sql) &&
+      (is.null(orden_indices) || all(indices_clave_huella %in% orden_indices))
     origen <- if (usa_muestreo) {
       .fuente_muestreada_dbi(
         tabla_sql, sub_sql, muestra_motor, n_total, dialecto,
@@ -22497,11 +22776,34 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       NULL
     }
+    filtro_huella_sql <- if (is.null(origen) && isTRUE(aplica_huella) &&
+                             isTRUE(usar_prefiltro) && total_conocido) {
+      umbral <- .umbral_hex_muestra_motor_dbi(filas_solicitadas, total_numero)
+      .sql_filtro_umbral_huella_dbi(
+        huella_sql, umbral, clave_muestra_motor$motor_hash
+      )
+    } else NULL
+    tabla_origen_consulta <- if (length(orden_para) || isTRUE(aplica_huella)) {
+      tabla_sql_orden
+    } else {
+      tabla_sql
+    }
     base <- if (!is.null(origen)) {
       origen$sql
+    } else if (isTRUE(aplica_huella)) {
+      paste0(
+        "SELECT ", paste(sub_sql, collapse = ", "), " FROM ",
+        tabla_origen_consulta,
+        if (!is.null(filtro_huella_sql)) {
+          paste0(" WHERE ", filtro_huella_sql)
+        } else "",
+        " ORDER BY ", huella_sql$expr, ", ",
+        paste(clave_huella_sql_orden, collapse = ", ")
+      )
     } else {
       paste0(
-        "SELECT ", paste(sub_sql, collapse = ", "), " FROM ", tabla_sql_orden,
+        "SELECT ", paste(sub_sql, collapse = ", "), " FROM ",
+        tabla_origen_consulta,
         if (length(orden_para)) {
           paste0(" ORDER BY ", paste(orden_para, collapse = ", "))
         } else ""
@@ -22557,11 +22859,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
       },
       metodo = if (!is.null(origen)) {
         origen$metodo
+      } else if (isTRUE(aplica_huella)) {
+        .METODO_MUESTRA_HUELLA_MOTOR
       } else if (length(orden_para)) {
         "primeras_filas_segun_orden"
       } else {
         "primeras_filas_sin_orden_garantizado"
       },
+      filtro_umbral = !is.null(filtro_huella_sql),
+      huella_aplicada = isTRUE(aplica_huella),
       orden_muestra_aplicado = orden_aplicado,
       motivo_orden_muestra = motivo_orden
     )
@@ -22593,13 +22899,33 @@ print.plan_perfilado_dbi <- function(x, ...) {
   lectura_cpu_inicio <- if (isTRUE(presupuesto$instrumentar)) {
     .ahora_cpu_dbi()
   } else NULL
+  fallo_huella_en_sonda <- NULL
   if (is.finite(max_bytes_muestra)) {
     filas_sonda <- min(n_obtener, 100)
-    sonda <- armar_muestra_dbi(seq_along(campos_sql), filas_sonda)
+    aplicar_orden_sonda <- length(orden_sql) > 0L ||
+      (isTRUE(usa_huella_motor) && (!total_conocido || n_obtener < total_numero))
+    sonda <- armar_muestra_dbi(
+      seq_along(campos_sql), filas_sonda, aplicar_orden = aplicar_orden_sonda
+    )
     consulta_sonda <- .consultar_dbi(
       conexion, sonda$sql, presupuesto, filas = sonda$filas,
       etapa = "sonda_bytes_muestra"
     )
+    if (!isTRUE(consulta_sonda$ok) && isTRUE(usa_huella_motor) &&
+        isTRUE(aplicar_orden_sonda) && hay_saldo_dbi()) {
+      motivo_sonda_huella <- consulta_sonda$motivo
+      sonda <- armar_muestra_dbi(
+        seq_along(campos_sql), filas_sonda, aplicar_orden = FALSE
+      )
+      consulta_sonda <- .consultar_dbi(
+        conexion, sonda$sql, presupuesto, filas = sonda$filas,
+        etapa = "sonda_bytes_muestra"
+      )
+      if (isTRUE(consulta_sonda$ok)) {
+        fallo_huella_en_sonda <- motivo_sonda_huella %||%
+          "error al evaluar la huella en el motor"
+      }
+    }
     if (isTRUE(consulta_sonda$ok)) {
       alcance$bytes_sonda <- as.numeric(utils::object.size(consulta_sonda$datos))
       filas_sonda_obtenidas <- nrow(consulta_sonda$datos)
@@ -22642,11 +22968,55 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # La consulta final siempre se arma con el limite resuelto. La medicion es solo
   # una medida previa para decidir ese limite; nunca se recorta en R lo que ya
   # vino del motor.
-  armado <- armar_muestra_dbi(seq_along(campos_sql), alcance$filas_efectivas)
+  armado <- armar_muestra_dbi(
+    seq_along(campos_sql), alcance$filas_efectivas,
+    aplicar_orden = is.null(fallo_huella_en_sonda)
+  )
   fuente <- armado$fuente
   sql_muestra <- armado$sql
   filas <- armado$filas
   acotado_en <- armado$acotado_en
+  huella_activa <- isTRUE(armado$huella_aplicada) && isTRUE(usa_huella_motor)
+  reproducible_muestra <- if (isTRUE(huella_activa)) {
+    isTRUE(clave_muestra_motor$garantizada_catalogo) || isTRUE(verificacion$unico)
+  } else if (length(orden_sql)) {
+    isTRUE(verificacion$unico)
+  } else {
+    FALSE
+  }
+  motivo_reprod_muestra <- if (!is.null(fallo_huella_en_sonda)) {
+    paste0(
+      "No se pudo evaluar la huella de la clave en el motor (",
+      fallo_huella_en_sonda,
+      "); se ley\u00f3 la muestra sin orden garantizado."
+    )
+  } else if (isTRUE(huella_activa) && isTRUE(reproducible_muestra)) {
+    base_motivo <- if (isTRUE(clave_muestra_motor$garantizada_catalogo)) {
+      clave_muestra_motor$motivo
+    } else {
+      verificacion$motivo
+    }
+    alcance_h <- huella_sql$alcance_reproducibilidad %||% "motor"
+    nota_alcance <- if (identical(alcance_h, "entre_motores_md5")) {
+      "Reproducible en este motor y entre motores con MD5 sobre codificaci\u00f3n can\u00f3nica UTF-8."
+    } else {
+      "Reproducible en este motor (no se garantiza la misma selecci\u00f3n en otros motores)."
+    }
+    paste(base_motivo, nota_alcance)
+  } else {
+    verificacion$motivo
+  }
+  if (!is.null(fallo_huella_en_sonda)) {
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "perfil_muestra", .texto_tabla_dbi(tabla), "degradado",
+      motivo_reprod_muestra,
+      paste(
+        "Revisar el tipo o la colaci\u00f3n de la clave o indicar",
+        "`orden_muestra` para fijar el orden de la muestra."
+      ),
+      sql_muestra
+    ))
+  }
   muestreo_meta <- list(
     filas_solicitadas = as.numeric(muestra),
     filas_solicitadas_sin_topes = alcance$filas_solicitadas,
@@ -22662,25 +23032,27 @@ print.plan_perfilado_dbi <- function(x, ...) {
     motivo_filas_obtenidas = NA_character_,
     filas_totales_fuente = n_total,
     tabla_completa = FALSE,
-    metodo = if (!is.null(fuente)) {
-      fuente$metodo
-    } else if (length(orden_sql)) {
-      "primeras_filas_segun_orden"
-    } else {
-      "primeras_filas_sin_orden_garantizado"
-    },
+    metodo = armado$metodo,
     acotado_en = acotado_en,
     dialecto = dialecto$nombre,
     columnas_leidas = campos,
     orden_muestra = orden_muestra,
     orden_muestra_aplicado = isTRUE(armado$orden_muestra_aplicado),
     motivo_orden_muestra = armado$motivo_orden_muestra,
-    orden_unico_verificado = isTRUE(verificacion$unico),
-    reproducible = isTRUE(verificacion$unico),
-    motivo_reproducibilidad = verificacion$motivo,
+    orden_unico_verificado = isTRUE(reproducible_muestra),
+    reproducible = isTRUE(reproducible_muestra),
+    motivo_reproducibilidad = motivo_reprod_muestra,
     sql_verificacion_orden = verificacion$sql,
     sql_muestra = sql_muestra
   )
+  if (isTRUE(huella_activa)) {
+    muestreo_meta$clave_muestra <- clave_huella_cols
+    muestreo_meta$origen_clave_muestra <- clave_muestra_motor$origen
+    muestreo_meta$funcion_hash <- huella_sql$funcion
+    muestreo_meta$codificacion_huella <- huella_sql$codificacion_huella %||% NA_character_
+    muestreo_meta$alcance_reproducibilidad <- huella_sql$alcance_reproducibilidad %||% "motor"
+    muestreo_meta$filtro_umbral <- isTRUE(armado$filtro_umbral)
+  }
   if (!is.null(fuente)) {
     muestreo_meta$fraccion <- fuente$fraccion
     muestreo_meta$tamano_muestra <- fuente$filas_solicitadas
@@ -22691,6 +23063,80 @@ print.plan_perfilado_dbi <- function(x, ...) {
     conexion, sql_muestra, presupuesto, filas = filas,
     etapa = "lectura_muestra"
   )
+  # Respaldo de cola extrema (< 1e-9): si el prefiltro por umbral devolvio
+  # menos filas que las pedidas con k < N, repetir sin prefiltro.
+  if (isTRUE(consulta$ok) && isTRUE(armado$filtro_umbral) &&
+      total_conocido && n_obtener < total_numero &&
+      is.data.frame(consulta$datos) && nrow(consulta$datos) < n_obtener) {
+    armado_sin_filtro <- armar_muestra_dbi(
+      seq_along(campos_sql), alcance$filas_efectivas, usar_prefiltro = FALSE
+    )
+    consulta_sin_filtro <- .consultar_dbi(
+      conexion, armado_sin_filtro$sql, presupuesto,
+      filas = armado_sin_filtro$filas, etapa = "lectura_muestra"
+    )
+    if (isTRUE(consulta_sin_filtro$ok)) {
+      armado <- armado_sin_filtro
+      consulta <- consulta_sin_filtro
+      sql_muestra <- armado$sql
+      filas <- armado$filas
+      muestreo_meta$sql_muestra <- sql_muestra
+      muestreo_meta$filtro_umbral <- FALSE
+    }
+  }
+  # Respaldo incondicional: si fallo la consulta con huella en el motor en
+  # cualquier etapa (preparar, leer filas o cerrar), volver a la lectura sin
+  # orden garantizado para no perder nunca `perfil_muestra`. Si el respaldo con
+  # todas las columnas tambien falla (por ejemplo, una columna de texto largo
+  # que tambien usa `md5()` sin permiso), `descartar_huella` evita que el
+  # `ORDER BY` de la huella vuelva a contaminar el descarte por columnas.
+  motivo_fallo_huella <- NULL
+  descartar_huella <- FALSE
+  if (!isTRUE(consulta$ok) && isTRUE(huella_activa)) {
+    motivo_fallo_huella <- consulta$motivo %||%
+      "error al evaluar la huella en el motor"
+    descartar_huella <- TRUE
+    if (hay_saldo_dbi()) {
+      armado_respaldo <- armar_muestra_dbi(
+        seq_along(campos_sql), alcance$filas_efectivas, aplicar_orden = FALSE
+      )
+      consulta_respaldo <- .consultar_dbi(
+        conexion, armado_respaldo$sql, presupuesto,
+        filas = armado_respaldo$filas, etapa = "lectura_muestra"
+      )
+      if (isTRUE(consulta_respaldo$ok)) {
+        armado <- armado_respaldo
+        consulta <- consulta_respaldo
+        sql_muestra <- armado$sql
+        filas <- armado$filas
+        acotado_en <- armado$acotado_en
+        huella_activa <- FALSE
+        muestreo_meta$sql_muestra <- sql_muestra
+        muestreo_meta$acotado_en <- acotado_en
+        muestreo_meta$metodo <- armado$metodo
+        muestreo_meta$orden_muestra_aplicado <- FALSE
+        muestreo_meta$reproducible <- FALSE
+        muestreo_meta$orden_unico_verificado <- FALSE
+        muestreo_meta$filtro_umbral <- FALSE
+        muestreo_meta$alcance_reproducibilidad <- NA_character_
+        muestreo_meta$codificacion_huella <- NA_character_
+        muestreo_meta$motivo_reproducibilidad <- paste0(
+          "No se pudo evaluar la huella de la clave en el motor (",
+          motivo_fallo_huella,
+          "); se ley\u00f3 la muestra sin orden garantizado."
+        )
+        cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+          "perfil_muestra", .texto_tabla_dbi(tabla), "degradado",
+          muestreo_meta$motivo_reproducibilidad,
+          paste(
+            "Revisar el tipo o la colaci\u00f3n de la clave o indicar",
+            "`orden_muestra` para fijar el orden de la muestra."
+          ),
+          sql_muestra
+        ))
+      }
+    }
+  }
   campos_omitidos <- character()
   if (!consulta$ok) {
     muestreo_meta$motivo_filas_obtenidas <- consulta$motivo
@@ -22722,7 +23168,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     if (length(largas) && length(largas) < length(campos_sql)) {
       quedan <- setdiff(seq_along(campos_sql), largas)
       candidato <- armar_muestra_dbi(
-        quedan, aplicar_orden = !any(
+        quedan, aplicar_orden = !isTRUE(descartar_huella) && !any(
           .resolver_columnas_dbi(orden_muestra, campos) %in% largas
         )
       )
@@ -22752,7 +23198,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         max(0, floor(saldo_actual / 2))
       )
       sondas_descarte <- 0L
-      aplicar_orden_sondas <- TRUE
+      aplicar_orden_sondas <- !isTRUE(descartar_huella)
       fallo_orden <- FALSE
       culpables_orden <- integer()
       indices_orden <- integer()
@@ -22816,7 +23262,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
           (fallo_orden && !length(culpables))) {
         quedan <- setdiff(seq_along(campos_sql), culpables)
         candidato <- armar_muestra_dbi(
-          quedan, aplicar_orden = !fallo_orden && !any(
+          quedan, aplicar_orden = !isTRUE(descartar_huella) && !fallo_orden && !any(
             .resolver_columnas_dbi(orden_muestra, campos) %in% culpables
           )
         )
@@ -22909,6 +23355,36 @@ print.plan_perfilado_dbi <- function(x, ...) {
         recuperado$armado$orden_muestra_aplicado
       )
       muestreo_meta$motivo_orden_muestra <- recuperado$armado$motivo_orden_muestra
+      if ((isTRUE(huella_activa) || isTRUE(descartar_huella)) &&
+          !isTRUE(recuperado$armado$huella_aplicada)) {
+        huella_activa <- FALSE
+        muestreo_meta$reproducible <- FALSE
+        muestreo_meta$orden_unico_verificado <- FALSE
+        muestreo_meta$filtro_umbral <- FALSE
+        muestreo_meta$alcance_reproducibilidad <- NA_character_
+        muestreo_meta$codificacion_huella <- NA_character_
+        muestreo_meta$motivo_reproducibilidad <- if (!is.null(motivo_fallo_huella)) {
+          paste0(
+            "No se pudo evaluar la huella de la clave en el motor (",
+            motivo_fallo_huella,
+            "); se ley\u00f3 la muestra sin orden garantizado."
+          )
+        } else {
+          paste(
+            "No se pudo mantener la huella en el motor al recuperar el subconjunto",
+            "legible; SQL no garantiza el orden de las filas."
+          )
+        }
+        cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+          "perfil_muestra", .texto_tabla_dbi(tabla), "degradado",
+          muestreo_meta$motivo_reproducibilidad,
+          paste(
+            "Revisar el tipo o la colaci\u00f3n de la clave o indicar",
+            "`orden_muestra` para fijar el orden de la muestra."
+          ),
+          sql_muestra
+        ))
+      }
       if (!is.null(recuperado$armado$fuente)) {
         muestreo_meta$fraccion <- recuperado$armado$fuente$fraccion
         muestreo_meta$tamano_muestra <- recuperado$armado$fuente$filas_solicitadas
@@ -23126,6 +23602,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
     solo_lectura = TRUE,
     objetos_temporales = FALSE
   )
+  if (identical(muestreo_meta$metodo, .METODO_MUESTRA_HUELLA_MOTOR) &&
+      isTRUE(muestreo_meta$reproducible)) {
+    perfil$meta$muestra_huella <- list(
+      metodo = .METODO_MUESTRA_HUELLA_MOTOR,
+      funcion_hash = muestreo_meta$funcion_hash,
+      codificacion_huella = muestreo_meta$codificacion_huella %||% NA_character_,
+      alcance_reproducibilidad = muestreo_meta$alcance_reproducibilidad %||% "motor",
+      k = as.numeric(n_obtener),
+      columnas = .ordenar_nombres_huella(muestreo_meta$clave_muestra),
+      columnas_omitidas = character(),
+      columnas_fuera = .ordenar_nombres_huella(
+        setdiff(campos, muestreo_meta$clave_muestra)
+      ),
+      origen_clave = muestreo_meta$origen_clave_muestra
+    )
+  }
   # Los valores de las columnas protegidas se cosechan aca, que es el unico lugar
   # donde la muestra esta a la vista: el perfil que sale ya esta protegido y no
   # conserva los datos. La proteccion del resumen los necesita para tapar, en las
@@ -23950,7 +24442,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           contar_muestreo = TRUE,
                           sondar_muestreo = TRUE,
                           max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
-                          max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
+                          max_bytes_materializacion = .MAX_BYTES_MUESTRA,
+                          clave = NULL) {
   .requerir_dbi()
   max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
     max_bytes_procesamiento, "max_bytes_procesamiento"
@@ -24600,6 +25093,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
   } else character()
   orden_garantizado_unico <- identical(universo, "tabla_completa") &&
     .orden_garantizado_unico_dbi(catalogo_garantias, orden_muestra, campos)
+  clave_declarada <- .validar_clave_muestra_dbi(clave, campos, esquema)
+  clave_muestra_motor <- .resolver_clave_muestra_motor_dbi(
+    conexion, catalogo_garantias, clave_declarada, campos,
+    enmascaradas = enmascaradas,
+    tipos_motor = esquema$tipos_motor,
+    tipos_declarados = esquema$tipos
+  )
   columnas_distintos_ejecucion <- .columnas_distintos_ejecucion_dbi(
     metricas, estrategia_distintos, campos,
     fuentes_cardinalidad_costo, politica_costo,
@@ -24741,6 +25241,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     columnas_not_null_skip = columnas_not_null_skip,
     columnas_not_null_texto = columnas_not_null_texto,
     orden_garantizado_unico = orden_garantizado_unico,
+    clave_declarada = clave_declarada,
+    clave_muestra_motor = clave_muestra_motor,
     plan_duplicados = plan_duplicados,
     columnas_distintos_ejecucion = columnas_distintos_ejecucion,
     estimacion_derrame = presupuesto$estimacion_derrame,
@@ -26074,15 +26576,63 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   privacidad ni como `no_solicitado`.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
-#'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
-#'   limitada, y `meta` lo declara expresamente. No se usa cuando
-#'   `bloque_muestra = "solo_agregados"`. Con la lectura por bloques, la identidad de la
-#'   fuente por bloques gobierna el recorrido y este pedido queda declarado en
-#'   `meta$orden_muestra` con el motivo estable de que no gobierna esa via. Si
-#'   el motor falla al evaluar una columna del `ORDER BY`, la vía prueba cada
-#'   componente, recupera las columnas legibles sin ese orden cuando puede y
-#'   publica `alcance_distinto` con el motivo de que el orden pedido no se pudo
-#'   aplicar; no lo presenta como si ninguna columna fallara.
+#'   argumento, cuando se recorta una muestra sobre `universo = "tabla_completa"`
+#'   y existe una clave primaria o única de grado `total` en `meta$catalogo`, o
+#'   se declara `clave =` (vía `...`), el motor muestrea automáticamente por una
+#'   huella determinista de esa clave (`md5()` en PostgreSQL, MySQL, MariaDB y
+#'   DuckDB; `HASHBYTES('MD5', ...)` en SQL Server; huella aritmética
+#'   determinista en SQLite) con desempate por la clave y prefiltro por umbral
+#'   en tablas grandes, declarando `metodo = "muestra_huella_motor"` y
+#'   `reproducible = TRUE`. Cuando el motor calcula MD5 sobre UTF-8 (PostgreSQL,
+#'   MySQL, MariaDB, DuckDB y SQL Server 2019 o posterior) y todas las columnas
+#'   de la clave son de tipos canónicos (enteros, decimales sin ceros de escala,
+#'   fechas ISO, UUID en minúsculas o texto UTF-8), se publica
+#'   `alcance_reproducibilidad = "entre_motores_md5"`; en SQLite, en SQL Server
+#'   anterior a 2019 o con otros tipos dependientes del motor se publica
+#'   `alcance_reproducibilidad = "motor"` (reproducible en ese motor, sin
+#'   prometer la misma selección en otros motores). Si no hay clave disponible
+#'   ni `clave =`, DBI no garantiza el orden ni la pertenencia de la muestra
+#'   limitada y `meta` lo declara expresamente. No se usa cuando
+#'   `bloque_muestra = "solo_agregados"`. Con la lectura por bloques, la
+#'   identidad de la fuente por bloques gobierna el recorrido y este pedido
+#'   queda declarado en `meta$orden_muestra` con el motivo estable de que no
+#'   gobierna esa vía. Si el motor falla al evaluar una columna del `ORDER BY`,
+#'   la vía prueba cada componente, recupera las columnas legibles sin ese orden
+#'   cuando puede y publica `alcance_distinto` con el motivo de que el orden
+#'   pedido no se pudo aplicar; no lo presenta como si ninguna columna fallara.
+#'   Además, `resumen_tabla$meta$estabilidad` informa si la tabla cambió durante
+#'   la lectura cuando la corrida emite dos o más consultas de datos sobre la
+#'   tabla completa (con o sin recorte de muestra): usa contadores síncronos de
+#'   modificaciones del motor cuando están activos (`xmin` en tablas
+#'   base/particionadas de PostgreSQL, `rowversion` o
+#'   `sys.dm_db_index_operational_stats` en SQL Server, `performance_schema`
+#'   verificando `setup_instruments`, `setup_consumers`, `setup_objects`,
+#'   `setup_actors` (comodín activo sin exclusiones) y `threads` (sin hilos no
+#'   instrumentados) en MySQL, `INNODB_SYS_TABLESTATS` y `UPDATE_TIME` en
+#'   MariaDB) y emite el cierre más barato posible (`"sin_cambio_observado"` /
+#'   `"cambio_detectado"`). En PostgreSQL y SQL Server un `UPDATE` que reescribe
+#'   el mismo valor —y en PostgreSQL 9.3 un `VACUUM FREEZE`, que reescribe
+#'   `xmin`— se informan de forma conservadora como `"cambio_detectado"` porque
+#'   avanza la versión física o el contador de escrituras. En PostgreSQL sobre
+#'   tablas de un millón de filas, la selección por huella y la verificación por
+#'   `xmin` agregan en conjunto alrededor de 6 a 10 % al tiempo total del perfil
+#'   completo. Cuando no existe un contador activo de modificaciones por tabla
+#'   (por ejemplo en SQLite, DuckDB, vistas, MySQL con `performance_schema`
+#'   parcial o con hilos/actores sin instrumentar, o sin permiso de DMV), el
+#'   cierre consulta únicamente `COUNT(*)` y el máximo de la clave indexada de
+#'   una columna (nunca agregados que barran columnas no indexadas) y publica
+#'   `"sin_cambio_en_los_controles"` con la lista exacta de controles en
+#'   `controles` y `cambio_detectado = NA`, porque un cambio fuera de esos
+#'   controles no se detecta; cuando no se pudo verificar, declara
+#'   `"no_verificada"` con su motivo. Si la consulta con huella falla en el
+#'   motor en cualquier etapa (preparar, leer filas o cerrar), la vía no pierde
+#'   `perfil_muestra`: reintenta la lectura sin orden garantizado (y, si hace
+#'   falta, el descarte por columnas sin huella) con `reproducible = FALSE` y el
+#'   motivo del motor. Como límite de la representación `bit64::integer64` en R,
+#'   el entero de 64 bits `-9223372036854775808` (`-2^63`) comparte el patrón de
+#'   bits de `NA_integer64_`: al materializarse en `perfil_muestra` se trata como
+#'   valor ausente tanto en columnas comunes como al evaluar `clave =` sobre la
+#'   muestra.
 #' @section Progreso:
 #' Traer la tabla entera puede tardar minutos sobre una tabla grande, y una
 #' corrida callada no se distingue de una colgada. En una sesión interactiva se
@@ -26532,7 +27082,8 @@ perfilar_dbi <- function(conexion, tabla,
     politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad,
     max_bytes_procesamiento = max_bytes_procesamiento,
-    max_bytes_materializacion = max_bytes_materializacion
+    max_bytes_materializacion = max_bytes_materializacion,
+    clave = argumentos_muestra[["clave"]]
   )
   # `columnas_codigo` viaja en `...` a `perfilar()` del `perfil_muestra`, y
   # se valida ACA contra las columnas de la tabla: con `bloque_muestra =
@@ -26601,7 +27152,8 @@ perfilar_dbi <- function(conexion, tabla,
       columnas_opcionales = columnas_opcionales,
       aplicabilidad = aplicabilidad,
       sentinelas_numericos = sentinelas_numericos,
-      cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]]
+      cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]],
+      clave = argumentos_muestra[["clave"]]
     )
     resultado$resumen_tabla$meta$plan <- plan_corrida
     # Armar ese plan vuelve a preparar la tabla, y esas consultas viajan al
@@ -26747,18 +27299,56 @@ perfilar_dbi <- function(conexion, tabla,
   # del aviso de costo ya esta en `presupuesto$usadas`; se separa para que la
   # forma del plan sea la del previo.
   aviso_catalogo <- .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
+  contar_faltantes_plan <- identical(preparacion$universo, "muestra_motor") ||
+    is.finite(preparacion$muestra)
+  politicas_faltantes_plan <- if (isTRUE(contar_faltantes_plan)) {
+    .politicas_faltantes_dbi(
+      conexion, preparacion$campos, preparacion$prototipo,
+      preparacion$tipos, preparacion$esquema$tipos_motor, es_numerico,
+      sentinelas_numericos, argumentos_muestra[["cadenas_ausencia"]],
+      columnas_opcionales, aplicabilidad
+    )
+  } else list()
+  consultas_faltantes_plan <- if (length(politicas_faltantes_plan)) {
+    sum(vapply(politicas_faltantes_plan, function(policy) {
+      isTRUE(policy$exacta) && identical(policy$clase, "textual")
+    }, logical(1L)))
+  } else 0L
+  consultas_guardas_faltantes_plan <- if (length(politicas_faltantes_plan)) {
+    sum(vapply(politicas_faltantes_plan, function(policy) {
+      isTRUE(policy$exacta) && identical(policy$clase, "numerica") &&
+        !isTRUE(policy$declarados)
+    }, logical(1L)))
+  } else 0L
+  campos_faltantes_planos_corrida <- if (length(politicas_faltantes_plan)) {
+    names(politicas_faltantes_plan)[vapply(politicas_faltantes_plan, function(policy) {
+      isTRUE(policy$exacta) && !identical(policy$clase, "textual")
+    }, logical(1L))]
+  } else character()
   plan <- .plan_sql_dbi(
     conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = presupuesto$usadas - aviso_catalogo +
       .prueba_cte_mediana_plan_dbi(
         conexion, preparacion, es_numerico, incluir_valores
       ),
-    catalogo_aviso = aviso_catalogo
+    catalogo_aviso = aviso_catalogo,
+    consultas_faltantes = consultas_faltantes_plan,
+    consultas_guardas_faltantes_max = consultas_guardas_faltantes_plan,
+    campos_faltantes_planos = campos_faltantes_planos_corrida
   )
-  # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
-  # pidio, muestra- se reservan para que el presupuesto no se las coma.
+  reserva_verif_clave <- if (.verificar_clave_muestra_necesaria_dbi(
+    preparacion$clave_muestra_motor, preparacion$muestra,
+    preparacion$bloque_muestra, preparacion$universo,
+    preparacion$orden_muestra
+  )) 1 else 0
+  # Las consultas obligatorias de la muestra (verificacion de orden/clave,
+  # medicion de bytes y muestra) se reservan para que el presupuesto no se las
+  # coma. La verificacion de estabilidad al cierre no se reserva para no quitar
+  # presupuesto a los agregados cuando `max_consultas` es ajustado: si no
+  # queda cupo al final, se publica como `no_verificada`.
   presupuesto$reserva <- if (.solicita_muestra_dbi(preparacion$bloque_muestra)) {
     (if (length(preparacion$orden_sql) && !isTRUE(preparacion$orden_garantizado_unico)) 2 else 1) +
+      reserva_verif_clave +
       if (isTRUE(tope_muestra$requiere_sonda_bytes)) 1 else 0
   } else {
     0
@@ -27053,6 +27643,16 @@ perfilar_dbi <- function(conexion, tabla,
   }
 
   campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
+  contador_est_spec <- if (identical(preparacion$universo, "tabla_completa") &&
+                           as.integer(attr(plan, "verificar_estabilidad_max", exact = TRUE) %||% 0L) > 0L) {
+    .especificacion_contador_estabilidad_dbi(
+      conexion, tabla, preparacion$tabla_sql,
+      tipo_objeto = preparacion$tipo_objeto,
+      tipos_motor = preparacion$esquema$tipos_motor,
+      campos = preparacion$campos,
+      campos_sql = stats::setNames(preparacion$campos_sql, preparacion$campos)
+    )
+  } else NULL
   consultas_antes_resumen <- presupuesto$usadas
   ejecutar_resumen <- function(fuente_sql, fuente, muestreo) {
     .resumen_tabla_dbi(
@@ -27104,7 +27704,8 @@ perfilar_dbi <- function(conexion, tabla,
       unicidad_estructural = preparacion$unicidad_estructural,
       columnas_not_null_skip = preparacion$columnas_not_null_skip,
       columnas_not_null_texto = preparacion$columnas_not_null_texto,
-      plan_duplicados = preparacion$plan_duplicados
+      plan_duplicados = preparacion$plan_duplicados,
+      contador_estabilidad = contador_est_spec
     )
   }
   resumen <- ejecutar_resumen(tabla_metricas_sql, fuente_muestreada,
@@ -27306,7 +27907,10 @@ perfilar_dbi <- function(conexion, tabla,
       conexion, preparacion, es_numerico, incluir_valores,
       tope_muestra, emitidas = consultas_antes_resumen,
       catalogo_aviso = aviso_catalogo,
-      decisiones_costo_resueltas = resumen$meta$decisiones_costo
+      decisiones_costo_resueltas = resumen$meta$decisiones_costo,
+      consultas_faltantes = consultas_faltantes_plan,
+      consultas_guardas_faltantes_max = consultas_guardas_faltantes_plan,
+      campos_faltantes_planos = campos_faltantes_planos_corrida
     )
   }
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
@@ -27613,6 +28217,16 @@ perfilar_dbi <- function(conexion, tabla,
     ))
   }
 
+  antes_estabilidad <- if (identical(preparacion$universo, "tabla_completa")) {
+    .capturar_antes_estabilidad_dbi(
+      conexion, preparacion, preparacion$n_total,
+      agregados = resumen$agregados_estabilidad,
+      incluir_valores = incluir_valores,
+      contador_spec = contador_est_spec,
+      contador_antes = resumen$agregados_estabilidad$contador_antes
+    )
+  } else NULL
+  resumen$agregados_estabilidad <- NULL
   presupuesto$reserva <- 0
   bloque <- if (.solicita_muestra_dbi(preparacion$bloque_muestra)) {
     .bloque_muestra_dbi(
@@ -27636,7 +28250,10 @@ perfilar_dbi <- function(conexion, tabla,
       sql_tabla = preparacion$esquema$sql_tabla %||%
         attr(preparacion$catalogo_cardinalidad, "sql_tabla", exact = TRUE),
       tipos_pragma = preparacion$tipos_pragma,
-      duplicados_sql = resumen$meta$duplicados_exactos
+      duplicados_sql = resumen$meta$duplicados_exactos,
+      clave_muestra_motor = if (identical(preparacion$universo, "tabla_completa")) {
+        preparacion$clave_muestra_motor
+      } else NULL
     )
   } else {
     .registrar_etapa_dbi(
@@ -27694,6 +28311,84 @@ perfilar_dbi <- function(conexion, tabla,
     }
   }
   cobertura <- rbind(cobertura, bloque$cobertura)
+  # Verificacion de estabilidad al cierre: solo en tabla completa y cuando el
+  # plan preve dos o mas consultas de datos (una sola consulta es atomica; si
+  # hubo biseccion, se contrastan sus `n_total_consulta` sin consulta extra).
+  if (identical(preparacion$universo, "tabla_completa")) {
+    est_min_plan <- as.integer(
+      attr(plan, "verificar_estabilidad_min", exact = TRUE) %||% 0L
+    )
+    est_max_plan <- as.integer(
+      attr(plan, "verificar_estabilidad_max", exact = TRUE) %||% 0L
+    )
+    # Cuando `est_min_plan == 0L` y `est_max_plan > 0L` (p.ej. `por_cardinalidad`
+    # o guardas opcionales de faltantes), el cierre solo se emite si ademas del
+    # lote plano inicial se ejecuto alguna consulta separada posterior (moda,
+    # mediana, guarda de faltantes, consulta de magnitud, duplicados o muestra);
+    # la biseccion del lote plano y los conteos fusionados en ese mismo lote ya
+    # devuelven `n_total_consulta`.
+    etapas_planas <- c("conteo_filas", "conteos", "basicos", "desvio")
+    ids_planos <- if (is.data.frame(resumen$sql) &&
+                      all(c("etapa", "consulta_id") %in% names(resumen$sql))) {
+      unique(resumen$sql$consulta_id[
+        !is.na(resumen$sql$consulta_id) &
+          as.character(resumen$sql$etapa) %in% etapas_planas
+      ])
+    } else integer()
+    etapas_posteriores <- if (is.data.frame(resumen$sql) &&
+                              all(c("etapa", "consulta_id") %in% names(resumen$sql))) {
+      any(
+        !is.na(resumen$sql$consulta_id) &
+          !(resumen$sql$consulta_id %in% ids_planos) &
+          !(as.character(resumen$sql$etapa) %in% etapas_planas)
+      )
+    } else FALSE
+    hubo_segunda_etapa <- isTRUE(etapas_posteriores) ||
+      .solicita_muestra_dbi(preparacion$bloque_muestra) ||
+      identical(resumen$meta$duplicados_exactos$estado, "calculado")
+    correr_cierre_est <- (est_min_plan > 0L) ||
+      (est_max_plan > 0L && isTRUE(hubo_segunda_etapa))
+    despues_est <- if (isTRUE(correr_cierre_est)) {
+      .consultar_cierre_estabilidad_dbi(
+        conexion, preparacion$tabla_sql, antes_estabilidad, presupuesto
+      )
+    } else NULL
+    cobertura_cambio <- cobertura[
+      cobertura$bloque == "consistencia", , drop = FALSE
+    ]
+    muestra_desajuste <- is.list(bloque$muestreo) &&
+      identical(bloque$muestreo$coincide_con_lo_pedido, FALSE)
+    estabilidad_res <- .evaluar_estabilidad_dbi(
+      tabla = tabla,
+      antes = antes_estabilidad,
+      despues = despues_est,
+      conteos_intermedios = presupuesto$conteos_observados %||% numeric(),
+      cobertura_cambio = cobertura_cambio,
+      muestra_desajuste = muestra_desajuste,
+      consulta_unica = !isTRUE(correr_cierre_est)
+    )
+    resumen$meta$estabilidad <- estabilidad_res
+    if (identical(estabilidad_res$estado, "cambio_detectado") &&
+        !nrow(cobertura_cambio)) {
+      cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+        "consistencia", .texto_tabla_dbi(tabla), "advertido",
+        estabilidad_res$motivo,
+        paste(
+          "Repetir el perfil bajo una instant\u00e1nea o transacci\u00f3n con",
+          "aislamiento consistente para evitar cambios concurrentes."
+        ),
+        estabilidad_res$sql
+      ))
+    }
+  } else {
+    resumen$meta$estabilidad <- .evaluar_estabilidad_dbi(
+      tabla = tabla,
+      motivo_no_verificada = paste(
+        "Con `universo = \"muestra_motor\"` no se reescanea la tabla completa",
+        "al cierre para verificar estabilidad."
+      )
+    )
+  }
   resumen$tiempos <- .resumen_tiempos_dbi(trazador)
   if (isTRUE(presupuesto$agotado)) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -27943,6 +28638,8 @@ print.perfil_dbi <- function(x, ...) {
   )
   texto_clave <- .texto_clave_dbi(meta$clave, meta$catalogo)
   if (!is.null(texto_clave)) cli::cli_text(.cli_literal(texto_clave))
+  texto_estabilidad <- .texto_estabilidad_dbi(meta$estabilidad)
+  if (!is.null(texto_estabilidad)) cli::cli_text(.cli_literal(texto_estabilidad))
   if (is.list(meta$catalogo) && is.data.frame(meta$catalogo$not_null) &&
       nrow(meta$catalogo$not_null)) {
     idx_bl <- which(!is.na(meta$catalogo$not_null$not_null_con_blancos) &
@@ -28143,5 +28840,6 @@ print.perfil_dbi <- function(x, ...) {
   cli::cli_text(
     "No se imprime ning\u00fan valor de celda: est\u00e1n en `resumen_tabla$columnas`."
   )
+  .imprimir_decisiones(original)
   invisible(original)
 }

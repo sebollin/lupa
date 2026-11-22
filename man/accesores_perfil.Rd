@@ -21,7 +21,8 @@ sql_perfil(x, ...)
 }
 \arguments{
 \item{x}{Objeto de \code{\link[=perfilar]{perfilar()}}, \code{\link[=analizar]{analizar()}}, \code{\link[=perfilar_dbi]{perfilar_dbi()}} o
-\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}.}
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}. \code{hallazgos()} acepta además el resultado de
+\code{\link[=perfilar_por]{perfilar_por()}}, que ya es la tabla de hallazgos por grupo.}
 
 \item{...}{Sin uso, para compatibilidad de métodos.}
 }

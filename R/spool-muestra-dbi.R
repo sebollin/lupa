@@ -2131,6 +2131,13 @@
       "una instant\u00e1nea transaccional del motor. S\u00f3lo se publica evidencia",
       "positiva de snapshot cuando el adaptador la demuestra."
     ),
+    estabilidad = .evaluar_estabilidad_dbi(
+      tabla,
+      motivo_no_verificada = paste(
+        "Con `universo = \"muestra_motor\"` no se reescanea la tabla completa",
+        "al cierre; el resumen y la muestra comparten la misma materializaci\u00f3n local."
+      )
+    ),
     clave = preparacion$catalogo_cardinalidad,
     catalogo = preparacion$catalogo_garantias,
     estrategia_mediana = .publicar_estrategia_mediana_dbi(preparacion),

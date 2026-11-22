@@ -226,6 +226,7 @@ junto a esos paquetes, no en su lugar.
 | Tarea | Funciones principales | Guía |
 | --- | --- | --- |
 | Mirar una tabla por primera vez | `perfilar()`, `hallazgos()`, `columnas()`, `cobertura()` | [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html), [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) |
+| Decidir sobre los hallazgos y que valga en la entrega siguiente | `identificar_hallazgos()`, `decidir_hallazgos()`, `guardar_decisiones()`, `leer_decisiones()`, `aplicar_decisiones()` | [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) |
 | Explorar columnas y compartir el resultado | `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `reportar()`, `guardar_analisis()` | [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) |
 | Encontrar estructura y vacíos legítimos | `detectar_claves()`, `sugerir_clave()`, `detectar_relaciones()`, `detectar_dependencias()`, `detectar_discordancias()`, `perfilar_por()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html), [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html) |
 | Limpiar sin tocar el original | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()`; la estrategia `reparar_codificacion` para texto mal codificado | [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
@@ -348,7 +349,7 @@ viajan además con el paquete (`vignette("lupa")` abre la primera); de la 7 a la
 12 están sólo en el sitio.
 
 1. [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html): perfilar una tabla, empezar por los errores, ir de un hallazgo a sus filas con `clave`, leer la cobertura, guardar un informe y limpiar una columna en una copia.
-2. [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html): las severidades, qué trae cada hallazgo, los accesores, las claves, las contradicciones entre columnas y el glosario.
+2. [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html): las severidades, qué trae cada hallazgo, los accesores, las claves, las contradicciones entre columnas, cómo decidir sobre los hallazgos para que valga en la entrega siguiente y el glosario.
 3. [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html): qué arma `analizar()` en una llamada, cómo se leen patrones, tipos, fechas, distribuciones, asociaciones y tiempo, y cómo se guarda y se informa.
 4. [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html): claves candidatas, relaciones entre tablas y dependencias entre columnas.
 5. [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html): celdas vacías que son correctas, la señal que pide declararlas y todo lo que se le declara al paquete.

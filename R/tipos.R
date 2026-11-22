@@ -214,12 +214,14 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   # `12.5s` son versiones, secciones o coordenadas, y siguen siendo codigo, como
   # `101a`. Se pregunta solo por las formas que traen letras, digitos y
   # separador decimal.
-  con_unidad <- tiene_letras_numeros &
+  # Se pregunta con la forma compatible y el tramo de letras que sigue al ultimo
+  # digito, sin descomponer la columna: la descomposicion entera es del perfil.
+  con_unidad <- forma_id & tiene_letras_numeros &
     grepl("[0-9][.,][0-9]|^[+-]?[.,][0-9]", formas, perl = TRUE)
   if (any(con_unidad)) {
-    componentes <- .componentes_numero_texto(formas[con_unidad])
-    con_unidad[con_unidad] <- componentes$compatible &
-      .unidad_de_medida_conocida(componentes$unidad)
+    candidatas <- formas[con_unidad]
+    con_unidad[con_unidad] <- .compatibles_numero_texto(candidatas)$compatible &
+      .unidad_de_medida_conocida(sub("^.*[0-9]", "", candidatas))
   }
   estructura_id <- forma_id &
     (tiene_cero_inicial | (tiene_letras_numeros & !con_unidad))

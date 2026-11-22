@@ -1900,6 +1900,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
       estructura$perfil_muestra
     )
   }
+  estructura <- .normalizar_estabilidad_sello_dbi(estructura)
   class(estructura) <- "perfil_dbi"
   estructura
 }

@@ -2332,6 +2332,7 @@ print.perfil_coleccion <- function(x, ...) {
     )
   }
   cli::cli_text("Sin lectura instant\u00e1nea: cada tabla trae su `momento`.")
+  .imprimir_decisiones(original)
   invisible(original)
 }
 

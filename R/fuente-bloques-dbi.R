@@ -1545,20 +1545,37 @@
     } else 0
     desvio <- .consultas_maximas_lotes_decimales_dbi(lotes) - length(lotes)
     con_muestra <- .solicita_muestra_dbi(preparacion$bloque_muestra)
+    n_segunda <- if (identical(fuente$metodo_orden, "row_locator")) 1 else 0
+    n_verif_ord <- if (con_muestra && length(fuente$orden_expresiones)) 1 else 0
+    n_verif_clave <- if (con_muestra && !length(fuente$orden_expresiones) &&
+                         .verificar_clave_muestra_necesaria_dbi(
+                           preparacion$clave_muestra_motor,
+                           preparacion$muestra, preparacion$bloque_muestra,
+                           preparacion$universo, preparacion$orden_muestra
+                         )) 1 else 0
+    n_muestra <- if (!con_muestra) 0 else if (
+      isTRUE(tope_muestra$requiere_sonda_bytes)
+    ) 2 else 1
+    n_datos_min <- 1 + n_segunda + modas_seguras + media + n_verif_ord +
+      n_verif_clave + n_muestra
+    n_datos_max <- 1 + n_segunda + modas_seguras + modas_posibles +
+      media + medianas + desvio + n_verif_ord + n_verif_clave + n_muestra
+    est_req <- .requiere_verificacion_estabilidad_dbi(
+      preparacion$universo, n_datos_min, n_datos_max
+    )
     posteriores <- rbind(
-      fila("segunda pasada del localizador",
-           if (identical(fuente$metodo_orden, "row_locator")) 1 else 0,
-           "tabla_completa"),
+      fila("segunda pasada del localizador", n_segunda, "tabla_completa"),
       fila("moda exacta en el motor", modas_seguras,
            "ordena o agrupa la tabla completa", modas_seguras + modas_posibles),
       fila("media, mediana y desvio de los decimales en el decimal", media,
            "escanea la tabla completa", media + medianas + desvio),
-      fila("verificacion de unicidad del orden",
-           if (con_muestra && length(fuente$orden_expresiones)) 1 else 0,
+      fila("verificacion de unicidad del orden", n_verif_ord,
            "ordena o agrupa la tabla completa"),
-      fila("muestra", if (!con_muestra) 0 else if (
-        isTRUE(tope_muestra$requiere_sonda_bytes)
-      ) 2 else 1, .ALCANCE_BLOQUE_CLIENTE_DBI)
+      fila(.CLASE_PLAN_VERIFICACION_CLAVE_DBI, n_verif_clave,
+           "ordena o agrupa la tabla completa"),
+      fila("muestra", n_muestra, .ALCANCE_BLOQUE_CLIENTE_DBI),
+      fila(.CLASE_PLAN_ESTABILIDAD_DBI, est_req$min,
+           "escanea la tabla completa", est_req$max)
     )
   }
   .plan_bloques_fuente_dbi(
@@ -2127,15 +2144,22 @@
   reservado <- function(clase) {
     sum(plan$n_consultas[plan$clase_consulta == clase])
   }
+  reservado_max <- function(clase) {
+    sum(plan$n_consultas_max[plan$clase_consulta == clase])
+  }
   reserva_modas <- reservado("moda exacta en el motor")
   reserva_decimales <- reservado(
     "media, mediana y desvio de los decimales en el decimal"
   )
   reserva_muestra <- reservado("verificacion de unicidad del orden") +
+    reservado(.CLASE_PLAN_VERIFICACION_CLAVE_DBI) +
     reservado("muestra")
+  reserva_estabilidad <- reservado(.CLASE_PLAN_ESTABILIDAD_DBI)
+  reserva_estabilidad_max <- reservado_max(.CLASE_PLAN_ESTABILIDAD_DBI)
   fijar_reserva <- function() {
     if (!is.null(presupuesto)) {
-      presupuesto$reserva <- reserva_modas + reserva_decimales + reserva_muestra
+      presupuesto$reserva <- reserva_modas + reserva_decimales +
+        reserva_muestra + reserva_estabilidad
     }
   }
   fijar_reserva()
@@ -2442,7 +2466,10 @@
       tipos_motor = preparacion$esquema$tipos_motor,
       trazador = trazador, max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra,
-      enmascaradas = preparacion$enmascaradas
+      enmascaradas = preparacion$enmascaradas,
+      clave_muestra_motor = if (!length(fuente$orden_expresiones)) {
+        preparacion$clave_muestra_motor
+      } else NULL
     )
     perfil_muestra <- bloque_muestra$perfil
     if (!is.null(perfil_muestra) && nrow(resumen$cobertura)) {
@@ -2456,6 +2483,54 @@
     }
     resumen$cobertura <- rbind(resumen$cobertura, bloque_muestra$cobertura)
     resumen$tiempos <- .resumen_tiempos_dbi(trazador)
+  }
+  if (!isTRUE(fuente$disponible) || !is.null(recorrido$error)) {
+    resumen$meta$estabilidad <- .evaluar_estabilidad_dbi(
+      tabla,
+      motivo_no_verificada = paste0(
+        "La fuente por bloques no complet\u00f3 el recorrido (",
+        recorrido$error %||% fuente$motivo, ")."
+      )
+    )
+  } else {
+    antes_est <- .capturar_antes_estabilidad_dbi(
+      conexion, preparacion, n_total,
+      columnas_resumen = columnas, incluir_valores = incluir_valores
+    )
+    n_consultas_datos_reales <- as.numeric(recorrido$bloques$consultas_sql %||% 1L) +
+      if (!identical(preparacion$bloque_muestra, "solo_agregados")) 1 else 0
+    correr_cierre_est <- (reserva_estabilidad > 0) ||
+      (reserva_estabilidad_max > 0 && n_consultas_datos_reales >= 2)
+    despues_est <- if (isTRUE(correr_cierre_est)) {
+      .consultar_cierre_estabilidad_dbi(
+        conexion, preparacion$tabla_sql, antes_est, presupuesto
+      )
+    } else NULL
+    muestra_desajuste_bl <- exists("bloque_muestra", inherits = FALSE) &&
+      is.list(bloque_muestra) && is.list(bloque_muestra$muestreo) &&
+      identical(bloque_muestra$muestreo$coincide_con_lo_pedido, FALSE)
+    est_bloques <- .evaluar_estabilidad_dbi(
+      tabla, antes = antes_est, despues = despues_est,
+      muestra_desajuste = muestra_desajuste_bl ||
+        identical(segunda_pasada$estado, "resultset_no_reproducible"),
+      consulta_unica = !isTRUE(correr_cierre_est)
+    )
+    resumen$meta$estabilidad <- est_bloques
+    if (identical(est_bloques$estado, "cambio_detectado")) {
+      resumen$cobertura <- rbind(
+        resumen$cobertura,
+        .registro_cobertura_dbi(
+          "consistencia", .texto_tabla_dbi(tabla), "advertido",
+          est_bloques$motivo,
+          paste(
+            "Repetir el perfil bajo una instant\u00e1nea o transacci\u00f3n con",
+            "aislamiento consistente para evitar cambios concurrentes."
+          ),
+          est_bloques$sql
+        )
+      )
+      rownames(resumen$cobertura) <- NULL
+    }
   }
   proteger <- .protege_argumentos(argumentos)
   if (proteger) {

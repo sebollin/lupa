@@ -3093,8 +3093,12 @@
 # pregunta para no tocar lo que el perfil no cuenta.
 .celdas_importe_con_espacio_duro <- function(textos) {
   salida <- rep(FALSE, length(textos))
+  # Solo las celdas con un caracter no ASCII y algun digito pueden ser un
+  # importe con espacio duro: lo demas se descarta con dos preguntas baratas, sin
+  # leer la forma de numero.
   candidatas <- which(
-    !is.na(textos) & grepl("[^\\x01-\\x7F]", textos, perl = TRUE, useBytes = TRUE)
+    !is.na(textos) & grepl("[^\x01-\x7f]", textos, useBytes = TRUE) &
+      grepl("[0-9]", textos, useBytes = TRUE)
   )
   if (!length(candidatas)) return(salida)
   forma <- .compatibles_numero_texto(textos[candidatas])
