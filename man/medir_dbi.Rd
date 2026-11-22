@@ -104,8 +104,17 @@ rechaza. \code{NULL} conserva la medición habitual.}
 }
 \value{
 Un \code{data.frame} de clase \code{medicion_resumen} (sin heredar de
-\code{medicion}) con las 23 columnas del resumen y los atributos de
-\code{medir(detalle = "resumen")} más \code{ejecucion_dbi}.
+\code{medicion}) con las columnas del resumen —también las de sus cuentas,
+ver \code{\link[=medir]{medir()}}— y los atributos de \code{medir(detalle = "resumen")} más
+\code{ejecucion_dbi}. Cada fila sale de una sola lectura, y cada lectura de una
+tabla queda en \code{attr(x, "lecturas")}: si dos lecturas de la misma tabla en la
+corrida ven distinto número de filas, sus cifras quedan \code{no_cierran} y
+\code{medir_dbi()} avisa. Ese control ve filas agregadas o quitadas, no un
+\code{UPDATE} que no cambia el conteo; donde el motor ofrece un contador de
+modificaciones que lupa lee, se compara también ese contador y el control
+se publica como \code{contador_del_motor}; si no, como
+\code{solo_filas_agregadas_o_quitadas}. En SQL Server con \verb{READ COMMITTED} por
+bloqueo una sola sentencia tampoco es una instantánea.
 }
 \description{
 Evalúa un modelo de calidad directamente en el motor SQL (SQLite, DuckDB,

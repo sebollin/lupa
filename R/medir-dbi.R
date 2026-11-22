@@ -299,6 +299,18 @@
   )
 }
 
+# Una tabla de la coleccion por su identificador o, si no, por su nombre: la
+# regla de las entidades y de la tabla de un referencial del motor. `NULL` si no
+# esta declarada.
+.fisica_tabla_coleccion_dbi <- function(nombre, coleccion,
+                                        col_tablas = .completar_columnas_coleccion(
+                                          coleccion$tablas
+                                        )) {
+  i <- match(nombre, as.character(col_tablas$identificador))
+  if (is.na(i)) i <- match(nombre, as.character(col_tablas$tabla))
+  if (is.na(i)) NULL else col_tablas$referencia[[i]]
+}
+
 .resolver_tablas_medir_dbi <- function(modelo, conexion, tablas) {
   entidades <- unique(unlist(lapply(modelo$metricas, `[[`, "entidad")))
   con <- conexion
@@ -307,9 +319,8 @@
     con <- conexion$conexion
     col_tablas <- .completar_columnas_coleccion(conexion$tablas)
     for (e in entidades) {
-      i <- match(e, as.character(col_tablas$identificador))
-      if (is.na(i)) i <- match(e, as.character(col_tablas$tabla))
-      if (!is.na(i)) mapa[[e]] <- col_tablas$referencia[[i]]
+      fisica <- .fisica_tabla_coleccion_dbi(e, conexion, col_tablas)
+      if (!is.null(fisica)) mapa[[e]] <- fisica
     }
   }
   validar_entidades <- function(nombres) {
@@ -1808,6 +1819,98 @@
 # 4. Compilacion de cada nodo desde la especificacion
 # ---------------------------------------------------------------------------
 
+# La igualdad de una clave contra la del referencial, como la compara R: por el
+# texto canonico de cada valor. Misma clase o numero contra numero, por valor;
+# texto contra texto, por bytes (`.sql_texto_binario_dbi()`); texto contra
+# entero, con el entero escrito como texto. Con `plegar_ref`/`plegar_dep` el
+# lado de texto pasa por `LOWER()`: el pliegue de mayusculas de la
+# normalizacion, que solo es exacto sobre ASCII y por eso viaja con su guarda
+# (`.sql_guarda_pliegue_dbi()`). `NULL` si el par no se puede escribir igual.
+.cast_entero_a_texto_dbi <- function(expr_int, esq_txt, col_txt, motor) {
+  tp_txt <- if (!is.null(esq_txt$tipos_base)) esq_txt$tipos_base[[col_txt]] else NA_character_
+  coll_txt <- esq_txt$cotejamientos[[col_txt]]
+  coll_ok <- !is.null(coll_txt) && !is.na(coll_txt) &&
+    grepl("^[A-Za-z0-9_]+$", coll_txt, perl = TRUE, useBytes = TRUE)
+  sufijo_coll <- if (motor %in% c("mysql", "mariadb", "sqlserver") && coll_ok) {
+    paste0(" COLLATE ", coll_txt)
+  } else ""
+  tipo_txt <- switch(
+    motor,
+    duckdb = "VARCHAR",
+    mysql = , mariadb = "CHAR",
+    sqlserver = if (identical(tp_txt, "nvarchar")) "NVARCHAR(20)" else "VARCHAR(20)",
+    "TEXT"
+  )
+  paste0("CAST(", expr_int, " AS ", tipo_txt, ")", sufijo_coll)
+}
+
+.igualdad_referencial_dbi <- function(motor, cp, cf, pk, fk, esq_ref, pk_col,
+                                      esq, fk_col, plegar_ref = FALSE,
+                                      plegar_dep = FALSE) {
+  texto_bin <- function(expr) .sql_texto_binario_dbi(expr, motor)
+  plegado <- function(expr, plegar) if (isTRUE(plegar)) paste0("LOWER(", expr, ")") else expr
+  if ((.clases_compatibles_sql(cp, cf) &&
+       !(cp %in% "entero64" || cf %in% "entero64")) ||
+      identical(cp, cf)) {
+    if (identical(cp, "texto") && identical(cf, "texto")) {
+      return(paste0(
+        texto_bin(plegado(pk, plegar_ref)), " = ", texto_bin(plegado(fk, plegar_dep))
+      ))
+    }
+    return(paste0(pk, " = ", fk))
+  }
+  if (identical(cp, "texto") && identical(cf, "entero")) {
+    return(paste0(
+      texto_bin(plegado(pk, plegar_ref)), " = ",
+      texto_bin(.cast_entero_a_texto_dbi(fk, esq_ref, pk_col, motor))
+    ))
+  }
+  if (identical(cp, "entero") && identical(cf, "texto")) {
+    return(paste0(
+      texto_bin(.cast_entero_a_texto_dbi(pk, esq, fk_col, motor)), " = ",
+      texto_bin(plegado(fk, plegar_dep))
+    ))
+  }
+  NULL
+}
+
+# Lo que R no lee como escalar, o lee distinto de como la base declara la
+# columna: la medicion no puede reproducir la lectura de R. El motivo, o `NULL`.
+.motivo_tipos_esquema_dbi <- function(esq_t, cols_t) {
+  cl_t <- esq_t$clases[cols_t]
+  no_esc <- cols_t[unname(cl_t) == "otro"]
+  if (length(no_esc)) {
+    return(paste0(
+      "la columna `", no_esc[[1L]],
+      "` no es un tipo escalar que R pueda leer para esta metrica"
+    ))
+  }
+  lecturas_no_doble <- cols_t[vapply(cols_t, function(c) {
+    clase <- esq_t$clases[[c]]
+    !clase %in% c("doble", "entero") &&
+      .tipo_declarado_entero_ancho_dbi(esq_t$tipos[[c]])
+  }, logical(1L))]
+  if (length(lecturas_no_doble)) {
+    columna_no_doble <- lecturas_no_doble[[1L]]
+    clase_lectura <- switch(
+      esq_t$clases[[columna_no_doble]],
+      entero64 = "entero de 64 bits (`integer64`)",
+      texto = "texto",
+      esq_t$clases[[columna_no_doble]]
+    )
+    tipo_real <- esq_t$tipos[[columna_no_doble]]
+    if (is.null(tipo_real) || !length(tipo_real) || is.na(tipo_real)) {
+      tipo_real <- "tipo num\u00e9rico no especificado"
+    }
+    return(paste0(
+      "R lee la columna `", columna_no_doble, "` como ", clase_lectura,
+      ", pero la base la declara como `", as.character(tipo_real),
+      "`; la medici\u00f3n no puede reproducir la lectura de R"
+    ))
+  }
+  NULL
+}
+
 .compilar_especificacion_dbi <- function(spec, instancia, esquemas, motor,
                                          conexion, universos, max_valores_in) {
   no <- function(...) list(via = "no_medible", motivo = paste0(...))
@@ -1839,38 +1942,8 @@
     ))
   }
   validar_tipos_esquema <- function(esq_t, cols_t) {
-    cl_t <- esq_t$clases[cols_t]
-    no_esc <- cols_t[unname(cl_t) == "otro"]
-    if (length(no_esc)) {
-      return(no(
-        "la columna `", no_esc[[1L]],
-        "` no es un tipo escalar que R pueda leer para esta metrica"
-      ))
-    }
-    lecturas_no_doble <- cols_t[vapply(cols_t, function(c) {
-      clase <- esq_t$clases[[c]]
-      !clase %in% c("doble", "entero") &&
-        .tipo_declarado_entero_ancho_dbi(esq_t$tipos[[c]])
-    }, logical(1L))]
-    if (length(lecturas_no_doble)) {
-      columna_no_doble <- lecturas_no_doble[[1L]]
-      clase_lectura <- switch(
-        esq_t$clases[[columna_no_doble]],
-        entero64 = "entero de 64 bits (`integer64`)",
-        texto = "texto",
-        esq_t$clases[[columna_no_doble]]
-      )
-      tipo_real <- esq_t$tipos[[columna_no_doble]]
-      if (is.null(tipo_real) || !length(tipo_real) || is.na(tipo_real)) {
-        tipo_real <- "tipo num\u00e9rico no especificado"
-      }
-      return(no(
-        "R lee la columna `", columna_no_doble, "` como ", clase_lectura,
-        ", pero la base la declara como `", as.character(tipo_real),
-        "`; la medici\u00f3n no puede reproducir la lectura de R"
-      ))
-    }
-    NULL
+    motivo <- .motivo_tipos_esquema_dbi(esq_t, cols_t)
+    if (is.null(motivo)) NULL else no(motivo)
   }
   clases <- esq$clases[columnas]
   fallo_tipo <- validar_tipos_esquema(esq, columnas)
@@ -1988,6 +2061,16 @@
                                       esq = esq, columna = spec$columna)
               }, character(1L)), collapse = ", "), "))"
             )
+          }
+          # SQLite guarda texto en una columna de fecha sin quejarse y RSQLite
+          # lo lee como fecha con reglas propias: el literal numerico no lo ve
+          # (tres `1970-01-01` guardados como texto daban 1 donde R daba
+          # 0,85). Si la columna guarda texto la medida se declara, con la
+          # misma guarda que el resumen de fechas de `perfilar_dbi()`.
+          if (length(lits) && identical(motor, "sqlite") &&
+              clase %in% c("fecha", "instante")) {
+            g_texto <- .sql_guardado_texto_sqlite_dbi(x)
+            mot_texto <- .motivo_fecha_texto_sqlite_dbi(spec$columna)
           }
         }
       }
@@ -2297,29 +2380,16 @@
       .validar_columna_comparacion_dbi(esq_ref, spec$pk, motor)
       cp <- esq_ref$clases[[spec$pk]]
       cf <- esq$clases[[spec$fk]]
+      # `NaN` es un vacio, como para `is.na()`, `NoNulo` y los rangos: la
+      # referencial lo contaba como un valor presente sin pareja -un huerfano-
+      # mientras contaba el mismo `NaN` entre los vacios, y sus cuentas no
+      # cerraban. Igual en memoria (`.r_cobertura_referencial()`).
       pk <- .columna_sql_medicion(conexion, esq_ref, spec$pk, motor,
-                                  alias = "lupa_r", normalizar_nan = FALSE)
+                                  alias = "lupa_r", normalizar_nan = TRUE)
       fk <- .columna_sql_medicion(conexion, esq, spec$fk, motor,
-                                  alias = "lupa_d", normalizar_nan = FALSE)
+                                  alias = "lupa_d", normalizar_nan = TRUE)
       fk_nulo <- .columna_sql_medicion(conexion, esq, spec$fk, motor,
                                        alias = "lupa_d", normalizar_nan = TRUE)
-      cast_entero_a_texto <- function(expr_int, esq_txt, col_txt) {
-        tp_txt <- if (!is.null(esq_txt$tipos_base)) esq_txt$tipos_base[[col_txt]] else NA_character_
-        coll_txt <- esq_txt$cotejamientos[[col_txt]]
-        coll_ok <- !is.null(coll_txt) && !is.na(coll_txt) &&
-          grepl("^[A-Za-z0-9_]+$", coll_txt, perl = TRUE, useBytes = TRUE)
-        sufijo_coll <- if (motor %in% c("mysql", "mariadb", "sqlserver") && coll_ok) {
-          paste0(" COLLATE ", coll_txt)
-        } else ""
-        tipo_txt <- switch(
-          motor,
-          duckdb = "VARCHAR",
-          mysql = , mariadb = "CHAR",
-          sqlserver = if (identical(tp_txt, "nvarchar")) "NVARCHAR(20)" else "VARCHAR(20)",
-          "TEXT"
-        )
-        paste0("CAST(", expr_int, " AS ", tipo_txt, ")", sufijo_coll)
-      }
       if (identical(cp, "texto") && identical(cf, "texto") &&
           motor %in% c("mysql", "mariadb", "sqlserver") &&
           !identical(esq_ref$cotejamientos[[spec$pk]],
@@ -2330,22 +2400,10 @@
           esq_ref$cotejamientos[[spec$pk]], "`)"
         )
       }
-      texto_bin <- function(expr) .sql_texto_binario_dbi(expr, motor)
-      igualdad <- if ((.clases_compatibles_sql(cp, cf) &&
-                       !(cp %in% "entero64" || cf %in% "entero64")) ||
-                      identical(cp, cf)) {
-        if (identical(cp, "texto") && identical(cf, "texto")) {
-          paste0(texto_bin(pk), " = ", texto_bin(fk))
-        } else {
-          paste0(pk, " = ", fk)
-        }
-      } else if (identical(cp, "texto") && identical(cf, "entero")) {
-        paste0(texto_bin(pk), " = ",
-               texto_bin(cast_entero_a_texto(fk, esq_ref, spec$pk)))
-      } else if (identical(cp, "entero") && identical(cf, "texto")) {
-        paste0(texto_bin(cast_entero_a_texto(pk, esq, spec$fk)), " = ",
-               texto_bin(fk))
-      } else {
+      igualdad <- .igualdad_referencial_dbi(
+        motor, cp, cf, pk, fk, esq_ref, spec$pk, esq, spec$fk
+      )
+      if (is.null(igualdad)) {
         .no_traducible_dbi(
           "clave `", cp, "` contra `", cf,
           "`: R compara por el texto can\u00f3nico de cada valor y el motor no escribe igual ese tipo"
@@ -2430,7 +2488,8 @@
           "COALESCE(SUM(CAST(lupa_ev AS BIGINT)), CAST(0 AS BIGINT)) AS den, ",
           "COALESCE(SUM(CAST(lupa_u AS BIGINT)), CAST(0 AS BIGINT)) AS univ, ",
           "COALESCE(SUM(CAST(lupa_sv AS BIGINT)), CAST(0 AS BIGINT)) AS sin_valor, ",
-          "COUNT_BIG(*) AS n_filas",
+          "COUNT_BIG(*) AS n_filas, ",
+          "(SELECT COUNT_BIG(*) FROM ", esq_ref$sql, ") AS n_filas_ref",
           expr_guarda_ss,
           " FROM (SELECT ",
           "CASE WHEN ", .sql_y(evaluable, existe), " THEN 1 ELSE 0 END AS lupa_ev_ex, ",
@@ -2465,7 +2524,12 @@
           .sql_suma(evaluable, motor), " AS den, ",
           .sql_suma(.sql_y(U_dep$sql), motor), " AS univ, ",
           .sql_suma(.sql_y(U_dep$sql, paste0("(", fk_nulo, " IS NULL)")), motor), " AS sin_valor, ",
-          .sql_conteo_total(motor), " AS n_filas",
+          .sql_conteo_total(motor), " AS n_filas, ",
+          # Las filas de la tabla referida que vio ESTA sentencia: si cambio
+          # entre la lectura de otra metrica y esta, la cobertura se midio contra
+          # otra tabla, y solo comparando los dos conteos se ve.
+          "(SELECT ", .sql_conteo_total(motor), " FROM ", esq_ref$sql,
+          ") AS n_filas_ref",
           expr_guarda_ref,
           " FROM ", esq$sql, " lupa_d"
         )
@@ -2707,6 +2771,11 @@
     aplicabilidad, Filter(Negate(is.null), esquemas),
     motor, con, max_valores_in
   )
+  # Las tablas de los referenciales del motor: su esquema se lee una vez por
+  # corrida y lo cuentan las consultas del plan.
+  referenciales <- .resolutor_referenciales_dbi(
+    conexion, con, motor, contador, sesion, error_sesion
+  )
   planes <- lapply(seq_along(modelo$metricas), function(j) {
     # La copia de la instancia lleva el orden de texto pedido: la compilacion la
     # lee, y la via por bloques la mide en R con ella.
@@ -2734,6 +2803,12 @@
       } else {
         c(base, list(via = "no_medible", motivo = motivo))
       }
+    }
+    if (.es_metrica_referencial_dbi(instancia)) {
+      return(.planificar_referencial_dbi(
+        base, instancia, esquemas, motor, conexion, con, universos,
+        estrategia_no_sql, referenciales
+      ))
     }
     if (is.null(spec)) {
       nombre <- as.character(instancia$declaracion$nombre)[[1L]]
@@ -2766,11 +2841,18 @@
     if (identical(comp$via, "no_medible")) return(a_bloques(comp$motivo))
     c(base, comp, list(columnas_bloque = cols_bloq))
   })
+  esquemas_referencial <- referenciales$esquemas()
   n_esquema_estimadas <- as.integer(sesion$n_consultas %||% 0L) + sum(vapply(
-    Filter(Negate(is.null), esquemas),
+    c(Filter(Negate(is.null), esquemas), esquemas_referencial),
     function(e) as.integer(e$n_consultas_esquema),
     integer(1L)
   ))
+  # Una validacion de la clave por tabla y clave de referencial, compartida por
+  # las metricas que la usan.
+  n_validaciones_referencial <- length(unique(unlist(lapply(planes, function(x) {
+    if (isTRUE(x$referencial_motor) &&
+        identical(x$via, "sql_dedicado_referencial")) x$clave_validacion
+  }))))
   senas <- .senas_conexion_dbi(con)
   n_consolidadas <- 0L
   for (e in names(esquemas)) {
@@ -2792,7 +2874,9 @@
     fisicas = fisicas,
     motor = motor,
     n_esquema = if (is.null(contador)) n_esquema_estimadas else contador$n,
-    n_consolidadas = n_consolidadas
+    n_consolidadas = n_consolidadas,
+    esquemas_referencial = esquemas_referencial,
+    n_validaciones_referencial = n_validaciones_referencial
   )
 }
 
@@ -2802,38 +2886,16 @@
     aplicabilidad, Filter(Negate(is.null), p$esquemas),
     p$motor, conexion, max_valores_in
   )
+  # Lo que cada item suma antes de la consulta sale de `.preparar_item_medicion_dbi()`,
+  # la misma que usa `conformidad_dbi()`. Estaba copiada aqui, y la copia no
+  # contaba los vacios de la columna de una vigencia.
   for (k in seq_along(p$planes)) {
     x <- p$planes[[k]]
     if (!x$via %in% c("sql_consolidado", "sql_dedicado")) next
     esq <- p$esquemas[[x$entidad]]
-    U <- universos[[x$entidad]](x$instancia)
-    x$universo_aplicabilidad <- U$sql
-    x$universo_dentro <- if (identical(x$spec$nodo, "no_ausente")) {
-      x$universo
-    } else {
-      U$sql
-    }
-    atr <- intersect(x$columnas_completas, esq$campos)
-    x$completas <- if (length(atr)) {
-      .sql_y(vapply(atr, function(a) {
-        paste0("(", .columna_sql_medicion(conexion, esq, a, p$motor),
-               " IS NOT NULL)")
-      }, character(1L)))
-    } else ""
-    gran <- as.character(x$instancia$declaracion$granularidad)[[1L]]
-    if (identical(gran, "instanciaEntidad") && length(x$instancia$atributos)) {
-      x$sin_valor <- paste0(
-        "(",
-        paste(vapply(x$instancia$atributos, function(a) {
-          paste0("(", .columna_sql_medicion(conexion, esq, a, p$motor),
-                 " IS NULL)")
-        }, character(1L)), collapse = " OR "),
-        ")"
-      )
-    } else if (identical(gran, "instanciaEntidad")) {
-      x$sin_valor <- NULL
-    }
-    p$planes[[k]] <- x
+    p$planes[[k]] <- .preparar_item_medicion_dbi(
+      x, esq, universos[[x$entidad]](x$instancia), conexion, p$motor
+    )
   }
   list(p = p, universos = universos)
 }
@@ -2853,12 +2915,13 @@
       .compilar_sql_dbi(conexion, sql, etapa, motor)
       invisible(NULL)
     }
-    for (esq in p$esquemas) {
+    for (esq in c(p$esquemas, p$esquemas_referencial)) {
       if (is.null(esq)) next
       for (sql in esq$consultas_esquema %||% character()) {
         agregar(sql, "esquema")
       }
     }
+    validadas <- character()
     for (entidad in names(p$esquemas)) {
       esq <- p$esquemas[[entidad]]
       if (is.null(esq)) next
@@ -2878,7 +2941,7 @@
         }
         for (item in items) {
           if (identical(item$via, "sql_dedicado")) {
-            agregar(item$consulta, "dedicada")
+            agregar(.sql_dedicada_medicion_dbi(item, esq, motor), "dedicada")
           }
         }
       }
@@ -2886,7 +2949,14 @@
         identical(x$via, "sql_dedicado_referencial") &&
           identical(x$entidad, entidad)
       }, p$planes)
-      for (item in referenciales) agregar(item$consulta, "referencial")
+      for (item in referenciales) {
+        if (!is.null(item$consulta_validacion) &&
+            !item$clave_validacion %in% validadas) {
+          validadas <- c(validadas, item$clave_validacion)
+          agregar(item$consulta_validacion, "referencial")
+        }
+        agregar(item$consulta, "referencial")
+      }
       bloques <- Filter(function(x) {
         identical(x$via, "bloques_r") && identical(x$entidad, entidad)
       }, p$planes)
@@ -2926,7 +2996,7 @@
   .traer_consulta_dbi(conexion, sql)
 }
 
-.sql_consolidada_medicion_dbi <- function(esq, items, motor) {
+.sql_consolidada_medicion_dbi <- function(esq, items, motor, extra = character()) {
   agregados <- function(it) {
     j <- it$j
     c(
@@ -2953,21 +3023,98 @@
   }
   paste0(
     "SELECT ", .sql_conteo_total(motor), " AS n_filas, ",
-    paste(unlist(lapply(items, agregados)), collapse = ", "),
+    paste(c(unlist(lapply(items, agregados)), extra), collapse = ", "),
     " FROM ", esq$sql
   )
 }
 
+# La consulta dedicada trae, en la misma sentencia, el universo, los vacios y
+# las filas de la tabla. Antes solo traia `num` y `den`, y la fila se armaba con
+# el universo de la consulta consolidada: dos lecturas en una fila. Medido: tres
+# filas insertadas entre las dos publicaron `n_no_evaluados = -1`.
+.sql_dedicada_medicion_dbi <- function(it, esq, motor, extra = character()) {
+  if (is.null(it$universo_aplicabilidad)) return(it$consulta)
+  conteos <- c(
+    paste0(.sql_conteo_total(motor), " AS n_filas"),
+    paste0(.sql_suma(.sql_y(it$universo_aplicabilidad), motor), " AS rec"),
+    paste0(.sql_suma(.sql_y(it$universo), motor), " AS univ"),
+    if (!is.null(it$sin_valor)) {
+      paste0(.sql_suma(.sql_y(it$universo_dentro, it$sin_valor), motor), " AS sv")
+    },
+    extra
+  )
+  paste0(
+    "SELECT lupa_g.num, lupa_g.den, lupa_c.* FROM (", it$consulta,
+    ") lupa_g CROSS JOIN (SELECT ", paste(conteos, collapse = ", "),
+    " FROM ", esq$sql, ") lupa_c"
+  )
+}
+
+# Una lectura suelta del contador de una tabla, para lo que no pasa por una
+# consulta de agregados. `NA` sin contador o si no se pudo leer.
+.leer_contador_tabla_dbi <- function(conexion, esq, spec, contador) {
+  if (!is.list(spec) || is.null(esq)) return(NA_character_)
+  exprs <- .expresiones_contador_estabilidad_dbi(conexion, spec, esq$sql)
+  if (!length(exprs)) return(NA_character_)
+  q <- tryCatch(
+    .consultar_medicion_dbi(
+      conexion,
+      paste0("SELECT ", paste(exprs, collapse = ", "), ", ", .sql_conteo_total(),
+             " AS n_filas FROM ", esq$sql),
+      contador
+    ),
+    error = function(e) NULL
+  )
+  if (!is.data.frame(q)) return(NA_character_)
+  .instantanea_contador_dbi(q, spec)
+}
+
+# El valor del contador de modificaciones del motor que vio una lectura, como
+# texto comparable, o `NA` si no hay contador o no se pudo leer.
+.instantanea_contador_dbi <- function(datos, spec) {
+  if (!is.list(spec) || !is.data.frame(datos) || nrow(datos) != 1L) {
+    return(NA_character_)
+  }
+  n <- suppressWarnings(as.numeric(datos$n_filas[[1L]]))
+  leido <- tryCatch(
+    .leer_contador_estabilidad_dbi(datos, spec, n_filas = n),
+    error = function(e) NULL
+  )
+  if (!isTRUE(leido$disponible)) return(NA_character_)
+  valores <- unlist(leido$valores)
+  paste0(
+    spec$mecanismo %||% "contador", ":",
+    paste(names(valores), valores, sep = "=", collapse = ";"),
+    ";n=", format(n, scientific = FALSE)
+  )
+}
+
 .consolidada_medicion_dbi <- function(conexion, esq, items, contador,
-                                      motor = "sqlite") {
+                                      motor = "sqlite",
+                                      contador_estabilidad = NULL) {
+  extra <- if (is.list(contador_estabilidad)) {
+    .expresiones_contador_estabilidad_dbi(conexion, contador_estabilidad, esq$sql)
+  } else character()
   correr <- function(grupo) {
-    sql <- .sql_consolidada_medicion_dbi(esq, grupo, motor)
+    sql <- .sql_consolidada_medicion_dbi(esq, grupo, motor, extra)
     r <- tryCatch(
       .consultar_medicion_dbi(conexion, sql, contador),
       lupa_presupuesto_medicion_dbi = function(e) e,
       error = function(e) e
     )
-    if (!inherits(r, "error")) return(list(ok = r))
+    if (!inherits(r, "error")) {
+      # Cada item guarda las filas y el contador de SU lectura: partida la
+      # consulta en mitades tras un error, la segunda mitad heredaba el conteo
+      # de la primera y un cambio de la tabla entre las dos no se veia.
+      instantanea <- .instantanea_contador_dbi(r, contador_estabilidad)
+      lectura <- paste0("consulta-", contador$n)
+      for (x in grupo) {
+        r[[sprintf("m%d_nf", x$j)]] <- as.numeric(r$n_filas[[1L]])
+        r[[sprintf("m%d_inst", x$j)]] <- instantanea
+        r[[sprintf("m%d_lect", x$j)]] <- lectura
+      }
+      return(list(ok = r))
+    }
     if (inherits(r, "lupa_presupuesto_medicion_dbi") || length(grupo) == 1L) {
       msg <- if (inherits(r, "lupa_presupuesto_medicion_dbi")) {
         conditionMessage(r)
@@ -2986,7 +3133,7 @@
     b <- correr(grupo[-mitad])
     list(
       ok = if (!is.null(a$ok) && !is.null(b$ok)) {
-        cbind(a$ok, b$ok[setdiff(names(b$ok), "n_filas")])
+        cbind(a$ok, b$ok[grepl("^m[0-9]+_", names(b$ok))])
       } else if (!is.null(a$ok)) {
         a$ok
       } else {
@@ -3016,10 +3163,14 @@
     }, character(1L)))
   } else ""
   gran <- as.character(x$instancia$declaracion$granularidad)[[1L]]
-  if (identical(gran, "instanciaEntidad") && length(x$instancia$atributos)) {
+  # Las columnas de las que sale el valor, no solo los atributos: una metrica de
+  # vigencia lee la fecha de la vigencia sin declararla como atributo, y sin
+  # contar sus vacios publicaba `sin_medida` para filas que estaban vacias.
+  valor <- intersect(.columnas_valor_instancia(x$instancia), esq$campos)
+  if (identical(gran, "instanciaEntidad") && length(valor)) {
     x$sin_valor <- paste0(
       "(",
-      paste(vapply(x$instancia$atributos, function(a) {
+      paste(vapply(valor, function(a) {
         paste0("(", .columna_sql_medicion(con, esq, a, motor), " IS NULL)")
       }, character(1L)), collapse = " OR "),
       ")"
@@ -3032,7 +3183,8 @@
 
 # Los conteos de un item a partir de la consulta consolidada y, si es
 # dedicado, de su consulta propia. Devuelve `list(error = )` si algo fallo.
-.conteos_item_medicion_dbi <- function(r, it, con, contador) {
+.conteos_item_medicion_dbi <- function(r, it, con, contador, esq = NULL,
+                                       motor = NULL, contador_estabilidad = NULL) {
   j <- it$j
   fallo <- if (!is.null(r$fallo)) r$fallo[as.character(j)] else NA_character_
   if (!is.na(fallo)) return(list(error = unname(fallo)))
@@ -3040,14 +3192,30 @@
     nm <- sprintf("m%d_%s", j, s)
     if (!is.null(r$ok) && nm %in% names(r$ok)) as.numeric(r$ok[[nm]]) else NA_real_
   }
+  inst <- sprintf("m%d_inst", j)
+  lect <- sprintf("m%d_lect", j)
   res <- list(
-    n_filas = as.numeric(r$ok$n_filas),
+    n_filas = if (!is.na(v("nf"))) v("nf") else as.numeric(r$ok$n_filas),
     rec = v("rec"), univ = v("univ"), den = v("den"), num = v("num"),
-    sv = v("sv"), apl = v("apl"), comp = v("comp"), g = v("g"), na = v("na")
+    sv = v("sv"), apl = v("apl"), comp = v("comp"), g = v("g"), na = v("na"),
+    instantanea = if (!is.null(r$ok) && inst %in% names(r$ok)) {
+      as.character(r$ok[[inst]])
+    } else NA_character_,
+    lectura = if (!is.null(r$ok) && lect %in% names(r$ok)) {
+      as.character(r$ok[[lect]])
+    } else NA_character_
   )
   if (identical(it$via, "sql_dedicado")) {
+    extra <- if (is.list(contador_estabilidad)) {
+      .expresiones_contador_estabilidad_dbi(con, contador_estabilidad, esq$sql)
+    } else character()
+    consulta <- if (is.null(esq)) {
+      it$consulta
+    } else {
+      .sql_dedicada_medicion_dbi(it, esq, motor, extra)
+    }
     q <- tryCatch(
-      .consultar_medicion_dbi(con, it$consulta, contador),
+      .consultar_medicion_dbi(con, consulta, contador),
       lupa_presupuesto_medicion_dbi = function(e) e,
       error = function(e) e
     )
@@ -3061,6 +3229,15 @@
     }
     res$num <- as.numeric(q$num)
     res$den <- as.numeric(q$den)
+    # La fila entera de la misma lectura: universo, vacios y filas.
+    if (!is.null(esq) && all(c("n_filas", "rec", "univ") %in% names(q))) {
+      res$n_filas <- as.numeric(q$n_filas)
+      res$rec <- as.numeric(q$rec)
+      res$univ <- as.numeric(q$univ)
+      if ("sv" %in% names(q)) res$sv <- as.numeric(q$sv)
+      res$instantanea <- .instantanea_contador_dbi(q, contador_estabilidad)
+      res$lectura <- paste0("consulta-", contador$n)
+    }
   }
   res
 }
@@ -3139,23 +3316,20 @@
         if (!anyNA(idx_atr)) {
           sub_atr <- .seleccionar_columnas(t_rec, inst$atributos)
           a$n_comp <- a$n_comp + sum(.filas_completas(sub_atr))
-          celdas_na <- lapply(idx_atr, function(ii) is.na(t_rec[[ii]])[dentro_apl])
-          a$sin_valor <- a$sin_valor + if (identical(gran, "instanciaAtributo")) {
-            sum(vapply(celdas_na, sum, numeric(1L)))
-          } else {
-            sum(Reduce(`|`, celdas_na))
-          }
         }
       }
       sola <- modelo(list(inst))
+      # El resumen del bloque, sin huella de datos ni aviso de cuentas: lo que
+      # vale es la suma de los bloques, que cierra el finalizador.
       parcial <- tryCatch(
         withCallingHandlers(
-          medir(
+          .medir_resumen(
             sola, tb_inst, id_medicion = id_medicion, fecha = fecha,
+            fecha_declarada = TRUE, aplicabilidad = NULL,
             proteger_datos_personales = proteger_datos_personales,
             columnas_personales = columnas_personales,
             validadores_personales = validadores_personales,
-            detalle = "resumen"
+            interno_bloque = TRUE
           ),
           warning = function(w) {
             if (grepl("porque su m", conditionMessage(w),
@@ -3174,6 +3348,7 @@
         a$plantilla <- fila
         a$den <- a$den + as.numeric(fila$denominador[[1L]])
         a$univ <- a$univ + as.numeric(fila$n_universo[[1L]])
+        a$sin_valor <- a$sin_valor + as.numeric(fila$n_sin_valor[[1L]])
         if (identical(fila$agregacion[[1L]], "ratio")) {
           a$num <- a$num + as.numeric(fila$numerador[[1L]])
         } else {
@@ -3188,13 +3363,15 @@
             a$ok <- FALSE
             a$cobertura_directa <- cob_p[1L, , drop = FALSE]
           } else {
-            # Bloque sin valores no nulos: suma su universo para el total final.
-            esp <- if (identical(gran, "instanciaAtributo")) {
+            # Bloque sin valores no nulos: suma su universo para el total final,
+            # y todo ese universo esta vacio.
+            esp <- if (identical(.unidad_universo_instancia(inst), "celda")) {
               sum(dentro_apl) * length(inst$atributos)
             } else {
               sum(dentro_apl)
             }
             a$univ <- a$univ + as.numeric(esp)
+            a$sin_valor <- a$sin_valor + as.numeric(esp)
           }
         }
       }
@@ -3267,7 +3444,8 @@
     rango <- tryCatch(
       .consultar_medicion_dbi(
         conexion,
-        paste0("SELECT MIN(rowid) AS rmin, MAX(rowid) AS rmax FROM ", esq$sql),
+        paste0("SELECT MIN(rowid) AS rmin, MAX(rowid) AS rmax, COUNT(*) AS n_filas FROM ",
+               esq$sql),
         contador
       ),
       error = function(e) e
@@ -3275,6 +3453,11 @@
     if (!inherits(rango, "error") && is.data.frame(rango) && nrow(rango) == 1L) {
       rmin <- as.numeric(rango$rmin[[1L]])
       rmax <- as.numeric(rango$rmax[[1L]])
+      # Las filas de la tabla al empezar: los rangos de `rowid` son fijos, y una
+      # tabla que cambia entre bloques se recorre a medias. Medido: con tres
+      # altas recorrio 12 filas, ni las 10 del principio ni las 13 del final.
+      n_inicio <- as.numeric(rango$n_filas[[1L]])
+      acum <- lapply(acum, function(a) { a$n_inicio <- n_inicio; a })
       if (!is.na(rmin) && !is.na(rmax)) {
         paso <- as.numeric(bloque_filas)
         inicio <- rmin
@@ -3309,7 +3492,20 @@
       }
       return(acum)
     }
-    # Respaldo para vistas en DuckDB sin rowid: paginado LIMIT/OFFSET.
+    # Respaldo para vistas en DuckDB sin rowid: paginado LIMIT/OFFSET. Sin
+    # orden ni instantanea, las paginas pueden saltear o repetir filas si la
+    # vista cambia: se cuentan las filas antes de paginar para compararlas con
+    # las recorridas.
+    conteo <- tryCatch(
+      .consultar_medicion_dbi(
+        conexion, paste0("SELECT COUNT(*) AS n_filas FROM ", esq$sql), contador
+      ),
+      error = function(e) NULL
+    )
+    if (is.data.frame(conteo) && nrow(conteo) == 1L) {
+      n_inicio <- as.numeric(conteo$n_filas[[1L]])
+      acum <- lapply(acum, function(a) { a$n_inicio <- n_inicio; a })
+    }
     offset <- 0
     repeat {
       sql_b <- paste0(
@@ -3382,23 +3578,14 @@
   fila$numerador[[1L]] <- if (es_ratio) as.double(a$num) else NA_real_
   fila$denominador[[1L]] <- as.double(a$den)
   fila$n_universo[[1L]] <- as.double(a$univ)
-  no <- a$univ - a$den
-  if (no < 0) {
-    fila$n_no_evaluados[[1L]] <- NA_real_
-    fila$motivo_no_evaluados[[1L]] <- "medidas_repetidas"
-  } else {
-    fila$n_no_evaluados[[1L]] <- as.double(no)
-    fila$motivo_no_evaluados[[1L]] <- if (!no) {
-      NA_character_
-    } else if (a$sin_valor == no) {
-      "sin_valor"
-    } else {
-      "sin_medida"
-    }
-  }
+  ne <- .no_evaluados_resumen(as.double(a$univ), as.double(a$den), as.double(a$sin_valor))
+  fila$n_no_evaluados[[1L]] <- ne$no
+  fila$motivo_no_evaluados[[1L]] <- ne$motivo
+  fila$n_sin_valor[[1L]] <- as.double(a$sin_valor)
+  fila <- as.data.frame(unclass(fila), stringsAsFactors = FALSE)[.COLUMNAS_RESUMEN]
+  fila <- .cerrar_fila_dbi(fila, inst, a$n_filas)
   al <- .alcance_medidas_desde_conteos(inst, a$univ, a$den, a$sin_valor)
-  list(fila = as.data.frame(unclass(fila), stringsAsFactors = FALSE)[.COLUMNAS_RESUMEN],
-       alcance = al)
+  list(fila = fila, alcance = al)
 }
 
 .columnas_personales_esquemas_dbi <- function(esquemas, declaradas, validadores) {
@@ -3425,8 +3612,11 @@
 #'
 #' Clasifica cada métrica del modelo según la vía con que se medirá en el motor
 #' (`sql_consolidado`, `sql_dedicado`, `sql_dedicado_referencial`, `bloques_r`,
-#' `no_medible`, `no_medible_metodo` o `abstencion`) y estima las consultas
-#' necesarias, sin leer filas de ninguna tabla.
+#' `distintos_r`, `no_medible`, `no_medible_metodo` o `abstencion`) y estima las
+#' consultas necesarias, sin leer filas de ninguna tabla. Un referencial del
+#' motor suma la consulta de esquema de su tabla y una validación de su clave
+#' por tabla y clave, que comparten las métricas que lo usan (en `dedicadas`);
+#' `distintos_r` cuenta en `bloques`.
 #'
 #' Sólo consulta el esquema (`SELECT * ... WHERE 1 = 0` y metadatos del motor).
 #' No recibe `proteger_datos_personales` y hereda la protección de quien lo
@@ -3556,8 +3746,11 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
   attr(plan, "consultas") <- c(
     esquema = as.integer(p$n_esquema),
     consolidadas = as.integer(p$n_consolidadas),
-    dedicadas = as.integer(sum(plan$via %in% c("sql_dedicado", "sql_dedicado_referencial"))),
-    bloques = as.integer(sum(plan$via == "bloques_r"))
+    dedicadas = as.integer(
+      sum(plan$via %in% c("sql_dedicado", "sql_dedicado_referencial")) +
+        (p$n_validaciones_referencial %||% 0L)
+    ),
+    bloques = as.integer(sum(plan$via %in% c("bloques_r", "distintos_r")))
   )
   if (isTRUE(compilar)) {
     compilacion <- .compilar_plan_medicion_dbi(
@@ -3647,8 +3840,17 @@ print.plan_medicion_dbi <- function(x, ...) {
 #'   rechaza. `NULL` conserva la medición habitual.
 #'
 #' @return Un `data.frame` de clase `medicion_resumen` (sin heredar de
-#'   `medicion`) con las 23 columnas del resumen y los atributos de
-#'   `medir(detalle = "resumen")` más `ejecucion_dbi`.
+#'   `medicion`) con las columnas del resumen —también las de sus cuentas,
+#'   ver [medir()]— y los atributos de `medir(detalle = "resumen")` más
+#'   `ejecucion_dbi`. Cada fila sale de una sola lectura, y cada lectura de una
+#'   tabla queda en `attr(x, "lecturas")`: si dos lecturas de la misma tabla en la
+#'   corrida ven distinto número de filas, sus cifras quedan `no_cierran` y
+#'   `medir_dbi()` avisa. Ese control ve filas agregadas o quitadas, no un
+#'   `UPDATE` que no cambia el conteo; donde el motor ofrece un contador de
+#'   modificaciones que lupa lee, se compara también ese contador y el control
+#'   se publica como `contador_del_motor`; si no, como
+#'   `solo_filas_agregadas_o_quitadas`. En SQL Server con `READ COMMITTED` por
+#'   bloqueo una sola sentencia tampoco es una instantánea.
 #' @export
 #' @seealso [plan_medicion_dbi()], [medir()], [perfilar_dbi()],
 #'   [tablero_calidad()], [indice_calidad()]
@@ -3738,6 +3940,31 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
 
   senas <- .senas_conexion_dbi(con)
   resultados <- vector("list", length(p$planes))
+  # Cada lectura de una tabla queda registrada con sus filas y, donde el motor
+  # tiene un contador de modificaciones, con su valor: si dos lecturas de la
+  # misma tabla no coinciden, las cifras de esa tabla no cierran (C5).
+  lecturas <- list()
+  registrar <- function(entidad, n_filas, instantanea = NA_character_,
+                        lectura = paste0("consulta-", contador$n)) {
+    if (is.null(entidad) || is.na(entidad) || !length(n_filas)) return(invisible(NULL))
+    lecturas[[length(lecturas) + 1L]] <<- .lectura(
+      id_medicion, entidad, suppressWarnings(as.numeric(n_filas)), instantanea,
+      if (is.na(instantanea)) "solo_filas_agregadas_o_quitadas" else "contador_del_motor",
+      lectura = lectura
+    )
+    invisible(NULL)
+  }
+  contadores <- lapply(names(p$esquemas), function(e) {
+    esq <- p$esquemas[[e]]
+    if (is.null(esq)) return(NULL)
+    tryCatch(
+      .especificacion_contador_estabilidad_dbi(
+        con, esq$sql, esq$sql, tipos_motor = esq$tipos, campos = esq$campos
+      ),
+      error = function(err) NULL
+    )
+  })
+  names(contadores) <- names(p$esquemas)
   for (e in names(p$esquemas)) {
     if (is.null(p$esquemas[[e]])) next
     items <- Filter(
@@ -3749,9 +3976,17 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     lotes <- .lotes_consolidada_medicion(items, senas, args$tamano_lote)
     for (lote in lotes) {
       r <- .consolidada_medicion_dbi(con, p$esquemas[[e]], lote, contador,
-                                     motor = motor)
+                                     motor = motor,
+                                     contador_estabilidad = contadores[[e]])
       for (it in lote) {
-        resultados[[it$j]] <- .conteos_item_medicion_dbi(r, it, con, contador)
+        resultados[[it$j]] <- .conteos_item_medicion_dbi(
+          r, it, con, contador, esq = p$esquemas[[e]], motor = motor,
+          contador_estabilidad = contadores[[e]]
+        )
+        if (is.null(resultados[[it$j]]$error)) {
+          registrar(e, resultados[[it$j]]$n_filas, resultados[[it$j]]$instantanea,
+                    resultados[[it$j]]$lectura)
+        }
       }
     }
   }
@@ -3761,6 +3996,17 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   alcances <- list()
   vias_finales <- vapply(p$planes, `[[`, character(1L), "via")
   pendientes_bloques <- list()
+  validaciones_referencial <- new.env(parent = emptyenv())
+  agregar_salida <- function(s) {
+    if (!is.null(s$fila) && !is.null(s$n_filas)) {
+      s$fila <- .cerrar_fila_dbi(
+        s$fila, instancia, s$n_filas, s$n_filas_ref %||% NA_real_
+      )
+    }
+    if (!is.null(s$fila)) filas[[length(filas) + 1L]] <<- s$fila
+    if (!is.null(s$cobertura)) coberturas[[length(coberturas) + 1L]] <<- s$cobertura
+    if (!is.null(s$alcance)) alcances[[length(alcances) + 1L]] <<- s$alcance
+  }
 
   for (x in p$planes) {
     instancia <- x$instancia
@@ -3780,6 +4026,36 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     }
     if (identical(x$via, "bloques_r")) {
       pendientes_bloques[[length(pendientes_bloques) + 1L]] <- x
+      next
+    }
+    # El referencial del motor (`R/referencial-dbi.R`). Si la guarda encuentra
+    # texto que el motor no escribe como R y se pidio `bloques`, se compara en R
+    # sobre los valores distintos.
+    if (isTRUE(x$referencial_motor) &&
+        identical(x$via, "sql_dedicado_referencial")) {
+      s <- .ejecutar_referencial_dbi(
+        x, con, contador, id_medicion, fecha, validaciones_referencial
+      )
+      if (isTRUE(s$guarda)) {
+        if (isTRUE(x$admite_distintos)) {
+          x$via <- "distintos_r"
+          vias_finales[[j]] <- "distintos_r"
+          s <- .ejecutar_distintos_referencial_dbi(
+            x, con, contador, id_medicion, fecha, p$esquemas, universos, motor
+          )
+        } else {
+          s <- list(cobertura = .no_medible_dbi(
+            instancia, id_medicion, fecha, s$motivo, en_base = TRUE
+          ))
+        }
+      }
+      agregar_salida(s)
+      next
+    }
+    if (identical(x$via, "distintos_r")) {
+      agregar_salida(.ejecutar_distintos_referencial_dbi(
+        x, con, contador, id_medicion, fecha, p$esquemas, universos, motor
+      ))
       next
     }
     if (identical(x$via, "sql_dedicado_referencial")) {
@@ -3837,8 +4113,10 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
         ))
         next
       }
-      no <- univ - den
-      filas[[length(filas) + 1L]] <- .fila_resumen(
+      ne <- .no_evaluados_resumen(univ, den, sv)
+      registrar(x$spec$entidad_dep, q$n_filas)
+      registrar(x$spec$entidad_ref, q$n_filas_ref)
+      fila_ref <- .fila_resumen(
         instancia, id_medicion, fecha, x$spec$entidad_dep, x$spec$fk,
         .pegar_texto0(
           x$spec$entidad_dep, "$", x$spec$fk, " -> ",
@@ -3850,9 +4128,13 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
         numerador = num,
         denominador = den,
         n_universo = univ,
-        n_no_evaluados = no,
-        motivo_no_evaluados = if (!no) NA_character_ else if (sv == no)
-          "sin_valor" else "sin_medida"
+        n_no_evaluados = ne$no,
+        motivo_no_evaluados = ne$motivo,
+        n_sin_valor = sv,
+        entidad_referida = x$spec$entidad_ref
+      )
+      filas[[length(filas) + 1L]] <- .cerrar_fila_dbi(
+        fila_ref, instancia, q$n_filas, q$n_filas_ref
       )
       next
     }
@@ -3903,19 +4185,15 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       ))
       next
     }
-    gran <- as.character(instancia$declaracion$granularidad)[[1L]]
+    unidad <- .unidad_universo_instancia(instancia)
     base_univ <- if (identical(x$spec$nodo, "no_ausente")) res$univ else res$rec
-    esperadas <- if (identical(gran, "instanciaAtributo")) {
+    esperadas <- if (identical(unidad, "celda")) {
       base_univ * length(instancia$atributos)
     } else {
       base_univ
     }
-    no <- esperadas - res$den
-    sv <- if (identical(gran, "instanciaEntidad") && !length(instancia$atributos)) {
-      NA_real_
-    } else {
-      res$sv
-    }
+    sv <- if (!length(.columnas_valor_instancia(instancia))) NA_real_ else res$sv
+    ne <- .no_evaluados_resumen(esperadas, res$den, sv)
     al <- .alcance_medidas_desde_conteos(instancia, esperadas, res$den, sv)
     if (!is.null(al)) alcances[[length(alcances) + 1L]] <- al
     atributo <- if (identical(x$spec$objeto, "celda")) {
@@ -3928,7 +4206,7 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     } else {
       x$spec$entidad
     }
-    filas[[length(filas) + 1L]] <- .fila_resumen(
+    fila_sql <- .fila_resumen(
       instancia, id_medicion, fecha, x$spec$entidad, atributo, objeto,
       resultado = res$num / res$den,
       agregacion = "ratio",
@@ -3936,10 +4214,12 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       numerador = res$num,
       denominador = res$den,
       n_universo = esperadas,
-      n_no_evaluados = no,
-      motivo_no_evaluados = if (!no) NA_character_ else if (!is.na(sv) && sv == no)
-        "sin_valor" else "sin_medida"
+      n_no_evaluados = ne$no,
+      motivo_no_evaluados = ne$motivo,
+      n_sin_valor = sv,
+      unidad = unidad
     )
+    filas[[length(filas) + 1L]] <- .cerrar_fila_dbi(fila_sql, instancia, res$n_filas)
   }
 
   # Ejecutar metricas por bloques agrupadas por entidad (una pasada por entidad).
@@ -3947,6 +4227,10 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     entidades_b <- unique(vapply(pendientes_bloques, `[[`, character(1L), "entidad"))
     for (eb in entidades_b) {
       items_b <- Filter(function(x) identical(x$entidad, eb), pendientes_bloques)
+      # La lectura por bloques no lleva agregados donde poner el contador del
+      # motor: si hay contador, se lee antes y despues, y la lectura vale como
+      # instantanea solo si los dos coinciden.
+      antes <- .leer_contador_tabla_dbi(con, p$esquemas[[eb]], contadores[[eb]], contador)
       acums <- .ejecutar_bloques_entidad_medicion(
         conexion = con, esq = p$esquemas[[eb]], items = items_b,
         motor = motor, bloque_filas = args$bloque_filas,
@@ -3956,6 +4240,27 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
         validadores_personales = validadores_personales,
         contador = contador
       )
+      despues <- .leer_contador_tabla_dbi(con, p$esquemas[[eb]], contadores[[eb]], contador)
+      instantanea_b <- if (!is.na(antes) && identical(antes, despues)) antes else if (
+        !is.na(antes) && !is.na(despues)) paste0("cambio:", antes, "->", despues) else NA_character_
+      if (length(acums)) {
+        a1 <- acums[[1L]]
+        # Un cursor es una sentencia; los rangos de `rowid` y las paginas son
+        # varias, y se registran como dos lecturas -el conteo del principio y lo
+        # recorrido-: sin contador, solo se comparan sus filas.
+        paginada <- !is.null(a1$n_inicio) && !is.na(a1$n_inicio)
+        if (paginada) {
+          registrar(eb, a1$n_inicio, instantanea_b, paste0("bloques-inicio:", eb))
+        }
+        registrar(eb, a1$n_filas,
+                  if (!is.na(instantanea_b) && startsWith(instantanea_b, "cambio:")) {
+                    antes
+                  } else instantanea_b,
+                  paste0("bloques:", eb))
+        if (!is.na(instantanea_b) && startsWith(instantanea_b, "cambio:") && !paginada) {
+          registrar(eb, a1$n_filas, instantanea_b, paste0("bloques-cierre:", eb))
+        }
+      }
       for (a in acums) {
         fin <- .finalizar_bloque_acumulado(a, id_medicion, fecha)
         if (!is.null(fin$fila)) filas[[length(filas) + 1L]] <- fin$fila
@@ -3978,8 +4283,14 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     )
   }
   resultado <- resultado[.COLUMNAS_RESUMEN]
+  lecturas <- .unir_lecturas(lecturas)
+  resultado <- .estado_cuentas_lecturas(resultado, lecturas)
+  attr(resultado, "lecturas") <- lecturas
+  .avisar_cuentas_resumen(resultado)
   if (length(coberturas)) {
-    cobertura <- do.call(rbind, coberturas)
+    cobertura <- do.call(
+      rbind, lapply(coberturas, .ubicar_cobertura_metricas, modelo)
+    )
     cobertura <- cobertura[
       .orden_por_bytes(match(cobertura$metrica_instanciada, orden_modelo)),
       , drop = FALSE
@@ -4008,9 +4319,10 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   attr(resultado, "configuracion_aplicabilidad") <-
     .texto_configuracion_calidad(aplicabilidad)
   # La misma huella que en memoria: la definicion no depende de donde se mide.
+  # Salvo la de un referencial del motor, que es la tabla de ESTA base.
   attr(resultado, "sello_metricas") <- .sello_metricas(
-    modelo, id_medicion, aplicabilidad, orden_texto,
-    .lector_esquemas(p$esquemas)
+    .fuente_referenciales_dbi(modelo, con), id_medicion, aplicabilidad,
+    orden_texto, .lector_esquemas(p$esquemas)
   )
   attr(resultado, "detalle") <- "resumen"
   if (!isTRUE(proteger_datos_personales) && nrow(resultado)) {

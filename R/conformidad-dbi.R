@@ -92,8 +92,18 @@
 }
 
 # El servidor se identifica por su ubicacion (archivo, anfitrion, puerto, base)
-# y solo se guarda su huella: ni el usuario ni la ruta viajan en la bateria.
+# y solo se guarda su huella: ni el usuario ni la ruta viajan en la bateria. La
+# misma huella identifica la fuente de un referencial del motor en el sello.
 .identidad_conformidad_dbi <- function(conexion, motor, senas) {
+  list(
+    motor = motor,
+    version = as.character(senas$version %||% NA_character_),
+    intercalacion = as.character(senas$intercalacion %||% NA_character_),
+    servidor = .lugar_conexion_dbi(conexion)
+  )
+}
+
+.lugar_conexion_dbi <- function(conexion) {
   info <- .info_senas_conexion_dbi(conexion)
   nombres <- names(info)
   if (is.null(nombres)) nombres <- character()
@@ -106,14 +116,7 @@
     paste0(normales[[i]], "=", paste(as.character(unlist(info[[i]])),
                                     collapse = ","))
   }, character(1L))
-  list(
-    motor = motor,
-    version = as.character(senas$version %||% NA_character_),
-    intercalacion = as.character(senas$intercalacion %||% NA_character_),
-    servidor = .huella_conformidad_dbi(c(
-      class(conexion)[[1L]], .sort_por_bytes(partes)
-    ))
-  )
+  .huella_conformidad_dbi(c(class(conexion)[[1L]], .sort_por_bytes(partes)))
 }
 
 .formulas_conformidad <- function(x) {
@@ -1072,6 +1075,90 @@
   )
 }
 
+# Las metricas referenciales no tienen especificacion: `medir_dbi()` las mide
+# con su propia via (`R/referencial-dbi.R`). La igualdad por bytes es la de las
+# demas reglas; lo propio de esta via es el pliegue de la normalizacion, que el
+# motor escribe con `LOWER()` fuera de su guarda. La bateria lo comprueba en el
+# servidor: cada caracter ASCII en tres posiciones contra tres bases, como
+# valores inventados en un `SELECT`, y cuenta los pares que el motor y R
+# declaran iguales fuera de la guarda, con el perfil de la metrica.
+.casos_referencial_conformidad <- function(conexion, instancia, motor, senas) {
+  fila <- function(r, caso) {
+    r$accion <- .accion_conformidad(r$conformidad, r$causa, instancia, NULL)
+    list(.fila_conformidad(
+      instancia, "referencial", motor, senas, caso, NA_character_, "siempre", r
+    ))
+  }
+  if (!motor %in% .MOTORES_REFERENCIAL_DBI) {
+    return(fila(list(
+      conformidad = "abstencion", causa = "traduccion",
+      motivo = paste0(
+        "las m\u00e9tricas referenciales se miden en el motor en SQLite y ",
+        "DuckDB; en `", motor, "` medir_dbi() no las mide"
+      )
+    ), "regla"))
+  }
+  referencia <- instancia$referencial
+  if (!.referencial_en_motor(referencia)) {
+    return(fila(list(
+      conformidad = "abstencion", causa = "sin_especificacion",
+      motivo = paste0(
+        "el referencial est\u00e1 en memoria: medir_dbi() lo compara en R sobre ",
+        "los valores distintos (con `bloques`), no en el motor"
+      )
+    ), "regla"))
+  }
+  perfil <- .referencial_normalizacion(instancia, referencia)
+  columnas <- unique(c(instancia$atributos, referencia$clave, referencia$valor))
+  perfiles <- lapply(columnas, function(cn) .normalizacion_para_columna(perfil, cn))
+  perfiles <- perfiles[!duplicated(lapply(perfiles, unclass))]
+  caracteres <- intToUtf8(1:127, multiple = TRUE)
+  textos <- unique(c(paste0(caracteres, "ab"), paste0("a", caracteres, "b"),
+                     paste0("ab", caracteres)))
+  bases <- c("ab", "AB", "aB")
+  valores <- function(x) paste0(
+    "(", vapply(x, function(v) as.character(DBI::dbQuoteString(conexion, v)), ""),
+    ")", collapse = ", "
+  )
+  filas <- list()
+  for (k in seq_along(perfiles)) {
+    p <- perfiles[[k]]
+    lado <- function(e) .sql_texto_binario_dbi(
+      if (isTRUE(p$minusculas)) paste0("LOWER(", e, ")") else e, motor
+    )
+    sql <- paste0(
+      "WITH lupa_t(x) AS (VALUES ", valores(textos), "), lupa_b(y) AS (VALUES ",
+      valores(bases), ") SELECT x, y, CASE WHEN ", lado("x"), " = ", lado("y"),
+      " THEN 1 ELSE 0 END AS igual, CASE WHEN ", .sql_guarda_pliegue_dbi("x", motor, p),
+      " THEN 1 ELSE 0 END AS guarda FROM lupa_t CROSS JOIN lupa_b"
+    )
+    r <- tryCatch(.traer_consulta_dbi(conexion, sql), error = function(e) e)
+    caso <- paste0("pliegue_ascii", if (length(perfiles) > 1L) paste0("_", k))
+    if (inherits(r, "error")) {
+      filas <- c(filas, fila(list(
+        conformidad = "no_evaluada",
+        motivo = paste0("la bater\u00eda no pudo evaluar el caso: ", .mensaje_motor(r))
+      ), caso))
+      next
+    }
+    fuera <- as.numeric(r$guarda) == 0
+    en_r <- .normalizacion_aplicar(as.character(r$x), p) ==
+      .normalizacion_aplicar(as.character(r$y), p)
+    en_motor <- as.numeric(r$igual) == 1
+    coincide <- all(en_r[fuera] == en_motor[fuera])
+    filas <- c(filas, fila(list(
+      n_motor = sum(en_motor[fuera]), n_r = sum(en_r[fuera]),
+      den_motor = sum(fuera), den_r = sum(fuera), coincide = coincide,
+      conformidad = if (coincide) "conforme" else "no_conforme",
+      motivo = if (!coincide) paste0(
+        "el motor pliega el texto ASCII distinto que la normalizaci\u00f3n de R en ",
+        sum(en_r[fuera] != en_motor[fuera]), " de ", sum(fuera), " pares"
+      )
+    ), caso))
+  }
+  filas
+}
+
 .fila_conformidad <- function(instancia, nodo, motor, senas, caso, esquema,
                               condicion, r) {
   numero <- function(x) if (is.null(x) || !length(x)) NA_real_ else as.numeric(x)
@@ -1160,6 +1247,9 @@
 .casos_instancia_conformidad <- function(conexion, instancia, motor, senas,
                                          reales, aplicabilidad, max_valores_in) {
   spec <- .especificacion_metrica(instancia)
+  if (.es_metrica_referencial_dbi(instancia)) {
+    return(.casos_referencial_conformidad(conexion, instancia, motor, senas))
+  }
   if (is.null(spec) || identical(spec$nodo, "abstencion")) {
     r <- list(
       conformidad = "abstencion", causa = "sin_especificacion",
@@ -1334,7 +1424,11 @@
     if (length(siempre)) {
       # Lo que el motor cuenta distinto se lee por bloques en R si se pidio,
       # por la misma via que lo que no se traduce; si no, queda no_medible.
-      plan$via <- if (.admite_bloques_medicion_dbi(
+      plan$via <- if (isTRUE(plan$referencial_motor) &&
+                      identical(estrategia_no_sql, "bloques")) {
+        # El referencial del motor se compara en R sobre los valores distintos.
+        "distintos_r"
+      } else if (.admite_bloques_medicion_dbi(
         estrategia_no_sql, plan$instancia, plan$spec, plan$columnas_bloque
       )) "bloques_r" else "no_medible"
       plan$motivo <- motivo_de(siempre)

@@ -52,9 +52,34 @@
     "bloques (real por celda)", "bloques (real por celda)",
     "bloques (limite por fila)", "bloques (limites por fila)",
     "bloques (real por fila)",
-    "no_medible (referencial externo en memoria)",
-    "no_medible (referencial externo en memoria)",
-    "no_medible (referencial externo en memoria)"
+    "sql_dedicado_referencial (referencial del motor) o distintos_r (bloques)",
+    "sql_dedicado_referencial (referencial del motor) o distintos_r (bloques)",
+    "sql_dedicado_referencial (referencial del motor) o distintos_r (bloques)"
+  ),
+  # Que elementos declara evaluar cada metrica: los que tienen valor en sus
+  # columnas de valor (`excluye`) o tambien los vacios (`incluye`). Es lo que
+  # decide la primera linea de su metodo -`which(!is.na(x))` o todas las filas-
+  # y lo que el control de las cuentas del resumen compara con lo no evaluado.
+  # `excluye_sin_texto`: tampoco evalua el texto que, normalizado, queda vacio
+  # (`EntidadContradictoria` compara textos). `NA`: la metrica no da cuentas (un
+  # estadistico por columna).
+  universo_vacios = c(
+    "incluye", "excluye", "excluye",
+    "incluye", "excluye",
+    NA, "excluye", "excluye",
+    "excluye", "incluye", "incluye",
+    "excluye_sin_texto", "excluye",
+    "excluye", "excluye",
+    "excluye", "excluye",
+    "excluye", "excluye",
+    "excluye", "excluye",
+    "incluye", "excluye", "excluye",
+    "excluye"
+  ),
+  # La unidad del universo cuando no es la de la granularidad: las correctitudes
+  # del referencial son de atributo, pero miden la fila de su clave (y valor).
+  universo_unidad = c(
+    rep(NA_character_, 22L), "fila", "fila", NA_character_
   ),
   stringsAsFactors = FALSE
 )
@@ -734,6 +759,11 @@
   pk <- .obtener_columna_modelo(ref, spec$pk, spec$entidad_ref)
   fk <- .obtener_columna_modelo(dep, spec$fk, spec$entidad_dep)
   if (!nrow(dep)) return(list(vacia = TRUE))
+  # `NaN` es un vacio, como para `is.na()`: contarlo como un valor presente sin
+  # pareja ponia un huerfano en el denominador que tambien estaba entre los
+  # vacios, y las cuentas no cerraban. Lo mismo hace el motor.
+  pk <- .nan_como_vacio(pk)
+  fk <- .nan_como_vacio(fk)
   .cobertura_referencial_par(
     pk, fk, muestra = instancia$configuracion$muestra
   )

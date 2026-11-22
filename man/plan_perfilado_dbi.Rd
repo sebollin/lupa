@@ -34,7 +34,13 @@ plan_perfilado_dbi(
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   cadenas_ausencia = NULL,
   clave = NULL,
-  compilar = FALSE
+  compilar = FALSE,
+  centinelas_fecha = NULL,
+  dominios = NULL,
+  periodos = NULL,
+  resumen_fechas = FALSE,
+  fecha = NULL,
+  estrategia_no_sql = c("no_medible", "bloques")
 )
 }
 \arguments{
@@ -321,10 +327,12 @@ filas.}
 se excluyen de la predicción de consultas exactas de faltantes.}
 
 \item{sentinelas_numericos}{Valores numéricos que se consideran faltantes al
-anticipar las consultas de la métrica nueva.}
+anticipar las consultas de la métrica nueva. Acepta la lista por columna
+de \code{\link[=perfilar]{perfilar()}}, resuelta contra las columnas de la tabla.}
 
 \item{cadenas_ausencia}{Cadenas adicionales que se consideran ausencia
-textual al anticipar las consultas de la métrica nueva.}
+textual al anticipar las consultas de la métrica nueva. Acepta la lista
+por columna de \code{\link[=perfilar]{perfilar()}}.}
 
 \item{clave}{Vector opcional con nombres de columnas clave para el muestreo
 reproducible por huella en el motor cuando no se especifica \code{orden_muestra}.
@@ -334,6 +342,26 @@ cuenta la consulta de verificación de unicidad.}
 \item{compilar}{Si es \code{TRUE}, le pide al motor que compile, sin ejecutarlas
 ni traer filas, las consultas SQL que el plan construye, y publica una fila
 por sentencia en \code{attr(plan, "compilacion")}. Ver la sección Compilación.}
+
+\item{centinelas_fecha, dominios, periodos, resumen_fechas, fecha}{Los mismos
+que recibe \code{\link[=perfilar_dbi]{perfilar_dbi()}} por \code{...} (ver \code{\link[=perfilar]{perfilar()}}). Con
+\code{resumen_fechas = TRUE} el plan cuenta la consulta de cuentas de fechas y,
+en el extremo superior, la de la reserva de las centinelas incorporadas, una
+de la grilla por columna de fecha y, con \code{estrategia_no_sql = "bloques"},
+una lectura por columna que se cuente en R; con \code{periodos}, una consulta
+más. Sólo en SQLite y DuckDB y sobre la tabla completa: en lo demás el
+resumen se declara y no consulta.}
+
+\item{estrategia_no_sql}{Qué hacer, con \code{resumen_fechas = TRUE}, con una
+columna de fecha que el SQL no cuenta como R la lee: \code{"no_medible"} (por
+omisión) la declara \code{no_disponible} en \code{resumen_tabla$sql} con el motivo, y
+\code{"bloques"} la lee en R por bloques, con el mismo controlador, y la cuenta
+con la misma regla. Son tres casos: una columna de SQLite que guarda las
+fechas como texto (lo que deja un CSV importado; se mide con \code{typeof()}),
+instantes a menos de un segundo de una fecha centinela lejana con
+resolución de microsegundos (R los lee como esa fecha) y una columna de
+texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
+la columna entera. Mismo nombre y valores que en \code{\link[=medir_dbi]{medir_dbi()}}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},

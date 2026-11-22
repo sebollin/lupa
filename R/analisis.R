@@ -493,7 +493,9 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     muestra_para_asociacion,
     max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
     metodo_numerico = metodo_asociacion_numerica,
-    sentinelas_numericos = perfil$meta[["sentinelas_numericos"]]
+    sentinelas_numericos = .declaracion_desde_meta(
+      perfil$meta, "sentinelas_numericos"
+    )
   )
   cobertura_asociaciones <- attr(
     asociaciones, "cobertura_diagnosticos", exact = TRUE

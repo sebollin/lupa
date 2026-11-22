@@ -97,7 +97,7 @@
 # cadenas declaradas-, calculada por la misma funcion. Ver
 # `.faltantes_disfrazados_columna()`. Devuelve tambien el tipo inferido, que
 # `.resumen_casi_clave()` calculaba por su cuenta.
-.contexto_casi_clave <- function(x, perfil = NULL) {
+.contexto_casi_clave <- function(x, perfil = NULL, columna = NULL) {
   preparacion <- .texto_analizable(x)
   x_analisis <- preparacion$valores
   n <- length(x_analisis)
@@ -121,13 +121,15 @@
   secuencia <- .resumen_secuencia_entera(x_analisis, inferencia, formatos)
   # Con un perfil, la politica que ese perfil declaro; sin el, la de
   # `perfilar()` por omision.
+  # La de ESTA columna si el perfil declaro por columna.
   sentinelas <- .numeros_na_locales
   cadenas <- NULL
   if (inherits(perfil, "perfil") && is.list(perfil$meta)) {
-    if (!is.null(perfil$meta$sentinelas_numericos)) {
-      sentinelas <- perfil$meta$sentinelas_numericos
+    politica <- .ausencias_de_columna(perfil$meta, columna)
+    if (!is.null(politica$sentinelas)) {
+      sentinelas <- politica$sentinelas
     }
-    cadenas <- perfil$meta$cadenas_ausencia
+    cadenas <- politica$cadenas
   }
   disfrazados <- .faltantes_disfrazados_columna(
     x_analisis, inferencia, formatos, secuencia, sentinelas,
@@ -464,7 +466,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       columna <- if (i %in% simples || NROW(datos[[i]]) < .min_filas_casi_clave) {
         list(tipo = NULL, disfrazados = NULL)
       } else {
-        .contexto_casi_clave(datos[[i]], perfil)
+        .contexto_casi_clave(datos[[i]], perfil, columna = names(datos)[[i]])
       }
       resumen <- .resumen_casi_clave(
         datos[[i]], tipo_implicito = columna$tipo,

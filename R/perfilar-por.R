@@ -604,9 +604,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   } else {
     eval(formals(perfilar)$umbral_faltantes_sospechoso)
   }
-  hay_centinelas_declarados <- length(
-    .sentinelas_numericos_declarados(sentinelas_columna)
-  ) > 0L
+  # Por columna: con la forma por columna, una columna declarada no hace
+  # declaradas a las demas.
+  centinelas_declarados_en <- function(nombre_columna) {
+    length(.sentinelas_numericos_declarados(
+      .sentinelas_de_columna(sentinelas_columna, nombre_columna)
+    )) > 0L
+  }
   # "La columna entera" es la que `perfilar()` mide con la MISMA declaracion:
   # las filas que `aplicabilidad` deja fuera no son de la columna. Las tres
   # senales se calculaban sobre todos los valores presentes. Medido:
@@ -644,7 +648,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       valores[!as.logical(mascara)] <- NA
     }
     contexto <- .contexto_decisiones_columna(
-      valores, sentinelas_columna, muestra = muestra_columna,
+      valores, .sentinelas_de_columna(sentinelas_columna, nombre_columna),
+      muestra = muestra_columna,
       clave_declarada = "clave" %in% names(extras) &&
         .nombres_para_operar(nombre_columna) %in%
           .nombres_para_operar(extras$clave)
@@ -873,6 +878,24 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         extras_grupo$dominios <- declaradas[!recortar]
       }
     }
+    # La declaracion de ausencias por columna, como `dominios`: una entrada de
+    # una columna que la rebanada no tiene se recorta y se declara.
+    for (arg in c("sentinelas_numericos", "cadenas_ausencia")) {
+      declaradas <- extras_grupo[[arg]]
+      if (!.es_ausencias_por_columna(declaradas) || !length(declaradas)) next
+      indices_original <- .indice_nombre(names(declaradas), names(datos))
+      indices_rebanada <- .indice_nombre(names(declaradas), names(rebanada))
+      recortar <- !is.na(indices_original) & is.na(indices_rebanada)
+      if (any(recortar)) {
+        for (indice in which(recortar)) {
+          registrar_recorte(paste0(
+            names(declaradas)[[indice]], " [", arg,
+            ": la columna no est\u00e1 en la rebanada]"
+          ))
+        }
+        extras_grupo[[arg]] <- declaradas[!recortar]
+      }
+    }
 
     # El nombre del elemento de `aplicabilidad` no alcanza para saber si la
     # regla puede viajar: la formula tambien puede mencionar la columna de
@@ -1068,8 +1091,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         )
       )
     }
-    if (nrow(perfil$hallazgos) && length(columnas_densas) &&
-          !hay_centinelas_declarados) {
+    densas_sin_declarar <- columnas_densas[!vapply(
+      columnas_densas, centinelas_declarados_en, logical(1L)
+    )]
+    if (nrow(perfil$hallazgos) && length(densas_sin_declarar)) {
       # Los faltantes disfrazados ya se contaron con la guarda de la columna
       # entera, dentro del perfil del grupo, y lo que esa guarda protege no
       # llego a ningun hallazgo: ni a `faltantes_disfrazados` ni a `faltantes`
@@ -1081,7 +1106,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       mover_a_cobertura(
         perfil$hallazgos$tipo_hallazgo == "posible_centinela_numerico" &
           .nombres_para_operar(perfil$hallazgos$columna) %in%
-            .nombres_para_operar(columnas_densas),
+            .nombres_para_operar(densas_sin_declarar),
         "centinelas_numericos",
         paste(
           "La columna es una secuencia entera densa en la tabla completa, y",
@@ -1373,6 +1398,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   nombres <- names(rebanada)
   nombres_texto <- .marcar_utf8_textos(nombres)
+  con_ausencias_propias <- function(nombre) {
+    any(vapply(c("sentinelas_numericos", "cadenas_ausencia"), function(a) {
+      declaracion <- arg(a)
+      .es_ausencias_por_columna(declaracion) &&
+        !is.na(.indice_nombre(nombre, names(declaracion)))
+    }, logical(1L)))
+  }
   opcionales <- arg("columnas_opcionales")
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     rebanada, nombres, opcionales, if (length(reglas)) reglas else NULL
@@ -1386,8 +1418,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   vistos <- list()
   resultados <- lapply(seq_along(rebanada), function(i) {
     x <- rebanada[[i]]
+    # Una columna con declaracion propia de ausencias no comparte perfil con
+    # otra del mismo tipo: la declaracion cambia lo que se cuenta.
     reutilizable <- is.null(aplicabilidad_resuelta$mascaras[[i]]) &&
-      !es_codigo[[i]]
+      !es_codigo[[i]] && !con_ausencias_propias(nombres[[i]])
     clave_tipo <- paste(
       c(typeof(x), oldClass(x), if (is.factor(x)) levels(x)), collapse = "\r"
     )
@@ -1399,9 +1433,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     resultado <- .perfilar_columna(
       x, nombres[[i]], nrow(rebanada), arg("max_patrones"),
       arg("distinguir_mayusculas"), arg("expandir"), arg("umbral_patron_raro"),
-      arg("sentinelas_numericos"),
+      .sentinelas_de_columna(arg("sentinelas_numericos"), nombres[[i]]),
       aplicable = aplicabilidad_resuelta$mascaras[[i]],
-      cadenas_ausencia = arg("cadenas_ausencia"),
+      cadenas_ausencia = .cadenas_de_columna(arg("cadenas_ausencia"), nombres[[i]]),
       codigo = es_codigo[[i]],
       max_largo_valor_vocabulario = arg("max_largo_valor_vocabulario")
     )

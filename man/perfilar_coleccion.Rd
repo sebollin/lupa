@@ -11,7 +11,9 @@ perfilar_coleccion(
   cobertura_metricas = c("no_medidas", "completa", "ninguna"),
   tope_cobertura_metricas = 20000L,
   bloque_muestra = c("con_muestra", "solo_agregados"),
-  ...
+  ...,
+  directorio_reanudacion = NULL,
+  reanudar = FALSE
 )
 }
 \arguments{
@@ -139,11 +141,24 @@ propios de \code{\link[=perfilar_dbi]{perfilar_dbi()}} —\code{estrategia_disti
 tabla: uno mal escrito deja cada tabla en \code{cobertura_coleccion} con ese
 motivo y sin aviso. Es una limitación conocida: si ninguna tabla se
 perfiló, mirar el motivo antes de sospechar de los permisos.}
+
+\item{directorio_reanudacion}{\code{NULL} —por omisión: no se guarda nada y la
+llamada es la de siempre— o la ruta de un directorio donde guardar la
+corrida para poder reanudarla; se crea si no existe. Ver «Reanudar una
+corrida cortada».}
+
+\item{reanudar}{\code{FALSE} (por omisión) empieza una corrida nueva; \code{TRUE} sigue
+la corrida compatible más reciente de \code{directorio_reanudacion}. Ver
+«Reanudar una corrida cortada».}
 }
 \value{
 Objeto de clase \code{perfil_coleccion} con \code{resumen_coleccion},
 \code{cobertura_coleccion}, \code{cobertura_metricas}, \code{meta} y, si se pidió,
-\code{perfiles}.
+\code{perfiles}. Con \code{directorio_reanudacion}, \code{meta$reanudacion} describe la
+corrida: \code{corrida}, \code{directorio}, \code{creada}, \code{intento}, \code{reanudada},
+\code{tablas} —una fila por tabla, con \code{origen} (\code{"reusada"} o \code{"perfilada"}),
+\code{motivo} por el que se perfiló y \code{estado} (\code{"limpia"}, \code{"degradada"} o
+\code{"fallida"})—, \code{lineas_descartadas} y \code{fecha}.
 }
 \description{
 Recorre las tablas declaradas en \code{\link[=coleccion]{coleccion()}} y devuelve \strong{una fila por
@@ -211,7 +226,77 @@ inexistentes», aunque \code{como_resolverlo} hable de permisos—; con
 pierde la muestra. \code{columnas_sin_ceros} y \code{columnas_no_negativas} no la
 afectan. Para declarar columnas que no están en todas las tablas, perfilar
 esas tablas por separado o partir la colección.
+
+\strong{La declaración de ausencias, por tabla.} \code{sentinelas_numericos} y
+\code{cadenas_ausencia} aceptan, además del vector que vale para todas las tablas,
+una lista nombrada por identificador de tabla —como \code{columnas_candidatas} de
+\code{\link[=relaciones_coleccion]{relaciones_coleccion()}}— cuyos elementos son lo que acepta \code{\link[=perfilar]{perfilar()}}: un
+vector o una lista por columna, \code{list(personas = list(edad = 99))}. Las
+tablas que la lista no nombra reciben el valor por omisión, y un nombre que
+no es tabla de la colección es un error antes de leer
+(\code{lupa_error_argumento_dbi}). \code{\link[=ausencias_desde_propuesta]{ausencias_desde_propuesta()}} arma esta lista.
 }
+\section{Reanudar una corrida cortada}{
+
+Una colección grande puede tardar horas. Con \code{directorio_reanudacion}, cada
+tabla que se perfila sin consultas fallidas se guarda en ese directorio en
+cuanto termina —un subdirectorio por corrida—, y si la corrida se corta —el
+proceso muere, se cae la máquina, se la interrumpe, o la conexión se cae y
+las tablas que siguen fallan— la misma llamada con \code{reanudar = TRUE} sigue
+desde ahí: las tablas guardadas no vuelven a consultar la base, y se vuelven
+a perfilar las que faltan, las que tuvieron alguna consulta fallida y las que
+no se pudieron perfilar. No hace falta saber si la conexión se cayó: una
+tabla que la perdió a mitad termina con consultas fallidas o sin perfil, y se
+rehace. El objeto que se devuelve es el mismo que el de una corrida sin
+cortes, salvo lo que describe la ejecución: \code{meta$inicio}, \code{meta$fin}, la
+duración de cada consulta en \code{meta$lecturas} y \code{resumen_coleccion$momento},
+que para una tabla reusada es el de su medición original. \code{meta$reanudacion}
+dice qué corrida se siguió y, por tabla, si se reusó o se perfiló y por qué.
+\itemize{
+\item \code{reanudar = FALSE} (por omisión) empieza siempre una corrida nueva, aunque
+el directorio tenga otras. \code{reanudar = TRUE} sigue la corrida compatible
+más reciente y dice de cuándo es. Si esa ya terminó con todas sus tablas, o
+si no hay ninguna compatible, se niega con un error de clase
+\code{lupa_error_reanudacion} que dice por qué —\code{e$motivo} es \code{"terminada"},
+\code{"sin_corrida"}, \code{"bloqueada"}, \code{"base_cambiada"}, …— y no empieza otra
+por su cuenta. No vuelve a una corrida sin terminar más vieja que una
+terminada: publicaría datos más viejos que una medición completa.
+\item Compatible es la misma base, las mismas tablas declaradas y en el mismo
+orden, los mismos argumentos —el error nombra el que difiere— y la misma
+versión de lupa, de R y del controlador. \code{fecha} no cuenta: la corrida
+reanudada usa la de la original, aunque se pase otra, y lo avisa, porque
+\code{fecha} cambia los hallazgos de fechas.
+\item La base se reconoce por su archivo: en SQLite y DuckDB, la ruta que da el
+motor de cada base que nombra la colección. Una base en memoria o temporal
+no sobrevive al proceso y se rechaza. En un motor de servidor la
+reanudación se rechaza por ahora: la identidad que declara cada servidor
+todavía no está comprobada, y sin ella podría mezclar tablas de dos bases.
+No se guardan la conexión ni sus credenciales.
+\item Si la base cambió desde el corte —se escribió, o el archivo se reemplazó
+por otro en la misma ruta, y cambió su tamaño o su fecha de
+modificación—, no se reanuda: las tablas guardadas la describirían como
+era y las que faltan como es, y el resultado no sería el de ninguna
+corrida. El error (\code{e$motivo} es \code{"base_cambiada"}) dice qué cambió; una
+corrida nueva, con \code{reanudar = FALSE}, la mide entera. Abrir, leer y
+perfilar la base no cuentan como cambio.
+\item Se rechaza con \code{proteger_datos_personales = TRUE} o
+\code{incluir_valores = FALSE}: para que lo reanudado sea igual habría que
+guardar en el disco los mensajes del motor tal como llegaron y los valores
+protegidos, que es lo que esa protección promete no publicar. Y con un
+argumento que no se puede comparar entre dos sesiones —un ambiente, un
+objeto S4—.
+\item Dos procesos no siguen la misma corrida a la vez: la toma el primero. El
+bloqueo se suelta al terminar, ante un error y ante una interrupción; si el
+proceso murió de golpe —\code{kill -9}, \code{SIGTERM}, un corte de luz— queda
+tomado, y el error dice qué proceso lo tomó, en qué máquina, desde cuándo y
+qué directorio borrar si se sabe que ese proceso ya no corre. lupa no lo
+borra solo.
+\item El directorio guarda el perfil completo de cada tabla, con lo que el
+perfil publica de los datos: tratarlo como a los datos. Las corridas no se
+borran solas.
+}
+}
+
 \examples{
 if (requireNamespace("RSQLite", quietly = TRUE) &&
     requireNamespace("DBI", quietly = TRUE)) {

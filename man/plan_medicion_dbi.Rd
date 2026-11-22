@@ -80,8 +80,11 @@ se pide, \code{compilacion}.
 \description{
 Clasifica cada métrica del modelo según la vía con que se medirá en el motor
 (\code{sql_consolidado}, \code{sql_dedicado}, \code{sql_dedicado_referencial}, \code{bloques_r},
-\code{no_medible}, \code{no_medible_metodo} o \code{abstencion}) y estima las consultas
-necesarias, sin leer filas de ninguna tabla.
+\code{distintos_r}, \code{no_medible}, \code{no_medible_metodo} o \code{abstencion}) y estima las
+consultas necesarias, sin leer filas de ninguna tabla. Un referencial del
+motor suma la consulta de esquema de su tabla y una validación de su clave
+por tabla y clave, que comparten las métricas que lo usan (en \code{dedicadas});
+\code{distintos_r} cuenta en \code{bloques}.
 }
 \details{
 Sólo consulta el esquema (\verb{SELECT * ... WHERE 1 = 0} y metadatos del motor).

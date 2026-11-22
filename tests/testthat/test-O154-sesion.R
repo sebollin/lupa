@@ -565,6 +565,9 @@ test_that("Guarda: toda exportada que lee de una conexion lee con LC_NUMERIC en 
     perfilar_coleccion = function() perfilar_coleccion(declarada),
     estimar_costo_coleccion = function() estimar_costo_coleccion(declarada),
     relaciones_coleccion = function() relaciones_coleccion(declarada, pares = pares),
+    detectar_tablas_codigos = function() detectar_tablas_codigos(
+      declarada, perfilar_coleccion(declarada)
+    ),
     medir_dbi = function() medir_dbi(modelo_o154, con),
     plan_medicion_dbi = function() plan_medicion_dbi(modelo_o154, con),
     conformidad_dbi = function() conformidad_dbi(con, modelo_o154)

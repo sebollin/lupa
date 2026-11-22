@@ -79,6 +79,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 }
 
 .normalizar_sentinelas_numericos <- function(valores) {
+  .rechazar_ausencias_sin_resolver(valores, "sentinelas_numericos")
   if (is.null(valores) || !length(valores)) return(numeric())
   numericos <- suppressWarnings(as.numeric(valores))
   numericos <- numericos[!is.na(numericos)]
@@ -98,6 +99,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 # numerico declarado atraviesa la de la secuencia densa: el paquete no tiene con
 # que contradecir a quien conoce el dato.
 .cadenas_ausencia_columna <- function(normalizados, cadenas_ausencia = NULL) {
+  .rechazar_ausencias_sin_resolver(cadenas_ausencia, "cadenas_ausencia")
   cadenas <- .cadenas_na()
   if (!.cadenas_na_locales_ambiguas_aplican(normalizados)) {
     cadenas <- setdiff(cadenas, .cadenas_na_ambiguas)

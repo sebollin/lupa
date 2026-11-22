@@ -10,7 +10,8 @@
   "metrica_instanciada", "dimension", "factor", "orientacion", "granularidad",
   "granularidad_origen", "tipo_resultado", "entidad", "atributo",
   "objeto_medible", "resultado", "agregacion", "numerador", "denominador",
-  "n_universo", "n_no_evaluados", "motivo_no_evaluados", "unidad_conteo"
+  "n_universo", "n_no_evaluados", "motivo_no_evaluados", "unidad_conteo",
+  .COLUMNAS_CUENTAS_RESUMEN
 )
 
 .TIPOS_NO_ACOTADOS_RESUMEN <- c("duracion", "entero", "numero_real")
@@ -57,6 +58,13 @@
     n_no_evaluados = numeric(),
     motivo_no_evaluados = character(),
     unidad_conteo = character(),
+    n_sin_valor = numeric(),
+    n_filas_leidas = numeric(),
+    entidad_referida = character(),
+    n_filas_leidas_referida = numeric(),
+    estado_cuentas = character(),
+    motivo_cuentas = character(),
+    diferencia_cuentas = numeric(),
     stringsAsFactors = FALSE
   )
 }
@@ -64,9 +72,14 @@
 .fila_resumen <- function(instancia, id_medicion, fecha, entidad, atributo,
                           objeto, resultado, agregacion, tipo_resultado,
                           numerador, denominador, n_universo,
-                          n_no_evaluados, motivo_no_evaluados) {
+                          n_no_evaluados, motivo_no_evaluados,
+                          n_sin_valor = NA_real_, unidad = NULL,
+                          entidad_referida = NA_character_) {
   gran <- as.character(instancia$declaracion$granularidad)[[1L]]
   destino <- .destino_tablero(gran)
+  if (is.null(unidad)) {
+    unidad <- if (identical(gran, "instanciaAtributo")) "celda" else "fila"
+  }
   .data_frame_simple(
     id_medida = "",
     id_medicion = as.character(id_medicion),
@@ -90,61 +103,49 @@
     n_universo = as.double(n_universo),
     n_no_evaluados = as.double(n_no_evaluados),
     motivo_no_evaluados = motivo_no_evaluados,
-    unidad_conteo = if (identical(gran, "instanciaAtributo")) "celda" else "fila",
+    unidad_conteo = unidad,
+    n_sin_valor = as.double(n_sin_valor),
+    n_filas_leidas = NA_real_,
+    entidad_referida = as.character(entidad_referida),
+    n_filas_leidas_referida = NA_real_,
+    estado_cuentas = NA_character_,
+    motivo_cuentas = NA_character_,
+    diferencia_cuentas = NA_real_,
     stringsAsFactors = FALSE
   )
 }
 
 .universo_instancia_resumen <- function(tablas_instancia, instancia, n_medidas,
                                         mascara_aplicable = NULL) {
-  gran <- as.character(instancia$declaracion$granularidad)[[1L]]
+  vacio <- list(n = NA_real_, no = NA_real_, motivo = NA_character_,
+                sv = NA_real_, unidad = NULL)
   tabla <- tablas_instancia[[instancia$entidad[[1L]]]]
-  if (!inherits(tabla, "data.frame")) {
-    return(list(n = NA_real_, no = NA_real_, motivo = NA_character_))
-  }
+  if (!inherits(tabla, "data.frame")) return(vacio)
   dentro <- tryCatch(
     .mascara_aplicable_instancia(
       tabla, instancia, mascara = mascara_aplicable
     ),
     error = function(e) NULL
   )
-  if (is.null(dentro)) {
-    return(list(n = NA_real_, no = NA_real_, motivo = NA_character_))
-  }
-  atributos <- instancia$atributos
-  esperadas <- if (identical(gran, "instanciaAtributo")) {
-    sum(dentro) * length(atributos)
+  if (is.null(dentro)) return(vacio)
+  # La unidad la declara la metrica: `CorrectitudSemDebil` es de atributo y mide
+  # la fila del par, y multiplicar por los atributos le daba un universo de 20
+  # para 10 filas.
+  unidad <- .unidad_universo_instancia(instancia)
+  esperadas <- if (identical(unidad, "celda")) {
+    sum(dentro) * length(instancia$atributos)
   } else {
     sum(dentro)
   }
-  if (n_medidas > esperadas) {
-    # Un metodo que produce mas medidas que elementos del universo aplicable no
-    # se tapa con cero no evaluados: se declara `medidas_repetidas`.
-    return(list(
-      n = as.double(esperadas),
-      no = NA_real_,
-      motivo = "medidas_repetidas"
-    ))
-  }
-  no <- esperadas - n_medidas
-  if (!no) {
-    return(list(n = as.double(esperadas), no = 0, motivo = NA_character_))
-  }
-  indices <- .indice_nombre(atributos, names(tabla))
-  sin_valor <- if (length(atributos) && !anyNA(indices)) {
-    celdas <- lapply(indices, function(i) is.na(tabla[[i]])[dentro])
-    if (identical(gran, "instanciaAtributo")) {
-      sum(vapply(celdas, sum, numeric(1L)))
-    } else {
-      sum(Reduce(`|`, celdas))
-    }
-  } else {
-    NA_real_
-  }
+  # Los vacios se cuentan siempre -tambien cuando no falta ninguna medida- y
+  # sobre las columnas de las que sale el valor, no solo sobre los atributos:
+  # el motor los cuenta en la misma consulta y las dos vias tienen que publicar
+  # lo mismo.
+  sv <- .sin_valor_instancia(tabla, instancia, dentro, unidad)
+  ne <- .no_evaluados_resumen(as.double(esperadas), as.double(n_medidas), sv)
   list(
-    n = as.double(esperadas),
-    no = as.double(no),
-    motivo = if (!is.na(sin_valor) && sin_valor == no) "sin_valor" else "sin_medida"
+    n = as.double(esperadas), no = ne$no, motivo = ne$motivo, sv = sv,
+    unidad = unidad
   )
 }
 
@@ -198,8 +199,8 @@
     if (isTRUE(ev$vacia) || is.na(ev$cobertura)) return(NULL)
     dep <- tablas_instancia[[spec$entidad_dep]]
     n_univ <- nrow(dep)
-    no <- n_univ - ev$denominador
-    sin_valor <- sum(is.na(dep[[spec$fk]]))
+    sin_valor <- as.double(sum(is.na(dep[[spec$fk]])))
+    ne <- .no_evaluados_resumen(as.double(n_univ), as.double(ev$denominador), sin_valor)
     fila <- .fila_resumen(
       instancia, id_medicion, fecha, spec$entidad_dep, spec$fk,
       .pegar_texto0(
@@ -212,9 +213,10 @@
       numerador = ev$numerador,
       denominador = ev$denominador,
       n_universo = n_univ,
-      n_no_evaluados = no,
-      motivo_no_evaluados = if (!no) NA_character_ else if (sin_valor == no)
-        "sin_valor" else "sin_medida"
+      n_no_evaluados = ne$no,
+      motivo_no_evaluados = ne$motivo,
+      n_sin_valor = sin_valor,
+      entidad_referida = spec$entidad_ref
     )
     attr(fila, "avisos_resumen") <- avisos
     return(fila)
@@ -245,14 +247,16 @@
     denominador = n,
     n_universo = universo$n,
     n_no_evaluados = universo$no,
-    motivo_no_evaluados = universo$motivo
+    motivo_no_evaluados = universo$motivo,
+    n_sin_valor = universo$sv,
+    unidad = universo$unidad
   )
   attr(fila, "avisos_resumen") <- avisos
   fila
 }
 
 .resumen_general <- function(instancia, medidas, tablas_instancia,
-                             mascara_aplicable = NULL) {
+                             mascara_aplicable = NULL, alcance = NULL) {
   validadas <- .validar_medidas_tablero(medidas)
   gran <- unique(validadas$granularidad)[[1L]]
   tipo <- unique(validadas$tipo_resultado)[[1L]]
@@ -269,6 +273,14 @@
   )
   es_instancia <- gran %in% c("instanciaAtributo", "instanciaEntidad")
   booleana <- identical(tipo, "booleano")
+  # La cobertura de un referencial es una proporcion de claves: su metodo
+  # publica las cubiertas y el universo, y el resumen las lleva como numerador y
+  # denominador, igual que `medir_dbi()`.
+  conteos_entidad <- if (!es_instancia && is.list(alcance) &&
+                         is.numeric(alcance$n_cubiertas) &&
+                         is.numeric(alcance$n_referencial)) {
+    list(num = alcance$n_cubiertas, den = alcance$n_referencial)
+  }
   filas <- lapply(seq_along(grupos), function(g) {
     i <- grupos[[g]]
     valores <- validadas$resultado[i]
@@ -280,7 +292,8 @@
         mascara_aplicable = mascara_aplicable
       )
     } else {
-      list(n = NA_real_, no = NA_real_, motivo = NA_character_)
+      list(n = NA_real_, no = NA_real_, motivo = NA_character_,
+           sv = NA_real_, unidad = NULL)
     }
     .fila_resumen(
       instancia, a$id_medicion, a$fecha, a$entidad, a$atributo,
@@ -295,11 +308,15 @@
         a$resultado,
       agregacion = a$agregacion,
       tipo_resultado = a$tipo_resultado,
-      numerador = if (booleana && es_instancia) sum(valores == 1) else NA_real_,
-      denominador = if (es_instancia) n else NA_real_,
+      numerador = if (booleana && es_instancia) {
+        sum(valores == 1)
+      } else conteos_entidad$num %||% NA_real_,
+      denominador = if (es_instancia) n else conteos_entidad$den %||% NA_real_,
       n_universo = universo$n,
       n_no_evaluados = universo$no,
-      motivo_no_evaluados = universo$motivo
+      motivo_no_evaluados = universo$motivo,
+      n_sin_valor = universo$sv,
+      unidad = universo$unidad
     )
   })
   list(filas = do.call(rbind, filas))
@@ -334,7 +351,7 @@
 .medir_resumen <- function(modelo, datos, id_medicion, fecha, fecha_declarada,
                            aplicabilidad, proteger_datos_personales,
                            columnas_personales, validadores_personales,
-                           orden_texto = "idioma") {
+                           orden_texto = "idioma", interno_bloque = FALSE) {
   if (!inherits(modelo, "modelo_calidad")) {
     .detener("`modelo` debe provenir de modelo().", call. = FALSE)
   }
@@ -374,7 +391,9 @@
     if (!is.null(rapida)) {
       avisos <- attr(rapida, "avisos_resumen", exact = TRUE)
       attr(rapida, "avisos_resumen") <- NULL
-      filas[[length(filas) + 1L]] <- rapida
+      filas[[length(filas) + 1L]] <- .cuentas_filas_memoria(
+        rapida, instancia, tablas
+      )
       parcial <- if (rapida$granularidad_origen %in%
                      c("instanciaAtributo", "instanciaEntidad")) {
         .alcance_medidas_instancia(
@@ -419,7 +438,8 @@
     if (!nrow(medidas)) next
     general <- .resumen_general(
       instancia, medidas, tablas_instancia,
-      mascara_aplicable = mascara_instancia
+      mascara_aplicable = mascara_instancia,
+      alcance = if (length(am)) am[[1L]]
     )
     if (isTRUE(general$no_resumible)) {
       coberturas[[length(coberturas) + 1L]] <- .cobertura_no_resumible(
@@ -427,7 +447,10 @@
       )
       next
     }
-    filas[[length(filas) + 1L]] <- general$filas
+    filas[[length(filas) + 1L]] <- .cuentas_filas_memoria(
+      general$filas, instancia, tablas,
+      parcial = if (isTRUE(am[[instancia$nombre]]$truncado)) "truncada" else NA_character_
+    )
   }
   resultado <- if (length(filas)) do.call(rbind, filas) else .resumen_vacio()
   rownames(resultado) <- NULL
@@ -437,8 +460,14 @@
     )
   }
   resultado <- resultado[.COLUMNAS_RESUMEN]
+  lecturas <- .lecturas_memoria(
+    resultado, tablas, id_medicion, huella = !isTRUE(interno_bloque)
+  )
+  resultado <- .estado_cuentas_lecturas(resultado, lecturas)
+  attr(resultado, "lecturas") <- lecturas
+  if (!isTRUE(interno_bloque)) .avisar_cuentas_resumen(resultado)
   if (length(coberturas)) {
-    cobertura <- do.call(rbind, coberturas)
+    cobertura <- do.call(rbind, lapply(coberturas, .ubicar_cobertura_metricas, modelo))
     rownames(cobertura) <- NULL
     attr(resultado, "cobertura_metricas") <- cobertura
     .avisar_no_medibles(
@@ -535,9 +564,13 @@
 
 .tablero_desde_resumen <- function(medidas, agregaciones = NULL,
                                    umbrales = NULL, marco = NULL,
-                                   cobertura = NULL) {
+                                   cobertura = NULL, declarar_fuera = FALSE) {
   cobertura_metricas <- attr(medidas, "cobertura_metricas", exact = TRUE)
-  fuera <- if (inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas)) {
+  # El semaforo deja afuera, diciendolo, lo que el tablero rechaza: una metrica
+  # no acotada no tumba la lectura de las demas.
+  fuera <- if (isTRUE(declarar_fuera)) {
+    character()
+  } else if (inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas)) {
     cobertura_metricas$metrica_instanciada[
       cobertura_metricas$estado == "no_resumible"
     ]
@@ -568,13 +601,16 @@
   agregada <- .agregada_tablero_desde_resumen(medidas)
   agregada <- .validar_medidas_tablero(agregada)
   agregada <- .trasladar_atributos_medicion(agregada, medidas)
-  .con_coberturas_frontera(
-    .armar_tablero(
-      agregada, agregada, marco = marco, cobertura = cobertura,
-      cobertura_metricas = cobertura_metricas,
-      alcance_medidas = attr(medidas, "alcance_medidas", exact = TRUE),
-      desenlaces = .desenlaces_de_objeto(medidas)
-    )$tablero,
+  .con_cuentas_y_consolidacion(
+    .con_coberturas_frontera(
+      .armar_tablero(
+        agregada, agregada, marco = marco, cobertura = cobertura,
+        cobertura_metricas = cobertura_metricas,
+        alcance_medidas = attr(medidas, "alcance_medidas", exact = TRUE),
+        desenlaces = .desenlaces_de_objeto(medidas)
+      )$tablero,
+      medidas
+    ),
     medidas
   )
 }
@@ -582,14 +618,17 @@
 #' @export
 `[.medicion_resumen` <- function(x, ...) {
   resultado <- NextMethod("[")
+  resultado <- .filtrar_descartadas(resultado, x)
   .conservar_atributos_objeto(
     resultado, x,
-    por_corrida = c("cobertura_metricas", "alcance_medidas", "sello_metricas")
+    por_corrida = c("cobertura_metricas", "alcance_medidas", "sello_metricas",
+                    "lecturas")
   )
 }
 
+#' @rdname medir
 #' @export
-rbind.medicion_resumen <- function(..., deparse.level = 1) {
+rbind.medicion_resumen <- function(..., prioridad = NULL, deparse.level = 1) {
   partes <- list(...)
   if (!all(vapply(partes, .es_medicion_resumen, logical(1L)))) {
     .rechazar_resumen(
@@ -598,6 +637,18 @@ rbind.medicion_resumen <- function(..., deparse.level = 1) {
       "Unir res\u00famenes entre s\u00ed o mediciones completas entre s\u00ed."
     )
   }
+  # Una consolidacion no se vuelve a unir: lo que descarto y la prioridad con
+  # la que eligio no tienen como componerse con otra.
+  if (any(vapply(partes, function(x) {
+    !is.null(attr(x, "consolidacion", exact = TRUE))
+  }, logical(1L)))) {
+    .rechazar_resumen(
+      "rbind",
+      "una de las partes ya es una consolidaci\u00f3n, y sus descartadas no se componen con otra.",
+      "Consolidar todas las partes de una vez."
+    )
+  }
+  if (!is.null(prioridad)) return(.consolidar_resumenes(partes, prioridad))
   if (length(partes) == 1L) return(partes[[1L]])
   mismo <- function(atributo) {
     valores <- lapply(partes, attr, which = atributo, exact = TRUE)
@@ -654,6 +705,10 @@ rbind.medicion_resumen <- function(..., deparse.level = 1) {
       as.data.frame(unclass(p), stringsAsFactors = FALSE)
     }), list(stringsAsFactors = FALSE))
   )
+  # Una corrida es un `id_medicion` y una fecha: dos partes con el mismo id y
+  # otra fecha se unian, y el tablero rechazaba despues el resultado.
+  .validar_fecha_partes(partes)
+  .validar_cobertura_partes(partes, unidas)
   clave <- paste(
     unidas$id_medicion, unidas$metrica_instanciada, unidas$entidad,
     unidas$atributo, sep = "\r"
@@ -701,7 +756,16 @@ rbind.medicion_resumen <- function(..., deparse.level = 1) {
   }
   sello <- .unir_sellos_mediciones(partes, "rbind()")
   if (!is.null(sello)) attr(unidas, "sello_metricas") <- sello
+  # Las partes pudieron leer la tabla en momentos distintos: C5 se vuelve a
+  # mirar sobre la union. Nunca pasa una fila que no cerraba a cerrar.
+  lecturas <- .lecturas_de_partes(partes)
+  antes <- sum(unidas$estado_cuentas %in% "no_cierran")
+  unidas <- .estado_cuentas_lecturas(unidas, lecturas)
+  attr(unidas, "lecturas") <- lecturas
   class(unidas) <- c("medicion_resumen", "data.frame")
+  if (sum(unidas$estado_cuentas %in% "no_cierran") > antes) {
+    .avisar_cuentas_resumen(unidas, "rbind()")
+  }
   unidas
 }
 
@@ -719,9 +783,15 @@ print.medicion_resumen <- function(x, ...) {
   )
   tabla <- as.data.frame(unclass(visible), stringsAsFactors = FALSE)
   if (all(cols_mostrar %in% names(tabla))) {
-    tabla <- tabla[cols_mostrar]
+    tabla <- tabla[c(cols_mostrar, intersect(c("estado_cuentas", "fuente"), names(tabla)))]
   }
   .print_data_frame_bytes(tabla, row.names = FALSE, ...)
+  malas <- .cuentas_que_no_cierran(x)
+  if (!is.null(malas)) {
+    cli::cli_h2("Cuentas que no cierran")
+    .print_data_frame_bytes(malas, row.names = FALSE)
+  }
+  .imprimir_consolidacion(x)
   cob <- attr(x, "cobertura_metricas", exact = TRUE)
   if (inherits(cob, "data.frame") && nrow(cob)) {
     cli::cli_h2("Cobertura de m\u00e9tricas")

@@ -679,11 +679,21 @@
 # declaracion y no saca nada, igual que en el resumen.
 .universo_del_resumen <- function(datos, sentinelas_numericos,
                                   mascaras_aplicabilidad = NULL) {
-  declarados <- .sentinelas_numericos_declarados(sentinelas_numericos)
+  # Con la forma por columna, cada columna sale con lo que declaro la suya.
+  por_columna <- .es_ausencias_por_columna(sentinelas_numericos)
+  declarados <- if (!por_columna) {
+    .sentinelas_numericos_declarados(sentinelas_numericos)
+  }
   if (!length(datos)) return(datos)
+  nombres <- names(datos)
   for (j in seq_along(datos)) {
     x <- datos[[j]]
     if (!.es_numerico_pelado(x) || .es_columna_compuesta(x)) next
+    if (por_columna) {
+      declarados <- .sentinelas_numericos_declarados(
+        .sentinelas_de_columna(sentinelas_numericos, nombres[[j]])
+      )
+    }
     fuera <- rep(FALSE, length(x))
     aplicable <- if (length(mascaras_aplicabilidad) >= j) {
       mascaras_aplicabilidad[[j]]

@@ -43,6 +43,11 @@ corrida.}
 Data frame S3 \code{tablero_calidad}. Los atributos \code{alcance} y
 \code{cobertura} conservan los conteos y el detalle del marco, y
 \code{pares_fuera_del_marco} nombra los pares medidos que ese marco no declara.
+Sobre un resumen cuyas cuentas no cierran en alguna celda (ver
+\code{estado_cuentas} en \code{\link[=medir]{medir()}}), el atributo \code{cuentas} nombra esas celdas,
+su motivo y su diferencia, y la impresión lo muestra; sobre una
+consolidación (\code{rbind(..., prioridad = )}), cada celda lleva su \code{fuente} y
+los atributos \code{descartadas} y \code{consolidacion} viajan.
 }
 \description{
 Resume una corrida en una fila por métrica y objeto. Las métricas

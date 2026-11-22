@@ -2199,7 +2199,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "ninguno de esos textos sea un valor leg\u00edtimo de la columna ",
           "-`NA` es el c\u00f3digo de Namibia, `NULL` puede ser un apellido-."
         )
-        declarados <- perfil$meta$cadenas_ausencia
+        # La declaracion de ESTA columna: con la forma por columna, la de al
+        # lado no es de esta accion.
+        declarados <- .ausencias_de_columna(perfil$meta, columna)$cadenas
         leidos <- .marcadores_de_ausencia(
           if (!is.null(datos) && columna %in% names(datos)) datos[[columna]] else NULL,
           hallazgo$evidencia[[1L]], n_textuales, declarados
@@ -2250,7 +2252,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         ))
       }
       if (n_numericos > 0L) {
-        sentinelas <- perfil$meta$sentinelas_numericos
+        politica_columna <- .ausencias_de_columna(perfil$meta, columna)
+        sentinelas <- politica_columna$sentinelas
         if (is.null(sentinelas)) sentinelas <- .numeros_na()
         justificacion <- paste0(
           "Un sentinela num\u00e9rico tambi\u00e9n puede ser un valor leg\u00edtimo; ",
@@ -2287,7 +2290,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
             !anyNA(sentinelas)) {
           contados <- .sentinelas_contados_en_evidencia(
             hallazgo$evidencia[[1L]], n_numericos, convencion,
-            textuales = perfil$meta$cadenas_ausencia
+            textuales = politica_columna$cadenas
           )
         }
         guarda_sentinelas <- NULL
@@ -2314,8 +2317,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # Las marcas textuales declaradas viajan con la accion: una celda que
         # el perfil conto como marca textual -`cadenas_ausencia = "999"`- no es
         # de esta accion aunque se lea como uno de sus numeros.
-        if (length(perfil$meta$cadenas_ausencia)) {
-          parametros_sentinelas$cadenas_ausencia <- perfil$meta$cadenas_ausencia
+        if (length(politica_columna$cadenas)) {
+          parametros_sentinelas$cadenas_ausencia <- politica_columna$cadenas
         }
         if (!is.null(guarda_sentinelas)) {
           parametros_sentinelas$guarda <- guarda_sentinelas

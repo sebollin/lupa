@@ -156,6 +156,7 @@ reference:
   - agregar
   - tablero_calidad
   - indice_calidad
+  - semaforo_calidad
   - estadisticos_estimacion
   - medicion_desde_estimaciones
 
@@ -167,6 +168,8 @@ reference:
   - as.data.frame.perfil_coleccion
   - estimar_costo_coleccion
   - relaciones_coleccion
+  - detectar_tablas_codigos
+  - ausencias_desde_propuesta
 
 - title: Validar
   desc: Validadores internacionales y packs territoriales extensibles.

@@ -948,6 +948,73 @@ print.coleccion_lupa <- function(x, ...) {
 #' afectan. Para declarar columnas que no están en todas las tablas, perfilar
 #' esas tablas por separado o partir la colección.
 #'
+#' **La declaración de ausencias, por tabla.** `sentinelas_numericos` y
+#' `cadenas_ausencia` aceptan, además del vector que vale para todas las tablas,
+#' una lista nombrada por identificador de tabla —como `columnas_candidatas` de
+#' [relaciones_coleccion()]— cuyos elementos son lo que acepta [perfilar()]: un
+#' vector o una lista por columna, `list(personas = list(edad = 99))`. Las
+#' tablas que la lista no nombra reciben el valor por omisión, y un nombre que
+#' no es tabla de la colección es un error antes de leer
+#' (`lupa_error_argumento_dbi`). [ausencias_desde_propuesta()] arma esta lista.
+#'
+#' @section Reanudar una corrida cortada:
+#' Una colección grande puede tardar horas. Con `directorio_reanudacion`, cada
+#' tabla que se perfila sin consultas fallidas se guarda en ese directorio en
+#' cuanto termina —un subdirectorio por corrida—, y si la corrida se corta —el
+#' proceso muere, se cae la máquina, se la interrumpe, o la conexión se cae y
+#' las tablas que siguen fallan— la misma llamada con `reanudar = TRUE` sigue
+#' desde ahí: las tablas guardadas no vuelven a consultar la base, y se vuelven
+#' a perfilar las que faltan, las que tuvieron alguna consulta fallida y las que
+#' no se pudieron perfilar. No hace falta saber si la conexión se cayó: una
+#' tabla que la perdió a mitad termina con consultas fallidas o sin perfil, y se
+#' rehace. El objeto que se devuelve es el mismo que el de una corrida sin
+#' cortes, salvo lo que describe la ejecución: `meta$inicio`, `meta$fin`, la
+#' duración de cada consulta en `meta$lecturas` y `resumen_coleccion$momento`,
+#' que para una tabla reusada es el de su medición original. `meta$reanudacion`
+#' dice qué corrida se siguió y, por tabla, si se reusó o se perfiló y por qué.
+#'
+#' * `reanudar = FALSE` (por omisión) empieza siempre una corrida nueva, aunque
+#'   el directorio tenga otras. `reanudar = TRUE` sigue la corrida compatible
+#'   más reciente y dice de cuándo es. Si esa ya terminó con todas sus tablas, o
+#'   si no hay ninguna compatible, se niega con un error de clase
+#'   `lupa_error_reanudacion` que dice por qué —`e$motivo` es `"terminada"`,
+#'   `"sin_corrida"`, `"bloqueada"`, `"base_cambiada"`, …— y no empieza otra
+#'   por su cuenta. No vuelve a una corrida sin terminar más vieja que una
+#'   terminada: publicaría datos más viejos que una medición completa.
+#' * Compatible es la misma base, las mismas tablas declaradas y en el mismo
+#'   orden, los mismos argumentos —el error nombra el que difiere— y la misma
+#'   versión de lupa, de R y del controlador. `fecha` no cuenta: la corrida
+#'   reanudada usa la de la original, aunque se pase otra, y lo avisa, porque
+#'   `fecha` cambia los hallazgos de fechas.
+#' * La base se reconoce por su archivo: en SQLite y DuckDB, la ruta que da el
+#'   motor de cada base que nombra la colección. Una base en memoria o temporal
+#'   no sobrevive al proceso y se rechaza. En un motor de servidor la
+#'   reanudación se rechaza por ahora: la identidad que declara cada servidor
+#'   todavía no está comprobada, y sin ella podría mezclar tablas de dos bases.
+#'   No se guardan la conexión ni sus credenciales.
+#' * Si la base cambió desde el corte —se escribió, o el archivo se reemplazó
+#'   por otro en la misma ruta, y cambió su tamaño o su fecha de
+#'   modificación—, no se reanuda: las tablas guardadas la describirían como
+#'   era y las que faltan como es, y el resultado no sería el de ninguna
+#'   corrida. El error (`e$motivo` es `"base_cambiada"`) dice qué cambió; una
+#'   corrida nueva, con `reanudar = FALSE`, la mide entera. Abrir, leer y
+#'   perfilar la base no cuentan como cambio.
+#' * Se rechaza con `proteger_datos_personales = TRUE` o
+#'   `incluir_valores = FALSE`: para que lo reanudado sea igual habría que
+#'   guardar en el disco los mensajes del motor tal como llegaron y los valores
+#'   protegidos, que es lo que esa protección promete no publicar. Y con un
+#'   argumento que no se puede comparar entre dos sesiones —un ambiente, un
+#'   objeto S4—.
+#' * Dos procesos no siguen la misma corrida a la vez: la toma el primero. El
+#'   bloqueo se suelta al terminar, ante un error y ante una interrupción; si el
+#'   proceso murió de golpe —`kill -9`, `SIGTERM`, un corte de luz— queda
+#'   tomado, y el error dice qué proceso lo tomó, en qué máquina, desde cuándo y
+#'   qué directorio borrar si se sabe que ese proceso ya no corre. lupa no lo
+#'   borra solo.
+#' * El directorio guarda el perfil completo de cada tabla, con lo que el
+#'   perfil publica de los datos: tratarlo como a los datos. Las corridas no se
+#'   borran solas.
+#'
 #' @param coleccion Objeto creado por [coleccion()].
 #' Una colección **guardada por una versión anterior** se perfila igual: las
 #' columnas que a un objeto viejo le faltan —`catalogo`, `tipo`, `declaracion`—
@@ -1067,10 +1134,21 @@ print.coleccion_lupa <- function(x, ...) {
 #'   tabla: uno mal escrito deja cada tabla en `cobertura_coleccion` con ese
 #'   motivo y sin aviso. Es una limitación conocida: si ninguna tabla se
 #'   perfiló, mirar el motivo antes de sospechar de los permisos.
+#' @param directorio_reanudacion `NULL` —por omisión: no se guarda nada y la
+#'   llamada es la de siempre— o la ruta de un directorio donde guardar la
+#'   corrida para poder reanudarla; se crea si no existe. Ver «Reanudar una
+#'   corrida cortada».
+#' @param reanudar `FALSE` (por omisión) empieza una corrida nueva; `TRUE` sigue
+#'   la corrida compatible más reciente de `directorio_reanudacion`. Ver
+#'   «Reanudar una corrida cortada».
 #'
 #' @return Objeto de clase `perfil_coleccion` con `resumen_coleccion`,
 #'   `cobertura_coleccion`, `cobertura_metricas`, `meta` y, si se pidió,
-#'   `perfiles`.
+#'   `perfiles`. Con `directorio_reanudacion`, `meta$reanudacion` describe la
+#'   corrida: `corrida`, `directorio`, `creada`, `intento`, `reanudada`,
+#'   `tablas` —una fila por tabla, con `origen` (`"reusada"` o `"perfilada"`),
+#'   `motivo` por el que se perfiló y `estado` (`"limpia"`, `"degradada"` o
+#'   `"fallida"`)—, `lineas_descartadas` y `fecha`.
 #' @export
 #' @seealso [coleccion()], [perfilar_dbi()]
 #'
@@ -1088,7 +1166,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
                                                       "ninguna"),
                                tope_cobertura_metricas = 20000L,
                                bloque_muestra = c("con_muestra", "solo_agregados"),
-                               ...) {
+                               ..., directorio_reanudacion = NULL,
+                               reanudar = FALSE) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   if (!inherits(coleccion, "coleccion_lupa")) {
     .detener(
@@ -1100,6 +1179,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       is.na(conservar_perfiles)) {
     .detener("`conservar_perfiles` debe ser TRUE o FALSE.", call. = FALSE)
   }
+  .validar_argumentos_reanudacion(directorio_reanudacion, reanudar)
   # Lo que `perfilar_dbi()` no toma por nombre viaja a `perfilar()`, y se valida
   # aca, una vez: tabla por tabla, una `fecha` invalida o una errata hacian
   # fallar cada `perfilar_dbi()` entero y la coleccion perdia los resumenes SQL.
@@ -1116,6 +1196,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   .validar_argumentos_para_perfilar(
     argumentos_perfil, propios = .ARGUMENTOS_PROPIOS_DBI
   )
+  # La declaracion de ausencias por tabla: una lista nombrada por identificador
+  # de tabla, como `columnas_candidatas` de `relaciones_coleccion()`. Cada tabla
+  # recibe su elemento -un vector o una lista por columna- y las que la lista
+  # no nombra, el valor por omision de `perfilar()`.
+  ausencias_por_tabla <- .ausencias_por_tabla_coleccion(extras, coleccion)
   proteger <- .protege_argumentos(argumentos_perfil)
   # `incluir_valores` viaja en `...` hasta cada `perfilar_dbi()`, con el nombre
   # que R le completa: se lee igual, porque tambien decide el mensaje del motor
@@ -1153,6 +1238,29 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # paquete ya establecio ese precedente para `catalogo`, y el recorrido mostro
   # que habia cinco columnas mas en el mismo estado.
   declaradas <- .completar_columnas_coleccion(coleccion$tablas)
+  # Con `directorio_reanudacion`, lo que no se puede reanudar se rechaza aca,
+  # antes de perfilar, y se toma el bloqueo de la corrida: ver
+  # `.preparar_reanudacion_coleccion()`. Sin directorio devuelve NULL sin mirar
+  # sus otros argumentos, y el bucle es el de siempre.
+  reanudacion <- .preparar_reanudacion_coleccion(
+    directorio_reanudacion, reanudar, conexion, declaradas,
+    configuracion = list(
+      muestra = muestra, conservar_perfiles = conservar_perfiles,
+      cobertura_metricas = cobertura_metricas,
+      tope_cobertura_metricas = tope_cobertura_metricas,
+      bloque_muestra = bloque_muestra
+    ),
+    extras = extras,
+    # El nombre completo de cada argumento de `...`, con las dos reglas de
+    # arriba: el de `perfilar_dbi()` si casa con uno de sus formales, el de
+    # `perfilar()` si no.
+    nombres_extras = if (is.null(names(extras))) {
+      rep("", length(extras))
+    } else {
+      replace(completos, hacia_perfilar, names(argumentos_perfil))
+    },
+    proteger = proteger, incluir_valores = incluir_valores
+  )
   # Los nombres de las tablas declaradas, para el mensaje del motor: ver
   # `.sin_literales_motor()`. Cada `perfilar_dbi()` suma los de sus columnas.
   identificadores_previos <- .sumar_identificadores_motor(c(
@@ -1298,24 +1406,65 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       )
       next
     }
-    momento <- Sys.time()
-    referencia <- declaradas$referencia[[i]]
-    perfil <- tryCatch(
-      withCallingHandlers(
-        perfilar_dbi(
-          conexion, referencia, muestra = muestra,
-          bloque_muestra = bloque_muestra, ...
+    # Una tabla ya guardada por una corrida que se corto entra al bucle con lo
+    # mismo que traeria `perfilar_dbi()` -su perfil, su `momento` y sus avisos,
+    # en orden-, y todo lo que sigue corre igual que sin cortes.
+    guardado <- if (is.null(reanudacion)) NULL else reanudacion$leer(i)
+    if (!is.null(guardado)) {
+      momento <- guardado$momento
+      referencia <- declaradas$referencia[[i]]
+      avisos_tablas <- c(avisos_tablas, guardado$avisos)
+      perfil <- guardado$perfil
+    } else {
+      momento <- Sys.time()
+      referencia <- declaradas$referencia[[i]]
+      avisos_antes <- length(avisos_tablas)
+      perfil <- tryCatch(
+        withCallingHandlers(
+          if (is.null(reanudacion)) {
+            if (is.null(ausencias_por_tabla)) {
+              perfilar_dbi(
+                conexion, referencia, muestra = muestra,
+                bloque_muestra = bloque_muestra, ...
+              )
+            } else {
+              do.call(perfilar_dbi, c(
+                list(conexion, referencia, muestra = muestra,
+                     bloque_muestra = bloque_muestra),
+                ausencias_por_tabla(identificador)
+              ))
+            }
+          } else {
+            # Con la `fecha` de la corrida que se reanuda. Por una funcion de
+            # `...` y no con los valores en la llamada, para que `perfilar_dbi()`
+            # se vea llamada igual que siempre.
+            do.call(function(...) {
+              perfilar_dbi(
+                conexion, referencia, muestra = muestra,
+                bloque_muestra = bloque_muestra, ...
+              )
+            }, reanudacion$argumentos)
+          },
+          warning = function(w) {
+            avisos_tablas[[length(avisos_tablas) + 1L]] <<- w
+            invokeRestart("muffleWarning")
+          }
         ),
-        warning = function(w) {
-          avisos_tablas[[length(avisos_tablas) + 1L]] <<- w
-          invokeRestart("muffleWarning")
+        error = function(e) {
+          .repropagar_transaccion_dbi(e)
+          e
         }
-      ),
-      error = function(e) {
-        .repropagar_transaccion_dbi(e)
-        e
+      )
+      # Fuera del `tryCatch`: si no se puede guardar, la llamada se corta, en
+      # lugar de seguir sin punto de reanudacion.
+      if (!is.null(reanudacion)) {
+        reanudacion$comprometer(
+          i, momento, perfil,
+          avisos_tablas[seq_len(length(avisos_tablas) - avisos_antes) +
+                          avisos_antes]
+        )
       }
-    )
+    }
     if (inherits(perfil, "condition")) {
       # Una tabla que no se pudo leer tambien deja sin verificar a las demas:
       # sus valores protegidos son desconocidos. Se hacia `next` antes de
@@ -1677,10 +1826,18 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       perfil <- if (is.data.frame(copias) && nrow(copias)) {
         previas <- .fijar_copias_externas(copias)
         tryCatch(
-          suppressWarnings(perfilar_dbi(
-            conexion, referencia, muestra = muestra,
-            bloque_muestra = bloque_muestra, ...
-          )),
+          suppressWarnings(if (is.null(ausencias_por_tabla)) {
+            perfilar_dbi(
+              conexion, referencia, muestra = muestra,
+              bloque_muestra = bloque_muestra, ...
+            )
+          } else {
+            do.call(perfilar_dbi, c(
+              list(conexion, referencia, muestra = muestra,
+                   bloque_muestra = bloque_muestra),
+              ausencias_por_tabla(identificador)
+            ))
+          }),
           error = function(e) e,
           finally = .fijar_copias_externas(previas)
         )
@@ -1858,6 +2015,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     )
   )
   if (conservar_perfiles) estructura$perfiles <- perfiles
+  # Lo ultimo, ya armado el objeto: la corrida queda terminada recien cuando
+  # se pudo devolver. Si algo fallaba despues del bucle, reanudar la rearma sin
+  # volver a consultar.
+  if (!is.null(reanudacion)) estructura$meta$reanudacion <- reanudacion$cerrar()
   class(estructura) <- "perfil_coleccion"
   estructura
 }

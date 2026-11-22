@@ -40,6 +40,7 @@ perfilar_dbi(
   columnas_opcionales = character(),
   aplicabilidad = NULL,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+  estrategia_no_sql = c("no_medible", "bloques"),
   ...
 )
 }
@@ -405,7 +406,10 @@ traduce y lo declara en \code{resumen_tabla$cobertura}, y la corroboración no
 compara lo que la regla cambia.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
-declaran como faltantes en el \code{perfil_muestra}. Se normaliza como un
+declaran como faltantes en el \code{perfil_muestra}, o la lista por columna de
+\code{\link[=perfilar]{perfilar()}} —también para \code{cadenas_ausencia}, que viaja por \code{...}—: se
+valida contra las columnas de la tabla y la reciben igual el resumen SQL,
+la muestra y la corroboración. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 agregados y lo declara en \code{resumen_tabla$cobertura}; la corroboración no
@@ -417,6 +421,17 @@ corroboración reconoce esa representacion como el mismo centinela.
 Rige la misma reserva que en \code{\link[=perfilar]{perfilar()}}: un valor de la lista \strong{por
 omisión} que aparece una sola vez y dentro del rango de los demás no se
 señala. Declarar el valor lo vuelve a contar.}
+
+\item{estrategia_no_sql}{Qué hacer, con \code{resumen_fechas = TRUE}, con una
+columna de fecha que el SQL no cuenta como R la lee: \code{"no_medible"} (por
+omisión) la declara \code{no_disponible} en \code{resumen_tabla$sql} con el motivo, y
+\code{"bloques"} la lee en R por bloques, con el mismo controlador, y la cuenta
+con la misma regla. Son tres casos: una columna de SQLite que guarda las
+fechas como texto (lo que deja un CSV importado; se mide con \code{typeof()}),
+instantes a menos de un segundo de una fecha centinela lejana con
+resolución de microsegundos (R los lee como esa fecha) y una columna de
+texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
+la columna entera. Mismo nombre y valores que en \code{\link[=medir_dbi]{medir_dbi()}}.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.
 \code{columnas_codigo} vale además en \code{resumen_tabla}: \code{media}, \code{mediana} y
@@ -431,7 +446,21 @@ al entrar, también con \code{bloque_muestra = "solo_agregados"}: un nombre que
 los valida \code{\link[=perfilar]{perfilar()}} al perfilar la muestra —sin muestra no se
 validan—, y uno inválido deja \code{perfil_muestra = NULL} con el error de
 \code{\link[=perfilar]{perfilar()}} como motivo, legible también con la protección: un error que
-se repite sobre la muestra sin filas no cita ninguna celda.}
+se repite sobre la muestra sin filas no cita ninguna celda.
+
+\code{resumen_fechas}, \code{centinelas_fecha}, \code{periodos} y \code{dominios} valen además
+en \code{resumen_tabla}, sobre la tabla completa: con \code{resumen_fechas = TRUE},
+\code{resumen_tabla$columnas} agrega los mismos campos de fechas que
+\code{\link[=perfilar]{perfilar()}} (con su fila en \code{resumen_tabla$sql}, etapa \code{"fechas"}) y
+\code{resumen_tabla$meta$actualidad} la misma tabla de actualidad; con
+\code{periodos}, \code{resumen_tabla$meta$periodos} la misma partición. El motor
+compara contra literales y decide con la misma regla que la memoria;
+sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los demás
+motores y con \code{universo = "muestra_motor"} se declara y se lee de
+\code{perfil_muestra}). Con \code{resumen_fechas} y sin \code{fecha}, la fecha se congela
+una vez al entrar (al segundo) para el resumen y la muestra, y las dos
+dicen \code{fecha_declarada = FALSE}. Sin estos argumentos el objeto es el de
+siempre.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con dos componentes: \code{resumen_tabla}, de

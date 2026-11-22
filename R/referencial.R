@@ -14,6 +14,9 @@
     .detener("`", argumento, "` debe contener nombres de columna \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
+  # Un referencial del motor no tiene la tabla en R: que las columnas existan
+  # se verifica al medir, contra el esquema que lee `medir_dbi()`.
+  if (is.null(datos)) return(columnas)
   indices <- .indice_nombre(columnas, names(datos))
   faltantes <- columnas[is.na(indices)]
   if (length(faltantes)) {
@@ -409,7 +412,27 @@
 #' contrastan en correctitud semántica débil. El constructor copia la tabla y
 #' no consulta fuentes externas.
 #'
-#' @param datos Tabla de referencia. Se conserva una copia ordinaria de R.
+#' **Un referencial que vive en el motor.** Con `datos = DBI::Id(...)` o el
+#' nombre de una tabla, el referencial no copia la tabla a R: guarda la
+#' referencia (en `tabla_motor`, sin conexión: se serializa como cualquier
+#' lista) y `datos` queda `NULL`. Que las columnas existan y que la clave no
+#' tenga ausentes y sea única se verifica en cada [medir_dbi()], con una
+#' consulta y con las mismas frases, porque la tabla puede cambiar entre la
+#' declaración y la medición. [medir()] no lo lee: las métricas se abstienen
+#' con estado `no_medible` y el motivo. `nombre`, si se omite, es el de la
+#' tabla. Como el nombre se resuelve en la conexión de cada medición, el mismo
+#' referencial medido en otra base es otra tabla: el sello de la medición
+#' (`attr(, "sello_metricas")`) firma también la ubicación de esa conexión
+#' —archivo, anfitrión, puerto y base, sin usuario ni credenciales—, y unir o
+#' comparar corridas de dos bases avisa que la métrica cambió de definición.
+#' Dos bases en memoria no se distinguen. En [medir_dbi()] las tres métricas de [metricas_referencial()] cuentan
+#' lo que contaría [medir()] con las dos tablas leídas por `dbReadTable()`; ver
+#' allí qué se mide en el motor y qué se declara.
+#'
+#' @param datos Tabla de referencia. Se conserva una copia ordinaria de R. O
+#'   una tabla del motor, nombrada con un [DBI::Id()] o con su nombre: el
+#'   referencial no copia nada y [medir_dbi()] la resuelve en su conexión o
+#'   su colección como resuelve las entidades.
 #' @param clave Columnas que identifican unívocamente cada fila. Puede
 #'   contener varias columnas.
 #' @param valor Columnas asociadas que pueden contrastarse en correctitud débil.
@@ -441,12 +464,26 @@
 referencial <- function(datos, clave, valor = character(), completo = FALSE,
                         alcance = NULL, nombre = NULL, normalizar = TRUE) {
   expresion_datos <- substitute(datos)
+  nombre_omitido <- is.null(nombre)
   if (is.null(nombre)) {
     nombre <- if (is.symbol(expresion_datos)) {
       as.character(expresion_datos)
     } else {
       "referencial"
     }
+  }
+  # Una tabla del motor -un `DBI::Id` o su nombre- no se copia: queda la
+  # referencia, y `medir_dbi()` la resuelve en su conexion como resuelve las
+  # entidades.
+  tabla_motor <- .tabla_motor_referencial(datos)
+  if (!is.null(tabla_motor)) {
+    return(.referencial_motor(
+      tabla_motor, clave, valor, completo, alcance,
+      nombre = if (nombre_omitido && !is.symbol(expresion_datos)) {
+        tabla_motor[[length(tabla_motor)]]
+      } else nombre,
+      normalizar
+    ))
   }
   .validar_datos_tabla(datos)
   if (is.null(names(datos)) || anyNA(names(datos)) || any(!nzchar(names(datos))) ||
@@ -484,6 +521,21 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
     .detener("Un referencial completo requiere describir su `alcance`.",
          call. = FALSE)
   }
+  .estructura_referencial(tabla, clave, valor, completo, alcance, nombre,
+                          normalizar)
+}
+
+# Lo que comparten el referencial en R y el del motor: las validaciones que no
+# leen filas y la forma del objeto. Una sola regla para los dos.
+.estructura_referencial <- function(tabla, clave, valor, completo, alcance,
+                                    nombre, normalizar, tabla_motor = NULL) {
+  if (!is.logical(completo) || length(completo) != 1L || is.na(completo)) {
+    .detener("`completo` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
+  }
+  if (completo && !.es_texto_escalar(alcance)) {
+    .detener("Un referencial completo requiere describir su `alcance`.",
+         call. = FALSE)
+  }
   if (!is.null(alcance) && !.es_texto_escalar(alcance)) {
     .detener("`alcance` debe ser NULL o una cadena no vac\u00eda.", call. = FALSE)
   }
@@ -502,15 +554,99 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
     alcance = if (is.null(alcance)) NA_character_ else alcance,
     nombre = nombre, normalizar = normalizar
   )
+  # Solo el del motor lleva el campo: el referencial en R es el de siempre.
+  if (!is.null(tabla_motor)) estructura$tabla_motor <- tabla_motor
   class(estructura) <- "referencial"
   estructura
+}
+
+# La referencia a una tabla del motor, como texto sin clase: las partes de un
+# `DBI::Id` con su nombre (`catalog`, `schema`, `table`), o el nombre tal como
+# llego. `NULL` si `datos` no es una referencia.
+.tabla_motor_referencial <- function(datos) {
+  if (.es_id_dbi(datos)) {
+    partes <- tryCatch(datos@name, error = function(e) NULL)
+    if (!is.character(partes) || !length(partes) || anyNA(partes) ||
+        any(!nzchar(partes))) {
+      .detener("El `DBI::Id` del referencial no nombra una tabla.", call. = FALSE)
+    }
+    return(partes)
+  }
+  if (is.character(datos) && !inherits(datos, "data.frame")) {
+    if (length(datos) != 1L || is.na(datos) || !nzchar(datos)) {
+      .detener(
+        "`datos` debe ser una tabla de R, un `DBI::Id` o el nombre de una ",
+        "tabla del motor.", call. = FALSE
+      )
+    }
+    return(unname(datos))
+  }
+  NULL
+}
+
+.referencial_motor <- function(tabla_motor, clave, valor, completo, alcance,
+                               nombre, normalizar) {
+  clave <- .validar_nombres_referencial(NULL, clave, "clave")
+  valor <- .validar_nombres_referencial(
+    NULL, valor, "valor", permitir_vacio = TRUE
+  )
+  if (length(intersect(
+    .nombres_para_operar(clave), .nombres_para_operar(valor)
+  ))) {
+    .detener("`clave` y `valor` no pueden compartir columnas.", call. = FALSE)
+  }
+  .estructura_referencial(
+    NULL, clave, valor, completo, alcance, nombre, normalizar,
+    tabla_motor = tabla_motor
+  )
+}
+
+.referencial_en_motor <- function(referencia) {
+  inherits(referencia, "referencial") &&
+    !is.null(.subset2(referencia, "tabla_motor"))
+}
+
+# La referencia como la recibe la conexion: un `DBI::Id` si llego asi.
+.tabla_motor_dbi <- function(referencia) {
+  partes <- .subset2(referencia, "tabla_motor")
+  if (!is.null(names(partes))) do.call(DBI::Id, as.list(partes)) else partes
+}
+
+.texto_tabla_motor_referencial <- function(referencia) {
+  .texto_tabla_dbi(.tabla_motor_dbi(referencia))
+}
+
+# En memoria no hay tabla que comparar: la metrica se abstiene con el motivo,
+# en vez de leer la tabla por su cuenta.
+.abstencion_referencial_motor <- function(instancia, referencia) {
+  .abstener_metodo(
+    instancia,
+    motivo = paste0(
+      "El referencial `", referencia$nombre, "` vive en la tabla `",
+      .texto_tabla_motor_referencial(referencia),
+      "` del motor y no se copia a R."
+    ),
+    como_resolverlo = paste0(
+      "Medir con `medir_dbi()` sobre la conexi\u00f3n donde est\u00e1 esa tabla, o ",
+      "declarar el referencial con la tabla le\u00edda: ",
+      "`referencial(DBI::dbReadTable(conexion, ...), ...)`."
+    ),
+    estado = "no_medible"
+  )
 }
 
 #' @export
 print.referencial <- function(x, ...) {
   .validar_objeto_lupa(x, "referencial", "clave", "referencial()")
   .cat_publicado("Referencial: ", x$nombre, "\n")
-  .cat_publicado("  Filas: ", nrow(x$datos), "\n")
+  if (.referencial_en_motor(x)) {
+    .cat_publicado(
+      "  Tabla del motor: ", .texto_tabla_motor_referencial(x),
+      " (no se copia a R; la clave se verifica en cada medir_dbi())\n"
+    )
+  } else {
+    .cat_publicado("  Filas: ", nrow(x$datos), "\n")
+  }
   .cat_publicado(
     "  Clave: ", paste(x$clave, collapse = " + "), "\n"
   )
@@ -657,6 +793,9 @@ print.referencial <- function(x, ...) {
 .metodo_correctitud_fuerte <- function(tablas, instancia) {
   referencia <- .exigir_referencial(instancia)
   .validar_vinculo(instancia, 1L, length(referencia$clave))
+  if (.referencial_en_motor(referencia)) {
+    return(.abstencion_referencial_motor(instancia, referencia))
+  }
   .metodo_correctitud_comun(
     tablas, instancia, referencia,
     .seleccionar_columnas(referencia$datos, referencia$clave),
@@ -668,6 +807,9 @@ print.referencial <- function(x, ...) {
   referencia <- .exigir_referencial(instancia, valores = TRUE)
   columnas_ref <- c(referencia$clave, referencia$valor)
   .validar_vinculo(instancia, 1L, length(columnas_ref))
+  if (.referencial_en_motor(referencia)) {
+    return(.abstencion_referencial_motor(instancia, referencia))
+  }
   .metodo_correctitud_comun(
     tablas, instancia, referencia,
     .seleccionar_columnas(referencia$datos, columnas_ref), columnas_ref
@@ -677,6 +819,9 @@ print.referencial <- function(x, ...) {
 .metodo_ratio_cobertura <- function(tablas, instancia) {
   referencia <- .exigir_referencial(instancia, completo = TRUE)
   .validar_vinculo(instancia, 1L, length(referencia$clave))
+  if (.referencial_en_motor(referencia)) {
+    return(.abstencion_referencial_motor(instancia, referencia))
+  }
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
@@ -763,6 +908,9 @@ print.referencial <- function(x, ...) {
   attr(salida, "alcance") <- list(
     normalizacion = .normalizacion_resumen(perfil),
     n_referencial = nrow(universo),
+    # Las claves del universo que aparecen en la entidad: el numerador de la
+    # cobertura, que el resumen publica con su denominador.
+    n_cubiertas = sum(cubiertas),
     n_valores_objetivo = nrow(objetivo),
     proximidad = list(solicitada = FALSE, motivo =
                         "La proximidad no participa en la cobertura.")
@@ -813,7 +961,29 @@ print.referencial <- function(x, ...) {
 #' claves, `RatioCobertura` no se mide: la cobertura de un universo vacío no es
 #' una proporción, y la métrica queda `sin_valores` con ese motivo, igual que
 #' cuando la entidad no tiene filas o ningún valor en los atributos ligados:
-#' lo que no se pudo medir no se publica como una cobertura cero.
+#' lo que no se pudo medir no se publica como una cobertura cero. El resumen
+#' de `RatioCobertura` (`medir(detalle = "resumen")` y [medir_dbi()]) publica
+#' las claves cubiertas en `numerador` y las del universo en `denominador`.
+#'
+#' **En el motor.** Con un referencial del motor (ver [referencial()]),
+#' [medir_dbi()] mide las tres métricas en SQL —SQLite y DuckDB— y cuenta lo
+#' que [medir()] contaría con las dos tablas leídas: cada par de columnas se
+#' compara por el texto canónico de su valor, con la intercalación binaria
+#' explícita para el texto y el entero escrito como texto contra una clave de
+#' texto (`"01"` no es `1`; `"1"` sí); un `NaN` es ausente; una clave
+#' compuesta y un `valor` de varias columnas comparan todos sus pares. La
+#' normalización se escribe en el motor sólo donde es exacta: sobre texto
+#' ASCII, el pliegue de mayúsculas es `LOWER()`, y una guarda cuenta las filas
+#' cuyo texto el perfil podría cambiar y el SQL no escribe igual —lo que no es
+#' ASCII, que se descompone aun sin pasos; los blancos de los bordes, los
+#' dobles y los controles; las comillas; la puntuación con `"amplio"`—. Con
+#' alguna, la métrica queda `no_medible` con ese motivo, salvo que se pida
+#' `estrategia_no_sql = "bloques"`: entonces se cuentan en el motor los
+#' valores distintos de la entidad y se comparan en R con el método de la
+#' métrica, cada uno con el peso de su grupo (vía `distintos_r`), que es
+#' también la vía de un referencial que está en R. Una columna cuyo
+#' cotejamiento declarado no es binario no se compara en el motor.
+#' [conformidad_dbi()] comprueba el pliegue en el servidor del usuario.
 #'
 #' @return Lista con tres objetos `metrica_generica` —`CorrectitudSemFuerte`,
 #'   `CorrectitudSemDebil` y `RatioCobertura`—, listos para instanciar contra un

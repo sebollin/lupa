@@ -675,6 +675,10 @@ test_that("la clase de cada argumento explica lo que cambia al moverlo", {
   d <- .datos_O164()[c(1:36, 77:86, 97:104, 113:120), ]
   d$doble <- d$monto * 2
   d$doble[3] <- 7
+  d$desde <- as.Date("2020-01-01") + seq_len(nrow(d))
+  d$hasta <- d$desde + 30
+  d$hasta[1:2] <- as.Date("9999-12-31")
+  d$desde[3] <- as.Date("2020-01-05")
   # Cada valor es distinto del que el argumento toma por omision. La proteccion
   # se mueve a TRUE: la omision es FALSE, y un FALSE aca perfila dos veces lo
   # mismo y no pone a prueba la clase de ese argumento.
@@ -707,8 +711,10 @@ test_that("la clase de cada argumento explica lo que cambia al moverlo", {
     max_asimetria_equifrecuente_vocabulario = 1,
     max_comparaciones_dependencias = 1L, max_trabajo_vocabulario = 1,
     max_trabajo_dependencias = 1, max_largo_valor_vocabulario = 1L,
-    max_celdas_muestra = 200, max_bytes_muestra = 2000,
-    avisar_costo_tabla_ancha = FALSE, umbral_celdas_aviso_tabla_ancha = 1
+    max_celdas_muestra = 200, max_bytes_muestra = 3000,
+    avisar_costo_tabla_ancha = FALSE, umbral_celdas_aviso_tabla_ancha = 1,
+    centinelas_fecha = "2020-01-05",
+    periodos = c(inicio = "desde", fin = "hasta"), resumen_fechas = TRUE
   )
   registro <- lupa:::.ARGUMENTOS_PERFIL_DERIVA
   no_identidad <- names(registro)[!vapply(

@@ -71,7 +71,9 @@ valores en \code{evidencia}. Sólo tiene efecto con
 celdas que contienen un valor declarado no participan en la dependencia,
 igual que una celda \code{NA}; por eso \code{n_evaluados} cuenta sólo las filas con
 ambas columnas presentes. La lista por omisión no se considera una
-declaración.}
+declaración. Acepta también una lista por columna, como en \code{\link[=perfilar]{perfilar()}}:
+cada columna enmascara sólo lo declarado para ella, y un nombre que la
+tabla no tiene es un error.}
 }
 \value{
 Data frame de clase \code{dependencias_funcionales}, ordenado por

@@ -40,7 +40,9 @@ omisión, o \code{"spearman"} para asociación monótona sobre los rangos.}
 \item{sentinelas_numericos}{Vector de valores declarados como ausencia. La
 fila de un par que contiene un valor declarado no se usa para medirlo,
 igual que una fila con \code{NA}; por eso \code{n_pares} cuenta sólo las filas
-completas restantes. La lista por omisión no se considera una declaración.}
+completas restantes. La lista por omisión no se considera una declaración.
+Acepta también una lista por columna, como en \code{\link[=perfilar]{perfilar()}}: cada columna
+enmascara sólo lo declarado para ella.}
 }
 \value{
 Data frame S3 \code{asociaciones_columnas}. Sus atributos declaran filas,

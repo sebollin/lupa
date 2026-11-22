@@ -231,6 +231,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   ),
   sentinelas_numericos = list(clase = "politica", fila = "configuracion_sentinelas_numericos"),
   cadenas_ausencia = list(clase = "politica", fila = "configuracion_cadenas_ausencia"),
+  # Las fechas declaradas como centinela cambian que se acusa: su propia fila.
+  # Los periodos y el resumen de fechas viven en sus tablas, no en `hallazgos`.
+  centinelas_fecha = list(clase = "politica", fila = "configuracion_centinelas_fecha"),
+  periodos = list(clase = "sin_hallazgo"),
+  resumen_fechas = list(clase = "sin_hallazgo"),
   # Desde que una dependencia casi exacta es el hallazgo
   # `relacion_funcional_columnas`, apagar la busqueda o mover sus umbrales
   # cambia los hallazgos: apagada, una dependencia rota salia `resuelto, ok`
@@ -3625,6 +3630,99 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  # La declaracion por columna se compara columna por columna: dos corridas con
+  # la misma politica global y un `99` declarado solo en una columna de una de
+  # ellas no tienen la misma vara en esa columna. Solo cuando alguna de las dos
+  # declaro por columna: con vectores la salida es la de siempre.
+  if (is.list(anterior$meta[["ausencias_por_columna"]]) ||
+      is.list(actual$meta[["ausencias_por_columna"]])) {
+    conjunto <- function(x) {
+      if (is.null(x) || !length(x)) return(x)
+      .sort_por_bytes(unique(x), na.last = TRUE)
+    }
+    comunes <- intersect(
+      as.character(anterior$columnas$columna),
+      as.character(actual$columnas$columna)
+    )
+    for (col in comunes) {
+      pa <- .ausencias_de_columna(anterior$meta, col)
+      pb <- .ausencias_de_columna(actual$meta, col)
+      if (pa$propia_sentinelas || pb$propia_sentinelas) {
+        sa <- conjunto(pa$sentinelas)
+        sb <- conjunto(pb$sentinelas)
+        if (!is.null(sa) && !is.null(sb) &&
+            !isTRUE(all.equal(sa, sb, check.attributes = FALSE))) {
+          ocultos <- oculta(sa) || oculta(sb)
+          agregar(
+            col, "configuracion_sentinelas_numericos",
+            if (ocultos) "no_comparable" else "modificado",
+            if (ocultos) "sospechoso" else "error",
+            texto_configuracion(sa), texto_configuracion(sb),
+            descripcion = paste(
+              "Cambi\u00f3 la pol\u00edtica de centinelas num\u00e9ricos de esta",
+              "columna; las diferencias de faltantes pueden venir de la",
+              "declaraci\u00f3n y no de los datos."
+            ),
+            evidencia = paste(
+              "Para comparar los datos, correr las dos con la misma",
+              "declaraci\u00f3n de `sentinelas_numericos` para esta columna."
+            )
+          )
+        }
+      }
+      if (pa$propia_cadenas || pb$propia_cadenas) {
+        ca <- if (length(pa$cadenas)) .sort_por_bytes(unique(as.character(pa$cadenas))) else character()
+        cb <- if (length(pb$cadenas)) .sort_por_bytes(unique(as.character(pb$cadenas))) else character()
+        if (!identical(ca, cb)) {
+          ocultas <- anyNA(ca) || anyNA(cb)
+          agregar(
+            col, "configuracion_cadenas_ausencia",
+            if (ocultas) "no_comparable" else "modificado",
+            if (ocultas) "sospechoso" else "error",
+            .texto_lista_configuracion_deriva(ca),
+            .texto_lista_configuracion_deriva(cb),
+            descripcion = paste(
+              "Cambi\u00f3 la lista de cadenas declaradas como ausencia en esta",
+              "columna; las diferencias de faltantes pueden venir de la",
+              "declaraci\u00f3n y no de los datos."
+            ),
+            evidencia = paste(
+              "Para comparar los datos, correr las dos con la misma",
+              "declaraci\u00f3n de `cadenas_ausencia` para esta columna."
+            )
+          )
+        }
+      }
+    }
+  }
+  # `centinelas_fecha` es la gemela de fechas: lo declarado se acusa como
+  # `error` desde una aparicion. Con los mismos datos y la lista en una sola
+  # corrida, los hallazgos `fecha_centinela` aparecerian o se resolverian sin
+  # que cambie nada en la tabla; se declara con su propia fila.
+  fechas_centinela <- function(x) {
+    x <- x$meta$centinelas_fecha
+    if (is.null(x) || !length(x)) return(character())
+    .sort_por_bytes(unique(as.character(x)))
+  }
+  fechas_a <- fechas_centinela(anterior)
+  fechas_b <- fechas_centinela(actual)
+  if (!identical(fechas_a, fechas_b)) {
+    agregar(
+      NA_character_, "configuracion_centinelas_fecha", "modificado", "error",
+      .texto_lista_configuracion_deriva(fechas_a),
+      .texto_lista_configuracion_deriva(fechas_b),
+      descripcion = paste(
+        "Cambi\u00f3 la lista de fechas que se declaran como centinela; se",
+        "mantienen las comparaciones, pero las diferencias de hallazgos de fechas",
+        "centinela pueden venir de esta pol\u00edtica y no de los datos."
+      ),
+      evidencia = paste(
+        "Para comparar los datos, correr las dos con la misma",
+        "`centinelas_fecha`."
+      )
+    )
+  }
+
   # Y el tamano de la tabla. La cardinalidad se compara por TASA, asi que una
   # tabla que duplica sus filas con valores nuevos deja la tasa igual y la deriva
   # no publicaba nada del crecimiento, aunque el perfil lo trae y la propia
@@ -4358,6 +4456,19 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 # almacenada de una columna no decide el eje: memoria y DBI publican algunos
 # conteos con clases distintas, y el mismo campo debe conservar la misma regla.
 # Si aparece una métrica nueva, se agrega explícitamente acá antes de compararla.
+# La fecha de la corrida de un perfil o de un `perfil_dbi`, en segundos; `NULL`
+# si el objeto no la dice (un frame suelto, un resumen sin fecha sellada).
+.fecha_corrida_equivalencia <- function(x) {
+  fecha <- if (inherits(x, "perfil_dbi")) {
+    x$resumen_tabla$meta$fecha_hora
+  } else if (inherits(x, "perfil")) {
+    x$meta$fecha_hora
+  } else NULL
+  if (is.null(fecha) || length(fecha) != 1L) return(NULL)
+  valor <- suppressWarnings(as.numeric(fecha))
+  if (is.na(valor)) NULL else valor
+}
+
 .registro_campos_equivalencia <- function() {
   list(
     flotante = c("media", "mediana", "desvio", "longitud_media"),
@@ -4389,12 +4500,18 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       "n_controles_invisibles", "n_invisibles_eliminables",
       "n_espacios_invisibles", "n_invisibles_significativos",
       "n_entidades_html", "n_separadores_en_campo", "n_numeros_texto",
-      "proporcion_numeros_texto"
+      "proporcion_numeros_texto",
+      # El resumen de fechas (`resumen_fechas = TRUE`): las mismas cuentas en
+      # memoria y en el motor.
+      "n_fechas_centinela", "n_fechas_centinela_declaradas",
+      "n_fechas_fin_abierto", "n_fechas_futuras"
     ),
     fecha = c(
-      "minimo_fecha", "maximo_fecha", "media_fecha", "mediana_fecha"
+      "minimo_fecha", "maximo_fecha", "media_fecha", "mediana_fecha",
+      "ultimo_dato_fecha"
     ),
-    valor = c("moda", "centinela_valor")
+    valor = c("moda", "centinela_valor", "lectura_fechas_centinela",
+              "lectura_fechas_futuras")
   )
 }
 
@@ -4800,6 +4917,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' Los campos bajo protección tampoco se comparan: se declaran por columna,
 #' campo y lado en `campos_protegidos`.
 #'
+#' Los campos del resumen de fechas (`resumen_fechas = TRUE` en [perfilar()] y
+#' [perfilar_dbi()]) están registrados. Los que se cuentan contra la fecha de la
+#' corrida —`n_fechas_futuras`, `lectura_fechas_futuras` y
+#' `ultimo_dato_fecha`— sólo se comparan entre dos objetos con la misma fecha:
+#' con fechas distintas se declaran con el motivo `fecha_de_corrida_distinta`.
+#'
 #' @param anterior,actual Un objeto `perfil` de [perfilar()], un objeto
 #'   `perfil_dbi` de [perfilar_dbi()] o directamente un frame `columnas`.
 #' @param tolerancia Número escalar no negativo y finito, declarado por quien
@@ -4932,6 +5055,11 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   regla_sql <- inherits(anterior, "perfil_dbi") || inherits(actual, "perfil_dbi")
   cifras_anterior <- if (regla_sql) .cifras_equivalencia(anterior)
   cifras_actual <- if (regla_sql) .cifras_equivalencia(actual)
+  # Lo que se cuenta contra la fecha de la corrida solo se compara entre dos
+  # corridas con la misma fecha: con los mismos datos cambia porque paso el
+  # tiempo. Un frame suelto no la dice, y se compara como siempre.
+  fecha_anterior <- .fecha_corrida_equivalencia(anterior)
+  fecha_actual <- .fecha_corrida_equivalencia(actual)
   anterior <- .columnas_equivalencia(anterior, "anterior")
   actual <- .columnas_equivalencia(actual, "actual")
   mapa_anterior <- data.frame(
@@ -4954,6 +5082,11 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     setdiff(names(anterior), "columna"), setdiff(names(actual), "columna")
   )
   campos <- campos[campos %in% campos_registrados]
+  fechas_distintas <- !is.null(fecha_anterior) && !is.null(fecha_actual) &&
+    !identical(fecha_anterior, fecha_actual)
+  de_la_fecha <- if (fechas_distintas) {
+    intersect(campos, .CAMPOS_RESUMEN_FECHAS_DE_LA_FECHA)
+  } else character()
   columnas <- intersect(mapa_anterior$clave, mapa_actual$clave)
   campos_magnitud <- .campos_magnitud_equivalencia(registro)
   campos_representacion <- .campos_representacion_equivalencia(registro)
@@ -4966,6 +5099,14 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     columna = character(), campo = character(), motivo = character(),
     stringsAsFactors = FALSE
   )
+  if (length(de_la_fecha)) {
+    campos <- setdiff(campos, de_la_fecha)
+    campos_no_comparables <- unique(c(campos_no_comparables, de_la_fecha))
+    detalle_campos_no_comparables <- data.frame(
+      columna = NA_character_, campo = de_la_fecha,
+      motivo = "fecha_de_corrida_distinta", stringsAsFactors = FALSE
+    )
+  }
   cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
   registrar_no_comparable <- function(columna, lado, motivo, campo = NA_character_) {
     columnas_no_comparables <<- rbind(

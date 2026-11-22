@@ -62,7 +62,10 @@ perfilar(
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
   avisar_costo_tabla_ancha = TRUE,
   umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA,
-  dominios = NULL
+  dominios = NULL,
+  centinelas_fecha = NULL,
+  periodos = NULL,
+  resumen_fechas = FALSE
 )
 }
 \arguments{
@@ -344,7 +347,27 @@ ese valor: \code{"-999"}, \code{"-999.0"} y \code{"-9.99e2"} son el mismo centin
 plataforma. Un texto con más cifras de las que un doble distingue (más de
 15) sólo es el centinela si escribe exactamente el valor, en cualquier
 notación: \code{"9007199254740993"}, \code{"9.007199254740993e15"} y
-\code{"9007199254740991.5"} no se confunden con el centinela \code{9007199254740992}.}
+\code{"9007199254740991.5"} no se confunden con el centinela \code{9007199254740992}.
+
+\strong{Por columna.} Además del vector, que vale para todas las columnas,
+acepta una lista con nombre \verb{list(<columna> = valores)}: un \code{99} puede ser
+«no sabe» en una columna y una edad en la de al lado. Cada entrada vale
+para su columna lo mismo que el vector valdría para ella —el conjunto
+completo de esa columna, que reemplaza la lista por omisión; \code{numeric()}
+la apaga— y las columnas que la lista no nombra reciben la lista por
+omisión, con su reserva. La fila de una columna declarada es la que daría
+perfilarla sola con ese vector; las relaciones entre columnas, el plan de
+\code{\link[=planificar_limpieza]{planificar_limpieza()}} y la deriva de \code{\link[=comparar_perfiles]{comparar_perfiles()}} usan la
+entrada de cada una, y el perfil la guarda en \code{meta$ausencias_por_columna}
+(con vectores, \code{meta} es la de siempre). Un nombre que la tabla no tiene es
+un error, y también uno que la tabla repite: no dice a cuál de las
+columnas se refiere, y hay que renombrarlas. Con la lista no se expresa «un vector para todas y excepciones»:
+se escribe cada columna, por ejemplo
+\code{c(sapply(setdiff(names(datos), "edad"), function(x) sentinelas_naniar, simplify = FALSE), list(edad = c(setdiff(sentinelas_naniar, 88), 99)))}
+declara la lista de naniar en todas y, en \code{edad}, la misma sin \code{88} y con
+\code{99}. Una entrada igual a una lista publicada se trata como heurística, columna por
+columna. \code{\link[=detectar_tablas_codigos]{detectar_tablas_codigos()}} y \code{\link[=ausencias_desde_propuesta]{ausencias_desde_propuesta()}} arman
+esta lista a partir de las tablas de códigos de una colección.}
 
 \item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
 además de la lista incorporada. Lo declarado atraviesa la guarda del
@@ -354,7 +377,13 @@ declararlas las hace contar siempre. Es el equivalente textual de
 \code{sentinelas_numericos}. Como la lista incorporada, se comparan sin los
 blancos de los bordes y sin distinguir mayúsculas, con el pliegue de caja
 de \code{\link[=normalizacion]{normalizacion()}}: \verb{SIN INFORMACIÓN} es \verb{sin información} en cualquier
-locale.}
+locale.
+
+También acepta una \strong{lista por columna}, \verb{list(<columna> = cadenas)}: la
+entrada de una columna se suma a la lista incorporada en esa columna, y
+las columnas que la lista no nombra reciben sólo la lista incorporada. La
+forma por columna no retira marcas incorporadas. Ver
+\code{sentinelas_numericos} para la regla común a las dos.}
 
 \item{analizar_dependencias}{Si se buscan dependencias funcionales entre
 pares de columnas. Se aplica una sola muestra común a toda la tabla. Una
@@ -1205,6 +1234,43 @@ inferido debe repetirse y estar separado del resto de las fechas; si el
 día aparece en una proporción plausible dentro del recorrido de la
 columna, no se acusa. Las reglas inferidas con filas se publican como
 sospechosas; las declaradas, como errores.}
+
+\item{centinelas_fecha}{Fechas que el usuario declara como centinela en
+toda columna de fecha de la tabla (texto \code{"AAAA-MM-DD"}, \code{Date} o
+\code{POSIXt}; la hora de un texto se descarta, como en \code{dominios}). Se suman a
+las cuatro fechas que el paquete sospecha por omisión (1900-01-01,
+9999-12-31, 1970-01-01 y 1899-12-30) sin quitarles su reserva: lo
+declarado se acusa desde una aparición como \code{error}, en un hallazgo
+\code{fecha_centinela} propio, y lo incorporado sigue necesitando repetirse y
+estar separado del resto de las fechas. Para medir esa separación se
+apartan todas las demás candidatas, las declaradas incluidas: un
+\code{0001-01-01} declarado no esconde un \code{1900-01-01}. Una columna con
+\code{centinelas} propias en \code{dominios} usa las suyas; con \code{dominios = FALSE}
+(o \code{FALSE} para la columna) rigen sólo las declaradas acá. \code{NULL} (por
+omisión) no cambia nada.}
+
+\item{periodos}{Pares de columnas de fecha declarados como inicio y fin de un
+período: \code{c(inicio = "desde", fin = "hasta")}, una lista con esos campos y,
+opcionalmente, \code{fin_abierto} (las fechas que significan «vigente», como
+\code{"9999-12-31"}), o una lista nombrada de varios. Nunca se adivinan por el
+nombre. Cada fila cae en una sola categoría y la tabla se publica en
+\code{general$periodos}: cerrados válidos, fin antes del inicio, fin abierto
+(ausente o una fecha de \code{fin_abierto}), fin con una centinela declarada, fin
+con una fecha que suele ser centinela y no se declaró (con un aviso de
+posible fin abierto sin declarar: no se cuenta como período cerrado ni como
+inversión), sin inicio y ambos ausentes. \code{NULL} (por omisión) no agrega
+nada.}
+
+\item{resumen_fechas}{Si es \code{TRUE}, \code{columnas} agrega por columna de fecha
+\code{n_fechas_centinela} (y de ellas \code{n_fechas_centinela_declaradas} y
+\code{n_fechas_fin_abierto}), \code{lectura_fechas_centinela}, \code{n_fechas_futuras}
+(con la misma regla que \code{fecha_futura}, también donde las futuras son
+legítimas: ahí su lectura es \code{"admitidas"}), \code{lectura_fechas_futuras} y
+\code{ultimo_dato_fecha}, y \code{general$actualidad} dice, por columna, el último
+dato que no es futuro ni una centinela declarada y cuántos días hace de él.
+No hay una fecha ganadora entre columnas ni un puntaje. Los mismos campos los
+publica \code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre la tabla completa y \code{\link[=comparar_equivalencia]{comparar_equivalencia()}}
+los compara. \code{FALSE} (por omisión) deja el perfil como siempre.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

@@ -15,7 +15,10 @@ referencial(
 )
 }
 \arguments{
-\item{datos}{Tabla de referencia. Se conserva una copia ordinaria de R.}
+\item{datos}{Tabla de referencia. Se conserva una copia ordinaria de R. O
+una tabla del motor, nombrada con un \code{\link[DBI:Id]{DBI::Id()}} o con su nombre: el
+referencial no copia nada y \code{\link[=medir_dbi]{medir_dbi()}} la resuelve en su conexión o
+su colección como resuelve las entidades.}
 
 \item{clave}{Columnas que identifican unívocamente cada fila. Puede
 contener varias columnas.}
@@ -55,6 +58,23 @@ La clave no admite ausentes y debe identificar cada fila de forma única.
 \code{valor} no puede repetir columnas de \code{clave} y representa atributos que se
 contrastan en correctitud semántica débil. El constructor copia la tabla y
 no consulta fuentes externas.
+
+\strong{Un referencial que vive en el motor.} Con \code{datos = DBI::Id(...)} o el
+nombre de una tabla, el referencial no copia la tabla a R: guarda la
+referencia (en \code{tabla_motor}, sin conexión: se serializa como cualquier
+lista) y \code{datos} queda \code{NULL}. Que las columnas existan y que la clave no
+tenga ausentes y sea única se verifica en cada \code{\link[=medir_dbi]{medir_dbi()}}, con una
+consulta y con las mismas frases, porque la tabla puede cambiar entre la
+declaración y la medición. \code{\link[=medir]{medir()}} no lo lee: las métricas se abstienen
+con estado \code{no_medible} y el motivo. \code{nombre}, si se omite, es el de la
+tabla. Como el nombre se resuelve en la conexión de cada medición, el mismo
+referencial medido en otra base es otra tabla: el sello de la medición
+(\code{attr(, "sello_metricas")}) firma también la ubicación de esa conexión
+—archivo, anfitrión, puerto y base, sin usuario ni credenciales—, y unir o
+comparar corridas de dos bases avisa que la métrica cambió de definición.
+Dos bases en memoria no se distinguen. En \code{\link[=medir_dbi]{medir_dbi()}} las tres métricas de \code{\link[=metricas_referencial]{metricas_referencial()}} cuentan
+lo que contaría \code{\link[=medir]{medir()}} con las dos tablas leídas por \code{dbReadTable()}; ver
+allí qué se mide en el motor y qué se declara.
 }
 \examples{
 padron <- referencial(

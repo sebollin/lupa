@@ -579,49 +579,88 @@
   paste(partes, collapse = ", ")
 }
 
-.dominio_centinela_aislado <- function(valores, candidato) {
-  valores <- valores[!is.na(valores) & is.finite(valores)]
-  if (!length(valores)) return(FALSE)
-  otros <- valores[abs(valores - candidato) != 0]
-  if (!length(otros)) return(TRUE)
-  amplitud <- diff(range(valores))
+# La reserva de una fecha centinela, en un solo lugar. Memoria la calcula sobre el
+# vector y el motor sobre agregados que trae con comparaciones contra el literal
+# (`.resumen_fechas_dbi()`): las dos vias llaman a esta funcion con los mismos
+# seis numeros -cuantos valores hay en la base, cuantos son la candidata, el
+# minimo y el maximo de la base, el mayor valor por debajo y el menor por encima
+# de la candidata-, asi que no pueden decidir distinto. La proporcion es
+# `cuenta / n`: `mean()` de un logico puede diferir de esa division en el ultimo
+# bit, pero nunca a los dos lados del umbral (`cuenta / n` y 0.05 distan al menos
+# `1 / (20 n)`, muchisimo mas que un bit para cualquier `n` de una tabla).
+.dominio_centinela_aislado_extremos <- function(n, cuenta, minimo, maximo,
+                                                debajo, encima, candidato) {
+  if (!isTRUE(n > 0)) return(FALSE)
+  if (cuenta >= n) return(TRUE)
+  amplitud <- maximo - minimo
   if (!is.finite(amplitud) || amplitud <= 0) return(FALSE)
-  hueco <- min(abs(otros - candidato)) / amplitud
-  proporcion <- mean(abs(valores - candidato) == 0)
+  hueco <- min(c(candidato - debajo, encima - candidato), na.rm = TRUE) / amplitud
+  proporcion <- cuenta / n
   hueco > .UMBRAL_HUECO_CENTINELA_FECHA &&
     (proporcion < .UMBRAL_PROPORCION_PLAUSIBLE_CENTINELA ||
      hueco > .UMBRAL_HUECO_GRANDE_CENTINELA_FECHA)
 }
 
+.dominio_centinela_aislado <- function(valores, candidato) {
+  valores <- valores[!is.na(valores) & is.finite(valores)]
+  if (!length(valores)) return(FALSE)
+  es <- abs(valores - candidato) == 0
+  debajo <- valores[!es & valores < candidato]
+  encima <- valores[!es & valores > candidato]
+  .dominio_centinela_aislado_extremos(
+    n = length(valores), cuenta = sum(es),
+    minimo = min(valores), maximo = max(valores),
+    debajo = if (length(debajo)) max(debajo) else NA_real_,
+    encima = if (length(encima)) min(encima) else NA_real_,
+    candidato = candidato
+  )
+}
+
+# Cuantas apariciones hacen falta para que una fecha incorporada sea centinela.
+# 1970-01-01 es tambien una fecha real (el origen de muchos sistemas): dos
+# apariciones no la vuelven centinela. En un fin de vigencia, 9999-12-31 basta
+# una vez: es la convencion de "sin fin".
+.dominio_minimo_centinela <- function(centinela, fin_abierto = FALSE) {
+  if (identical(centinela, "1970-01-01")) {
+    .MIN_REPETICIONES_CENTINELA_1970
+  } else if (isTRUE(fin_abierto) && identical(centinela, "9999-12-31")) {
+    1L
+  } else .MIN_REPETICIONES_CENTINELA_FECHA
+}
+
+# `declarada` va por candidata (un valor de largo 1 vale para toda la lista,
+# como hasta ahora): las fechas que declara `centinelas_fecha` se suman a las
+# incorporadas sin quitarles su reserva. El aislamiento de cada candidata se
+# mide sin TODAS las otras, declaradas incluidas: un 0001-01-01 declarado no
+# puede esconder un 1900, como un 9999 tampoco.
 .dominio_centinelas_repetidos <- function(valores, indices, centinelas,
                                           declarada, columna,
                                           fin_abierto = FALSE) {
-  vacio <- list(indices = integer(), observados = character())
+  vacio <- list(indices = integer(), observados = character(),
+                indices_declarados = integer(),
+                observados_declarados = character())
   if (!length(centinelas)) return(vacio)
   candidatos <- .dominio_fecha_numero(centinelas, columna)
+  declarada <- rep_len(as.logical(declarada), length(candidatos))
+  declarada[is.na(declarada)] <- FALSE
   validos <- vapply(seq_along(candidatos), function(j) {
+    if (declarada[[j]]) return(TRUE)
     valor <- candidatos[[j]]
-    encontrados <- indices[abs(valores[indices] - valor) == 0]
-    # 1970-01-01 es tambien una fecha real (el origen de muchos sistemas): dos
-    # apariciones no la vuelven centinela.
-    minimo <- if (identical(centinelas[[j]], "1970-01-01")) {
-      .MIN_REPETICIONES_CENTINELA_1970
-    } else if (fin_abierto && identical(centinelas[[j]], "9999-12-31")) {
-      1L
-    } else .MIN_REPETICIONES_CENTINELA_FECHA
-    # El aislamiento se mide sin los otros centinelas: un 9999 no puede
-    # esconder un 1900.
+    encontrados <- sum(abs(valores[indices] - valor) == 0)
+    if (encontrados < .dominio_minimo_centinela(centinelas[[j]], fin_abierto)) {
+      return(FALSE)
+    }
     base <- valores[indices]
-    otros <- candidatos[-j]
-    base <- base[!(base %in% otros)]
-    declarada || (length(encontrados) >= minimo &&
-                    .dominio_centinela_aislado(base, valor))
+    base <- base[!(base %in% candidatos[-j])]
+    .dominio_centinela_aislado(base, valor)
   }, logical(1L))
   if (!any(validos)) return(vacio)
-  candidatos_validos <- candidatos[validos]
-  coincide <- rowSums(abs(outer(
-    valores[indices], candidatos_validos, "-"
-  )) == 0) > 0
+  coincide_con <- function(cuales) {
+    if (!length(cuales)) return(rep(FALSE, length(indices)))
+    rowSums(abs(outer(valores[indices], cuales, "-")) == 0) > 0
+  }
+  coincide <- coincide_con(candidatos[validos])
+  coincide_declarada <- coincide_con(candidatos[validos & declarada])
   # Un centinela declarado vale aunque no aparezca, pero la evidencia nombra
   # solo los que se observaron: decir que un valor ausente esta en la columna
   # es falso.
@@ -629,7 +668,9 @@
     any(abs(valores[indices] - valor) == 0)
   }, logical(1L))
   list(indices = indices[coincide],
-       observados = centinelas[validos & presentes])
+       observados = centinelas[validos & presentes],
+       indices_declarados = indices[coincide_declarada],
+       observados_declarados = centinelas[validos & presentes & declarada])
 }
 
 .dominio_no_futuro <- function(valores, referencia, fecha_es_date) {
@@ -718,6 +759,40 @@
   NA_real_
 }
 
+# Como se leen las futuras y las centinelas de una regla INFERIDA de fecha, a
+# partir de cuentas: la usan `.dominio_decidir_inferida()` sobre los valores y
+# el resumen del motor sobre los agregados (`.resumen_fechas_dbi()`), para que
+# las dos vias no puedan leer distinto. `serie` se llama solo cuando la grilla
+# importa (hay futuras, alcanzan los valores, no es nacimiento ni registro):
+# en el motor cuesta una consulta.
+# - futuras: "calendario" si las fechas forman una grilla sin huecos que
+#   arranca en el presente (a lo sumo un paso adelante); "columna" si pasan del
+#   tope de una minoria; si no, "fila". Una tanda de fechas seguidas que empieza
+#   lejos en el futuro (`fecha_registro` de 2030) no es un calendario.
+# - centinelas: "columna" si la centinela es la mayoria de la columna.
+.dominio_lecturas_fecha <- function(n, regla, n_futuras = 0, minimo = NA_real_,
+                                    referencia = NA_real_,
+                                    serie = function() NA_real_,
+                                    n_centinelas = 0) {
+  suficiente <- n >= .MIN_VALORES_GUARDA_DOMINIO
+  futuras <- "fila"
+  if (isTRUE(n_futuras > 0)) {
+    paso <- if (suficiente && !isTRUE(regla$imposible_futuras) &&
+                !isTRUE(regla$fecha_de_registro)) serie() else NA_real_
+    if (!is.na(paso) && floor(minimo / 86400) <= floor(referencia / 86400) + paso) {
+      futuras <- "calendario"
+    } else if (suficiente && n_futuras / n > .UMBRAL_DOMINIO_INFERIDO_FUERA &&
+               !isTRUE(regla$imposible_futuras)) {
+      futuras <- "columna"
+    }
+  }
+  centinelas <- if (suficiente && isTRUE(n_centinelas > 0) &&
+                    n_centinelas / n >= .UMBRAL_CENTINELA_MAYORIA) {
+    "columna"
+  } else "fila"
+  list(futuras = futuras, centinelas = centinelas)
+}
+
 # Decide como se lee una regla INFERIDA sobre los valores de la columna. Cada
 # componente (`rango`, `futuras`, `centinelas`) toma uno de dos modos:
 # - "fila": la columna sostiene la regla; lo de afuera es un valor suelto y se
@@ -777,23 +852,11 @@
       )
       if (sum(futuras) > 0L) salida$hay <- TRUE
       salida$cuentas$futuras <- c(sum(futuras), n)
-      paso <- if (suficiente && sum(futuras) > 0L &&
-                  !isTRUE(regla$imposible_futuras) &&
-                  !isTRUE(regla$fecha_de_registro)) {
-        .dominio_serie_regular(valores$valores[indices])
-      } else NA_real_
-      # Una grilla de fechas sin huecos que arranca en el presente (a lo sumo
-      # un paso adelante) es un calendario o un pronostico: lo futuro es de la
-      # serie. Una tanda de fechas seguidas que empieza lejos en el futuro
-      # (`fecha_registro` de 2030) no es eso: sigue siendo un aviso.
-      if (!is.na(paso) &&
-          floor(min(valores$valores[indices]) / 86400) <=
-            floor(referencia / 86400) + paso) {
-        salida$futuras <- "calendario"
-      } else if (suficiente && sum(futuras) > 0L && sum(futuras) / n > tope &&
-                 !isTRUE(regla$imposible_futuras)) {
-        salida$futuras <- "columna"
-      }
+      salida$futuras <- .dominio_lecturas_fecha(
+        n, regla, n_futuras = sum(futuras),
+        minimo = min(valores$valores[indices]), referencia = referencia,
+        serie = function() .dominio_serie_regular(valores$valores[indices])
+      )$futuras
     }
   }
   if (length(regla$centinelas) && valores$fecha) {
@@ -803,16 +866,19 @@
     }))
     if (any(coincide)) salida$hay <- TRUE
     # La mayoria se mide con lo mismo que despues se publica como centinela
-    # (repetido y aislado), no con todo candidato que coincida.
-    publicados <- .dominio_centinelas_repetidos(
-      valores$valores, indices, regla$centinelas, FALSE, "la columna",
+    # (repetido y aislado), no con todo candidato que coincida. Y solo con las
+    # incorporadas: una fecha declarada en `centinelas_fecha` se publica aparte
+    # y no vuelve "de la columna" a una incorporada que es una minoria.
+    repetidos <- .dominio_centinelas_repetidos(
+      valores$valores, indices, regla$centinelas,
+      regla$centinelas_declaradas %||% FALSE, "la columna",
       fin_abierto = isTRUE(regla$fin_vigencia)
-    )$indices
+    )
+    publicados <- setdiff(repetidos$indices, repetidos$indices_declarados)
     salida$cuentas$centinelas <- c(length(publicados), n)
-    if (suficiente && length(publicados) &&
-        length(publicados) / n >= .UMBRAL_CENTINELA_MAYORIA) {
-      salida$centinelas <- "columna"
-    }
+    salida$centinelas <- .dominio_lecturas_fecha(
+      n, regla, n_centinelas = length(publicados)
+    )$centinelas
     # Una fecha sin regla de futuro (nombre de fecha planificada) solo aplica
     # si aparece alguno de los centinelas candidatos.
     if (!isTRUE(regla$no_futuras) && is.null(regla$minimo) &&
@@ -1094,7 +1160,7 @@
   # filas; "columna" avisa de la columna (severidad `ok`) con las dos lecturas.
   agregar <- function(tipo_hallazgo, indices, evidencia, descripcion,
                       sugerencia, lectura = "fila", extra = "",
-                      abierto = FALSE) {
+                      abierto = FALSE, severidad = severidad_fila) {
     if (!length(indices)) return()
     por_columna <- identical(lectura, "columna")
     evidencia_base <- evidencia
@@ -1232,7 +1298,7 @@
       } else {
         "fecha_centinela"
       },
-      severidad = if (por_columna) "ok" else severidad_fila,
+      severidad = if (por_columna) "ok" else severidad,
       descripcion = descripcion, evidencia = evidencia,
       sugerencia = sugerencia, n_evaluados = length(indices_evaluados),
       n_afectados = length(indices), unidad_conteo = "fila"
@@ -1398,12 +1464,22 @@
       }
     }
   }
+  resumen_centinelas <- NULL
   if (length(regla$centinelas) && valores$fecha) {
     centinelas <- .dominio_centinelas_repetidos(
-      valores$valores, indices_evaluados, regla$centinelas, declarada, nombre,
+      valores$valores, indices_evaluados, regla$centinelas,
+      if (declarada) TRUE else regla$centinelas_declaradas %||% FALSE, nombre,
       fin_abierto = inferida && isTRUE(regla$fin_vigencia)
     )
     indices_c <- centinelas$indices
+    # Lo que declara `centinelas_fecha` sobre una regla inferida se publica
+    # aparte, como una declaracion (`error`, por fila): no hereda la lectura de
+    # las incorporadas ni cuenta para su mayoria.
+    declaradas <- if (inferida) centinelas$indices_declarados else integer()
+    indices_c <- setdiff(indices_c, declaradas)
+    observados <- if (inferida) {
+      setdiff(centinelas$observados, centinelas$observados_declarados)
+    } else centinelas$observados
     # `9999-12-31` en un nombre de fin de vigencia es la convencion de "sin fin":
     # aviso de la columna en cualquier proporcion, no una acusacion por fila.
     abierto <- integer()
@@ -1433,14 +1509,37 @@
         tipo_hallazgo = "fecha_centinela", indices = indices_c,
         lectura = if (inferida) sostenimiento$centinelas else "fila",
         paste0(
-          "Centinelas observados: ", paste(centinelas$observados, collapse = ", "),
+          "Centinelas observados: ", paste(observados, collapse = ", "),
           "; fuente: ", regla$fuente, "; filas afectadas: ",
           length(indices_c), "."
         ),
         textos_centinela[[1L]], textos_centinela[[2L]]
       )
     }
+    if (length(declaradas)) {
+      agregar(
+        tipo_hallazgo = "fecha_centinela", indices = declaradas,
+        lectura = "fila", severidad = "error",
+        paste0(
+          "Centinelas observados: ",
+          paste(centinelas$observados_declarados, collapse = ", "),
+          "; fuente: declarado (`centinelas_fecha`); filas afectadas: ",
+          length(declaradas), "."
+        ),
+        textos_centinela[[1L]], textos_centinela[[2L]]
+      )
+    }
+    resumen_centinelas <- list(
+      n = length(abierto) + length(indices_c) + length(declaradas),
+      n_declaradas = if (declarada) length(indices_c) else length(declaradas),
+      n_fin_abierto = length(abierto),
+      lectura = if (inferida && length(indices_c)) sostenimiento$centinelas else NA_character_,
+      indices_declarados = if (declarada) indices_c else declaradas,
+      incorporadas = if (declarada) numeric() else
+        .dominio_fecha_numero(observados, nombre)
+    )
   }
+  attr(salida, "resumen_centinelas") <- resumen_centinelas
   salida
 }
 
@@ -1465,7 +1564,9 @@
 
 .evaluar_dominios <- function(datos, nombres, resultados, dominios,
                               aplicables, fecha_hora,
-                              fecha_es_date = FALSE) {
+                              fecha_es_date = FALSE,
+                              centinelas_fecha = NULL,
+                              resumen_fechas = FALSE) {
   # El contenido de la columna `j` parece una coordenada (de longitud si su
   # nombre lo es, de latitud si no): lo pide `long` como pareja.
   contenido <- function(j) {
@@ -1483,49 +1584,22 @@
   names(reglas) <- nombres
   inferidos <- list()
   hallazgos <- list()
+  # Lo que el resumen de fechas necesita de cada columna: la regla que se
+  # aplico, como se leyo y las cuentas de centinelas que publicaron sus
+  # hallazgos (ver `.resumen_fechas_dominios()`).
+  aplicadas <- vector("list", length(nombres))
   for (i in seq_along(nombres)) {
     nombre <- nombres[[i]]
-    clave <- .nombres_para_operar(nombre)
-    indices_declarados <- if (length(dominios$declarados)) {
-      match(clave, .nombres_para_operar(names(dominios$declarados)))
-    } else NA_integer_
-    declarada <- if (length(indices_declarados) &&
-                     !is.na(indices_declarados[[1L]])) {
-      dominios$declarados[[indices_declarados[[1L]]]]
-    } else NULL
-    if (!is.null(declarada) && !isFALSE(declarada)) {
-      .validar_tipo_regla_dominio(declarada, resultados[[i]], nombre)
+    elegida <- .dominio_regla_columna(
+      nombre, i, nombres, resultados, dominios, centinelas_fecha, contenido
+    )
+    if (isTRUE(elegida$apagada)) {
+      reglas[[i]] <- FALSE
+      next
     }
-    inferida <- FALSE
-    if (!is.null(declarada)) {
-      regla <- declarada
-      if (isFALSE(regla)) {
-        reglas[[i]] <- FALSE
-        next
-      }
-      regla$fuente <- "declarado"
-    } else if (isTRUE(dominios$inferir)) {
-      inferida <- TRUE
-      regla <- .dominio_regla_inferida(
-        nombre, .dominio_tokens(nombre), nombres, i, resultados, contenido
-      )
-      # En un grupo, la tabla decide si la abreviatura es una pareja o una
-      # sola: un grupo que perdio la columna pareja no baja la severidad.
-      if (isTRUE(regla$contenido_coordenada) &&
-          is.function(.CONTEXTO_POR$dominio_columna)) {
-        de_tabla <- .CONTEXTO_POR$dominio_columna(nombre)$regla
-        if (!is.null(de_tabla)) regla <- de_tabla
-      }
-      # Una rebanada que perdio la columna pareja (`lng` toda ausente en el
-      # grupo) no infiere la latitud por el nombre: la regla es la que infirio la
-      # tabla entera.
-      if (is.null(regla) && is.function(.CONTEXTO_POR$dominio_columna) &&
-          any(.dominio_tokens(nombre) %in% c("lat", "lon", "lng", "long"))) {
-        regla <- .CONTEXTO_POR$dominio_columna(nombre)$regla
-      }
-    } else {
-      regla <- NULL
-    }
+    regla <- elegida$regla
+    inferida <- elegida$inferida
+    regla_publicada <- elegida$publicada
     reglas[[i]] <- regla
     if (!is.null(regla)) {
       universo <- .dominio_universo(datos, resultados, aplicables, i)
@@ -1562,8 +1636,14 @@
       # La marca de fecha de registro es de uso interno: no se publica en las
       # reglas inferidas (el resto de la regla es la de siempre).
       if (inferida && aplicar_regla) {
-        inferidos[[nombre]] <- regla[setdiff(names(regla), "fecha_de_registro")]
+        inferidos[[nombre]] <- regla_publicada[
+          setdiff(names(regla_publicada), "fecha_de_registro")
+        ]
       }
+      aplicadas[[i]] <- list(
+        regla = regla, inferida = inferida, sostenimiento = sostenimiento,
+        aplicada = aplicar_regla, leida = !is.null(valores)
+      )
       if (!aplicar_regla) {
         resultados[[i]]$dominio <- NULL
         next
@@ -1571,6 +1651,9 @@
       hallazgos_columna <- .hallazgos_dominio_columna(
         datos[[i]], nombre, i, resultados[[i]], regla,
         aplicable, fecha_hora, fecha_es_date, valores, sostenimiento
+      )
+      aplicadas[[i]]$centinelas <- attr(
+        hallazgos_columna, "resumen_centinelas", exact = TRUE
       )
       if (length(hallazgos_columna)) {
         hallazgos <- c(hallazgos, hallazgos_columna)
@@ -1595,10 +1678,234 @@
       inferidos = inferidos
     )
   } else NULL
-  list(
+  salida <- list(
     resultados = resultados,
     reglas = reglas,
     hallazgos = hallazgos,
     meta = meta
   )
+  if (isTRUE(resumen_fechas)) {
+    salida$fechas <- .resumen_fechas_dominios(
+      datos, nombres, resultados, aplicables, aplicadas, fecha_hora,
+      fecha_es_date
+    )
+  }
+  salida
+}
+
+# Las fechas que `centinelas_fecha` declara para toda la tabla, sumadas a la
+# regla de una columna de fecha. Una regla inferida conserva sus cuatro
+# incorporadas con su reserva y gana las declaradas, marcadas por candidata
+# (`centinelas_declaradas`); si una declarada es una incorporada -el mismo
+# instante, escrita como sea-, gana la declaracion. Una regla declarada en
+# `dominios` con sus propias `centinelas` manda en su columna, como siempre; sin
+# ellas, recibe las de la tabla. Sin regla (`dominios = FALSE`), la columna
+# recibe una regla con solo las declaradas.
+.dominio_regla_centinelas_fecha <- function(regla, centinelas_fecha, resultado,
+                                            columna) {
+  if (!length(centinelas_fecha)) return(regla)
+  tipo <- as.character(resultado$inferencia$tipo)
+  if (!length(tipo) || !tipo[[1L]] %in% c("fecha", "fecha-hora")) return(regla)
+  if (is.null(regla)) {
+    return(list(
+      centinelas = centinelas_fecha, tipo_dominio = "fecha",
+      fuente = "declarado"
+    ))
+  }
+  if (identical(regla$fuente, "declarado")) {
+    if (is.null(regla$centinelas)) regla$centinelas <- centinelas_fecha
+    return(regla)
+  }
+  todas <- c(regla$centinelas, centinelas_fecha)
+  marcas <- c(
+    if (length(regla$centinelas_declaradas)) regla$centinelas_declaradas else
+      rep(FALSE, length(regla$centinelas)),
+    rep(TRUE, length(centinelas_fecha))
+  )
+  numeros <- .dominio_fecha_numero(todas, columna)
+  primero <- !duplicated(numeros)
+  regla$centinelas <- todas[primero]
+  regla$centinelas_declaradas <- vapply(numeros[primero], function(v) {
+    any(marcas[numeros == v])
+  }, logical(1L))
+  regla
+}
+
+# El resumen de fechas de cada columna (`resumen_fechas = TRUE`): lo que
+# publicaron sus hallazgos, contado, mas lo que cuenta la misma definicion de
+# futura (`.dominio_no_futuro()`) en toda columna de fecha -tambien en las que
+# admiten futuras, donde no es un hallazgo sino un dato- y el ultimo dato para
+# la actualidad. El ultimo dato excluye las futuras y las centinelas
+# declaradas; una incorporada no sale de la estadistica (lo declarado sale, lo
+# supuesto no). Devuelve una fila por columna, con `NA` en las que no son fecha.
+.resumen_fechas_dominios <- function(datos, nombres, resultados, aplicables,
+                                     aplicadas, fecha_hora, fecha_es_date) {
+  referencia <- suppressWarnings(as.numeric(fecha_hora))
+  filas <- lapply(seq_along(nombres), function(i) {
+    vacia <- .fila_resumen_fechas(nombres[[i]])
+    tipo <- as.character(resultados[[i]]$inferencia$tipo)
+    if (!length(tipo) || !tipo[[1L]] %in% c("fecha", "fecha-hora")) return(vacia)
+    valores <- .dominio_valores(
+      datos[[i]], resultados[[i]], .dominio_universo(datos, resultados, aplicables, i)
+    )
+    if (is.null(valores) || !isTRUE(valores$fecha)) return(vacia)
+    clase <- if (identical(tipo[[1L]], "fecha")) "fecha" else "fecha-hora"
+    posiciones <- which(valores$usable)
+    v <- valores$valores[posiciones]
+    futura <- if (length(referencia) == 1L && is.finite(referencia)) {
+      !.dominio_no_futuro(v, referencia, fecha_es_date)
+    } else rep(NA, length(v))
+    aplicada <- aplicadas[[i]]
+    regla <- aplicada$regla
+    centinelas <- aplicada$centinelas
+    declaradas <- posiciones %in% (centinelas$indices_declarados %||% integer())
+    .fila_resumen_fechas(
+      nombres[[i]], clase = clase, n_valores = length(v),
+      regla = regla, aplicada = aplicada, centinelas = centinelas,
+      futura = futura, declaradas = declaradas, valores = v
+    )
+  })
+  .apilar_filas(filas)
+}
+
+# Una fila del resumen de fechas. La usan memoria (sobre los valores) y el
+# resumen del motor (sobre agregados, `.resumen_fechas_dbi()`): los mismos
+# campos con los mismos nombres, para que `comparar_equivalencia()` los
+# compare. Sin argumentos devuelve la fila vacia de una columna que no es fecha.
+.fila_resumen_fechas <- function(columna, clase = NA_character_, n_valores = NA_real_,
+                                 regla = NULL, aplicada = NULL, centinelas = NULL,
+                                 futura = NULL, declaradas = NULL, valores = NULL,
+                                 cuentas = NULL) {
+  fila <- data.frame(
+    columna = columna, clase_fecha = clase,
+    n_fechas_centinela = NA_real_, n_fechas_centinela_declaradas = NA_real_,
+    n_fechas_fin_abierto = NA_real_, lectura_fechas_centinela = NA_character_,
+    n_fechas_futuras = NA_real_, lectura_fechas_futuras = NA_character_,
+    ultimo_dato_fecha = NA_character_,
+    n_evaluadas_actualidad = NA_real_,
+    n_centinelas_declaradas_no_futuras = NA_real_,
+    admite_futuras = NA, ultimo_dato_seg = NA_real_,
+    ultimo_es_incorporada = NA, stringsAsFactors = FALSE
+  )
+  if (is.na(clase)) return(fila)
+  # `cuentas` llega del motor ya contado; memoria cuenta sobre los valores.
+  if (is.null(cuentas)) {
+    cuentas <- list(
+      n_futuras = if (anyNA(futura)) NA_real_ else sum(futura),
+      ultimo = if (!anyNA(futura) && any(!futura & !declaradas)) {
+        max(valores[!futura & !declaradas])
+      } else NA_real_,
+      n_evaluadas = if (anyNA(futura)) NA_real_ else sum(!futura & !declaradas),
+      n_declaradas_no_futuras = if (anyNA(futura)) NA_real_ else
+        sum(declaradas & !futura)
+    )
+  }
+  tiene_centinelas <- !is.null(regla) && length(regla$centinelas)
+  if (!tiene_centinelas) {
+    fila$lectura_fechas_centinela <- "no_aplica"
+  } else if (!isTRUE(aplicada$aplicada) ||
+             (is.null(centinelas) && isTRUE(n_valores == 0))) {
+    # La regla se evaluo y no aplico: ninguna candidata aparece en la columna
+    # (o la columna no tiene valores).
+    fila$n_fechas_centinela <- 0
+    fila$n_fechas_centinela_declaradas <- 0
+    fila$n_fechas_fin_abierto <- 0
+  } else if (!is.null(centinelas)) {
+    # Cuentas como dobles en las dos vias: el motor las trae asi.
+    fila$n_fechas_centinela <- as.numeric(centinelas$n)
+    fila$n_fechas_centinela_declaradas <- as.numeric(centinelas$n_declaradas)
+    fila$n_fechas_fin_abierto <- as.numeric(centinelas$n_fin_abierto)
+    fila$lectura_fechas_centinela <- centinelas$lectura
+  }
+  fila$n_fechas_futuras <- as.numeric(cuentas$n_futuras)
+  admite <- is.null(regla) || !isTRUE(regla$no_futuras)
+  fila$admite_futuras <- admite
+  if (isTRUE(cuentas$n_futuras > 0)) {
+    fila$lectura_fechas_futuras <- if (admite) {
+      "admitidas"
+    } else if (!isTRUE(aplicada$inferida)) {
+      "fila"
+    } else {
+      aplicada$sostenimiento$futuras %||% "fila"
+    }
+  }
+  fila$ultimo_dato_fecha <- .fecha_resumida(cuentas$ultimo, clase)
+  fila$ultimo_dato_seg <- cuentas$ultimo
+  # El ultimo dato puede ser una incorporada que la reserva acepto: no se
+  # mueve -no se declaro-, pero se avisa.
+  fila$ultimo_es_incorporada <- is.finite(cuentas$ultimo) &&
+    any(abs((centinelas$incorporadas %||% numeric()) - cuentas$ultimo) == 0)
+  fila$n_evaluadas_actualidad <- as.numeric(cuentas$n_evaluadas)
+  fila$n_centinelas_declaradas_no_futuras <- as.numeric(cuentas$n_declaradas_no_futuras)
+  fila
+}
+
+# La regla de dominio de una columna: la declarada en `dominios` (que manda), la
+# inferida por el nombre y el tipo, o ninguna; con las fechas de
+# `centinelas_fecha` sumadas. Una sola eleccion para `perfilar()` y para el
+# resumen de fechas del motor (`.resumen_fechas_dbi()`), que no pueden aplicar
+# reglas distintas a la misma columna. `contenido(j)` dice si la columna `j`
+# parece una coordenada; el motor no lo necesita (las fechas no lo usan).
+# Devuelve la regla, si es inferida, la que se publica como inferida (sin lo
+# declarado) y `apagada` cuando la columna se declaro `FALSE` y no queda nada.
+.dominio_regla_columna <- function(nombre, i, nombres, resultados, dominios,
+                                   centinelas_fecha = character(),
+                                   contenido = function(j) TRUE) {
+  clave <- .nombres_para_operar(nombre)
+  indices_declarados <- if (length(dominios$declarados)) {
+    match(clave, .nombres_para_operar(names(dominios$declarados)))
+  } else NA_integer_
+  declarada <- if (length(indices_declarados) &&
+                   !is.na(indices_declarados[[1L]])) {
+    dominios$declarados[[indices_declarados[[1L]]]]
+  } else NULL
+  if (!is.null(declarada) && !isFALSE(declarada)) {
+    .validar_tipo_regla_dominio(declarada, resultados[[i]], nombre)
+  }
+  inferida <- FALSE
+  if (!is.null(declarada)) {
+    regla <- declarada
+    if (isFALSE(regla)) {
+      # Apagar el dominio de la columna no apaga lo que se declaro para toda la
+      # tabla: `centinelas_fecha` sigue valiendo, sola.
+      regla <- .dominio_regla_centinelas_fecha(
+        NULL, centinelas_fecha, resultados[[i]], nombre
+      )
+      if (is.null(regla)) {
+        return(list(regla = NULL, inferida = FALSE, publicada = NULL,
+                    apagada = TRUE))
+      }
+    }
+    regla$fuente <- "declarado"
+  } else if (isTRUE(dominios$inferir)) {
+    inferida <- TRUE
+    regla <- .dominio_regla_inferida(
+      nombre, .dominio_tokens(nombre), nombres, i, resultados, contenido
+    )
+    # En un grupo, la tabla decide si la abreviatura es una pareja o una
+    # sola: un grupo que perdio la columna pareja no baja la severidad.
+    if (isTRUE(regla$contenido_coordenada) &&
+        is.function(.CONTEXTO_POR$dominio_columna)) {
+      de_tabla <- .CONTEXTO_POR$dominio_columna(nombre)$regla
+      if (!is.null(de_tabla)) regla <- de_tabla
+    }
+    # Una rebanada que perdio la columna pareja (`lng` toda ausente en el
+    # grupo) no infiere la latitud por el nombre: la regla es la que infirio la
+    # tabla entera.
+    if (is.null(regla) && is.function(.CONTEXTO_POR$dominio_columna) &&
+        any(.dominio_tokens(nombre) %in% c("lat", "lon", "lng", "long"))) {
+      regla <- .CONTEXTO_POR$dominio_columna(nombre)$regla
+    }
+  } else {
+    regla <- NULL
+  }
+  # La regla que se publica como inferida no lleva lo declarado.
+  publicada <- regla
+  regla <- .dominio_regla_centinelas_fecha(
+    regla, centinelas_fecha, resultados[[i]], nombre
+  )
+  # Una regla que solo trae lo declarado para toda la tabla es una declaracion.
+  if (inferida && is.null(publicada) && !is.null(regla)) inferida <- FALSE
+  list(regla = regla, inferida = inferida, publicada = publicada,
+       apagada = FALSE)
 }

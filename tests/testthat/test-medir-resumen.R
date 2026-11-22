@@ -103,8 +103,12 @@ test_that("un metodo que produce mas medidas que su universo marca medidas_repet
   )
   d <- data.frame(x = c(1, 2, 3))
   mod <- modelo(instanciar(especializar(m_doble, "MD"), "d", "x"))
-  mr <- medir(mod, list(d = d), id_medicion = "m3b1", fecha = fecha,
-              proteger_datos_personales = TRUE, detalle = "resumen")
+  # Las cuentas no cierran: quien mide lo avisa.
+  expect_warning(
+    mr <- medir(mod, list(d = d), id_medicion = "m3b1", fecha = fecha,
+                proteger_datos_personales = TRUE, detalle = "resumen"),
+    "no cierran"
+  )
   expect_identical(mr$n_universo, 3)
   expect_identical(mr$denominador, 6)
   expect_true(is.na(mr$n_no_evaluados))

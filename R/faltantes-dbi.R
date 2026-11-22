@@ -264,13 +264,33 @@
     es_numerico, sentinelas_numericos, cadenas_ausencia,
     columnas_opcionales = character(), aplicabilidad = NULL) {
   senas <- .senas_conexion_dbi(conexion)
-  sentinelas <- .numeros_na(sentinelas_numericos)
-  declarados <- .sentinelas_numericos_declarados(sentinelas_numericos)
-  declarados_texto <- .minusculas_para_comparar(cadenas_ausencia)
+  # La forma por columna se selecciona dentro del bucle: cada campo con la suya.
+  declaracion_sentinelas <- sentinelas_numericos
+  declaracion_cadenas <- cadenas_ausencia
+  politica_de <- function(campo) {
+    s <- .sentinelas_de_columna(declaracion_sentinelas, campo)
+    c_ <- .cadenas_de_columna(declaracion_cadenas, campo)
+    list(
+      sentinelas = .numeros_na(s),
+      declarados = .sentinelas_numericos_declarados(s),
+      cadenas = c_,
+      declarados_texto = .minusculas_para_comparar(c_)
+    )
+  }
+  if (!.es_ausencias_por_columna(declaracion_sentinelas) &&
+      !.es_ausencias_por_columna(declaracion_cadenas)) {
+    fija <- politica_de(NA_character_)
+    politica_de <- function(campo) fija
+  }
   aplicar <- if (is.list(aplicabilidad)) names(aplicabilidad) else character()
   nombres <- stats::setNames(seq_along(campos), campos)
   salida <- stats::setNames(vector("list", length(campos)), campos)
   for (campo in campos) {
+    politica <- politica_de(campo)
+    sentinelas <- politica$sentinelas
+    declarados <- politica$declarados
+    cadenas_ausencia <- politica$cadenas
+    declarados_texto <- politica$declarados_texto
     posicion <- nombres[[campo]]
     prototipo_campo <- .atributo_columna_dbi(prototipo, campo, posicion)
     tipo_declarado <- .atributo_columna_dbi(

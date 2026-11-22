@@ -9578,11 +9578,7 @@
   if (length(columnas_opcionales)) {
     politicas <- c(politicas, "columnas_opcionales")
   }
-  declarados <- tryCatch(
-    .sentinelas_numericos_declarados(sentinelas_numericos),
-    error = function(e) numeric()
-  )
-  if (length(declarados)) {
+  if (.hay_sentinelas_declarados(sentinelas_numericos)) {
     politicas <- c(politicas, "sentinelas_numericos")
   }
   if (!length(politicas)) return(.cobertura_dbi_vacia())
@@ -9882,10 +9878,15 @@
                            !is.null(names(aplicabilidad))) {
     operar(as.character(names(aplicabilidad)))
   } else character()
-  sentinelas <- tryCatch(
-    .sentinelas_numericos_declarados(sentinelas_numericos),
-    error = function(e) numeric()
-  )
+  # Lo declarado para cada columna: con la forma por columna, el de la suya.
+  sentinelas_de <- function(columna) {
+    tryCatch(
+      .sentinelas_numericos_declarados(
+        .sentinelas_de_columna(sentinelas_numericos, columna)
+      ),
+      error = function(e) numeric()
+    )
+  }
   desvio_doble <- operar(as.character(
     if (is.list(perfil$meta)) {
       perfil$meta[["desvio_decimal_doble", exact = TRUE]]
@@ -9933,7 +9934,7 @@
         "aplicabilidad"
       )
     }
-    if (length(sentinelas) &&
+    if (length(sentinelas_de(columna)) &&
         .tipo_numerico_corroboracion_dbi(perfil$columnas, columna)) {
       no_finitos <- campo(columna, "n_nan") +
         campo(columna, "n_infinito_positivo") +
@@ -10490,7 +10491,8 @@
       es_numerica <- metrica %in% .METRICAS_CORROBORACION_NUMERICAS_DBI ||
         (identical(metrica, "moda") && tipo_numerico)
       comparacion <- if (.equivalentes_sentinela_real_dbi(
-                           a_crudo, b_crudo, sentinelas_numericos
+                           a_crudo, b_crudo,
+                           .sentinelas_de_columna(sentinelas_numericos, columna)
                          )) {
         list(difiere = FALSE, motivo = "igualdad_sentinela_real",
              delta = 0)
@@ -21949,9 +21951,11 @@
 #' @param aplicabilidad Lista nombrada de reglas de aplicabilidad. Sus nombres
 #'   se excluyen de la predicción de consultas exactas de faltantes.
 #' @param sentinelas_numericos Valores numéricos que se consideran faltantes al
-#'   anticipar las consultas de la métrica nueva.
+#'   anticipar las consultas de la métrica nueva. Acepta la lista por columna
+#'   de [perfilar()], resuelta contra las columnas de la tabla.
 #' @param cadenas_ausencia Cadenas adicionales que se consideran ausencia
-#'   textual al anticipar las consultas de la métrica nueva.
+#'   textual al anticipar las consultas de la métrica nueva. Acepta la lista
+#'   por columna de [perfilar()].
 #' @param clave Vector opcional con nombres de columnas clave para el muestreo
 #'   reproducible por huella en el motor cuando no se especifica `orden_muestra`.
 #'   Si el catálogo ya garantiza su unicidad no agrega consultas; si no, el plan
@@ -21959,6 +21963,14 @@
 #' @param compilar Si es `TRUE`, le pide al motor que compile, sin ejecutarlas
 #'   ni traer filas, las consultas SQL que el plan construye, y publica una fila
 #'   por sentencia en `attr(plan, "compilacion")`. Ver la sección Compilación.
+#' @param centinelas_fecha,dominios,periodos,resumen_fechas,fecha Los mismos
+#'   que recibe [perfilar_dbi()] por `...` (ver [perfilar()]). Con
+#'   `resumen_fechas = TRUE` el plan cuenta la consulta de cuentas de fechas y,
+#'   en el extremo superior, la de la reserva de las centinelas incorporadas, una
+#'   de la grilla por columna de fecha y, con `estrategia_no_sql = "bloques"`,
+#'   una lectura por columna que se cuente en R; con `periodos`, una consulta
+#'   más. Sólo en SQLite y DuckDB y sobre la tabla completa: en lo demás el
+#'   resumen se declara y no consulta.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -22205,10 +22217,22 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                                cadenas_ausencia = NULL,
                                clave = NULL,
-                               compilar = FALSE) {
+                               compilar = FALSE,
+                               centinelas_fecha = NULL,
+                               dominios = NULL,
+                               periodos = NULL,
+                               resumen_fechas = FALSE,
+                               fecha = NULL,
+                               estrategia_no_sql = c("no_medible", "bloques")) {
   if (!is.logical(compilar) || length(compilar) != 1L || is.na(compilar)) {
     .detener("`compilar` debe ser TRUE o FALSE.", call. = FALSE)
   }
+  resumen_fechas <- .validar_resumen_fechas(resumen_fechas)
+  estrategia_no_sql <- .argumento_dbi(.elegir_opcion(
+    estrategia_no_sql, c("no_medible", "bloques")
+  ))
+  .normalizar_centinelas_fecha(centinelas_fecha)
+  if (!is.null(fecha)) .fecha_argumento_utc(fecha)
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .fijar_senas_conexion_dbi(conexion)
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
@@ -22257,6 +22281,11 @@ plan_perfilado_dbi <- function(conexion, tabla,
     max_bytes_materializacion = max_bytes_materializacion,
     clave = clave
   )
+  ausencias <- .argumento_dbi(.resolver_ausencias_dbi(
+    sentinelas_numericos, cadenas_ausencia, preparacion$campos
+  ))
+  sentinelas_numericos <- ausencias$sentinelas
+  cadenas_ausencia <- ausencias$cadenas
   filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
@@ -22384,6 +22413,11 @@ plan_perfilado_dbi <- function(conexion, tabla,
       capacidades = capacidades_plan
     )
   }
+  plan <- .plan_resumen_fechas_dbi(
+    plan, conexion, preparacion, resumen_fechas,
+    .normalizar_periodos(periodos, preparacion$campos), estrategia_no_sql
+  )
+  attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
   if (is.null(extra)) extra <- 0
   reintento <- attr(plan, "extra_si_se_reintenta_muestreo", exact = TRUE)
@@ -24590,10 +24624,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
     datos, campos, tipos, sentinelas, tipos_motor = NULL) {
   if (!is.data.frame(datos) || !length(campos) || !length(sentinelas) ||
       is.null(tipos)) return(datos)
-  declarados <- suppressWarnings(as.numeric(sentinelas))
-  declarados <- declarados[is.finite(declarados)]
-  if (!length(declarados)) return(datos)
+  finitos <- function(x) {
+    x <- suppressWarnings(as.numeric(x))
+    x[is.finite(x)]
+  }
+  # Con la forma por columna, cada campo con su entrada.
+  por_columna <- .es_ausencias_por_columna(sentinelas)
+  declarados <- if (!por_columna) finitos(sentinelas)
+  if (!por_columna && !length(declarados)) return(datos)
   for (i in seq_along(campos)) {
+    if (por_columna) {
+      declarados <- finitos(.sentinelas_de_columna(sentinelas, campos[[i]]))
+      if (!length(declarados)) next
+    }
     tipo <- .atributo_columna_dbi(tipos_motor, campos[[i]], i) %||%
       .atributo_columna_dbi(tipos, campos[[i]], i) %||% NA_character_
     if (!.tipo_real_dbi(tipo)) next
@@ -28928,7 +28971,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   traduce y lo declara en `resumen_tabla$cobertura`, y la corroboración no
 #'   compara lo que la regla cambia.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
-#'   declaran como faltantes en el `perfil_muestra`. Se normaliza como un
+#'   declaran como faltantes en el `perfil_muestra`, o la lista por columna de
+#'   [perfilar()] —también para `cadenas_ausencia`, que viaja por `...`—: se
+#'   valida contra las columnas de la tabla y la reciben igual el resumen SQL,
+#'   la muestra y la corroboración. Se normaliza como un
 #'   conjunto numérico, por lo que el orden, el tipo entero o doble y los
 #'   duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 #'   agregados y lo declara en `resumen_tabla$cobertura`; la corroboración no
@@ -28960,6 +29006,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   entrada que el catálogo repite —la misma consulta de otro usuario o
 #'   anidada— no se atribuye. Medido con unas 4.900 filas en el catálogo:
 #'   sobre una tabla de 23 filas, 0,3 s con `TRUE` contra 0,15 s con `FALSE`.
+#' @param estrategia_no_sql Qué hacer, con `resumen_fechas = TRUE`, con una
+#'   columna de fecha que el SQL no cuenta como R la lee: `"no_medible"` (por
+#'   omisión) la declara `no_disponible` en `resumen_tabla$sql` con el motivo, y
+#'   `"bloques"` la lee en R por bloques, con el mismo controlador, y la cuenta
+#'   con la misma regla. Son tres casos: una columna de SQLite que guarda las
+#'   fechas como texto (lo que deja un CSV importado; se mide con `typeof()`),
+#'   instantes a menos de un segundo de una fecha centinela lejana con
+#'   resolución de microsegundos (R los lee como esa fecha) y una columna de
+#'   texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
+#'   la columna entera. Mismo nombre y valores que en [medir_dbi()].
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'   `columnas_codigo` vale además en `resumen_tabla`: `media`, `mediana` y
 #'   `desvio` de una columna declarada quedan en `NA` y
@@ -28974,6 +29030,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   validan—, y uno inválido deja `perfil_muestra = NULL` con el error de
 #'   [perfilar()] como motivo, legible también con la protección: un error que
 #'   se repite sobre la muestra sin filas no cita ninguna celda.
+#'
+#'   `resumen_fechas`, `centinelas_fecha`, `periodos` y `dominios` valen además
+#'   en `resumen_tabla`, sobre la tabla completa: con `resumen_fechas = TRUE`,
+#'   `resumen_tabla$columnas` agrega los mismos campos de fechas que
+#'   [perfilar()] (con su fila en `resumen_tabla$sql`, etapa `"fechas"`) y
+#'   `resumen_tabla$meta$actualidad` la misma tabla de actualidad; con
+#'   `periodos`, `resumen_tabla$meta$periodos` la misma partición. El motor
+#'   compara contra literales y decide con la misma regla que la memoria;
+#'   sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los demás
+#'   motores y con `universo = "muestra_motor"` se declara y se lee de
+#'   `perfil_muestra`). Con `resumen_fechas` y sin `fecha`, la fecha se congela
+#'   una vez al entrar (al segundo) para el resumen y la muestra, y las dos
+#'   dicen `fecha_declarada = FALSE`. Sin estos argumentos el objeto es el de
+#'   siempre.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
 #'   alcance completo o muestreado según `universo`, y `perfil_muestra`, un objeto
@@ -29072,6 +29142,7 @@ perfilar_dbi <- function(conexion, tabla,
                          columnas_opcionales = character(),
                          aplicabilidad = NULL,
                          sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+                         estrategia_no_sql = c("no_medible", "bloques"),
                          ...) {
   captura_argumentos <- .capturar_argumentos_perfilar_dbi(
     match.call(expand.dots = TRUE), environment(), list(...)
@@ -29098,6 +29169,27 @@ perfilar_dbi <- function(conexion, tabla,
   fecha_corrida <- if ("fecha" %in% names(argumentos_muestra)) {
     .fecha_argumento_utc(argumentos_muestra[["fecha"]])
   }
+  # El resumen de fechas y los periodos se validan aca, haya o no muestra.
+  estrategia_no_sql <- .argumento_dbi(.elegir_opcion(
+    estrategia_no_sql, c("no_medible", "bloques")
+  ))
+  resumen_fechas <- .argumento_dbi(.validar_resumen_fechas(
+    argumentos_muestra[["resumen_fechas"]] %||% FALSE
+  ))
+  .argumento_dbi(.normalizar_centinelas_fecha(argumentos_muestra[["centinelas_fecha"]]))
+  # Con `resumen_fechas` la fecha de la corrida es una sola para el resumen y
+  # la muestra: sin declararla, se congela al entrar (al segundo: el literal
+  # del motor la lleva entera) y se pasa a `perfilar()`, y las dos partes
+  # dicen que no se declaro, como `analizar()`. Sin `resumen_fechas`, nada
+  # cambia: el resumen sigue sin fecha si no se declara.
+  fecha_congelada <- FALSE
+  if (resumen_fechas && is.null(fecha_corrida)) {
+    fecha_corrida <- as.POSIXct(
+      floor(as.numeric(Sys.time())), origin = "1970-01-01", tz = "UTC"
+    )
+    argumentos_muestra$fecha <- fecha_corrida
+    fecha_congelada <- TRUE
+  }
   # Y el tipo que declara el motor por columna, que no depende de las filas
   # leidas: la comparacion de entregas lo necesita para no tomar por cambio de
   # tipo lo que es un cambio de la muestra (`preparacion` se resuelve al salir).
@@ -29116,8 +29208,17 @@ perfilar_dbi <- function(conexion, tabla,
         tipos = c("casi_constante", "identificador_con_ausentes")
       )
     }
-    .sellar_tipos_motor_dbi(
+    x <- .sellar_tipos_motor_dbi(
       .sellar_fecha_perfil_dbi(x, fecha_corrida), preparacion
+    )
+    if (fecha_congelada) {
+      if (is.list(x$resumen_tabla)) x$resumen_tabla$meta$fecha_declarada <- FALSE
+      if (is.list(x$perfil_muestra)) x$perfil_muestra$meta$fecha_declarada <- FALSE
+    }
+    .agregar_resumen_fechas_dbi(
+      x, conexion, preparacion, argumentos_muestra, fecha_corrida,
+      fecha_declarada = !fecha_congelada, estrategia_no_sql = estrategia_no_sql,
+      incluir_valores = incluir_valores
     )
   }
   # Sin proteccion, el mensaje del motor se publica entero: antes de la primera
@@ -29224,7 +29325,16 @@ perfilar_dbi <- function(conexion, tabla,
     muestreo$forma_construible <- estado_forma$forma_construible
     if (!isTRUE(estado_forma$forma_construible)) {
       muestreo$disponible <- FALSE
-      muestreo$motivo <- estado_forma$motivo
+      # Si la sonda no acepto ninguna candidata, `candidato = NULL` tambien
+      # puede significar que el presupuesto bloqueo las sondas o que el motor
+      # rechazo la forma (`sonda_muestreo`). El estado estructural no debe
+      # reemplazar esos motivos por `sin_forma_muestreo`.
+      motivo_sondeo <- muestreo$motivo
+      motivo_valido <- length(motivo_sondeo) == 1L &&
+        !is.na(motivo_sondeo) && nzchar(as.character(motivo_sondeo))
+      if (!motivo_valido || !is.null(muestreo$candidato)) {
+        muestreo$motivo <- estado_forma$motivo
+      }
     }
     preparacion$muestreo <- muestreo
     if (!isTRUE(muestreo$disponible)) {
@@ -29237,6 +29347,22 @@ perfilar_dbi <- function(conexion, tabla,
   columnas_codigo <- .normalizar_columnas_codigo(
     argumentos_muestra[["columnas_codigo"]], preparacion$campos
   )
+  # La declaracion de ausencias por columna, igual: se valida y se resuelve
+  # contra las columnas de la tabla, y el resumen SQL, la muestra y la
+  # corroboracion reciben la misma lista con los nombres de la tabla.
+  ausencias <- .argumento_dbi(.resolver_ausencias_dbi(
+    sentinelas_numericos, argumentos_muestra[["cadenas_ausencia"]],
+    preparacion$campos
+  ))
+  if (.es_ausencias_por_columna(sentinelas_numericos)) {
+    sentinelas_numericos <- ausencias$sentinelas
+    argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
+  }
+  if (.es_ausencias_por_columna(argumentos_muestra[["cadenas_ausencia"]])) {
+    argumentos_muestra$cadenas_ausencia <- ausencias$cadenas
+  }
+  # Lo mismo para los periodos: sin muestra, un nombre mal escrito pasaba.
+  .argumento_dbi(.normalizar_periodos(argumentos_muestra[["periodos"]], preparacion$campos))
   # Los nombres de la tabla y de sus columnas son lo unico de la consulta que
   # el mensaje de un error del motor puede citar en claro: ver
   # `.sin_literales_motor()`.

@@ -830,6 +830,11 @@
 #' @return Data frame S3 `tablero_calidad`. Los atributos `alcance` y
 #'   `cobertura` conservan los conteos y el detalle del marco, y
 #'   `pares_fuera_del_marco` nombra los pares medidos que ese marco no declara.
+#'   Sobre un resumen cuyas cuentas no cierran en alguna celda (ver
+#'   `estado_cuentas` en [medir()]), el atributo `cuentas` nombra esas celdas,
+#'   su motivo y su diferencia, y la impresión lo muestra; sobre una
+#'   consolidación (`rbind(..., prioridad = )`), cada celda lleva su `fuente` y
+#'   los atributos `descartadas` y `consolidacion` viajan.
 #' @export
 #' @seealso [medir()], [agregar()], [indice_calidad()]
 #'
@@ -1130,6 +1135,7 @@ print.tablero_calidad <- function(x, ...) {
   # parte de las tablas declaradas. El indice ya la imprimia; eran dos capas del
   # mismo paquete contestando distinto a la misma pregunta.
   .imprimir_coberturas_frontera(x)
+  .imprimir_cuentas_y_consolidacion(x)
   invisible(original)
 }
 
@@ -1323,8 +1329,10 @@ print.tablero_calidad <- function(x, ...) {
 #' cobertura del marco.
 #'
 #' Una métrica sin dimensión no entra al índice: se excluye con su motivo, como
-#' las de orientación `no_aplica`. Un peso para una dimensión cuyas métricas se
-#' excluyeron se rechaza diciéndolo.
+#' las de orientación `no_aplica` y las cifras cuyas cuentas no cierran o son
+#' parciales (el atributo `cuentas` del tablero): una cifra que no representa la
+#' tabla no se combina. Un peso para una dimensión cuyas métricas se excluyeron
+#' se rechaza diciéndolo.
 #'
 #' `advertencia_universos` **se calcula de los universos que el propio objeto
 #' publica**, no es un texto fijo. Con un solo universo lo nombra y dice que las
@@ -1381,8 +1389,17 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   # "Faltan pesos para: NA", un nombre que su propia validacion prohibe.
   # Medido. Se excluye y se dice por que, como la no_aplica.
   sin_dimension <- is.na(tablero$dimension) | !nzchar(as.character(tablero$dimension))
-  componentes <- tablero[tablero$orientacion != "no_aplica" & !sin_dimension, ,
-                         drop = FALSE]
+  # Una cifra cuyas cuentas no cierran, o calculada sobre una parte, no
+  # representa la tabla y no se combina: se excluye con su motivo, como la
+  # no_aplica.
+  cuentas <- attr(tablero, "cuentas", exact = TRUE)
+  sin_cierre <- if (inherits(cuentas, "data.frame") && nrow(cuentas)) {
+    tablero$componente %in% cuentas$componente
+  } else {
+    rep(FALSE, nrow(tablero))
+  }
+  componentes <- tablero[tablero$orientacion != "no_aplica" & !sin_dimension &
+                           !sin_cierre, , drop = FALSE]
   if (!nrow(componentes)) {
     motivo <- if (!nrow(tablero)) paste0(
       "No hay \u00edndice: no hubo mediciones combinables para esta corrida. ",
@@ -1404,6 +1421,16 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   )
   if (!is.null(names(pesos))) {
     pesos_excluidos <- names(pesos)[.identificadores_en(names(pesos), excluidas_dimension)]
+    por_cuentas <- .identificadores_unicos(tablero$dimension[sin_cierre & !sin_dimension])
+    solo_cuentas <- pesos_excluidos[.identificadores_en(pesos_excluidos, por_cuentas)]
+    if (length(solo_cuentas)) {
+      .detener(
+        "Sobran pesos para: ", paste(solo_cuentas, collapse = ", "),
+        ". Las cuentas de sus cifras no cierran o son parciales, y el ",
+        "\u00edndice no combina una cifra que no representa la tabla. El detalle ",
+        "est\u00e1 en `attr(tablero, \"cuentas\")`.", call. = FALSE
+      )
+    }
     if (length(pesos_excluidos)) {
       .detener(
         "Sobran pesos para: ", paste(pesos_excluidos, collapse = ", "),
@@ -1443,16 +1470,24 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   })
   resumen <- do.call(rbind, resumen)
   rownames(resumen) <- NULL
-  excluidas <- tablero[tablero$orientacion == "no_aplica" | sin_dimension, ,
-                       drop = FALSE]
+  excluidas <- tablero[tablero$orientacion == "no_aplica" | sin_dimension |
+                         sin_cierre, , drop = FALSE]
   if (nrow(excluidas)) {
     sin_dim_excluida <- is.na(excluidas$dimension) |
       !nzchar(as.character(excluidas$dimension))
+    por_cuentas <- excluidas$componente %in% tablero$componente[sin_cierre]
     excluidas$motivo_exclusion <- ifelse(
       sin_dim_excluida,
       "sin dimensi\u00f3n declarada: el \u00edndice combina dimensiones",
-      "orientaci\u00f3n no_aplica: el valor no es una proporci\u00f3n combinable"
+      ifelse(
+        excluidas$orientacion == "no_aplica",
+        "orientaci\u00f3n no_aplica: el valor no es una proporci\u00f3n combinable",
+        "las cuentas de la cifra no cierran o son parciales: no representa la tabla"
+      )
     )
+    excluidas$motivo_exclusion[por_cuentas & !sin_dim_excluida &
+                                 excluidas$orientacion != "no_aplica"] <-
+      "las cuentas de la cifra no cierran o son parciales: no representa la tabla"
   }
   invertidas <- componentes[
     componentes$orientacion == "defecto", , drop = FALSE
@@ -1515,6 +1550,7 @@ print.indice_calidad <- function(x, ...) {
   # atributo, quien lo lee en pantalla no la ve. La misma regla la usa el
   # tablero, asi que vive en un solo lugar.
   .imprimir_coberturas_frontera(x)
+  if (inherits(x$tablero, "data.frame")) .imprimir_consolidacion(x$tablero)
   if (nrow(x$dimensiones)) {
     cli::cli_h2("Dimensiones, pesos y aportes")
     .print_data_frame_bytes(x$dimensiones, row.names = FALSE)

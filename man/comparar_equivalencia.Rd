@@ -51,6 +51,12 @@ Los campos bajo protección tampoco se comparan: se declaran por columna,
 campo y lado en \code{campos_protegidos}.
 }
 \details{
+Los campos del resumen de fechas (\code{resumen_fechas = TRUE} en \code{\link[=perfilar]{perfilar()}} y
+\code{\link[=perfilar_dbi]{perfilar_dbi()}}) están registrados. Los que se cuentan contra la fecha de la
+corrida —\code{n_fechas_futuras}, \code{lectura_fechas_futuras} y
+\code{ultimo_dato_fecha}— sólo se comparan entre dos objetos con la misma fecha:
+con fechas distintas se declaran con el motivo \code{fecha_de_corrida_distinta}.
+
 El registro fijo asigna tolerancia sólo a \code{media}, \code{mediana}, \code{desvio} y
 \code{longitud_media}. Los conteos, proporciones de conteos y extremos por
 selección se comparan en el eje \code{exacto}; las fechas canónicas en \code{fecha} y

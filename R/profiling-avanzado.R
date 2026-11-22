@@ -191,7 +191,7 @@
 #     describe la representacion almacenada.
 #   - `magnitud`: para los cuantiles, que son `minimo`, `mediana` y `maximo`,
 #     sale ademas el centinela declarado.
-.columna_en_universo <- function(x, universo, i) {
+.columna_en_universo <- function(x, universo, i, nombre = NULL) {
   if (is.null(universo) || .es_columna_compuesta(x) ||
       (is.list(x) && !is.factor(x))) {
     return(list(frecuencias = x, magnitud = x))
@@ -203,8 +203,9 @@
   }
   list(
     frecuencias = x,
+    # La declaracion por columna se lee con el nombre de esta columna.
     magnitud = .universo_del_resumen(
-      list(x), universo$sentinelas_numericos
+      list(x), .sentinelas_de_columna(universo$sentinelas_numericos, nombre)
     )[[1L]]
   )
 }
@@ -482,7 +483,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   q <- 0L
   for (i in seq_along(datos)) {
     nombre <- names(datos)[[i]]
-    en_universo <- .columna_en_universo(datos[[i]], .universo, i)
+    en_universo <- .columna_en_universo(
+      datos[[i]], .universo, i, nombre = names(datos)[[i]]
+    )
     muestra_columna <- if (length(en_universo$frecuencias) == nrow(datos)) {
       muestra_original
     } else limite
@@ -708,6 +711,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #'   fila de un par que contiene un valor declarado no se usa para medirlo,
 #'   igual que una fila con `NA`; por eso `n_pares` cuenta sólo las filas
 #'   completas restantes. La lista por omisión no se considera una declaración.
+#'   Acepta también una lista por columna, como en [perfilar()]: cada columna
+#'   enmascara sólo lo declarado para ella.
 #'
 #' @return Data frame S3 `asociaciones_columnas`. Sus atributos declaran filas,
 #'   columnas y pares examinados, omisiones por dependencia y truncamiento.
@@ -731,6 +736,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   .validar_sentinelas_numericos(sentinelas_numericos, permitir_nulo = TRUE)
+  if (.es_ausencias_por_columna(sentinelas_numericos)) {
+    sentinelas_numericos <- .resolver_ausencias_columnas(
+      sentinelas_numericos, names(datos), "sentinelas_numericos"
+    )
+  }
   datos <- .enmascarar_sentinelas_relacion(
     datos, sentinelas_numericos
   )

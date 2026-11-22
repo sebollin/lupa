@@ -55,7 +55,29 @@ normalización funde —\code{A} y \code{a}— son una sola clave del universo, 
 claves, \code{RatioCobertura} no se mide: la cobertura de un universo vacío no es
 una proporción, y la métrica queda \code{sin_valores} con ese motivo, igual que
 cuando la entidad no tiene filas o ningún valor en los atributos ligados:
-lo que no se pudo medir no se publica como una cobertura cero.
+lo que no se pudo medir no se publica como una cobertura cero. El resumen
+de \code{RatioCobertura} (\code{medir(detalle = "resumen")} y \code{\link[=medir_dbi]{medir_dbi()}}) publica
+las claves cubiertas en \code{numerador} y las del universo en \code{denominador}.
+
+\strong{En el motor.} Con un referencial del motor (ver \code{\link[=referencial]{referencial()}}),
+\code{\link[=medir_dbi]{medir_dbi()}} mide las tres métricas en SQL —SQLite y DuckDB— y cuenta lo
+que \code{\link[=medir]{medir()}} contaría con las dos tablas leídas: cada par de columnas se
+compara por el texto canónico de su valor, con la intercalación binaria
+explícita para el texto y el entero escrito como texto contra una clave de
+texto (\code{"01"} no es \code{1}; \code{"1"} sí); un \code{NaN} es ausente; una clave
+compuesta y un \code{valor} de varias columnas comparan todos sus pares. La
+normalización se escribe en el motor sólo donde es exacta: sobre texto
+ASCII, el pliegue de mayúsculas es \code{LOWER()}, y una guarda cuenta las filas
+cuyo texto el perfil podría cambiar y el SQL no escribe igual —lo que no es
+ASCII, que se descompone aun sin pasos; los blancos de los bordes, los
+dobles y los controles; las comillas; la puntuación con \code{"amplio"}—. Con
+alguna, la métrica queda \code{no_medible} con ese motivo, salvo que se pida
+\code{estrategia_no_sql = "bloques"}: entonces se cuentan en el motor los
+valores distintos de la entidad y se comparan en R con el método de la
+métrica, cada uno con el peso de su grupo (vía \code{distintos_r}), que es
+también la vía de un referencial que está en R. Una columna cuyo
+cotejamiento declarado no es binario no se compara en el motor.
+\code{\link[=conformidad_dbi]{conformidad_dbi()}} comprueba el pliegue en el servidor del usuario.
 }
 \examples{
 ref <- referencial(

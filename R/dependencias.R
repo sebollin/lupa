@@ -99,24 +99,31 @@
   if (permitir_nulo && is.null(sentinelas_numericos)) {
     return(invisible(NULL))
   }
-  if (!is.numeric(sentinelas_numericos) ||
-      any(!is.na(sentinelas_numericos) &
-          !is.finite(sentinelas_numericos))) {
-    .detener(
-      "`sentinelas_numericos` debe ser un vector num\u00e9rico finito; se permiten NA.",
-      call. = FALSE
-    )
+  # La forma por columna: `R/ausencias-columna.R`.
+  if (.es_ausencias_por_columna(sentinelas_numericos)) {
+    .validar_nombres_ausencias(sentinelas_numericos, "sentinelas_numericos")
+    for (valores in sentinelas_numericos) .validar_vector_sentinelas(valores)
+    return(invisible(NULL))
   }
-  invisible(NULL)
+  .validar_vector_sentinelas(sentinelas_numericos)
 }
 
 .enmascarar_sentinelas_relacion <- function(datos, sentinelas_numericos = NULL) {
-  if (!length(.sentinelas_numericos_declarados(sentinelas_numericos))) {
+  # Con la forma por columna, cada columna enmascara con su entrada.
+  por_columna <- .es_ausencias_por_columna(sentinelas_numericos)
+  if (!por_columna &&
+      !length(.sentinelas_numericos_declarados(sentinelas_numericos))) {
     return(datos)
   }
+  nombres <- names(datos)
   for (i in seq_along(datos)) {
+    propios <- if (por_columna) {
+      .sentinelas_de_columna(sentinelas_numericos, nombres[[i]])
+    } else {
+      sentinelas_numericos
+    }
     mascara <- .mascara_sentinelas_relacion(
-      datos[[i]], sentinelas_numericos
+      datos[[i]], propios
     )
     if (any(mascara)) {
       valores <- datos[[i]]
@@ -425,7 +432,9 @@
 #'   celdas que contienen un valor declarado no participan en la dependencia,
 #'   igual que una celda `NA`; por eso `n_evaluados` cuenta sólo las filas con
 #'   ambas columnas presentes. La lista por omisión no se considera una
-#'   declaración.
+#'   declaración. Acepta también una lista por columna, como en [perfilar()]:
+#'   cada columna enmascara sólo lo declarado para ella, y un nombre que la
+#'   tabla no tiene es un error.
 #'
 #' @return Data frame de clase `dependencias_funcionales`, ordenado por
 #'   cumplimiento y soporte. `evidencia` cita contradicciones concretas, y **no
@@ -516,6 +525,11 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # instante de un `POSIXct`. Ver `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
   .validar_sentinelas_numericos(sentinelas_numericos, permitir_nulo = TRUE)
+  if (.es_ausencias_por_columna(sentinelas_numericos)) {
+    sentinelas_numericos <- .resolver_ausencias_columnas(
+      sentinelas_numericos, names(datos), "sentinelas_numericos"
+    )
+  }
   datos <- .enmascarar_sentinelas_relacion(
     datos, sentinelas_numericos
   )

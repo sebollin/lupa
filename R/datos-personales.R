@@ -2463,9 +2463,17 @@
   # no protegia nada. Es el mismo arreglo que el del catalogo, en la
   # declaracion. Medido.
   declarados <- character()
-  if (is.list(meta) && length(meta$sentinelas_numericos)) {
-    propios <- meta$sentinelas_numericos[
-      !meta$sentinelas_numericos %in% .numeros_na_locales
+  # Lo declarado por columna entra con la misma regla que lo declarado para
+  # todas: un campo nuevo que la proteccion no nombra se publicaria entero.
+  sentinelas_meta <- if (is.list(meta)) {
+    c(meta[["sentinelas_numericos"]], unlist(
+      meta[["ausencias_por_columna"]][["sentinelas_numericos"]],
+      use.names = FALSE
+    ))
+  }
+  if (is.list(meta) && length(sentinelas_meta)) {
+    propios <- sentinelas_meta[
+      !sentinelas_meta %in% .numeros_na_locales
     ]
     if (inherits(datos, "data.frame")) {
       propios <- propios[.aparece_en_columnas(
@@ -5272,6 +5280,22 @@
       sentinelas[!del_catalogo] <- NA_real_
       perfil$meta$sentinelas_numericos <- sentinelas
     }
+  }
+  # Y lo declarado por columna, con la misma regla.
+  por_columna <- perfil$meta[["ausencias_por_columna"]][["sentinelas_numericos"]]
+  if (length(por_columna)) {
+    perfil$meta$ausencias_por_columna$sentinelas_numericos <- lapply(
+      por_columna, function(sentinelas) {
+        if (!length(sentinelas)) return(sentinelas)
+        if (length(valores)) {
+          return(.proteger_numeros_parametros(
+            sentinelas, .valores_identificantes(valores)
+          ))
+        }
+        sentinelas[!sentinelas %in% .numeros_na_locales] <- NA_real_
+        sentinelas
+      }
+    )
   }
   resultados <- perfil$meta$benford$resultados
   if (length(resultados)) {

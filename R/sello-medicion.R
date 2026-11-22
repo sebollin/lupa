@@ -122,11 +122,27 @@
       valores
     })
   }
-  list(
+  huella <- list(
     clave = campo("clave"), valor = campo("valor"),
     completo = campo("completo"), alcance = campo("alcance"),
     normalizar = campo("normalizar"), datos = tabla
   )
+  # El referencial del motor no trae filas: lo que decide la medida es la tabla
+  # que nombra. Solo entonces entra el campo, asi la huella del referencial en R
+  # es la de siempre.
+  # Y la fuente donde se midio: el mismo nombre de tabla en otra base es otro
+  # padron, y la serie tiene que decirlo (`.fuente_referenciales_dbi()`).
+  fuente <- campo("fuente_motor")
+  if (!is.null(fuente)) huella$fuente_motor <- as.character(fuente)
+  tabla_motor <- campo("tabla_motor")
+  if (!is.null(tabla_motor)) {
+    huella$tabla_motor <- if (is.null(names(tabla_motor))) {
+      as.character(tabla_motor)
+    } else {
+      paste0(names(tabla_motor), "=", unname(tabla_motor))
+    }
+  }
+  huella
 }
 
 # Los valores de un vector sin su clase ni sus atributos, leidos sin despachar:

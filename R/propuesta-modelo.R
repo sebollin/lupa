@@ -198,7 +198,7 @@
   x <- datos[[indice]]
   if (.es_columna_compuesta(x) || (is.list(x) && !is.factor(x))) return(NULL)
   mascara <- tryCatch(
-    .contexto_casi_clave(x, perfil)$disfrazados,
+    .contexto_casi_clave(x, perfil, columna = columna)$disfrazados,
     error = function(e) NULL
   )
   if (!is.logical(mascara) || length(mascara) != length(x)) return(NULL)

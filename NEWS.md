@@ -310,6 +310,62 @@
   cuenta exactamente lo que se emite: las consultas que dependen del dato se
   publican con su mínimo y su máximo, y `print()` lo dice.
 
+- `perfilar()` gana tres argumentos para las fechas. `centinelas_fecha` declara
+  fechas centinela para toda columna de fecha: se suman a las cuatro que el
+  paquete sospecha por omisión sin quitarles su reserva, se acusan desde una
+  aparición como `error` y no esconden a las incorporadas al medir su
+  separación. `periodos` declara pares inicio–fin y publica en
+  `general$periodos` la partición de sus filas: cerrados válidos, fin antes del
+  inicio, fin abierto (ausente o una fecha de `fin_abierto`), fin con centinela
+  declarada y fin con una fecha que suele ser centinela sin declarar, que se
+  avisa como posible fin abierto y no se cuenta como cerrado.
+  `resumen_fechas = TRUE` agrega a `columnas` las cuentas de fechas centinela y
+  futuras con su lectura y el último dato, y `general$actualidad` la actualidad
+  de cada columna de fecha, con la `fecha` declarada como hoy. Sin ellos el
+  perfil no cambia.
+- `perfilar_dbi()` publica lo mismo sobre la tabla completa
+  (`resumen_tabla$columnas`, `resumen_tabla$meta$actualidad` y
+  `resumen_tabla$meta$periodos`), contando en el motor contra literales y
+  decidiendo con la misma regla que la memoria, en SQLite y DuckDB. Lo que el SQL
+  no puede contar como lo lee R —fechas guardadas como texto en SQLite,
+  instantes a microsegundos de una centinela lejana, texto que la muestra lee
+  como fecha— se declara, o se cuenta en R por bloques con el argumento nuevo
+  `estrategia_no_sql = "bloques"`. `plan_perfilado_dbi()` recibe los mismos
+  argumentos y cuenta esas consultas. `comparar_equivalencia()` compara los
+  campos del resumen de fechas; los que dependen de la fecha de la corrida, sólo
+  entre corridas con la misma fecha (`fecha_de_corrida_distinta`).
+- `sentinelas_numericos` y `cadenas_ausencia` aceptan una lista por columna,
+  `list(edad = 99)`, en `perfilar()`, `perfilar_dbi()`, `plan_perfilado_dbi()`,
+  `perfilar_por()`, `analizar()`, `detectar_dependencias()` y
+  `detectar_asociaciones()`, y una lista por tabla en `perfilar_coleccion()`.
+  Cada entrada vale para su columna lo que el vector valdría para ella; las
+  columnas que la lista no nombra reciben el valor por omisión, y una lista que
+  nombra una columna repetida en los datos se detiene y pide renombrar. El plan
+  de limpieza, las relaciones entre columnas y `comparar_perfiles()` usan la
+  entrada de cada columna. Con vectores no cambia nada.
+- Nuevas `detectar_tablas_codigos()` y `ausencias_desde_propuesta()`: encuentran
+  las tablas de códigos de una colección (una tabla es candidata si otra la
+  referencia con la cobertura de `umbral_cobertura`; por la forma sola queda como
+  posible), leen sus etiquetas y proponen —sin aplicar nada— qué códigos declarar
+  como ausencia en cada columna que los usa, con cuántas filas lo usan.
+- `perfilar_coleccion()` reanuda una corrida cortada. Con
+  `directorio_reanudacion`, cada tabla que se perfila sin consultas fallidas se
+  guarda en cuanto termina, y si la corrida se corta —el proceso muere, se lo
+  interrumpe, o la conexión se cae y las tablas que siguen fallan— la misma
+  llamada con `reanudar = TRUE` sigue desde ahí: las tablas guardadas no vuelven
+  a consultar la base, y se vuelven a perfilar las que faltan, las que tuvieron
+  alguna consulta fallida y las que no se pudieron perfilar. El objeto es el
+  mismo que el de una corrida sin cortes, salvo los tiempos y el `momento` de
+  cada tabla, y `meta$reanudacion` dice qué se reusó y qué se perfiló y por qué.
+  La corrida reanudada usa la `fecha` de la original, y se niega si la base
+  cambió desde el corte (otro tamaño o fecha de modificación del archivo), porque
+  la colección quedaría con tablas de dos estados de la base. Por ahora con
+  SQLite y DuckDB en archivo; se rechaza con una base en memoria, con un motor de
+  servidor y con `proteger_datos_personales = TRUE` o `incluir_valores = FALSE`,
+  con un error de clase `lupa_error_reanudacion` que dice por qué. Un bloqueo
+  impide que dos procesos sigan la misma corrida. Sin `directorio_reanudacion`
+  nada cambia.
+
 ## Medir la calidad
 
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una fila por
@@ -375,6 +431,42 @@
   otra configuración se rechaza con aviso. Verificada en SQLite y DuckDB.
 - `plan_medicion_dbi(..., compilar = TRUE)`, como `plan_perfilado_dbi()`,
   compila las consultas del plan sin ejecutarlas.
+
+- `referencial()` acepta una tabla del motor, con un `DBI::Id()` o su nombre, y
+  no la copia a R. `medir_dbi()` mide `CorrectitudSemFuerte`,
+  `CorrectitudSemDebil` y `RatioCobertura` contra ella en SQLite y DuckDB,
+  contando lo mismo que `medir()` con las tablas leídas; lo que el motor no
+  escribe igual se declara, y con `estrategia_no_sql = "bloques"` se compara en
+  R sobre los valores distintos (también para un referencial en R, que antes
+  quedaba `no_medible`). El sello de esas métricas incluye la ubicación de la
+  base, así que medir el mismo modelo en otra base avisa que cambió la
+  definición. `conformidad_dbi()` comprueba en el servidor el pliegue que usa.
+- El resumen de `medir()` y de `medir_dbi()` dice si las cuentas de cada cifra
+  cierran: `estado_cuentas` es `no_cierran` cuando la métrica dio más medidas
+  que su universo, cuando lo no evaluado no es lo que la métrica declara no
+  evaluar (los vacíos, para una de validez) o cuando dos lecturas de la misma
+  tabla en una corrida vieron otra tabla; `parcial` cuando la cifra se calculó
+  sobre una parte declarada (un vocabulario truncado por `max_valores`);
+  `sin_cuentas` cuando no hay cuentas de su universo. El resumen publica además
+  `n_sin_valor`, `n_filas_leidas` y, en la referencial, la tabla referida y sus
+  filas; `attr(resumen, "lecturas")` lista cada lectura de cada tabla. Donde el
+  motor no ofrece un contador de modificaciones que lupa lea, el control de
+  lecturas dice que es limitado: ve una fila agregada o quitada entre lecturas,
+  no un `UPDATE` que no cambia el número de filas.
+- Nueva `semaforo_calidad()`: clasifica cada celda en niveles con cortes que
+  declara quien mide, por dimensión o por métrica. Sólo pinta cifras cuyas
+  cuentas cierran; una métrica de validez evalúa su propio universo —los valores
+  presentes— y tiene color aunque la columna tenga vacíos. No combina
+  dimensiones ni trae cortes de fábrica; las métricas no acotadas quedan fuera
+  con su motivo, y la columna `control_lecturas` dice qué celdas con color se
+  leyeron en varias consultas sin contador del motor.
+- `rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))` junta
+  partes de una misma corrida —mismo `id_medicion` y misma `fecha` declarada—
+  resolviendo la misma celda por la parte de mayor prioridad (columna `fuente`)
+  y conservando lo descartado. Sólo junta lo comparable: el sello de cada parte
+  con la misma huella para cada métrica compartida, y la misma instantánea de
+  cada tabla leída por más de una parte. Si no se puede probar, no se junta y se
+  dice por qué.
 
 ## Comparar entregas
 
@@ -526,6 +618,29 @@
 
 ## Correcciones
 
+- `ReglaIntegridadInterEntidad` cuenta un `NaN` de la clave foránea como vacío
+  y no como huérfano, igual que `is.na()`, `NoNulo` y los rangos. Cambia la
+  cobertura publicada: en una columna de 10 filas con 2 `NA`, un `NaN` y 4
+  valores encontrados pasa de 4/8 a 4/7, en memoria y en `medir_dbi()`.
+- `medir_dbi()` arma cada fila con una sola lectura: la consulta dedicada
+  publicaba `n_no_evaluados = -1` cuando la tabla cambiaba entre ella y la
+  consolidada; y partida una consulta tras un error, cada mitad conserva sus
+  filas.
+- `medir_dbi()`: un `NoNulo` con fechas en `valores_nulos` sobre una columna de
+  SQLite que guarda las fechas como texto ya no se da por cumplido: la
+  comparación contra el literal no veía ese texto y publicaba 1 donde `medir()`
+  daba 0,85. Se declara, o se mide en R con `estrategia_no_sql = "bloques"`.
+- `OportunidadEntPorFecha` y `OportunidadEntPorIntervalo` cuentan como vacías, y
+  no como sin medida, las filas con la fecha de la vigencia vacía;
+  `CorrectitudSemDebil` cuenta su universo en filas y no en celdas.
+- `rbind()` de resúmenes rechaza dos fechas en una corrida y una métrica medida
+  en una parte y no medida en otra (antes publicaba las dos cosas).
+- `ReglaIntegridadInterEntidad(muestra = )` avisa que no tiene efecto: la
+  cobertura se mide sobre la tabla entera.
+- El resumen de `RatioCobertura` (`medir(detalle = "resumen")` y `medir_dbi()`)
+  publica las claves cubiertas en `numerador` y las del universo en
+  `denominador`; antes salían `NA`. `cobertura_metricas` lleva la `dimension` y
+  el `factor` de cada métrica sin medir.
 - `medir_dbi()` compara el texto con intercalación binaria explícita en SQLite y
   DuckDB, como R: sobre una vista de SQLite que hereda `COLLATE NOCASE`, un
   dominio contaba 3 de 3 donde R cuenta 2 de 3, y en DuckDB la regla quedaba sin

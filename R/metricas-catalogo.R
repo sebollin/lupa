@@ -1442,7 +1442,12 @@
   texto <- .codigo_lista_especificacion(opcionales)
   omisiones <- especificacion$omisiones_opcionales
   if (!is.null(omisiones) && "muestra" %in% opcionales) {
-    return("`muestra` es opcional (por omisi\u00f3n Inf)")
+    # Se acepta y todavia no tiene efecto; decirlo aca evita que alguien la
+    # declare creyendo que mide sobre una muestra.
+    return(paste0(
+      "`muestra` es opcional (por omisi\u00f3n Inf) y por ahora no tiene ",
+      "efecto: la cobertura se mide sobre la tabla entera"
+    ))
   }
   paste0("las propiedades ", texto, " son opcionales")
 }

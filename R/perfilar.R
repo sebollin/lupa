@@ -2336,6 +2336,40 @@
 #'   día aparece en una proporción plausible dentro del recorrido de la
 #'   columna, no se acusa. Las reglas inferidas con filas se publican como
 #'   sospechosas; las declaradas, como errores.
+#' @param centinelas_fecha Fechas que el usuario declara como centinela en
+#'   toda columna de fecha de la tabla (texto `"AAAA-MM-DD"`, `Date` o
+#'   `POSIXt`; la hora de un texto se descarta, como en `dominios`). Se suman a
+#'   las cuatro fechas que el paquete sospecha por omisión (1900-01-01,
+#'   9999-12-31, 1970-01-01 y 1899-12-30) sin quitarles su reserva: lo
+#'   declarado se acusa desde una aparición como `error`, en un hallazgo
+#'   `fecha_centinela` propio, y lo incorporado sigue necesitando repetirse y
+#'   estar separado del resto de las fechas. Para medir esa separación se
+#'   apartan todas las demás candidatas, las declaradas incluidas: un
+#'   `0001-01-01` declarado no esconde un `1900-01-01`. Una columna con
+#'   `centinelas` propias en `dominios` usa las suyas; con `dominios = FALSE`
+#'   (o `FALSE` para la columna) rigen sólo las declaradas acá. `NULL` (por
+#'   omisión) no cambia nada.
+#' @param periodos Pares de columnas de fecha declarados como inicio y fin de un
+#'   período: `c(inicio = "desde", fin = "hasta")`, una lista con esos campos y,
+#'   opcionalmente, `fin_abierto` (las fechas que significan «vigente», como
+#'   `"9999-12-31"`), o una lista nombrada de varios. Nunca se adivinan por el
+#'   nombre. Cada fila cae en una sola categoría y la tabla se publica en
+#'   `general$periodos`: cerrados válidos, fin antes del inicio, fin abierto
+#'   (ausente o una fecha de `fin_abierto`), fin con una centinela declarada, fin
+#'   con una fecha que suele ser centinela y no se declaró (con un aviso de
+#'   posible fin abierto sin declarar: no se cuenta como período cerrado ni como
+#'   inversión), sin inicio y ambos ausentes. `NULL` (por omisión) no agrega
+#'   nada.
+#' @param resumen_fechas Si es `TRUE`, `columnas` agrega por columna de fecha
+#'   `n_fechas_centinela` (y de ellas `n_fechas_centinela_declaradas` y
+#'   `n_fechas_fin_abierto`), `lectura_fechas_centinela`, `n_fechas_futuras`
+#'   (con la misma regla que `fecha_futura`, también donde las futuras son
+#'   legítimas: ahí su lectura es `"admitidas"`), `lectura_fechas_futuras` y
+#'   `ultimo_dato_fecha`, y `general$actualidad` dice, por columna, el último
+#'   dato que no es futuro ni una centinela declarada y cuántos días hace de él.
+#'   No hay una fecha ganadora entre columnas ni un puntaje. Los mismos campos los
+#'   publica [perfilar_dbi()] sobre la tabla completa y [comparar_equivalencia()]
+#'   los compara. `FALSE` (por omisión) deja el perfil como siempre.
 #' @param cadenas_ausencia Cadenas que el usuario declara como ausencia,
 #'   además de la lista incorporada. Lo declarado atraviesa la guarda del
 #'   vocabulario: `sd`, `nc` y `nd` sólo cuentan solas en columnas de pocos
@@ -2345,6 +2379,12 @@
 #'   blancos de los bordes y sin distinguir mayúsculas, con el pliegue de caja
 #'   de [normalizacion()]: `SIN INFORMACIÓN` es `sin información` en cualquier
 #'   locale.
+#'
+#'   También acepta una **lista por columna**, `list(<columna> = cadenas)`: la
+#'   entrada de una columna se suma a la lista incorporada en esa columna, y
+#'   las columnas que la lista no nombra reciben sólo la lista incorporada. La
+#'   forma por columna no retira marcas incorporadas. Ver
+#'   `sentinelas_numericos` para la regla común a las dos.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
 #'   interpretan como ausencia. Se normaliza como un conjunto numérico, por lo
 #'   que el orden, el tipo entero o doble y los duplicados no cambian el
@@ -2376,6 +2416,27 @@
 #'   15) sólo es el centinela si escribe exactamente el valor, en cualquier
 #'   notación: `"9007199254740993"`, `"9.007199254740993e15"` y
 #'   `"9007199254740991.5"` no se confunden con el centinela `9007199254740992`.
+#'
+#'   **Por columna.** Además del vector, que vale para todas las columnas,
+#'   acepta una lista con nombre `list(<columna> = valores)`: un `99` puede ser
+#'   «no sabe» en una columna y una edad en la de al lado. Cada entrada vale
+#'   para su columna lo mismo que el vector valdría para ella —el conjunto
+#'   completo de esa columna, que reemplaza la lista por omisión; `numeric()`
+#'   la apaga— y las columnas que la lista no nombra reciben la lista por
+#'   omisión, con su reserva. La fila de una columna declarada es la que daría
+#'   perfilarla sola con ese vector; las relaciones entre columnas, el plan de
+#'   [planificar_limpieza()] y la deriva de [comparar_perfiles()] usan la
+#'   entrada de cada una, y el perfil la guarda en `meta$ausencias_por_columna`
+#'   (con vectores, `meta` es la de siempre). Un nombre que la tabla no tiene es
+#'   un error, y también uno que la tabla repite: no dice a cuál de las
+#'   columnas se refiere, y hay que renombrarlas. Con la lista no se expresa «un vector para todas y excepciones»:
+#'   se escribe cada columna, por ejemplo
+#'   `c(sapply(setdiff(names(datos), "edad"), function(x) sentinelas_naniar,
+#'   simplify = FALSE), list(edad = c(setdiff(sentinelas_naniar, 88), 99)))`
+#'   declara la lista de naniar en todas y, en `edad`, la misma sin `88` y con
+#'   `99`. Una entrada igual a una lista publicada se trata como heurística, columna por
+#'   columna. [detectar_tablas_codigos()] y [ausencias_desde_propuesta()] arman
+#'   esta lista a partir de las tablas de códigos de una colección.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
 #'   pares de columnas. Se aplica una sola muestra común a toda la tabla. Una
 #'   dependencia publicada que no es exacta es además el hallazgo
@@ -3328,7 +3389,10 @@ perfilar <- function(datos,
                      avisar_costo_tabla_ancha = TRUE,
                      umbral_celdas_aviso_tabla_ancha =
                        .UMBRAL_CELDAS_AVISO_TABLA_ANCHA,
-                     dominios = NULL) {
+                     dominios = NULL,
+                     centinelas_fecha = NULL,
+                     periodos = NULL,
+                     resumen_fechas = FALSE) {
   # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
   trazador_tiempos <- attr(
     datos, "lupa_trazador_tiempos_dbi", exact = TRUE
@@ -3450,20 +3514,10 @@ perfilar <- function(datos,
     .advertir_clave_declarada(evaluacion_clave)
   }
   .validar_sentinelas_numericos(sentinelas_numericos)
-  # La declaracion se lee como se leen los datos, por `.texto_analizable()`: una
-  # cadena sin marca con un byte que no es UTF-8 valido -copiada de un CSV en
-  # latin-1- hacia abortar `trimws()` en una sesion UTF-8. No es vacia: trae
-  # bytes. Queda declarada y no coincide con ningun texto analizado, igual que
-  # las celdas que la repiten, que se excluyen del analisis textual y se cuentan
-  # en `n_codificacion_invalida`.
-  if (!is.null(cadenas_ausencia) &&
-      (!is.character(cadenas_ausencia) || anyNA(cadenas_ausencia) ||
-       any(!nzchar(trimws(.texto_analizable(cadenas_ausencia)$valores))))) {
-    .detener(
-      "`cadenas_ausencia` debe ser un vector de texto sin ausentes ni cadenas ",
-      "vac\u00edas.", call. = FALSE
-    )
-  }
+  # Las celdas que repiten una cadena declarada con bytes que no son UTF-8 valido
+  # se excluyen del analisis textual y se cuentan en `n_codificacion_invalida`:
+  # ver `.validar_vector_cadenas()`.
+  .validar_cadenas_ausencia(cadenas_ausencia)
   if (!is.logical(analizar_dependencias) || length(analizar_dependencias) != 1L ||
       is.na(analizar_dependencias)) {
     .detener("`analizar_dependencias` debe ser un l\u00f3gico escalar sin NA.",
@@ -3677,21 +3731,40 @@ perfilar <- function(datos,
   # canales que redactan mensajes.
   nombres_texto <- .marcar_utf8_textos(nombres)
   dominios_resueltos <- .normalizar_dominios(dominios, nombres)
+  centinelas_fecha <- .normalizar_centinelas_fecha(centinelas_fecha)
+  resumen_fechas <- .validar_resumen_fechas(resumen_fechas)
+  periodos_resueltos <- .normalizar_periodos(periodos, nombres)
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )
   columnas_codigo <- .normalizar_columnas_codigo(columnas_codigo, nombres)
   es_codigo <- .nombres_para_operar(nombres) %in%
     .nombres_para_operar(columnas_codigo)
+  # La declaracion por columna se resuelve una vez contra los nombres de la
+  # tabla: cada columna recibe la suya, y las relaciones entre columnas la lista
+  # con los nombres reales. Con vectores, todo sigue igual.
+  meta_ausencias <- .meta_ausencias(
+    sentinelas_numericos, cadenas_ausencia, nombres
+  )
+  if (.es_ausencias_por_columna(sentinelas_numericos)) {
+    sentinelas_numericos <- .resolver_ausencias_columnas(
+      sentinelas_numericos, nombres, "sentinelas_numericos"
+    )
+  }
+  if (.es_ausencias_por_columna(cadenas_ausencia)) {
+    cadenas_ausencia <- .resolver_ausencias_columnas(
+      cadenas_ausencia, nombres, "cadenas_ausencia"
+    )
+  }
   resultados <- .medir_etapa_dbi(
     trazador_tiempos, "perfilado_columnas",
     lapply(seq_len(ncol(datos)), function(i) {
       .perfilar_columna(
         datos[[i]], nombres[[i]], muestra_diagnosticos, max_patrones,
         distinguir_mayusculas, expandir, umbral_patron_raro,
-        sentinelas_numericos,
+        .sentinelas_de_columna(sentinelas_numericos, nombres[[i]]),
         aplicable = aplicabilidad_resuelta$mascaras[[i]],
-        cadenas_ausencia = cadenas_ausencia,
+        cadenas_ausencia = .cadenas_de_columna(cadenas_ausencia, nombres[[i]]),
         codigo = es_codigo[[i]],
         max_largo_valor_vocabulario = max_largo_valor_vocabulario
       )
@@ -3699,7 +3772,12 @@ perfilar <- function(datos,
   )
   dominios_evaluados <- .evaluar_dominios(
     datos, nombres, resultados, dominios_resueltos,
-    aplicabilidad_resuelta$mascaras, fecha_hora, fecha_es_date
+    aplicabilidad_resuelta$mascaras, fecha_hora, fecha_es_date,
+    centinelas_fecha = centinelas_fecha, resumen_fechas = resumen_fechas
+  )
+  periodos_evaluados <- .evaluar_periodos(
+    datos, nombres, resultados, periodos_resueltos, dominios_evaluados$reglas,
+    aplicabilidad_resuelta$mascaras
   )
   resultados <- dominios_evaluados$resultados
   cobertura_texto_largo <- .cobertura_texto_largo_perfil(
@@ -3722,7 +3800,7 @@ perfilar <- function(datos,
       .perfilar_columna(
       character(), "", muestra_diagnosticos, max_patrones,
       distinguir_mayusculas, expandir, umbral_patron_raro,
-        sentinelas_numericos,
+        .sentinelas_de_columna(sentinelas_numericos, ""),
         max_largo_valor_vocabulario = max_largo_valor_vocabulario
     )$fila[0, , drop = FALSE]
   }
@@ -3759,7 +3837,8 @@ perfilar <- function(datos,
         as.data.frame(datos)[0, 0, drop = FALSE], umbral = umbral_dependencia,
         max_columnas = 1L,
         umbral_casi_clave = umbral_casi_clave_dependencia,
-        sentinelas_numericos = sentinelas_numericos,
+        # Sin columnas no hay a quien aplicar una entrada por columna.
+        sentinelas_numericos = .sentinelas_de_columna(sentinelas_numericos, ""),
         proteger_datos_personales = FALSE
       )
     },
@@ -4277,10 +4356,8 @@ perfilar <- function(datos,
     avisar_costo_tabla_ancha = avisar_costo_tabla_ancha,
     umbral_celdas_aviso_tabla_ancha = umbral_celdas_aviso_tabla_ancha,
     costo_tabla_ancha = costo_tabla_ancha,
-    sentinelas_numericos = .normalizar_sentinelas_numericos(
-      sentinelas_numericos
-    ),
-    cadenas_ausencia = cadenas_ausencia,
+    sentinelas_numericos = meta_ausencias$sentinelas_numericos,
+    cadenas_ausencia = meta_ausencias$cadenas_ausencia,
     datos_personales_permitidos = datos_personales_permitidos,
     proteger_datos_personales = proteger_datos_personales,
     validadores_personales = names(validadores_personales),
@@ -4317,6 +4394,19 @@ perfilar <- function(datos,
   if (!is.null(dominios_evaluados$meta)) {
     meta$dominios <- dominios_evaluados$meta
   }
+  # Solo cuando se declaran: sin ellos el perfil es el de siempre.
+  if (length(centinelas_fecha)) meta$centinelas_fecha <- centinelas_fecha
+  if (!is.null(periodos_resueltos)) {
+    meta$declaracion_periodos <- periodos_resueltos
+    general$periodos <- periodos_evaluados$tabla
+  }
+  if (isTRUE(resumen_fechas)) {
+    columnas <- .agregar_resumen_fechas_columnas(columnas, dominios_evaluados$fechas)
+    general$actualidad <- .actualidad_desde_resumen(
+      dominios_evaluados$fechas, fecha_hora, fecha_declarada, fecha_es_date
+    )
+    meta$resumen_fechas <- TRUE
+  }
   if (!is.null(alcance_muestra$huella)) {
     meta$muestra_huella <- alcance_muestra$huella
   }
@@ -4330,6 +4420,10 @@ perfilar <- function(datos,
   }
   if (!is.null(benford$meta)) {
     meta$benford <- benford$meta
+  }
+  # Solo si se declaro por columna: con vectores, `meta` es la de siempre.
+  if (!is.null(meta_ausencias$ausencias_por_columna)) {
+    meta$ausencias_por_columna <- meta_ausencias$ausencias_por_columna
   }
   # Tambien cuando se descarto una relacion, por escala o por la cota del
   # cuanto: la ayuda promete el conteo en `identidades_descartadas_escala`, y si

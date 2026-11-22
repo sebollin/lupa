@@ -1098,6 +1098,16 @@ modelo <- function(..., marco = NULL) {
     configuracion$muestra <- Inf
   }
   .validar_muestra(configuracion$muestra)
+  # `muestra` se acepta y no se usa: la cobertura se mide sobre la tabla entera
+  # (medido: las mismas cuentas con `muestra = 3` y sin ella). Un argumento que
+  # no hace nada y no lo dice es un defecto; hasta que se implemente, avisa.
+  if (is.finite(configuracion$muestra)) {
+    .avisar(
+      "`muestra` no tiene efecto en ReglaIntegridadInterEntidad: la cobertura ",
+      "referencial se mide sobre la tabla entera.",
+      call. = FALSE
+    )
+  }
   configuracion
 }
 
@@ -2109,9 +2119,7 @@ metricas_nucleo <- function() {
     atributo = if (length(atributos)) {
       paste(atributos, collapse = ", ")
     } else NA_character_,
-    unidad = if (identical(granularidad, "instanciaAtributo")) {
-      "celda"
-    } else "fila",
+    unidad = .unidad_universo_instancia(instancia),
     en_el_universo = as.numeric(esperadas),
     medidas = as.numeric(n_medidas),
     motivo = paste0(
@@ -2141,7 +2149,10 @@ metricas_nucleo <- function() {
   )
   if (is.null(dentro)) return(NULL)
   filas_universo <- sum(dentro)
-  esperadas <- if (identical(granularidad, "instanciaAtributo")) {
+  # La unidad y las columnas de valor, las mismas que usa el resumen: el alcance
+  # de la medicion completa y el del resumen tienen que decir lo mismo.
+  unidad <- .unidad_universo_instancia(instancia)
+  esperadas <- if (identical(unidad, "celda")) {
     if (!length(atributos)) return(NULL)
     filas_universo * length(atributos)
   } else {
@@ -2150,15 +2161,7 @@ metricas_nucleo <- function() {
   if (!is.finite(esperadas) || esperadas <= 0 || n_medidas >= esperadas) {
     return(NULL)
   }
-  indices <- .indice_nombre(atributos, names(tabla))
-  sin_valor <- if (length(atributos) && !anyNA(indices)) {
-    celdas <- lapply(indices, function(i) is.na(tabla[[i]])[dentro])
-    if (identical(granularidad, "instanciaAtributo")) {
-      sum(vapply(celdas, sum, numeric(1L)))
-    } else {
-      sum(Reduce(`|`, celdas))
-    }
-  } else NA_real_
+  sin_valor <- .sin_valor_instancia(tabla, instancia, dentro, unidad)
   .alcance_medidas_desde_conteos(instancia, esperadas, n_medidas, sin_valor)
 }
 
@@ -2331,6 +2334,49 @@ metricas_nucleo <- function() {
 #'   [indice_calidad()] y [cobertura_analisis()] que la medición completa;
 #'   [evaluar()], [agregar()], [historico_calidad()] y [reportar()] lo
 #'   rechazan indicando qué hacer.
+#'
+#'   **Las cuentas de cada cifra.** El resumen publica además `n_sin_valor`
+#'   (celdas o filas del universo con alguna columna de valor vacía según
+#'   `is.na()`, `NaN` incluido), `n_filas_leidas` (filas de la tabla que vio la
+#'   lectura que produjo la cifra, antes del recorte por aplicabilidad),
+#'   `entidad_referida` y `n_filas_leidas_referida` (en una referencial, la
+#'   tabla referida y sus filas en la misma lectura), y `estado_cuentas`,
+#'   `motivo_cuentas` y `diferencia_cuentas`. `estado_cuentas` es `cierran`,
+#'   `no_cierran` (la métrica dio más medidas que su universo; lo no evaluado no
+#'   son los vacíos que la métrica declara no evaluar; o dos lecturas de la misma
+#'   tabla en la corrida vieron otra tabla), `parcial` (la cifra se calculó sobre
+#'   una parte declarada: un vocabulario truncado por `max_valores`) o
+#'   `sin_cuentas`. Cada métrica del catálogo declara su universo: `NoNulo`
+#'   evalúa también los vacíos —es lo que mide—; una de validez evalúa los
+#'   valores presentes. Lo escribe quien produce la cifra y avisa cuando alguna
+#'   no cierra; [tablero_calidad()] lo publica en su atributo `cuentas`,
+#'   [indice_calidad()] no combina esas cifras y [semaforo_calidad()] no las
+#'   pinta. `attr(x, "lecturas")` registra cada lectura de cada tabla, con su
+#'   huella de datos en memoria; dos partes de una corrida sobre la misma tabla
+#'   se reconocen por esa huella. `write.csv()` exporta las columnas, no los
+#'   atributos: lecturas, sello, cobertura y consolidación no viajan en un CSV.
+#'
+#'   **Partes de una corrida.** `rbind()` une resúmenes de una misma corrida
+#'   —mismo `id_medicion` y misma `fecha`— que no repiten métrica y objeto, y
+#'   vuelve a mirar las cuentas de la unión: dos partes que leyeron versiones
+#'   distintas de una tabla quedan `no_cierran`. Una métrica con cifra en una
+#'   parte y sin medir en otra se rechaza. Con `prioridad`
+#'   (`rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))`) la
+#'   misma celda en varias partes se resuelve por la parte de mayor prioridad,
+#'   que queda en la columna `fuente`, y lo no elegido en `attr(x, "descartadas")`
+#'   con si coincide con lo elegido. Sólo junta lo comparable: una corrida, el
+#'   sello de cada parte con certificación `completa` y la misma huella y
+#'   versión de lupa para cada métrica compartida, la misma aplicabilidad y el
+#'   mismo marco, y **la misma instantánea de los datos** de cada tabla leída por
+#'   más de una parte —la huella de los datos en memoria o el contador de
+#'   modificaciones del motor—. La igualdad de filas no alcanza: si no hay cómo
+#'   probar la instantánea, no se junta y se dice por qué. Una consolidación no
+#'   se vuelve a unir.
+#' @param ... En `rbind()`, los resúmenes que se unen; con `prioridad`, con
+#'   nombre: el nombre de cada parte es su `fuente`.
+#' @param prioridad En `rbind()` sobre resúmenes, los nombres de todas las
+#'   partes, de mayor a menor. Ver «Partes de una corrida».
+#' @param deparse.level Se ignora; existe por el genérico `rbind()`.
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
 #'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`.
 #'   `orientacion` conserva si un valor alto expresa conformidad, si un valor
@@ -2701,7 +2747,9 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     ]
   }
   if (length(coberturas)) {
-    attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
+    attr(resultado, "cobertura_metricas") <- do.call(
+      rbind, lapply(coberturas, .ubicar_cobertura_metricas, modelo)
+    )
     # Un metodo que fallo antes abortaba `medir()` con su error, y el error era la
     # unica senal. Ahora la corrida sigue, y sin este aviso el mismo defecto de
     # configuracion -un atributo mal escrito, un referencial sin declarar completo-
