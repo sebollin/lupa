@@ -45,10 +45,15 @@
 # no comparable. Medido. Son opcionales a la entrada -un RDS o un
 # CSV anterior no las trae y se lee igual, con NA-, asi que el esquema sigue en 1:
 # es un agregado, como `parte_no_medida`, y un lector anterior las descarta.
+#
+# `sello_metricas` tambien: el sello de cada metrica que la corrida evaluo
+# -version de lupa y huella de su definicion-, en un texto por corrida (ver
+# `.texto_sello_corrida()`). Un historico anterior no la trae y se lee con `NA`:
+# la deriva compara esa corrida como antes y dice que no tiene sello.
 .columnas_configuracion_filas_historico <- c(
   "identidad_tabla", "configuracion_modelo", "configuracion_marco",
   "configuracion_tipos_resultado", "configuracion_aplicabilidad",
-  "configuracion_perfil"
+  "configuracion_perfil", "sello_metricas"
 )
 
 .columnas_salida_historico <- c(
@@ -58,7 +63,9 @@
 #' @export
 `[.historico_calidad` <- function(x, ...) {
   resultado <- NextMethod("[")
-  .conservar_atributos_objeto(resultado, x, por_corrida = "configuracion_evaluacion")
+  .conservar_atributos_objeto(
+    resultado, x, por_corrida = c("configuracion_evaluacion", "cobertura_sello")
+  )
 }
 
 #' @export
@@ -71,7 +78,9 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   if (!all(vapply(partes, inherits, logical(1L), "historico_calidad"))) {
     return(.unir_con_marca_sin_proteger(..., deparse.level = deparse.level))
   }
-  Reduce(.combinar_historico, partes)
+  resultado <- Reduce(.combinar_historico, partes)
+  .avisar_sellos_historico(resultado, partes, "rbind()")
+  .con_cobertura_sello(resultado)
 }
 
 .historico_vacio <- function() {
@@ -89,7 +98,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     configuracion_marco = character(),
     configuracion_tipos_resultado = character(),
     configuracion_aplicabilidad = character(),
-    configuracion_perfil = character(),
+    configuracion_perfil = character(), sello_metricas = character(),
     stringsAsFactors = FALSE
   )
   class(resultado) <- c("historico_calidad", "data.frame")
@@ -201,7 +210,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   "id_medicion", "fecha", "perfil", "identidad_tabla",
   "configuracion_modelo", "configuracion_marco",
   "configuracion_tipos_resultado", "configuracion_aplicabilidad",
-  "configuracion_perfil"
+  "configuracion_perfil", "sello_metricas"
 )
 
 .configuraciones_historico_vacias <- function() {
@@ -212,14 +221,20 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     configuracion_marco = character(),
     configuracion_tipos_resultado = character(),
     configuracion_aplicabilidad = character(),
-    configuracion_perfil = character(), stringsAsFactors = FALSE
+    configuracion_perfil = character(), sello_metricas = character(),
+    stringsAsFactors = FALSE
   )
 }
 
+# `sello` es el de la medicion (`attr(x, "sello_metricas")`), con una fila por
+# corrida y metrica; `metricas`, si se da, lo restringe a las que la corrida
+# evaluo -las de las reglas de un perfil-: una metrica que el perfil no mira no
+# cambia lo que su resultado mide.
 .fila_configuracion_historico <- function(ids, fechas, perfiles,
                                           configuracion_modelo = NULL,
                                           configuracion_aplicabilidad = NULL,
-                                          configuracion_perfil = NULL) {
+                                          configuracion_perfil = NULL,
+                                          sello = NULL, metricas = NULL) {
   ids <- .clave_bytes(as.character(ids))
   if (!length(ids) || (
     is.null(configuracion_modelo) &&
@@ -273,7 +288,17 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       if (is.null(configuracion_perfil)) NA_character_ else
         .clave_bytes(.texto_configuracion_calidad(configuracion_perfil)),
       length.out = length(ids)
-    ), stringsAsFactors = FALSE
+    ),
+    sello_metricas = vapply(ids, function(id) {
+      if (!inherits(sello, "data.frame")) return(NA_character_)
+      propias <- .clave_bytes(as.character(sello$id_medicion)) == id
+      if (!is.null(metricas)) {
+        propias <- propias &
+          .identificadores_en(sello$metrica_instanciada, metricas)
+      }
+      .texto_sello_corrida(sello[propias, , drop = FALSE], id)
+    }, character(1L), USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
   )
 }
 
@@ -293,7 +318,8 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     as.POSIXct(character())
   }
   .fila_configuracion_historico(
-    ids, fechas, NA_character_, configuracion, aplicabilidad
+    ids, fechas, NA_character_, configuracion, aplicabilidad,
+    sello = .sello_de_objeto(x)
   )
 }
 
@@ -322,8 +348,14 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     }
     perfiles <- rep(nombre_perfil, length(ids))
   }
+  sello <- .sello_de_objeto(x)
+  evaluadas <- if (inherits(x$medidas, "data.frame") &&
+                  "metrica_instanciada" %in% names(x$medidas)) {
+    .metricas_de_origen_sello(x$medidas$metrica_instanciada, sello)
+  }
   .fila_configuracion_historico(
-    ids, fechas, perfiles, configuracion, aplicabilidad, perfil
+    ids, fechas, perfiles, configuracion, aplicabilidad, perfil,
+    sello = sello, metricas = evaluadas
   )
 }
 
@@ -383,6 +415,19 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
         lado_nuevo[[nombre]] <- .clave_bytes(lado_nuevo[[nombre]])
       }
     }
+    # Una corrida guardada antes del sello vuelve a acumularse con el: el sello
+    # que falta de un lado no es una diferencia, y el que se conoce se conserva.
+    if (is.na(lado_anterior$sello_metricas) && !is.na(lado_nuevo$sello_metricas)) {
+      anterior$sello_metricas[[j]] <- lado_nuevo$sello_metricas
+    }
+    if (is.na(lado_anterior$sello_metricas) || is.na(lado_nuevo$sello_metricas)) {
+      lado_anterior$sello_metricas <- lado_nuevo$sello_metricas <- NA_character_
+    }
+    # La misma corrida releida o acumulada desde otra sesion trae otro entorno
+    # de sesion en su sello: es la misma corrida, y se queda el entorno que ya
+    # estaba. El resto del sello si tiene que coincidir.
+    lado_anterior$sello_metricas <- .sello_sin_entorno(lado_anterior$sello_metricas)
+    lado_nuevo$sello_metricas <- .sello_sin_entorno(lado_nuevo$sello_metricas)
     if (!isTRUE(all.equal(lado_nuevo, lado_anterior,
                          check.attributes = FALSE))) {
       # El mensaje decia "configuracion diferente" sin nombrar que difiere, y
@@ -860,10 +905,15 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   if (!nrow(x)) return(configuracion)
   columnas <- .columnas_configuracion_filas_historico
   filas <- as.character(x$nivel) %in% "evaluacion_perfil"
+  # El sello solo no es una configuracion: una fila que perdio sus columnas
+  # `configuracion_*` -un CSV recortado- sigue sin declarar que tabla y que
+  # marco mide, aunque conserve el sello, y la deriva tiene que seguir
+  # diciendolo.
   if (any(filas)) {
-    filas[filas] <- Reduce(`|`, lapply(columnas, function(nombre) {
-      !is.na(x[[nombre]][filas])
-    }))
+    filas[filas] <- Reduce(`|`, lapply(
+      setdiff(columnas, "sello_metricas"),
+      function(nombre) !is.na(x[[nombre]][filas])
+    ))
   }
   if (!any(filas)) return(configuracion)
   desde <- data.frame(
@@ -1219,7 +1269,26 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #'   `configuracion_perfil` —en `NA` en los demás niveles—, porque el atributo no
 #'   sobrevive a `write.csv()`: un histórico releído de un CSV la recupera de
 #'   ahí. Son columnas agregadas al esquema 1: un histórico anterior que no las
-#'   trae se lee igual, con ellas en `NA`.
+#'   trae se lee igual, con ellas en `NA`. La columna `sello_metricas` lleva,
+#'   como texto, el sello de las métricas que la corrida evaluó —versión de
+#'   lupa, huella de su definición y su nivel de certificación, y el entorno de
+#'   la sesión que midió, ver [medir()]—. `historico_calidad()`,
+#'   `acumular_historico()` y `rbind()` avisan cuando una métrica cambió de
+#'   definición de una corrida a la siguiente, cuando la misma definición se
+#'   midió en otro entorno de sesión («misma definición, otro entorno»), o
+#'   cuando una corrida sin sello —medida con una versión anterior— queda al
+#'   lado de una sellada; cada par de corridas se avisa una vez, cuando se
+#'   juntan.
+#'   Cuando la huella no cambió pero no alcanza para decir que la definición
+#'   siga igual —es parcial, o no se pudo certificar—, el atributo
+#'   `cobertura_sello` lo declara, sin aviso: una fila por par de corridas
+#'   consecutivas de esa métrica, con `id_medicion`, `id_medicion_anterior`,
+#'   `metrica_instanciada`, `aspecto`, `certificacion` y `descripcion`
+#'   («huella parcial: una función del usuario puede haber cambiado lo que lee
+#'   sin que la huella lo vea»). Declara también los pares medidos en otro
+#'   entorno (`aspecto = "entorno"`, con lo que cambió) y los que no registran
+#'   su entorno (`"entorno_desconocido"`). Sin nada que declarar, el atributo no
+#'   está.
 #'
 #' @details
 #' El detalle predeterminado evita repetir una fila por celda y regla cuando el
@@ -1286,7 +1355,11 @@ historico_calidad <- function(..., detalle = c("resumen", "completo")) {
     objetos <- objetos[[1L]]
   }
   resultado <- .historico_vacio()
+  previos <- list()
   for (objeto in objetos) {
+    # Un historico que llega entero ya junto sus corridas: lo que dijo de ellas
+    # no se repite.
+    if (inherits(objeto, "historico_calidad")) previos <- c(previos, list(objeto))
     resultado <- .combinar_historico(
       resultado, .normalizar_objeto_historico(objeto, detalle)
     )
@@ -1294,7 +1367,9 @@ historico_calidad <- function(..., detalle = c("resumen", "completo")) {
   resultado <- .proteger_historico_desenlaces(
     resultado, .desenlaces_historico(objetos)
   )
-  .validar_historico(resultado)
+  resultado <- .validar_historico(resultado)
+  .avisar_sellos_historico(resultado, previos, "historico_calidad()")
+  .con_cobertura_sello(resultado)
 }
 
 #' @rdname historico_calidad
@@ -1322,7 +1397,9 @@ acumular_historico <- function(historico, ...,
       ))) {
     objetos <- objetos[[1L]]
   }
+  previos <- list(resultado)
   for (objeto in objetos) {
+    if (inherits(objeto, "historico_calidad")) previos <- c(previos, list(objeto))
     resultado <- .combinar_historico(
       resultado, .normalizar_objeto_historico(objeto, detalle)
     )
@@ -1330,7 +1407,9 @@ acumular_historico <- function(historico, ...,
   resultado <- .proteger_historico_desenlaces(
     resultado, .desenlaces_historico(objetos)
   )
-  .validar_historico(resultado)
+  resultado <- .validar_historico(resultado)
+  .avisar_sellos_historico(resultado, previos, "acumular_historico()")
+  .con_cobertura_sello(resultado)
 }
 
 #' Guardar y recuperar un histórico de calidad
@@ -1463,6 +1542,27 @@ leer_historico <- function(archivo) {
 #'   `aspecto = "cobertura_frontera"`, `cambio = "no_comparable"`, lo declara,
 #'   con las partes sin medir de cada lado en `evidencia`. Dos corridas a las que
 #'   les falta la misma parte sí se comparan.
+#'
+#'   **Un cambio de definición de una métrica se declara.** Si alguna métrica
+#'   que las dos corridas evaluaron cambió de definición —su huella en el sello
+#'   de [medir()]—, una fila `aspecto = "definicion_metrica"`, severidad
+#'   `error`, nombra en `evidencia` cada métrica con sus dos huellas y
+#'   versiones. Si la configuración de la corrida ya declara el cambio —cambió
+#'   el modelo o la aplicabilidad—, la fila de resultado se conserva, como con
+#'   la fila `configuracion_modelo`; si sólo el sello lo ve —la especificación
+#'   de la métrica, su referencial, el orden del texto—, `cambio` es
+#'   `no_comparable` y la fila de resultado no se publica. Un par con una
+#'   corrida sin sello —guardada por una versión anterior— se compara como
+#'   antes, y `cobertura_diagnosticos` lo declara (`sin_sello`); lo mismo una
+#'   métrica cuya definición no se pudo certificar (`no_certificable`, ver
+#'   [medir()]): no se sabe si cambió, y se dice. Y una métrica con la misma
+#'   huella en las dos corridas, pero parcial —su definición incluye una función
+#'   del usuario—, se compara como antes y `cobertura_diagnosticos` dice que la
+#'   huella no alcanza para afirmar que no cambió («huella parcial»). Un par
+#'   medido en otro entorno de sesión —otras opciones, otro locale, otro huso,
+#'   otra versión de R— se compara como antes y `cobertura_diagnosticos` dice
+#'   qué cambió («otro entorno»); uno sin el entorno registrado, «entorno
+#'   desconocido».
 #' @export
 #'
 #' @examples
@@ -1873,10 +1973,172 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     marco_cambiado <- diferencias_componente("configuracion_marco")
     tipos_cambiados <- diferencias_componente("configuracion_tipos_resultado")
     modelo_no_comparable <- marco_cambiado | tipos_cambiados
-    if (any(modelo_no_comparable | frontera_cambiada)) {
-      regular <- regular[!(modelo_no_comparable | frontera_cambiada), , drop = FALSE]
+    # La definicion de cada metrica, por su sello (`?medir`). Un resultado que
+    # junta una metrica que cambio de definicion no mide lo mismo que el de la
+    # corrida anterior, y eso se declara en su fila `definicion_metrica`.
+    #
+    # Si la configuracion de la corrida ya declara el cambio -cambio el modelo
+    # o la aplicabilidad-, la comparacion se conserva, que es lo que esa fila
+    # promete y lo que el paquete hacia: la deriva de datos no queda oculta. Si
+    # solo el sello lo ve -la especificacion de la metrica, su referencial, el
+    # orden del texto-, la comparacion no se publica: hasta aca se publicaba en
+    # silencio, como un cambio de los datos.
+    definicion <- .definiciones_deriva(
+      configuraciones, anterior_configuracion, actual_configuracion
+    )
+    declarado <- diferencias_componente("configuracion_modelo") |
+      diferencias_componente("configuracion_aplicabilidad")
+    definicion_no_comparable <- definicion$cambiada & !declarado
+    retirar <- modelo_no_comparable | frontera_cambiada | definicion_no_comparable
+    declaracion_definicion <- NULL
+    if (any(definicion$cambiada)) {
+      i <- which(definicion$cambiada)
+      n_metricas <- lengths(definicion$metricas[i])
+      declaracion_definicion <- data.frame(
+        nivel = rep(nivel, length(i)), perfil = datos$perfil[a[i]],
+        regla = if (nivel == "regla") datos$regla[a[i]] else NA_character_,
+        identidad_tabla = identidad[a[i]],
+        id_medicion_anterior = datos$id_medicion[a[i]],
+        fecha_anterior = datos$fecha[a[i]], resultado_anterior = NA_real_,
+        id_medicion_actual = datos$id_medicion[b[i]],
+        fecha_actual = datos$fecha[b[i]], resultado_actual = NA_real_,
+        delta = NA_real_, cambio_absoluto = NA_real_, significativo = TRUE,
+        direccion = "configuracion", severidad = "error",
+        cambio = ifelse(definicion_no_comparable[i], "no_comparable", NA_character_),
+        aspecto = "definicion_metrica",
+        descripcion = paste(
+          ifelse(
+            n_metricas == 1L,
+            "Cambi\u00f3 la definici\u00f3n de una m\u00e9trica entre las dos corridas: su resultado no mide lo mismo;",
+            paste0(
+              "Cambi\u00f3 la definici\u00f3n de ", n_metricas,
+              " m\u00e9tricas entre las dos corridas: sus resultados no miden lo mismo;"
+            )
+          ),
+          ifelse(
+            retirar[i],
+            "no se publica la comparaci\u00f3n del resultado.",
+            paste(
+              "la configuraci\u00f3n de la corrida ya declara el cambio y se mantienen",
+              "las comparaciones para que la deriva de datos no quede oculta."
+            )
+          )
+        ),
+        evidencia = definicion$evidencia[i],
+        stringsAsFactors = FALSE
+      )
     }
-    regular <- rbind(regular, declaracion_frontera)
+    # Una corrida sin sello -medida con una version anterior- se compara como
+    # antes, y se dice: sin el sello no se sabe si alguna metrica cambio. Lo
+    # mismo una metrica cuya definicion no se pudo certificar (`?medir`): la
+    # comparacion sigue y el diagnostico dice que no se sabe.
+    etiqueta_serie <- paste0(
+      if (nivel == "regla") {
+        paste0(
+          as.character(datos$perfil[[indices[[1L]]]]), " / ",
+          as.character(datos$regla[[indices[[1L]]]])
+        )
+      } else {
+        as.character(datos$perfil[[indices[[1L]]]])
+      },
+      if (!identical(identidad[[indices[[1L]]]], "<sin_configuracion>")) {
+        paste0(" [", identidad[[indices[[1L]]]], "]")
+      } else ""
+    )
+    if (any(definicion$sin_sello)) {
+      n_sin <- sum(definicion$sin_sello)
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad", etiqueta_serie,
+        paste0(
+          "sin_sello: ", n_sin,
+          if (n_sin == 1L) " par compara una corrida" else " pares comparan una corrida",
+          " sin sello de definici\u00f3n; se compara como antes, sin saber si alguna",
+          " m\u00e9trica cambi\u00f3 de definici\u00f3n"
+        ),
+        paste0(
+          "Volver a medir la corrida sin sello con esta versi\u00f3n de lupa para que ",
+          "lo traiga, o leer esa comparaci\u00f3n sabiendo que no se pudo comprobar."
+        )
+      )
+    }
+    con_inciertas <- lengths(definicion$inciertas) > 0L
+    if (any(con_inciertas)) {
+      inciertas <- unique(unlist(definicion$inciertas, use.names = FALSE))
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad", etiqueta_serie,
+        paste0(
+          "no_certificable: en ", sum(con_inciertas),
+          if (sum(con_inciertas) == 1L) " par" else " pares",
+          " no se puede saber si cambi\u00f3 la definici\u00f3n de ",
+          paste0("`", inciertas, "`", collapse = ", "),
+          ": lee de su entorno un valor que no se puede certificar; se compara",
+          " como antes"
+        ),
+        paste0(
+          "Pasar ese valor a la m\u00e9trica como par\u00e1metro de `especializar()`, en ",
+          "vez de leerlo del entorno de la funci\u00f3n, para que la huella lo vea."
+        )
+      )
+    }
+    # El entorno de la sesion: la misma definicion en otro entorno se compara
+    # como antes, y se dice que cambio; un sello que no lo registra, tambien.
+    con_entorno <- !is.na(definicion$entorno_cambio)
+    if (any(con_entorno)) {
+      cambios_entorno <- unique(definicion$entorno_cambio[con_entorno])
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad", etiqueta_serie,
+        paste0(
+          "otro entorno: en ", sum(con_entorno),
+          if (sum(con_entorno) == 1L) " par" else " pares",
+          " las dos corridas se midieron en otro entorno de sesi\u00f3n (",
+          paste(cambios_entorno, collapse = "; "),
+          "); una m\u00e9trica con la misma definici\u00f3n puede medir distinto por eso;",
+          " se compara como antes"
+        ),
+        paste0(
+          "Medir las corridas que se comparan con las mismas opciones, el mismo ",
+          "locale y el mismo huso, o leer la comparaci\u00f3n sabiendo que el entorno cambi\u00f3."
+        )
+      )
+    }
+    if (any(definicion$entorno_desconocido)) {
+      n_desconocido <- sum(definicion$entorno_desconocido)
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad", etiqueta_serie,
+        paste0(
+          "entorno desconocido: en ", n_desconocido,
+          if (n_desconocido == 1L) " par" else " pares",
+          " una corrida no registra el entorno de su sesi\u00f3n (se sell\u00f3 con una",
+          " versi\u00f3n anterior); se compara como antes"
+        ),
+        "Volver a medir esa corrida con esta versi\u00f3n de lupa para que lo registre."
+      )
+    }
+    # Una huella parcial que no cambio no dice que la definicion siga igual: la
+    # comparacion sigue, y el diagnostico lo dice.
+    con_parciales <- lengths(definicion$parciales) > 0L
+    if (any(con_parciales)) {
+      parciales <- unique(unlist(definicion$parciales, use.names = FALSE))
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad", etiqueta_serie,
+        paste0(
+          "huella parcial: en ", sum(con_parciales),
+          if (sum(con_parciales) == 1L) " par" else " pares",
+          " la huella de ", paste0("`", parciales, "`", collapse = ", "),
+          " no cambi\u00f3, pero es parcial: una funci\u00f3n del usuario puede",
+          " haber cambiado lo que lee sin que la huella lo vea; se compara como antes"
+        ),
+        paste0(
+          "Para una huella completa, escribir la regla como f\u00f3rmula o pasar sus ",
+          "valores como par\u00e1metros de `especializar()`. El motivo est\u00e1 en ",
+          "`motivo_huella` del sello de cada medici\u00f3n."
+        )
+      )
+    }
+    if (any(retirar)) {
+      regular <- regular[!retirar, , drop = FALSE]
+    }
+    regular <- rbind(regular, declaracion_frontera, declaracion_definicion)
     campos <- c(
       modelo = "configuracion_modelo",
       aplicabilidad = "configuracion_aplicabilidad",

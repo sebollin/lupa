@@ -1151,6 +1151,107 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   x[.orden_por_bytes(x, decreasing = decreasing, na.last = na.last)]
 }
 
+# Los cuatro operadores de orden sobre texto, comparando por los bytes del UTF-8
+# -que es el orden del punto de codigo: `Z` antes que `a`, `n` con tilde despues
+# de `z`- y no con la intercalacion de `LC_COLLATE`. Con la del locale, la misma
+# regla de rango daba 3 de 8 bajo `es_UY.UTF-8` y 2 de 8 bajo `C`: medido.
+#
+# El orden sale de `.orden_por_bytes()`, el mismo que usa el resto del paquete, y
+# no de una segunda regla: cada valor recibe el rango de su clave entre todos los
+# valores de los dos lados, y se comparan los rangos. Dos valores con la misma
+# clave -el mismo texto, en UTF-8 o en `latin1`- empatan. Recicla como los
+# operadores de base, y un `NA` de cualquiera de los dos lados da `NA`.
+#
+# Un texto con bytes que no son UTF-8 valido -o declarado `bytes`- tambien se
+# ordena por sus bytes, que es lo que hace un motor con `memcmp()`. La clave de
+# `.clave_bytes()` lo describe con escapes (`\377`), y esa descripcion se ordena
+# por la barra y no por el byte: `\xff` caia antes que `a`, y SQLite y DuckDB lo
+# ponen despues. Medido. Cuando aparece uno, todas las claves pasan a sus bytes
+# en hexadecimal, que se ordena igual que los bytes.
+.comparar_por_bytes <- function(a, b, operador) {
+  a <- as.character(a)
+  b <- as.character(b)
+  n <- if (!length(a) || !length(b)) 0L else max(length(a), length(b))
+  a <- rep_len(a, n)
+  b <- rep_len(b, n)
+  valores <- c(a, b)
+  latin1 <- !is.na(valores) & Encoding(valores) == "latin1"
+  if (any(latin1)) valores[latin1] <- .latin1_a_utf8(valores[latin1])
+  limpios <- is.na(valores) |
+    (Encoding(valores) != "bytes" & validUTF8(valores))
+  claves <- if (all(limpios)) {
+    .clave_bytes(valores)
+  } else {
+    .bytes_en_hexadecimal(valores)
+  }
+  rango <- rep(NA_integer_, length(valores))
+  presentes <- which(!is.na(claves))
+  if (length(presentes)) {
+    orden <- presentes[.orden_por_bytes(claves[presentes])]
+    ordenadas <- claves[orden]
+    nuevo <- c(TRUE, ordenadas[-1L] != ordenadas[-length(ordenadas)])
+    rango[orden] <- cumsum(nuevo)
+  }
+  izquierda <- rango[seq_len(n)]
+  derecha <- rango[n + seq_len(n)]
+  switch(
+    operador,
+    "<" = izquierda < derecha,
+    "<=" = izquierda <= derecha,
+    ">" = izquierda > derecha,
+    ">=" = izquierda >= derecha,
+    .detener("Operador de orden no admitido: ", operador, call. = FALSE)
+  )
+}
+
+# Un operador de orden de las reglas que el paquete interpreta -el rango de
+# `ValoresPosiblesPorComprension` y la formula de `ReglaIntegridadIntraEntidad`-.
+# Con `orden_texto = "idioma"` es el de base, tal cual: la medicion por omision
+# no cambia en nada. Con `"bytes"` cambia SOLO donde R compararia texto, que es
+# donde manda la intercalacion: cuando alguno de los dos lados es texto y
+# ninguno trae clase propia. Un numero contra un texto R lo compara como texto
+# -convierte el numero-, y aca tambien. Una fecha, un factor o un `integer64`
+# tienen sus propios metodos de comparacion y no pasan por el texto: siguen
+# como estan.
+.comparar_orden <- function(a, b, operador, orden_texto = "idioma") {
+  if (identical(orden_texto, "bytes") && .compara_como_texto(a, b)) {
+    return(.comparar_por_bytes(a, b, operador))
+  }
+  switch(
+    operador,
+    "<" = base::"<"(a, b),
+    "<=" = base::"<="(a, b),
+    ">" = base::">"(a, b),
+    ">=" = base::">="(a, b),
+    .detener("Operador de orden no admitido: ", operador, call. = FALSE)
+  )
+}
+
+.bytes_en_hexadecimal <- function(x) {
+  vapply(x, function(texto) {
+    if (is.na(texto)) return(NA_character_)
+    paste(as.character(charToRaw(texto)), collapse = "")
+  }, character(1L), USE.NAMES = FALSE)
+}
+
+.compara_como_texto <- function(a, b) {
+  (is.character(a) || is.character(b)) &&
+    is.atomic(a) && is.atomic(b) && !is.object(a) && !is.object(b)
+}
+
+# El orden de texto que lleva una instancia mientras se mide. `medir()` y
+# `medir_dbi()` lo ponen en la copia de la instancia solo cuando se pide
+# `"bytes"`: una instancia sin el campo mide como siempre.
+.orden_texto_instancia <- function(instancia) {
+  orden <- instancia[["orden_texto"]]
+  if (identical(orden, "bytes")) "bytes" else "idioma"
+}
+
+.con_orden_texto <- function(instancia, orden_texto) {
+  if (identical(orden_texto, "bytes")) instancia[["orden_texto"]] <- "bytes"
+  instancia
+}
+
 # `factor()`, `split()`, `table()` y `tapply()` ordenan los niveles de un texto
 # con la intercalacion del locale, igual que `sort()`: el resumen de
 # hallazgos de `comparar_perfiles()` salia en otro orden bajo `C` que en una

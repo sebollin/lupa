@@ -836,9 +836,19 @@
         "SELECT ", paste(expresiones, collapse = ", "),
         " FROM ", tabla_fuente
       )
+      usadas_antes <- if (is.null(presupuesto)) 0 else presupuesto$usadas
       consulta <- .consultar_dbi(
         conexion, sql, presupuesto, etapa = "conteos"
       )
+      if (!is.null(presupuesto) && presupuesto$usadas > usadas_antes) {
+        presupuesto$guardas_faltantes_emitidas <-
+          (presupuesto$guardas_faltantes_emitidas %||% 0L) + 1L
+      } else if (!isTRUE(consulta$ok) && !is.null(presupuesto) &&
+                 identical(as.character(consulta$motivo),
+                           .motivo_presupuesto_dbi(presupuesto))) {
+        presupuesto$guardas_faltantes_bloqueadas <-
+          (presupuesto$guardas_faltantes_bloqueadas %||% 0L) + 1L
+      }
       for (nombre in pedidos) {
         guardados[[nombre]] <- .resultado_lote_dbi(
           consulta, sql, aliases[[nombre]], list()

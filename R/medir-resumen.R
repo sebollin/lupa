@@ -333,7 +333,8 @@
 
 .medir_resumen <- function(modelo, datos, id_medicion, fecha, fecha_declarada,
                            aplicabilidad, proteger_datos_personales,
-                           columnas_personales, validadores_personales) {
+                           columnas_personales, validadores_personales,
+                           orden_texto = "idioma") {
   if (!inherits(modelo, "modelo_calidad")) {
     .detener("`modelo` debe provenir de modelo().", call. = FALSE)
   }
@@ -358,6 +359,7 @@
   alcances <- list()
   alcances_m <- list()
   for (instancia in modelo$metricas) {
+    instancia <- .con_orden_texto(instancia, orden_texto)
     tablas_instancia <- .recortar_tablas_aplicables(tablas, aplicables, instancia)
     mascara_instancia <- tryCatch(
       .mascara_aplicable_instancia(
@@ -395,7 +397,7 @@
         proteger_datos_personales = proteger_datos_personales,
         columnas_personales = columnas_personales,
         validadores_personales = validadores_personales,
-        detalle = "completo"
+        detalle = "completo", orden_texto = orden_texto
       ),
       warning = function(w) {
         if (grepl("porque su m", conditionMessage(w),
@@ -457,6 +459,10 @@
   }
   attr(resultado, "configuracion_aplicabilidad") <-
     .texto_configuracion_calidad(aplicabilidad)
+  attr(resultado, "sello_metricas") <- .sello_metricas(
+    modelo, id_medicion, aplicabilidad, orden_texto,
+    .lector_tablas(tablas)
+  )
   attr(resultado, "detalle") <- "resumen"
   if (!isTRUE(proteger_datos_personales) && nrow(resultado)) {
     personales <- unique(unlist(lapply(tablas, function(tabla) {
@@ -577,7 +583,8 @@
 `[.medicion_resumen` <- function(x, ...) {
   resultado <- NextMethod("[")
   .conservar_atributos_objeto(
-    resultado, x, por_corrida = c("cobertura_metricas", "alcance_medidas")
+    resultado, x,
+    por_corrida = c("cobertura_metricas", "alcance_medidas", "sello_metricas")
   )
 }
 
@@ -692,6 +699,8 @@ rbind.medicion_resumen <- function(..., deparse.level = 1) {
   if (length(marca)) {
     attr(unidas, "datos_personales_sin_proteger") <- marca
   }
+  sello <- .unir_sellos_mediciones(partes, "rbind()")
+  if (!is.null(sello)) attr(unidas, "sello_metricas") <- sello
   class(unidas) <- c("medicion_resumen", "data.frame")
   unidas
 }

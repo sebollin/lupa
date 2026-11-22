@@ -347,6 +347,42 @@ For each engine it returns:
 - the expected dialect;
 - the testing status of the engine.
 
+## Compiling the plan before running {#compiling-the-plan}
+
+Counting the queries does not say whether the engine accepts them. With
+`compilar = TRUE` (*compile*), the plan asks the engine to compile each statement
+without executing it and without fetching rows, and leaves one row per statement in
+`attr(plan, "compilacion")`:
+
+```{r compilar}
+plan <- plan_perfilado_dbi(conexion, "ventas", compilar = TRUE)
+compilacion <- attr(plan, "compilacion")
+table(compilacion$estado)
+unique(compilacion$metodo[compilacion$estado == "compilada"])
+```
+
+```{r compilar-control, include=FALSE}
+stopifnot(any(compilacion$estado == "compilada"), !any(compilacion$estado == "no_compilada"))
+```
+
+`compilada` means the engine accepted the statement; `no_compilada`, that it
+rejected it, and then `motivo` carries its message: a column or function that does
+not exist, a missing permission. The error shows up before a long run, not halfway
+through. `no_verificada` is what could not be known, because the shape of the query
+depends on an earlier result or on reading rows, and `candidata_rechazada` is the
+answer of a capability probe (the deviation is tried as `STDDEV_SAMP` and as `STDEV`,
+and SQLite knows only one), not a failure of the plan. How it compiles depends on the
+engine: `EXPLAIN` in SQLite, DuckDB and PostgreSQL, `PREPARE` in MySQL and MariaDB,
+and `SET NOEXEC ON` in SQL Server. It does not touch a transaction you have open.
+
+Compiling does not guarantee that the query runs: an error that depends on the data,
+such as a `CAST` of a text that is not a number, compiles and fails on execution, and
+some engines do not check permissions when compiling. Nor does it guarantee that
+nothing is executed: the preparation queries of the plan run as they do without
+compiling, without reading rows of the table. `?plan_perfilado_dbi` has the full
+"Compilación" section. `plan_medicion_dbi()` accepts the same argument. By default,
+`compilar = FALSE`, and nothing changes.
+
 ## ⏱ For a large table {#for-a-large-table}
 
 Before profiling a table of millions of rows, it pays to look at the plan.
@@ -379,6 +415,8 @@ DBI::dbDisconnect(conexion)
   the one of the engine, in `resumen_tabla$meta$muestreo`, only with
   `muestra_motor`.
 - `meta$snapshot = FALSE`: the aggregates are not an instantaneous reading.
+- `plan_perfilado_dbi(compilar = TRUE)` asks the engine to compile each query of the
+  plan without executing it: a syntax, name or permission error shows up beforehand.
 
 ## 🧭 Next step {#next-step}
 

@@ -52,7 +52,26 @@ columnas \code{identidad_tabla}, \code{configuracion_modelo}, \code{configuracio
 \code{configuracion_perfil} —en \code{NA} en los demás niveles—, porque el atributo no
 sobrevive a \code{write.csv()}: un histórico releído de un CSV la recupera de
 ahí. Son columnas agregadas al esquema 1: un histórico anterior que no las
-trae se lee igual, con ellas en \code{NA}.
+trae se lee igual, con ellas en \code{NA}. La columna \code{sello_metricas} lleva,
+como texto, el sello de las métricas que la corrida evaluó —versión de
+lupa, huella de su definición y su nivel de certificación, y el entorno de
+la sesión que midió, ver \code{\link[=medir]{medir()}}—. \code{historico_calidad()},
+\code{acumular_historico()} y \code{rbind()} avisan cuando una métrica cambió de
+definición de una corrida a la siguiente, cuando la misma definición se
+midió en otro entorno de sesión («misma definición, otro entorno»), o
+cuando una corrida sin sello —medida con una versión anterior— queda al
+lado de una sellada; cada par de corridas se avisa una vez, cuando se
+juntan.
+Cuando la huella no cambió pero no alcanza para decir que la definición
+siga igual —es parcial, o no se pudo certificar—, el atributo
+\code{cobertura_sello} lo declara, sin aviso: una fila por par de corridas
+consecutivas de esa métrica, con \code{id_medicion}, \code{id_medicion_anterior},
+\code{metrica_instanciada}, \code{aspecto}, \code{certificacion} y \code{descripcion}
+(«huella parcial: una función del usuario puede haber cambiado lo que lee
+sin que la huella lo vea»). Declara también los pares medidos en otro
+entorno (\code{aspecto = "entorno"}, con lo que cambió) y los que no registran
+su entorno (\code{"entorno_desconocido"}). Sin nada que declarar, el atributo no
+está.
 }
 \description{
 Crea un data frame plano y versionado con corridas producidas por \code{\link[=medir]{medir()}} o

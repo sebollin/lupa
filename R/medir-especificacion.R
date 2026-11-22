@@ -364,7 +364,10 @@
 
 # Interpreta un arbol ya validado por `.validar_ast_formula()`, sin llamar a
 # `eval()`. Si `datos` es NULL, el arbol no puede nombrar columnas.
-.evaluar_ast_validado <- function(expr, datos, entorno) {
+#
+# `orden_texto` decide `<`, `<=`, `>` y `>=` sobre texto (`.comparar_orden()`):
+# con `"idioma"` son los de base, con `"bytes"` el orden del UTF-8.
+.evaluar_ast_validado <- function(expr, datos, entorno, orden_texto = "idioma") {
   if (is.null(expr) || is.atomic(expr)) return(expr)
   if (is.symbol(expr)) {
     nombre <- as.character(expr)
@@ -376,7 +379,10 @@
   }
   op <- as.character(expr[[1L]])
   args <- as.list(expr)[-1L]
-  valores <- lapply(args, .evaluar_ast_validado, datos = datos, entorno = entorno)
+  valores <- lapply(
+    args, .evaluar_ast_validado, datos = datos, entorno = entorno,
+    orden_texto = orden_texto
+  )
   if (!is.null(names(args))) names(valores) <- names(args)
   switch(
     op,
@@ -386,10 +392,9 @@
     "|" = base::"|"(valores[[1L]], valores[[2L]]),
     "==" = base::"=="(valores[[1L]], valores[[2L]]),
     "!=" = base::"!="(valores[[1L]], valores[[2L]]),
-    "<" = base::"<"(valores[[1L]], valores[[2L]]),
-    "<=" = base::"<="(valores[[1L]], valores[[2L]]),
-    ">" = base::">"(valores[[1L]], valores[[2L]]),
-    ">=" = base::">="(valores[[1L]], valores[[2L]]),
+    "<" = , "<=" = , ">" = , ">=" = .comparar_orden(
+      valores[[1L]], valores[[2L]], op, orden_texto
+    ),
     "%in%" = valores[[1L]] %in% valores[[2L]],
     "is.na" = base::is.na(valores[[1L]]),
     "+" = if (length(valores) == 1L) base::"+"(valores[[1L]]) else
@@ -451,21 +456,26 @@
   )
 }
 
-.evaluar_constante_formula_segura <- function(expr, entorno) {
+.evaluar_constante_formula_segura <- function(expr, entorno,
+                                              orden_texto = "idioma") {
   info <- .validar_ast_formula(expr, character(), entorno)
   if (isTRUE(info$usa_columna)) {
     .detener_ast_formula("la subexpresi\u00f3n no es constante.")
   }
-  .evaluar_ast_validado(expr, datos = NULL, entorno = entorno)
+  .evaluar_ast_validado(
+    expr, datos = NULL, entorno = entorno, orden_texto = orden_texto
+  )
 }
 
 # La formula de ReglaIntegridadIntraEntidad ve solo los atributos ligados,
 # igual que `function(d)` recibe `.seleccionar_columnas(tabla, atributos)`.
-.evaluar_regla_formula <- function(datos_regla, formula) {
+.evaluar_regla_formula <- function(datos_regla, formula, orden_texto = "idioma") {
   expr <- formula[[2L]]
   entorno <- environment(formula)
   .validar_ast_formula(expr, names(datos_regla), entorno)
-  crudo <- .evaluar_ast_validado(expr, datos = datos_regla, entorno = entorno)
+  crudo <- .evaluar_ast_validado(
+    expr, datos = datos_regla, entorno = entorno, orden_texto = orden_texto
+  )
   if (is.logical(crudo) && length(crudo) == 1L && nrow(datos_regla) != 1L) {
     crudo <- rep(crudo, nrow(datos_regla))
   }
@@ -617,16 +627,15 @@
     list(spec$minimo, spec$maximo),
     consecuencia = .MENSAJES_MEZCLA_HUSOS$en_rango
   )
-  izquierda <- if (spec$inclusivo[[1L]]) {
-    valores >= spec$minimo
-  } else {
-    valores > spec$minimo
-  }
-  derecha <- if (spec$inclusivo[[2L]]) {
-    valores <= spec$maximo
-  } else {
-    valores < spec$maximo
-  }
+  # El orden de texto lo decide quien mide (`orden_texto`): por omision, el de
+  # la sesion, como siempre; con `"bytes"`, el del UTF-8, igual en toda maquina.
+  orden <- .orden_texto_instancia(instancia)
+  izquierda <- .comparar_orden(
+    valores, spec$minimo, if (spec$inclusivo[[1L]]) ">=" else ">", orden
+  )
+  derecha <- .comparar_orden(
+    valores, spec$maximo, if (spec$inclusivo[[2L]]) "<=" else "<", orden
+  )
   cumple <- izquierda & derecha
   if (!is.logical(cumple) || anyNA(cumple)) {
     .detener("El rango no se puede comparar con el atributo ligado.",
@@ -709,7 +718,9 @@
   }
   datos_regla <- .seleccionar_columnas(tabla, instancia$atributos)
   cumple <- .resultado_validador(
-    .evaluar_regla_formula(datos_regla, spec$formula),
+    .evaluar_regla_formula(
+      datos_regla, spec$formula, .orden_texto_instancia(instancia)
+    ),
     nrow(tabla),
     "ReglaIntegridadIntraEntidad"
   )

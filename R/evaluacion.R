@@ -1023,7 +1023,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 `[.medicion` <- function(x, ...) {
   resultado <- NextMethod("[")
   .conservar_atributos_objeto(
-    resultado, x, por_corrida = c("cobertura_metricas", "alcance_medidas")
+    resultado, x,
+    por_corrida = c("cobertura_metricas", "alcance_medidas", "sello_metricas")
   )
 }
 
@@ -1078,6 +1079,11 @@ rbind.medicion <- function(..., deparse.level = 1) {
       call. = FALSE
     )
   }
+  # El sello de cada corrida tambien se une, y la union es donde dos corridas se
+  # comparan: una metrica que cambio de definicion entre ellas se avisa. El de
+  # la primera parte, que es el que deja `rbind.data.frame()`, no alcanza.
+  sello <- .unir_sellos_mediciones(mediciones, "rbind()")
+  if (!is.null(sello)) attr(resultado, "sello_metricas") <- sello
   # `alcance_medidas` tambien: sin el, el tablero de `rbind(completa, parcial)`
   # publicaba el 0,5 de la parcial sin decir que midio 5 de 6, y con el orden al
   # reves si lo decia. Medido.
@@ -1403,6 +1409,7 @@ evaluar <- function(medicion, perfil) {
   attr(estructura, "configuracion_aplicabilidad") <- attr(
     medicion, "configuracion_aplicabilidad", exact = TRUE
   )
+  attr(estructura, "sello_metricas") <- .sello_de_objeto(medicion)
   attr(estructura, "configuracion_perfil") <-
     .configuracion_perfil_evaluacion(perfil)
   attr(estructura, "perfil_evaluacion") <- perfil
@@ -1461,8 +1468,10 @@ evaluar <- function(medicion, perfil) {
 #'   `comparacion`. El delta es el que publica [detectar_deriva_calidad()] sobre
 #'   el histórico de las dos evaluaciones, con la misma regla: queda en `NA`
 #'   cuando las corridas miden tablas distintas, cambia el marco o los tipos de
-#'   resultado, cambia la parte medida de la frontera o un resultado no se
-#'   evaluó, y `comparacion` dice por qué con la palabra de la deriva. El orden
+#'   resultado, cambia la parte medida de la frontera, una métrica cambió de
+#'   definición sin que la configuración de la corrida lo declare (ver
+#'   [detectar_deriva_calidad()]) o un resultado no se evaluó, y `comparacion`
+#'   dice por qué con la palabra de la deriva. El orden
 #'   lo dan los argumentos, no la fecha: `anterior` es siempre el primero.
 #' @export
 #'
@@ -1539,7 +1548,31 @@ comparar_evaluaciones <- function(anterior, actual) {
     return(combinado)
   }
   deriva <- tryCatch({
-    historico <- historico_calidad(anterior, actual)
+    # El historico que se arma aca es un instrumento: lo que avise sobre los
+    # sellos de las dos corridas se dice con el nombre de esta funcion, que es
+    # la que compara.
+    historico <- withCallingHandlers(
+      historico_calidad(anterior, actual),
+      lupa_aviso_sello = function(w) {
+        mensaje <- sub(
+          "historico_calidad()", "comparar_evaluaciones()",
+          conditionMessage(w), fixed = TRUE, useBytes = TRUE
+        )
+        mensaje <- sub(
+          "`attr(historico, \"configuracion_evaluacion\")$sello_metricas`",
+          "`attr(evaluacion, \"sello_metricas\")`", mensaje,
+          fixed = TRUE, useBytes = TRUE
+        )
+        # El cambio de entorno es un mensaje y se reemite como tal; el de
+        # definicion, como advertencia.
+        if (inherits(w, "message")) {
+          .informar_sello(sub("\n$", "", mensaje))
+          invokeRestart("muffleMessage")
+        }
+        .aviso_sello(mensaje)
+        invokeRestart("muffleWarning")
+      }
+    )
     list(
       tabla = as.data.frame(detectar_deriva_calidad(historico, nivel = "perfil")),
       configuracion = attr(historico, "configuracion_evaluacion", exact = TRUE)

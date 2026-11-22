@@ -60,8 +60,8 @@
       "sql: literal de la misma clase; TIMESTAMP exige sesion en UTC; BIT como 1/0",
       "sql sobre numero, BIT, DATE, DATETIME, DATETIME2 y DATETIMEOFFSET por epoca"),
     f("en_conjunto / Formato(diccionario) sobre texto",
-      "sql_con_guarda: texto no ASCII = 0 (SQLite no valida UTF-8 y R lee el byte invalido como NA); colacion BINARY",
-      "sql: colacion por omision binaria",
+      "sql_con_guarda: texto no ASCII = 0 (SQLite no valida UTF-8 y R lee el byte invalido como NA); COLLATE BINARY explicito",
+      "sql: COLLATE \"binary\" explicito",
       "sql_con_verificacion: colacion determinista; char(n)/bpchar no_medible",
       "sql_con_guarda: colacion binaria NO PAD, o binaria PAD SPACE con espacios finales = 0 en columna y dominio",
       "sql_con_guarda: colacion binaria NO PAD (_nopad_bin), o binaria PAD SPACE con espacios finales = 0 en columna y dominio",
@@ -75,6 +75,13 @@
       "sql sobre numero, DATE, DATETIME, DATETIME2 y DATETIMEOFFSET por epoca"),
     f("en_rango sobre texto",
       "no_medible", "no_medible", "no_medible", "no_medible", "no_medible", "no_medible"),
+    f("en_rango sobre texto con orden_texto = \"bytes\"",
+      "sql_con_guarda: COLLATE BINARY en una base UTF-8; texto no ASCII = 0",
+      "sql: encode() compara los bytes del UTF-8; el texto que no es UTF-8 valido queda fuera, como en memoria (try(decode())); sin try(), no_medible",
+      "no_medible: COLLATE \"C\" escrito, sin comparar con memoria",
+      "no_medible: CAST(CONVERT(... USING utf8mb4) AS BINARY) escrito, sin comparar con memoria",
+      "no_medible: CAST(CONVERT(... USING utf8mb4) AS BINARY) escrito, sin comparar con memoria",
+      "no_medible: _BIN2_UTF8 escrito, sin comparar con memoria"),
     f("fecha_en_rango (Oportunidad*)",
       "sql en segundos: col * 86400 o col (tipos extendidos); sin ellos R lee numero y las dos vias se abstienen",
       "sql en segundos: epoch()",
@@ -90,8 +97,8 @@
       "sql (GROUP BY; TIMESTAMP exige sesion en UTC)",
       "sql (GROUP BY con COUNT_BIG; DATETIMEOFFSET por epoca)"),
     f("duplicado sobre texto",
-      "sql_con_guarda: texto no ASCII = 0 (AtributoDuplicado); ConjuntoAtributosDuplicado compara bytes en las dos vias",
-      "sql",
+      "sql_con_guarda: texto no ASCII = 0 (AtributoDuplicado); ConjuntoAtributosDuplicado compara bytes en las dos vias; GROUP BY con COLLATE BINARY",
+      "sql (GROUP BY con COLLATE \"binary\")",
       "sql_con_verificacion: colacion determinista; bpchar no_medible",
       "sql_con_guarda: binaria NO PAD, o binaria PAD SPACE con espacios finales = 0",
       "sql_con_guarda: binaria NO PAD (_nopad_bin), o binaria PAD SPACE con espacios finales = 0",
@@ -103,8 +110,8 @@
       "sql (TIMESTAMP exige sesion en UTC)",
       "sql: logica de tres valores compuesta con CASE; DATETIMEOFFSET por epoca"),
     f("predicado de fila con texto (==, !=, %in%, is.na)",
-      "sql (colacion BINARY)",
-      "sql (colacion binaria)",
+      "sql (COLLATE BINARY explicito)",
+      "sql (COLLATE \"binary\" explicito)",
       "sql_con_verificacion: colacion determinista; bpchar no_medible",
       "sql_con_guarda: binaria NO PAD, o binaria PAD SPACE con espacios finales = 0 en columna y literales",
       "sql_con_guarda: binaria NO PAD (_nopad_bin), o binaria PAD SPACE con espacios finales = 0 en columna y literales",
@@ -113,6 +120,13 @@
       "no_medible: R ordena con el locale de la sesion",
       "no_medible: R ordena con el locale de la sesion",
       "no_medible", "no_medible", "no_medible", "no_medible"),
+    f("predicado de fila con orden sobre texto con orden_texto = \"bytes\"",
+      "sql: COLLATE BINARY en una base UTF-8",
+      "sql: encode() compara los bytes del UTF-8",
+      "no_medible: COLLATE \"C\" escrito, sin comparar con memoria",
+      "no_medible: CAST(CONVERT(... USING utf8mb4) AS BINARY) escrito, sin comparar con memoria",
+      "no_medible: CAST(CONVERT(... USING utf8mb4) AS BINARY) escrito, sin comparar con memoria",
+      "no_medible: _BIN2_UTF8 escrito, sin comparar con memoria"),
     f("predicado de fila con columna logica",
       "no_medible: SQLite guarda el logico como entero",
       "sql",
@@ -128,8 +142,8 @@
       "sql (MariaDB no guarda NaN)",
       "sql (SQL Server no guarda NaN)"),
     f("cobertura_referencial (misma clase; o texto contra entero)",
-      "sql_con_guarda: texto no ASCII = 0",
-      "sql",
+      "sql_con_guarda: texto no ASCII = 0; igualdad con COLLATE BINARY",
+      "sql (igualdad con COLLATE \"binary\")",
       "sql_con_verificacion: colacion determinista; CAST(entero AS TEXT); bpchar y float4 no_medible",
       "sql_con_guarda: binaria NO PAD o espacios finales = 0; CAST(entero AS CHAR) COLLATE",
       "sql_con_guarda: binaria NO PAD o espacios finales = 0; CAST(entero AS CHAR) COLLATE",
@@ -372,9 +386,57 @@
   "otro"
 }
 
-.verificar_sesion_medicion_dbi <- function(conexion, motor, contador = NULL) {
+.verificar_sesion_medicion_dbi <- function(conexion, motor, contador = NULL,
+                                           orden_texto = "idioma") {
   if (motor %in% c("sqlite", "duckdb")) {
-    return(list(ok = TRUE, motor = motor, n_consultas = 0L))
+    sesion <- list(ok = TRUE, motor = motor, n_consultas = 0L)
+    # El orden por bytes se traduce en SQLite con `COLLATE BINARY`, que compara
+    # con `memcmp()` los bytes que la base guarda: en una base UTF-16 no son los
+    # del UTF-8, y el orden sale otro. Se pregunta solo si se pidio ese orden,
+    # para no gastar una consulta en la medicion por omision.
+    if (identical(motor, "sqlite") && identical(orden_texto, "bytes")) {
+      info <- tryCatch(
+        if (is.null(contador)) {
+          .traer_consulta_dbi(conexion, "PRAGMA encoding")
+        } else {
+          .consultar_medicion_dbi(conexion, "PRAGMA encoding", contador,
+                                  registrar_sql = FALSE)
+        },
+        lupa_presupuesto_medicion_dbi = function(e) e,
+        error = function(e) NULL
+      )
+      if (inherits(info, "lupa_presupuesto_medicion_dbi")) .detener(info)
+      sesion$n_consultas <- 1L
+      sesion$codificacion <- if (is.data.frame(info) && nrow(info)) {
+        as.character(info[[1L]][[1L]])
+      } else {
+        NA_character_
+      }
+    }
+    # DuckDB guarda tal cual el texto con bytes que no son UTF-8 valido que le
+    # escribe R, y el rango de la memoria lo deja afuera (`.texto_analizable()`
+    # lo lleva a `NA`): el motor contaba 2 de 4 donde la memoria cuenta 1 de 3.
+    # Medido. `try(decode(encode(x)))` da `NULL` justo sobre ese texto; se
+    # pregunta si esta version de DuckDB lo tiene.
+    if (identical(motor, "duckdb") && identical(orden_texto, "bytes")) {
+      info <- tryCatch(
+        if (is.null(contador)) {
+          .traer_consulta_dbi(conexion, "SELECT try(decode(encode('a'))) AS t")
+        } else {
+          .consultar_medicion_dbi(
+            conexion, "SELECT try(decode(encode('a'))) AS t", contador,
+            registrar_sql = FALSE
+          )
+        },
+        lupa_presupuesto_medicion_dbi = function(e) e,
+        error = function(e) NULL
+      )
+      if (inherits(info, "lupa_presupuesto_medicion_dbi")) .detener(info)
+      sesion$n_consultas <- 1L
+      sesion$valida_utf8 <- is.data.frame(info) && nrow(info) == 1L &&
+        identical(as.character(info[[1L]][[1L]]), "a")
+    }
+    return(sesion)
   }
   if (!motor %in% c("postgresql", "mysql", "mariadb", "sqlserver")) {
     return(list(
@@ -534,7 +596,9 @@
 
 .esquema_medicion_dbi <- function(conexion, ref_tabla, motor, contador = NULL,
                                   sesion = NULL) {
+  consultas <- character()
   consultar <- function(sql) {
+    consultas <<- c(consultas, as.character(sql))
     if (is.null(contador)) {
       .traer_consulta_dbi(conexion, sql)
     } else {
@@ -817,7 +881,8 @@
     sesion = sesion,
     n_campos = length(campos),
     prototipo = .normalizar_columnas_texto(proto),
-    n_consultas_esquema = n_consultas
+    n_consultas_esquema = n_consultas,
+    consultas_esquema = consultas
   )
 }
 
@@ -1027,7 +1092,13 @@
         "activo: R lee relleno que el motor ignora"
       )
     }
-    if (!.cotejamiento_binario_dbi(esq, columna, motor)) {
+    # Un cotejamiento que el catalogo no publica -la columna de una vista- no
+    # cambia la cuenta donde cada comparacion lleva la intercalacion binaria
+    # explicita (`.sql_texto_binario_dbi()`); uno declarado distinto del binario
+    # sigue declinando.
+    desconocido <- identical(esq$cotejamientos[[columna]], "desconocido") &&
+      motor %in% .MOTORES_TEXTO_BINARIO_DBI
+    if (!desconocido && !.cotejamiento_binario_dbi(esq, columna, motor)) {
       .no_traducible_dbi(
         "la columna `", columna, "` no compara por bytes (cotejamiento `",
         esq$cotejamientos[[columna]], "`)"
@@ -1042,6 +1113,92 @@
     }
   }
   invisible(NULL)
+}
+
+# Como compara cada motor el texto por los bytes de su UTF-8, que es el orden
+# por punto de codigo que usa `medir(orden_texto = "bytes")`. Cada traduccion
+# envuelve los DOS lados de la comparacion -la columna y el literal, o las dos
+# columnas-.
+#
+#   - SQLite: `COLLATE BINARY` es `memcmp()` sobre lo que la base guarda; en una
+#     base UTF-8 son los bytes del UTF-8 (la codificacion se pregunta en la
+#     sesion). Y el `COLLATE` explicito gana sobre el que declare la columna.
+#   - DuckDB: `encode()` da los bytes del UTF-8 como BLOB, y un BLOB se compara
+#     byte a byte, con el prefijo antes. `CAST(... AS BLOB)` no sirve: rechaza
+#     todo caracter que no sea ASCII. Y no depende de la intercalacion que
+#     declare la columna ni de `default_collation`.
+#   - PostgreSQL: `COLLATE "C"` compara los bytes de la codificacion del
+#     servidor, que la sesion exige UTF8.
+#   - MySQL y MariaDB: el texto pasado a UTF-8 y a binario se compara byte a
+#     byte y sin el relleno de espacios de las intercalaciones PAD SPACE.
+#   - SQL Server: `_BIN2` sobre `nvarchar` compara unidades de UTF-16, que no
+#     siguen el orden del punto de codigo por encima de U+FFFF; por eso se pasa a
+#     `varchar` con una intercalacion UTF-8 (SQL Server 2019 en adelante).
+#
+# `verificado` dice si la traduccion se comparo con la medicion en memoria: las
+# que no, quedan escritas y el plan las declara `no_medible` con ese motivo
+# hasta que se las compare en su motor.
+.ORDEN_BYTES_MOTORES_DBI <- list(
+  sqlite = list(plantilla = "(%s COLLATE BINARY)",
+                descripcion = "COLLATE BINARY", verificado = TRUE),
+  duckdb = list(plantilla = "encode(%s)",
+                descripcion = "encode()", verificado = TRUE),
+  postgresql = list(plantilla = "(%s COLLATE \"C\")",
+                    descripcion = "COLLATE \"C\"", verificado = FALSE),
+  mysql = list(plantilla = "CAST(CONVERT(%s USING utf8mb4) AS BINARY)",
+               descripcion = "CAST(CONVERT(... USING utf8mb4) AS BINARY)",
+               verificado = FALSE),
+  mariadb = list(plantilla = "CAST(CONVERT(%s USING utf8mb4) AS BINARY)",
+                 descripcion = "CAST(CONVERT(... USING utf8mb4) AS BINARY)",
+                 verificado = FALSE),
+  sqlserver = list(
+    plantilla = paste0(
+      "(CAST(%s COLLATE Latin1_General_100_BIN2_UTF8 AS VARCHAR(MAX)) ",
+      "COLLATE Latin1_General_100_BIN2_UTF8)"
+    ),
+    descripcion = "Latin1_General_100_BIN2_UTF8 sobre varchar",
+    verificado = FALSE
+  )
+)
+
+.sql_texto_por_bytes_dbi <- function(expr, motor) {
+  sprintf(.ORDEN_BYTES_MOTORES_DBI[[motor]]$plantilla, expr)
+}
+
+# `NULL` si el motor compara texto por bytes con una traduccion verificada; si
+# no, el motivo, que es lo que el plan publica.
+.motivo_orden_bytes_dbi <- function(motor, esq) {
+  regla <- .ORDEN_BYTES_MOTORES_DBI[[motor]]
+  if (is.null(regla)) {
+    return(paste0(
+      "orden por bytes sobre texto: no hay traducci\u00f3n para el motor `",
+      motor, "`"
+    ))
+  }
+  if (!isTRUE(regla$verificado)) {
+    return(paste0(
+      "orden por bytes sobre texto: en `", motor, "` se traduce con ",
+      regla$descripcion, ", pero esa traducci\u00f3n todav\u00eda no se ",
+      "compar\u00f3 con la medici\u00f3n en memoria en este motor"
+    ))
+  }
+  if (identical(motor, "sqlite")) {
+    codificacion <- esq$sesion$codificacion
+    if (!identical(codificacion, "UTF-8")) {
+      leida <- !is.null(codificacion) && !is.na(codificacion)
+      return(paste0(
+        "orden por bytes sobre texto: ",
+        if (leida) {
+          paste0("la base SQLite guarda el texto en `", codificacion, "`")
+        } else {
+          "no se pudo leer en qu\u00e9 codificaci\u00f3n guarda el texto la base SQLite"
+        },
+        ", y COLLATE BINARY compara esos bytes, que solo en UTF-8 siguen el ",
+        "orden del punto de c\u00f3digo"
+      ))
+    }
+  }
+  NULL
 }
 
 .citar_col_dbi <- function(conexion, nombre) {
@@ -1245,7 +1402,7 @@
 # con la semantica de NA de R.
 .traducir_predicado_dbi <- function(expr, entorno, visibles, esq, motor,
                                     conexion, max_valores_in = 500L,
-                                    alias = NULL) {
+                                    alias = NULL, orden_texto = "idioma") {
   # Valida TODO el arbol antes de interpretar cualquier rama constante:
   # `~ t == boom()` o `~ { boom(); t == "x" }` fallan sin ejecutar nada.
   val_ast <- tryCatch(
@@ -1297,7 +1454,7 @@
   trad <- function(e, para_nulo = FALSE) {
     if (!tiene_columna(e)) {
       v <- tryCatch(
-        .evaluar_constante_formula_segura(e, entorno),
+        .evaluar_constante_formula_segura(e, entorno, orden_texto),
         error = function(err) .no_traducible_dbi(conditionMessage(err))
       )
       return(list(valor = v, clase = .clase_r_columna_dbi(v)))
@@ -1355,11 +1512,21 @@
         tmp <- a; a <- b; b <- tmp
         f <- switch(f, "<" = ">", "<=" = ">=", ">" = "<", ">=" = "<=", f)
       }
+      # Un orden sobre texto depende de con que intercalacion se compare: la de
+      # la sesion de R no la tiene ningun motor, asi que solo se traduce con
+      # `orden_texto = "bytes"`, que el motor reproduce por bytes.
+      por_bytes <- FALSE
       if (!f %in% c("==", "!=") && a$clase %in% c("texto", "logico")) {
-        .no_traducible_dbi(
-          "`", f, "` sobre ", a$clase,
-          ": R ordena el texto con el locale de la sesi\u00f3n"
-        )
+        if (identical(a$clase, "texto") && identical(orden_texto, "bytes")) {
+          motivo_bytes <- .motivo_orden_bytes_dbi(motor, esq)
+          if (!is.null(motivo_bytes)) .no_traducible_dbi(motivo_bytes)
+          por_bytes <- TRUE
+        } else {
+          .no_traducible_dbi(
+            "`", f, "` sobre ", a$clase,
+            ": R ordena el texto con el locale de la sesi\u00f3n"
+          )
+        }
       }
       lado_a <- if (isTRUE(a$es_predicado)) {
         .sql_como_valor_logico(a$sql, motor)
@@ -1399,6 +1566,18 @@
         .literal_sql_medicion(conexion, b$valor, a$clase, motor,
                               esq = esq, columna = a$columna)
       }
+      if (por_bytes) {
+        lado_a <- .sql_texto_por_bytes_dbi(lado_a, motor)
+        lado_b <- .sql_texto_por_bytes_dbi(lado_b, motor)
+      } else {
+        if (identical(a$clase, "texto") && !isTRUE(a$es_predicado)) {
+          lado_a <- .sql_texto_binario_dbi(lado_a, motor)
+        }
+        if (!is.null(b$sql) && identical(b$clase, "texto") &&
+            !isTRUE(b$es_predicado)) {
+          lado_b <- .sql_texto_binario_dbi(lado_b, motor)
+        }
+      }
       op <- switch(f, "==" = "=", "!=" = "<>", f)
       return(list(sql = paste0("(", lado_a, " ", op, " ", lado_b, ")"),
                   clase = "logico", es_predicado = TRUE))
@@ -1412,7 +1591,7 @@
         .no_traducible_dbi("`%in%` contra columnas")
       }
       conjunto <- tryCatch(
-        .evaluar_constante_formula_segura(args[[2L]], entorno),
+        .evaluar_constante_formula_segura(args[[2L]], entorno, orden_texto),
         error = function(err) .no_traducible_dbi(conditionMessage(err))
       )
       if (is.factor(conjunto)) conjunto <- as.character(conjunto)
@@ -1436,7 +1615,12 @@
         character(1L)
       )
       dentro <- if (length(lista)) {
-        paste0(a$sql, " IN (", paste(lista, collapse = ", "), ")")
+        izquierda <- if (identical(a$clase, "texto")) {
+          .sql_texto_binario_dbi(a$sql, motor)
+        } else {
+          a$sql
+        }
+        paste0(izquierda, " IN (", paste(lista, collapse = ", "), ")")
       } else {
         "(1 = 0)"
       }
@@ -1525,6 +1709,25 @@
       "(", expr, " COLLATE Latin1_General_100_BIN2 LIKE '%[^ -~]%')"
     ),
     .no_traducible_dbi("la guarda de texto no ASCII en ", motor)
+  )
+}
+
+# R compara el texto por bytes. En SQLite y DuckDB toda comparacion o
+# agrupacion de texto que emite la medicion lleva la intercalacion binaria
+# explicita sobre el operando columna: asi no cuenta la de la columna, la que
+# una vista hereda sin que el catalogo la publique, ni la de la sesion. Medido:
+# una vista `v (x) AS SELECT t AS x` sobre `t COLLATE NOCASE` contaba `a` como
+# `A` en SQLite, con el catalogo diciendo BINARY. En DuckDB `binary` es palabra
+# reservada y va entre comillas. En los demas motores esa forma no esta
+# verificada aca: la expresion queda igual y siguen sus guardas de cotejamiento.
+.MOTORES_TEXTO_BINARIO_DBI <- c("sqlite", "duckdb")
+
+.sql_texto_binario_dbi <- function(expr, motor) {
+  switch(
+    motor,
+    sqlite = paste0("(", expr, " COLLATE BINARY)"),
+    duckdb = paste0("(", expr, " COLLATE \"binary\")"),
+    expr
   )
 }
 
@@ -1764,7 +1967,8 @@
               "que el motor puede reproducir con exactitud"
             )
             centinela <- paste0(
-              "(NOT ", no_admitido, " AND ", plegado, " IN (",
+              "(NOT ", no_admitido, " AND ",
+              .sql_texto_binario_dbi(plegado, motor), " IN (",
               paste(vapply(objetivos, function(o) {
                 .citar_texto_centinela_dbi(conexion, motor, o)
               }, character(1L)), collapse = ", "), "))"
@@ -1817,10 +2021,23 @@
           }
         ))
       }
-      if (identical(spec$nodo, "en_rango") && identical(clase, "texto")) {
-        .no_traducible_dbi(
-          "rango sobre texto: R ordena con el locale de la sesi\u00f3n"
-        )
+      rango_por_bytes <- identical(spec$nodo, "en_rango") &&
+        identical(clase, "texto")
+      if (rango_por_bytes) {
+        if (!identical(.orden_texto_instancia(instancia), "bytes")) {
+          .no_traducible_dbi(
+            "rango sobre texto: R ordena con el locale de la sesi\u00f3n"
+          )
+        }
+        motivo_bytes <- .motivo_orden_bytes_dbi(motor, esq)
+        if (!is.null(motivo_bytes)) .no_traducible_dbi(motivo_bytes)
+        if (identical(motor, "duckdb") && !isTRUE(esq$sesion$valida_utf8)) {
+          .no_traducible_dbi(
+            "rango sobre texto por bytes: esta versi\u00f3n de DuckDB no tiene ",
+            "`try()`, que hace falta para dejar afuera, como la medici\u00f3n en ",
+            "memoria, el texto con bytes que no son UTF-8 v\u00e1lido"
+          )
+        }
       }
       .validar_columna_comparacion_dbi(esq, spec$columna, motor)
       x <- col(spec$columna)
@@ -1850,8 +2067,13 @@
         }
         .verificar_literal_espacios_dbi(lits, esq, spec$columna, motor)
         if (length(lits)) {
+          x_cmp <- if (identical(clase, "texto")) {
+            .sql_texto_binario_dbi(x, motor)
+          } else {
+            x
+          }
           paste0(
-            "(", x, " IN (",
+            "(", x_cmp, " IN (",
             paste(vapply(as.list(lits), function(v) {
               .literal_sql_medicion(conexion, v, clase, motor,
                                     esq = esq, columna = spec$columna)
@@ -1865,9 +2087,15 @@
                                     esq = esq, columna = spec$columna)
         hi <- .literal_sql_medicion(conexion, spec$maximo, clase, motor,
                                     esq = esq, columna = spec$columna)
+        xr <- x
+        if (rango_por_bytes) {
+          xr <- .sql_texto_por_bytes_dbi(x, motor)
+          lo <- .sql_texto_por_bytes_dbi(lo, motor)
+          hi <- .sql_texto_por_bytes_dbi(hi, motor)
+        }
         paste0(
-          "(", x, if (spec$inclusivo[[1L]]) " >= " else " > ", lo,
-          " AND ", x, if (spec$inclusivo[[2L]]) " <= " else " < ", hi, ")"
+          "(", xr, if (spec$inclusivo[[1L]]) " >= " else " > ", lo,
+          " AND ", xr, if (spec$inclusivo[[2L]]) " <= " else " < ", hi, ")"
         )
       } else {
         if (identical(motor, "sqlserver") &&
@@ -1914,6 +2142,14 @@
         paste0("(", paste(partes, collapse = " AND "), ")")
       }
       evaluable <- .sql_y(U$sql, paste0("(", x, " IS NOT NULL)"))
+      # Lo que la memoria evalua del rango: lo presente que es texto UTF-8
+      # valido (ver la sesion de DuckDB). En SQLite lo cubre su guarda de texto
+      # no ASCII, que ya rige aca.
+      if (rango_por_bytes && identical(motor, "duckdb")) {
+        evaluable <- .sql_y(
+          evaluable, paste0("(try(decode(encode(", x, "))) IS NOT NULL)")
+        )
+      }
       g_local_ev <- if (!is.null(guarda_local)) .sql_y(evaluable, guarda_local)
       cg <- combinar_guardas(g_local = g_local_ev, mot_local = motivo_local)
       list(
@@ -1931,7 +2167,8 @@
       vis <- as.list(esq$clases[instancia$atributos])
       t <- .traducir_predicado_dbi(
         spec$formula[[2L]], environment(spec$formula), vis,
-        esq, motor, conexion, max_valores_in
+        esq, motor, conexion, max_valores_in,
+        orden_texto = .orden_texto_instancia(instancia)
       )
       if (isTRUE(t$no_logico)) {
         return(list(
@@ -1994,10 +2231,17 @@
       }
       cg <- combinar_guardas(g_local = g_local_dup, mot_local = motivo_dup)
       cnt_inner <- if (identical(motor, "sqlserver")) "COUNT_BIG(*)" else "COUNT(*)"
+      cols_grupo <- vapply(seq_along(cols_g), function(i) {
+        if (identical(esq$clases[[spec$columnas[[i]]]], "texto")) {
+          .sql_texto_binario_dbi(cols_g[[i]], motor)
+        } else {
+          cols_g[[i]]
+        }
+      }, character(1L))
       sub <- paste0(
         "SELECT ", cnt_inner, " AS lupa_c FROM ",
         esq$sql, " WHERE ", .sql_y(U$sql, filtro), " GROUP BY ",
-        paste(cols_g, collapse = ", ")
+        paste(cols_grupo, collapse = ", ")
       )
       consulta_dup <- if (identical(motor, "sqlserver")) {
         paste0(
@@ -2086,14 +2330,21 @@
           esq_ref$cotejamientos[[spec$pk]], "`)"
         )
       }
+      texto_bin <- function(expr) .sql_texto_binario_dbi(expr, motor)
       igualdad <- if ((.clases_compatibles_sql(cp, cf) &&
                        !(cp %in% "entero64" || cf %in% "entero64")) ||
                       identical(cp, cf)) {
-        paste0(pk, " = ", fk)
+        if (identical(cp, "texto") && identical(cf, "texto")) {
+          paste0(texto_bin(pk), " = ", texto_bin(fk))
+        } else {
+          paste0(pk, " = ", fk)
+        }
       } else if (identical(cp, "texto") && identical(cf, "entero")) {
-        paste0(pk, " = ", cast_entero_a_texto(fk, esq_ref, spec$pk))
+        paste0(texto_bin(pk), " = ",
+               texto_bin(cast_entero_a_texto(fk, esq_ref, spec$pk)))
       } else if (identical(cp, "entero") && identical(cf, "texto")) {
-        paste0(cast_entero_a_texto(pk, esq, spec$fk), " = ", fk)
+        paste0(texto_bin(cast_entero_a_texto(pk, esq, spec$fk)), " = ",
+               texto_bin(fk))
       } else {
         .no_traducible_dbi(
           "clave `", cp, "` contra `", cf,
@@ -2404,14 +2655,17 @@
 
 .planificar_medicion_dbi <- function(modelo, conexion, tablas, aplicabilidad,
                                      motor, max_valores_in, estrategia_no_sql,
-                                     tamano_lote = NULL, contador = NULL) {
+                                     tamano_lote = NULL, contador = NULL,
+                                     orden_texto = "idioma") {
   resuelto <- .resolver_tablas_medir_dbi(modelo, conexion, tablas)
   con <- resuelto$conexion
   entidades <- resuelto$entidades
   fisicas <- resuelto$fisicas
   error_sesion <- NULL
   sesion <- tryCatch(
-    .verificar_sesion_medicion_dbi(con, motor, contador = contador),
+    .verificar_sesion_medicion_dbi(
+      con, motor, contador = contador, orden_texto = orden_texto
+    ),
     lupa_presupuesto_medicion_dbi = function(err) {
       error_sesion <<- conditionMessage(err)
       list(ok = FALSE, motor = motor, n_consultas = 0L, motivo = error_sesion)
@@ -2454,7 +2708,9 @@
     motor, con, max_valores_in
   )
   planes <- lapply(seq_along(modelo$metricas), function(j) {
-    instancia <- modelo$metricas[[j]]
+    # La copia de la instancia lleva el orden de texto pedido: la compilacion la
+    # lee, y la via por bloques la mide en R con ella.
+    instancia <- .con_orden_texto(modelo$metricas[[j]], orden_texto)
     spec <- .especificacion_metrica(instancia)
     ent_dest <- instancia$entidad[[
       if (!is.null(spec) && identical(spec$nodo, "cobertura_referencial")) 2L else 1L
@@ -2472,10 +2728,8 @@
       instancia, aplicabilidad, esquemas[[instancia$entidad[[1L]]]]
     )
     a_bloques <- function(motivo) {
-      if (identical(estrategia_no_sql, "bloques") &&
-          .separable_medicion_dbi(instancia, spec) &&
-          length(instancia$entidad) == 1L &&
-          length(cols_bloq) > 0L) {
+      if (.admite_bloques_medicion_dbi(estrategia_no_sql, instancia, spec,
+                                       cols_bloq)) {
         c(base, list(via = "bloques_r", motivo = motivo, columnas_bloque = cols_bloq))
       } else {
         c(base, list(via = "no_medible", motivo = motivo))
@@ -2542,6 +2796,121 @@
   )
 }
 
+.enriquecer_planes_medicion_dbi <- function(p, conexion, aplicabilidad,
+                                            max_valores_in) {
+  universos <- .universos_medicion_dbi(
+    aplicabilidad, Filter(Negate(is.null), p$esquemas),
+    p$motor, conexion, max_valores_in
+  )
+  for (k in seq_along(p$planes)) {
+    x <- p$planes[[k]]
+    if (!x$via %in% c("sql_consolidado", "sql_dedicado")) next
+    esq <- p$esquemas[[x$entidad]]
+    U <- universos[[x$entidad]](x$instancia)
+    x$universo_aplicabilidad <- U$sql
+    x$universo_dentro <- if (identical(x$spec$nodo, "no_ausente")) {
+      x$universo
+    } else {
+      U$sql
+    }
+    atr <- intersect(x$columnas_completas, esq$campos)
+    x$completas <- if (length(atr)) {
+      .sql_y(vapply(atr, function(a) {
+        paste0("(", .columna_sql_medicion(conexion, esq, a, p$motor),
+               " IS NOT NULL)")
+      }, character(1L)))
+    } else ""
+    gran <- as.character(x$instancia$declaracion$granularidad)[[1L]]
+    if (identical(gran, "instanciaEntidad") && length(x$instancia$atributos)) {
+      x$sin_valor <- paste0(
+        "(",
+        paste(vapply(x$instancia$atributos, function(a) {
+          paste0("(", .columna_sql_medicion(conexion, esq, a, p$motor),
+                 " IS NULL)")
+        }, character(1L)), collapse = " OR "),
+        ")"
+      )
+    } else if (identical(gran, "instanciaEntidad")) {
+      x$sin_valor <- NULL
+    }
+    p$planes[[k]] <- x
+  }
+  list(p = p, universos = universos)
+}
+
+.compilar_plan_medicion_dbi <- function(conexion, p, tablas, aplicabilidad,
+                                        max_valores_in, tamano_lote,
+                                        bloque_filas) {
+  enriquecido <- .enriquecer_planes_medicion_dbi(
+    p, conexion, aplicabilidad, max_valores_in
+  )
+  p <- enriquecido$p
+  motor <- p$motor
+  ejecutar <- function() {
+    estado <- .CONTEXTO_MOTOR$compilador
+    agregar <- function(sql, etapa) {
+      if (length(sql) != 1L || is.na(sql)) return(invisible(NULL))
+      .compilar_sql_dbi(conexion, sql, etapa, motor)
+      invisible(NULL)
+    }
+    for (esq in p$esquemas) {
+      if (is.null(esq)) next
+      for (sql in esq$consultas_esquema %||% character()) {
+        agregar(sql, "esquema")
+      }
+    }
+    for (entidad in names(p$esquemas)) {
+      esq <- p$esquemas[[entidad]]
+      if (is.null(esq)) next
+      items <- Filter(function(x) {
+        x$via %in% c("sql_consolidado", "sql_dedicado") &&
+          identical(x$entidad, entidad)
+      }, p$planes)
+      if (length(items)) {
+        lotes <- .lotes_consolidada_medicion(
+          items, .senas_conexion_dbi(conexion), tamano_lote
+        )
+        for (lote in lotes) {
+          agregar(
+            .sql_consolidada_medicion_dbi(esq, lote, motor),
+            "consolidada"
+          )
+        }
+        for (item in items) {
+          if (identical(item$via, "sql_dedicado")) {
+            agregar(item$consulta, "dedicada")
+          }
+        }
+      }
+      referenciales <- Filter(function(x) {
+        identical(x$via, "sql_dedicado_referencial") &&
+          identical(x$entidad, entidad)
+      }, p$planes)
+      for (item in referenciales) agregar(item$consulta, "referencial")
+      bloques <- Filter(function(x) {
+        identical(x$via, "bloques_r") && identical(x$entidad, entidad)
+      }, p$planes)
+      if (length(bloques)) {
+        columnas <- unique(unlist(lapply(bloques, `[[`, "columnas_bloque"),
+                                use.names = FALSE))
+        columnas <- intersect(columnas, esq$campos)
+        if (length(columnas)) {
+          columnas_sql <- vapply(
+            columnas, function(x) .citar_col_dbi(conexion, x), character(1L)
+          )
+          agregar(
+            paste0("SELECT ", paste(columnas_sql, collapse = ", "),
+                   " FROM ", esq$sql),
+            "bloques"
+          )
+        }
+      }
+    }
+    invisible(estado)
+  }
+  .with_compilador_dbi(conexion, motor, ejecutar())$compilacion
+}
+
 .consultar_medicion_dbi <- function(conexion, sql, contador,
                                     registrar_sql = TRUE) {
   if (contador$n >= contador$tope) {
@@ -2557,8 +2926,7 @@
   .traer_consulta_dbi(conexion, sql)
 }
 
-.consolidada_medicion_dbi <- function(conexion, esq, items, contador,
-                                      motor = "sqlite") {
+.sql_consolidada_medicion_dbi <- function(esq, items, motor) {
   agregados <- function(it) {
     j <- it$j
     c(
@@ -2583,12 +2951,17 @@
       if (!is.null(it$na_regla)) sprintf("%s AS m%d_na", .sql_suma(it$na_regla, motor), j)
     )
   }
+  paste0(
+    "SELECT ", .sql_conteo_total(motor), " AS n_filas, ",
+    paste(unlist(lapply(items, agregados)), collapse = ", "),
+    " FROM ", esq$sql
+  )
+}
+
+.consolidada_medicion_dbi <- function(conexion, esq, items, contador,
+                                      motor = "sqlite") {
   correr <- function(grupo) {
-    sql <- paste0(
-      "SELECT ", .sql_conteo_total(motor), " AS n_filas, ",
-      paste(unlist(lapply(grupo, agregados)), collapse = ", "),
-      " FROM ", esq$sql
-    )
+    sql <- .sql_consolidada_medicion_dbi(esq, grupo, motor)
     r <- tryCatch(
       .consultar_medicion_dbi(conexion, sql, contador),
       lupa_presupuesto_medicion_dbi = function(e) e,
@@ -2623,6 +2996,113 @@
     )
   }
   correr(items)
+}
+
+# Lo que un item SQL suma a lo que compila el traductor antes de la consulta
+# consolidada: el universo de aplicabilidad, la marca de filas completas y, en
+# granularidad de entidad, la de fila sin valor. Vive en un solo sitio porque
+# `conformidad_dbi()` tiene que contar exactamente lo mismo que `medir_dbi()`.
+.preparar_item_medicion_dbi <- function(x, esq, U, con, motor) {
+  x$universo_aplicabilidad <- U$sql
+  x$universo_dentro <- if (identical(x$spec$nodo, "no_ausente")) {
+    x$universo
+  } else {
+    U$sql
+  }
+  atr <- intersect(x$columnas_completas, esq$campos)
+  x$completas <- if (length(atr)) {
+    .sql_y(vapply(atr, function(a) {
+      paste0("(", .columna_sql_medicion(con, esq, a, motor), " IS NOT NULL)")
+    }, character(1L)))
+  } else ""
+  gran <- as.character(x$instancia$declaracion$granularidad)[[1L]]
+  if (identical(gran, "instanciaEntidad") && length(x$instancia$atributos)) {
+    x$sin_valor <- paste0(
+      "(",
+      paste(vapply(x$instancia$atributos, function(a) {
+        paste0("(", .columna_sql_medicion(con, esq, a, motor), " IS NULL)")
+      }, character(1L)), collapse = " OR "),
+      ")"
+    )
+  } else if (identical(gran, "instanciaEntidad")) {
+    x$sin_valor <- NULL
+  }
+  x
+}
+
+# Los conteos de un item a partir de la consulta consolidada y, si es
+# dedicado, de su consulta propia. Devuelve `list(error = )` si algo fallo.
+.conteos_item_medicion_dbi <- function(r, it, con, contador) {
+  j <- it$j
+  fallo <- if (!is.null(r$fallo)) r$fallo[as.character(j)] else NA_character_
+  if (!is.na(fallo)) return(list(error = unname(fallo)))
+  v <- function(s) {
+    nm <- sprintf("m%d_%s", j, s)
+    if (!is.null(r$ok) && nm %in% names(r$ok)) as.numeric(r$ok[[nm]]) else NA_real_
+  }
+  res <- list(
+    n_filas = as.numeric(r$ok$n_filas),
+    rec = v("rec"), univ = v("univ"), den = v("den"), num = v("num"),
+    sv = v("sv"), apl = v("apl"), comp = v("comp"), g = v("g"), na = v("na")
+  )
+  if (identical(it$via, "sql_dedicado")) {
+    q <- tryCatch(
+      .consultar_medicion_dbi(con, it$consulta, contador),
+      lupa_presupuesto_medicion_dbi = function(e) e,
+      error = function(e) e
+    )
+    if (inherits(q, "error")) {
+      msg <- if (inherits(q, "lupa_presupuesto_medicion_dbi")) {
+        conditionMessage(q)
+      } else {
+        .mensaje_motor(q)
+      }
+      return(list(error = msg))
+    }
+    res$num <- as.numeric(q$num)
+    res$den <- as.numeric(q$den)
+  }
+  res
+}
+
+# Por que `medir_dbi()` no publica la cifra de un item ya contado: la guarda
+# encontro valores que el motor no lee como R, o la regla dio NULL en alguna
+# fila (R exige un logico sin NA). `NULL` si la cifra se publica.
+.abstencion_conteos_medicion_dbi <- function(x, res, motor) {
+  if (!is.na(res$g) && res$g > 0) {
+    return(list(
+      causa = "guarda",
+      motivo = x$motivo_guarda %||% .motivo_guarda_dbi(motor)
+    ))
+  }
+  if (isTRUE(x$no_logico) || (!is.na(res$na) && res$na > 0)) {
+    return(list(
+      causa = if (isTRUE(x$no_logico)) "no_logico" else "nulos",
+      motivo = paste0(
+        "El validador de ReglaIntegridadIntraEntidad debe devolver un vector ",
+        "l\u00f3gico sin NA de longitud ", res$rec, "."
+      )
+    ))
+  }
+  NULL
+}
+
+# Si una regla que el motor no puede contar como R se lee por bloques en R: la
+# misma condicion para lo que no se traduce, para lo que la guarda frena y para
+# lo que la bateria de conformidad encontro no conforme.
+.admite_bloques_medicion_dbi <- function(estrategia_no_sql, instancia, spec,
+                                         columnas_bloque) {
+  identical(estrategia_no_sql, "bloques") &&
+    .separable_medicion_dbi(instancia, spec) &&
+    length(instancia$entidad) == 1L &&
+    length(columnas_bloque) > 0L
+}
+
+# Filas del universo con NULL en alguna columna de la regla. Sin el conteo, se
+# supone que las hay: una no conformidad no se descarta por falta de la cifra.
+.nulos_conteos_medicion_dbi <- function(res) {
+  n <- res$rec - res$comp
+  if (!length(n) || is.na(n)) Inf else n
 }
 
 # ---------------------------------------------------------------------------
@@ -2969,13 +3449,35 @@
 #' @param max_valores_in Tope de valores en listas `IN (...)` compiladas a SQL.
 #' @param max_consultas Presupuesto máximo de consultas emitidas durante la
 #'   ejecución, incluidas las consultas de esquema.
+#' @param orden_texto Orden del texto en el rango de
+#'   `ValoresPosiblesPorComprension` y en las comparaciones `<`, `<=`, `>` y
+#'   `>=` de la fórmula de `ReglaIntegridadIntraEntidad`, como en [medir()]. Con
+#'   `"idioma"` (por omisión) esas reglas sobre texto quedan `no_medible`:
+#'   ningún motor reproduce el orden del locale de la sesión de R. Con
+#'   `"bytes"` se traducen a una comparación por los bytes del UTF-8 —el orden
+#'   por punto de código: `"Z"` antes que `"a"`, `"ñ"` después de `"z"`— y
+#'   miden lo mismo que `medir(orden_texto = "bytes")`: en SQLite con `COLLATE
+#'   BINARY`, si la base guarda el texto en UTF-8, y en DuckDB con `encode()`.
+#'   Un texto con bytes que no son UTF-8 válido se ordena por sus bytes, como en
+#'   memoria; y el rango lo deja afuera, como en memoria: en DuckDB con
+#'   `try(decode())` (una versión sin `try()` lo declara `no_medible`) y en
+#'   SQLite con su guarda de siempre para el texto no ASCII, porque SQLite no
+#'   valida UTF-8. En PostgreSQL, MySQL, MariaDB y
+#'   SQL Server la traducción está escrita pero todavía no se comparó con la
+#'   medición en memoria: se declara `no_medible` con ese motivo, y con
+#'   `estrategia_no_sql = "bloques"` la regla se mide en R, por bytes.
 #' @param dialecto Dialecto SQL: `"auto"` (por omisión) o uno de `"sqlite"`,
 #'   `"duckdb"`, `"postgresql"`, `"mysql"`, `"mariadb"`, `"sqlserver"`.
+#' @param compilar Si es `TRUE`, le pide al motor que compile, sin ejecutarlas
+#'   ni traer filas, las consultas SQL del plan, y publica una fila por
+#'   sentencia en `attr(plan, "compilacion")`. Ver la sección Compilación.
 #'
 #' @return Un `data.frame` de clase `plan_medicion_dbi` con una fila por
 #'   métrica instanciada (`metrica_instanciada`, `metrica`, `entidad`,
 #'   `atributos`, `via`, `motivo`, `columnas_bloque`) y atributos `motor` y
-#'   `consultas` (`esquema`, `consolidadas`, `dedicadas`, `bloques`).
+#'   `consultas` (`esquema`, `consolidadas`, `dedicadas`, `bloques`), y, cuando
+#'   se pide, `compilacion`.
+#' @inheritSection plan_perfilado_dbi Compilación
 #' @export
 #' @seealso [medir_dbi()], [medir()], [plan_perfilado_dbi()]
 #'
@@ -2993,9 +3495,15 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
                               estrategia_no_sql = c("no_medible", "bloques"),
                               bloque_filas = NULL, tamano_lote = NULL,
                               max_valores_in = 500L, max_consultas = Inf,
-                              dialecto = "auto") {
+                              dialecto = "auto",
+                              orden_texto = c("idioma", "bytes"),
+                              compilar = FALSE) {
   .fijar_numerica_c()
+  if (!is.logical(compilar) || length(compilar) != 1L || is.na(compilar)) {
+    .detener("`compilar` debe ser TRUE o FALSE.", call. = FALSE)
+  }
   estrategia_no_sql <- .elegir_opcion(estrategia_no_sql)
+  orden_texto <- .elegir_opcion(orden_texto)
   args <- .validar_argumentos_entrada_medir_dbi(
     modelo, conexion, tablas, max_valores_in, max_consultas,
     tamano_lote, bloque_filas
@@ -3004,12 +3512,14 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
   .fijar_senas_conexion_dbi(con)
   .fijar_proteccion_motor(.protege_mensaje_motor())
   motor <- .motor_medicion_dbi(con, dialecto)
+  if (isTRUE(compilar)) .exigir_compilacion_segura_dbi(con, motor)
   p <- .planificar_medicion_dbi(
     modelo = modelo, conexion = conexion, tablas = tablas,
     aplicabilidad = aplicabilidad, motor = motor,
     max_valores_in = args$max_valores_in,
     estrategia_no_sql = estrategia_no_sql,
-    tamano_lote = args$tamano_lote
+    tamano_lote = args$tamano_lote,
+    orden_texto = orden_texto
   )
   filas <- lapply(p$planes, function(x) {
     data.frame(
@@ -3049,6 +3559,18 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
     dedicadas = as.integer(sum(plan$via %in% c("sql_dedicado", "sql_dedicado_referencial"))),
     bloques = as.integer(sum(plan$via == "bloques_r"))
   )
+  if (isTRUE(compilar)) {
+    compilacion <- .compilar_plan_medicion_dbi(
+      con, p, tablas, aplicabilidad, args$max_valores_in,
+      args$tamano_lote, bloque_filas
+    )
+    # Una fila por sentencia compilada, sin completar hasta el conteo de
+    # `attr(plan, "consultas")`: ese conteo incluye la consulta de la sesion,
+    # que se ejecuta al planificar como siempre, y cuenta por metrica las
+    # medidas por bloques, que se calculan en R sobre una sola lectura por
+    # entidad -la fila `bloques`-. Una fila sin sentencia no es una sentencia.
+    attr(plan, "compilacion") <- compilacion
+  }
   class(plan) <- c("plan_medicion_dbi", "data.frame")
   plan
 }
@@ -3110,6 +3632,19 @@ print.plan_medicion_dbi <- function(x, ...) {
 #'   igual que en [medir()].
 #' @param instrumentar Si es `TRUE` (por omisión), conserva las consultas SQL y
 #'   el tiempo transcurrido en `attr(resultado, "ejecucion_dbi")`.
+#' @param conformidad Tabla devuelta por [conformidad_dbi()] con esta misma
+#'   conexión, modelo y configuración. Una regla que se cuenta en el motor deja
+#'   de contarse en él sólo si la batería la encontró `no_conforme`: el motor
+#'   cuenta y da distinto que R. Con `estrategia_no_sql = "bloques"` se mide
+#'   leyendo sus columnas por bloques en R, como lo que no se traduce a SQL; si
+#'   no, se declara `no_medible`. Si la diferencia apareció sólo con `NULL`
+#'   (`condicion = "con_nulos"`), esto se aplica únicamente si la tabla real tiene
+#'   `NULL` en las columnas de la regla. Una `abstencion` no quita la regla: con los datos
+#'   reales decide la guarda de siempre. Si la batería es de otra conexión o de
+#'   otra configuración, o si una regla no está en ella, cambió su definición,
+#'   no se evaluó o su motor no está verificado, se avisa y la regla se mide como
+#'   siempre. Una tabla sin la clase y los atributos de [conformidad_dbi()] se
+#'   rechaza. `NULL` conserva la medición habitual.
 #'
 #' @return Un `data.frame` de clase `medicion_resumen` (sin heredar de
 #'   `medicion`) con las 23 columnas del resumen y los atributos de
@@ -3138,9 +3673,12 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
                       proteger_datos_personales = FALSE,
                       columnas_personales = character(),
                       validadores_personales = NULL,
-                      instrumentar = TRUE) {
+                      instrumentar = TRUE,
+                      orden_texto = c("idioma", "bytes"),
+                      conformidad = NULL) {
   .fijar_numerica_c()
   estrategia_no_sql <- .elegir_opcion(estrategia_no_sql)
+  orden_texto <- .elegir_opcion(orden_texto)
   args <- .validar_argumentos_entrada_medir_dbi(
     modelo, conexion, tablas, max_valores_in, max_consultas,
     tamano_lote, bloque_filas
@@ -3174,7 +3712,14 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     max_valores_in = args$max_valores_in,
     estrategia_no_sql = estrategia_no_sql,
     tamano_lote = args$tamano_lote,
-    contador = contador
+    contador = contador,
+    orden_texto = orden_texto
+  )
+  p$planes <- .aplicar_conformidad_plan_dbi(
+    p$planes, conformidad, conexion = conexion, modelo = modelo,
+    tablas = tablas, aplicabilidad = aplicabilidad,
+    max_valores_in = args$max_valores_in, motor = motor,
+    estrategia_no_sql = estrategia_no_sql
   )
   nombres_disponibles <- unique(unlist(
     lapply(Filter(Negate(is.null), p$esquemas), `[[`, "campos"),
@@ -3185,41 +3730,11 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     if (length(nombres_disponibles)) nombres_disponibles else NULL
   )
 
-  universos <- .universos_medicion_dbi(
-    aplicabilidad, Filter(Negate(is.null), p$esquemas),
-    motor, con, args$max_valores_in
+  enriquecido <- .enriquecer_planes_medicion_dbi(
+    p, con, aplicabilidad, args$max_valores_in
   )
-  for (k in seq_along(p$planes)) {
-    x <- p$planes[[k]]
-    if (!x$via %in% c("sql_consolidado", "sql_dedicado")) next
-    esq <- p$esquemas[[x$entidad]]
-    U <- universos[[x$entidad]](x$instancia)
-    x$universo_aplicabilidad <- U$sql
-    x$universo_dentro <- if (identical(x$spec$nodo, "no_ausente")) {
-      x$universo
-    } else {
-      U$sql
-    }
-    atr <- intersect(x$columnas_completas, esq$campos)
-    x$completas <- if (length(atr)) {
-      .sql_y(vapply(atr, function(a) {
-        paste0("(", .columna_sql_medicion(con, esq, a, motor), " IS NOT NULL)")
-      }, character(1L)))
-    } else ""
-    gran <- as.character(x$instancia$declaracion$granularidad)[[1L]]
-    if (identical(gran, "instanciaEntidad") && length(x$instancia$atributos)) {
-      x$sin_valor <- paste0(
-        "(",
-        paste(vapply(x$instancia$atributos, function(a) {
-          paste0("(", .columna_sql_medicion(con, esq, a, motor), " IS NULL)")
-        }, character(1L)), collapse = " OR "),
-        ")"
-      )
-    } else if (identical(gran, "instanciaEntidad")) {
-      x$sin_valor <- NULL
-    }
-    p$planes[[k]] <- x
-  }
+  p <- enriquecido$p
+  universos <- enriquecido$universos
 
   senas <- .senas_conexion_dbi(con)
   resultados <- vector("list", length(p$planes))
@@ -3236,40 +3751,7 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       r <- .consolidada_medicion_dbi(con, p$esquemas[[e]], lote, contador,
                                      motor = motor)
       for (it in lote) {
-        j <- it$j
-        fallo <- if (!is.null(r$fallo)) r$fallo[as.character(j)] else NA_character_
-        if (!is.na(fallo)) {
-          resultados[[j]] <- list(error = unname(fallo))
-          next
-        }
-        v <- function(s) {
-          nm <- sprintf("m%d_%s", j, s)
-          if (!is.null(r$ok) && nm %in% names(r$ok)) as.numeric(r$ok[[nm]]) else NA_real_
-        }
-        res <- list(
-          n_filas = as.numeric(r$ok$n_filas),
-          rec = v("rec"), univ = v("univ"), den = v("den"), num = v("num"),
-          sv = v("sv"), apl = v("apl"), comp = v("comp"), g = v("g"), na = v("na")
-        )
-        if (identical(it$via, "sql_dedicado")) {
-          q <- tryCatch(
-            .consultar_medicion_dbi(con, it$consulta, contador),
-            lupa_presupuesto_medicion_dbi = function(e) e,
-            error = function(e) e
-          )
-          if (inherits(q, "error")) {
-            msg <- if (inherits(q, "lupa_presupuesto_medicion_dbi")) {
-              conditionMessage(q)
-            } else {
-              .mensaje_motor(q)
-            }
-            resultados[[j]] <- list(error = msg)
-            next
-          }
-          res$num <- as.numeric(q$num)
-          res$den <- as.numeric(q$den)
-        }
-        resultados[[j]] <- res
+        resultados[[it$j]] <- .conteos_item_medicion_dbi(r, it, con, contador)
       }
     }
   }
@@ -3327,6 +3809,12 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       den <- as.numeric(q$den)
       num <- as.numeric(q$num)
       sv <- as.numeric(q$sin_valor)
+      if (!is.null(x[["conformidad_nulos"]]) && !isTRUE(sv == 0)) {
+        cob(.no_medible_dbi(
+          instancia, id_medicion, fecha, x[["conformidad_nulos"]], en_base = TRUE
+        ))
+        next
+      }
       if (!univ) {
         cob(.cobertura_metrica_desde_conteos(
           instancia, id_medicion, fecha, list(
@@ -3373,12 +3861,20 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       cob(.no_medible_dbi(instancia, id_medicion, fecha, res$error, en_base = TRUE))
       next
     }
-    if (!is.na(res$g) && res$g > 0) {
-      motivo_g <- x$motivo_guarda %||% .motivo_guarda_dbi(motor)
-      if (identical(estrategia_no_sql, "bloques") &&
-          .separable_medicion_dbi(instancia, x$spec) &&
-          length(instancia$entidad) == 1L &&
-          length(x$columnas_bloque) > 0L) {
+    abstencion <- .abstencion_conteos_medicion_dbi(x, res, motor)
+    # Lo que el motor no cuenta como R con estos datos -la guarda encontro
+    # valores que no lee igual, o la bateria vio una no conformidad que solo
+    # aparece con NULL y la tabla los tiene- se lee por bloques si se pidio, y si
+    # no, queda no_medible. Una no conformidad sin NULL ya se resolvio al planear.
+    motivo_g <- if (identical(abstencion$causa, "guarda")) {
+      abstencion$motivo
+    } else if (is.null(abstencion) && !is.null(x[["conformidad_nulos"]]) &&
+               .nulos_conteos_medicion_dbi(res) > 0) {
+      x[["conformidad_nulos"]]
+    }
+    if (!is.null(motivo_g)) {
+      if (.admite_bloques_medicion_dbi(estrategia_no_sql, instancia, x$spec,
+                                       x$columnas_bloque)) {
         x$via <- "bloques_r"
         x$motivo <- motivo_g
         vias_finales[[j]] <- "bloques_r"
@@ -3388,14 +3884,9 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       cob(.no_medible_dbi(instancia, id_medicion, fecha, motivo_g, en_base = TRUE))
       next
     }
-    if (isTRUE(x$no_logico) || (!is.na(res$na) && res$na > 0)) {
+    if (!is.null(abstencion)) {
       cob(.no_medible_dbi(
-        instancia, id_medicion, fecha,
-        paste0(
-          "El validador de ReglaIntegridadIntraEntidad debe devolver un vector ",
-          "l\u00f3gico sin NA de longitud ", res$rec, "."
-        ),
-        en_base = FALSE
+        instancia, id_medicion, fecha, abstencion$motivo, en_base = FALSE
       ))
       next
     }
@@ -3516,6 +4007,11 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   }
   attr(resultado, "configuracion_aplicabilidad") <-
     .texto_configuracion_calidad(aplicabilidad)
+  # La misma huella que en memoria: la definicion no depende de donde se mide.
+  attr(resultado, "sello_metricas") <- .sello_metricas(
+    modelo, id_medicion, aplicabilidad, orden_texto,
+    .lector_esquemas(p$esquemas)
+  )
   attr(resultado, "detalle") <- "resumen"
   if (!isTRUE(proteger_datos_personales) && nrow(resultado)) {
     personales <- .columnas_personales_esquemas_dbi(

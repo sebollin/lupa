@@ -909,6 +909,26 @@
   error
 }
 
+# Una interrupcion no es una respuesta del motor: el tope de `setTimeLimit()` -o
+# el de `setSessionTimeLimit()`- llega como un error comun, sin clase propia, con
+# el mensaje traducido de R, y Ctrl-C como una condicion `interrupt`. Atraparla
+# como el rechazo de una consulta la callaba y seguia mandando sentencias.
+.MENSAJES_TOPE_R <- c(
+  "reached elapsed time limit", "reached CPU time limit",
+  "reached session elapsed time limit", "reached session CPU time limit"
+)
+
+.es_interrupcion_dbi <- function(condicion) {
+  if (inherits(condicion, "interrupt")) return(TRUE)
+  if (!inherits(condicion, "error")) return(FALSE)
+  mensaje <- tryCatch(conditionMessage(condicion), error = function(e) "")
+  length(mensaje) == 1L && !is.na(mensaje) && (
+    mensaje %in% .MENSAJES_TOPE_R ||
+      mensaje %in% vapply(.MENSAJES_TOPE_R, gettext, character(1L),
+                          domain = "R", USE.NAMES = FALSE)
+  )
+}
+
 # Toda consulta de la via sale por aca (una prueba recorre el espacio de nombres
 # y no encuentra otro `dbSendQuery()` ni `dbGetQuery()`). Y toda va dentro de
 # un punto de guardado cuando la conexion esta en una transaccion de un motor
@@ -1313,14 +1333,18 @@
 # `SAVEPOINT` propio y su `RELEASE`, y si falla se vuelve con
 # `ROLLBACK TO SAVEPOINT`: el error queda en la consulta que lo dio y la
 # transaccion del usuario sigue como estaba. El paquete nunca manda `COMMIT`,
-# `ROLLBACK` ni `BEGIN`. Fuera de una transaccion no se agrega nada: cada
-# sentencia es la suya y un error no arrastra a la siguiente.
+# `ROLLBACK` ni `BEGIN` sobre la transaccion del usuario. Fuera de una
+# transaccion no se agrega nada: cada sentencia es la suya y un error no arrastra
+# a la siguiente. La unica excepcion es la compilacion de un plan en PostgreSQL
+# sin transaccion del usuario: cada sentencia va en una transaccion propia que
+# se revierte (ver `.compilar_con_tope_postgresql_dbi()`).
 #
-# DuckDB tambien aborta la transaccion por un error al ejecutar (no por uno al
-# preparar, como el de una funcion que no existe), pero no tiene `SAVEPOINT`:
-# ahi un objeto que falla al leerse deja la transaccion abortada (documentado en
-# `?perfilar_dbi`). SQL Server, MySQL, MariaDB y SQLite no abortan la
-# transaccion por el error de una consulta.
+# DuckDB tambien aborta la transaccion por un error -con duckdb 2.0.0, tambien
+# por el de una funcion o una columna que no existe; solo uno de sintaxis no la
+# aborta-, pero no tiene `SAVEPOINT`: ahi un objeto que falla al leerse deja la
+# transaccion abortada (documentado en `?perfilar_dbi`), y la compilacion de un
+# plan no se hace (ver `.transaccion_para_compilar_dbi()`). SQL Server, MySQL,
+# MariaDB y SQLite no abortan la transaccion por el error de una consulta.
 .motor_aborta_transaccion_dbi <- function(conexion) {
   grepl("postgres|pqconnection", .senas_conexion_dbi(conexion), useBytes = TRUE)
 }
@@ -1410,7 +1434,12 @@
 
 # Las unicas sentencias que el paquete manda sobre la transaccion: `SAVEPOINT`,
 # `RELEASE SAVEPOINT`, `ROLLBACK TO SAVEPOINT` y la consulta de `now()`. Texto
-# ASCII fijo, sin nombres del usuario.
+# ASCII fijo, sin nombres del usuario. La compilacion de un plan manda ademas sus
+# ordenes de sesion, tambien fijas: `SET NOEXEC`, su `SELECT 1` y `SET
+# XACT_ABORT` en SQL Server; `BEGIN`, `SET LOCAL statement_timeout`, `ROLLBACK`
+# y su propio punto de guardado en PostgreSQL; y el `PREPARE` y `DEALLOCATE` de
+# MySQL y MariaDB, con nombre propio, donde `PREPARE` lleva la sentencia como
+# literal y pasa antes por la guarda de codificacion.
 .orden_transaccion_dbi <- function(conexion, orden, traer = FALSE) {
   if (isTRUE(traer)) return(DBI::dbGetQuery(conexion, orden))
   DBI::dbExecute(conexion, orden)
@@ -1424,7 +1453,12 @@
   hecho <- tryCatch({
     .orden_transaccion_dbi(conexion, paste0("SAVEPOINT ", nombre))
     TRUE
-  }, error = function(e) FALSE)
+  }, error = function(e) {
+    # Una interrupcion no dice que no haya transaccion: concluirlo dejaba las
+    # sentencias siguientes sin punto de guardado dentro de la del usuario.
+    if (.es_interrupcion_dbi(e)) .detener(e)
+    FALSE
+  })
   # Fuera de una transaccion el `SAVEPOINT` falla sin efecto; dentro de una ya
   # abortada antes de la llamada, tambien: en los dos casos no hay nada que
   # proteger y no se vuelve a pedir.
@@ -2677,9 +2711,11 @@
       "SELECT ", nativas[[i]], "(1.0) AS ", alias("desvio"),
       if (.es_oracle_dbi(conexion)) " FROM DUAL" else ""
     )
-    intento <- .escalar_dbi(
-      conexion, sql, "desvio", presupuesto, etapa = "sonda_desvio"
-    )
+    intento <- .sondear_candidata_dbi(conexion, sql, "sonda_desvio", function() {
+      .escalar_dbi(
+        conexion, sql, "desvio", presupuesto, etapa = "sonda_desvio"
+      )
+    })
     if (is.null(elegida) && isTRUE(intento$ok)) elegida <- i
   }
   # Sin ninguna nativa queda el calculo de dos pasadas, que es la ultima forma.
@@ -2701,6 +2737,14 @@
   estado$fallas_consultas <- list()
   estado$fallas_sondas <- list()
   estado$fallas_lotes <- list()
+  # Cada consulta aceptada por el presupuesto conserva su etapa. La cuenta
+  # publica el total, pero esta traza permite atribuir reintentos y saldos
+  # agotados a la clase de consulta que los produjo.
+  estado$consultas_emitidas <- character()
+  # Una consulta que no consigue saldo no entra en `consultas_emitidas`, pero
+  # sigue siendo evidencia de la clase que el presupuesto recorto.
+  estado$consultas_bloqueadas <- character()
+  estado$guardas_faltantes_bloqueadas <- 0L
   # La forma de calcular el desvio se resuelve una vez por corrida y se recuerda:
   # probarla por columna gastaria hasta tres consultas cada vez y romperia la
   # promesa del plan, que dice exactamente cuantas va a emitir.
@@ -4999,13 +5043,32 @@
   presupuesto$max - presupuesto$usadas - presupuesto$reserva
 }
 
-.gastar_dbi <- function(presupuesto) {
+.registrar_consulta_emitida_dbi <- function(presupuesto, etapa, n = 1L) {
+  if (is.null(presupuesto)) return(invisible(NULL))
+  etapa <- if (length(etapa) == 1L && !is.na(etapa)) {
+    as.character(etapa)
+  } else {
+    "consulta"
+  }
+  n <- suppressWarnings(as.integer(n))
+  if (length(n) != 1L || is.na(n) || n < 1L) return(invisible(NULL))
+  presupuesto$consultas_emitidas <- c(
+    presupuesto$consultas_emitidas, rep(etapa, n)
+  )
+  invisible(NULL)
+}
+
+.gastar_dbi <- function(presupuesto, etapa = "consulta") {
   if (is.null(presupuesto)) return(TRUE)
   if (.saldo_dbi(presupuesto) < 1) {
     presupuesto$agotado <- TRUE
+    presupuesto$consultas_bloqueadas <- c(
+      presupuesto$consultas_bloqueadas, as.character(etapa)
+    )
     return(FALSE)
   }
   presupuesto$usadas <- presupuesto$usadas + 1
+  .registrar_consulta_emitida_dbi(presupuesto, etapa)
   if (!is.null(presupuesto$barra)) {
     # `set` y no `inc`: la cuenta que manda es la del presupuesto, que ya
     # incluye las consultas-porton emitidas antes de abrir la barra.
@@ -5023,9 +5086,10 @@
 # Las llamadas de metadatos -`dbExistsTable()`, `dbListFields()`- tambien
 # viajan a la base. Se cuentan aunque no se puedan rechazar: el numero que se
 # informa tiene que ser el numero real de viajes.
-.contar_dbi <- function(presupuesto, n = 1) {
+.contar_dbi <- function(presupuesto, n = 1, etapa = "portones") {
   if (is.null(presupuesto)) return(invisible(NULL))
   presupuesto$usadas <- presupuesto$usadas + n
+  .registrar_consulta_emitida_dbi(presupuesto, etapa, n = n)
   invisible(NULL)
 }
 
@@ -5119,7 +5183,9 @@
     tipo = clase
   )
   if (isTRUE(presupuesto$posponer_fallas_lotes) &&
-      as.character(resultado$etapa) %in% c("basicos", "desvio", "conteos")) {
+      as.character(resultado$etapa) %in% c(
+        "basicos", "desvio", "conteos"
+      )) {
     presupuesto$fallas_lotes[[length(presupuesto$fallas_lotes) + 1L]] <- falla
   } else {
     .guardar_falla_consulta_dbi(falla, presupuesto)
@@ -5162,6 +5228,849 @@
 .publicar_fallas_sondas_dbi <- function(presupuesto) {
   if (is.null(presupuesto)) return(.publicar_fallas_dbi(NULL))
   .publicar_fallas_dbi(presupuesto$fallas_sondas)
+}
+
+# Las pruebas de capacidad tienen una clase propia: su rechazo describe una
+# decision del motor, no una consulta de datos que haya quedado sin explicar.
+# Dos etapas pueden pertenecer a una misma capacidad cuando una es el control
+# de la otra; ambas siguen contando por separado.
+.CAPACIDAD_ETAPAS_DBI <- c(
+  "collation_dbi", "fuente_bloques", "desvio", "muestreo",
+  "mediana_escalar", "mediana_cte_ventana",
+  "mediana_cte_ventana_control_negativo", "moda_guardian",
+  "mediana_consolidada", "aproximacion", "dialecto", "infinitos",
+  "magnitud", "lectura_muestra", "bytes_muestra"
+)
+
+.capacidad_etapa_dbi <- function(nombre) paste0("son", "da_", nombre)
+
+.CLASES_CAPACIDAD_DBI <- setNames(c(
+  "capacidad de collation",
+  "capacidad de lectura por bloques",
+  "capacidad de desvio (formas candidatas)",
+  "capacidad de muestreo (formas candidatas)",
+  "capacidad de mediana escalar (formas candidatas)",
+  "capacidad de mediana CTE (formas candidatas)",
+  "capacidad de mediana CTE (formas candidatas)",
+  "capacidad de moda con guardian (formas candidatas)",
+  "capacidad de mediana consolidada (formas candidatas)",
+  "capacidad de aproximacion (formas candidatas)",
+  "capacidad de dialecto (formas candidatas)",
+  "capacidad de infinitos",
+  paste0("son", "da de magnitud (MIN)"),
+  "capacidad de lectura de muestra",
+  "capacidad de bytes de muestra"
+), .capacidad_etapa_dbi(.CAPACIDAD_ETAPAS_DBI))
+
+.clase_capacidad_dbi <- function(etapa) {
+  if (length(etapa) != 1L || is.na(etapa)) return(NA_character_)
+  clase <- unname(.CLASES_CAPACIDAD_DBI[as.character(etapa)])
+  if (length(clase) != 1L || is.na(clase)) NA_character_ else clase
+}
+
+.capacidades_plan_dbi <- function(presupuesto, adicionales = NULL,
+                                  excluir_etapas = character()) {
+  eventos <- if (is.null(presupuesto)) character() else {
+    as.character(presupuesto$consultas_emitidas)
+  }
+  if (length(excluir_etapas)) {
+    eventos <- eventos[!eventos %in% excluir_etapas]
+  }
+  clases <- if (length(eventos)) vapply(
+    eventos, .clase_capacidad_dbi, character(1L)
+  ) else character()
+  clases <- clases[!is.na(clases)]
+  nombres <- unique(c(clases, names(adicionales) %||% character()))
+  if (!length(nombres)) {
+    return(data.frame(
+      clase_consulta = character(), n_consultas = numeric(),
+      n_consultas_max = numeric(), n_emitidas = numeric(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  salida <- lapply(nombres, function(clase) {
+    emitidas <- sum(clases == clase)
+    adicional <- if (!is.null(adicionales) && clase %in% names(adicionales)) {
+      suppressWarnings(as.numeric(adicionales[[clase]]))
+    } else 0
+    if (length(adicional) != 1L || is.na(adicional) || adicional < 0) {
+      adicional <- 0
+    }
+    # Las consultas previstas que ya se emitieron no se duplican al armar el
+    # plan de la corrida.
+    faltan <- max(0, adicional - emitidas)
+    total <- emitidas + faltan
+    data.frame(
+      clase_consulta = clase, n_consultas = total,
+      n_consultas_max = total, n_emitidas = emitidas,
+      stringsAsFactors = FALSE
+    )
+  })
+  salida <- do.call(rbind, salida)
+  rownames(salida) <- NULL
+  salida
+}
+
+.sumar_capacidades_plan_dbi <- function(capacidades, adicionales) {
+  vacia <- data.frame(
+    clase_consulta = character(), n_consultas = numeric(),
+    n_consultas_max = numeric(), n_emitidas = numeric(),
+    stringsAsFactors = FALSE
+  )
+  salida <- if (is.data.frame(capacidades)) capacidades else vacia
+  if (!"n_emitidas" %in% names(salida)) salida$n_emitidas <- 0
+  if (is.null(adicionales) || !nrow(adicionales)) return(salida)
+  for (i in seq_len(nrow(adicionales))) {
+    clase <- as.character(adicionales$clase_consulta[[i]])
+    n <- as.numeric(adicionales$n_consultas[[i]])
+    maximo <- as.numeric(adicionales$n_consultas_max[[i]])
+    posicion <- match(clase, salida$clase_consulta)
+    if (is.na(posicion)) {
+      salida <- rbind(salida, data.frame(
+        clase_consulta = clase, n_consultas = n,
+        n_consultas_max = maximo, n_emitidas = 0,
+        stringsAsFactors = FALSE
+      ))
+    } else {
+      salida$n_consultas[[posicion]] <- max(
+        salida$n_consultas[[posicion]], n
+      )
+      salida$n_consultas_max[[posicion]] <- max(
+        salida$n_consultas_max[[posicion]], maximo
+      )
+    }
+  }
+  rownames(salida) <- NULL
+  salida
+}
+
+.detalle_conciliacion_consultas_vacio_dbi <- function() {
+  data.frame(
+    direccion = character(), clase_consulta = character(),
+    n_anunciadas = numeric(), n_emitidas = numeric(), diferencia = numeric(),
+    motivo = character(), stringsAsFactors = FALSE
+  )
+}
+
+.totales_plan_consultas_dbi <- function(plan, extra = 0, reintento = 0) {
+  if (!is.data.frame(plan) || !nrow(plan)) {
+    return(list(total = 0, minimo = 0, maximo = 0))
+  }
+  minimo <- sum(as.numeric(plan$n_consultas), na.rm = TRUE)
+  maximas <- if ("n_consultas_max" %in% names(plan)) {
+    as.numeric(plan$n_consultas_max)
+  } else {
+    as.numeric(plan$n_consultas)
+  }
+  maximo <- sum(maximas, na.rm = TRUE) + extra + reintento
+  list(total = minimo, minimo = minimo, maximo = maximo)
+}
+
+.atributos_conciliacion_dbi <- function(conciliacion, plan) {
+  if (!is.list(conciliacion)) return(conciliacion)
+  totales <- .totales_plan_consultas_dbi(plan)
+  attr(conciliacion, "total") <- attr(plan, "total", exact = TRUE) %||%
+    totales$total
+  attr(conciliacion, "total_minimo") <-
+    attr(plan, "total_minimo", exact = TRUE) %||% totales$minimo
+  attr(conciliacion, "total_maximo") <-
+    attr(plan, "total_maximo", exact = TRUE) %||% totales$maximo
+  attr(conciliacion, "total_lotes_rechazados") <-
+    attr(plan, "total_lotes_rechazados", exact = TRUE)
+  conciliacion
+}
+
+.tabla_sin_valores_dbi <- function(columnas) {
+  if (!is.data.frame(columnas) || !nrow(columnas) ||
+      !"n_validos" %in% names(columnas)) {
+    return(FALSE)
+  }
+  validos <- suppressWarnings(as.numeric(columnas$n_validos))
+  length(validos) == nrow(columnas) && all(is.finite(validos)) &&
+    all(validos == 0)
+}
+
+.clase_consulta_por_etapa_dbi <- function(etapa, clases) {
+  etapa <- if (length(etapa) == 1L && !is.na(etapa)) {
+    as.character(etapa)
+  } else {
+    "consulta"
+  }
+  capacidad <- .clase_capacidad_dbi(etapa)
+  if (!is.na(capacidad) && capacidad %in% clases) return(capacidad)
+  buscar <- function(fragmento) {
+    posiciones <- grepl(
+      fragmento, clases, fixed = TRUE, useBytes = TRUE
+    )
+    if (any(posiciones)) clases[which(posiciones)[[1L]]] else NA_character_
+  }
+  if (etapa %in% c("guardas_faltantes", "faltantes_disfrazados")) {
+    return(buscar("conteos de faltantes"))
+  }
+  if (etapa %in% c("conteos")) {
+    clase <- buscar("distintos por lotes")
+    if (!is.na(clase)) return(clase)
+    return(buscar("agregados planos"))
+  }
+  if (etapa %in% c("duplicados_exactos")) {
+    return(buscar("duplicados exactos"))
+  }
+  if (etapa %in% c("moda")) return(buscar("moda ("))
+  if (etapa %in% c("mediana", "medianas_consolidadas")) {
+    return(buscar("mediana ("))
+  }
+  if (etapa %in% c(
+    "basicos", "basicos_escalados", "desvio", "media_desvio",
+    "media_escalada", "agregados", "conteo_filas", "sonda_magnitud",
+    "sonda_infinitos"
+  )) {
+    clase <- buscar("agregados planos")
+    if (is.na(clase)) clase <- buscar("total exacto")
+    return(clase)
+  }
+  if (etapa %in% c("verificacion_orden")) {
+    return(buscar("verificacion de unicidad"))
+  }
+  if (etapa %in% c(
+    "lectura_muestra", "materializacion_muestra", "lectura_spool_muestra",
+    "sonda_lectura_muestra", "sonda_bytes_muestra", "faltantes_disfrazados"
+  )) {
+    clase <- if (etapa == "faltantes_disfrazados") {
+      buscar("conteos de faltantes")
+    } else {
+      buscar("muestra")
+    }
+    if (!is.na(clase)) return(clase)
+  }
+  buscar("portones (")
+}
+
+.plan_ejecutado_consultas_dbi <- function(plan, presupuesto,
+                                          consultas_antes_resumen = 0L,
+                                          tabla_vacia = FALSE,
+                                          muestra_no_disponible = FALSE) {
+  if (!is.data.frame(plan) || !nrow(plan)) return(plan)
+  clases <- as.character(plan$clase_consulta)
+  bruto <- plan
+  bruto$n_consultas <- 0
+  bruto$n_consultas_max <- 0
+  porton <- .clase_consulta_por_etapa_dbi("porton", clases)
+  eventos <- if (is.null(presupuesto)) character() else {
+    as.character(presupuesto$consultas_emitidas)
+  }
+  antes <- suppressWarnings(as.integer(consultas_antes_resumen))
+  if (length(antes) != 1L || is.na(antes) || antes < 0L) antes <- 0L
+  registrar_eventos <- function(etapas, antes_de_resumen = FALSE) {
+    if (!length(etapas)) return(invisible(NULL))
+    for (etapa in etapas) {
+      clase <- if (isTRUE(antes_de_resumen) && is.na(
+        .clase_capacidad_dbi(etapa)
+      )) {
+        porton
+      } else {
+        .clase_consulta_por_etapa_dbi(etapa, clases)
+      }
+      if (is.na(clase)) clase <- porton
+      if (is.na(clase)) clase <- clases[[1L]]
+      posicion <- match(clase, clases)
+      cuentas <- bruto$n_consultas
+      cuentas[[posicion]] <- cuentas[[posicion]] + 1
+      bruto$n_consultas <<- cuentas
+    }
+    invisible(NULL)
+  }
+  registrar_eventos(
+    eventos[seq_len(min(length(eventos), antes))], antes_de_resumen = TRUE
+  )
+  desde <- min(length(eventos), antes) + 1L
+  if (desde <= length(eventos)) {
+    registrar_eventos(eventos[seq.int(desde, length(eventos))])
+  }
+  bruto$n_consultas_max <- bruto$n_consultas
+  ejecutado <- plan
+  ejecutado$n_consultas_max <- plan$n_consultas_max
+  clases_condicionales <- which(
+    !is.na(plan$n_consultas_max) &
+      (is.na(plan$n_consultas) |
+       plan$n_consultas_max > plan$n_consultas)
+  )
+  for (posicion in clases_condicionales) {
+    if (is.na(plan$n_consultas[[posicion]]) &&
+        is.finite(bruto$n_consultas[[posicion]])) {
+      ejecutado$n_consultas[[posicion]] <- bruto$n_consultas[[posicion]]
+    } else if (bruto$n_consultas[[posicion]] > plan$n_consultas[[posicion]]) {
+      ejecutado$n_consultas[[posicion]] <- bruto$n_consultas[[posicion]]
+    }
+  }
+  guardas <- if (is.null(presupuesto)) 0 else {
+    suppressWarnings(as.numeric(presupuesto$guardas_faltantes_emitidas %||% 0L))
+  }
+  clases_guardas <- grep(
+    "conteos de faltantes disfrazados", clases, fixed = TRUE, useBytes = TRUE
+  )
+  if (length(clases_guardas) && is.finite(guardas) && guardas > 0) {
+    for (posicion in clases_guardas) {
+      esperado <- if (is.na(plan$n_consultas[[posicion]])) {
+        0
+      } else plan$n_consultas[[posicion]]
+      ejecutado$n_consultas[[posicion]] <- max(
+        ejecutado$n_consultas[[posicion]], esperado + guardas
+      )
+    }
+  }
+  if (isTRUE(tabla_vacia)) {
+    clase_mediana <- .clase_consulta_por_etapa_dbi("mediana", clases)
+    if (!is.na(clase_mediana)) {
+      posicion_mediana <- match(clase_mediana, clases)
+      ejecutado$n_consultas[[posicion_mediana]] <- 0
+    }
+  }
+  if (isTRUE(muestra_no_disponible)) {
+    clases_muestra <- which(plan$alcance == "lee una muestra del motor")
+    if (length(clases_muestra)) ejecutado$n_consultas[clases_muestra] <- 0
+  }
+  fallas <- if (is.null(presupuesto)) list() else c(
+    presupuesto$fallas_consultas, presupuesto$fallas_sondas
+  )
+  motivos <- if (length(fallas)) vapply(fallas, function(falla) {
+    as.character(falla$motivo %||% "")
+  }, character(1L)) else character()
+  relevantes <- length(motivos) && any(grepl(
+    "COUNT\\(DISTINCT|LIMIT|MAX\\(", motivos, perl = TRUE,
+    useBytes = TRUE
+  ))
+  fallas_publicas <- if (is.null(presupuesto)) list() else {
+    presupuesto$fallas_consultas
+  }
+  etapas <- if (length(fallas_publicas)) {
+    vapply(fallas_publicas, function(falla) {
+      as.character(falla$etapa %||% "consulta")
+    }, character(1L))
+  } else character()
+  if (relevantes) etapas <- c(etapas, vapply(fallas, function(falla) {
+    motivo <- as.character(falla$motivo %||% "")
+    if (grepl(
+      "COUNT\\(DISTINCT|LIMIT|MAX\\(", motivo, perl = TRUE,
+      useBytes = TRUE
+    )) as.character(falla$etapa %||% "consulta") else NA_character_
+  }, character(1L)))
+  etapas <- etapas[!is.na(etapas)]
+  clases_afectadas <- if (length(etapas)) unique(vapply(
+    etapas, .clase_consulta_por_etapa_dbi, character(1L), clases = clases
+  )) else character()
+  clases_afectadas <- clases_afectadas[!is.na(clases_afectadas)]
+  for (clase in clases_afectadas) {
+    posicion <- match(clase, clases)
+    ejecutado$n_consultas[[posicion]] <- bruto$n_consultas[[posicion]]
+    ejecutado$n_consultas_max[[posicion]] <- bruto$n_consultas_max[[posicion]]
+  }
+  ejecutado
+}
+
+.fallas_conciliacion_consultas_dbi <- function(presupuesto, clases,
+                                               clase = NA_character_) {
+  if (is.null(presupuesto)) return(character())
+  fallas <- c(presupuesto$fallas_consultas, presupuesto$fallas_sondas)
+  if (!length(fallas)) return(character())
+  salida <- vapply(fallas, function(falla) {
+    etapa <- as.character(falla$etapa %||% "consulta")
+    motivo <- as.character(falla$motivo %||% "el motor la rechazo")
+    paste0("`", etapa, "`: ", motivo)
+  }, character(1L))
+  if (length(clase) == 1L && !is.na(clase)) {
+    relevantes <- vapply(fallas, function(falla) {
+      etapa <- as.character(falla$etapa %||% "consulta")
+      capacidad_falla <- .clase_capacidad_dbi(etapa)
+      if (!is.na(capacidad_falla) && !identical(capacidad_falla, clase)) {
+        return(FALSE)
+      }
+      clase_falla <- .clase_consulta_por_etapa_dbi(etapa, clases)
+      identical(clase_falla, clase)
+    }, logical(1L))
+    if (any(relevantes)) salida <- salida[relevantes]
+  }
+  unique(salida)
+}
+
+.clase_residual_conciliacion_dbi <- function(presupuesto, clases) {
+  fallas <- if (is.null(presupuesto)) list() else c(
+    presupuesto$fallas_consultas, presupuesto$fallas_sondas
+  )
+  if (length(fallas)) {
+    for (falla in fallas) {
+      clase <- .clase_consulta_por_etapa_dbi(
+        as.character(falla$etapa %||% "consulta"), clases
+      )
+      if (!is.na(clase) && is.na(.clase_capacidad_dbi(
+        as.character(falla$etapa %||% "consulta")
+      ))) return(clase)
+    }
+  }
+  porton <- .clase_consulta_por_etapa_dbi("porton", clases)
+  if (!is.na(porton)) porton else clases[[1L]]
+}
+
+.detalle_presupuesto_conciliacion_dbi <- function(presupuesto, clases) {
+  if (is.null(presupuesto) || !isTRUE(presupuesto$agotado) ||
+      !length(clases)) {
+    return(.detalle_conciliacion_consultas_vacio_dbi())
+  }
+  bloqueadas <- as.character(presupuesto$consultas_bloqueadas %||%
+    character())
+  guardas_bloqueadas <- suppressWarnings(as.numeric(
+    presupuesto$guardas_faltantes_bloqueadas %||% 0L
+  ))
+  clases_presupuesto <- character()
+  if (is.finite(guardas_bloqueadas) && guardas_bloqueadas > 0) {
+    clase_guardas <- .clase_consulta_por_etapa_dbi(
+      "guardas_faltantes", clases
+    )
+    if (!is.na(clase_guardas)) clases_presupuesto <- c(
+      clases_presupuesto, clase_guardas
+    )
+  }
+  if (length(bloqueadas)) {
+    for (etapa in bloqueadas) {
+      if (identical(etapa, "conteos") &&
+          is.finite(guardas_bloqueadas) && guardas_bloqueadas > 0) {
+        next
+      }
+      clase <- .clase_consulta_por_etapa_dbi(etapa, clases)
+      if (!is.na(clase)) clases_presupuesto <- c(clases_presupuesto, clase)
+    }
+  }
+  clases_presupuesto <- unique(clases_presupuesto)
+  if (!length(clases_presupuesto)) {
+    return(.detalle_conciliacion_consultas_vacio_dbi())
+  }
+  do.call(rbind, lapply(clases_presupuesto, function(clase) {
+    data.frame(
+      direccion = "presupuesto", clase_consulta = clase,
+      n_anunciadas = 0, n_emitidas = 0, diferencia = 0,
+      motivo = paste0(
+        "El presupuesto se agoto antes de emitir otra consulta de la",
+        " clase `", clase, "`; el recorte queda desfasado aunque el",
+        " emitido este dentro del rango anunciado."
+      ), stringsAsFactors = FALSE
+    )
+  }))
+}
+
+.aplicar_regla_presupuesto_conciliacion_dbi <- function(
+    conciliacion, presupuesto, clases = character()) {
+  if (!is.list(conciliacion) || is.null(presupuesto) ||
+      !isTRUE(presupuesto$agotado)) {
+    return(conciliacion)
+  }
+  presupuesto_detalle <- .detalle_presupuesto_conciliacion_dbi(
+    presupuesto, clases
+  )
+  if (nrow(presupuesto_detalle)) {
+    detalle <- conciliacion$detalle
+    if (!is.data.frame(detalle)) {
+      detalle <- .detalle_conciliacion_consultas_vacio_dbi()
+    }
+    detalle <- rbind(detalle, presupuesto_detalle)
+    clases_detalle <- unique(detalle$clase_consulta)
+    detalle <- do.call(rbind, lapply(clases_detalle, function(clase) {
+      filas <- detalle$clase_consulta == clase
+      diferencia <- sum(detalle$diferencia[filas])
+      direcciones <- as.character(detalle$direccion[filas])
+      motivos <- as.character(detalle$motivo[filas])
+      motivos <- unique(motivos[!is.na(motivos) & nzchar(motivos)])
+      direccion <- if (all(direcciones == "condicional")) {
+        "condicional"
+      } else if (all(direcciones == "presupuesto")) {
+        "presupuesto"
+      } else if (any(direcciones == "mixta")) {
+        "mixta"
+      } else if (diferencia < 0) {
+        "no_emitida"
+      } else if (diferencia > 0) {
+        "no_anunciada"
+      } else {
+        "mixta"
+      }
+      data.frame(
+        direccion = direccion, clase_consulta = clase,
+        n_anunciadas = sum(detalle$n_anunciadas[filas]),
+        n_emitidas = sum(detalle$n_emitidas[filas]),
+        diferencia = diferencia,
+        motivo = if (length(motivos)) paste(motivos, collapse = "; ") else
+          NA_character_, stringsAsFactors = FALSE
+      )
+    }))
+    rownames(detalle) <- NULL
+    conciliacion$detalle <- detalle
+  }
+  conciliacion$estado <- "desfasado"
+  conciliacion
+}
+
+.conciliacion_consultas_sin_plan_dbi <- function(consultas,
+                                                 presupuesto = NULL) {
+  emitidas <- if (is.list(consultas)) {
+    suppressWarnings(as.numeric(consultas$emitidas))
+  } else NA_real_
+  if (length(emitidas) != 1L || is.na(emitidas)) emitidas <- 0
+  .aplicar_regla_presupuesto_conciliacion_dbi(list(
+    estado = "conciliado", anunciadas = emitidas, emitidas = emitidas,
+    diferencia = 0, detalle = .detalle_conciliacion_consultas_vacio_dbi()
+  ), presupuesto)
+}
+
+.motivo_conciliacion_consultas_dbi <- function(preparacion, presupuesto,
+                                               clase, direccion,
+                                               clases = clase) {
+  muestreo <- if (is.null(preparacion)) NULL else preparacion$muestreo
+  n_total <- if (is.null(preparacion)) NA_real_ else {
+    suppressWarnings(as.numeric(preparacion$n_total))
+  }
+  if (identical(direccion, "no_emitida") && length(n_total) == 1L &&
+      is.finite(n_total) && n_total == 0 && grepl(
+        "^mediana \\(", clase, perl = TRUE, useBytes = TRUE
+      )) {
+    return(paste0(
+      "La tabla esta vacia: la clase `", clase,
+      "` no era necesaria y no se emitio."
+    ))
+  }
+  if (identical(direccion, "no_emitida") && is.list(muestreo) &&
+      identical(preparacion$universo, "muestra_motor") &&
+      !isTRUE(muestreo$disponible)) {
+    motivo <- muestreo$motivo %||%
+      "La muestra del motor no quedo disponible."
+    fallas <- if (is.null(presupuesto)) list() else presupuesto$fallas_sondas
+    posiciones <- if (length(fallas)) vapply(fallas, function(falla) {
+      identical(as.character(falla$etapa), "sonda_muestreo")
+    }, logical(1L)) else logical()
+    fallas <- fallas[posiciones]
+    if (length(fallas)) {
+      detalle <- fallas[[length(fallas)]]$motivo %||% NA_character_
+      if (length(detalle) == 1L && !is.na(detalle) && nzchar(detalle)) {
+        motivo <- paste0(motivo, "; la sonda fue rechazada: ", detalle)
+      }
+    }
+    return(paste0(
+      "La clase `", clase, "` no corrio porque la muestra del motor no quedo",
+      " disponible: ", as.character(motivo), "."
+    ))
+  }
+  if (identical(direccion, "no_emitida") && !is.null(presupuesto) &&
+      isTRUE(presupuesto$agotado)) {
+    return(paste0(
+      "La clase `", clase, "` no corrio porque una consulta previa agoto el",
+      " presupuesto: ", .motivo_presupuesto_dbi(presupuesto)
+    ))
+  }
+  if (identical(direccion, "no_emitida") && is.list(preparacion) &&
+      isTRUE(preparacion$tabla_sin_valores)) {
+    return(paste0(
+      "La clase `", clase,
+      "` no corrio porque no hay valores no nulos en la tabla; sus consultas",
+      " no hacen falta."
+    ))
+  }
+  fallas <- .fallas_conciliacion_consultas_dbi(
+    presupuesto, clases, clase
+  )
+  if (identical(direccion, "no_emitida") && length(fallas)) {
+    return(paste0(
+      "La clase `", clase, "` no corrio porque una consulta previa fallo",
+      " y dejo sin saldo esta clase: ", paste(fallas, collapse = "; "), "."
+    ))
+  }
+  if (identical(direccion, "no_anunciada")) {
+    if (length(fallas)) {
+      return(paste0(
+        "La clase `", clase, "` fue emitida por reintentos o una via de",
+        " respaldo despues de una falla: ", paste(fallas, collapse = "; "),
+        "."
+      ))
+    }
+    return(paste0(
+      "La clase `", clase, "` fue emitida por la corrida, pero no estaba en",
+      " el plan anunciado."
+    ))
+  }
+  paste0(
+    "La clase `", clase, "` no corrio por una decision de la preparacion;",
+    " revisar `resumen_tabla$meta$consultas$sondas_fallidas`."
+  )
+}
+
+.motivo_conciliacion_condicional_dbi <- function(clase, esperado, maximo,
+                                                 emitidas) {
+  paste0(
+    "La clase `", clase, "` tenia ", esperado,
+    " consulta", if (esperado == 1) "" else "s", " en el caso esperado y ",
+    "hasta ", maximo, " en el peor caso; emitio ", emitidas,
+    " porque los datos activaron consultas condicionales."
+  )
+}
+
+.conciliar_consultas_dbi <- function(plan_anunciado, plan_ejecutado,
+                                     emitidas, preparacion, presupuesto) {
+  detalle_vacio <- .detalle_conciliacion_consultas_vacio_dbi()
+  filas_plan <- function(plan) {
+    if (!is.data.frame(plan) || !nrow(plan) ||
+        !all(c("clase_consulta", "n_consultas") %in% names(plan))) {
+      return(data.frame(
+        clase_consulta = character(), n_consultas = numeric(),
+        n_consultas_max = numeric(),
+        stringsAsFactors = FALSE
+      ))
+    }
+    maximas <- if ("n_consultas_max" %in% names(plan)) {
+      as.numeric(plan$n_consultas_max)
+    } else {
+      as.numeric(plan$n_consultas)
+    }
+    data.frame(
+      clase_consulta = as.character(plan$clase_consulta),
+      n_consultas = as.numeric(plan$n_consultas),
+      n_consultas_max = maximas, stringsAsFactors = FALSE
+    )
+  }
+  sumar_clases <- function(filas) {
+    if (!nrow(filas)) return(filas)
+    clases <- unique(filas$clase_consulta)
+    salida <- lapply(clases, function(clase) {
+      data.frame(
+        clase_consulta = clase,
+        n_consultas = sum(filas$n_consultas[
+          filas$clase_consulta == clase
+        ]),
+        n_consultas_max = sum(filas$n_consultas_max[
+          filas$clase_consulta == clase
+        ]),
+        stringsAsFactors = FALSE
+      )
+    })
+    salida <- do.call(rbind, salida)
+    rownames(salida) <- NULL
+    salida
+  }
+  anunciado <- sumar_clases(filas_plan(plan_anunciado))
+  ejecutado <- sumar_clases(filas_plan(plan_ejecutado))
+  clases <- unique(c(anunciado$clase_consulta, ejecutado$clase_consulta))
+  if (!length(clases)) {
+    return(.aplicar_regla_presupuesto_conciliacion_dbi(list(
+      estado = "conciliado", anunciadas = 0, emitidas = as.numeric(emitidas),
+      diferencia = as.numeric(emitidas), detalle = detalle_vacio
+    ), presupuesto))
+  }
+  anunciadas_resueltas <- numeric(length(clases))
+  filas <- lapply(clases, function(clase) {
+    anunciado_clase <- anunciado$n_consultas[
+      anunciado$clase_consulta == clase
+    ]
+    n_emitidas <- sum(ejecutado$n_consultas[
+      ejecutado$clase_consulta == clase
+    ])
+    n_anunciadas <- sum(anunciado_clase, na.rm = TRUE)
+    anunciadas_resueltas[match(clase, clases)] <<- n_anunciadas
+    diferencia <- n_emitidas - n_anunciadas
+    n_maximas <- sum(anunciado$n_consultas_max[
+      anunciado$clase_consulta == clase
+    ])
+    fallas <- .fallas_conciliacion_consultas_dbi(
+      presupuesto, clases, clase
+    )
+    condicional <- diferencia > 0 && is.finite(n_maximas) &&
+      n_emitidas <= n_maximas &&
+      (anyNA(anunciado_clase) || !length(fallas))
+    direccion <- if (diferencia < 0) "no_emitida" else if (condicional) {
+      "condicional"
+    } else "no_anunciada"
+    data.frame(
+      direccion = direccion, clase_consulta = clase,
+      n_anunciadas = n_anunciadas, n_emitidas = n_emitidas,
+      diferencia = diferencia,
+      motivo = if (diferencia == 0) NA_character_ else if (condicional) {
+        .motivo_conciliacion_condicional_dbi(
+          clase, n_anunciadas, n_maximas, n_emitidas
+        )
+      } else
+        .motivo_conciliacion_consultas_dbi(
+          preparacion, presupuesto, clase, direccion, clases = clases
+        ), stringsAsFactors = FALSE
+    )
+  })
+  detalle <- do.call(rbind, filas)
+  detalle <- detalle[detalle$diferencia != 0, , drop = FALSE]
+  no_clasificadas <- emitidas - sum(
+    as.numeric(ejecutado$n_consultas), na.rm = TRUE
+  )
+  if (no_clasificadas > 0 && isTRUE(preparacion$tabla_sin_valores)) {
+    medianas <- grepl(
+      "^mediana \\(", anunciado$clase_consulta,
+      perl = TRUE, useBytes = TRUE
+    )
+    omitidas <- sum(anunciado$n_consultas[medianas] -
+      ejecutado$n_consultas[medianas])
+    if (is.finite(omitidas) && omitidas > 0) {
+      no_clasificadas <- max(0, no_clasificadas - omitidas)
+    }
+  }
+  if (no_clasificadas != 0) {
+    direccion <- if (no_clasificadas > 0) "no_anunciada" else "no_emitida"
+    clase <- .clase_residual_conciliacion_dbi(presupuesto, clases)
+    detalle <- rbind(
+      detalle,
+      data.frame(
+        direccion = direccion, clase_consulta = clase,
+        n_anunciadas = max(0, -no_clasificadas),
+        n_emitidas = max(0, no_clasificadas),
+        diferencia = no_clasificadas,
+        motivo = .motivo_conciliacion_consultas_dbi(
+          preparacion, presupuesto, clase, direccion, clases = clases
+        ), stringsAsFactors = FALSE
+      )
+    )
+  }
+  consolidar_detalle <- function(detalle) {
+    if (!nrow(detalle)) return(detalle)
+    clases_detalle <- unique(detalle$clase_consulta)
+    salida <- lapply(clases_detalle, function(clase) {
+      filas_clase <- detalle$clase_consulta == clase
+      diferencia <- sum(detalle$diferencia[filas_clase])
+      direcciones <- as.character(detalle$direccion[filas_clase])
+      motivos <- as.character(detalle$motivo[filas_clase])
+      motivos <- unique(motivos[!is.na(motivos) & nzchar(motivos)])
+      direccion <- if (all(direcciones == "condicional")) {
+        "condicional"
+      } else if (all(direcciones == "presupuesto")) {
+        "presupuesto"
+      } else if (diferencia < 0) {
+        "no_emitida"
+      } else if (diferencia > 0) {
+        "no_anunciada"
+      } else {
+        "mixta"
+      }
+      data.frame(
+        direccion = direccion,
+        clase_consulta = clase,
+        n_anunciadas = sum(detalle$n_anunciadas[filas_clase]),
+        n_emitidas = sum(detalle$n_emitidas[filas_clase]),
+        diferencia = diferencia,
+        motivo = if (length(motivos)) paste(motivos, collapse = "; ") else
+          NA_character_,
+        stringsAsFactors = FALSE
+      )
+    })
+    salida <- do.call(rbind, salida)
+    rownames(salida) <- NULL
+    salida
+  }
+  detalle <- consolidar_detalle(detalle)
+  rownames(detalle) <- NULL
+  fallas_capacidad <- if (is.null(presupuesto)) list() else {
+    presupuesto[[paste0("fallas_", "son", "das")]]
+  }
+  informativas <- if (nrow(detalle) && length(fallas_capacidad)) {
+    lapply(fallas_capacidad, function(falla) {
+      etapa <- as.character(falla$etapa %||% "consulta")
+      clase_capacidad <- .clase_capacidad_dbi(etapa)
+      if (is.na(clase_capacidad) || !clase_capacidad %in% clases) {
+        return(NULL)
+      }
+      posicion <- match(clase_capacidad, ejecutado$clase_consulta)
+      n <- if (is.na(posicion)) 0 else ejecutado$n_consultas[[posicion]]
+      maximo <- anunciado$n_consultas_max[
+        anunciado$clase_consulta == clase_capacidad
+      ]
+      motivo <- as.character(falla$motivo %||% "el motor rechazo la forma")
+      data.frame(
+        direccion = "capacidad", clase_consulta = clase_capacidad,
+        n_anunciadas = sum(anunciado$n_consultas[
+          anunciado$clase_consulta == clase_capacidad
+        ], na.rm = TRUE),
+        n_emitidas = n, diferencia = 0,
+        motivo = paste0(
+          "La capacidad fue rechazada en una candidata; no explica otra",
+          " diferencia. Motivo del motor: ", motivo,
+          if (length(maximo) && isTRUE(is.finite(maximo[[1L]]))) {
+            paste0(" (maximo anunciado ", maximo[[1L]], ").")
+          } else "."
+        ), stringsAsFactors = FALSE
+      )
+    })
+  } else list()
+  informativas <- Filter(Negate(is.null), informativas)
+  if (length(informativas)) {
+    informativas <- do.call(rbind, informativas)
+    informativas <- informativas[
+      !duplicated(informativas$clase_consulta), , drop = FALSE
+    ]
+    detalle <- rbind(detalle, informativas)
+    rownames(detalle) <- NULL
+  }
+  falla_presupuesto <- if (!is.null(presupuesto) &&
+                           length(presupuesto$fallas_consultas)) {
+    vapply(presupuesto$fallas_consultas, function(falla) {
+      identical(as.character(falla$tipo %||% ""), "presupuesto_agotado") &&
+        identical(as.character(falla$etapa %||% ""), "conteos")
+    }, logical(1L))
+  } else logical()
+  clase_agregados <- .clase_consulta_por_etapa_dbi("basicos", clases)
+  if (any(falla_presupuesto) && !is.na(clase_agregados) &&
+      grepl("agregados planos", clase_agregados, fixed = TRUE,
+            useBytes = TRUE) &&
+      !any(detalle$clase_consulta == clase_agregados)) {
+    n_agregados <- sum(anunciado$n_consultas[
+      anunciado$clase_consulta == clase_agregados
+    ], na.rm = TRUE)
+    detalle <- rbind(
+      detalle,
+      data.frame(
+        direccion = "mixta", clase_consulta = clase_agregados,
+        n_anunciadas = n_agregados, n_emitidas = n_agregados,
+        diferencia = 0,
+        motivo = paste0(
+          "La clase conserva su cuenta ante un presupuesto agotado; la via",
+          " de respaldo queda documentada para la corrida."
+        ), stringsAsFactors = FALSE
+      )
+    )
+    rownames(detalle) <- NULL
+  } else if (any(falla_presupuesto) && !is.na(clase_agregados) &&
+             grepl("agregados planos", clase_agregados, fixed = TRUE,
+                   useBytes = TRUE)) {
+    posicion_agregados <- match(clase_agregados, detalle$clase_consulta)
+    if (!is.na(posicion_agregados)) {
+      detalle$direccion[[posicion_agregados]] <- "mixta"
+      detalle$motivo[[posicion_agregados]] <- paste(
+        detalle$motivo[[posicion_agregados]],
+        paste0(
+          "La clase conserva su cuenta ante un presupuesto agotado; la via",
+          " de respaldo queda documentada para la corrida."
+        ), sep = "; "
+      )
+    }
+  }
+  anunciadas <- sum(anunciadas_resueltas)
+  emitidas <- as.numeric(emitidas)
+  detalle_diferencias <- detalle[detalle$diferencia != 0, , drop = FALSE]
+  solo_condicionales <- nrow(detalle_diferencias) > 0L && all(
+    detalle_diferencias$direccion == "condicional"
+  )
+  maximas <- sum(anunciado$n_consultas_max, na.rm = TRUE)
+  conciliacion <- list(
+    estado = if ((!nrow(detalle) && identical(anunciadas, emitidas)) ||
+                  (solo_condicionales && is.finite(maximas) &&
+                   emitidas <= maximas)) {
+      "conciliado"
+    } else {
+      "desfasado"
+    },
+    anunciadas = anunciadas, emitidas = emitidas,
+    diferencia = emitidas - anunciadas, detalle = detalle
+  )
+  .aplicar_regla_presupuesto_conciliacion_dbi(
+    conciliacion, presupuesto, clases
+  )
 }
 
 # Una sonda puede fallar por el motor o no haberse emitido por falta de saldo.
@@ -5826,7 +6735,7 @@
     celda <- .valor_campo_dbi(prueba$datos, "mediana")
     if (!isTRUE(celda$ok)) next
     valor <- .escalar_finito_dbi(celda$valor)
-    if (isTRUE(is.finite(valor)) &&
+      if (isTRUE(is.finite(valor)) &&
         isTRUE(all.equal(valor, 2.5, tolerance = 1e-8))) {
       elegida <- candidato
       break
@@ -6837,7 +7746,6 @@
         )
       ))
     }
-    if (isTRUE(presupuesto$agotado)) break
   }
   list(
     dialecto = dialectos$portable, sondas = sondas, declarado = FALSE,
@@ -6903,6 +7811,706 @@
   )
 }
 
+# La via de compilacion de cada motor. MySQL y MariaDB compilan con `PREPARE` y
+# no con `EXPLAIN`: su `EXPLAIN` ejecuta las tablas derivadas -`FROM (SELECT`,
+# `JOIN (SELECT`, la subconsulta despues de una coma- y las `WITH` para
+# planificar el resto (medido en MySQL 8.4 y MariaDB 11.8: un `SLEEP(1)` adentro
+# tarda 1 s), y reconocer esas formas en el texto falla abierta: la que no se
+# reconoce se ejecuta. `PREPARE` no ejecuta ninguna y, medido en los dos, rechaza
+# lo mismo que `EXPLAIN` -columna, tabla o funcion inexistente o sin permiso,
+# sintaxis, cantidad de argumentos de una funcion nativa-, salvo una vista que la
+# credencial lee sin ver sus tablas de base: ahi `EXPLAIN` falla y la lectura no.
+.metodo_compilacion_dbi <- function(motor) {
+  switch(
+    motor,
+    sqlite = "EXPLAIN QUERY PLAN",
+    duckdb = "EXPLAIN",
+    postgresql = "EXPLAIN",
+    mysql = "PREPARE",
+    mariadb = "PREPARE",
+    sqlserver = "SET NOEXEC ON",
+    NA_character_
+  )
+}
+
+.datos_compilacion_dbi <- function(sql) {
+  extraer <- function(patron, envolver = NULL) {
+    encontrados <- regmatches(
+      sql, gregexpr(patron, sql, perl = TRUE)
+    )[[1L]]
+    if (!length(encontrados) || identical(encontrados, "-1")) {
+      return(character())
+    }
+    alias <- sub("(?s)^.*[Aa][Ss][[:space:]]+", "", encontrados, perl = TRUE)
+    if (!is.null(envolver)) alias <- gsub(envolver, "", alias, perl = TRUE)
+    alias
+  }
+  alias <- unique(c(
+    extraer("\\b[Aa][Ss][[:space:]]+\"[^\"]+\"", "^\"|\"$"),
+    extraer("\\b[Aa][Ss][[:space:]]+`[^`]+`", "^`|`$"),
+    extraer("\\b[Aa][Ss][[:space:]]+\\[[^]]+\\]", "^\\[|\\]$"),
+    extraer(
+      "\\b[Aa][Ss][[:space:]]+[A-Za-z_][A-Za-z0-9_]*"
+    )
+  ))
+  alias <- alias[nzchar(alias)]
+  if (!length(alias)) return(data.frame(stringsAsFactors = FALSE))
+  datos <- as.data.frame(
+    setNames(rep(list(0), length(alias)), alias),
+    stringsAsFactors = FALSE
+  )
+  cardinales <- grepl(
+    "(^|_)(n_total|n_filas|n_validos|n_universo|n_den|n_num)(_|$)",
+    alias, perl = TRUE, useBytes = TRUE
+  )
+  datos[cardinales] <- lapply(datos[cardinales], function(x) 100)
+  datos
+}
+
+# La sentencia viaja adentro de la orden, como literal: la guarda de
+# codificacion de los envios tiene que verla igual que si se mandara sola. El
+# nombre es unico por sentencia -uno fijo pisaba, y despues liberaba, una
+# sentencia preparada del usuario con ese nombre-, y se libera tambien si el
+# envio se interrumpe, porque no se sabe si llego a prepararse.
+.compilar_prepare_dbi <- function(conexion, sql, estado = NULL) {
+  nombre <- .nombre_compilacion_dbi(estado)
+  orden <- paste0(
+    "PREPARE ", nombre, " FROM ",
+    as.character(DBI::dbQuoteString(conexion, sql))
+  )
+  .exigir_sentencia_representable_dbi(conexion, orden)
+  paso <- "pidiendo"
+  on.exit(if (!identical(paso, "rechazada")) {
+    # MySQL y MariaDB no abortan la transaccion por el error de una sentencia:
+    # liberar una que no llego a prepararse solo falla.
+    liberada <- .orden_de_restauracion_dbi(
+      conexion, paste0("DEALLOCATE PREPARE ", nombre)
+    )
+    if (!is.null(liberada$interrupcion)) .detener(liberada$interrupcion)
+  }, add = TRUE)
+  tryCatch(
+    .con_guarda_transaccion_dbi(conexion, function() {
+      .orden_transaccion_dbi(conexion, orden)
+    }),
+    error = function(e) {
+      if (!.es_interrupcion_dbi(e)) paso <<- "rechazada"
+      .detener(e)
+    }
+  )
+  paso <- "preparada"
+  invisible(TRUE)
+}
+
+# Nombres de lo que la compilacion crea en la sesion -la sentencia preparada de
+# MySQL y MariaDB, el punto de guardado de PostgreSQL-: unicos por llamada y por
+# sentencia, para no pisar uno del usuario ni uno de otra llamada.
+.marca_compilacion_dbi <- function() {
+  paste0(
+    Sys.getpid(), "_",
+    gsub("[^0-9]", "", format(Sys.time(), "%Y%m%d%H%M%OS6"), useBytes = TRUE)
+  )
+}
+
+.nombre_compilacion_dbi <- function(estado = NULL) {
+  if (!is.environment(estado)) {
+    return(paste0("lupa_compilar_", .marca_compilacion_dbi(), "_1"))
+  }
+  if (is.null(estado$marca)) estado$marca <- .marca_compilacion_dbi()
+  estado$nombres <- (estado$nombres %||% 0L) + 1L
+  paste0("lupa_compilar_", estado$marca, "_", estado$nombres)
+}
+
+# El resultado se cierra antes de volver: en SQL Server lo que sigue -apagar
+# NOEXEC- no puede salir con el resultado abierto.
+.compilar_envio_dbi <- function(conexion, sentencia) {
+  resultado <- .enviar_consulta_dbi(conexion, sentencia)
+  on.exit(.limpiar_consulta_dbi(resultado, conexion), add = TRUE)
+  invisible(TRUE)
+}
+
+# SQL Server compila sin ejecutar con `SET NOEXEC ON`, que es un estado de la
+# SESION: mientras siga prendido, todo lo que se mande por la conexion -tambien
+# lo del usuario despues de la llamada- se compila y no se ejecuta, y sin error:
+# un `SELECT` devuelve cero filas y un `INSERT` no inserta. Con odbc y FreeTDS,
+# mandar `SET NOEXEC OFF` con el resultado de la consulta compilada todavia
+# abierto cancela ese resultado ("Cancelling previous query") y el `SET` falla
+# con "Unknown error": NOEXEC quedaba prendido. Por eso el resultado se cierra
+# primero, despues se apaga NOEXEC, y se comprueba que quedo apagado.
+#
+# La vigilancia de la transaccion del usuario envuelve el ciclo entero: bajo
+# NOEXEC su consulta de `@@TRANCOUNT` tampoco se ejecuta y no veria nada.
+#
+# Y con `XACT_ABORT ON`, una columna que no existe deshace la transaccion
+# abierta del usuario tambien bajo NOEXEC (medido: `@@TRANCOUNT` de 1 a 0 y la
+# fila que el usuario habia insertado, perdida). Encontrar esas sentencias es lo
+# que se le pide a la compilacion: con una transaccion abierta, `XACT_ABORT` se
+# apaga mientras dura el ciclo y se vuelve a prender despues de apagar NOEXEC.
+.compilar_noexec_sqlserver_dbi <- function(conexion, sql, estado = NULL) {
+  .ejecutar_vigilado_dbi(conexion, "compilacion", function() {
+    abortar <- .xact_abort_en_transaccion_sqlserver_dbi(conexion, estado)
+    # Se restaura aunque el `SET` mismo falle: no se sabe si llego a aplicarse.
+    pendiente <- TRUE
+    on.exit(if (pendiente) {
+      .cerrar_noexec_sqlserver_dbi(conexion, abortar)
+    }, add = TRUE)
+    if (abortar) .orden_transaccion_dbi(conexion, "SET XACT_ABORT OFF")
+    .orden_transaccion_dbi(conexion, "SET NOEXEC ON")
+    falla <- tryCatch({
+      .compilar_envio_dbi(conexion, sql)
+      NULL
+    }, error = function(e) e)
+    pendiente <- FALSE
+    # Una interrupcion en el envio puede dejar al controlador a mitad de una
+    # respuesta: si NOEXEC no se puede apagar, el error de conexion manda y lo
+    # dice; si se apago, la interrupcion sigue su curso.
+    .cerrar_noexec_sqlserver_dbi(
+      conexion, abortar,
+      causa = if (.es_interrupcion_dbi(falla)) falla
+    )
+    if (!is.null(falla)) .detener(falla)
+    list(ok = TRUE)
+  })
+}
+
+# `XACT_ABORT` y la transaccion no cambian durante la compilacion -se restauran
+# en cada sentencia-: se leen una vez.
+.xact_abort_en_transaccion_sqlserver_dbi <- function(conexion, estado = NULL) {
+  if (is.environment(estado) && !is.null(estado$xact_abort_sqlserver)) {
+    return(estado$xact_abort_sqlserver)
+  }
+  datos <- tryCatch(
+    .orden_transaccion_dbi(conexion, paste(
+      "SELECT @@TRANCOUNT AS lupa_trancount,",
+      "CASE WHEN (@@OPTIONS & 16384) = 16384 THEN 1 ELSE 0 END",
+      "AS lupa_xact_abort"
+    ), traer = TRUE),
+    error = function(e) {
+      if (.es_interrupcion_dbi(e)) .detener(e)
+      NULL
+    }
+  )
+  valor <- is.data.frame(datos) && nrow(datos) == 1L &&
+    isTRUE(suppressWarnings(as.numeric(datos[[1L]][[1L]])) > 0) &&
+    isTRUE(suppressWarnings(as.numeric(datos[[2L]][[1L]])) == 1)
+  if (is.environment(estado)) estado$xact_abort_sqlserver <- valor
+  valor
+}
+
+.cerrar_noexec_sqlserver_dbi <- function(conexion, abortar, causa = NULL) {
+  interrupcion <- .apagar_noexec_sqlserver_dbi(conexion, causa)
+  if (isTRUE(abortar)) {
+    prender <- .orden_de_restauracion_dbi(conexion, "SET XACT_ABORT ON")
+    mirar <- if (isTRUE(prender$ok)) .orden_de_restauracion_dbi(
+      conexion,
+      "SELECT CASE WHEN (@@OPTIONS & 16384) = 16384 THEN 1 ELSE 0 END AS lupa_xact_abort",
+      traer = TRUE
+    )
+    interrupcion <- interrupcion %||% prender$interrupcion %||% mirar$interrupcion
+    prendido <- isTRUE(mirar$ok) && is.data.frame(mirar$valor) &&
+      isTRUE(suppressWarnings(as.numeric(mirar$valor[[1L]][[1L]])) == 1)
+    if (!prendido) {
+      .detener_dbi(
+        "lupa_error_conexion_dbi",
+        paste(
+          "La compilaci\u00f3n apag\u00f3 `XACT_ABORT` en SQL Server para no deshacer",
+          "la transacci\u00f3n abierta y no pudo volver a prenderlo: la sesi\u00f3n no",
+          "qued\u00f3 como estaba. Ejecutar `SET XACT_ABORT ON` o cerrar la conexi\u00f3n",
+          "con `DBI::dbDisconnect()` y abrir otra."
+        )
+      )
+    }
+  }
+  # Todo quedo como estaba: una interrupcion que llego mientras se volvia sale
+  # ahora.
+  if (!is.null(interrupcion)) .detener(interrupcion)
+  invisible(TRUE)
+}
+
+# Bajo NOEXEC un `SELECT 1` devuelve cero filas y cero columnas, sin error: su
+# fila es la prueba de que NOEXEC quedo apagado. Un segundo intento cubre un
+# `SET` que el controlador perdio; si tampoco alcanza, la conexion ejecutaria
+# en silencio nada de lo que el usuario mande, y eso se dice en vez de devolver
+# el plan. Devuelve la interrupcion que haya llegado mientras tanto, para
+# levantarla cuando la sesion quede como estaba.
+.apagar_noexec_sqlserver_dbi <- function(conexion, causa = NULL) {
+  ultimo <- NULL
+  interrupcion <- NULL
+  for (intento in 1:2) {
+    apagar <- .orden_de_restauracion_dbi(conexion, "SET NOEXEC OFF")
+    prueba <- .orden_de_restauracion_dbi(
+      conexion, "SELECT 1 AS lupa_noexec", traer = TRUE
+    )
+    interrupcion <- interrupcion %||% apagar$interrupcion %||%
+      prueba$interrupcion
+    if (isTRUE(prueba$ok) && is.data.frame(prueba$valor) &&
+        nrow(prueba$valor) == 1L && ncol(prueba$valor) >= 1L &&
+        isTRUE(suppressWarnings(as.numeric(prueba$valor[[1L]][[1L]])) == 1)) {
+      return(invisible(interrupcion))
+    }
+    ultimo <- prueba$error %||% apagar$error %||% ultimo
+  }
+  .detener_dbi(
+    "lupa_error_conexion_dbi",
+    paste0(
+      "La compilaci\u00f3n dej\u00f3 la conexi\u00f3n de SQL Server inutilizable: ",
+      "no se pudo apagar `SET NOEXEC ON` (un `SELECT 1` no devolvi\u00f3 su fila), ",
+      "y mientras siga prendido todo lo que se mande por esta conexi\u00f3n se ",
+      "compila y no se ejecuta, sin error: un `SELECT` no devuelve filas y un ",
+      "`INSERT` no inserta. Cerrar la conexi\u00f3n con `DBI::dbDisconnect()` y ",
+      "abrir otra.",
+      if (is.null(causa %||% interrupcion)) "" else {
+        paste0(
+          " La compilaci\u00f3n se interrumpi\u00f3: ",
+          conditionMessage(causa %||% interrupcion), "."
+        )
+      },
+      if (is.null(ultimo) || .es_interrupcion_dbi(ultimo)) "" else {
+        paste0(" Motivo del motor: ", .mensaje_motor(ultimo))
+      }
+    )
+  )
+}
+
+# Una orden de la restauracion de la sesion a como estaba. Una interrupcion en medio
+# no la corta: si la orden se puede repetir sin efecto -apagar NOEXEC, volver a
+# un punto de guardado, deshacer la transaccion propia, liberar una sentencia
+# preparada con nombre unico-, se repite; si no, se da por no sabida. La
+# interrupcion se devuelve, para levantarla cuando todo haya vuelto.
+.orden_de_restauracion_dbi <- function(conexion, orden, traer = FALSE,
+                                 repetir = TRUE, intentos = 3L) {
+  interrupcion <- NULL
+  for (intento in seq_len(intentos)) {
+    respuesta <- tryCatch(
+      list(valor = .orden_transaccion_dbi(conexion, orden, traer = traer)),
+      error = function(e) list(error = e)
+    )
+    if (is.null(respuesta$error)) {
+      return(list(ok = TRUE, valor = respuesta$valor, interrupcion = interrupcion))
+    }
+    if (!.es_interrupcion_dbi(respuesta$error)) {
+      return(list(ok = FALSE, error = respuesta$error, interrupcion = interrupcion))
+    }
+    interrupcion <- respuesta$error
+    if (!isTRUE(repetir)) return(list(ok = NA, interrupcion = interrupcion))
+  }
+  list(ok = FALSE, error = interrupcion, interrupcion = interrupcion)
+}
+
+# PostgreSQL pliega las constantes al planificar: una funcion declarada
+# IMMUTABLE con argumentos constantes se ejecuta dentro del `EXPLAIN` (medido en
+# 16 y 9.3: una vista con una funcion IMMUTABLE que duerme 1 s tarda 1 s por cada
+# vez que la consulta la nombra, y compilar un plan sobre ella, 68 s contra 2,6 s
+# del plan). `PREPARE` no planifica y no la ejecuta, pero tampoco mira los
+# permisos, que se comprueban al iniciar el ejecutor: una columna o una funcion
+# sin permiso compilaba. Se queda `EXPLAIN`, que los ve, con un tope de tiempo
+# por sentencia: cada una va en una transaccion propia -o en un punto de guardado
+# dentro de la del usuario- con `SET LOCAL statement_timeout`, que dura hasta
+# volver: la sesion queda con el tope que tenia. Si la sesion tiene un tope
+# menor, manda el suyo.
+.TOPE_COMPILACION_POSTGRESQL_MS <- 2000L
+
+.tope_compilacion_postgresql_dbi <- function(conexion, estado = NULL) {
+  if (is.environment(estado) && !is.null(estado$tope_postgresql)) {
+    return(estado$tope_postgresql)
+  }
+  tope <- .TOPE_COMPILACION_POSTGRESQL_MS
+  propio <- tryCatch(
+    .con_guarda_transaccion_dbi(conexion, function() {
+      .orden_transaccion_dbi(
+        conexion,
+        "SELECT setting FROM pg_settings WHERE name = 'statement_timeout'",
+        traer = TRUE
+      )
+    })[[1L]][[1L]],
+    error = function(e) {
+      if (.es_interrupcion_dbi(e)) .detener(e)
+      NA_character_
+    }
+  )
+  propio <- suppressWarnings(as.numeric(as.character(propio)))
+  if (length(propio) == 1L && is.finite(propio) && propio > 0) {
+    tope <- min(tope, propio)
+  }
+  tope <- as.integer(max(1, floor(tope)))
+  if (is.environment(estado)) estado$tope_postgresql <- tope
+  tope
+}
+
+# La transaccion del usuario no se toca: si la hay, la sentencia va en un punto
+# de guardado propio y al volver se deshace solo eso; si no la hay, en una
+# transaccion propia que se revierte. Si la hay se sabe antes de compilar
+# (`.transaccion_para_compilar_dbi()`), no por si el `SAVEPOINT` falla: una
+# interrupcion al pedirlo se leia como "no hay transaccion", y la compilacion
+# mandaba `BEGIN` y `ROLLBACK` sobre la del usuario. El paso se anota antes de
+# cada orden y la limpieza deshace solo lo que se sabe abierto.
+.compilar_con_tope_postgresql_dbi <- function(conexion, sentencia, tope,
+                                              en_transaccion, estado = NULL) {
+  paso <- "nada"
+  nombre <- NULL
+  on.exit(.revertir_compilacion_postgresql_dbi(conexion, paso, nombre), add = TRUE)
+  abrir <- function(orden, despues) {
+    tryCatch(.orden_transaccion_dbi(conexion, orden), error = function(e) {
+      if (.es_interrupcion_dbi(e)) .detener(e)
+      .detener_dbi(
+        "lupa_error_transaccion_dbi",
+        paste0(
+          "La compilaci\u00f3n no pudo abrir ",
+          if (isTRUE(en_transaccion)) {
+            "su punto de guardado dentro de la transacci\u00f3n del usuario"
+          } else "su transacci\u00f3n propia",
+          " en PostgreSQL (`", orden, "`) y no compila nada m\u00e1s. ",
+          "Motivo del motor: ", .mensaje_motor(e)
+        )
+      )
+    })
+    paso <<- despues
+  }
+  if (isTRUE(en_transaccion)) {
+    nombre <- .nombre_compilacion_dbi(estado)
+    paso <- "pidiendo_punto"
+    abrir(paste0("SAVEPOINT ", nombre), "punto")
+  } else {
+    paso <- "pidiendo_transaccion"
+    abrir("BEGIN", "transaccion")
+  }
+  .orden_transaccion_dbi(
+    conexion, paste0("SET LOCAL statement_timeout = ", tope)
+  )
+  inicio <- proc.time()[["elapsed"]]
+  falla <- tryCatch({
+    .compilar_envio_dbi(conexion, sentencia)
+    NULL
+  }, error = function(e) e)
+  if (is.null(falla)) return(list(ok = TRUE))
+  if (.es_interrupcion_dbi(falla)) .detener(falla)
+  transcurrido <- (proc.time()[["elapsed"]] - inicio) * 1000
+  motivo <- .mensaje_motor(falla)
+  # El mensaje de la cancelacion sale en el idioma del servidor: el tiempo
+  # transcurrido la reconoce tambien cuando no dice "timeout".
+  vencida <- !inherits(falla, "lupa_error_dbi") && (
+    identical(.clasificar_falla_consulta_dbi(.sqlstate_dbi(falla), motivo),
+              "cancelada") || transcurrido >= tope
+  )
+  if (!vencida) .detener(falla)
+  list(
+    ok = TRUE, tope = TRUE,
+    motivo = paste0(
+      "La compilaci\u00f3n de la sentencia super\u00f3 el tope de ", tope,
+      " ms y PostgreSQL la cancel\u00f3: no se sabe si compila. Suele ser una ",
+      "funci\u00f3n declarada IMMUTABLE que lee datos -el planificador la ejecuta ",
+      "al plegar constantes- o la espera de un bloqueo. Motivo del motor: ",
+      motivo
+    )
+  )
+}
+
+# Se vuelve siempre, haya compilado o no: el `SET LOCAL` vive hasta el fin de la
+# transaccion -o hasta volver al punto de guardado- y, sin volver, el tope
+# quedaria puesto para lo que el usuario mande despues en la suya. Segun el paso
+# al que se llego:
+# - el punto de guardado existe: se vuelve a el y se lo suelta;
+# - se estaba pidiendo el punto: no se sabe si existe, y volver a uno que no
+#   existe es un error que aborta la transaccion del usuario. Se deja: un punto
+#   de guardado de mas no cambia nada de lo que el usuario confirme o deshaga;
+# - la transaccion propia, pedida o abierta: `ROLLBACK`. No hay del usuario -se
+#   sabe antes de empezar-, y si el `BEGIN` no llego el motor solo avisa.
+# Una interrupcion en medio de la restauracion no la corta. `ROLLBACK TO` y el
+# `ROLLBACK` propio se repiten -volver dos veces al mismo punto, o deshacer una
+# transaccion que ya no esta, no cambia nada-; `RELEASE` no, porque soltar un
+# punto que ya se solto es un error que aborta la transaccion del usuario, y un
+# punto que quedo sin soltar no la toca. La interrupcion sale despues. Si no se
+# puede volver, la conexion no queda como estaba y eso se dice.
+.revertir_compilacion_postgresql_dbi <- function(conexion, paso, nombre) {
+  ordenes <- switch(
+    paso,
+    punto = list(
+      list(orden = paste0("ROLLBACK TO SAVEPOINT ", nombre), repetir = TRUE),
+      list(orden = paste0("RELEASE SAVEPOINT ", nombre), repetir = FALSE)
+    ),
+    pidiendo_transaccion = ,
+    transaccion = list(list(orden = "ROLLBACK", repetir = TRUE)),
+    list()
+  )
+  interrupcion <- NULL
+  for (paso_restaurar in ordenes) {
+    restaurada <- .orden_de_restauracion_dbi(
+      conexion, paso_restaurar$orden, repetir = paso_restaurar$repetir
+    )
+    interrupcion <- interrupcion %||% restaurada$interrupcion
+    if (isFALSE(restaurada$ok)) {
+      .detener_dbi(
+        "lupa_error_conexion_dbi",
+        paste0(
+          "La compilaci\u00f3n no pudo volver de la transacci\u00f3n ",
+          if (identical(paso, "punto")) {
+            "del usuario al punto de guardado que abri\u00f3"
+          } else "propia que abri\u00f3",
+          " en PostgreSQL (`", paso_restaurar$orden, "`): la conexi\u00f3n no ",
+          "qued\u00f3 como estaba. Cerrar la conexi\u00f3n con ",
+          "`DBI::dbDisconnect()` y abrir otra. Motivo: ",
+          if (.es_interrupcion_dbi(restaurada$error)) {
+            conditionMessage(restaurada$error)
+          } else {
+            .mensaje_motor(restaurada$error)
+          }
+        )
+      )
+    }
+  }
+  if (!is.null(interrupcion)) .detener(interrupcion)
+  invisible(TRUE)
+}
+
+# Si la conexion tiene una transaccion abierta, sabido sin efectos: la marca de
+# RPostgres, o `now()` -el comienzo de la transaccion en PostgreSQL y en DuckDB-
+# igual en dos sentencias seguidas, que fuera de una son dos transacciones. Si
+# la consulta falla -una transaccion ya abortada- no se sabe, y no se compila.
+# En DuckDB, con una transaccion abierta, tampoco: cualquier error del motor
+# -tambien el de una funcion que no existe o una columna mal escrita- la aborta
+# sin aviso, el `dbCommit()` siguiente pierde lo hecho (medido con duckdb
+# 2.0.0) y no hay `SAVEPOINT` para aislarlo. SQLite, MySQL y MariaDB no abortan
+# la transaccion por el error de una sentencia, y SQL Server se vigila en cada
+# sentencia: ahi no hace falta saberlo.
+.transaccion_para_compilar_dbi <- function(conexion, motor) {
+  if (!motor %in% c("postgresql", "duckdb")) return(NA)
+  abierta <- NULL
+  if (identical(motor, "postgresql") && inherits(conexion, "PqConnection") &&
+      isNamespaceLoaded("RPostgres")) {
+    marca <- tryCatch(
+      isTRUE(RPostgres::postgresIsTransacting(conexion)),
+      error = function(e) FALSE
+    )
+    if (marca) abierta <- TRUE
+  }
+  if (is.null(abierta)) {
+    ahora <- function() {
+      .orden_transaccion_dbi(
+        conexion, "SELECT now() AS lupa_ahora", traer = TRUE
+      )[[1L]][[1L]]
+    }
+    lectura <- tryCatch(list(ahora(), ahora()), error = function(e) e)
+    if (inherits(lectura, "error")) {
+      if (.es_interrupcion_dbi(lectura)) .detener(lectura)
+      .detener_dbi(
+        "lupa_error_transaccion_dbi",
+        paste0(
+          "No se compila: no se pudo saber si la conexi\u00f3n tiene una ",
+          "transacci\u00f3n abierta, porque la consulta de `now()` fall\u00f3, y ",
+          "sin saberlo la compilaci\u00f3n podr\u00eda tocarla. Si hay una ",
+          "transacci\u00f3n abortada, cerrarla con `DBI::dbRollback()`. Motivo ",
+          "del motor: ", .mensaje_motor(lectura)
+        )
+      )
+    }
+    abierta <- isTRUE(
+      as.numeric(lectura[[1L]]) == as.numeric(lectura[[2L]])
+    )
+  }
+  if (identical(motor, "duckdb")) {
+    if (abierta) {
+      .detener_dbi(
+        "lupa_error_transaccion_dbi",
+        paste(
+          "No se compila dentro de una transacci\u00f3n abierta de DuckDB: un",
+          "error del motor -tambi\u00e9n el de una sentencia que no compila- la",
+          "aborta sin aviso, un `DBI::dbCommit()` posterior pierde lo hecho en",
+          "ella, y DuckDB no tiene `SAVEPOINT` para aislarlo. Compilar fuera",
+          "de la transacci\u00f3n o por otra conexi\u00f3n."
+        )
+      )
+    }
+    return(FALSE)
+  }
+  # Las guardas de cada sentencia leen esta misma respuesta.
+  entrada <- .contexto_conexion_dbi(conexion)
+  entrada$abierta <- abierta
+  abierta
+}
+
+# Antes de mandar nada: con una conexion que no sirve, el error es el de
+# siempre, el de la preparacion.
+.exigir_compilacion_segura_dbi <- function(conexion, motor) {
+  if (!.es_conexion_dbi(conexion) || !.conexion_valida_dbi(conexion)) {
+    return(invisible(NA))
+  }
+  invisible(.transaccion_para_compilar_dbi(conexion, motor))
+}
+
+# Un sondeo de capacidad prueba formas candidatas -`STDDEV_SAMP`, `STDEV`-
+# sabiendo que el motor puede rechazar alguna, y la corrida usa la que acepte.
+# Al compilar, las candidatas no se compilan: se mandan como las manda la
+# corrida -sobre una constante, sin leer filas, con la guarda de la
+# transaccion- y su respuesta es la del motor. Compilar el rechazo no agregaba
+# nada y, en DuckDB, el `EXPLAIN` que falla abortaba la transaccion del usuario.
+# La forma aceptada se compila despues como cualquier sentencia del plan; la
+# rechazada queda `candidata_rechazada`, que no es una consulta que no compila.
+# Se marca en el origen y no por el nombre de la etapa, porque otras etapas con
+# nombre parecido leen la tabla y su rechazo es una falla de verdad.
+.sondear_candidata_dbi <- function(conexion, sql, etapa, correr) {
+  compilador <- .CONTEXTO_MOTOR$compilador
+  if (!is.environment(compilador)) return(correr())
+  if (!is.null(compilador$fatal)) .detener(compilador$fatal)
+  respuesta <- tryCatch({
+    .traer_consulta_dbi(conexion, sql)
+    list(ok = TRUE)
+  }, error = function(e) {
+    if (inherits(e, c("lupa_error_transaccion_dbi", "lupa_error_conexion_dbi")) ||
+        .es_interrupcion_dbi(e)) {
+      compilador$fatal <- e
+      .detener(e)
+    }
+    list(ok = FALSE, motivo = .mensaje_motor(e))
+  })
+  if (isTRUE(respuesta$ok)) {
+    return(.compilar_sql_dbi(conexion, sql, etapa, compilador$motor))
+  }
+  motivo <- paste0(
+    "Forma candidata de un sondeo de capacidad: el motor la rechaz\u00f3 y ",
+    "la corrida usa otra. Se mand\u00f3 como la manda la corrida, sin ",
+    "compilarla. Motivo del motor: ", respuesta$motivo
+  )
+  compilador$filas[[length(compilador$filas) + 1L]] <- list(
+    etapa = etapa, sql = sql, estado = "candidata_rechazada",
+    motivo = motivo, metodo = NA_character_
+  )
+  list(ok = FALSE, datos = NULL, motivo = motivo)
+}
+
+# Estados de una fila de `attr(plan, "compilacion")`: `compilada`,
+# `no_compilada` (el motor la rechazo), `candidata_rechazada` (ver
+# `.sondear_candidata_dbi()`) y
+# `no_verificada` (no se pudo saber: sin via, tope vencido, o una consulta cuya
+# forma depende de un resultado).
+.compilar_sql_dbi <- function(conexion, sql, etapa, motor) {
+  sql <- as.character(sql)
+  if (length(sql) != 1L || is.na(sql) || !nzchar(sql)) {
+    return(list(
+      ok = FALSE, datos = NULL,
+      motivo = "la sentencia SQL no es un texto escalar no vacio"
+    ))
+  }
+  estado <- .CONTEXTO_MOTOR$compilador
+  registrar <- function(fila, motivo, metodo) {
+    if (is.environment(estado)) estado$filas[[length(estado$filas) + 1L]] <- list(
+      etapa = etapa, sql = sql, estado = fila, motivo = motivo, metodo = metodo
+    )
+    invisible(NULL)
+  }
+  # Despues de un error que deja la conexion o la transaccion del usuario en un
+  # estado que la via no puede seguir, no se manda nada mas.
+  if (is.environment(estado) && !is.null(estado$fatal)) .detener(estado$fatal)
+  metodo <- .metodo_compilacion_dbi(motor)
+  es_pragma <- identical(motor, "sqlite") && grepl(
+    "^[[:space:]]*PRAGMA[[:space:]]", sql, perl = TRUE, useBytes = TRUE
+  )
+  if (isTRUE(es_pragma)) metodo <- "dbSendQuery"
+  if (is.na(metodo)) {
+    motivo <- paste0("no hay una via de compilacion declarada para `", motor, "`")
+    registrar("no_verificada", motivo, NA_character_)
+    return(list(ok = FALSE, datos = NULL, motivo = motivo))
+  }
+  salida <- tryCatch({
+    if (identical(metodo, "PREPARE")) {
+      .compilar_prepare_dbi(conexion, sql, estado)
+      list(ok = TRUE)
+    } else if (identical(motor, "sqlserver")) {
+      .compilar_noexec_sqlserver_dbi(conexion, sql, estado)
+    } else if (identical(motor, "postgresql")) {
+      .compilar_con_tope_postgresql_dbi(
+        conexion, paste(metodo, sql),
+        .tope_compilacion_postgresql_dbi(conexion, estado),
+        en_transaccion = if (is.environment(estado) &&
+                             !is.null(estado$transaccion)) {
+          estado$transaccion
+        } else .transaccion_para_compilar_dbi(conexion, motor),
+        estado = estado
+      )
+    } else {
+      .compilar_envio_dbi(conexion, if (isTRUE(es_pragma)) sql else {
+        paste(metodo, sql)
+      })
+      list(ok = TRUE)
+    }
+  }, error = function(e) {
+    # Ni una conexion que quedo inutilizable ni una interrupcion son una
+    # sentencia que no compila: salen, y nada mas se manda.
+    if (inherits(e, c("lupa_error_transaccion_dbi", "lupa_error_conexion_dbi")) ||
+        .es_interrupcion_dbi(e)) {
+      if (is.environment(estado)) estado$fatal <- e
+      .detener(e)
+    }
+    list(ok = FALSE, motivo = .mensaje_motor(e))
+  })
+  # Una sentencia cancelada por el tope sigue el camino de una que compila: la
+  # corrida tomaria ese camino si compilara, y la fila ya dice que no se sabe.
+  if (isTRUE(salida$tope)) {
+    registrar("no_verificada", salida$motivo, metodo)
+  } else if (isTRUE(salida$ok)) {
+    registrar("compilada", NA_character_, metodo)
+  } else {
+    motivo <- salida$motivo %||% "fallo de compilacion"
+    registrar("no_compilada", motivo, metodo)
+    return(list(ok = FALSE, datos = NULL, motivo = motivo))
+  }
+  list(ok = TRUE, datos = .datos_compilacion_dbi(sql), motivo = NA_character_)
+}
+
+.with_compilador_dbi <- function(conexion, motor, expr) {
+  previa <- .CONTEXTO_MOTOR$compilador
+  estado <- new.env(parent = emptyenv())
+  estado$motor <- motor
+  estado$filas <- list()
+  estado$marca <- .marca_compilacion_dbi()
+  # Antes de compilar nada: si no se puede garantizar que la transaccion del
+  # usuario quede como estaba, esto falla aca.
+  estado$transaccion <- .transaccion_para_compilar_dbi(conexion, motor)
+  .CONTEXTO_MOTOR$compilador <- estado
+  on.exit(.CONTEXTO_MOTOR$compilador <- previa, add = TRUE)
+  valor <- force(expr)
+  # Un error que deja la conexion inutilizable o cambia la transaccion del
+  # usuario, o una interrupcion, sale aunque algun paso intermedio lo haya
+  # atrapado: devolver el plan callaria que la conexion ya no hace lo que el
+  # usuario le mande, o que se pidio parar.
+  if (!is.null(estado$fatal)) .detener(estado$fatal)
+  registros <- estado$filas
+  salida <- if (length(registros)) {
+    do.call(rbind, lapply(seq_along(registros), function(i) {
+      x <- registros[[i]]
+      data.frame(
+        consulta_id = as.integer(i), etapa = as.character(x$etapa),
+        sql = as.character(x$sql), estado = as.character(x$estado),
+        motivo = as.character(x$motivo %||% NA_character_),
+        metodo = as.character(x$metodo %||% NA_character_),
+        stringsAsFactors = FALSE
+      )
+    }))
+  } else {
+    data.frame(
+      consulta_id = integer(), etapa = character(), sql = character(),
+      estado = character(), motivo = character(), metodo = character(),
+      stringsAsFactors = FALSE
+    )
+  }
+  list(valor = valor, compilacion = salida)
+}
+
+.completar_compilacion_dbi <- function(compilacion, esperadas, motivo,
+                                       etapa = "plan") {
+  faltan <- max(0L, as.integer(esperadas) - nrow(compilacion))
+  if (!faltan) return(compilacion)
+  rbind(
+    compilacion,
+    data.frame(
+      consulta_id = seq.int(nrow(compilacion) + 1L,
+                            nrow(compilacion) + faltan),
+      etapa = rep_len(etapa, faltan), sql = rep(NA_character_, faltan),
+      estado = rep("no_verificada", faltan),
+      motivo = rep(motivo, faltan), metodo = rep(NA_character_, faltan),
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
 # `filas >= 0` usa la via portable: el motor prepara el resultado y R lee solo
 # las filas pedidas. Es la unica forma de acotar sin clausula de dialecto.
 .consultar_dbi <- function(conexion, sql, presupuesto = NULL, filas = -1L,
@@ -6924,12 +8532,19 @@
     }
     salida
   }
-  if (!.gastar_dbi(presupuesto)) {
+  if (!.gastar_dbi(presupuesto, etapa = etapa)) {
     return(finalizar(list(
       ok = FALSE, datos = NULL, motivo = .motivo_presupuesto_dbi(presupuesto)
     ), .medicion_consulta_vacia_dbi(etapa)))
   }
   medicion <- .iniciar_consulta_dbi(presupuesto, etapa)
+  compilador <- .CONTEXTO_MOTOR$compilador
+  if (is.environment(compilador)) {
+    salida <- .compilar_sql_dbi(conexion, sql, etapa, compilador$motor)
+    return(finalizar(
+      salida, .terminar_consulta_dbi(medicion, salida$datos)
+    ))
+  }
   if (filas < 0) {
     salida <- tryCatch(
       list(ok = TRUE, datos = .marcar_utf8_tabla(
@@ -16350,7 +17965,14 @@
   }
 
   if ("mediana" %in% pedidas_numericas) {
-    if (!incluir_valores) {
+    n_total_numero <- .numero_dbi(n_total)
+    if (!es_muestreado && length(n_total_numero) == 1L &&
+        is.finite(n_total_numero) && n_total_numero == 0) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "sin_valores",
+        "La tabla no contiene filas.", NA_character_, metadatos = metadatos
+      )))
+    } else if (!incluir_valores) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
         NA_character_, metadatos = metadatos
@@ -17131,7 +18753,8 @@
                                 columnas_not_null_skip = character(),
                                 columnas_not_null_texto = character(),
                                 plan_duplicados = NULL,
-                                contador_estabilidad = NULL) {
+                                contador_estabilidad = NULL,
+                                bloque_muestra = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -17499,6 +19122,10 @@
       !por_centrales
     ]
   }
+  n_total_numero <- .numero_dbi(n_total)
+  tabla_sin_filas <- length(n_total_numero) == 1L &&
+    is.finite(n_total_numero) && n_total_numero == 0 &&
+    !identical(bloque_muestra, "solo_agregados")
   if (length(columnas_medianas_consolidadas) &&
       !is.null(mediana_consolidada)) {
     requiere_repliegue <- vapply(columnas_medianas_consolidadas, function(campo) {
@@ -17524,7 +19151,7 @@
     ]
   }
   if (length(columnas_medianas_consolidadas) &&
-      !is.null(mediana_consolidada)) {
+      !is.null(mediana_consolidada) && !tabla_sin_filas) {
     expresiones_medianas <- vapply(seq_along(campos_consolidados), function(i) {
       .expresion_mediana_motor_dbi(
         conexion, columna_operacion_de(campos_consolidados[[i]]),
@@ -17969,7 +19596,7 @@
 }
 
 .leer_esquema_dbi <- function(conexion, sql, presupuesto, etapa = "esquema") {
-  if (!.gastar_dbi(presupuesto)) {
+  if (!.gastar_dbi(presupuesto, etapa = etapa)) {
     return(c(list(
       ok = FALSE, datos = NULL, tipos = NULL,
       motivo = .motivo_presupuesto_dbi(presupuesto)
@@ -18794,7 +20421,9 @@
        ("mediana" %in% pedidas_numericas &&
           isTRUE(incluir_valores) && isTRUE(mediana_conservada))) &&
     !desvio_directo_sin_magnitud ||
-    (.tipo_declarado_decimal_dbi(tipo_declarado) && !isTRUE(incluir_valores))
+    (length(pedidas_numericas) > 0L &&
+      .tipo_declarado_decimal_dbi(tipo_declarado) &&
+      !isTRUE(incluir_valores))
 }
 
 # Cuantas consultas de prueba de la CTE de ventanas correra la muestra sin que
@@ -18834,6 +20463,7 @@
 
 .plan_consultas_dbi <- function(campos, es_numerico, metricas, incluir_valores,
                                   con_orden, dialecto, emitidas = 0,
+                                  capacidades = NULL,
                                   universo = "tabla_completa",
                                   muestreo_disponible = TRUE,
                                   tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
@@ -18862,7 +20492,8 @@
                                   n_columnas_planas = NULL,
                                   consultas_duplicados = 0L,
                                   verificar_clave_muestra = FALSE,
-                                  alcance_estabilidad = "escanea la tabla completa") {
+                                  alcance_estabilidad = "escanea la tabla completa",
+                                  tabla_vacia = FALSE) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -18895,10 +20526,14 @@
   n_moda_max <- if (is.null(columnas_moda_max)) n_moda else {
     length(columnas_moda_max)
   }
-  n_mediana <- if (is.null(columnas_mediana)) n_numericas else {
+  n_mediana <- if (isTRUE(tabla_vacia)) 0 else if (is.null(columnas_mediana)) {
+    n_numericas
+  } else {
     length(columnas_mediana)
   }
-  n_mediana_max <- if (is.null(columnas_mediana_max)) n_mediana else {
+  n_mediana_max <- if (isTRUE(tabla_vacia)) 0 else if (
+    is.null(columnas_mediana_max)
+  ) n_mediana else {
     length(columnas_mediana_max)
   }
   # Las medianas de decimales no entran en la consolidada: una consulta cada
@@ -18923,6 +20558,39 @@
   clases <- list(c(
     "portones (esquema y sondas)", emitidas, "una vez"
   ))
+  if (is.data.frame(capacidades) && nrow(capacidades)) {
+    emitidas_capacidad <- if ("n_emitidas" %in% names(capacidades)) {
+      as.numeric(capacidades$n_emitidas)
+    } else rep(NA_real_, nrow(capacidades))
+    planificadas <- as.numeric(capacidades$n_consultas)
+    capacidad_total <- ifelse(
+      identical(universo, "muestra_motor") &
+        capacidades$clase_consulta %in% c(
+          "capacidad de muestreo (formas candidatas)",
+          "capacidad de mediana CTE (formas candidatas)"
+        ) &
+        is.finite(emitidas_capacidad) & emitidas_capacidad == 0,
+      planificadas, emitidas_capacidad
+    )
+    capacidad_total <- sum(capacidad_total, na.rm = TRUE)
+    portones <- suppressWarnings(as.numeric(emitidas)) - capacidad_total
+    if (length(portones) == 1L && is.finite(portones)) {
+      clases[[1L]][[2L]] <- max(0, portones)
+    }
+    clases_capacidad <- capacidades[
+      capacidades$clase_consulta != paste0("son", "da de magnitud (MIN)"),
+      , drop = FALSE
+    ]
+    if (nrow(clases_capacidad)) {
+      for (i in seq_len(nrow(clases_capacidad))) {
+        clases[[length(clases) + 1L]] <- c(
+          as.character(clases_capacidad$clase_consulta[[i]]),
+          as.numeric(clases_capacidad$n_consultas[[i]]),
+          "una vez", as.numeric(clases_capacidad$n_consultas_max[[i]])
+        )
+      }
+    }
+  }
   # La estimacion de filas del catalogo que usa el aviso de costo de la tabla
   # completa: una lectura de metadatos que la corrida hace antes de los
   # agregados (ver `.aviso_costo_agregados_dbi()`).
@@ -18942,12 +20610,6 @@
   }
   if (hay_planos) {
     n_planos <- n_lotes(columnas_planas, tamano_lote_planos)
-    # Las dos consultas de la forma del desvio se pagan una vez si hay lote plano,
-    # aunque ninguna columna sea numerica, y no se pagan cuando el desvio sale
-    # por ventana sobre la muestra (ver `.desvio_por_ventana_dbi()`).
-    if ("desvio" %in% metricas && !isTRUE(desvio_por_ventana)) {
-      n_planos <- n_planos + .PEAJE_FORMA_DESVIO
-    }
     if ("desvio" %in% metricas && isTRUE(desvio_en_lotes)) {
       n_planos <- n_planos + n_lotes(n_numericas, tamano_lote_planos)
     }
@@ -19043,9 +20705,16 @@
     )
   }
   if (consultas_faltantes > 0L || consultas_guardas_faltantes_max > 0L) {
+    faltantes_esperados <- if (consultas_faltantes > 0L) {
+      n_metricas(consultas_faltantes)
+    } else if (consultas_guardas_faltantes_max > 0L) {
+      NA_real_
+    } else {
+      0
+    }
     clases[[length(clases) + 1L]] <- c(
       "conteos de faltantes disfrazados",
-      n_metricas(consultas_faltantes), alcance_agregado,
+      faltantes_esperados, alcance_agregado,
       n_metricas(consultas_faltantes + consultas_guardas_faltantes_max)
     )
   }
@@ -19172,6 +20841,8 @@
                           incluir_valores, tope_muestra, emitidas,
                           catalogo_aviso = 0L,
                           decisiones_costo_resueltas = NULL,
+                          capacidades = NULL,
+                          consultas_muestra = NULL,
                           consultas_faltantes = 0L,
                           consultas_guardas_faltantes_max = 0L,
                           campos_faltantes_planos = character()) {
@@ -19305,12 +20976,49 @@
       metricas_originales = preparacion$metricas_ejecucion
     )
   } else character()
+  capacidades_adicionales <- data.frame(
+    clase_consulta = character(), n_consultas = numeric(),
+    n_consultas_max = numeric(), stringsAsFactors = FALSE
+  )
+  desvio_plan <- "desvio" %in% preparacion$metricas_ejecucion &&
+    length(cols_planas_plan) > 0L && !isTRUE(.desvio_por_ventana_dbi(
+      conexion, preparacion$metricas_ejecucion, preparacion$universo
+    ))
+  if (isTRUE(desvio_plan)) {
+    capacidades_adicionales <- rbind(capacidades_adicionales, data.frame(
+      clase_consulta = .clase_capacidad_dbi(.capacidad_etapa_dbi("desvio")),
+      n_consultas = .PEAJE_FORMA_DESVIO,
+      n_consultas_max = .PEAJE_FORMA_DESVIO, stringsAsFactors = FALSE
+    ))
+  }
+  cantidad_magnitud <- get(paste0("n_", "son", "das_magnitud"))
+  cantidad_magnitud_max <- get(paste0("n_", "son", "das_magnitud_max"))
+  if (cantidad_magnitud > 0 || cantidad_magnitud_max > 0) {
+    capacidades_adicionales <- rbind(capacidades_adicionales, data.frame(
+      clase_consulta = .clase_capacidad_dbi(.capacidad_etapa_dbi("magnitud")),
+      n_consultas = cantidad_magnitud,
+      n_consultas_max = cantidad_magnitud_max, stringsAsFactors = FALSE
+    ))
+  }
+  if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
+      isTRUE(tope_muestra[[paste0("requiere_", "son", "da_bytes")]])) {
+    capacidades_adicionales <- rbind(capacidades_adicionales, data.frame(
+      clase_consulta = .clase_capacidad_dbi(
+        .capacidad_etapa_dbi("bytes_muestra")
+      ),
+      n_consultas = 1L, n_consultas_max = 1L, stringsAsFactors = FALSE
+    ))
+  }
+  capacidades <- .sumar_capacidades_plan_dbi(
+    capacidades, capacidades_adicionales
+  )
   .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
       .solicita_muestra_dbi(preparacion$bloque_muestra) &&
       !isTRUE(preparacion$orden_garantizado_unico), preparacion$dialecto,
     emitidas = emitidas,
+    capacidades = capacidades,
     universo = preparacion$universo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
@@ -19324,8 +21032,11 @@
     columnas_mediana = columnas_mediana_plan,
     columnas_mediana_max = columnas_mediana_max,
     columnas_mediana_centrales = preparacion$campos[fuera_de_consolidada],
-    consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
-                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
+    consultas_muestra = consultas_muestra %||% (1L + as.integer(
+      .solicita_muestra_dbi(preparacion$bloque_muestra) &&
+        is.finite(tope_muestra$max_bytes_muestra) &&
+        tope_muestra$max_bytes_muestra < .MAX_BYTES_MUESTRA
+    )),
     desvio_en_lotes = .desvio_separado_dbi(
       conexion, preparacion$metricas_ejecucion, preparacion$universo,
       preparacion$columnas_float8_numeric
@@ -19356,7 +21067,10 @@
       preparacion$bloque_muestra, preparacion$universo,
       preparacion$orden_muestra
     ),
-    alcance_estabilidad = .alcance_estabilidad_plan_dbi(conexion, preparacion)
+    alcance_estabilidad = .alcance_estabilidad_plan_dbi(conexion, preparacion),
+    tabla_vacia = isTRUE(
+      suppressWarnings(as.numeric(preparacion$n_total)) == 0
+    )
   )
 }
 
@@ -19368,7 +21082,7 @@
 # corto se reintenta- y, al final, la preparacion del plan que publica en
 # `meta$plan`, que `replan` cuenta (ver `perfilar_dbi()`).
 .plan_spool_dbi <- function(conexion, tabla, preparacion, emitidas, replan,
-                            conteo_en_preparacion) {
+                            conteo_en_preparacion, capacidades = NULL) {
   muestreo <- preparacion$muestreo
   disponible <- !is.null(muestreo) && isTRUE(muestreo$disponible)
   catalogo <- if (is.null(.sql_catalogo_bytes_fila_dbi(
@@ -19377,8 +21091,39 @@
   reintento <- disponible && identical(
     .candidato_muestreo_previsto_dbi(conexion, preparacion)$tipo, "tablesample"
   )
+  capacidad_total <- if (is.data.frame(capacidades)) {
+    emitidas_capacidad <- if ("n_emitidas" %in% names(capacidades)) {
+      as.numeric(capacidades$n_emitidas)
+    } else rep(NA_real_, nrow(capacidades))
+    planificadas <- as.numeric(capacidades$n_consultas)
+    valores <- ifelse(
+      identical(preparacion$universo, "muestra_motor") &
+        capacidades$clase_consulta %in% c(
+          "capacidad de muestreo (formas candidatas)",
+          "capacidad de mediana CTE (formas candidatas)"
+        ) &
+        is.finite(emitidas_capacidad) & emitidas_capacidad == 0,
+      planificadas, emitidas_capacidad
+    )
+    sum(valores, na.rm = TRUE)
+  } else 0
+  portones <- max(0, as.numeric(emitidas) - capacidad_total)
   clases <- list(
-    c("portones (esquema y sondas)", emitidas, "una vez", emitidas),
+    c(paste0("portones (esquema y ", "son", "das)"),
+      emitidas, "una vez", emitidas)
+  )
+  clases[[1L]][[2L]] <- portones
+  clases[[1L]][[4L]] <- portones
+  if (is.data.frame(capacidades) && nrow(capacidades)) {
+    for (i in seq_len(nrow(capacidades))) {
+      clases[[length(clases) + 1L]] <- c(
+        as.character(capacidades$clase_consulta[[i]]),
+        as.numeric(capacidades$n_consultas[[i]]), "una vez",
+        as.numeric(capacidades$n_consultas_max[[i]])
+      )
+    }
+  }
+  clases <- c(clases, list(
     c("estimacion de bytes por fila (catalogo)", catalogo, "lee el catalogo",
       catalogo),
     c("conteo del universo", if (isTRUE(conteo_en_preparacion)) 0 else 1,
@@ -19389,7 +21134,7 @@
       if (disponible) 1 + as.numeric(reintento) else 0),
     c("preparacion del plan publicado en meta$plan", replan, "lee el catalogo",
       replan)
-  )
+  ))
   plan <- data.frame(
     clase_consulta = vapply(clases, function(x) x[[1L]], character(1L)),
     n_consultas = vapply(clases, function(x) as.numeric(x[[2L]]), numeric(1L)),
@@ -19402,6 +21147,191 @@
   attr(plan, "extra_si_se_rechazan_lotes") <- 0
   attr(plan, "extra_si_se_reintenta_muestreo") <- 0
   plan
+}
+
+# La fuente sobre la que se calculan los agregados de la corrida y como se
+# nombran sus columnas. La comparten `perfilar_dbi()` y la compilacion del plan:
+# con dos copias, la compilacion armaba los agregados sobre la expresion de
+# lectura de una columna convertida -`money` y `real` de PostgreSQL, el doble
+# de PostgreSQL 9.3 leido exacto- en vez de sobre la subconsulta que ya la
+# proyecta, y compilaba sentencias que la corrida nunca manda; en la ventana del
+# desvio, con la expresion como alias (`... AS CASE WHEN ...`), que no compilan.
+.fuente_lectura_dbi <- function(conexion, preparacion) {
+  convertida <- NROW(preparacion$lectura_convertida) > 0L
+  contar_faltantes <- identical(preparacion$universo, "muestra_motor") ||
+    is.finite(preparacion$muestra)
+  dobles_originales <- if (isTRUE(contar_faltantes) &&
+                          convertida) {
+    lecturas <- preparacion$lectura_convertida
+    as.character(lecturas$columna[vapply(
+      lecturas$lectura, .es_lectura_double_exacta_dbi, logical(1L)
+    )])
+  } else character()
+  alias_original_de <- stats::setNames(
+    vapply(seq_along(dobles_originales), function(i) {
+      .citar_identificador_dbi(
+        conexion, paste0("lupa_fd_original_", i)
+      )
+    }, character(1L), USE.NAMES = FALSE),
+    dobles_originales
+  )
+  proyeccion_faltantes_de <- function(indices = seq_along(preparacion$campos)) {
+    campos_indices <- preparacion$campos[indices]
+    originales <- campos_indices[campos_indices %in% dobles_originales]
+    extras <- if (length(originales)) {
+      vapply(originales, function(campo) {
+        # El double tal como esta en la tabla: `campos_sql` ya trae la lectura
+        # exacta por `float8send()`, y compararla obligaba a convertir cada
+        # fila (y contra un literal de 17 cifras no daba igual).
+        paste0(
+          .citar_identificador_dbi(conexion, campo), " AS ",
+          alias_original_de[[campo]]
+        )
+      }, character(1L), USE.NAMES = FALSE)
+    } else character()
+    c(preparacion$campos_sql_proyeccion[indices], extras)
+  }
+  columnas_sql_originales_de <- function(campos) {
+    vapply(campos, function(campo) {
+      if (campo %in% dobles_originales) alias_original_de[[campo]] else {
+        i <- match(campo, preparacion$campos)
+        if (convertida) {
+          .citar_identificador_dbi(conexion, campo)
+        } else preparacion$campos_sql[[i]]
+      }
+    }, character(1L), USE.NAMES = FALSE)
+  }
+  tabla_metricas_sql <- preparacion$tabla_sql
+  # Si alguna columna se lee convertida -`money` y `real` de PostgreSQL, ver
+  # `.lectura_convertida_dbi()`-, los agregados se calculan sobre esa misma
+  # lectura y no sobre el valor crudo: el resumen SQL y la muestra describen el
+  # mismo dato. Bajo `muestra_motor` la subconsulta muestreada ya proyecta la
+  # lectura convertida.
+  if (convertida) {
+    tabla_metricas_sql <- paste0(
+      "(SELECT ", paste(proyeccion_faltantes_de(), collapse = ", "),
+      " FROM ", preparacion$tabla_sql, ")",
+      preparacion$dialecto$alias_tabla("lupa_lectura")
+    )
+  }
+  campos_sql_de <- function(campos) {
+    if (convertida) {
+      vapply(campos, function(campo) {
+        .citar_identificador_dbi(conexion, campo)
+      }, character(1L), USE.NAMES = FALSE)
+    } else preparacion$campos_sql[match(campos, preparacion$campos)]
+  }
+  list(
+    contar_faltantes = contar_faltantes,
+    dobles_originales = dobles_originales,
+    proyeccion_faltantes_de = proyeccion_faltantes_de,
+    columnas_sql_originales_de = columnas_sql_originales_de,
+    campos_sql_de = campos_sql_de,
+    tabla_metricas_sql = tabla_metricas_sql
+  )
+}
+
+.compilar_plan_perfilado_dbi <- function(conexion, preparacion, incluir_valores,
+                                         sentinelas_numericos,
+                                         cadenas_ausencia, columnas_opcionales,
+                                         aplicabilidad, bloque_filas) {
+  motor <- .motor_medicion_dbi(conexion, "auto")
+  fuente <- .fuente_lectura_dbi(conexion, preparacion)
+  ejecutar <- function() {
+    presupuesto <- .presupuesto_dbi(Inf, instrumentar = FALSE)
+    campos <- preparacion$campos
+    resultado <- tryCatch(
+      .resumen_tabla_dbi(
+        conexion, preparacion$tabla_nombre_sql, preparacion$tabla_sql,
+        campos, preparacion$prototipo, NA_real_, preparacion$sql_conteo,
+        list(), dialecto = preparacion$dialecto,
+        metricas = preparacion$metricas,
+        metricas_ejecucion = preparacion$metricas_ejecucion,
+        presupuesto = presupuesto, incluir_valores = incluir_valores,
+        tipos_declarados = preparacion$tipos,
+        motivos_ilegibles = preparacion$esquema$motivos,
+        universo = preparacion$universo,
+        estrategia_mediana = preparacion$estrategia_mediana,
+        tabla_metricas_sql = fuente$tabla_metricas_sql,
+        muestreo = NULL, aproximaciones = preparacion$aproximaciones,
+        campos_consolidados = campos,
+        campos_sql_consolidados = fuente$campos_sql_de(campos),
+        columnas_sql_originales_consolidados =
+          fuente$columnas_sql_originales_de(campos),
+        columnas_double_originales = intersect(fuente$dobles_originales, campos),
+        es_numerico_consolidados = preparacion$es_numerico,
+        tamano_lote_planos = preparacion$tamano_lote_planos,
+        tamano_lote_distintos = preparacion$tamano_lote_distintos,
+        conteo = NULL,
+        tabla_total_sql = preparacion$tabla_sql,
+        moda_guardian = preparacion$moda_guardian,
+        mediana_consolidada = preparacion$mediana_consolidada,
+        mediana_escalar = preparacion$mediana_escalar,
+        mediana_cte_ventana = preparacion$mediana_cte_ventana,
+        mediana_cte_ventana_motivo = preparacion$mediana_cte_ventana_motivo,
+        fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
+        estrategia_distintos = preparacion$estrategia_distintos,
+        politica_costo = preparacion$politica_costo,
+        infinitos_como_numeric = preparacion$infinitos_como_numeric,
+        columnas_float8_numeric = preparacion$columnas_float8_numeric,
+        tipos_motor = preparacion$esquema$tipos_motor,
+        sentinelas_numericos = sentinelas_numericos,
+        cadenas_ausencia = cadenas_ausencia,
+        columnas_opcionales = columnas_opcionales,
+        aplicabilidad = aplicabilidad,
+        contar_faltantes = fuente$contar_faltantes,
+        catalogo_garantias = preparacion$catalogo_garantias,
+        unicidad_estructural = preparacion$unicidad_estructural,
+        columnas_not_null_skip = preparacion$columnas_not_null_skip,
+        columnas_not_null_texto = preparacion$columnas_not_null_texto,
+        plan_duplicados = preparacion$plan_duplicados,
+        bloque_muestra = preparacion$bloque_muestra
+      ),
+      error = function(e) {
+        # Una interrupcion o una conexion inutilizable no son sentencias que no
+        # se pudieron construir.
+        if (.es_interrupcion_dbi(e) || inherits(
+          e, c("lupa_error_transaccion_dbi", "lupa_error_conexion_dbi")
+        )) {
+          .detener(e)
+        }
+        e
+      }
+    )
+    if (inherits(resultado, "condition")) {
+      estado <- .CONTEXTO_MOTOR$compilador
+      estado$filas[[length(estado$filas) + 1L]] <- list(
+        etapa = "plan_perfilado", sql = NA_character_,
+        estado = "no_verificada",
+        motivo = paste0("no se pudo construir todas las sentencias: ",
+                        .mensaje_motor(resultado)),
+        metodo = NA_character_
+      )
+    }
+    if (!is.null(bloque_filas)) {
+      estado <- .CONTEXTO_MOTOR$compilador
+      estado$filas[[length(estado$filas) + 1L]] <- list(
+        etapa = "bloques", sql = NA_character_, estado = "no_verificada",
+        motivo = paste(
+          "La lectura por bloques depende de la capacidad incremental del",
+          "controlador y no se puede validar como una sola consulta del plan."
+        ), metodo = NA_character_
+      )
+    }
+    if (.solicita_muestra_dbi(preparacion$bloque_muestra)) {
+      estado <- .CONTEXTO_MOTOR$compilador
+      estado$filas[[length(estado$filas) + 1L]] <- list(
+        etapa = "muestra", sql = NA_character_, estado = "no_verificada",
+        motivo = paste(
+          "La muestra incluye una lectura y un fetch; la compilacion no",
+          "ejecuta una consulta que lee filas."
+        ), metodo = NA_character_
+      )
+    }
+    invisible(resultado)
+  }
+  salida <- .with_compilador_dbi(conexion, motor, ejecutar())
+  salida$compilacion
 }
 
 # La forma de muestreo que la corrida va a aceptar, para contar sus consultas.
@@ -20026,6 +21956,9 @@
 #'   reproducible por huella en el motor cuando no se especifica `orden_muestra`.
 #'   Si el catálogo ya garantiza su unicidad no agrega consultas; si no, el plan
 #'   cuenta la consulta de verificación de unicidad.
+#' @param compilar Si es `TRUE`, le pide al motor que compile, sin ejecutarlas
+#'   ni traer filas, las consultas SQL que el plan construye, y publica una fila
+#'   por sentencia en `attr(plan, "compilacion")`. Ver la sección Compilación.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -20068,12 +22001,16 @@
 #'   conteo separado de los agregados; los topes no cambian ninguna consulta
 #'   SQL de resumen.
 #'
-#'   El costo no se declara como un número sino como un rango: `total` es el
-#'   extremo inferior, que supone que la política omite la moda cuya cardinalidad
-#'   no se conoce, y `total_maximo` el superior, que supone que la ejecuta. La
-#'   mediana queda fuera de ese supuesto proporcional y se cuenta según las
-#'   columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
-#'   de lotes puede agregar las sondas de bisección declaradas por
+#'   El costo no se declara como un número sino como un rango: `total_minimo` es
+#'   el extremo inferior, que supone que la política omite la moda cuya
+#'   cardinalidad no se conoce, y `total_maximo` el superior, que supone que la
+#'   ejecuta. `total` conserva el extremo inferior para no cambiar a los
+#'   consumidores que usan la cuenta esperada; `print()` y los atributos
+#'   `total_minimo` y `total_maximo` publican el intervalo completo cuando una
+#'   condicional puede agregar consultas. La mediana queda fuera de ese supuesto
+#'   proporcional y se cuenta según las columnas numéricas solicitadas. Ambos
+#'   extremos incluyen la preparación y el perfilado; el rechazo de lotes puede
+#'   agregar las sondas de bisección declaradas por
 #'   `total_lotes_rechazados`. El costo real cae entre los extremos cuando
 #'   `universo` es `"tabla_completa"` o `attr(plan, "muestreo")$estado` es
 #'   `"disponible"`; en `"no_sondeado"` la forma sólo se construyó localmente
@@ -20142,6 +22079,95 @@
 #'   impresión muestra las dos mitades, avisa cuando la magnitud es alta y
 #'   nombra las palancas para acotarla, que no son las mismas de un lado que
 #'   del otro.
+#'
+#' @section Compilación:
+#' Con `compilar = TRUE` el plan, además de contar, le pide al motor que
+#' compile cada consulta que construye, sin ejecutarla ni traer filas, y publica
+#' una fila por sentencia en `attr(plan, "compilacion")`, con `consulta_id`,
+#' `etapa`, `sql`, `estado`, `motivo` y `metodo`. `estado` es uno de:
+#'
+#' * `compilada`: el motor la aceptó.
+#' * `no_compilada`: el motor la rechazó, y `motivo` trae su mensaje: una
+#'   columna o una función que no existe, un permiso que falta.
+#' * `candidata_rechazada`: una forma candidata de un sondeo de capacidad que
+#'   el motor no conoce. El plan de perfilado prueba el desvío como
+#'   `STDDEV_SAMP` y como `STDEV` en todo motor, y la corrida usa la que el
+#'   motor acepte. Las candidatas no se compilan: se mandan como las manda la
+#'   corrida, sobre una constante y sin leer filas, y la rechazada queda con
+#'   `metodo` vacío; es la respuesta del sondeo, no una falla del plan. Un plan
+#'   sano no tiene ninguna fila `no_compilada`.
+#' * `no_verificada`: no se pudo saber, porque la forma de la consulta depende
+#'   de un resultado anterior, de una capacidad del controlador o de una
+#'   lectura de filas, porque el motor no tiene una vía de compilación, o
+#'   porque venció el tope de tiempo de PostgreSQL (ver abajo).
+#'
+#' En [plan_medicion_dbi()] hay una fila por sentencia compilada, así que su
+#' número no tiene por qué ser el de `attr(plan, "consultas")`: la consulta de
+#' la sesión se ejecuta al planificar, como sin compilar, y las métricas por
+#' bloques se calculan en R sobre una sola lectura por entidad, la fila
+#' `bloques`.
+#'
+#' `metodo` dice cómo se compiló: `EXPLAIN QUERY PLAN` en SQLite (los `PRAGMA`
+#' de lectura del catálogo se mandan tal cual, `dbSendQuery`), `EXPLAIN` en
+#' DuckDB y PostgreSQL, `PREPARE` y su `DEALLOCATE` en MySQL y MariaDB —su
+#' `EXPLAIN` ejecuta las subconsultas en `FROM`, `JOIN` y `WITH`; `PREPARE`
+#' no ejecuta ninguna y rechaza lo mismo—, con un nombre único por llamada que
+#' no pisa las sentencias preparadas del usuario, y `SET NOEXEC ON` en SQL
+#' Server.
+#'
+#' Lo que compilar no garantiza:
+#'
+#' * Que la consulta corra. Los errores que dependen de los datos aparecen
+#'   sólo al ejecutar: un `CAST` de un texto que no es un número compila y
+#'   falla en la corrida. Y no todos los motores comprueban los permisos al
+#'   compilar: SQL Server, bajo `SET NOEXEC ON`, no mira ninguno —una columna,
+#'   una función o una tabla negada compilan—, y PostgreSQL 9.3 no mira el
+#'   `EXECUTE` de una función, tampoco dentro de una vista. En esos casos la
+#'   sentencia queda `compilada` y falla en la corrida.
+#' * Que no se ejecute nada. Las consultas de preparación del plan —las del
+#'   esquema, las que llevan `WHERE 1 = 0` o `LIMIT 0`, las pruebas sobre
+#'   literales como `SELECT ... FROM (SELECT 1 AS ...)`— se ejecutan como en
+#'   el plan sin compilar, sin leer filas de la tabla y sin tope de tiempo. Y en
+#'   PostgreSQL el planificador pliega las constantes: una función declarada
+#'   `IMMUTABLE` con argumentos constantes se ejecuta al planificar, aunque lea
+#'   datos, también en esa preparación, como sin compilar. Por eso cada
+#'   sentencia compilada lleva un tope de 2 segundos (`SET LOCAL
+#'   statement_timeout`, o el de la sesión si es menor) dentro de una
+#'   transacción propia que se revierte —o de un punto de guardado, dentro de
+#'   una transacción del usuario—: la que lo supera queda `no_verificada` con
+#'   ese motivo, y la sesión vuelve al tope que tenía. `PREPARE` no
+#'   planificaría, pero en PostgreSQL tampoco comprueba los permisos, y
+#'   `EXPLAIN` sí.
+#' * En SQL Server, que exista una tabla: bajo `SET NOEXEC ON` la resolución
+#'   de nombres de tablas es diferida y una tabla que no existe compila.
+#'
+#' Compilar nunca toca la transacción del usuario, y si no lo puede garantizar
+#' no compila: falla con `lupa_error_transaccion_dbi` antes de mandar nada.
+#' Así pasa en DuckDB con una transacción abierta —cualquier error del motor,
+#' también el de una sentencia que no compila, la aborta sin aviso, un
+#' `DBI::dbCommit()` posterior pierde lo hecho en ella, y DuckDB no tiene
+#' `SAVEPOINT`—, y en PostgreSQL cuando no se puede saber si hay una abierta
+#' (una abierta a mano y ya abortada). Si la hay se averigua antes de empezar
+#' —la marca de RPostgres, o `now()`, que dentro de una transacción no cambia—
+#' y no por si un `SAVEPOINT` falla. SQLite, MySQL y MariaDB no abortan la
+#' transacción por el error de una sentencia.
+#'
+#' La conexión queda como estaba. En SQL Server `NOEXEC` es un estado de la
+#' sesión que, prendido, hace que nada de lo que se mande se ejecute, sin
+#' error: se apaga después de cada sentencia y se comprueba con un `SELECT 1`.
+#' Si no se puede apagar, la llamada falla con `lupa_error_conexion_dbi` y
+#' dice que la conexión quedó inutilizable. Dentro de una transacción abierta
+#' con `XACT_ABORT ON`, una sentencia que nombra una columna que no existe
+#' deshace la transacción aun bajo `NOEXEC`: `XACT_ABORT` se apaga mientras se
+#' compila y se vuelve a prender.
+#'
+#' Una interrupción —el tope de [setTimeLimit()], Ctrl-C— no es una sentencia
+#' que no compila: la compilación deja la sesión como estaba y la vuelve a
+#' señalar, sin devolver el plan. En SQL Server, una que llega en medio de un
+#' envío puede dejar al controlador sin poder apagar `NOEXEC`; entonces la
+#' llamada falla con `lupa_error_conexion_dbi`, dice que la conexión quedó
+#' inutilizable y que la compilación se interrumpió, y la conexión hay que
+#' cerrarla.
 #' @export
 #' @seealso [perfilar_dbi()], [plan_medicion_dbi()], [medir_dbi()]
 #'
@@ -20178,7 +22204,11 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                aplicabilidad = NULL,
                                sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                                cadenas_ausencia = NULL,
-                               clave = NULL) {
+                               clave = NULL,
+                               compilar = FALSE) {
+  if (!is.logical(compilar) || length(compilar) != 1L || is.na(compilar)) {
+    .detener("`compilar` debe ser TRUE o FALSE.", call. = FALSE)
+  }
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .fijar_senas_conexion_dbi(conexion)
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
@@ -20204,6 +22234,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
   max_bytes_materializacion <- .validar_presupuesto_bytes_dbi(
     max_bytes_materializacion, "max_bytes_materializacion"
   )
+  if (isTRUE(compilar)) {
+    .exigir_compilacion_segura_dbi(conexion, .motor_medicion_dbi(conexion, "auto"))
+  }
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, universo = universo,
     muestra_motor = muestra_motor, muestra = muestra,
@@ -20290,6 +22323,21 @@ plan_perfilado_dbi <- function(conexion, tabla,
     } else {
       0L
     }
+  capacidades_adicionales <- list()
+  agregar_capacidad_plan <- function(etapa, cantidad) {
+    cantidad <- suppressWarnings(as.numeric(cantidad))
+    clase <- .clase_capacidad_dbi(etapa)
+    if (length(cantidad) != 1L || is.na(cantidad) || cantidad <= 0 ||
+        is.na(clase)) return(invisible(NULL))
+    capacidades_adicionales[[clase]] <<- (
+      capacidades_adicionales[[clase]] %||% 0
+    ) + cantidad
+    invisible(NULL)
+  }
+  if (isTRUE(muestreo_plan)) agregar_capacidad_plan(
+    .capacidad_etapa_dbi("muestreo"),
+    get(paste0("son", "das_muestreo"))
+  )
   # La prueba de la CTE de ventanas. La preparacion solo la corre cuando no hay
   # mediana consolidada ni escalar; si la hay, una columna que la deja -un
   # decimal, cuya mediana es la suma de sus centrales, o un `float8` de
@@ -20299,18 +22347,26 @@ plan_perfilado_dbi <- function(conexion, tabla,
   # (DuckDB, un decimal y un doble por la muestra: una consulta de mas, y su
   # control). Una columna que la deja por sus extremos depende de los datos y
   # no se anticipa.
-  emitidas_plan <- emitidas_plan + .prueba_cte_mediana_plan_dbi(
+  pruebas_cte_plan <- .prueba_cte_mediana_plan_dbi(
     conexion, preparacion, es_numerico, incluir_valores
+  )
+  emitidas_plan <- emitidas_plan + pruebas_cte_plan
+  agregar_capacidad_plan(
+    .capacidad_etapa_dbi("mediana_cte_ventana"), pruebas_cte_plan
   )
   campos_faltantes_planos <- if (length(politicas_faltantes)) {
     names(politicas_faltantes)[vapply(politicas_faltantes, function(policy) {
       isTRUE(policy$exacta) && !identical(policy$clase, "textual")
     }, logical(1L))]
   } else character()
+  capacidades_plan <- .capacidades_plan_dbi(
+    preparacion$presupuesto, capacidades_adicionales
+  )
   plan <- .plan_sql_dbi(
     conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
     emitidas = emitidas_plan,
     catalogo_aviso = .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion),
+    capacidades = capacidades_plan,
     consultas_faltantes = consultas_faltantes,
     consultas_guardas_faltantes_max = consultas_guardas_faltantes_max,
     campos_faltantes_planos = campos_faltantes_planos
@@ -20324,16 +22380,18 @@ plan_perfilado_dbi <- function(conexion, tabla,
     plan <- .plan_spool_dbi(
       conexion, tabla, preparacion, emitidas = emitidas_plan,
       replan = consultas_antes_agregados,
-      conteo_en_preparacion = conteo_muestreo
+      conteo_en_preparacion = conteo_muestreo,
+      capacidades = capacidades_plan
     )
   }
-  attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
   if (is.null(extra)) extra <- 0
   reintento <- attr(plan, "extra_si_se_reintenta_muestreo", exact = TRUE)
   if (is.null(reintento)) reintento <- 0
-  attr(plan, "total_minimo") <- sum(plan$n_consultas)
-  attr(plan, "total_maximo") <- sum(plan$n_consultas_max) + extra + reintento
+  totales <- .totales_plan_consultas_dbi(plan, extra, reintento)
+  attr(plan, "total") <- totales$total
+  attr(plan, "total_minimo") <- totales$minimo
+  attr(plan, "total_maximo") <- totales$maximo
   attr(plan, "total_lotes_rechazados") <- attr(plan, "total_maximo")
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
   attr(plan, "extra_si_se_reintenta_muestreo") <- NULL
@@ -20505,6 +22563,19 @@ plan_perfilado_dbi <- function(conexion, tabla,
     costo_plan$spool <- "una selecci\u00f3n; lecturas posteriores en cliente"
     attr(plan, "costo") <- costo_plan
   }
+  if (isTRUE(compilar)) {
+    compilacion <- .compilar_plan_perfilado_dbi(
+      conexion, preparacion, incluir_valores, sentinelas_numericos,
+      cadenas_ausencia, columnas_opcionales, aplicabilidad, bloque_filas
+    )
+    attr(plan, "compilacion") <- .completar_compilacion_dbi(
+      compilacion, sum(plan$n_consultas_max),
+      paste(
+        "El plan anuncia una consulta cuya forma exacta depende de datos,",
+        "de un resultado anterior o de una capacidad del controlador."
+      )
+    )
+  }
   class(plan) <- unique(c("plan_perfilado_dbi", class(plan)))
   plan
 }
@@ -20540,12 +22611,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
   filas <- attr(x, "filas", exact = TRUE)
   filas_fuente <- attr(x, "filas_fuente", exact = TRUE)
   texto_filas <- .texto_filas_plan_dbi(filas, filas_fuente)
-  techo <- attr(x, "total_lotes_rechazados", exact = TRUE)
-  # El rango se imprime como rango. Decir "techo" era exactamente lo que el
-  # atributo `supuesto` desmiente dos lineas mas abajo.
-  cuenta <- if (!is.null(techo) && !is.na(techo) && techo > total) {
-    paste0("entre ", .miles_dbi(total), " y ", .miles_dbi(techo),
-           if (techo == 1L) " consulta" else " consultas")
+  minimo <- attr(x, "total_minimo", exact = TRUE)
+  maximo <- attr(x, "total_maximo", exact = TRUE)
+  if (is.null(minimo)) minimo <- total
+  if (is.null(maximo)) {
+    maximo <- attr(x, "total_lotes_rechazados", exact = TRUE)
+  }
+  intervalo <- length(minimo) == 1L && length(maximo) == 1L &&
+    is.finite(minimo) && is.finite(maximo) && maximo > minimo
+  cuenta <- if (intervalo) {
+    paste0("entre ", .miles_dbi(minimo), " y ", .miles_dbi(maximo),
+           if (maximo == 1L) " consulta" else " consultas")
   } else {
     paste0(.miles_dbi(total), if (total == 1L) " consulta" else " consultas")
   }
@@ -20556,6 +22632,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     if (attr(x, "columnas", exact = TRUE) == 1L) " columna (dialecto " else " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
   )))
+  if (anyNA(x$n_consultas)) {
+    cli::cli_text(
+      "Una o mas consultas son condicionales: su cantidad depende del dato."
+    )
+  }
   spool_plan <- attr(x, "materializacion", exact = TRUE)
   if (is.list(spool_plan)) {
     cli::cli_text(
@@ -24826,7 +26907,26 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # ninguna consulta de distintos, moda, magnitudes u ordenamiento SQL.
   es_numerico[tipos_sin_agregados] <- FALSE
   muestreo <- NULL
+  muestreo_plan <- NULL
   if (identical(universo, "muestra_motor")) {
+    candidatos_plan <- .candidatos_muestreo_dbi(
+      conexion, resolucion$dialecto, lista_campos$tipo_objeto
+    )
+    muestreo_plan <- list(
+      disponible = length(candidatos_plan) > 0L,
+      candidato = if (length(candidatos_plan)) candidatos_plan[[1L]] else NULL,
+      sondas = character(),
+      sondas_previstas = .sondas_muestreo_previstas_dbi(candidatos_plan),
+      motivo = "La capacidad de muestreo queda sin sondear hasta la corrida."
+    )
+    estado_forma_plan <- .estado_forma_muestreo_dbi(
+      muestreo_plan$candidato, tabla_sql, esquema$campos_sql, muestra_motor,
+      resolucion$dialecto
+    )
+    if (!isTRUE(estado_forma_plan$forma_construible)) {
+      muestreo_plan$disponible <- FALSE
+      muestreo_plan$motivo <- estado_forma_plan$motivo
+    }
     if (isTRUE(sondar_muestreo)) {
       muestreo <- .sondar_muestreo_dbi(
         conexion, tabla_sql, resolucion$dialecto, presupuesto,
@@ -24838,14 +26938,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
       # el plan no puede pagar una sonda que ya lee la tabla solo para saberlo.
       # Publica las sondas que la corrida intentara y deja la verificacion para
       # la corrida; si fallan, el resultado se degrada como cualquier capacidad.
-      candidatos <- .candidatos_muestreo_dbi(
-        conexion, resolucion$dialecto, lista_campos$tipo_objeto
-      )
       muestreo <- list(
-        disponible = length(candidatos) > 0L,
-        candidato = if (length(candidatos)) candidatos[[1L]] else NULL,
+        disponible = length(candidatos_plan) > 0L,
+        candidato = if (length(candidatos_plan)) candidatos_plan[[1L]] else NULL,
         sondas = character(),
-        sondas_previstas = .sondas_muestreo_previstas_dbi(candidatos),
+        sondas_previstas = .sondas_muestreo_previstas_dbi(candidatos_plan),
         motivo = "La capacidad de muestreo queda sin sondear hasta la corrida."
       )
     }
@@ -24869,8 +26966,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       }
       # No tiene sentido sondear moda, mediana ni cardinalidad para una
       # muestra que ya sabemos que no se puede escribir. `metricas_solicitadas`
-      # conserva el pedido para que el resumen publique sus ausencias.
-      metricas <- character()
+      # conserva el pedido para que el resumen publique sus ausencias. Las
+      # decisiones de capacidad se terminan igual para poder comparar el plan
+      # anunciado con lo que efectivamente se pudo emitir.
     }
   }
   estrategia_distintos <- .estrategia_distintos_dbi(
@@ -24928,6 +27026,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (!isTRUE(estrategia_distintos$disponible)) {
     metricas <- setdiff(metricas, "distintos")
   }
+  metricas_plan <- metricas
   aproximaciones <- list()
   aproximaciones_resolucion <- list()
   moda_guardian_resolucion <- NULL
@@ -25153,7 +27252,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       forma = forma_mediana_estimacion, tipos = esquema$tipos,
       prototipo = prototipo, tabla_sql = tabla_sql
     )
-  metricas_ejecucion <- metricas
+  metricas_ejecucion <- if (isTRUE(muestreo_ejecutable)) metricas else
+    character()
   # La expresion con que se lee cada columna: ver `.lectura_convertida_dbi()`.
   # `esquema$campos_sql` sigue siendo el identificador de la columna, que es lo
   # que nombra los agregados sobre la tabla de lectura.
@@ -25184,6 +27284,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   list(
     universo = universo, muestra_motor = muestra_motor,
+    metricas_plan = metricas_plan, muestreo_plan = muestreo_plan,
     estrategia_mediana = estrategia_mediana,
     metricas = metricas_solicitadas, metricas_ejecucion = metricas_ejecucion,
     muestra = muestra,
@@ -25321,6 +27422,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `resumen_tabla$meta$consultas$sondas_fallidas` y no disparan el aviso de
 #' degradacion. El aviso que informa que la muestra no esta disponible conserva
 #' ademas la clase historica `lupa_muestra_dbi_no_disponible`.
+#' `resumen_tabla$meta$consultas$conciliacion` conserva además el estado de la
+#' cuenta (`"conciliado"` o `"desfasado"`), los totales anunciados y emitidos y
+#' un `detalle` por clase de consulta cuando una clase anunciada no corrió o la
+#' corrida emitió una clase que el plan no tenía. Cada detalle dice la clase,
+#' ambas cantidades y el motivo de la diferencia; la falla original permanece
+#' en `fallas` o `sondas_fallidas`. `plan_corrida` conserva la misma estructura
+#' para la comparación contra el plan que la corrida publicó en `meta$plan`;
+#' permite distinguirla de los campos históricos de la conciliación. En una
+#' tabla vacía, `plan_previo` conserva el total que se anunció antes de conocer
+#' ese estado y explica por qué `plan_corrida` usa el plan publicado por la
+#' corrida.
 #'
 #' Cuando el catálogo estima al menos `1e8` filas y se pidió
 #' `universo = "tabla_completa"`, la función avisa antes de los agregados con
@@ -25551,9 +27663,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' vía va entre un `SAVEPOINT` propio y su `RELEASE`, y si falla se vuelve con
 #' `ROLLBACK TO SAVEPOINT`. La transacción se reconoce por RPostgres
 #' (`dbBegin()`, `dbWithTransaction()`) o por el motor, para un `BEGIN` mandado
-#' a mano. El paquete nunca manda `BEGIN`, `COMMIT` ni `ROLLBACK`; fuera de una
-#' transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
-#' [plan_perfilado_dbi()], [perfilar_coleccion()] y [relaciones_coleccion()].
+#' a mano. El paquete nunca manda `BEGIN`, `COMMIT` ni `ROLLBACK` sobre la
+#' transacción del usuario; fuera de una transacción no agrega ninguna
+#' sentencia de ese tipo. Lo mismo vale para [plan_perfilado_dbi()],
+#' [perfilar_coleccion()] y [relaciones_coleccion()]. La única excepción es
+#' `compilar = TRUE` de [plan_perfilado_dbi()] y [plan_medicion_dbi()] en
+#' PostgreSQL sin transacción del usuario: cada sentencia se compila en una
+#' transacción propia que se revierte (ver la sección Compilación de
+#' [plan_perfilado_dbi()]).
 #' SQL Server puede deshacer la transacción completa ante un error de ejecución,
 #' incluso con `XACT_ABORT` apagado: antes y después de cada envío y lectura la
 #' vía mide `@@TRANCOUNT` y `XACT_STATE()`. Si cambian, levanta
@@ -27083,8 +29200,37 @@ perfilar_dbi <- function(conexion, tabla,
     umbral_cardinalidad = umbral_cardinalidad,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion,
-    clave = argumentos_muestra[["clave"]]
+    clave = argumentos_muestra[["clave"]],
+    sondar_muestreo = FALSE
   )
+  # La preparacion que alimenta al plan no puede decidir que metricas existen
+  # despues de una sonda de muestreo pasajera. Se conserva antes de sondear y
+  # la corrida prueba la forma justo despues, antes de leer la muestra.
+  preparacion_plan <- preparacion
+  preparacion_plan$consultas_antes_agregados <- preparacion$presupuesto$usadas
+  if (identical(preparacion$universo, "muestra_motor") &&
+      isTRUE(preparacion$muestreo$forma_construible) &&
+      !is.null(preparacion$muestreo$candidato)) {
+    muestreo <- .sondar_muestreo_dbi(
+      conexion, preparacion$tabla_sql, preparacion$dialecto,
+      preparacion$presupuesto, tipo_objeto = preparacion$tipo_objeto
+    )
+    muestreo$sondas_previstas <- length(muestreo$sondas)
+    estado_forma <- .estado_forma_muestreo_dbi(
+      muestreo$candidato, preparacion$tabla_sql,
+      preparacion$esquema$campos_sql, preparacion$muestra_motor,
+      preparacion$dialecto
+    )
+    muestreo$forma_construible <- estado_forma$forma_construible
+    if (!isTRUE(estado_forma$forma_construible)) {
+      muestreo$disponible <- FALSE
+      muestreo$motivo <- estado_forma$motivo
+    }
+    preparacion$muestreo <- muestreo
+    if (!isTRUE(muestreo$disponible)) {
+      preparacion$metricas_ejecucion <- character()
+    }
+  }
   # `columnas_codigo` viaja en `...` a `perfilar()` del `perfil_muestra`, y
   # se valida ACA contra las columnas de la tabla: con `bloque_muestra =
   # "solo_agregados"` no hay muestra, y un nombre mal escrito pasaba sin error.
@@ -27167,6 +29313,12 @@ perfilar_dbi <- function(conexion, tabla,
         !is.null(preparacion$presupuesto)) {
       resultado$resumen_tabla$meta$consultas$emitidas <-
         preparacion$presupuesto$usadas
+      resultado$resumen_tabla$meta$consultas$conciliacion <-
+        .conciliar_consultas_dbi(
+          plan_corrida, plan_corrida,
+          preparacion$presupuesto$usadas, preparacion,
+          preparacion$presupuesto
+        )
     }
     resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
     # El spool ya materializo los datos y aplica estas guardas antes de la
@@ -27226,6 +29378,29 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_procesamiento = max_bytes_procesamiento,
       metricas_publicas = preparacion$metricas
     )
+    if (is.list(resultado$resumen_tabla$meta$consultas)) {
+      plan_bloques <- resultado$resumen_tabla$meta$plan
+      conciliacion_bloques <- if (is.data.frame(plan_bloques)) {
+        .conciliar_consultas_dbi(
+          plan_bloques, plan_bloques,
+          resultado$resumen_tabla$meta$consultas$emitidas,
+          preparacion, preparacion$presupuesto
+        )
+      } else {
+        .conciliacion_consultas_sin_plan_dbi(
+          resultado$resumen_tabla$meta$consultas, preparacion$presupuesto
+        )
+      }
+      if (is.data.frame(plan_bloques)) {
+        conciliacion_bloques <- .atributos_conciliacion_dbi(
+          conciliacion_bloques, plan_bloques
+        )
+      }
+      resultado$resumen_tabla$meta$consultas$conciliacion <-
+        conciliacion_bloques
+      resultado$resumen_tabla$meta$consultas$conciliacion$plan_corrida <-
+        conciliacion_bloques
+    }
     if (isTRUE(attr(resultado, "epilogo_aplicado_dbi", exact = TRUE))) {
       attr(resultado, "epilogo_aplicado_dbi") <- NULL
       return(con_fecha(resultado))
@@ -27299,6 +29474,52 @@ perfilar_dbi <- function(conexion, tabla,
   # del aviso de costo ya esta en `presupuesto$usadas`; se separa para que la
   # forma del plan sea la del previo.
   aviso_catalogo <- .consultas_catalogo_aviso_dbi(conexion, tabla, preparacion)
+  pruebas_cte_corrida <- .prueba_cte_mediana_plan_dbi(
+    conexion, preparacion, es_numerico, incluir_valores
+  )
+  emitidas_plan_corrida <- presupuesto$usadas - aviso_catalogo +
+    pruebas_cte_corrida
+  formas_muestreo_plan <- if (identical(preparacion_plan$universo, "muestra_motor") &&
+                              !is.null(preparacion_plan$muestreo)) {
+    as.integer(preparacion_plan$muestreo$sondas_previstas %||% 0L)
+  } else {
+    0L
+  }
+  preparacion_prueba_plan <- preparacion_plan
+  if (identical(preparacion$universo, "muestra_motor") &&
+      !isTRUE(preparacion$muestreo$disponible) &&
+      isTRUE(preparacion_plan$muestreo$disponible)) {
+    # La corrida no pudo resolver la forma, por eso su preparacion no alcanzo
+    # a dejar guardada la resolucion de la CTE que el plan proyecta probar.
+    preparacion_prueba_plan$muestreo <- preparacion_plan$muestreo
+    preparacion_prueba_plan$mediana_cte_ventana <- NULL
+  }
+  pruebas_plan <- .prueba_cte_mediana_plan_dbi(
+    conexion, preparacion_prueba_plan, es_numerico, incluir_valores
+  )
+  emitidas_plan_anunciado <- preparacion_plan$consultas_antes_agregados +
+    formas_muestreo_plan + pruebas_plan
+  capacidades_adicionales_corrida <- numeric()
+  if (pruebas_cte_corrida > 0) {
+    capacidades_adicionales_corrida[
+      .clase_capacidad_dbi(
+        .capacidad_etapa_dbi("mediana_cte_ventana")
+      )
+    ] <- pruebas_cte_corrida
+  }
+  capacidades_adicionales_anunciado <- numeric()
+  if (formas_muestreo_plan > 0) {
+    capacidades_adicionales_anunciado[
+      .clase_capacidad_dbi(.capacidad_etapa_dbi("muestreo"))
+    ] <- formas_muestreo_plan
+  }
+  if (pruebas_plan > 0) {
+    capacidades_adicionales_anunciado[
+      .clase_capacidad_dbi(
+        .capacidad_etapa_dbi("mediana_cte_ventana")
+      )
+    ] <- pruebas_plan
+  }
   contar_faltantes_plan <- identical(preparacion$universo, "muestra_motor") ||
     is.finite(preparacion$muestra)
   politicas_faltantes_plan <- if (isTRUE(contar_faltantes_plan)) {
@@ -27320,21 +29541,33 @@ perfilar_dbi <- function(conexion, tabla,
         !isTRUE(policy$declarados)
     }, logical(1L)))
   } else 0L
-  campos_faltantes_planos_corrida <- if (length(politicas_faltantes_plan)) {
+  campos_faltantes_planos <- if (length(politicas_faltantes_plan)) {
     names(politicas_faltantes_plan)[vapply(politicas_faltantes_plan, function(policy) {
       isTRUE(policy$exacta) && !identical(policy$clase, "textual")
     }, logical(1L))]
   } else character()
-  plan <- .plan_sql_dbi(
+  plan_ejecutado <- .plan_sql_dbi(
     conexion, preparacion, es_numerico, incluir_valores, tope_muestra,
-    emitidas = presupuesto$usadas - aviso_catalogo +
-      .prueba_cte_mediana_plan_dbi(
-        conexion, preparacion, es_numerico, incluir_valores
-      ),
-    catalogo_aviso = aviso_catalogo,
+    emitidas = emitidas_plan_corrida, catalogo_aviso = aviso_catalogo,
+    consultas_muestra = 1L,
+    capacidades = .capacidades_plan_dbi(
+      presupuesto, capacidades_adicionales_corrida
+    ),
     consultas_faltantes = consultas_faltantes_plan,
     consultas_guardas_faltantes_max = consultas_guardas_faltantes_plan,
-    campos_faltantes_planos = campos_faltantes_planos_corrida
+    campos_faltantes_planos = campos_faltantes_planos
+  )
+  plan <- .plan_sql_dbi(
+    conexion, preparacion_plan, es_numerico, incluir_valores, tope_muestra,
+    emitidas = emitidas_plan_anunciado, catalogo_aviso = aviso_catalogo,
+    consultas_muestra = 1L,
+    capacidades = .capacidades_plan_dbi(
+      preparacion_plan$presupuesto, capacidades_adicionales_anunciado,
+      excluir_etapas = .capacidad_etapa_dbi("muestreo")
+    ),
+    consultas_faltantes = consultas_faltantes_plan,
+    consultas_guardas_faltantes_max = consultas_guardas_faltantes_plan,
+    campos_faltantes_planos = campos_faltantes_planos
   )
   reserva_verif_clave <- if (.verificar_clave_muestra_necesaria_dbi(
     preparacion$clave_muestra_motor, preparacion$muestra,
@@ -27415,62 +29648,13 @@ perfilar_dbi <- function(conexion, tabla,
       )
     }
   }
-  contar_faltantes_dbi <- identical(preparacion$universo, "muestra_motor") ||
-    is.finite(preparacion$muestra)
-  dobles_originales <- if (isTRUE(contar_faltantes_dbi) &&
-                          NROW(preparacion$lectura_convertida)) {
-    lecturas <- preparacion$lectura_convertida
-    as.character(lecturas$columna[vapply(
-      lecturas$lectura, .es_lectura_double_exacta_dbi, logical(1L)
-    )])
-  } else character()
-  alias_original_de <- stats::setNames(
-    vapply(seq_along(dobles_originales), function(i) {
-      .citar_identificador_dbi(
-        conexion, paste0("lupa_fd_original_", i)
-      )
-    }, character(1L), USE.NAMES = FALSE),
-    dobles_originales
-  )
-  proyeccion_faltantes_de <- function(indices = seq_along(preparacion$campos)) {
-    campos_indices <- preparacion$campos[indices]
-    originales <- campos_indices[campos_indices %in% dobles_originales]
-    extras <- if (length(originales)) {
-      vapply(originales, function(campo) {
-        # El double tal como esta en la tabla: `campos_sql` ya trae la lectura
-        # exacta por `float8send()`, y compararla obligaba a convertir cada
-        # fila (y contra un literal de 17 cifras no daba igual).
-        paste0(
-          .citar_identificador_dbi(conexion, campo), " AS ",
-          alias_original_de[[campo]]
-        )
-      }, character(1L), USE.NAMES = FALSE)
-    } else character()
-    c(preparacion$campos_sql_proyeccion[indices], extras)
-  }
-  columnas_sql_originales_de <- function(campos) {
-    vapply(campos, function(campo) {
-      if (campo %in% dobles_originales) alias_original_de[[campo]] else {
-        i <- match(campo, preparacion$campos)
-        if (NROW(preparacion$lectura_convertida)) {
-          .citar_identificador_dbi(conexion, campo)
-        } else preparacion$campos_sql[[i]]
-      }
-    }, character(1L), USE.NAMES = FALSE)
-  }
-  tabla_metricas_sql <- preparacion$tabla_sql
-  # Si alguna columna se lee convertida -`money` y `real` de PostgreSQL, ver
-  # `.lectura_convertida_dbi()`-, los agregados se calculan sobre esa misma
-  # lectura y no sobre el valor crudo: el resumen SQL y la muestra describen el
-  # mismo dato. Bajo `muestra_motor` la subconsulta muestreada ya proyecta la
-  # lectura convertida.
-  if (NROW(preparacion$lectura_convertida)) {
-    tabla_metricas_sql <- paste0(
-      "(SELECT ", paste(proyeccion_faltantes_de(), collapse = ", "),
-      " FROM ", preparacion$tabla_sql, ")",
-      preparacion$dialecto$alias_tabla("lupa_lectura")
-    )
-  }
+  # La fuente de los agregados y el nombre de sus columnas: ver
+  # `.fuente_lectura_dbi()`, que comparte con la compilacion del plan.
+  fuente_lectura <- .fuente_lectura_dbi(conexion, preparacion)
+  dobles_originales <- fuente_lectura$dobles_originales
+  proyeccion_faltantes_de <- fuente_lectura$proyeccion_faltantes_de
+  columnas_sql_originales_de <- fuente_lectura$columnas_sql_originales_de
+  tabla_metricas_sql <- fuente_lectura$tabla_metricas_sql
   if (identical(preparacion$universo, "muestra_motor") &&
       !is.null(preparacion$muestreo) &&
       isTRUE(preparacion$muestreo$disponible)) {
@@ -27541,13 +29725,7 @@ perfilar_dbi <- function(conexion, tabla,
   # lectura especial. Sus columnas conservan los nombres originales; volver a
   # usar la expresion de lectura aqui aplicaria `float8send()` sobre el NUMERIC
   # ya materializado y hace fallar el fetch de los agregados.
-  campos_sql_consolidados <- if (NROW(preparacion$lectura_convertida)) {
-    vapply(preparacion$campos, function(campo) {
-      .citar_identificador_dbi(conexion, campo)
-    }, character(1L), USE.NAMES = FALSE)
-  } else {
-    preparacion$campos_sql
-  }
+  campos_sql_consolidados <- fuente_lectura$campos_sql_de(preparacion$campos)
   es_numerico_consolidados <- preparacion$es_numerico
   motivos_resumen <- preparacion$esquema$motivos
   cobertura_aislamiento_muestra <- .cobertura_dbi_vacia()
@@ -27610,13 +29788,9 @@ perfilar_dbi <- function(conexion, tabla,
         }
         if (!is.null(fuente_legible)) {
           campos_consolidados <- preparacion$campos[quedan_muestra]
-          campos_sql_consolidados <- if (NROW(preparacion$lectura_convertida)) {
-            vapply(preparacion$campos[quedan_muestra], function(campo) {
-              .citar_identificador_dbi(conexion, campo)
-            }, character(1L), USE.NAMES = FALSE)
-          } else {
-            preparacion$campos_sql[quedan_muestra]
-          }
+          campos_sql_consolidados <- fuente_lectura$campos_sql_de(
+            preparacion$campos[quedan_muestra]
+          )
           es_numerico_consolidados <- preparacion$es_numerico[quedan_muestra]
           motivos_aislados <- paste(
             "La lectura de la muestra fall\u00f3; la columna se aisl\u00f3 por descarte",
@@ -27705,7 +29879,8 @@ perfilar_dbi <- function(conexion, tabla,
       columnas_not_null_skip = preparacion$columnas_not_null_skip,
       columnas_not_null_texto = preparacion$columnas_not_null_texto,
       plan_duplicados = preparacion$plan_duplicados,
-      contador_estabilidad = contador_est_spec
+      contador_estabilidad = contador_est_spec,
+      bloque_muestra = preparacion$bloque_muestra
     )
   }
   resumen <- ejecutar_resumen(tabla_metricas_sql, fuente_muestreada,
@@ -27902,16 +30077,46 @@ perfilar_dbi <- function(conexion, tabla,
   resumen$meta$costo_distintos <- presupuesto$proyeccion_distintos
   resumen$meta$costo_moda <- presupuesto$proyeccion_moda
   resumen$meta$costo_mediana <- presupuesto$proyeccion_mediana
+  nmax_plan_anunciado <- plan$n_consultas_max
+  clases_plan_anunciado <- plan$clase_consulta
+  plan_anunciado <- plan
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
-    plan <- .plan_sql_dbi(
+    plan_replan <- .plan_sql_dbi(
       conexion, preparacion, es_numerico, incluir_valores,
       tope_muestra, emitidas = consultas_antes_resumen,
       catalogo_aviso = aviso_catalogo,
       decisiones_costo_resueltas = resumen$meta$decisiones_costo,
       consultas_faltantes = consultas_faltantes_plan,
       consultas_guardas_faltantes_max = consultas_guardas_faltantes_plan,
-      campos_faltantes_planos = campos_faltantes_planos_corrida
+      campos_faltantes_planos = campos_faltantes_planos,
+      consultas_muestra = 1L,
+      capacidades = .capacidades_plan_dbi(
+        preparacion$presupuesto, capacidades_adicionales_anunciado,
+        excluir_etapas = .capacidad_etapa_dbi("muestreo")
+      )
     )
+    plan_replan$n_consultas_max <- nmax_plan_anunciado[
+      match(plan_replan$clase_consulta, clases_plan_anunciado)
+    ]
+    faltantes_replan <- setdiff(
+      plan_anunciado$clase_consulta, plan_replan$clase_consulta
+    )
+    if (length(faltantes_replan)) {
+      plan_replan <- rbind(
+        plan_replan,
+        plan_anunciado[
+          match(faltantes_replan, plan_anunciado$clase_consulta), ,
+          drop = FALSE
+        ]
+      )
+    }
+    orden_replan <- unique(c(
+      plan_anunciado$clase_consulta, plan_replan$clase_consulta
+    ))
+    plan_replan <- plan_replan[match(orden_replan, plan_replan$clase_consulta), ,
+                               drop = FALSE]
+    rownames(plan_replan) <- NULL
+    plan <- plan_replan
   }
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
@@ -27923,6 +30128,32 @@ perfilar_dbi <- function(conexion, tabla,
   # aca es el total que gobierna el denominador, la muestra y toda la metadata;
   # no se conserva el valor desconocido de la preparacion.
   preparacion$n_total <- resumen$meta$filas
+  preparacion$tabla_sin_valores <- .tabla_sin_valores_dbi(
+    resumen$columnas
+  )
+  if (isTRUE(preparacion$tabla_sin_valores) &&
+      !identical(preparacion$bloque_muestra, "solo_agregados") &&
+      is.data.frame(plan) &&
+      nrow(plan)) {
+    estabilidad_plan <- as.character(plan$clase_consulta) ==
+      .CLASE_PLAN_ESTABILIDAD_DBI
+    if (any(estabilidad_plan)) {
+      plan <- plan[!estabilidad_plan, , drop = FALSE]
+      rownames(plan) <- NULL
+      attr(plan, "verificar_estabilidad_min") <- 0L
+      attr(plan, "verificar_estabilidad_max") <- 0L
+    }
+  }
+  plan_ejecutado <- .plan_ejecutado_consultas_dbi(
+    plan, presupuesto, consultas_antes_resumen,
+    tabla_vacia = isTRUE(
+      suppressWarnings(as.numeric(preparacion$n_total)) == 0 &&
+        !identical(preparacion$bloque_muestra, "solo_agregados")
+    ),
+    muestra_no_disponible = identical(preparacion$universo, "muestra_motor") &&
+      is.list(preparacion$muestreo) &&
+      !isTRUE(preparacion$muestreo$disponible)
+  )
   if (identical(preparacion$universo, "muestra_motor")) {
     if (!is.null(fuente_muestreada)) {
       fuente_muestreada$filas_solicitadas <- min(
@@ -28061,7 +30292,37 @@ perfilar_dbi <- function(conexion, tabla,
   if (identical(preparacion$bloque_muestra, "solo_agregados")) {
     attr(plan, "bloque_muestra") <- preparacion$bloque_muestra
   }
-  resumen$meta$plan <- plan
+  plan_publicado <- plan
+  actualizar <- is.na(plan$n_consultas)
+  if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
+    actualizar <- actualizar | (
+      is.finite(plan_ejecutado$n_consultas) &
+        is.finite(plan$n_consultas) &
+        plan_ejecutado$n_consultas != plan$n_consultas &
+        !grepl("conteos de faltantes", plan$clase_consulta, fixed = TRUE,
+               useBytes = TRUE)
+    )
+  }
+  if (isTRUE(preparacion$tabla_sin_valores)) {
+    actualizar <- actualizar | grepl(
+      "^mediana \\(", plan$clase_consulta, perl = TRUE, useBytes = TRUE
+    )
+  }
+  if (identical(preparacion$universo, "muestra_motor") &&
+      is.list(preparacion$muestreo) &&
+      !isTRUE(preparacion$muestreo$disponible)) {
+    actualizar <- actualizar | plan$alcance == "lee una muestra del motor"
+  }
+  plan_publicado$n_consultas[actualizar] <-
+    plan_ejecutado$n_consultas[actualizar]
+  attr(plan_publicado, "total") <- sum(
+    as.numeric(plan_publicado$n_consultas), na.rm = TRUE
+  )
+  attr(plan_publicado, "total_minimo") <- attr(plan, "total_minimo")
+  attr(plan_publicado, "total_maximo") <- attr(plan, "total_maximo")
+  attr(plan_publicado, "total_lotes_rechazados") <-
+    attr(plan, "total_lotes_rechazados")
+  resumen$meta$plan <- plan_publicado
   if (identical(preparacion$universo, "muestra_motor") &&
       !.solicita_muestra_dbi(preparacion$bloque_muestra)) {
     # La muestra del motor sigue gobernando los agregados SQL, pero el bloque
@@ -28402,13 +30663,75 @@ perfilar_dbi <- function(conexion, tabla,
     ))
   }
   rownames(cobertura) <- NULL
+  muestra_no_disponible_corrida <- identical(preparacion$universo, "muestra_motor") &&
+    is.list(preparacion$muestreo) && !isTRUE(preparacion$muestreo$disponible)
+  condicional_desconocida <- is.data.frame(plan) && nrow(plan) > 0L &&
+    anyNA(plan$n_consultas)
+  plan_conciliacion_historico <- if (isTRUE(preparacion$tabla_sin_valores) ||
+                                      muestra_no_disponible_corrida) {
+    plan
+  } else {
+    plan_publicado
+  }
+  conciliacion <- .conciliar_consultas_dbi(
+    plan_conciliacion_historico, plan_ejecutado, presupuesto$usadas,
+    preparacion, presupuesto
+  )
+  plan_conciliacion <- if (isTRUE(preparacion$tabla_sin_valores)) {
+    plan_publicado
+  } else if (muestra_no_disponible_corrida || condicional_desconocida) {
+    plan
+  } else {
+    plan_publicado
+  }
+  conciliacion_corrida <- .conciliar_consultas_dbi(
+    plan_conciliacion, plan_ejecutado, presupuesto$usadas,
+    preparacion, presupuesto
+  )
+  conciliacion <- .atributos_conciliacion_dbi(
+    conciliacion, plan_conciliacion_historico
+  )
+  conciliacion_corrida <- .atributos_conciliacion_dbi(
+    conciliacion_corrida, plan_conciliacion
+  )
+  plan_previo <- NULL
+  if (isTRUE(preparacion$tabla_sin_valores)) {
+    totales_previos <- .totales_plan_consultas_dbi(plan)
+    motivo_plan_previo <- if (isTRUE(
+      is.finite(preparacion$n_total) && preparacion$n_total == 0
+    )) {
+      paste(
+        "El plan previo se anuncio antes de comprobar que la tabla estaba",
+        "vacia. La conciliacion usa el plan publicado por la corrida."
+      )
+    } else {
+      paste(
+        "El plan previo se anuncio antes de comprobar que no habia valores",
+        "no nulos. La conciliacion usa el plan publicado por la corrida."
+      )
+    }
+    plan_previo <- list(
+      total = attr(plan, "total", exact = TRUE) %||% totales_previos$total,
+      total_minimo = attr(plan, "total_minimo", exact = TRUE) %||%
+        totales_previos$minimo,
+      total_maximo = attr(plan, "total_maximo", exact = TRUE) %||%
+        totales_previos$maximo,
+      motivo = motivo_plan_previo
+    )
+    plan_previo <- .atributos_conciliacion_dbi(plan_previo, plan)
+  }
   resumen$meta$consultas <- list(
     emitidas = presupuesto$usadas,
     presupuesto = presupuesto$max,
     agotado = isTRUE(presupuesto$agotado),
     fallas = .publicar_fallas_consultas_dbi(presupuesto),
-    sondas_fallidas = .publicar_fallas_sondas_dbi(presupuesto)
+    sondas_fallidas = .publicar_fallas_sondas_dbi(presupuesto),
+    conciliacion = conciliacion
   )
+  resumen$meta$consultas$conciliacion$plan_corrida <- conciliacion_corrida
+  if (!is.null(plan_previo)) {
+    resumen$meta$consultas$conciliacion$plan_previo <- plan_previo
+  }
   fallas_consultas <- resumen$meta$consultas$fallas
   if (is.data.frame(fallas_consultas) && nrow(fallas_consultas)) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(

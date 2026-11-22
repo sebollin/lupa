@@ -1566,6 +1566,72 @@ perfilar_fechas()
 perfilar_fechas(extended_types = TRUE)
 ```
 
+## Comprobar que el motor cuenta como R {#conformidad}
+
+La tabla de arriba es lo que se sabe de los motores en general. `conformidad_dbi()` lo
+comprueba en el servidor que vas a usar. Corre, sólo con `SELECT` y sin crear tablas
+ni leer filas tuyas, valores límite inventados con el tipo y la intercalación de las
+columnas reales (los lee del catálogo) por cada regla del modelo que `medir_dbi()`
+traduce a SQL, y compara lo que cuenta el motor con lo que cuenta R.
+
+Un ejemplo con una columna de texto que no compara por bytes:
+
+```{r conformidad}
+base_conf <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbExecute(
+  base_conf, "CREATE TABLE tramites (id INTEGER, estado TEXT COLLATE NOCASE)"
+)
+DBI::dbExecute(
+  base_conf,
+  "INSERT INTO tramites VALUES (1, 'abierto'), (2, 'CERRADO'), (3, 'cerrado'),
+   (4, 'otro'), (5, NULL)"
+)
+nucleo <- metricas_nucleo()
+modelo_tramites <- modelo(
+  instanciar(
+    especializar(nucleo$ValoresPosiblesPorExtension, "Estado",
+                 valores = c("abierto", "cerrado")),
+    "tramites", "estado"
+  ),
+  instanciar(especializar(nucleo$NoNulo, "Completo"), "tramites", "id")
+)
+bateria <- conformidad_dbi(base_conf, modelo_tramites)
+bateria[, c("metrica_instanciada", "caso", "conformidad", "motivo")]
+```
+
+`conformidad` contesta una sola pregunta: si el motor, cuando cuenta, da lo mismo que
+R. `conforme` es que con esos valores dan el mismo numerador y el mismo denominador.
+`no_conforme`, que el motor cuenta y da distinto. `abstencion`, que `medir_dbi()` no
+publicaría una cifra con esos valores por una guarda propia (acá, el cotejamiento
+`nocase`); el motivo dice cuál. `no_evaluada` y `no_verificado` dicen que la batería
+no pudo construir el caso o que el motor no está verificado en ella; la regla se mide
+como siempre, con un aviso. La batería está verificada en SQLite y DuckDB.
+
+El resultado se pasa a `medir_dbi()`:
+
+```{r conformidad-medir}
+medicion_conf <- medir_dbi(
+  modelo_tramites, base_conf, conformidad = bateria,
+  estrategia_no_sql = "bloques"
+)
+as.data.frame(medicion_conf)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+```
+
+Sólo una regla `no_conforme` deja de contarse en el motor: se mide por bloques en R con
+`estrategia_no_sql = "bloques"`, o queda `no_medible` con su motivo. Una `abstencion` no
+quita la regla: con los datos reales decide la guarda de siempre. El límite es
+conservador, porque un valor inventado que el motor cuenta distinto (un entero cerca de
+2^53, un texto con espacios) saca la regla del motor aunque tu tabla no lo tenga. Y una
+batería de otra conexión, otro modelo u otra configuración se rechaza con un aviso, y
+las reglas se miden como si no se la hubiera pasado.
+
+```{r conformidad-cierre, include=FALSE}
+stopifnot(identical(bateria$conformidad[bateria$metrica_instanciada == "Completo@tramites.id"], "conforme"))
+DBI::dbDisconnect(base_conf)
+```
+
 ## La clave primaria según el motor {#clave-primaria}
 
 La clave primaria no se adivina: se lee del catálogo del motor. Esa consulta de

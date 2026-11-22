@@ -289,6 +289,27 @@
   `cambio_detectado = NA` con la lista de lo controlado, nunca que no cambió lo
   que no pudo ver. `plan_perfilado_dbi()` cuenta esas consultas.
 
+- `plan_perfilado_dbi(..., compilar = TRUE)` compila cada consulta del plan en
+  el motor sin ejecutarla ni leer filas (`EXPLAIN` en SQLite, DuckDB y
+  PostgreSQL, dentro de una transacción propia que se revierte y con un tope de
+  tiempo; `PREPARE` en MySQL y MariaDB; `SET NOEXEC ON` en SQL Server, con la
+  conexión restaurada y comprobada al terminar) y publica por sentencia en
+  `attr(plan, "compilacion")` si compiló y, si no, el mensaje del motor: un
+  error de sintaxis, de nombre o de permisos aparece antes de una corrida larga.
+  Nunca toca la transacción del usuario: en DuckDB, con una abierta, se niega
+  antes de mandar nada. Una interrupción restaura la sesión y se vuelve a
+  señalar. La sección «Compilación» de la ayuda dice lo que compilar no puede
+  garantizar. Por omisión nada cambia. Verificada en los siete motores.
+
+- `perfilar_dbi()` concilia las consultas que emitió con las que anunció el plan:
+  `resumen_tabla$meta$consultas$conciliacion` dice cuántas se anunciaron y cuántas
+  se emitieron, por clase de consulta, y por qué difieren (un sondeo de capacidad
+  que prueba sus formas candidatas, una consulta que depende del dato, una tabla
+  vacía o sin valores, una falla y su vía de respaldo, o el presupuesto agotado,
+  que nunca queda conciliado), en las tres vías de lectura. `plan_perfilado_dbi()`
+  cuenta exactamente lo que se emite: las consultas que dependen del dato se
+  publican con su mínimo y su máximo, y `print()` lo dice.
+
 ## Medir la calidad
 
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una fila por
@@ -320,6 +341,40 @@
   código ni buscar nombres en el entorno.
 - El `ratio` de `agregar()` y del tablero se calcula como numerador sobre
   denominador, para que el resumen y la medición completa coincidan exactamente.
+
+- Cada medición lleva un sello de definición, `attr(, "sello_metricas")`: por
+  métrica, la versión de lupa, una huella de su definición (especificación,
+  parámetros, regla, referencial, aplicabilidad y orden del texto) y cuánto
+  certifica esa huella (`certificacion`): `completa` cuando todo lo que entra es
+  dato, `parcial` en cuanto entra una función del usuario o de otro paquete, o un
+  valor que la huella ve a medias, y `no_certificable` cuando lee de forma
+  dinámica. Sellar nunca ejecuta código del usuario ni hace fallar una medición.
+  El sello guarda además el entorno que puede cambiar lo medido (`scipen`,
+  `OutDec`, el locale, la zona horaria y la versión de R). `rbind()`,
+  `historico_calidad()`, `acumular_historico()` y `comparar_evaluaciones()`
+  avisan cuando una métrica cambió de definición entre dos corridas, e informan
+  (con un mensaje, no una advertencia) cuando la definición es la misma y el
+  entorno otro, y `detectar_deriva_calidad()` publica
+  `no_comparable` si el cambio de definición no está declarado en la
+  configuración. Una corrida guardada sin sello se compara como antes y se dice.
+- `orden_texto = c("idioma", "bytes")` en `medir()`, `medir_dbi()` y
+  `plan_medicion_dbi()`: con `"bytes"`, un rango o una comparación de orden
+  sobre texto no depende del locale de la sesión (orden por punto de código: `Z`
+  antes que `a`, `ñ` después de `z`), y el motor la traduce con una
+  intercalación binaria (SQLite y DuckDB verificados contra la memoria; los demás
+  motores quedan escritos y sin medir). `aplicable` y la aplicabilidad se evalúan
+  con R tal como están escritas. Con `"idioma"`, por omisión, nada cambia.
+- `conformidad_dbi(conexion, modelo)` comprueba en el servidor del usuario que el
+  motor cuenta igual que R: corre, sólo con `SELECT` sobre valores límite
+  inventados con el tipo y la intercalación de las columnas reales (leídos del
+  catálogo), cada regla del modelo que `medir_dbi()` traduce, y dice regla por
+  regla si conforma, se abstiene, no conforma o no se pudo evaluar.
+  `medir_dbi(..., conformidad = )` recibe ese resultado: lo que no conformó queda
+  no medible en el motor, o se mide por bloques en R con
+  `estrategia_no_sql = "bloques"`; una batería de otra conexión, otro modelo u
+  otra configuración se rechaza con aviso. Verificada en SQLite y DuckDB.
+- `plan_medicion_dbi(..., compilar = TRUE)`, como `plan_perfilado_dbi()`,
+  compila las consultas del plan sin ejecutarlas.
 
 ## Comparar entregas
 
@@ -454,6 +509,10 @@
 
 ## Documentación
 
+- «Comparar entregas y seguir la calidad» explica el sello de definición y sus
+  avisos; «Perfilar una base» muestra cómo compilar un plan antes de correrlo, y
+  «Motores y escala», cómo comprobar con `conformidad_dbi()` que el servidor
+  cuenta igual que R. Las dos últimas también en inglés.
 - La viñeta «Leer un perfil» muestra cómo decidir sobre los hallazgos y que la
   decisión valga en la entrega siguiente.
 - El sitio publica «Cruzar dos bases», una guía para comparar una tabla de cada
@@ -467,6 +526,10 @@
 
 ## Correcciones
 
+- `medir_dbi()` compara el texto con intercalación binaria explícita en SQLite y
+  DuckDB, como R: sobre una vista de SQLite que hereda `COLLATE NOCASE`, un
+  dominio contaba 3 de 3 donde R cuenta 2 de 3, y en DuckDB la regla quedaba sin
+  medir.
 - Un centinela declarado como entero de 64 bits, o escrito como texto con más
   de 15 cifras significativas en cualquier notación, se compara con el valor
   exacto en el perfil, el plan, `aplicar()`, `perfilar_por()` y

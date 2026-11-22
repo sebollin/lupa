@@ -60,13 +60,15 @@ test_that("la deriva publica el cambio de metodo como cambio de modelo", {
   perfil <- perfil_evaluacion(
     "Basico", regla_evaluacion("Presente", function(x) x > 0)
   )
-  deriva <- detectar_deriva_calidad(
-    historico_calidad(
+  # El metodo cambia a proposito: el historico avisa el cambio de definicion.
+  expect_warning(
+    h <- historico_calidad(
       evaluar(medir_metodo(metodo_presente, "enero", "2026-01-31"), perfil),
       evaluar(medir_metodo(metodo_mayor_de_21, "febrero", "2026-02-28"), perfil)
     ),
-    nivel = "perfil"
+    "cambi\u00f3 de definici\u00f3n"
   )
+  deriva <- detectar_deriva_calidad(h, nivel = "perfil")
 
   expect_true(any(deriva$aspecto == "configuracion_modelo", na.rm = TRUE))
 })

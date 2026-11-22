@@ -13,7 +13,8 @@ medir(
   proteger_datos_personales = FALSE,
   columnas_personales = character(),
   validadores_personales = NULL,
-  detalle = c("completo", "resumen")
+  detalle = c("completo", "resumen"),
+  orden_texto = c("idioma", "bytes")
 )
 }
 \arguments{
@@ -59,7 +60,15 @@ corresponde: con universo de 300 filas sobre 1.000 y 30 vacías de verdad,
 sin declararlo da \verb{0,270} y declarándolo \verb{0,900}. El histórico y la deriva
 consumen mediciones, así que heredan el número que salga de acá.
 
-Sin declaración toda la tabla aplica y el resultado es el de siempre.}
+Sin declaración toda la tabla aplica y el resultado es el de siempre.
+
+Estas fórmulas —y la propiedad \code{aplicable} de una métrica como \code{NoNulo}—
+se evalúan con R tal como están escritas: \code{orden_texto} no las toca. Una
+comparación de texto ahí sigue el orden del locale de la sesión, una
+expresión regular sus clases de caracteres, un número comparado con un
+texto \code{scipen} y \code{OutDec}, y un instante comparado con un texto el huso. El
+sello registra ese entorno, y comparar dos corridas medidas en otro lo
+avisa.}
 
 \item{proteger_datos_personales}{Si se enmascaran los candidatos de
 proximidad que corresponden a columnas personales. Por omisión \code{FALSE}.
@@ -91,6 +100,23 @@ por métrica instanciada y objeto de destino con \code{numerador},
 \code{\link[=indice_calidad]{indice_calidad()}} y \code{\link[=cobertura_analisis]{cobertura_analisis()}} que la medición completa;
 \code{\link[=evaluar]{evaluar()}}, \code{\link[=agregar]{agregar()}}, \code{\link[=historico_calidad]{historico_calidad()}} y \code{\link[=reportar]{reportar()}} lo
 rechazan indicando qué hacer.}
+
+\item{orden_texto}{Cómo se ordena el texto en las reglas que el paquete
+interpreta con un operador de orden: el rango (\code{minimo} y \code{maximo}) de
+\code{ValoresPosiblesPorComprension} y las comparaciones \code{<}, \code{<=}, \code{>} y \code{>=}
+de la fórmula de \code{ReglaIntegridadIntraEntidad}. Con \code{"idioma"} (por
+omisión) es el orden del locale de la sesión (\code{LC_COLLATE}), como siempre,
+y la misma regla puede dar otro número en otra máquina: en \code{es_UY.UTF-8},
+\code{"A"} cae entre \code{"a"} y \code{"b"}; en \code{C}, no. Con \code{"bytes"} se compara por los
+bytes del UTF-8, que es el orden por punto de código y es el mismo en toda
+sesión: \code{"Z"} va antes que \code{"a"}, y \code{"ñ"} después de \code{"z"}. Sólo cambian
+las comparaciones donde R compara texto; un número o una fecha se comparan
+igual con los dos. Una función escrita por quien llama (\code{regla = function(d) ...}, \code{predicado}), \code{aplicable} y \code{aplicabilidad} se evalúan
+como están escritas, y \code{orden_texto} no las toca: aun con \code{"bytes"}, una
+comparación de texto ahí (\code{s < "b"}, \code{min(s)}, \code{sort(s)}) sigue el orden
+del locale de la sesión. El sello registra ese locale (ver «Sello de cada
+métrica»), y comparar dos corridas medidas con otro lo avisa.
+\code{\link[=medir_dbi]{medir_dbi()}} mide esas reglas sobre texto sólo con \code{"bytes"}.}
 }
 \value{
 Data frame S3 de clase \code{medicion}, con una fila por objeto medido.
@@ -138,6 +164,134 @@ Con \code{detalle = "resumen"}, devuelve un \code{data.frame} S3 de clase
 instanciada y objeto de destino. Las métricas no acotadas por celda
 (\code{duracion}, \code{entero}, \code{numero_real} por celda) no se promedian y quedan
 en \code{cobertura_metricas} con estado \code{no_resumible}.
+
+\strong{Sello de cada métrica.} El atributo \code{sello_metricas} tiene una fila por
+métrica instanciada del modelo —también las que no se pudieron medir— con
+\code{id_medicion}, \code{metrica_instanciada}, \code{metrica_especifica}, \code{version_lupa}
+(la versión de lupa que midió), \code{huella_definicion} —el md5 de una
+descripción canónica de su definición—, \code{certificacion} —cuánto de la
+definición ve esa huella— y \code{motivo_huella}. Entran los campos de la
+métrica que deciden qué se mide y cómo se lee (\code{nombre}, \code{granularidad},
+\code{tipo_resultado}, \code{orientacion}, \code{propiedades}, \code{dimension} y \code{factor}; no
+la \code{semantica}, que es su descripción en prosa), los parámetros con que se
+especializó, la entidad y los atributos en su orden, el referencial (su
+clave, sus valores y sus filas, no su nombre), el método cuando no es el
+del paquete, las reglas de \code{aplicabilidad} de sus atributos y
+\code{orden_texto = "bytes"} si la métrica ordena texto en esta medición —un
+rango o una comparación \code{<}, \code{<=}, \code{>}, \code{>=} con algún operando de texto—.
+El método por omisión de una métrica del paquete no entra: lo que haga en
+cada versión lo dice \code{version_lupa}.
+
+\code{certificacion} tiene tres niveles:
+\itemize{
+\item \code{"completa"}: la definición es toda dato, y la huella la ve entera. Son
+las métricas del paquete con sus parámetros —valores, vectores, tablas,
+fechas, factores, con sus nombres y sus atributos—, la fórmula de
+\code{ReglaIntegridadIntraEntidad} (que no lee su entorno), el referencial, una
+fórmula de \code{aplicabilidad} o de \code{aplicable} que sólo compara columnas y
+valores con funciones que no leen nada más que sus argumentos (\code{==},
+\code{\%in\%}, \code{is.na()}, \code{nchar()}, \code{grepl()}, \code{ifelse()} y otras así), y
+\code{orden_texto}. «No leen nada más» quiere decir: nada más que sus
+argumentos y el entorno de la sesión que el sello registra (abajo); por
+eso entran \code{paste()}, \code{gsub()}, \code{sort()}, \code{mean()}, \code{weekdays()} y
+otras de base, y quedan afuera \code{format()} (lee \code{digits}, que no se
+registra), \code{Sys.time()}, \code{Sys.Date()} y lo que aplica otra función
+(\code{sapply()}). Todo valor que entra —un parámetro, una columna del
+referencial, un literal de una fórmula— tiene que ser de una clase que el
+paquete lee como dato: sin clase, \code{factor}, \code{Date}, \code{POSIXct},
+\code{POSIXlt}, \code{difftime}, \code{integer64}, un \code{data.frame} con columnas de esas
+clases, o un objeto del paquete (un referencial, una normalización). Si
+la huella no cambió, la definición no cambió.
+\item \code{"parcial"}: la definición incluye una función de quien llama —una regla
+escrita como función, un método declarado en \code{\link[=instanciar]{instanciar()}}, el de una
+métrica escrita con \code{\link[=metrica]{metrica()}}—, una función de un paquete que no es de
+R ni lupa, o una fórmula que llama a otra función. La huella ve su texto,
+sus atributos y el valor de cada variable libre que nombra y que no es de
+R ni de un paquete (\code{function(d) d$x > u} con \code{u = 1} y con \code{u = 2} tienen
+huellas distintas); de una función de un paquete, su versión y su cuerpo.
+Lo que no ve es lo que un código de R puede leer sin nombrarlo: un
+atributo pedido con \code{body("f")}, una función armada como texto, lo que
+\code{local()} o \code{assign()} cambian, \code{...elt()}. También es parcial lo que la
+huella ve a medias: el argumento sin evaluar de una fábrica de funciones
+—\code{crear(umbral)}; entra su código, no su valor—, una cadena de más de ocho
+funciones que se llaman entre sí, o un valor de más de un millón de
+elementos (diez millones en el referencial), que se describe por su tipo,
+su largo y su clase sin leerlo. Y un valor de cualquier otra clase, en
+cualquier nivel —«valor con clase propia: su método puede cambiar lo que
+mide»—, o de una clase de dato o del paquete para la que quien llama
+escribió un método (un \verb{$.referencial} o un \code{format.Date} en el entorno
+global, o uno registrado para una clase del paquete): la métrica lo lee
+con esos métodos, y la huella ve el valor, no el método. Si la huella cambió, la definición cambió; si no cambió, no se
+afirma que siga igual.
+\item \code{"no_certificable"}: la definición lee algo que la huella no puede
+describir, y \code{huella_definicion} es \code{"no_certificable"}. Un entorno, un
+puntero externo, una conexión, un objeto S4, un enlace activo, \code{..1} de
+una fábrica, o una lectura que no se ve en el texto: \code{get()}, \code{mget()},
+\code{dynGet()}, \code{exists()}, \code{eval()}, \code{parse()}, \code{source()}, \code{getOption()},
+\code{options()}, \code{Sys.getenv()}, un entorno (\code{.GlobalEnv}, \code{globalenv()},
+\code{environment()}, \code{ls()}), el marco de quien llama (\code{sys.function()},
+\code{parent.frame()}), el despacho (\code{UseMethod()}) o una de esas funciones
+con otro nombre o pasada a otra (\code{f <- get}, \code{sapply(x, "get")}).
+}
+
+\strong{El entorno de la sesión.} Lo que puede cambiar lo medido sin cambiar
+la definición va aparte de la huella, en \code{attr(sello_metricas, "entorno")}: por corrida, \code{scipen} y \code{OutDec} (un número comparado con un
+texto pasa por \code{as.character()}), \code{LC_COLLATE} (el orden del texto),
+\code{LC_CTYPE} (las clases de caracteres), \code{LC_TIME} (los nombres de meses y
+días), el huso (\code{TZ}) y la versión de R. Con \code{scipen = 0} y
+\code{scipen = 100}, \code{NoNulo(valores_nulos = 100000)} sobre el texto \code{"100000"}
+da otro resultado con la misma definición. Comparar dos corridas con la
+misma huella y otro entorno avisa «misma definición, otro entorno» con lo
+que cambió —no las declara \code{no_comparable}: la definición es la misma—, y
+el histórico (\code{cobertura_sello}) y la deriva (\code{cobertura_diagnosticos}) lo
+declaran. Un sello que no registra su entorno, de una versión anterior, se
+lee como «entorno desconocido».
+
+\code{motivo_huella} dice por qué una huella es parcial o no certificable.
+Para una huella completa, escribir la regla como fórmula y pasar sus
+valores como parámetros de \code{\link[=especializar]{especializar()}}. Una función de un paquete
+cargado con \code{pkgload} lo anota: su versión no fija su código.
+
+Sellar no ejecuta código de quien llama y nunca hace fallar ni demora una
+medición: no evalúa una promesa, no dispara un enlace activo, no despacha
+métodos —un objeto con clase se describe sin su clase, con la clase como
+dato, así que un \code{length()}, \code{[[} o \code{format()} propios no corren— y no lee
+lo que pasa del tope —\code{1:1e9} en el entorno de una regla ocupa 680 bytes, y
+leerlo pediría 8 GB—. Si describir una métrica fallara igual, esa métrica
+queda \code{"no_certificable"} con el error en \code{motivo_huella} y la medición
+sigue. Límites: en el entorno global R no deja ver una promesa sin
+evaluarla, y una creada ahí con \code{delayedAssign()} se evalúa al sellar; un
+vector ALTREP de una clase escrita en C no se distingue de uno común sin
+\code{.Internal()}: hasta un millón de elementos se copia una vez para
+describirlo, y esa copia corre una vez el código de lectura de su clase;
+un método escrito por quien llama para una clase implícita
+(\code{format.numeric}) no se busca, ni uno de una clase de base registrado en
+la tabla de métodos de un paquete; una variable que la regla modifica con \verb{<<-}
+entra con su valor del momento, y un contador que cambia en cada corrida
+cambia la huella aunque la regla mida lo mismo.
+
+La huella es la misma en otra sesión, en otro proceso y en otra máquina, y
+no cambia con lo que no cambia el significado: el orden de los argumentos
+de \code{\link[=especializar]{especializar()}}, el de los valores de una propiedad que se usa como
+conjunto (\code{valores}, \code{diccionario}, \code{valores_nulos}) o de \code{proteger} en
+\code{\link[=normalizacion]{normalizacion()}}, un paréntesis de más, un entero contra el doble del mismo
+valor (\code{0L} y \code{0}; el cero con signo, \code{-0}, sí se distingue), el orden de
+los atributos que nombra la fórmula de \code{ReglaIntegridadIntraEntidad}, o una
+columna del referencial como factor en vez de texto. Con
+\code{orden_texto = "idioma"} la huella no registra el locale de la sesión: para
+seguir una regla sobre texto entre máquinas, \code{"bytes"}.
+
+Comparar dos mediciones lee el sello: \code{rbind()}, \code{\link[=historico_calidad]{historico_calidad()}},
+\code{\link[=acumular_historico]{acumular_historico()}} y \code{\link[=comparar_evaluaciones]{comparar_evaluaciones()}} avisan cuando una
+métrica cambió de definición de una corrida a la siguiente, y
+\code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}} lo declara en su fila \code{definicion_metrica}.
+Cuando la huella no cambió pero es parcial, no se avisa: el histórico lo
+declara en \code{attr(historico, "cobertura_sello")} y la deriva en
+\code{cobertura_diagnosticos} («huella parcial»). \code{rbind()} rechaza dos sellos
+distintos de la misma métrica con el mismo \code{id_medicion}: son dos
+entregas, no una corrida armada por partes. Una medición guardada por una
+versión anterior no trae sello: se compara como antes y se avisa que no lo
+trae.
 }
 \description{
 Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es

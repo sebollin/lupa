@@ -1644,6 +1644,7 @@ leer_analisis <- function(archivo) {
   partes <- list()
   coberturas <- list()
   alcances <- list()
+  sellos <- list()
   entidades <- character()
   vacia <- NULL
   # Lo que `medir()` declara sobre la corrida -la fecha declarada, la
@@ -1679,6 +1680,8 @@ leer_analisis <- function(archivo) {
     if (inherits(alcance, "data.frame") && nrow(alcance)) {
       alcances[[length(alcances) + 1L]] <- alcance
     }
+    # El sello es por metrica, y el de la primera no es el de la corrida.
+    sellos[[length(sellos) + 1L]] <- .sello_de_objeto(medidas)
     if (!nrow(medidas)) {
       vacia <- medidas
       next
@@ -1702,10 +1705,13 @@ leer_analisis <- function(archivo) {
   }
   .avisar_no_medibles(cobertura_metricas, length(modelo_completo$metricas))
   configuracion_modelo <- .configuracion_modelo_calidad(modelo_completo)
+  sellos <- Filter(Negate(is.null), sellos)
+  sello_metricas <- if (length(sellos)) do.call(rbind, sellos)
   if (!length(partes)) {
     attr(vacia, "cobertura_metricas") <- cobertura_metricas
     attr(vacia, "alcance_medidas") <- alcance_medidas
     attr(vacia, "configuracion_modelo") <- configuracion_modelo
+    attr(vacia, "sello_metricas") <- sello_metricas
     return(list(agregada = NULL, vacia = vacia))
   }
   cual <- if (length(entidades) > 1L) "varias" else "una"
@@ -1721,6 +1727,7 @@ leer_analisis <- function(archivo) {
   # declaran las de todas, que son las que `.armar_tablero()` publica.
   attr(agregada, "cobertura_metricas") <- cobertura_metricas
   attr(agregada, "alcance_medidas") <- alcance_medidas
+  attr(agregada, "sello_metricas") <- sello_metricas
   list(
     agregada = agregada, cobertura_metricas = cobertura_metricas,
     alcance_medidas = alcance_medidas

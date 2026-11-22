@@ -33,7 +33,8 @@ plan_perfilado_dbi(
   aplicabilidad = NULL,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   cadenas_ausencia = NULL,
-  clave = NULL
+  clave = NULL,
+  compilar = FALSE
 )
 }
 \arguments{
@@ -329,6 +330,10 @@ textual al anticipar las consultas de la métrica nueva.}
 reproducible por huella en el motor cuando no se especifica \code{orden_muestra}.
 Si el catálogo ya garantiza su unicidad no agrega consultas; si no, el plan
 cuenta la consulta de verificación de unicidad.}
+
+\item{compilar}{Si es \code{TRUE}, le pide al motor que compile, sin ejecutarlas
+ni traer filas, las consultas SQL que el plan construye, y publica una fila
+por sentencia en \code{attr(plan, "compilacion")}. Ver la sección Compilación.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
@@ -369,12 +374,16 @@ lo dicen antes de correr. La fila de consulta de muestra conserva su
 conteo separado de los agregados; los topes no cambian ninguna consulta
 SQL de resumen.
 
-El costo no se declara como un número sino como un rango: \code{total} es el
-extremo inferior, que supone que la política omite la moda cuya cardinalidad
-no se conoce, y \code{total_maximo} el superior, que supone que la ejecuta. La
-mediana queda fuera de ese supuesto proporcional y se cuenta según las
-columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
-de lotes puede agregar las sondas de bisección declaradas por
+El costo no se declara como un número sino como un rango: \code{total_minimo} es
+el extremo inferior, que supone que la política omite la moda cuya
+cardinalidad no se conoce, y \code{total_maximo} el superior, que supone que la
+ejecuta. \code{total} conserva el extremo inferior para no cambiar a los
+consumidores que usan la cuenta esperada; \code{print()} y los atributos
+\code{total_minimo} y \code{total_maximo} publican el intervalo completo cuando una
+condicional puede agregar consultas. La mediana queda fuera de ese supuesto
+proporcional y se cuenta según las columnas numéricas solicitadas. Ambos
+extremos incluyen la preparación y el perfilado; el rechazo de lotes puede
+agregar las sondas de bisección declaradas por
 \code{total_lotes_rechazados}. El costo real cae entre los extremos cuando
 \code{universo} es \code{"tabla_completa"} o \code{attr(plan, "muestreo")$estado} es
 \code{"disponible"}; en \code{"no_sondeado"} la forma sólo se construyó localmente
@@ -539,6 +548,98 @@ muestra —dos en el extremo superior, si un \code{TABLESAMPLE} corto se reinten
 y la preparación que la corrida repite para publicar su plan en
 \code{meta$plan}.
 }
+\section{Compilación}{
+
+Con \code{compilar = TRUE} el plan, además de contar, le pide al motor que
+compile cada consulta que construye, sin ejecutarla ni traer filas, y publica
+una fila por sentencia en \code{attr(plan, "compilacion")}, con \code{consulta_id},
+\code{etapa}, \code{sql}, \code{estado}, \code{motivo} y \code{metodo}. \code{estado} es uno de:
+\itemize{
+\item \code{compilada}: el motor la aceptó.
+\item \code{no_compilada}: el motor la rechazó, y \code{motivo} trae su mensaje: una
+columna o una función que no existe, un permiso que falta.
+\item \code{candidata_rechazada}: una forma candidata de un sondeo de capacidad que
+el motor no conoce. El plan de perfilado prueba el desvío como
+\code{STDDEV_SAMP} y como \code{STDEV} en todo motor, y la corrida usa la que el
+motor acepte. Las candidatas no se compilan: se mandan como las manda la
+corrida, sobre una constante y sin leer filas, y la rechazada queda con
+\code{metodo} vacío; es la respuesta del sondeo, no una falla del plan. Un plan
+sano no tiene ninguna fila \code{no_compilada}.
+\item \code{no_verificada}: no se pudo saber, porque la forma de la consulta depende
+de un resultado anterior, de una capacidad del controlador o de una
+lectura de filas, porque el motor no tiene una vía de compilación, o
+porque venció el tope de tiempo de PostgreSQL (ver abajo).
+}
+
+En \code{\link[=plan_medicion_dbi]{plan_medicion_dbi()}} hay una fila por sentencia compilada, así que su
+número no tiene por qué ser el de \code{attr(plan, "consultas")}: la consulta de
+la sesión se ejecuta al planificar, como sin compilar, y las métricas por
+bloques se calculan en R sobre una sola lectura por entidad, la fila
+\code{bloques}.
+
+\code{metodo} dice cómo se compiló: \verb{EXPLAIN QUERY PLAN} en SQLite (los \code{PRAGMA}
+de lectura del catálogo se mandan tal cual, \code{dbSendQuery}), \code{EXPLAIN} en
+DuckDB y PostgreSQL, \code{PREPARE} y su \code{DEALLOCATE} en MySQL y MariaDB —su
+\code{EXPLAIN} ejecuta las subconsultas en \code{FROM}, \code{JOIN} y \code{WITH}; \code{PREPARE}
+no ejecuta ninguna y rechaza lo mismo—, con un nombre único por llamada que
+no pisa las sentencias preparadas del usuario, y \verb{SET NOEXEC ON} en SQL
+Server.
+
+Lo que compilar no garantiza:
+\itemize{
+\item Que la consulta corra. Los errores que dependen de los datos aparecen
+sólo al ejecutar: un \code{CAST} de un texto que no es un número compila y
+falla en la corrida. Y no todos los motores comprueban los permisos al
+compilar: SQL Server, bajo \verb{SET NOEXEC ON}, no mira ninguno —una columna,
+una función o una tabla negada compilan—, y PostgreSQL 9.3 no mira el
+\code{EXECUTE} de una función, tampoco dentro de una vista. En esos casos la
+sentencia queda \code{compilada} y falla en la corrida.
+\item Que no se ejecute nada. Las consultas de preparación del plan —las del
+esquema, las que llevan \verb{WHERE 1 = 0} o \verb{LIMIT 0}, las pruebas sobre
+literales como \verb{SELECT ... FROM (SELECT 1 AS ...)}— se ejecutan como en
+el plan sin compilar, sin leer filas de la tabla y sin tope de tiempo. Y en
+PostgreSQL el planificador pliega las constantes: una función declarada
+\code{IMMUTABLE} con argumentos constantes se ejecuta al planificar, aunque lea
+datos, también en esa preparación, como sin compilar. Por eso cada
+sentencia compilada lleva un tope de 2 segundos (\verb{SET LOCAL statement_timeout}, o el de la sesión si es menor) dentro de una
+transacción propia que se revierte —o de un punto de guardado, dentro de
+una transacción del usuario—: la que lo supera queda \code{no_verificada} con
+ese motivo, y la sesión vuelve al tope que tenía. \code{PREPARE} no
+planificaría, pero en PostgreSQL tampoco comprueba los permisos, y
+\code{EXPLAIN} sí.
+\item En SQL Server, que exista una tabla: bajo \verb{SET NOEXEC ON} la resolución
+de nombres de tablas es diferida y una tabla que no existe compila.
+}
+
+Compilar nunca toca la transacción del usuario, y si no lo puede garantizar
+no compila: falla con \code{lupa_error_transaccion_dbi} antes de mandar nada.
+Así pasa en DuckDB con una transacción abierta —cualquier error del motor,
+también el de una sentencia que no compila, la aborta sin aviso, un
+\code{DBI::dbCommit()} posterior pierde lo hecho en ella, y DuckDB no tiene
+\code{SAVEPOINT}—, y en PostgreSQL cuando no se puede saber si hay una abierta
+(una abierta a mano y ya abortada). Si la hay se averigua antes de empezar
+—la marca de RPostgres, o \code{now()}, que dentro de una transacción no cambia—
+y no por si un \code{SAVEPOINT} falla. SQLite, MySQL y MariaDB no abortan la
+transacción por el error de una sentencia.
+
+La conexión queda como estaba. En SQL Server \code{NOEXEC} es un estado de la
+sesión que, prendido, hace que nada de lo que se mande se ejecute, sin
+error: se apaga después de cada sentencia y se comprueba con un \verb{SELECT 1}.
+Si no se puede apagar, la llamada falla con \code{lupa_error_conexion_dbi} y
+dice que la conexión quedó inutilizable. Dentro de una transacción abierta
+con \verb{XACT_ABORT ON}, una sentencia que nombra una columna que no existe
+deshace la transacción aun bajo \code{NOEXEC}: \code{XACT_ABORT} se apaga mientras se
+compila y se vuelve a prender.
+
+Una interrupción —el tope de \code{\link[=setTimeLimit]{setTimeLimit()}}, Ctrl-C— no es una sentencia
+que no compila: la compilación deja la sesión como estaba y la vuelve a
+señalar, sin devolver el plan. En SQL Server, una que llega en medio de un
+envío puede dejar al controlador sin poder apagar \code{NOEXEC}; entonces la
+llamada falla con \code{lupa_error_conexion_dbi}, dice que la conexión quedó
+inutilizable y que la compilación se interrumpió, y la conexión hay que
+cerrarla.
+}
+
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&
     requireNamespace("RSQLite", quietly = TRUE)) {

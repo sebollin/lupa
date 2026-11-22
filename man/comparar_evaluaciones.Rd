@@ -14,8 +14,10 @@ Data frame con resultados anterior y actual, \code{delta} y
 \code{comparacion}. El delta es el que publica \code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}} sobre
 el histórico de las dos evaluaciones, con la misma regla: queda en \code{NA}
 cuando las corridas miden tablas distintas, cambia el marco o los tipos de
-resultado, cambia la parte medida de la frontera o un resultado no se
-evaluó, y \code{comparacion} dice por qué con la palabra de la deriva. El orden
+resultado, cambia la parte medida de la frontera, una métrica cambió de
+definición sin que la configuración de la corrida lo declare (ver
+\code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}}) o un resultado no se evaluó, y \code{comparacion}
+dice por qué con la palabra de la deriva. El orden
 lo dan los argumentos, no la fecha: \code{anterior} es siempre el primero.
 }
 \description{

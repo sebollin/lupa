@@ -658,7 +658,7 @@
   }
   escritor$path <- path
   medicion <- NULL
-  if (!.gastar_dbi(presupuesto)) {
+  if (!.gastar_dbi(presupuesto, etapa = "materializacion_muestra")) {
     escritor$motivo <- .motivo_presupuesto_dbi(presupuesto)
     cerrado <- .cerrar_spool_muestra_dbi(escritor)
     return(list(

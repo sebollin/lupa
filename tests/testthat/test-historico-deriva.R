@@ -532,7 +532,11 @@ test_that("la deriva de calidad declara cambios del modelo y conserva la senal",
           fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE),
     perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
   )
-  deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
+  # La aplicabilidad cambia a proposito: el historico avisa el cambio de definicion.
+  expect_warning(
+    h <- historico_calidad(anterior, actual), "cambi\u00f3 de definici\u00f3n"
+  )
+  deriva <- detectar_deriva_calidad(h)
   resultado <- deriva[deriva$aspecto == "resultado", , drop = FALSE]
   expect_equal(resultado$delta, 0.5)
   expect_equal(resultado$direccion, "mejora")

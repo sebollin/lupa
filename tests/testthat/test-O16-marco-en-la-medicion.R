@@ -84,7 +84,11 @@ test_that("cambiar el tipo de resultado deja la deriva como no comparable", {
     crear_modelo_o16(tipo = "entero"), "tipo-entero", "2026-02-01"
   ))
 
-  deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
+  # El tipo cambia a proposito: el historico avisa el cambio de definicion.
+  expect_warning(
+    h <- historico_calidad(anterior, actual), "cambi\u00f3 de definici\u00f3n"
+  )
+  deriva <- detectar_deriva_calidad(h)
   fila <- deriva[deriva$aspecto == "configuracion_modelo", , drop = FALSE]
   expect_equal(nrow(fila), 1L)
   expect_identical(as.character(fila$cambio), "no_comparable")

@@ -1613,6 +1613,75 @@ perfilar_fechas()
 perfilar_fechas(extended_types = TRUE)
 ```
 
+## Checking that the engine counts like R {#conformity}
+
+The table above is what is known about engines in general. `conformidad_dbi()`
+(*conformity*) checks it on the server you are going to use. It runs, with `SELECT`
+only and without creating tables or reading your rows, limit values it invents with
+the type and collation of the real columns (read from the catalog) for each rule of
+the model that `medir_dbi()` translates to SQL, and compares what the engine counts
+with what R counts.
+
+An example with a text column that does not compare by bytes:
+
+```{r conformidad}
+base_conf <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbExecute(
+  base_conf, "CREATE TABLE tramites (id INTEGER, estado TEXT COLLATE NOCASE)"
+)
+DBI::dbExecute(
+  base_conf,
+  "INSERT INTO tramites VALUES (1, 'abierto'), (2, 'CERRADO'), (3, 'cerrado'),
+   (4, 'otro'), (5, NULL)"
+)
+nucleo <- metricas_nucleo()
+modelo_tramites <- modelo(
+  instanciar(
+    especializar(nucleo$ValoresPosiblesPorExtension, "Estado",
+                 valores = c("abierto", "cerrado")),
+    "tramites", "estado"
+  ),
+  instanciar(especializar(nucleo$NoNulo, "Completo"), "tramites", "id")
+)
+bateria <- conformidad_dbi(base_conf, modelo_tramites)
+bateria[, c("metrica_instanciada", "caso", "conformidad", "motivo")]
+```
+
+`conformidad` answers a single question: whether the engine, when it counts, gives
+the same as R. `conforme` means that with those values they give the same numerator
+and the same denominator. `no_conforme`, that the engine counts and gives something
+different. `abstencion`, that `medir_dbi()` would not publish a figure with those
+values because of a guard of its own (here, the `nocase` collation); the reason says
+which. `no_evaluada` and `no_verificado` say that the battery could not build the
+case or that the engine is not verified in it; the rule is measured as usual, with a
+warning. The battery is verified in SQLite and DuckDB.
+
+The result is passed to `medir_dbi()`:
+
+```{r conformidad-medir}
+medicion_conf <- medir_dbi(
+  modelo_tramites, base_conf, conformidad = bateria,
+  estrategia_no_sql = "bloques"
+)
+as.data.frame(medicion_conf)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+```
+
+Only a `no_conforme` rule stops being counted in the engine: it is measured in blocks
+in R with `estrategia_no_sql = "bloques"`, or it is left `no_medible` with its reason.
+An `abstencion` does not remove the rule: with the real data the usual guard decides.
+The limit is conservative, because an invented value that the engine counts
+differently (an integer near 2^53, a text with spaces) takes the rule out of the
+engine even if your table does not have it. And a battery from another connection,
+another model or another configuration is rejected with a warning, and the rules are
+measured as if it had not been passed.
+
+```{r conformidad-cierre, include=FALSE}
+stopifnot(identical(bateria$conformidad[bateria$metrica_instanciada == "Completo@tramites.id"], "conforme"))
+DBI::dbDisconnect(base_conf)
+```
+
 ## The primary key by engine {#primary-key}
 
 The primary key is not guessed: it is read from the catalog of the engine. That

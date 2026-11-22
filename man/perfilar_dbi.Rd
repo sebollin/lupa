@@ -543,6 +543,17 @@ Las fallas de consultas solicitadas se conservan en
 \code{resumen_tabla$meta$consultas$sondas_fallidas} y no disparan el aviso de
 degradacion. El aviso que informa que la muestra no esta disponible conserva
 ademas la clase historica \code{lupa_muestra_dbi_no_disponible}.
+\code{resumen_tabla$meta$consultas$conciliacion} conserva además el estado de la
+cuenta (\code{"conciliado"} o \code{"desfasado"}), los totales anunciados y emitidos y
+un \code{detalle} por clase de consulta cuando una clase anunciada no corrió o la
+corrida emitió una clase que el plan no tenía. Cada detalle dice la clase,
+ambas cantidades y el motivo de la diferencia; la falla original permanece
+en \code{fallas} o \code{sondas_fallidas}. \code{plan_corrida} conserva la misma estructura
+para la comparación contra el plan que la corrida publicó en \code{meta$plan};
+permite distinguirla de los campos históricos de la conciliación. En una
+tabla vacía, \code{plan_previo} conserva el total que se anunció antes de conocer
+ese estado y explica por qué \code{plan_corrida} usa el plan publicado por la
+corrida.
 
 Cuando el catálogo estima al menos \code{1e8} filas y se pidió
 \code{universo = "tabla_completa"}, la función avisa antes de los agregados con
@@ -778,9 +789,14 @@ un tipo, una vista rota—: con una transacción abierta, cada sentencia de la
 vía va entre un \code{SAVEPOINT} propio y su \code{RELEASE}, y si falla se vuelve con
 \verb{ROLLBACK TO SAVEPOINT}. La transacción se reconoce por RPostgres
 (\code{dbBegin()}, \code{dbWithTransaction()}) o por el motor, para un \code{BEGIN} mandado
-a mano. El paquete nunca manda \code{BEGIN}, \code{COMMIT} ni \code{ROLLBACK}; fuera de una
-transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
-\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}.
+a mano. El paquete nunca manda \code{BEGIN}, \code{COMMIT} ni \code{ROLLBACK} sobre la
+transacción del usuario; fuera de una transacción no agrega ninguna
+sentencia de ese tipo. Lo mismo vale para \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}},
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. La única excepción es
+\code{compilar = TRUE} de \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} y \code{\link[=plan_medicion_dbi]{plan_medicion_dbi()}} en
+PostgreSQL sin transacción del usuario: cada sentencia se compila en una
+transacción propia que se revierte (ver la sección Compilación de
+\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}).
 SQL Server puede deshacer la transacción completa ante un error de ejecución,
 incluso con \code{XACT_ABORT} apagado: antes y después de cada envío y lectura la
 vía mide \verb{@TRANCOUNT} y \code{XACT_STATE()}. Si cambian, levanta

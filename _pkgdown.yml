@@ -151,6 +151,7 @@ reference:
   - transiciones_granularidad
   - medir
   - medir_dbi
+  - conformidad_dbi
   - plan_medicion_dbi
   - agregar
   - tablero_calidad

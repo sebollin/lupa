@@ -917,7 +917,11 @@ transiciones_granularidad <- function() {
   "alcance_medidas",
   # Sin esto la guarda del orden temporal se apaga y el delta sale con el signo
   # al reves. Ver `.exigir_orden_temporal()`.
-  "fecha_declarada"
+  "fecha_declarada",
+  # Una fila por metrica instanciada y corrida: lo agregado sigue midiendo con
+  # la definicion de las medidas que lo alimentaron, y `evaluar()` la lleva al
+  # historico.
+  "sello_metricas"
 )
 
 # Los que a proposito NO viajan, cada uno con su motivo. Estar aca es una
@@ -1134,8 +1138,8 @@ transiciones_granularidad <- function() {
 #' @section Lo que el agregado conserva de la medición:
 #'
 #' Una agregación hereda lo que sus partes declararon: `configuracion_modelo`,
-#' `configuracion_aplicabilidad`, `cobertura_metricas`, `marco_calidad` y
-#' `fecha_declarada` viajan en el objeto. Lo último no es decorativo: sin
+#' `configuracion_aplicabilidad`, `cobertura_metricas`, `marco_calidad`,
+#' `sello_metricas` (ver [medir()]) y `fecha_declarada` viajan en el objeto. Lo último no es decorativo: sin
 #' `fecha_declarada`, la guarda que impide comparar dos entregas en orden
 #' invertido queda desactivada y [comparar_evaluaciones()] publicaría el delta
 #' con el signo al revés.

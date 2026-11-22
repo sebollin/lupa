@@ -96,8 +96,8 @@ de defecto sigue siendo la proporción de defectos.
 
 
 Una agregación hereda lo que sus partes declararon: \code{configuracion_modelo},
-\code{configuracion_aplicabilidad}, \code{cobertura_metricas}, \code{marco_calidad} y
-\code{fecha_declarada} viajan en el objeto. Lo último no es decorativo: sin
+\code{configuracion_aplicabilidad}, \code{cobertura_metricas}, \code{marco_calidad},
+\code{sello_metricas} (ver \code{\link[=medir]{medir()}}) y \code{fecha_declarada} viajan en el objeto. Lo último no es decorativo: sin
 \code{fecha_declarada}, la guarda que impide comparar dos entregas en orden
 invertido queda desactivada y \code{\link[=comparar_evaluaciones]{comparar_evaluaciones()}} publicaría el delta
 con el signo al revés.

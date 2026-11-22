@@ -1410,9 +1410,10 @@
     plan <- plan[plan$n_consultas > 0 | plan$n_consultas_max > 0, , drop = FALSE]
     rownames(plan) <- NULL
   }
-  attr(plan, "total") <- sum(plan$n_consultas)
-  attr(plan, "total_minimo") <- sum(plan$n_consultas)
-  attr(plan, "total_maximo") <- sum(plan$n_consultas_max)
+  totales <- .totales_plan_consultas_dbi(plan)
+  attr(plan, "total") <- totales$total
+  attr(plan, "total_minimo") <- totales$minimo
+  attr(plan, "total_maximo") <- totales$maximo
   attr(plan, "pagado") <- FALSE
   attr(plan, "bloque_filas") <- bloque_filas
   attr(plan, "fuente") <- fuente

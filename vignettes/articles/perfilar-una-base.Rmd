@@ -328,6 +328,41 @@ Por cada motor devuelve:
 - el dialecto esperado;
 - el estado de prueba del motor.
 
+## Compilar el plan antes de correr {#compilar-el-plan}
+
+Contar las consultas no dice si el motor las acepta. Con `compilar = TRUE`, el plan le
+pide al motor que compile cada sentencia sin ejecutarla y sin traer filas, y deja una
+fila por sentencia en `attr(plan, "compilacion")`:
+
+```{r compilar}
+plan <- plan_perfilado_dbi(conexion, "ventas", compilar = TRUE)
+compilacion <- attr(plan, "compilacion")
+table(compilacion$estado)
+unique(compilacion$metodo[compilacion$estado == "compilada"])
+```
+
+```{r compilar-control, include=FALSE}
+stopifnot(any(compilacion$estado == "compilada"), !any(compilacion$estado == "no_compilada"))
+```
+
+`compilada` quiere decir que el motor aceptó la sentencia; `no_compilada`, que la
+rechazó, y entonces `motivo` trae su mensaje: una columna o una función que no
+existe, un permiso que falta. El error aparece antes de una corrida larga y no a la
+mitad. `no_verificada` es lo que no se pudo saber, porque la forma de la consulta
+depende de un resultado anterior o de la lectura de filas, y `candidata_rechazada` es
+la respuesta de un sondeo de capacidad (el desvío se prueba como `STDDEV_SAMP` y como
+`STDEV`, y SQLite no conoce una), no una falla del plan. Cómo se compila depende del
+motor: `EXPLAIN` en SQLite, DuckDB y PostgreSQL, `PREPARE` en MySQL y MariaDB, y
+`SET NOEXEC ON` en SQL Server. No toca la transacción que tengas abierta.
+
+Compilar no garantiza que la consulta corra: un error que depende de los datos, como
+un `CAST` de un texto que no es un número, compila y falla al ejecutar, y algunos
+motores no comprueban los permisos al compilar. Tampoco garantiza que no se ejecute
+nada: las consultas de preparación del plan se ejecutan como sin compilar, sin leer
+filas de la tabla. `?plan_perfilado_dbi` tiene la sección «Compilación» completa.
+`plan_medicion_dbi()` acepta el mismo argumento. Por omisión, `compilar = FALSE`, y
+nada cambia.
+
 ## ⏱ Para una tabla grande {#para-una-tabla-grande}
 
 Antes de perfilar una tabla de millones de filas conviene mirar el plan.
@@ -359,6 +394,8 @@ DBI::dbDisconnect(conexion)
 - El muestreo de lo leído está en `perfil_muestra$meta$origen_dbi$muestreo`; el
   del motor, en `resumen_tabla$meta$muestreo`, sólo con `muestra_motor`.
 - `meta$snapshot = FALSE`: los agregados no son una lectura instantánea.
+- `plan_perfilado_dbi(compilar = TRUE)` le pide al motor que compile cada consulta del
+  plan sin ejecutarla: un error de sintaxis, de nombre o de permisos aparece antes.
 
 ## 🧭 Paso siguiente {#paso-siguiente}
 
