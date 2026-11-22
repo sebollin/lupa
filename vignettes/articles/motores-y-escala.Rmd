@@ -131,11 +131,14 @@ la página. Lo que necesita otro motor se describe sin ejecutar y con su fuente.
 16. [Consistencia entre consultas](#consistencia)
 17. [Dialectos y sondas](#dialectos)
 18. [Lo que el motor guarda distinto que R](#diferencias-con-r)
-19. [La clave primaria según el motor](#clave-primaria)
-20. [Motores probados](#motores-probados)
-21. [Fallos parciales y errores](#fallos)
-22. [Dependencias e instalación](#dependencias)
-23. [Hilos](#hilos)
+19. [Comprobar que el motor cuenta como R](#conformidad)
+20. [Medir contra un referencial del motor](#referencial-motor)
+21. [Juntar partes de una corrida](#juntar-partes)
+22. [La clave primaria según el motor](#clave-primaria)
+23. [Motores probados](#motores-probados)
+24. [Fallos parciales y errores](#fallos)
+25. [Dependencias e instalación](#dependencias)
+26. [Hilos](#hilos)
 
 ## Valores por omisión {#valores-por-omision}
 
@@ -1631,6 +1634,184 @@ las reglas se miden como si no se la hubiera pasado.
 stopifnot(identical(bateria$conformidad[bateria$metrica_instanciada == "Completo@tramites.id"], "conforme"))
 DBI::dbDisconnect(base_conf)
 ```
+
+## Medir contra un referencial del motor {#referencial-motor}
+
+Un referencial, como un padrón o un catálogo, suele vivir en la misma base que la
+tabla que se mide. `referencial()` acepta esa tabla, nombrada con un `DBI::Id()`
+o con su nombre, y no la copia a R: guarda la referencia, sin la conexión.
+`medir_dbi()` mide contra ella `CorrectitudSemFuerte`, `CorrectitudSemDebil` y
+`RatioCobertura` en SQLite y DuckDB, y cuenta lo mismo que `medir()` con las 2
+tablas leídas. Que las columnas existan y que la clave no tenga ausentes y sea
+única se verifica en cada medición, con una consulta, porque la tabla puede
+cambiar entre la declaración y la medición.
+
+```{r referencial-motor}
+base_ref <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(base_ref, "sucursales", data.frame(
+  id_sucursal = 1:4, zona = c("Norte", "Sur", "Este", "Oeste")
+))
+DBI::dbWriteTable(base_ref, "ventas", data.frame(
+  id_venta = 1:12,
+  id_sucursal = c(1, 2, 3, 1, 2, 3, 1, 2, 9, NA, 1, 2),
+  zona = c("Norte", "Sur", "Este", "norte", "Sur", "Oeste", "Norte", "Sur",
+           "Norte", "Sur", "Norte", "Sur")
+))
+padron <- referencial(
+  DBI::Id(table = "sucursales"), clave = "id_sucursal", valor = "zona",
+  completo = TRUE, alcance = "sucursales del ejemplo"
+)
+padron
+ref <- metricas_referencial()
+contra <- function(padron) {
+  modelo(
+    instanciar(especializar(ref$CorrectitudSemFuerte, "Sucursal existe"),
+               "ventas", "id_sucursal", referencial = padron),
+    instanciar(especializar(ref$CorrectitudSemDebil, "Zona coincide"),
+               "ventas", c("id_sucursal", "zona"), referencial = padron),
+    instanciar(especializar(ref$RatioCobertura, "Sucursales con ventas"),
+               "ventas", "id_sucursal", referencial = padron)
+  )
+}
+en_motor <- medir_dbi(contra(padron), base_ref, id_medicion = "junio",
+                      fecha = "2026-06-30")
+as.data.frame(en_motor)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+```
+
+La venta de la sucursal 9 no encuentra su sucursal, la que no tiene sucursal no
+se evalúa, y la de la fila 6 dice `Oeste` donde el padrón dice `Este`; `norte`
+coincide con `Norte` porque el referencial normaliza por omisión. La sucursal 4 no
+tiene ventas: la cobertura es 3 de 4. Con las 2 tablas leídas a R, `medir()` da
+las mismas cuentas:
+
+```{r referencial-memoria}
+padron_en_r <- referencial(
+  DBI::dbReadTable(base_ref, "sucursales"), clave = "id_sucursal",
+  valor = "zona", completo = TRUE, alcance = "sucursales del ejemplo"
+)
+en_memoria <- medir(
+  contra(padron_en_r), list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+identical(en_motor$numerador, en_memoria$numerador)
+identical(en_motor$denominador, en_memoria$denominador)
+```
+
+`medir()` no lee un referencial del motor: con él, las 3 métricas quedan
+`no_medible` con el motivo y cómo resolverlo. La normalización se escribe en el
+motor sólo donde es exacta: sobre texto ASCII, el pliegue de mayúsculas es
+`LOWER()`. Una guarda cuenta las filas cuyo texto la normalización de R podría
+cambiar y el SQL no escribe igual: lo que no es ASCII, los blancos de los bordes,
+los dobles, las comillas. Con alguna, la métrica queda `no_medible`. Con
+`estrategia_no_sql = "bloques"`, el motor cuenta los valores distintos de la
+entidad y R los compara con el método de la métrica (la vía `distintos_r`, que
+es también la de un referencial que está en R):
+
+```{r referencial-guarda}
+invisible(DBI::dbExecute(
+  base_ref, "UPDATE ventas SET zona = 'Sur ' WHERE id_venta = 12"
+))
+# El aviso repite lo que dice la cobertura.
+con_guarda <- suppressWarnings(medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30"
+))
+no_medidas <- attr(con_guarda, "cobertura_metricas")
+no_medidas$metrica_instanciada
+writeLines(strwrap(no_medidas$motivo, 88))
+por_bloques <- medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30",
+  estrategia_no_sql = "bloques"
+)
+attr(por_bloques, "ejecucion_dbi")$vias
+```
+
+```{r referencial-control, include=FALSE}
+stopifnot(
+  identical(en_motor$resultado, en_memoria$resultado),
+  identical(no_medidas$estado, "no_medible"),
+  identical(
+    por_bloques$resultado,
+    medir(
+      contra(padron_en_r), list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+      id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+    )$resultado
+  )
+)
+```
+
+`conformidad_dbi()` comprueba en el servidor el pliegue que usa, como en la
+sección anterior. El sello de estas métricas incluye la ubicación de la base:
+medir el mismo modelo en otra base avisa que cambió la definición, porque el
+mismo nombre de tabla es otra tabla. `?metricas_referencial` detalla qué se
+compara en el motor y qué se declara.
+
+## Juntar partes de una corrida {#juntar-partes}
+
+Una corrida puede medirse en partes: lo que vive en la base con `medir_dbi()`, y
+una planilla que no está en la base con `medir()`. `rbind()` con nombres y
+`prioridad` junta partes de una misma corrida, con el mismo `id_medicion` y la
+misma `fecha` declarada. La columna `fuente` dice de qué parte salió cada fila:
+
+```{r juntar-partes}
+del_motor <- medir_dbi(
+  modelo(
+    instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona"),
+    instanciar(especializar(nucleo$NoNulo, "Sucursal presente"), "ventas",
+               "id_sucursal")
+  ),
+  base_ref, id_medicion = "junio", fecha = "2026-06-30"
+)
+planilla <- data.frame(id_sucursal = 1:4, horario = c("8-16", "9-17", NA, "8-16"))
+de_la_planilla <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Horario presente"),
+                    "planilla", "horario")),
+  list(planilla = planilla), id_medicion = "junio", fecha = "2026-06-30",
+  detalle = "resumen"
+)
+corrida <- rbind(
+  motor = del_motor, memoria = de_la_planilla, prioridad = c("motor", "memoria")
+)
+as.data.frame(corrida)[, c("metrica_instanciada", "resultado", "fuente")]
+```
+
+Si la misma métrica sobre el mismo objeto está en varias partes, gana la de mayor
+prioridad, y lo no elegido queda en `attr(x, "descartadas")`, con si coincide con
+lo elegido. Sólo se junta lo comparable: el sello de cada parte con la misma
+huella para cada métrica compartida, y la misma instantánea de los datos de cada
+tabla leída por más de una parte. En memoria la instantánea la prueba la huella
+de los datos; en el motor, un contador de modificaciones. SQLite y DuckDB no
+tienen uno que `lupa` lea, así que una tabla leída por las 2 partes no se junta,
+y el error dice por qué:
+
+```{r juntar-rechazo}
+ventas_en_r <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona")),
+  list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+rechazo <- tryCatch(
+  rbind(motor = del_motor, memoria = ventas_en_r, prioridad = c("motor", "memoria")),
+  error = function(e) e
+)
+writeLines(strwrap(conditionMessage(rechazo), 88))
+```
+
+```{r juntar-cierre, include=FALSE}
+stopifnot(
+  identical(corrida$fuente, c("motor", "motor", "memoria")),
+  inherits(rechazo, "lupa_consolidacion_no_admitida")
+)
+DBI::dbDisconnect(base_ref)
+```
+
+Sin `prioridad`, `rbind()` une partes que no repiten métrica y objeto y vuelve a
+mirar las cuentas de la unión: si 2 partes vieron versiones distintas de una
+tabla (en el motor sin contador, distinto número de filas), sus cifras quedan
+`no_cierran`. Qué dice cada estado de las cuentas, y cómo
+lo usa `semaforo_calidad()`, está en
+[Del hallazgo a la métrica](del-hallazgo-a-la-metrica.html#las-cuentas-y-el-semaforo).
 
 ## La clave primaria según el motor {#clave-primaria}
 

@@ -30,7 +30,8 @@ queda escrito cómo se eligieron?
 > - comparar qué trae a R cada opción: la llamada por omisión, `muestra = n`,
 >   `universo = "muestra_motor"` y `bloque_muestra = "solo_agregados"`;
 > - encontrar el metadato del muestreo, que vive en 2 lugares según la opción;
-> - leer el resultado con los mismos accesores que un perfil en memoria.
+> - leer el resultado con los mismos accesores que un perfil en memoria;
+> - contar fechas centinela, períodos y actualidad, en memoria y en el motor.
 
 ## Una tabla en una base
 
@@ -295,6 +296,159 @@ writeLines(strwrap(aviso, 88))
 cobertura(agregados)[, c("bloque", "elemento", "estado")]
 ```
 
+## 📅 Fechas centinela, períodos y actualidad {#fechas}
+
+Una fecha puede estar ahí para decir otra cosa: `1900-01-01` por «no se sabe»,
+`9999-12-31` por «sigue vigente». `perfilar()` sospecha por omisión de 4
+(1900-01-01, 9999-12-31, 1970-01-01 y 1899-12-30), y sólo si se repiten y quedan
+separadas del resto de las fechas. Tres argumentos dicen más, y valen igual en
+`perfilar()` y en `perfilar_dbi()`:
+
+- `centinelas_fecha` declara las fechas centinela de la base, que se acusan como
+  `error` desde la primera aparición;
+- `periodos` declara qué par de columnas es el inicio y el fin de un período y,
+  con `fin_abierto`, qué fecha de fin quiere decir «vigente». Nunca se adivinan
+  por el nombre;
+- `resumen_fechas = TRUE` agrega las cuentas de fechas centinela y futuras de
+  cada columna de fecha, y su actualidad: el último dato y cuántos días hace.
+
+El ejemplo es una tabla de contratos. Los vigentes terminan en `9999-12-31`, a 2
+les falta el fin y uno termina antes de empezar. En `alta` hay 3 veces
+`1900-01-01`, una vez `2000-01-01`, que en esta base también quiere decir «sin
+dato», y una fecha futura. La fecha de la corrida se fija para que el ejemplo dé
+siempre lo mismo.
+
+```{r fechas-memoria, eval = TRUE}
+dias <- as.Date("2025-01-01") + (1:60 * 11) %% 500
+contratos <- data.frame(id_contrato = 1:60, alta = dias, desde = dias, hasta = dias + 90)
+contratos$hasta[c(3, 9, 15, 21)] <- as.Date("9999-12-31")
+contratos$hasta[c(4, 10)] <- NA
+contratos$hasta[5] <- contratos$desde[5] - 10
+contratos$alta[c(7, 14, 28)] <- as.Date("1900-01-01")
+contratos$alta[33] <- as.Date("2000-01-01")
+contratos$alta[40] <- as.Date("2027-06-01")
+
+periodo <- list(inicio = "desde", fin = "hasta", fin_abierto = "9999-12-31")
+en_memoria <- perfilar(
+  contratos, fecha = "2026-06-30", centinelas_fecha = "2000-01-01",
+  periodos = periodo, resumen_fechas = TRUE
+)
+campos_fecha <- c(
+  "columna", "n_fechas_centinela", "n_fechas_centinela_declaradas",
+  "n_fechas_fin_abierto", "n_fechas_futuras", "lectura_fechas_futuras",
+  "ultimo_dato_fecha"
+)
+columnas(en_memoria)[-1, campos_fecha]
+```
+
+En `alta`, las 4 fechas centinela son las 3 incorporadas y la declarada; la fecha
+futura es un valor suelto, y `lectura_fechas_futuras = "fila"` dice que se acusa
+con su fila. En `hasta`, las 4 `9999-12-31` son fin abierto, no defectos. En una
+columna cuyo nombre mira hacia adelante, como `hasta` o un vencimiento, las fechas
+futuras se cuentan igual, pero pueden ser legítimas y su lectura es `admitidas`.
+
+`general$actualidad` dice, por columna, el último dato que no es futuro ni una
+centinela declarada, y cuántos días antes de la `fecha` de la corrida cae. No
+hay una fecha ganadora entre columnas ni un puntaje. `general$periodos` reparte
+las filas de cada período declarado en categorías que no se pisan:
+
+```{r fechas-generales, eval = TRUE}
+en_memoria$general$actualidad$columnas[
+  , c("columna", "ultimo_dato_fecha", "antiguedad_dias", "n_evaluadas")
+]
+particion <- en_memoria$general$periodos
+particion[, c(
+  "n", "n_cerrados_validos", "n_fin_antes_inicio", "n_fin_abierto_nulo",
+  "n_fin_abierto_centinela"
+)]
+writeLines(strwrap(particion$aviso, 88))
+```
+
+```{r fechas-generales-control, include=FALSE, eval=TRUE}
+stopifnot(
+  particion$n == 60, particion$n_cerrados_validos == 53,
+  particion$n_fin_antes_inicio == 1, particion$n_fin_abierto_nulo == 2,
+  particion$n_fin_abierto_centinela == 4
+)
+```
+
+De las 60 filas, 53 son períodos cerrados válidos, 1 termina antes de empezar, 2
+no tienen fin y 4 terminan en la fecha de vigencia. El aviso señala que el fin
+abierto se escribe de 2 maneras. Una fecha de fin que suele ser centinela y no se
+declaró se cuenta aparte, con un aviso de posible fin abierto: no pasa por un
+período cerrado.
+
+`perfilar_dbi()` recibe los mismos argumentos y cuenta lo mismo sobre la tabla
+completa, en SQLite y DuckDB, contra literales y con la misma regla que la
+memoria. Las cuentas van a `resumen_tabla$columnas`, la actualidad a
+`resumen_tabla$meta$actualidad` y los períodos a `resumen_tabla$meta$periodos`.
+SQLite no tiene tipo fecha: con `extended_types = TRUE` al conectar, RSQLite
+guarda las fechas como fechas
+([Motores y escala](motores-y-escala.html#diferencias-con-r) tiene el detalle).
+
+```{r fechas-motor}
+con_fechas <- DBI::dbConnect(RSQLite::SQLite(), ":memory:", extended_types = TRUE)
+DBI::dbWriteTable(con_fechas, "contratos", contratos)
+en_motor <- perfilar_dbi(
+  con_fechas, "contratos", fecha = "2026-06-30", centinelas_fecha = "2000-01-01",
+  periodos = periodo, resumen_fechas = TRUE
+)
+identical(
+  en_motor$resumen_tabla$columnas[, campos_fecha],
+  columnas(en_memoria)[, campos_fecha]
+)
+en_motor$resumen_tabla$meta$periodos[, c("n", "n_cerrados_validos", "estado")]
+```
+
+```{r fechas-motor-control, include=FALSE}
+stopifnot(
+  isTRUE(all.equal(en_motor$resumen_tabla$meta$periodos, en_memoria$general$periodos)),
+  isTRUE(all.equal(en_motor$resumen_tabla$meta$actualidad, en_memoria$general$actualidad))
+)
+DBI::dbDisconnect(con_fechas)
+```
+
+Lo que el SQL no puede contar como lo lee R se declara. Son 3 casos: una columna
+de SQLite que guarda las fechas como texto, instantes a menos de un segundo de una
+centinela lejana con resolución de microsegundos y una columna de texto que la
+muestra lee como fecha. La columna `fecha` de `ventas` es del último caso:
+
+```{r fechas-texto}
+texto <- perfilar_dbi(
+  conexion, "ventas", muestra = 200, orden_muestra = "id_venta",
+  fecha = "2026-06-30", resumen_fechas = TRUE
+)
+sql_fechas <- texto$resumen_tabla$sql
+sql_fechas <- unique(
+  sql_fechas[sql_fechas$etapa == "fechas", c("columna", "estado", "motivo")]
+)
+sql_fechas$estado
+writeLines(strwrap(sql_fechas$motivo, 88))
+por_bloques <- perfilar_dbi(
+  conexion, "ventas", muestra = 200, orden_muestra = "id_venta",
+  fecha = "2026-06-30", resumen_fechas = TRUE, estrategia_no_sql = "bloques"
+)
+por_bloques$resumen_tabla$meta$actualidad$columnas[
+  , c("columna", "ultimo_dato_fecha", "antiguedad_dias", "n_evaluadas", "estado")
+]
+```
+
+```{r fechas-texto-control, include=FALSE}
+stopifnot(
+  identical(sql_fechas$estado, "no_disponible"),
+  por_bloques$resumen_tabla$meta$actualidad$columnas$n_evaluadas == n
+)
+```
+
+Con `estrategia_no_sql = "no_medible"`, el valor por omisión, esas cuentas quedan
+`no_disponible` en `resumen_tabla$sql` con su motivo, y nunca como cero. Con
+`"bloques"`, `lupa` lee la columna en R por bloques, con el mismo controlador, y
+la cuenta con la misma regla: las 1.000 fechas, no sólo las 200 de la muestra.
+La partición de un período, en cambio, necesita que sus 2 columnas sean fechas en
+el motor: sobre texto queda `no_disponible` con su motivo, también con
+`"bloques"`. `plan_perfilado_dbi()` recibe los mismos argumentos y cuenta esas
+consultas antes de correr.
+
 ## ⚠️ Lo que el resumen no garantiza {#lo-que-el-resumen-no-garantiza}
 
 Los agregados son consultas separadas, y la tabla puede cambiar entre una y otra.
@@ -393,6 +547,10 @@ DBI::dbDisconnect(conexion)
   motor; `bloque_muestra = "solo_agregados"` no trae filas.
 - El muestreo de lo leído está en `perfil_muestra$meta$origen_dbi$muestreo`; el
   del motor, en `resumen_tabla$meta$muestreo`, sólo con `muestra_motor`.
+- `centinelas_fecha`, `periodos` y `resumen_fechas = TRUE` cuentan fechas
+  centinela, futuras, períodos y actualidad. `perfilar_dbi()` los cuenta en el
+  motor con la misma regla que la memoria; lo que el SQL no puede contar igual
+  se declara, o se cuenta en R con `estrategia_no_sql = "bloques"`.
 - `meta$snapshot = FALSE`: los agregados no son una lectura instantánea.
 - `plan_perfilado_dbi(compilar = TRUE)` le pide al motor que compile cada consulta del
   plan sin ejecutarla: un error de sintaxis, de nombre o de permisos aparece antes.

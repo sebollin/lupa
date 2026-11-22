@@ -139,11 +139,14 @@ source.
 16. [Consistency across queries](#consistency)
 17. [Dialects and probes](#dialects)
 18. [What the engine stores differently from R](#differences-with-r)
-19. [The primary key by engine](#primary-key)
-20. [Tested engines](#tested-engines)
-21. [Partial failures and errors](#failures)
-22. [Dependencies and installation](#dependencies)
-23. [Threads](#threads)
+19. [Checking that the engine counts like R](#conformity)
+20. [Measuring against a reference held in the engine](#engine-reference)
+21. [Joining parts of a run](#joining-parts)
+22. [The primary key by engine](#primary-key)
+23. [Tested engines](#tested-engines)
+24. [Partial failures and errors](#failures)
+25. [Dependencies and installation](#dependencies)
+26. [Threads](#threads)
 
 ## Default values {#defaults}
 
@@ -1681,6 +1684,187 @@ measured as if it had not been passed.
 stopifnot(identical(bateria$conformidad[bateria$metrica_instanciada == "Completo@tramites.id"], "conforme"))
 DBI::dbDisconnect(base_conf)
 ```
+
+## Measuring against a reference held in the engine {#engine-reference}
+
+A reference (*referencial*), such as a register or a catalog, often lives in the
+same database as the table being measured. `referencial()` takes that table,
+named with a `DBI::Id()` or with its name, and does not copy it into R: it keeps
+the reference, without the connection. `medir_dbi()` measures
+`CorrectitudSemFuerte` (*strong semantic correctness*), `CorrectitudSemDebil`
+(*weak semantic correctness*) and `RatioCobertura` (*coverage ratio*) against it
+in SQLite and DuckDB, and counts the same as `medir()` with the 2 tables read.
+That the columns exist and that the key has no missing values and is unique is
+checked in every measurement, with a query, because the table can change between
+the declaration and the measurement.
+
+```{r referencial-motor}
+base_ref <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(base_ref, "sucursales", data.frame(
+  id_sucursal = 1:4, zona = c("Norte", "Sur", "Este", "Oeste")
+))
+DBI::dbWriteTable(base_ref, "ventas", data.frame(
+  id_venta = 1:12,
+  id_sucursal = c(1, 2, 3, 1, 2, 3, 1, 2, 9, NA, 1, 2),
+  zona = c("Norte", "Sur", "Este", "norte", "Sur", "Oeste", "Norte", "Sur",
+           "Norte", "Sur", "Norte", "Sur")
+))
+padron <- referencial(
+  DBI::Id(table = "sucursales"), clave = "id_sucursal", valor = "zona",
+  completo = TRUE, alcance = "sucursales del ejemplo"
+)
+padron
+ref <- metricas_referencial()
+contra <- function(padron) {
+  modelo(
+    instanciar(especializar(ref$CorrectitudSemFuerte, "Sucursal existe"),
+               "ventas", "id_sucursal", referencial = padron),
+    instanciar(especializar(ref$CorrectitudSemDebil, "Zona coincide"),
+               "ventas", c("id_sucursal", "zona"), referencial = padron),
+    instanciar(especializar(ref$RatioCobertura, "Sucursales con ventas"),
+               "ventas", "id_sucursal", referencial = padron)
+  )
+}
+en_motor <- medir_dbi(contra(padron), base_ref, id_medicion = "junio",
+                      fecha = "2026-06-30")
+as.data.frame(en_motor)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+```
+
+The sale of branch 9 does not find its branch, the one without a branch is not
+evaluated, and the one in row 6 says `Oeste` where the register says `Este`;
+`norte` matches `Norte` because the reference normalizes by default. Branch 4 has
+no sales: the coverage is 3 out of 4. With the 2 tables read into R, `medir()`
+gives the same counts:
+
+```{r referencial-memoria}
+padron_en_r <- referencial(
+  DBI::dbReadTable(base_ref, "sucursales"), clave = "id_sucursal",
+  valor = "zona", completo = TRUE, alcance = "sucursales del ejemplo"
+)
+en_memoria <- medir(
+  contra(padron_en_r), list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+identical(en_motor$numerador, en_memoria$numerador)
+identical(en_motor$denominador, en_memoria$denominador)
+```
+
+`medir()` does not read a reference held in the engine: with one, the 3 metrics
+are left `no_medible` (*not measurable*) with the reason and how to solve it.
+Normalization is written in the engine only where it is exact: on ASCII text,
+case folding is `LOWER()`. A guard counts the rows whose text R's normalization
+could change and SQL does not write the same way: what is not ASCII, blanks at
+the edges, double blanks, quotes. With any of them, the metric is left
+`no_medible`. With `estrategia_no_sql = "bloques"`, the engine counts the
+distinct values of the entity and R compares them with the method of the metric
+(the `distintos_r` path, which is also the one of a reference held in R):
+
+```{r referencial-guarda}
+invisible(DBI::dbExecute(
+  base_ref, "UPDATE ventas SET zona = 'Sur ' WHERE id_venta = 12"
+))
+# The warning repeats what the coverage says.
+con_guarda <- suppressWarnings(medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30"
+))
+no_medidas <- attr(con_guarda, "cobertura_metricas")
+no_medidas$metrica_instanciada
+writeLines(strwrap(no_medidas$motivo, 88))
+por_bloques <- medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30",
+  estrategia_no_sql = "bloques"
+)
+attr(por_bloques, "ejecucion_dbi")$vias
+```
+
+```{r referencial-control, include=FALSE}
+stopifnot(
+  identical(en_motor$resultado, en_memoria$resultado),
+  identical(no_medidas$estado, "no_medible"),
+  identical(
+    por_bloques$resultado,
+    medir(
+      contra(padron_en_r), list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+      id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+    )$resultado
+  )
+)
+```
+
+`conformidad_dbi()` checks on the server the folding it uses, as in the previous
+section. The seal of these metrics includes the location of the database:
+measuring the same model on another database warns that the definition changed,
+because the same table name is another table. `?metricas_referencial` details
+what is compared in the engine and what is declared.
+
+## Joining parts of a run {#joining-parts}
+
+A run can be measured in parts: what lives in the database with `medir_dbi()`,
+and a spreadsheet that is not in the database with `medir()`. `rbind()` with
+names and `prioridad` (*priority*) joins parts of one and the same run, with the
+same `id_medicion` and the same declared `fecha`. The column `fuente` (*source*)
+says which part each row came from:
+
+```{r juntar-partes}
+del_motor <- medir_dbi(
+  modelo(
+    instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona"),
+    instanciar(especializar(nucleo$NoNulo, "Sucursal presente"), "ventas",
+               "id_sucursal")
+  ),
+  base_ref, id_medicion = "junio", fecha = "2026-06-30"
+)
+planilla <- data.frame(id_sucursal = 1:4, horario = c("8-16", "9-17", NA, "8-16"))
+de_la_planilla <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Horario presente"),
+                    "planilla", "horario")),
+  list(planilla = planilla), id_medicion = "junio", fecha = "2026-06-30",
+  detalle = "resumen"
+)
+corrida <- rbind(
+  motor = del_motor, memoria = de_la_planilla, prioridad = c("motor", "memoria")
+)
+as.data.frame(corrida)[, c("metrica_instanciada", "resultado", "fuente")]
+```
+
+If the same metric on the same object is in several parts, the one with the
+highest priority wins, and what was not chosen stays in `attr(x, "descartadas")`
+(*discarded*), with whether it matches what was chosen. Only what is comparable
+is joined: the seal of each part with the same fingerprint for each shared
+metric, and the same snapshot of the data of each table read by more than one
+part. In memory the snapshot is proved by the fingerprint of the data; in the
+engine, by a modification counter. SQLite and DuckDB do not have one that `lupa`
+reads, so a table read by the 2 parts is not joined, and the error says why:
+
+```{r juntar-rechazo}
+ventas_en_r <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona")),
+  list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+rechazo <- tryCatch(
+  rbind(motor = del_motor, memoria = ventas_en_r, prioridad = c("motor", "memoria")),
+  error = function(e) e
+)
+writeLines(strwrap(conditionMessage(rechazo), 88))
+```
+
+```{r juntar-cierre, include=FALSE}
+stopifnot(
+  identical(corrida$fuente, c("motor", "motor", "memoria")),
+  inherits(rechazo, "lupa_consolidacion_no_admitida")
+)
+DBI::dbDisconnect(base_ref)
+```
+
+Without `prioridad`, `rbind()` joins parts that do not repeat metric and object
+and looks again at the counts of the union: if 2 parts saw different versions of
+a table (in the engine without a counter, a different number of rows), their
+figures are left `no_cierran` (*do not add up*). What each state of the counts
+says, and how `semaforo_calidad()` uses it, is in
+[From findings to metrics](from-findings-to-metrics.html#the-counts-and-the-traffic-light).
 
 ## The primary key by engine {#primary-key}
 
