@@ -587,7 +587,10 @@ test_that("la misma coleccion en otro archivo no es la misma corrida", {
                     lupa_error_reanudacion = function(e) e)
   expect_s3_class(error, "lupa_error_reanudacion")
   expect_identical(error$motivo, "base_cambiada")
-  expect_true(grepl(archivo, conditionMessage(error), fixed = TRUE, useBytes = TRUE))
+  # El nombre y no la ruta: el controlador la normaliza, y en macOS `tempfile()`
+  # da `/var/...` y la ruta normalizada `/private/var/...`.
+  expect_true(grepl(basename(archivo), conditionMessage(error), fixed = TRUE,
+                    useBytes = TRUE))
   expect_true(grepl("reanudar = FALSE", conditionMessage(error), fixed = TRUE,
                     useBytes = TRUE))
   # Una segunda llamada no se acostumbra al cambio: se niega igual.
