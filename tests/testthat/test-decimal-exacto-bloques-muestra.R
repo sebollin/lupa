@@ -95,7 +95,11 @@ test_that("el plan cuenta la prueba de la CTE que la muestra corre por un decima
     ))
     argumentos <- list(
       con, "dexa_plan", universo = "muestra_motor", muestra_motor = 100L,
-      bloque_muestra = "solo_agregados"
+      bloque_muestra = "solo_agregados",
+      # La columna `f` vale 999 en una fila, que es un centinela por omision:
+      # si la muestra aleatoria la trae, la corrida emite la guarda de centinelas
+      # y la cuenta varia. Esta prueba mide la CTE del decimal, no esa guarda.
+      sentinelas_numericos = numeric()
     )
     plan <- suppressWarnings(suppressMessages(do.call(
       plan_perfilado_dbi, argumentos
