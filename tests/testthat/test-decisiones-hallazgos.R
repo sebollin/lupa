@@ -891,9 +891,12 @@ test_that("el plan se deriva de las decisiones: aplicar de nuevo o cambiar la de
   n <- 100L
   datos <- data.frame(id = seq_len(n), x = seq_len(n) * 1.5)
   datos <- rbind(datos, datos[1:4, ])
-  analisis <- analizar(datos, nombre = "t", argumentos_perfil = list(
-    clave = "id", analizar_dependencias = FALSE
-  ))
+  expect_warning(
+    analisis <- analizar(datos, nombre = "t", argumentos_perfil = list(
+      clave = "id", analizar_dependencias = FALSE
+    )),
+    "clave declarada no es"
+  )
   plan0 <- analisis$plan_limpieza
   expect_true(any(plan0$hallazgo == "filas_duplicadas" & plan0$aplicar))
   por <- function(decision) {

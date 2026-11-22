@@ -62,6 +62,10 @@ setMethod(
   x$resumen_tabla$tiempos <- NULL
   x$resumen_tabla$meta$plan <- NULL
   x$resumen_tabla$meta$consultas <- NULL
+  # La marca de estabilidad describe como se leyo (una sola sentencia es una
+  # lectura consistente; varias se controlan antes y despues), igual que el
+  # plan y las consultas: es de la ejecucion, no del perfil.
+  x$resumen_tabla$meta$estabilidad <- NULL
   x$resumen_tabla$meta$tamano_lote <- NULL
   x$resumen_tabla$meta$tamano_lote_funciono <- NULL
   x$resumen_tabla$meta$tamano_lote_planos <- NULL

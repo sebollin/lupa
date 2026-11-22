@@ -53,7 +53,7 @@
 # La barra vertical separa las partes del id, asi que va escapada dentro de
 # ellas (y el porciento, que es el escape); un nombre de columna con `|` no
 # puede confundirse con dos partes.
-.escapar_parte_id <- function(x) {
+.escapar_parte_id_hallazgo <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
   x <- gsub("%", "%25", x, fixed = TRUE, useBytes = TRUE)
@@ -347,8 +347,8 @@
   if (!n) return(character())
   grupo <- if ("grupo" %in% names(h)) h$grupo else rep("", n)
   clave <- paste(
-    .escapar_parte_id(tabla), .escapar_parte_id(grupo),
-    .escapar_parte_id(h$columna), .escapar_parte_id(h$tipo_hallazgo),
+    .escapar_parte_id_hallazgo(tabla), .escapar_parte_id_hallazgo(grupo),
+    .escapar_parte_id_hallazgo(h$columna), .escapar_parte_id_hallazgo(h$tipo_hallazgo),
     sep = "|"
   )
   hermano <- clave %in% clave[duplicated(clave)]
