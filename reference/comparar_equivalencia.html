@@ -134,7 +134,12 @@ queda en la tabla con veredicto <code>no_comparable</code> y no suma como acuerd
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>El registro fijo asigna tolerancia sólo a <code>media</code>, <code>mediana</code>, <code>desvio</code> y
+    <p>Los campos del resumen de fechas (<code>resumen_fechas = TRUE</code> en <code><a href="perfilar.html">perfilar()</a></code> y
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>) están registrados. Los que se cuentan contra la fecha de la
+corrida —<code>n_fechas_futuras</code>, <code>lectura_fechas_futuras</code> y
+<code>ultimo_dato_fecha</code>— sólo se comparan entre dos objetos con la misma fecha:
+con fechas distintas se declaran con el motivo <code>fecha_de_corrida_distinta</code>.</p>
+<p>El registro fijo asigna tolerancia sólo a <code>media</code>, <code>mediana</code>, <code>desvio</code> y
 <code>longitud_media</code>. Los conteos, proporciones de conteos y extremos por
 selección se comparan en el eje <code>exacto</code>; las fechas canónicas en <code>fecha</code> y
 <code>moda</code> y <code>centinela_valor</code> en <code>valor</code>. Los ejes <code>exacto</code>, <code>fecha</code> y <code>valor</code>

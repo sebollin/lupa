@@ -377,6 +377,94 @@ que se pida con <code>sobrescribir = TRUE</code>:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="sello-de-definicion">Qué se midió, con qué definición<a class="anchor" aria-label="anchor" href="#sello-de-definicion"></a>
+</h2>
+<p>Una cifra de febrero sólo se compara con la de enero si las dos miden
+lo mismo. Cada <code><a href="../reference/medir.html">medir()</a></code> deja en
+<code>attr(, "sello_metricas")</code> una fila por métrica con la
+versión de <code>lupa</code>, una huella de su definición (la
+especificación, los parámetros, la regla, el referencial, la
+aplicabilidad) y cuánto certifica esa huella. Guarda también el entorno
+de la sesión que puede cambiar lo medido: <code>scipen</code>,
+<code>OutDec</code>, el locale, el huso y la versión de R.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dominio</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>estado <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>, <span class="st">"A"</span>, <span class="st">"Z"</span>, <span class="st">"B"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">modelo_dominio</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">permitidos</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">metricas_nucleo</a></span><span class="op">(</span><span class="op">)</span><span class="op">$</span><span class="va">ValoresPosiblesPorExtension</span>, <span class="st">"Dominio"</span>,</span>
+<span>                 valores <span class="op">=</span> <span class="va">permitidos</span><span class="op">)</span>,</span>
+<span>    <span class="st">"dominio"</span>, <span class="st">"estado"</span></span>
+<span>  <span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">sellado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu">modelo_dominio</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span><span class="op">)</span>, <span class="va">dominio</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-31"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">sello</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">sellado</span>, <span class="st">"sello_metricas"</span><span class="op">)</span></span>
+<span><span class="va">sello</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metrica_instanciada"</span>, <span class="st">"version_lupa"</span>, <span class="st">"certificacion"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;      metrica_instanciada version_lupa certificacion</span></span>
+<span><span class="co">#&gt; 1 Dominio@dominio.estado   0.1.2.9000      completa</span></span></code></pre></div>
+<p><code>certificacion</code> es <code>completa</code> cuando todo lo
+que entra en la definición es dato, como acá; <code>parcial</code> en
+cuanto entra una función tuya o de otro paquete, porque la huella ve su
+texto pero no todo lo que esa función puede leer; y
+<code>no_certificable</code> cuando la definición se lee de forma
+dinámica. Una huella igual con certificación completa quiere decir que
+la definición no cambió; con una parcial, que no se sabe. Sellar no
+ejecuta tu código ni hace fallar una medición.</p>
+<p>Ahora febrero, con un valor más en el dominio permitido: la columna y
+los datos son los mismos, pero la regla no. Al juntar las corridas, el
+histórico avisa:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">medir_dominio</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">permitidos</span>, <span class="va">id</span>, <span class="va">fecha</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">medicion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>    <span class="fu">modelo_dominio</span><span class="op">(</span><span class="va">permitidos</span><span class="op">)</span>, <span class="va">dominio</span>, id_medicion <span class="op">=</span> <span class="va">id</span>, fecha <span class="op">=</span> <span class="va">fecha</span></span>
+<span>  <span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/evaluar.html">evaluar</a></span><span class="op">(</span><span class="fu"><a href="../reference/agregar.html">agregar</a></span><span class="op">(</span><span class="va">medicion</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span>, <span class="va">publicable</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">dominio_enero</span> <span class="op">&lt;-</span> <span class="fu">medir_dominio</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, <span class="st">"enero"</span>, <span class="st">"2026-01-31"</span><span class="op">)</span></span>
+<span><span class="va">dominio_febrero</span> <span class="op">&lt;-</span> <span class="fu">medir_dominio</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>, <span class="st">"Z"</span><span class="op">)</span>, <span class="st">"febrero"</span>, <span class="st">"2026-02-28"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">aviso</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
+<span><span class="va">dominio_historico</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">withCallingHandlers</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/historico_calidad.html">historico_calidad</a></span><span class="op">(</span><span class="va">dominio_enero</span>, <span class="va">dominio_febrero</span><span class="op">)</span>,</span>
+<span>  warning <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">aviso</span> <span class="op">&lt;&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">invokeRestart</a></span><span class="op">(</span><span class="st">"muffleWarning"</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">aviso</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; historico_calidad(): una métrica cambió de definición de una corrida a la siguiente, y</span></span>
+<span><span class="co">#&gt; sus resultados no miden lo mismo: `Dominio@dominio.estado` entre `enero` y `febrero`</span></span>
+<span><span class="co">#&gt; (huella ea0d845ae578, lupa 0.1.2.9000 -&gt; huella db2707301428, lupa 0.1.2.9000). El</span></span>
+<span><span class="co">#&gt; sello de cada corrida está en `attr(historico,</span></span>
+<span><span class="co">#&gt; "configuracion_evaluacion")$sello_metricas`.</span></span></code></pre></div>
+<p>El aviso nombra la métrica y las dos huellas.
+<code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code> tampoco lo deja pasar como un
+delta más: publica una fila <code>definicion_metrica</code> con
+severidad <code>error</code>. Y si el cambio sólo lo ve el sello y la
+configuración del modelo no lo declara, el cambio es
+<code>no_comparable</code> y la fila del resultado no se publica. Acá el
+modelo también cambió, y la configuración lo declara: por eso la fila
+del resultado se conserva y aparece además
+<code>configuracion_modelo</code>.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad</a></span><span class="op">(</span><span class="va">dominio_historico</span>, umbral <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"aspecto"</span>, <span class="st">"severidad"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="co">#&gt;                aspecto severidad</span></span>
+<span><span class="co">#&gt; 1            resultado        ok</span></span>
+<span><span class="co">#&gt; 2   definicion_metrica     error</span></span>
+<span><span class="co">#&gt; 3 configuracion_modelo     error</span></span></code></pre></div>
+<p>Con la misma definición y otro entorno (otro locale, otro
+<code>OutDec</code>, otra versión de R) el aviso dice «misma definición,
+otro entorno»: la cifra se compara como siempre, pero con la salvedad.
+Una corrida guardada con una versión anterior, sin sello, también se
+compara como antes y se dice. El sello no certifica que la cifra sea
+correcta: certifica que dos corridas pueden leerse como medidas de lo
+mismo.</p>
+</div>
+<div class="section level2">
 <h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
 </h2>
 <ul>
@@ -397,6 +485,10 @@ las mejoras entre corridas consecutivas.</li>
 <li>
 <code><a href="../reference/historico_calidad.html">acumular_historico()</a></code> y <code><a href="../reference/guardar_historico.html">guardar_historico()</a></code>
 mantienen la serie entre sesiones.</li>
+<li>Cada medición lleva un sello de definición
+(<code>attr(, "sello_metricas")</code>): al comparar corridas, un cambio
+de definición o de entorno se avisa y no se confunde con un cambio de
+los datos.</li>
 </ul>
 </div>
 <div class="section level2">

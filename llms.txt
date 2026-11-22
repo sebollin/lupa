@@ -258,9 +258,9 @@ lugar.
 | Explorar columnas y compartir el resultado | [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md), [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md) | [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) |
 | Encontrar estructura y vacíos legítimos | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md), [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html), [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html) |
 | Limpiar sin tocar el original | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md), [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md), [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md); la estrategia `reparar_codificacion` para texto mal codificado | [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
-| Definir, medir y evaluar la calidad | [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md), [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md) | [Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html), [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) |
+| Definir, medir y evaluar la calidad | [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md), [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md), [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md) | [Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html), [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) |
 | Comparar entregas y seguir la calidad en el tiempo | [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md), [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md), [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md) | [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
-| Perfilar una base o una colección de tablas | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md), [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md), [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md), [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md), [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md) | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html), [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) |
+| Perfilar una base o una colección de tablas | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md), [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md), [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md), [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md), [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md), [`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md), [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md) | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html), [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) |
 | Encontrar duplicados aproximados | [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md), [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md) | [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 
 La [referencia](https://sebollin.github.io/lupa/reference/) documenta
@@ -683,10 +683,13 @@ Declarar métricas, referenciales, granularidad y agregaciones.
 - [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
   [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md)
   : Granularidades y transiciones de agregación
-- [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) :
+- [`rbind(`*`<medicion_resumen>`*`)`](https://sebollin.github.io/lupa/reference/medir.md)
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) :
   Medir un modelo de calidad
 - [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
   : Medir un modelo de calidad dentro de una base de datos DBI
+- [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  : Comprobar la conformidad entre R y un motor DBI
 - [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
   : Planificar una medición de calidad en una base de datos DBI
 - [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) :
@@ -695,6 +698,8 @@ Declarar métricas, referenciales, granularidad y agregaciones.
   : Construir un tablero de calidad
 - [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
   : Calcular un índice de calidad declarado por el usuario
+- [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+  : Semáforo de calidad por tipo de indicador
 - [`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md)
   : Catálogo de estadísticos de estimación reconocidos
 - [`medicion_desde_estimaciones()`](https://sebollin.github.io/lupa/reference/medicion_desde_estimaciones.md)
@@ -715,6 +720,11 @@ Declarar una base de varias tablas y perfilarla como conjunto.
   : Estimar el costo de buscar relaciones en una colección
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
   : Buscar claves foráneas candidatas entre pares declarados
+- [`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md)
+  : Detectar tablas de códigos y proponer qué códigos quieren decir «sin
+  dato»
+- [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
+  : Convertir una propuesta de ausencias en la declaración por columna
 
 ## Validar
 

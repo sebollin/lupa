@@ -50,6 +50,7 @@ perfilar_dbi(
   columnas_opcionales = character(),
   aplicabilidad = NULL,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+  estrategia_no_sql = c("no_medible", "bloques"),
   ...
 )
 ```
@@ -505,20 +506,39 @@ perfilar_dbi(
 - sentinelas_numericos:
 
   Vector completo de valores numéricos que se declaran como faltantes en
-  el `perfil_muestra`. Se normaliza como un conjunto numérico, por lo
-  que el orden, el tipo entero o doble y los duplicados no cambian el
-  resultado. El resumen SQL no los excluye de sus agregados y lo declara
-  en `resumen_tabla$cobertura`; la corroboración no compara las métricas
-  de magnitud de una columna de la que la muestra excluyó alguno. En una
-  columna `real`, una representacion float32 del centinela fraccionario
-  se alinea antes de perfilar la muestra; la corroboración reconoce esa
-  representacion como el mismo centinela.
+  el `perfil_muestra`, o la lista por columna de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  —también para `cadenas_ausencia`, que viaja por `...`—: se valida
+  contra las columnas de la tabla y la reciben igual el resumen SQL, la
+  muestra y la corroboración. Se normaliza como un conjunto numérico,
+  por lo que el orden, el tipo entero o doble y los duplicados no
+  cambian el resultado. El resumen SQL no los excluye de sus agregados y
+  lo declara en `resumen_tabla$cobertura`; la corroboración no compara
+  las métricas de magnitud de una columna de la que la muestra excluyó
+  alguno. En una columna `real`, una representacion float32 del
+  centinela fraccionario se alinea antes de perfilar la muestra; la
+  corroboración reconoce esa representacion como el mismo centinela.
 
   Rige la misma reserva que en
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
   un valor de la lista **por omisión** que aparece una sola vez y dentro
   del rango de los demás no se señala. Declarar el valor lo vuelve a
   contar.
+
+- estrategia_no_sql:
+
+  Qué hacer, con `resumen_fechas = TRUE`, con una columna de fecha que
+  el SQL no cuenta como R la lee: `"no_medible"` (por omisión) la
+  declara `no_disponible` en `resumen_tabla$sql` con el motivo, y
+  `"bloques"` la lee en R por bloques, con el mismo controlador, y la
+  cuenta con la misma regla. Son tres casos: una columna de SQLite que
+  guarda las fechas como texto (lo que deja un CSV importado; se mide
+  con [`typeof()`](https://rdrr.io/r/base/typeof.html)), instantes a
+  menos de un segundo de una fecha centinela lejana con resolución de
+  microsegundos (R los lee como esa fecha) y una columna de texto que la
+  muestra lee como fecha, cuyos formatos se deciden entonces con la
+  columna entera. Mismo nombre y valores que en
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md).
 
 - ...:
 
@@ -543,6 +563,22 @@ perfilar_dbi(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   como motivo, legible también con la protección: un error que se repite
   sobre la muestra sin filas no cita ninguna celda.
+
+  `resumen_fechas`, `centinelas_fecha`, `periodos` y `dominios` valen
+  además en `resumen_tabla`, sobre la tabla completa: con
+  `resumen_fechas = TRUE`, `resumen_tabla$columnas` agrega los mismos
+  campos de fechas que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  (con su fila en `resumen_tabla$sql`, etapa `"fechas"`) y
+  `resumen_tabla$meta$actualidad` la misma tabla de actualidad; con
+  `periodos`, `resumen_tabla$meta$periodos` la misma partición. El motor
+  compara contra literales y decide con la misma regla que la memoria;
+  sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los
+  demás motores y con `universo = "muestra_motor"` se declara y se lee
+  de `perfil_muestra`). Con `resumen_fechas` y sin `fecha`, la fecha se
+  congela una vez al entrar (al segundo) para el resumen y la muestra, y
+  las dos dicen `fecha_declarada = FALSE`. Sin estos argumentos el
+  objeto es el de siempre.
 
 ## Value
 
@@ -649,6 +685,17 @@ internas `clave_primaria`, `proteccion_coleccion`,
 `resumen_tabla$meta$consultas$sondas_fallidas` y no disparan el aviso de
 degradacion. El aviso que informa que la muestra no esta disponible
 conserva ademas la clase historica `lupa_muestra_dbi_no_disponible`.
+`resumen_tabla$meta$consultas$conciliacion` conserva además el estado de
+la cuenta (`"conciliado"` o `"desfasado"`), los totales anunciados y
+emitidos y un `detalle` por clase de consulta cuando una clase anunciada
+no corrió o la corrida emitió una clase que el plan no tenía. Cada
+detalle dice la clase, ambas cantidades y el motivo de la diferencia; la
+falla original permanece en `fallas` o `sondas_fallidas`. `plan_corrida`
+conserva la misma estructura para la comparación contra el plan que la
+corrida publicó en `meta$plan`; permite distinguirla de los campos
+históricos de la conciliación. En una tabla vacía, `plan_previo`
+conserva el total que se anunció antes de conocer ese estado y explica
+por qué `plan_corrida` usa el plan publicado por la corrida.
 
 Cuando el catálogo estima al menos `1e8` filas y se pidió
 `universo = "tabla_completa"`, la función avisa antes de los agregados
@@ -899,13 +946,20 @@ tipo, una vista rota—: con una transacción abierta, cada sentencia de la
 vía va entre un `SAVEPOINT` propio y su `RELEASE`, y si falla se vuelve
 con `ROLLBACK TO SAVEPOINT`. La transacción se reconoce por RPostgres
 (`dbBegin()`, `dbWithTransaction()`) o por el motor, para un `BEGIN`
-mandado a mano. El paquete nunca manda `BEGIN`, `COMMIT` ni `ROLLBACK`;
-fuera de una transacción no agrega ninguna sentencia de ese tipo. Lo
-mismo vale para
+mandado a mano. El paquete nunca manda `BEGIN`, `COMMIT` ni `ROLLBACK`
+sobre la transacción del usuario; fuera de una transacción no agrega
+ninguna sentencia de ese tipo. Lo mismo vale para
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
 y
 [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+La única excepción es `compilar = TRUE` de
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+y
+[`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
+en PostgreSQL sin transacción del usuario: cada sentencia se compila en
+una transacción propia que se revierte (ver la sección Compilación de
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)).
 SQL Server puede deshacer la transacción completa ante un error de
 ejecución, incluso con `XACT_ABORT` apagado: antes y después de cada
 envío y lectura la vía mide `@TRANCOUNT` y `XACT_STATE()`. Si cambian,

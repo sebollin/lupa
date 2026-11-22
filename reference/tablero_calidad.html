@@ -128,7 +128,12 @@ corrida.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame S3 <code>tablero_calidad</code>. Los atributos <code>alcance</code> y
 <code>cobertura</code> conservan los conteos y el detalle del marco, y
-<code>pares_fuera_del_marco</code> nombra los pares medidos que ese marco no declara.</p>
+<code>pares_fuera_del_marco</code> nombra los pares medidos que ese marco no declara.
+Sobre un resumen cuyas cuentas no cierran en alguna celda (ver
+<code>estado_cuentas</code> en <code><a href="medir.html">medir()</a></code>), el atributo <code>cuentas</code> nombra esas celdas,
+su motivo y su diferencia, y la impresión lo muestra; sobre una
+consolidación (<code>rbind(..., prioridad = )</code>), cada celda lleva su <code>fuente</code> y
+los atributos <code>descartadas</code> y <code>consolidacion</code> viajan.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

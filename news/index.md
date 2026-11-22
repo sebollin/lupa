@@ -404,6 +404,112 @@
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   cuenta esas consultas.
 
+- `plan_perfilado_dbi(..., compilar = TRUE)` compila cada consulta del
+  plan en el motor sin ejecutarla ni leer filas (`EXPLAIN` en SQLite,
+  DuckDB y PostgreSQL, dentro de una transacción propia que se revierte
+  y con un tope de tiempo; `PREPARE` en MySQL y MariaDB; `SET NOEXEC ON`
+  en SQL Server, con la conexión restaurada y comprobada al terminar) y
+  publica por sentencia en `attr(plan, "compilacion")` si compiló y, si
+  no, el mensaje del motor: un error de sintaxis, de nombre o de
+  permisos aparece antes de una corrida larga. Nunca toca la transacción
+  del usuario: en DuckDB, con una abierta, se niega antes de mandar
+  nada. Una interrupción restaura la sesión y se vuelve a señalar. La
+  sección «Compilación» de la ayuda dice lo que compilar no puede
+  garantizar. Por omisión nada cambia. Verificada en los siete motores.
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  concilia las consultas que emitió con las que anunció el plan:
+  `resumen_tabla$meta$consultas$conciliacion` dice cuántas se anunciaron
+  y cuántas se emitieron, por clase de consulta, y por qué difieren (un
+  sondeo de capacidad que prueba sus formas candidatas, una consulta que
+  depende del dato, una tabla vacía o sin valores, una falla y su vía de
+  respaldo, o el presupuesto agotado, que nunca queda conciliado), en
+  las tres vías de lectura.
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  cuenta exactamente lo que se emite: las consultas que dependen del
+  dato se publican con su mínimo y su máximo, y
+  [`print()`](https://rdrr.io/r/base/print.html) lo dice.
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  gana tres argumentos para las fechas. `centinelas_fecha` declara
+  fechas centinela para toda columna de fecha: se suman a las cuatro que
+  el paquete sospecha por omisión sin quitarles su reserva, se acusan
+  desde una aparición como `error` y no esconden a las incorporadas al
+  medir su separación. `periodos` declara pares inicio–fin y publica en
+  `general$periodos` la partición de sus filas: cerrados válidos, fin
+  antes del inicio, fin abierto (ausente o una fecha de `fin_abierto`),
+  fin con centinela declarada y fin con una fecha que suele ser
+  centinela sin declarar, que se avisa como posible fin abierto y no se
+  cuenta como cerrado. `resumen_fechas = TRUE` agrega a `columnas` las
+  cuentas de fechas centinela y futuras con su lectura y el último dato,
+  y `general$actualidad` la actualidad de cada columna de fecha, con la
+  `fecha` declarada como hoy. Sin ellos el perfil no cambia.
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publica lo mismo sobre la tabla completa (`resumen_tabla$columnas`,
+  `resumen_tabla$meta$actualidad` y `resumen_tabla$meta$periodos`),
+  contando en el motor contra literales y decidiendo con la misma regla
+  que la memoria, en SQLite y DuckDB. Lo que el SQL no puede contar como
+  lo lee R —fechas guardadas como texto en SQLite, instantes a
+  microsegundos de una centinela lejana, texto que la muestra lee como
+  fecha— se declara, o se cuenta en R por bloques con el argumento nuevo
+  `estrategia_no_sql = "bloques"`.
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  recibe los mismos argumentos y cuenta esas consultas.
+  [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  compara los campos del resumen de fechas; los que dependen de la fecha
+  de la corrida, sólo entre corridas con la misma fecha
+  (`fecha_de_corrida_distinta`).
+
+- `sentinelas_numericos` y `cadenas_ausencia` aceptan una lista por
+  columna, `list(edad = 99)`, en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  y
+  [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md),
+  y una lista por tabla en
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+  Cada entrada vale para su columna lo que el vector valdría para ella;
+  las columnas que la lista no nombra reciben el valor por omisión, y
+  una lista que nombra una columna repetida en los datos se detiene y
+  pide renombrar. El plan de limpieza, las relaciones entre columnas y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  usan la entrada de cada columna. Con vectores no cambia nada.
+
+- Nuevas
+  [`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md)
+  y
+  [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md):
+  encuentran las tablas de códigos de una colección (una tabla es
+  candidata si otra la referencia con la cobertura de
+  `umbral_cobertura`; por la forma sola queda como posible), leen sus
+  etiquetas y proponen —sin aplicar nada— qué códigos declarar como
+  ausencia en cada columna que los usa, con cuántas filas lo usan.
+
+- [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  reanuda una corrida cortada. Con `directorio_reanudacion`, cada tabla
+  que se perfila sin consultas fallidas se guarda en cuanto termina, y
+  si la corrida se corta —el proceso muere, se lo interrumpe, o la
+  conexión se cae y las tablas que siguen fallan— la misma llamada con
+  `reanudar = TRUE` sigue desde ahí: las tablas guardadas no vuelven a
+  consultar la base, y se vuelven a perfilar las que faltan, las que
+  tuvieron alguna consulta fallida y las que no se pudieron perfilar. El
+  objeto es el mismo que el de una corrida sin cortes, salvo los tiempos
+  y el `momento` de cada tabla, y `meta$reanudacion` dice qué se reusó y
+  qué se perfiló y por qué. La corrida reanudada usa la `fecha` de la
+  original, y se niega si la base cambió desde el corte (otro tamaño o
+  fecha de modificación del archivo), porque la colección quedaría con
+  tablas de dos estados de la base. Por ahora con SQLite y DuckDB en
+  archivo; se rechaza con una base en memoria, con un motor de servidor
+  y con `proteger_datos_personales = TRUE` o `incluir_valores = FALSE`,
+  con un error de clase `lupa_error_reanudacion` que dice por qué. Un
+  bloqueo impide que dos procesos sigan la misma corrida. Sin
+  `directorio_reanudacion` nada cambia.
+
 ### Medir la calidad
 
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una
@@ -418,6 +524,7 @@
   y
   [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   lo rechazan con un mensaje que dice qué hacer.
+
 - [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
   y
   [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
@@ -438,14 +545,120 @@
   `BIT`, `TINYINT(1)`) se miden en el motor como los ve R. Los rangos de
   texto no se traducen: su orden depende del locale en R y de la
   intercalación en el motor.
+
 - `ReglaIntegridadIntraEntidad()` acepta una fórmula de fila
   (`regla = ~ is.na(inicio) | is.na(fin) | inicio <= fin`), que se
   interpreta como un árbol cerrado de columnas, literales y operadores,
   sin ejecutar código ni buscar nombres en el entorno.
+
 - El `ratio` de
   [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) y
   del tablero se calcula como numerador sobre denominador, para que el
   resumen y la medición completa coincidan exactamente.
+
+- Cada medición lleva un sello de definición,
+  `attr(, "sello_metricas")`: por métrica, la versión de lupa, una
+  huella de su definición (especificación, parámetros, regla,
+  referencial, aplicabilidad y orden del texto) y cuánto certifica esa
+  huella (`certificacion`): `completa` cuando todo lo que entra es dato,
+  `parcial` en cuanto entra una función del usuario o de otro paquete, o
+  un valor que la huella ve a medias, y `no_certificable` cuando lee de
+  forma dinámica. Sellar nunca ejecuta código del usuario ni hace fallar
+  una medición. El sello guarda además el entorno que puede cambiar lo
+  medido (`scipen`, `OutDec`, el locale, la zona horaria y la versión de
+  R). [`rbind()`](https://rdrr.io/r/base/cbind.html),
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md),
+  [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  y
+  [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+  avisan cuando una métrica cambió de definición entre dos corridas, e
+  informan (con un mensaje, no una advertencia) cuando la definición es
+  la misma y el entorno otro, y
+  [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)
+  publica `no_comparable` si el cambio de definición no está declarado
+  en la configuración. Una corrida guardada sin sello se compara como
+  antes y se dice.
+
+- `orden_texto = c("idioma", "bytes")` en
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  y
+  [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md):
+  con `"bytes"`, un rango o una comparación de orden sobre texto no
+  depende del locale de la sesión (orden por punto de código: `Z` antes
+  que `a`, `ñ` después de `z`), y el motor la traduce con una
+  intercalación binaria (SQLite y DuckDB verificados contra la memoria;
+  los demás motores quedan escritos y sin medir). `aplicable` y la
+  aplicabilidad se evalúan con R tal como están escritas. Con
+  `"idioma"`, por omisión, nada cambia.
+
+- `conformidad_dbi(conexion, modelo)` comprueba en el servidor del
+  usuario que el motor cuenta igual que R: corre, sólo con `SELECT`
+  sobre valores límite inventados con el tipo y la intercalación de las
+  columnas reales (leídos del catálogo), cada regla del modelo que
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  traduce, y dice regla por regla si conforma, se abstiene, no conforma
+  o no se pudo evaluar. `medir_dbi(..., conformidad = )` recibe ese
+  resultado: lo que no conformó queda no medible en el motor, o se mide
+  por bloques en R con `estrategia_no_sql = "bloques"`; una batería de
+  otra conexión, otro modelo u otra configuración se rechaza con aviso.
+  Verificada en SQLite y DuckDB.
+
+- `plan_medicion_dbi(..., compilar = TRUE)`, como
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  compila las consultas del plan sin ejecutarlas.
+
+- [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+  acepta una tabla del motor, con un
+  [`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html) o su nombre, y
+  no la copia a R.
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  mide `CorrectitudSemFuerte`, `CorrectitudSemDebil` y `RatioCobertura`
+  contra ella en SQLite y DuckDB, contando lo mismo que
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) con
+  las tablas leídas; lo que el motor no escribe igual se declara, y con
+  `estrategia_no_sql = "bloques"` se compara en R sobre los valores
+  distintos (también para un referencial en R, que antes quedaba
+  `no_medible`). El sello de esas métricas incluye la ubicación de la
+  base, así que medir el mismo modelo en otra base avisa que cambió la
+  definición.
+  [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  comprueba en el servidor el pliegue que usa.
+
+- El resumen de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) y de
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  dice si las cuentas de cada cifra cierran: `estado_cuentas` es
+  `no_cierran` cuando la métrica dio más medidas que su universo, cuando
+  lo no evaluado no es lo que la métrica declara no evaluar (los vacíos,
+  para una de validez) o cuando dos lecturas de la misma tabla en una
+  corrida vieron otra tabla; `parcial` cuando la cifra se calculó sobre
+  una parte declarada (un vocabulario truncado por `max_valores`);
+  `sin_cuentas` cuando no hay cuentas de su universo. El resumen publica
+  además `n_sin_valor`, `n_filas_leidas` y, en la referencial, la tabla
+  referida y sus filas; `attr(resumen, "lecturas")` lista cada lectura
+  de cada tabla. Donde el motor no ofrece un contador de modificaciones
+  que lupa lea, el control de lecturas dice que es limitado: ve una fila
+  agregada o quitada entre lecturas, no un `UPDATE` que no cambia el
+  número de filas.
+
+- Nueva
+  [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md):
+  clasifica cada celda en niveles con cortes que declara quien mide, por
+  dimensión o por métrica. Sólo pinta cifras cuyas cuentas cierran; una
+  métrica de validez evalúa su propio universo —los valores presentes— y
+  tiene color aunque la columna tenga vacíos. No combina dimensiones ni
+  trae cortes de fábrica; las métricas no acotadas quedan fuera con su
+  motivo, y la columna `control_lecturas` dice qué celdas con color se
+  leyeron en varias consultas sin contador del motor.
+
+- `rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))`
+  junta partes de una misma corrida —mismo `id_medicion` y misma `fecha`
+  declarada— resolviendo la misma celda por la parte de mayor prioridad
+  (columna `fuente`) y conservando lo descartado. Sólo junta lo
+  comparable: el sello de cada parte con la misma huella para cada
+  métrica compartida, y la misma instantánea de cada tabla leída por más
+  de una parte. Si no se puede probar, no se junta y se dice por qué.
 
 ### Comparar entregas
 
@@ -627,6 +840,11 @@
 
 ### Documentación
 
+- «Comparar entregas y seguir la calidad» explica el sello de definición
+  y sus avisos; «Perfilar una base» muestra cómo compilar un plan antes
+  de correrlo, y «Motores y escala», cómo comprobar con
+  [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  que el servidor cuenta igual que R. Las dos últimas también en inglés.
 - La viñeta «Leer un perfil» muestra cómo decidir sobre los hallazgos y
   que la decisión valga en la entrega siguiente.
 - El sitio publica «Cruzar dos bases», una guía para comparar una tabla
@@ -642,6 +860,50 @@
   la matriz por dimensión y lo no medido.
 
 ### Correcciones
+
+- `ReglaIntegridadInterEntidad` cuenta un `NaN` de la clave foránea como
+  vacío y no como huérfano, igual que
+  [`is.na()`](https://rdrr.io/r/base/NA.html), `NoNulo` y los rangos.
+  Cambia la cobertura publicada: en una columna de 10 filas con 2 `NA`,
+  un `NaN` y 4 valores encontrados pasa de 4/8 a 4/7, en memoria y en
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md).
+
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  arma cada fila con una sola lectura: la consulta dedicada publicaba
+  `n_no_evaluados = -1` cuando la tabla cambiaba entre ella y la
+  consolidada; y partida una consulta tras un error, cada mitad conserva
+  sus filas.
+
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md):
+  un `NoNulo` con fechas en `valores_nulos` sobre una columna de SQLite
+  que guarda las fechas como texto ya no se da por cumplido: la
+  comparación contra el literal no veía ese texto y publicaba 1 donde
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) daba
+  0,85. Se declara, o se mide en R con `estrategia_no_sql = "bloques"`.
+
+- `OportunidadEntPorFecha` y `OportunidadEntPorIntervalo` cuentan como
+  vacías, y no como sin medida, las filas con la fecha de la vigencia
+  vacía; `CorrectitudSemDebil` cuenta su universo en filas y no en
+  celdas.
+
+- [`rbind()`](https://rdrr.io/r/base/cbind.html) de resúmenes rechaza
+  dos fechas en una corrida y una métrica medida en una parte y no
+  medida en otra (antes publicaba las dos cosas).
+
+- `ReglaIntegridadInterEntidad(muestra = )` avisa que no tiene efecto:
+  la cobertura se mide sobre la tabla entera.
+
+- El resumen de `RatioCobertura` (`medir(detalle = "resumen")` y
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md))
+  publica las claves cubiertas en `numerador` y las del universo en
+  `denominador`; antes salían `NA`. `cobertura_metricas` lleva la
+  `dimension` y el `factor` de cada métrica sin medir.
+
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  compara el texto con intercalación binaria explícita en SQLite y
+  DuckDB, como R: sobre una vista de SQLite que hereda `COLLATE NOCASE`,
+  un dominio contaba 3 de 3 donde R cuenta 2 de 3, y en DuckDB la regla
+  quedaba sin medir.
 
 - Un centinela declarado como entero de 64 bits, o escrito como texto
   con más de 15 cifras significativas en cualquier notación, se compara

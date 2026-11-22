@@ -62,6 +62,14 @@ y `lado`; este último toma los valores `anterior` y `actual`.
 
 ## Details
 
+Los campos del resumen de fechas (`resumen_fechas = TRUE` en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md))
+están registrados. Los que se cuentan contra la fecha de la corrida
+—`n_fechas_futuras`, `lectura_fechas_futuras` y `ultimo_dato_fecha`—
+sólo se comparan entre dos objetos con la misma fecha: con fechas
+distintas se declaran con el motivo `fecha_de_corrida_distinta`.
+
 El registro fijo asigna tolerancia sólo a `media`, `mediana`, `desvio` y
 `longitud_media`. Los conteos, proporciones de conteos y extremos por
 selección se comparan en el eje `exacto`; las fechas canónicas en

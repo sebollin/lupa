@@ -108,7 +108,10 @@ cero;</li>
 <li>estimar con <code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code> cuánto cuesta
 buscar relaciones;</li>
 <li>buscar claves foráneas candidatas con
-<code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code>.</li>
+<code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code>;</li>
+<li>seguir una corrida cortada con <code>reanudar = TRUE</code>;</li>
+<li>encontrar las tablas de códigos y declarar, columna por columna, qué
+códigos quieren decir «sin dato».</li>
 </ul>
 </blockquote>
 <div class="section level2">
@@ -453,7 +456,242 @@ leyó de cada lado y si la lectura quedó truncada
 (<code>muestreado_1</code>, <code>muestreado_2</code>). Con la tabla de
 referencia truncada, la cobertura sólo puede subir al leer más: es una
 cota inferior.</p>
+</div>
+<div class="section level2">
+<h2 id="reanudar-una-corrida-cortada">⏯️ Reanudar una corrida cortada<a class="anchor" aria-label="anchor" href="#reanudar-una-corrida-cortada"></a>
+</h2>
+<p>Una base de cientos de tablas puede tardar una noche. Si el proceso
+muere en la tabla doscientos, o se cae la conexión y las que siguen
+fallan, no hace falta empezar de nuevo. Con
+<code>directorio_reanudacion</code>, cada tabla que se perfila sin
+consultas fallidas se guarda en ese directorio en cuanto termina.</p>
+<p>La base del ejemplo está en memoria, y una base en memoria no
+sobrevive al proceso: no tiene nada que reanudar. Se copia a un archivo
+y se declara la misma colección, con <code>pagos</code> incluida:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".sqlite"</span><span class="op">)</span></span>
+<span><span class="va">en_archivo</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">archivo</span><span class="op">)</span></span>
+<span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/sqliteCopyDatabase.html" class="external-link">sqliteCopyDatabase</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="va">en_archivo</span><span class="op">)</span></span>
+<span><span class="va">base_archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/coleccion.html">coleccion</a></span><span class="op">(</span></span>
+<span>  <span class="va">en_archivo</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sucursales"</span>, <span class="st">"productos"</span>, <span class="st">"ventas"</span>, <span class="st">"devoluciones"</span>, <span class="st">"pagos"</span><span class="op">)</span>,</span>
+<span>  nombre <span class="op">=</span> <span class="st">"comercial"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">directorio</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"corridas-"</span><span class="op">)</span></span>
+<span><span class="va">corrida</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_coleccion.html">perfilar_coleccion</a></span><span class="op">(</span><span class="va">base_archivo</span>, directorio_reanudacion <span class="op">=</span> <span class="va">directorio</span><span class="op">)</span></span>
+<span><span class="va">corrida</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">reanudacion</span><span class="op">$</span><span class="va">tablas</span></span>
+<span><span class="co">#&gt;   identificador    origen        motivo  estado</span></span>
+<span><span class="co">#&gt; 1    sucursales perfilada corrida_nueva  limpia</span></span>
+<span><span class="co">#&gt; 2     productos perfilada corrida_nueva  limpia</span></span>
+<span><span class="co">#&gt; 3        ventas perfilada corrida_nueva  limpia</span></span>
+<span><span class="co">#&gt; 4  devoluciones perfilada corrida_nueva  limpia</span></span>
+<span><span class="co">#&gt; 5         pagos perfilada corrida_nueva fallida</span></span></code></pre></div>
+<p><code>pagos</code> quedó <code>fallida</code>, como quedaría una
+tabla a la que la corrida llegó con la conexión caída. La misma llamada
+con <code>reanudar = TRUE</code> sigue esa corrida: las tablas guardadas
+no vuelven a consultar la base, y se perfilan de nuevo las que faltan,
+las que tuvieron alguna consulta fallida y las que no se pudieron
+perfilar.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">seguida</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_coleccion.html">perfilar_coleccion</a></span><span class="op">(</span></span>
+<span>  <span class="va">base_archivo</span>, directorio_reanudacion <span class="op">=</span> <span class="va">directorio</span>, reanudar <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Se reanuda la corrida corrida-20261122-181923-2d2c6712f633, empezada el 2026-11-22 18:19:23 UTC: se reusan 4 tablas y se vuelven a perfilar 1.</span></span>
+<span><span class="va">seguida</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">reanudacion</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"intento"</span>, <span class="st">"reanudada"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; $intento</span></span>
+<span><span class="co">#&gt; [1] 2</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $reanudada</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="va">seguida</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">reanudacion</span><span class="op">$</span><span class="va">tablas</span></span>
+<span><span class="co">#&gt;   identificador    origen  motivo  estado</span></span>
+<span><span class="co">#&gt; 1    sucursales   reusada    &lt;NA&gt;  limpia</span></span>
+<span><span class="co">#&gt; 2     productos   reusada    &lt;NA&gt;  limpia</span></span>
+<span><span class="co">#&gt; 3        ventas   reusada    &lt;NA&gt;  limpia</span></span>
+<span><span class="co">#&gt; 4  devoluciones   reusada    &lt;NA&gt;  limpia</span></span>
+<span><span class="co">#&gt; 5         pagos perfilada fallida fallida</span></span></code></pre></div>
+<p><code>meta$reanudacion</code> dice qué corrida se siguió, en qué
+intento va y, por tabla, si se reusó o se perfiló y por qué. El objeto
+es el mismo que el de una corrida sin cortes, salvo los tiempos y el
+<code>momento</code> de cada tabla, que en una tabla reusada es el de su
+medición original. La corrida reanudada usa también la
+<code>fecha</code> de la original. Para seguir una corrida tienen que
+coincidir la base, las tablas declaradas y su orden, los argumentos, y
+las versiones de <code>lupa</code>, de R y del controlador; el error
+nombra lo que difiere. Si la corrida compatible más reciente ya terminó
+con todas sus tablas, o no hay ninguna, <code>reanudar = TRUE</code> se
+niega y no empieza otra por su cuenta.</p>
+<p>Reanudar también se niega si la base cambió desde el corte. Las
+tablas guardadas la describen como era y las que faltan la describirían
+como es: el resultado no sería el de ninguna corrida. Si alguien crea
+<code>pagos</code> antes de reanudar:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">en_archivo</span>, <span class="st">"pagos"</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id_pago <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, id_venta <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">rechazo</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/perfilar_coleccion.html">perfilar_coleccion</a></span><span class="op">(</span></span>
+<span>    <span class="va">base_archivo</span>, directorio_reanudacion <span class="op">=</span> <span class="va">directorio</span>, reanudar <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  lupa_error_reanudacion <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="va">e</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">rechazo</span><span class="op">$</span><span class="va">motivo</span></span>
+<span><span class="co">#&gt; [1] "base_cambiada"</span></span>
+<span><span class="co"># La carpeta temporal se abrevia para que el mensaje se lea.</span></span>
+<span><span class="va">mensaje</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">dirname</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span>, <span class="st">"..."</span>, <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">rechazo</span><span class="op">)</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">mensaje</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; No se reanuda la corrida corrida-20261122-181923-2d2c6712f633: desde su intento</span></span>
+<span><span class="co">#&gt; anterior (2026-11-22T18:19:24+0000) cambió la base: en `.../file2d2c7f9cf8ae.sqlite`,</span></span>
+<span><span class="co">#&gt; el tamaño, de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-22</span></span>
+<span><span class="co">#&gt; 18:19:23.466 UTC a 2026-11-22 18:19:24.491 UTC. Las tablas guardadas la describen como</span></span>
+<span><span class="co">#&gt; era y las que faltan la describirían como es ahora: el resultado no sería el de ninguna</span></span>
+<span><span class="co">#&gt; corrida. Una corrida nueva, con `reanudar = FALSE`, la mide entera como está.</span></span></code></pre></div>
+<p>La base se reconoce por su archivo, con su tamaño y su fecha de
+modificación. Abrir, leer y perfilar la base no cuentan como cambio.
+<code>reanudar = FALSE</code>, el valor por omisión, empieza siempre una
+corrida nueva y mide la base entera como está.</p>
+<p>Por ahora se reanuda con SQLite y DuckDB en archivo. Una base en
+memoria, un motor de servidor,
+<code>proteger_datos_personales = TRUE</code> o
+<code>incluir_valores = FALSE</code> se rechazan con un error de clase
+<code>lupa_error_reanudacion</code> que dice por qué. Un bloqueo impide
+que dos procesos sigan la misma corrida. El directorio guarda el perfil
+completo de cada tabla, con lo que el perfil publica de los datos: hay
+que tratarlo como a los datos, y las corridas no se borran solas. La
+sección «Reanudar una corrida cortada» de
+<code><a href="../reference/perfilar_coleccion.html">?perfilar_coleccion</a></code> explica qué se compara y qué hacer si
+el proceso murió con la corrida tomada.</p>
+</div>
+<div class="section level2">
+<h2 id="tablas-de-codigos">🏷️ Tablas de códigos<a class="anchor" aria-label="anchor" href="#tablas-de-codigos"></a>
+</h2>
+<p>Muchas columnas guardan un código cuyo significado está en otra
+tabla. Que <code>medio = 9</code> quiera decir «sin dato» sólo se sabe
+leyendo <code>medios_pago</code>. El perfil de la columna sola ve un 9
+que se aparta del resto, no un faltante.</p>
+<p>El ejemplo suma a la base 2 tablas de códigos y una de cobros que las
+usa. Las claves foráneas quedan declaradas en el catálogo:</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ejecutar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">sql</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="va">sql</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu">ejecutar</span><span class="op">(</span><span class="st">"CREATE TABLE medios_pago (codigo INTEGER PRIMARY KEY, etiqueta TEXT)"</span><span class="op">)</span></span>
+<span><span class="fu">ejecutar</span><span class="op">(</span><span class="st">"INSERT INTO medios_pago VALUES</span></span>
+<span><span class="st">  (1, 'Efectivo'), (2, 'Tarjeta'), (3, 'Transferencia'), (9, 'Sin dato')"</span><span class="op">)</span></span>
+<span><span class="fu">ejecutar</span><span class="op">(</span><span class="st">"CREATE TABLE canales (codigo TEXT PRIMARY KEY, descripcion TEXT)"</span><span class="op">)</span></span>
+<span><span class="fu">ejecutar</span><span class="op">(</span><span class="st">"INSERT INTO canales VALUES</span></span>
+<span><span class="st">  ('MOS', 'Mostrador'), ('WEB', 'Web'), ('NS', 'No sabe')"</span><span class="op">)</span></span>
+<span><span class="fu">ejecutar</span><span class="op">(</span><span class="st">"CREATE TABLE cobros (id_cobro INTEGER, id_venta INTEGER,</span></span>
+<span><span class="st">  medio INTEGER REFERENCES medios_pago(codigo),</span></span>
+<span><span class="st">  canal TEXT REFERENCES canales(codigo))"</span><span class="op">)</span></span>
+<span><span class="va">cobros</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id_cobro <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">30</span>,</span>
+<span>  id_venta <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">30</span>,</span>
+<span>  medio <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="fl">8</span><span class="op">)</span>, <span class="fl">9</span>, <span class="fl">9</span>, <span class="fl">9</span>, <span class="fl">9</span>, <span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  canal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"MOS"</span>, <span class="st">"WEB"</span><span class="op">)</span>, <span class="fl">13</span><span class="op">)</span>, <span class="st">"NS"</span>, <span class="st">"NS"</span>, <span class="st">"MOS"</span>, <span class="st">"WEB"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbAppendTable.html" class="external-link">dbAppendTable</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"cobros"</span>, <span class="va">cobros</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="../reference/detectar_tablas_codigos.html">detectar_tablas_codigos()</a></code> recibe la colección y su
+perfil:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">base_cobros</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/coleccion.html">coleccion</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"medios_pago"</span>, <span class="st">"canales"</span>, <span class="st">"cobros"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">perfil_cobros</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_coleccion.html">perfilar_coleccion</a></span><span class="op">(</span><span class="va">base_cobros</span>, conservar_perfiles <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">codigos</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_tablas_codigos.html">detectar_tablas_codigos</a></span><span class="op">(</span><span class="va">base_cobros</span>, <span class="va">perfil_cobros</span>, max_filas <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
+<span><span class="va">codigos</span></span>
+<span><span class="co">#&gt; Tablas de códigos</span></span>
+<span><span class="co">#&gt;   Tablas: 3 (2 con a lo sumo 10 filas)</span></span>
+<span><span class="co">#&gt;   Candidatas: 2; posibles: 0; sin clave: 0</span></span>
+<span><span class="co">#&gt;   Usos: 2</span></span>
+<span><span class="co">#&gt;   Propuestas de ausencia: 2 (ninguna se aplica sola: marcar `incluir` y usar ausencias_desde_propuesta())</span></span>
+<span><span class="va">codigos</span><span class="op">$</span><span class="va">tablas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tabla"</span>, <span class="st">"columna_codigo"</span>, <span class="st">"n_usos"</span>, <span class="st">"cobertura_maxima"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;         tabla columna_codigo n_usos cobertura_maxima    estado</span></span>
+<span><span class="co">#&gt; 1 medios_pago         codigo      1                1 candidata</span></span>
+<span><span class="co">#&gt; 2     canales         codigo      1                1 candidata</span></span></code></pre></div>
+<p>Una tabla de códigos es chica —hasta <code>max_filas</code> filas,
+1.000 por omisión; acá 10, porque en esta base de juguete todas las
+tablas son chicas—, tiene una columna completa y única, el código, y
+otra tabla la usa. El uso sale de las claves foráneas que declara el
+catálogo, como acá, o de las relaciones que midió
+<code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code>, que se pasan en
+<code>relaciones</code>. Si alguna columna la usa con una cobertura de
+al menos <code>umbral_cobertura</code> (0,9 por omisión), la tabla es
+<code>candidata</code>; por la forma sola queda
+<code>posible</code>.</p>
+<p>Después lee las etiquetas. Cuando una dice que el código significa
+«sin dato», «no sabe» o «no corresponde», propone declararlo como
+ausencia en cada columna que lo usa:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="va">codigos</span><span class="op">$</span><span class="va">propuesta</span></span>
+<span><span class="va">propuesta</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"codigo"</span>, <span class="st">"etiqueta"</span>, <span class="st">"semantica"</span>, <span class="st">"tabla"</span>, <span class="st">"columna"</span>, <span class="st">"argumento"</span>, <span class="st">"n_filas"</span>,</span>
+<span>  <span class="st">"incluir"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   codigo etiqueta   semantica  tabla columna            argumento n_filas incluir</span></span>
+<span><span class="co">#&gt; 1      9 Sin dato    sin_dato cobros   medio sentinelas_numericos       4   FALSE</span></span>
+<span><span class="co">#&gt; 2     NS  No sabe no_responde cobros   canal     cadenas_ausencia       2   FALSE</span></span></code></pre></div>
+<p>Cada propuesta trae su evidencia: la etiqueta y cuántas filas de la
+columna usan ese código (<code>n_filas</code>), contadas en el motor.
+<code>argumento</code> dice adónde va: un número, a
+<code>sentinelas_numericos</code> si R lee la columna como número; un
+texto, a <code>cadenas_ausencia</code> si la lee como texto. La función
+no aplica nada ni calcula un puntaje: cada propuesta nace con
+<code>incluir = FALSE</code>, y quien conoce la base marca las que
+confirma. El léxico reconoce esas expresiones en castellano, inglés y
+portugués; <code>Ninguno</code> u <code>Otro</code> son categorías
+válidas y no se proponen, y <code>etiquetas_ausencia</code> agrega las
+propias.</p>
+<p><code><a href="../reference/ausencias_desde_propuesta.html">ausencias_desde_propuesta()</a></code> convierte las filas marcadas
+en la declaración. Sin <code>tabla</code>, es una lista por tabla y,
+dentro de cada una, por columna, que es lo que reciben
+<code>sentinelas_numericos</code> y <code>cadenas_ausencia</code> en
+<code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">propuesta</span><span class="op">$</span><span class="va">incluir</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
+<span><span class="va">declaracion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ausencias_desde_propuesta.html">ausencias_desde_propuesta</a></span><span class="op">(</span><span class="va">propuesta</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">declaracion</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 2</span></span>
+<span><span class="co">#&gt;  $ sentinelas_numericos:List of 1</span></span>
+<span><span class="co">#&gt;   ..$ cobros:List of 1</span></span>
+<span><span class="co">#&gt;   .. ..$ medio: num 9</span></span>
+<span><span class="co">#&gt;  $ cadenas_ausencia    :List of 1</span></span>
+<span><span class="co">#&gt;   ..$ cobros:List of 1</span></span>
+<span><span class="co">#&gt;   .. ..$ canal: chr "NS"</span></span>
+<span><span class="va">declarado</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span></span>
+<span>  <span class="va">perfilar_coleccion</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">base_cobros</span>, conservar_perfiles <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="va">declaracion</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">mirar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">perfiles</span><span class="op">$</span><span class="va">cobros</span><span class="op">)</span></span>
+<span>  <span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"medio"</span>, <span class="st">"canal"</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="op">}</span></span>
+<span><span class="fu">mirar</span><span class="op">(</span><span class="va">perfil_cobros</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   columna tipo_hallazgo n_afectados</span></span>
+<span><span class="co">#&gt; 3   medio      outliers           4</span></span>
+<span><span class="fu">mirar</span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   columna         tipo_hallazgo n_afectados</span></span>
+<span><span class="co">#&gt; 3   medio             faltantes           4</span></span>
+<span><span class="co">#&gt; 4   medio faltantes_disfrazados           4</span></span>
+<span><span class="co">#&gt; 5   canal faltantes_disfrazados           2</span></span></code></pre></div>
+<p>Sin la declaración, los 4 nueves de <code>medio</code> eran valores
+atípicos y los 2 <code>NS</code> de <code>canal</code> no se veían.
+Declarados, los dos son faltantes disfrazados.</p>
+<p>Con <code>tabla</code>, la salida son las listas por columna de esa
+tabla, para <code><a href="../reference/perfilar.html">perfilar()</a></code> y <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>:</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/ausencias_desde_propuesta.html">ausencias_desde_propuesta</a></span><span class="op">(</span><span class="va">propuesta</span>, tabla <span class="op">=</span> <span class="st">"cobros"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; $sentinelas_numericos</span></span>
+<span><span class="co">#&gt; $sentinelas_numericos$medio</span></span>
+<span><span class="co">#&gt; [1] 9</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $cadenas_ausencia</span></span>
+<span><span class="co">#&gt; $cadenas_ausencia$canal</span></span>
+<span><span class="co">#&gt; [1] "NS"</span></span></code></pre></div>
+<p>Cada entrada vale para su columna lo que el vector valdría para ella,
+y las columnas que la lista no nombra reciben el valor por omisión. Por
+eso la lista es más precisa que el vector:
+<code>sentinelas_numericos = 9</code> contaría también como faltante el
+9 de <code>id_cobro</code> y el de <code>id_venta</code>;
+<code>list(medio = 9)</code>, sólo el de <code>medio</code>. Qué cambia
+en el perfil cada una de estas declaraciones está en <a href="vacio-por-diseno.html#todo-lo-que-se-le-declara-al-paquete">El
+vacío por diseño</a>.</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -476,6 +714,15 @@ antes de hacerlas; declarar pares y columnas candidatas las reduce.</li>
 <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> propone claves foráneas
 candidatas con su cobertura en las 2 direcciones: un indicio, no una
 prueba.</li>
+<li>Con <code>directorio_reanudacion</code>, una corrida cortada se
+sigue con <code>reanudar = TRUE</code> y da lo mismo que una sin cortes.
+Si la base cambió desde el corte, no se reanuda.</li>
+<li>
+<code><a href="../reference/detectar_tablas_codigos.html">detectar_tablas_codigos()</a></code> propone qué códigos quieren
+decir «sin dato», sin aplicar nada;
+<code><a href="../reference/ausencias_desde_propuesta.html">ausencias_desde_propuesta()</a></code> convierte lo confirmado en
+listas por columna para <code>sentinelas_numericos</code> y
+<code>cadenas_ausencia</code>.</li>
 </ul>
 </div>
 <div class="section level2">

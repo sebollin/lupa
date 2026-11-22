@@ -67,7 +67,14 @@ plan_perfilado_dbi(
   aplicabilidad = NULL,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   cadenas_ausencia = NULL,
-  clave = NULL
+  clave = NULL,
+  compilar = FALSE,
+  centinelas_fecha = NULL,
+  dominios = NULL,
+  periodos = NULL,
+  resumen_fechas = FALSE,
+  fecha = NULL,
+  estrategia_no_sql = c("no_medible", "bloques")
 )
 ```
 
@@ -423,12 +430,15 @@ plan_perfilado_dbi(
 - sentinelas_numericos:
 
   Valores numéricos que se consideran faltantes al anticipar las
-  consultas de la métrica nueva.
+  consultas de la métrica nueva. Acepta la lista por columna de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  resuelta contra las columnas de la tabla.
 
 - cadenas_ausencia:
 
   Cadenas adicionales que se consideran ausencia textual al anticipar
-  las consultas de la métrica nueva.
+  las consultas de la métrica nueva. Acepta la lista por columna de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
 - clave:
 
@@ -437,6 +447,41 @@ plan_perfilado_dbi(
   `orden_muestra`. Si el catálogo ya garantiza su unicidad no agrega
   consultas; si no, el plan cuenta la consulta de verificación de
   unicidad.
+
+- compilar:
+
+  Si es `TRUE`, le pide al motor que compile, sin ejecutarlas ni traer
+  filas, las consultas SQL que el plan construye, y publica una fila por
+  sentencia en `attr(plan, "compilacion")`. Ver la sección Compilación.
+
+- centinelas_fecha, dominios, periodos, resumen_fechas, fecha:
+
+  Los mismos que recibe
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  por `...` (ver
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)).
+  Con `resumen_fechas = TRUE` el plan cuenta la consulta de cuentas de
+  fechas y, en el extremo superior, la de la reserva de las centinelas
+  incorporadas, una de la grilla por columna de fecha y, con
+  `estrategia_no_sql = "bloques"`, una lectura por columna que se cuente
+  en R; con `periodos`, una consulta más. Sólo en SQLite y DuckDB y
+  sobre la tabla completa: en lo demás el resumen se declara y no
+  consulta.
+
+- estrategia_no_sql:
+
+  Qué hacer, con `resumen_fechas = TRUE`, con una columna de fecha que
+  el SQL no cuenta como R la lee: `"no_medible"` (por omisión) la
+  declara `no_disponible` en `resumen_tabla$sql` con el motivo, y
+  `"bloques"` la lee en R por bloques, con el mismo controlador, y la
+  cuenta con la misma regla. Son tres casos: una columna de SQLite que
+  guarda las fechas como texto (lo que deja un CSV importado; se mide
+  con [`typeof()`](https://rdrr.io/r/base/typeof.html)), instantes a
+  menos de un segundo de una fecha centinela lejana con resolución de
+  microsegundos (R los lee como esa fecha) y una columna de texto que la
+  muestra lee como fecha, cuyos formatos se deciden entonces con la
+  columna entera. Mismo nombre y valores que en
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md).
 
 ## Value
 
@@ -478,25 +523,30 @@ corrida. Si la muestra pedida supera la cota de celdas, `tope_muestra` y
 La fila de consulta de muestra conserva su conteo separado de los
 agregados; los topes no cambian ninguna consulta SQL de resumen.
 
-El costo no se declara como un número sino como un rango: `total` es el
-extremo inferior, que supone que la política omite la moda cuya
+El costo no se declara como un número sino como un rango: `total_minimo`
+es el extremo inferior, que supone que la política omite la moda cuya
 cardinalidad no se conoce, y `total_maximo` el superior, que supone que
-la ejecuta. La mediana queda fuera de ese supuesto proporcional y se
-cuenta según las columnas numéricas solicitadas. Ambos incluyen la
-preparación y el perfilado; el rechazo de lotes puede agregar las sondas
-de bisección declaradas por `total_lotes_rechazados`. El costo real cae
-entre los extremos cuando `universo` es `"tabla_completa"` o
-`attr(plan, "muestreo")$estado` es `"disponible"`; en `"no_sondeado"` la
-forma sólo se construyó localmente y el intervalo queda condicionado a
-que la sonda de la corrida la acepte. Si la forma muestreada no se puede
-construir, el plan declara ese caso, excluye sus métricas del rango y
-`attr(plan, "supuesto")` dice por qué. El extremo superior incluye
-además, con `universo = "muestra_motor"` y una forma `TABLESAMPLE`, el
-reintento del resumen cuando la muestra vuelve con menos de la mitad de
-lo pedido, que depende de las páginas que sortee el motor. La cuenta es
-la de `max_consultas` y la de `resumen_tabla$meta$consultas$emitidas`:
-toda sentencia que el perfilado manda al motor, salvo las de la guarda
-de transacción, las lecturas de `pg_stat_statements` de `instrumentar` y
+la ejecuta. `total` conserva el extremo inferior para no cambiar a los
+consumidores que usan la cuenta esperada;
+[`print()`](https://rdrr.io/r/base/print.html) y los atributos
+`total_minimo` y `total_maximo` publican el intervalo completo cuando
+una condicional puede agregar consultas. La mediana queda fuera de ese
+supuesto proporcional y se cuenta según las columnas numéricas
+solicitadas. Ambos extremos incluyen la preparación y el perfilado; el
+rechazo de lotes puede agregar las sondas de bisección declaradas por
+`total_lotes_rechazados`. El costo real cae entre los extremos cuando
+`universo` es `"tabla_completa"` o `attr(plan, "muestreo")$estado` es
+`"disponible"`; en `"no_sondeado"` la forma sólo se construyó localmente
+y el intervalo queda condicionado a que la sonda de la corrida la
+acepte. Si la forma muestreada no se puede construir, el plan declara
+ese caso, excluye sus métricas del rango y `attr(plan, "supuesto")` dice
+por qué. El extremo superior incluye además, con
+`universo = "muestra_motor"` y una forma `TABLESAMPLE`, el reintento del
+resumen cuando la muestra vuelve con menos de la mitad de lo pedido, que
+depende de las páginas que sortee el motor. La cuenta es la de
+`max_consultas` y la de `resumen_tabla$meta$consultas$emitidas`: toda
+sentencia que el perfilado manda al motor, salvo las de la guarda de
+transacción, las lecturas de `pg_stat_statements` de `instrumentar` y
 las que algunos controladores mandan para contestar
 [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
 [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html)
@@ -618,6 +668,109 @@ estimación de bytes por fila del catálogo, el conteo del universo cuando
 la preparación no lo hace, la selección de la muestra —dos en el extremo
 superior, si un `TABLESAMPLE` corto se reintenta— y la preparación que
 la corrida repite para publicar su plan en `meta$plan`.
+
+## Compilación
+
+Con `compilar = TRUE` el plan, además de contar, le pide al motor que
+compile cada consulta que construye, sin ejecutarla ni traer filas, y
+publica una fila por sentencia en `attr(plan, "compilacion")`, con
+`consulta_id`, `etapa`, `sql`, `estado`, `motivo` y `metodo`. `estado`
+es uno de:
+
+- `compilada`: el motor la aceptó.
+
+- `no_compilada`: el motor la rechazó, y `motivo` trae su mensaje: una
+  columna o una función que no existe, un permiso que falta.
+
+- `candidata_rechazada`: una forma candidata de un sondeo de capacidad
+  que el motor no conoce. El plan de perfilado prueba el desvío como
+  `STDDEV_SAMP` y como `STDEV` en todo motor, y la corrida usa la que el
+  motor acepte. Las candidatas no se compilan: se mandan como las manda
+  la corrida, sobre una constante y sin leer filas, y la rechazada queda
+  con `metodo` vacío; es la respuesta del sondeo, no una falla del plan.
+  Un plan sano no tiene ninguna fila `no_compilada`.
+
+- `no_verificada`: no se pudo saber, porque la forma de la consulta
+  depende de un resultado anterior, de una capacidad del controlador o
+  de una lectura de filas, porque el motor no tiene una vía de
+  compilación, o porque venció el tope de tiempo de PostgreSQL (ver
+  abajo).
+
+En
+[`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
+hay una fila por sentencia compilada, así que su número no tiene por qué
+ser el de `attr(plan, "consultas")`: la consulta de la sesión se ejecuta
+al planificar, como sin compilar, y las métricas por bloques se calculan
+en R sobre una sola lectura por entidad, la fila `bloques`.
+
+`metodo` dice cómo se compiló: `EXPLAIN QUERY PLAN` en SQLite (los
+`PRAGMA` de lectura del catálogo se mandan tal cual, `dbSendQuery`),
+`EXPLAIN` en DuckDB y PostgreSQL, `PREPARE` y su `DEALLOCATE` en MySQL y
+MariaDB —su `EXPLAIN` ejecuta las subconsultas en `FROM`, `JOIN` y
+`WITH`; `PREPARE` no ejecuta ninguna y rechaza lo mismo—, con un nombre
+único por llamada que no pisa las sentencias preparadas del usuario, y
+`SET NOEXEC ON` en SQL Server.
+
+Lo que compilar no garantiza:
+
+- Que la consulta corra. Los errores que dependen de los datos aparecen
+  sólo al ejecutar: un `CAST` de un texto que no es un número compila y
+  falla en la corrida. Y no todos los motores comprueban los permisos al
+  compilar: SQL Server, bajo `SET NOEXEC ON`, no mira ninguno —una
+  columna, una función o una tabla negada compilan—, y PostgreSQL 9.3 no
+  mira el `EXECUTE` de una función, tampoco dentro de una vista. En esos
+  casos la sentencia queda `compilada` y falla en la corrida.
+
+- Que no se ejecute nada. Las consultas de preparación del plan —las del
+  esquema, las que llevan `WHERE 1 = 0` o `LIMIT 0`, las pruebas sobre
+  literales como `SELECT ... FROM (SELECT 1 AS ...)`— se ejecutan como
+  en el plan sin compilar, sin leer filas de la tabla y sin tope de
+  tiempo. Y en PostgreSQL el planificador pliega las constantes: una
+  función declarada `IMMUTABLE` con argumentos constantes se ejecuta al
+  planificar, aunque lea datos, también en esa preparación, como sin
+  compilar. Por eso cada sentencia compilada lleva un tope de 2 segundos
+  (`SET LOCAL statement_timeout`, o el de la sesión si es menor) dentro
+  de una transacción propia que se revierte —o de un punto de guardado,
+  dentro de una transacción del usuario—: la que lo supera queda
+  `no_verificada` con ese motivo, y la sesión vuelve al tope que tenía.
+  `PREPARE` no planificaría, pero en PostgreSQL tampoco comprueba los
+  permisos, y `EXPLAIN` sí.
+
+- En SQL Server, que exista una tabla: bajo `SET NOEXEC ON` la
+  resolución de nombres de tablas es diferida y una tabla que no existe
+  compila.
+
+Compilar nunca toca la transacción del usuario, y si no lo puede
+garantizar no compila: falla con `lupa_error_transaccion_dbi` antes de
+mandar nada. Así pasa en DuckDB con una transacción abierta —cualquier
+error del motor, también el de una sentencia que no compila, la aborta
+sin aviso, un
+[`DBI::dbCommit()`](https://dbi.r-dbi.org/reference/transactions.html)
+posterior pierde lo hecho en ella, y DuckDB no tiene `SAVEPOINT`—, y en
+PostgreSQL cuando no se puede saber si hay una abierta (una abierta a
+mano y ya abortada). Si la hay se averigua antes de empezar —la marca de
+RPostgres, o `now()`, que dentro de una transacción no cambia— y no por
+si un `SAVEPOINT` falla. SQLite, MySQL y MariaDB no abortan la
+transacción por el error de una sentencia.
+
+La conexión queda como estaba. En SQL Server `NOEXEC` es un estado de la
+sesión que, prendido, hace que nada de lo que se mande se ejecute, sin
+error: se apaga después de cada sentencia y se comprueba con un
+`SELECT 1`. Si no se puede apagar, la llamada falla con
+`lupa_error_conexion_dbi` y dice que la conexión quedó inutilizable.
+Dentro de una transacción abierta con `XACT_ABORT ON`, una sentencia que
+nombra una columna que no existe deshace la transacción aun bajo
+`NOEXEC`: `XACT_ABORT` se apaga mientras se compila y se vuelve a
+prender.
+
+Una interrupción —el tope de
+[`setTimeLimit()`](https://rdrr.io/r/base/setTimeLimit.html), Ctrl-C— no
+es una sentencia que no compila: la compilación deja la sesión como
+estaba y la vuelve a señalar, sin devolver el plan. En SQL Server, una
+que llega en medio de un envío puede dejar al controlador sin poder
+apagar `NOEXEC`; entonces la llamada falla con
+`lupa_error_conexion_dbi`, dice que la conexión quedó inutilizable y que
+la compilación se interrumpió, y la conexión hay que cerrarla.
 
 ## See also
 

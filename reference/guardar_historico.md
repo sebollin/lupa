@@ -60,6 +60,7 @@ leer_historico(archivo)
 #> [23] identidad_tabla               configuracion_modelo         
 #> [25] configuracion_marco           configuracion_tipos_resultado
 #> [27] configuracion_aplicabilidad   configuracion_perfil         
+#> [29] sello_metricas               
 #> <0 rows> (or 0-length row.names)
 unlink(archivo)
 ```

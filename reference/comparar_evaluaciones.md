@@ -27,10 +27,13 @@ delta es el que publica
 [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)
 sobre el histórico de las dos evaluaciones, con la misma regla: queda en
 `NA` cuando las corridas miden tablas distintas, cambia el marco o los
-tipos de resultado, cambia la parte medida de la frontera o un resultado
-no se evaluó, y `comparacion` dice por qué con la palabra de la deriva.
-El orden lo dan los argumentos, no la fecha: `anterior` es siempre el
-primero.
+tipos de resultado, cambia la parte medida de la frontera, una métrica
+cambió de definición sin que la configuración de la corrida lo declare
+(ver
+[`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md))
+o un resultado no se evaluó, y `comparacion` dice por qué con la palabra
+de la deriva. El orden lo dan los argumentos, no la fecha: `anterior` es
+siempre el primero.
 
 ## Examples
 

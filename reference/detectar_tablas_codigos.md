@@ -1,0 +1,159 @@
+# Detectar tablas de códigos y proponer qué códigos quieren decir «sin dato»
+
+Busca en una colección las tablas de códigos —chicas, con una columna
+que identifica cada fila y usadas por columnas de otras tablas— y lee
+sus etiquetas. Cuando una etiqueta dice que el código significa «sin
+dato», «no sabe» o «no corresponde», **propone** declarar ese código
+como ausencia en cada columna que lo usa, con su evidencia: la etiqueta
+y cuántas filas de esa columna lo usan. No aplica nada ni calcula un
+puntaje: cada propuesta nace con `incluir = FALSE`, el usuario marca las
+que confirma y
+[`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
+las convierte en la declaración por columna que reciben
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+
+## Usage
+
+``` r
+detectar_tablas_codigos(
+  coleccion,
+  perfil,
+  relaciones = NULL,
+  max_filas = 1000L,
+  etiquetas_ausencia = NULL,
+  umbral_cobertura = 0.9
+)
+```
+
+## Arguments
+
+- coleccion:
+
+  Objeto creado por
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md).
+
+- perfil:
+
+  Objeto creado por
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  sobre esa colección. Con `conservar_perfiles = TRUE` se reusa su
+  catálogo.
+
+- relaciones:
+
+  Resultado opcional de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+
+- max_filas:
+
+  Tope de filas de una tabla de códigos: las de más no se leen.
+
+- etiquetas_ausencia:
+
+  Etiquetas que se agregan al léxico incorporado.
+
+- umbral_cobertura:
+
+  Cobertura mínima de una columna que usa la tabla para que ésta sea
+  `candidata`, como en
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+  Sólo los usos que la alcanzan reciben propuestas.
+
+## Value
+
+Objeto `tablas_codigos`: una lista con `tablas` (una fila por tabla
+chica y columna código, con su `estado`, su `cobertura_maxima` y su
+`motivo`), `usos` (una fila por columna que usa un código, con su
+`origen` y su `cobertura`), `propuesta` (data frame de clase
+`propuesta_ausencias`, una fila por código, etiqueta y columna que lo
+usa), `cobertura` (lo que no se evaluó y por qué) y `meta`.
+
+## Details
+
+**Qué es una tabla de códigos.** Una tabla con a lo sumo `max_filas`
+filas (según `perfil$resumen_coleccion`), leída entera, con alguna
+columna completa y única (el código). Su **uso** sale de las claves
+foráneas que el catálogo declara (de los perfiles conservados o, si no
+se conservaron, de una lectura del catálogo por tabla) y de las
+relaciones que mida
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md),
+si se pasan en `relaciones`. Es `candidata` sólo si alguna columna la
+usa con cobertura de al menos `umbral_cobertura`: la proporción de las
+filas con valor de esa columna que son un código de la tabla. La de una
+clave foránea declarada se mide en el motor (`CorrectitudSemFuerte`
+contra la tabla de códigos como
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+del motor, sin normalizar); la de una relación medida es la de
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+La forma sola, una clave foránea con huérfanos o una cobertura que no se
+pudo medir dejan la tabla `posible`, con el motivo y, si nada la usa, en
+`meta$pares_sugeridos` los pares para medir sus relaciones; una chica
+sin columna completa y única queda `sin_clave`. La cobertura no
+distingue una tabla de códigos de una tabla chica de negocio que otra
+referencia sin huérfanos (`clientes` y `pedidos`): las dos quedan
+`candidata`, y sus etiquetas dicen cuál propone algo. Cuando una tabla
+tiene dos columnas únicas —un `id` y un `codigo`—, el código es la que
+el uso apunta.
+
+**Qué etiqueta cuenta.** Toda columna de texto de la tabla de códigos
+que no es el código se lee como etiqueta. El léxico incorporado
+(castellano, inglés y portugués) reconoce `sin dato`, `sin información`,
+`desconocido`, `ignorado`, `no sabe`, `no responde`, `no corresponde`,
+`no aplica`, `unknown`, `not applicable` y sus variantes, comparadas sin
+mayúsculas, sin acentos y sin un prefijo de código (`99 - Ignorado`).
+`Ninguno`, `None`, `Otro` o `No` son categorías válidas y no se
+proponen. `etiquetas_ausencia` agrega entradas, como `cadenas_ausencia`
+agrega a la lista de marcas. Cada propuesta dice su `semantica`
+(`sin_dato`, `no_responde`, `no_corresponde`, `ambigua` o `declarada`) y
+su `coincidencia`: `exacta`, `compuesta` (todas sus partes están en el
+léxico, `No sabe / No responde`) o `parcial` (alguna,
+`Otro / sin dato`). Declarar un código `no_corresponde` como ausencia lo
+cuenta como faltante; si la pregunta no aplica a esas filas, el
+instrumento es `aplicabilidad`.
+
+**La evidencia.** `n_filas` son las celdas de esa columna que el perfil
+contará como esa ausencia si se confirma: se mide con
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+y `NoNulo(valores_nulos = <código>)`, que cuenta con la regla del perfil
+—un número por su valor, un texto sin mayúsculas ni blancos de los
+bordes—, una consulta por tabla. El argumento lo decide la columna que
+usa el código, no la tabla de códigos: `sentinelas_numericos` si R la
+lee como número, `cadenas_ausencia` si la lee como texto; una tabla de
+códigos que usan una columna entera y una de texto da una fila para cada
+una. Lo que no se pudo contar queda con `n_filas = NA` y su `motivo`.
+
+**Un código válido que el perfil cuenta como ausencia.** Si un código
+está en la lista incorporada de marcas (`NC`, `999`) y su etiqueta no es
+de ausencia («Nivel completo»), la fila sale con
+`semantica = "codigo_valido_contado"` e `incluir = NA`: el perfil lo
+cuenta como faltante disfrazado y hoy no hay cómo retirar una marca
+incorporada de una columna.
+
+## See also
+
+[`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md),
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md),
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+
+## Examples
+
+``` r
+if (requireNamespace("RSQLite", quietly = TRUE)) {
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbExecute(con, "CREATE TABLE cond (cod INTEGER PRIMARY KEY, etiqueta TEXT)")
+  DBI::dbExecute(con, "INSERT INTO cond VALUES (1, 'Ocupado'), (9, 'No sabe')")
+  DBI::dbExecute(con, paste(
+    "CREATE TABLE personas (id INTEGER,",
+    "cond INTEGER REFERENCES cond(cod))"
+  ))
+  DBI::dbExecute(con, "INSERT INTO personas VALUES (1, 1), (2, 9), (3, 9)")
+  col <- coleccion(con, c("cond", "personas"))
+  tc <- detectar_tablas_codigos(col, perfilar_coleccion(col))
+  tc$propuesta[, c("codigo", "etiqueta", "tabla", "columna", "n_filas")]
+  tc$propuesta$incluir <- TRUE
+  ausencias_desde_propuesta(tc$propuesta)
+  DBI::dbDisconnect(con)
+}
+```

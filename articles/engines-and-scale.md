@@ -50,11 +50,15 @@ with its source.
 16. [Consistency across queries](#consistency)
 17. [Dialects and probes](#dialects)
 18. [What the engine stores differently from R](#differences-with-r)
-19. [The primary key by engine](#primary-key)
-20. [Tested engines](#tested-engines)
-21. [Partial failures and errors](#failures)
-22. [Dependencies and installation](#dependencies)
-23. [Threads](#threads)
+19. [Checking that the engine counts like R](#conformity)
+20. [Measuring against a reference held in the
+    engine](#engine-reference)
+21. [Joining parts of a run](#joining-parts)
+22. [The primary key by engine](#primary-key)
+23. [Tested engines](#tested-engines)
+24. [Partial failures and errors](#failures)
+25. [Dependencies and installation](#dependencies)
+26. [Threads](#threads)
 
 ## Default values
 
@@ -98,8 +102,15 @@ default is shown and, in parentheses, the others.
 | `columnas_opcionales` | `character(0)` | `character(0)` |
 | `aplicabilidad` | `NULL` | `NULL` |
 | `sentinelas_numericos` | `c(-9, -99, -999, -9999, 999)` | `c(-9, -99, -999, -9999, 999)` |
+| `estrategia_no_sql` | `c("no_medible", "bloques")` | `c("no_medible", "bloques")` |
 | `cadenas_ausencia` | — | `NULL` |
 | `clave` | — | `NULL` |
+| `compilar` | — | `FALSE` |
+| `centinelas_fecha` | — | `NULL` |
+| `dominios` | — | `NULL` |
+| `periodos` | — | `NULL` |
+| `resumen_fechas` | — | `FALSE` |
+| `fecha` | — | `NULL` |
 
 Consequences for a run in production:
 
@@ -881,10 +892,10 @@ rbind(
   distintos_4 = consultas_por_lote(tamano_lote_distintos = 4)
 )
 #>             planos distintos total
-#> planos_1         6         2    26
-#> por_omision      3         2    23
-#> distintos_1      3         4    25
-#> distintos_4      3         1    22
+#> planos_1         4         2    26
+#> por_omision      1         2    23
+#> distintos_1      1         4    25
+#> distintos_4      1         1    22
 ```
 
 The value of `tamano_lote_distintos` is an assumption of the code, noted
@@ -1046,13 +1057,18 @@ knitr::kable(as.data.frame(plan))
 
 | clase_consulta | n_consultas | alcance | n_consultas_max |
 |:---|---:|:---|---:|
-| portones (esquema y sondas) | 7 | una vez | 7 |
-| agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio) | 3 | escanea la tabla completa | 3 |
+| portones (esquema y sondas) | 4 | una vez | 4 |
+| capacidad de dialecto (formas candidatas) | 1 | una vez | 1 |
+| capacidad de moda con guardian (formas candidatas) | 1 | una vez | 1 |
+| capacidad de mediana escalar (formas candidatas) | 1 | una vez | 1 |
+| capacidad de desvio (formas candidatas) | 2 | una vez | 2 |
+| capacidad de bytes de muestra | 1 | una vez | 1 |
+| agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio) | 1 | escanea la tabla completa | 1 |
 | distintos por lotes (clase separada) | 2 | escanea la tabla completa | 2 |
 | duplicados exactos (GROUP BY) | 1 | escanea la tabla completa | 1 |
 | moda (GROUP BY + orden + limite) | 4 | ordena o agrupa la tabla completa | 4 |
 | mediana (orden total + limite/salto) | 3 | ordena la tabla completa | 3 |
-| muestra | 2 | lee las filas pedidas | 2 |
+| muestra | 1 | lee las filas pedidas | 1 |
 | verificacion de estabilidad (conteo y agregado final) | 1 | lee el conteo y maximo de la clave | 1 |
 
 The cost is a **range**:
@@ -1100,10 +1116,10 @@ c(
   solo_texto = attr(plan_perfilado_dbi(con, "ancha_texto"), "total")
 )
 #>                   ancha ancha_recorren_la_tabla              solo_texto 
-#>                     338                     329                     257
+#>                     338                     327                     257
 ```
 
-Of the 338 queries of the wide table, 329 scan, sort or group the whole
+Of the 338 queries of the wide table, 327 scan, sort or group the whole
 table. Text columns cost less, above all because the median —which sorts
 the table— is requested only on numeric columns. `muestra` bounds none
 of that: it bounds what is brought into R, not the work of the engine.
@@ -1672,6 +1688,308 @@ perfilar_fechas(extended_types = TRUE)
 #>   columna minimo maximo media
 #> 1       f     NA     NA    NA
 ```
+
+## Checking that the engine counts like R
+
+The table above is what is known about engines in general.
+[`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+(*conformity*) checks it on the server you are going to use. It runs,
+with `SELECT` only and without creating tables or reading your rows,
+limit values it invents with the type and collation of the real columns
+(read from the catalog) for each rule of the model that
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+translates to SQL, and compares what the engine counts with what R
+counts.
+
+An example with a text column that does not compare by bytes:
+
+``` r
+
+base_conf <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbExecute(
+  base_conf, "CREATE TABLE tramites (id INTEGER, estado TEXT COLLATE NOCASE)"
+)
+#> [1] 0
+DBI::dbExecute(
+  base_conf,
+  "INSERT INTO tramites VALUES (1, 'abierto'), (2, 'CERRADO'), (3, 'cerrado'),
+   (4, 'otro'), (5, NULL)"
+)
+#> [1] 5
+nucleo <- metricas_nucleo()
+modelo_tramites <- modelo(
+  instanciar(
+    especializar(nucleo$ValoresPosiblesPorExtension, "Estado",
+                 valores = c("abierto", "cerrado")),
+    "tramites", "estado"
+  ),
+  instanciar(especializar(nucleo$NoNulo, "Completo"), "tramites", "id")
+)
+bateria <- conformidad_dbi(base_conf, modelo_tramites)
+bateria[, c("metrica_instanciada", "caso", "conformidad", "motivo")]
+#>      metrica_instanciada                   caso conformidad
+#> 1 Estado@tramites.estado          limites_texto  abstencion
+#> 2 Estado@tramites.estado limites_texto_no_ascii  abstencion
+#> 3   Completo@tramites.id         limites_entero    conforme
+#>                                                             motivo
+#> 1 la columna `estado` no compara por bytes (cotejamiento `nocase`)
+#> 2 la columna `estado` no compara por bytes (cotejamiento `nocase`)
+#> 3                                                             <NA>
+```
+
+`conformidad` answers a single question: whether the engine, when it
+counts, gives the same as R. `conforme` means that with those values
+they give the same numerator and the same denominator. `no_conforme`,
+that the engine counts and gives something different. `abstencion`, that
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+would not publish a figure with those values because of a guard of its
+own (here, the `nocase` collation); the reason says which. `no_evaluada`
+and `no_verificado` say that the battery could not build the case or
+that the engine is not verified in it; the rule is measured as usual,
+with a warning. The battery is verified in SQLite and DuckDB.
+
+The result is passed to
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md):
+
+``` r
+
+medicion_conf <- medir_dbi(
+  modelo_tramites, base_conf, conformidad = bateria,
+  estrategia_no_sql = "bloques"
+)
+as.data.frame(medicion_conf)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+#>      metrica_instanciada resultado numerador denominador
+#> 1 Estado@tramites.estado       0.5         2           4
+#> 2   Completo@tramites.id       1.0         5           5
+```
+
+Only a `no_conforme` rule stops being counted in the engine: it is
+measured in blocks in R with `estrategia_no_sql = "bloques"`, or it is
+left `no_medible` with its reason. An `abstencion` does not remove the
+rule: with the real data the usual guard decides. The limit is
+conservative, because an invented value that the engine counts
+differently (an integer near 2^53, a text with spaces) takes the rule
+out of the engine even if your table does not have it. And a battery
+from another connection, another model or another configuration is
+rejected with a warning, and the rules are measured as if it had not
+been passed.
+
+## Measuring against a reference held in the engine
+
+A reference (*referencial*), such as a register or a catalog, often
+lives in the same database as the table being measured.
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+takes that table, named with a
+[`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html) or with its name,
+and does not copy it into R: it keeps the reference, without the
+connection.
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+measures `CorrectitudSemFuerte` (*strong semantic correctness*),
+`CorrectitudSemDebil` (*weak semantic correctness*) and `RatioCobertura`
+(*coverage ratio*) against it in SQLite and DuckDB, and counts the same
+as [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) with
+the 2 tables read. That the columns exist and that the key has no
+missing values and is unique is checked in every measurement, with a
+query, because the table can change between the declaration and the
+measurement.
+
+``` r
+
+base_ref <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(base_ref, "sucursales", data.frame(
+  id_sucursal = 1:4, zona = c("Norte", "Sur", "Este", "Oeste")
+))
+DBI::dbWriteTable(base_ref, "ventas", data.frame(
+  id_venta = 1:12,
+  id_sucursal = c(1, 2, 3, 1, 2, 3, 1, 2, 9, NA, 1, 2),
+  zona = c("Norte", "Sur", "Este", "norte", "Sur", "Oeste", "Norte", "Sur",
+           "Norte", "Sur", "Norte", "Sur")
+))
+padron <- referencial(
+  DBI::Id(table = "sucursales"), clave = "id_sucursal", valor = "zona",
+  completo = TRUE, alcance = "sucursales del ejemplo"
+)
+padron
+#> Referencial: sucursales
+#>   Tabla del motor: sucursales (no se copia a R; la clave se verifica en cada medir_dbi())
+#>   Clave: id_sucursal
+#>   Valores: zona
+#>   Completo: sí
+#>   Alcance: sucursales del ejemplo
+ref <- metricas_referencial()
+contra <- function(padron) {
+  modelo(
+    instanciar(especializar(ref$CorrectitudSemFuerte, "Sucursal existe"),
+               "ventas", "id_sucursal", referencial = padron),
+    instanciar(especializar(ref$CorrectitudSemDebil, "Zona coincide"),
+               "ventas", c("id_sucursal", "zona"), referencial = padron),
+    instanciar(especializar(ref$RatioCobertura, "Sucursales con ventas"),
+               "ventas", "id_sucursal", referencial = padron)
+  )
+}
+en_motor <- medir_dbi(contra(padron), base_ref, id_medicion = "junio",
+                      fecha = "2026-06-30")
+as.data.frame(en_motor)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+#>                        metrica_instanciada resultado numerador denominador
+#> 1       Sucursal existe@ventas.id_sucursal 0.9090909        10          11
+#> 2    Zona coincide@ventas.id_sucursal.zona 0.8181818         9          11
+#> 3 Sucursales con ventas@ventas.id_sucursal 0.7500000         3           4
+```
+
+The sale of branch 9 does not find its branch, the one without a branch
+is not evaluated, and the one in row 6 says `Oeste` where the register
+says `Este`; `norte` matches `Norte` because the reference normalizes by
+default. Branch 4 has no sales: the coverage is 3 out of 4. With the 2
+tables read into R,
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) gives
+the same counts:
+
+``` r
+
+padron_en_r <- referencial(
+  DBI::dbReadTable(base_ref, "sucursales"), clave = "id_sucursal",
+  valor = "zona", completo = TRUE, alcance = "sucursales del ejemplo"
+)
+en_memoria <- medir(
+  contra(padron_en_r), list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+identical(en_motor$numerador, en_memoria$numerador)
+#> [1] TRUE
+identical(en_motor$denominador, en_memoria$denominador)
+#> [1] TRUE
+```
+
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) does not
+read a reference held in the engine: with one, the 3 metrics are left
+`no_medible` (*not measurable*) with the reason and how to solve it.
+Normalization is written in the engine only where it is exact: on ASCII
+text, case folding is `LOWER()`. A guard counts the rows whose text R’s
+normalization could change and SQL does not write the same way: what is
+not ASCII, blanks at the edges, double blanks, quotes. With any of them,
+the metric is left `no_medible`. With `estrategia_no_sql = "bloques"`,
+the engine counts the distinct values of the entity and R compares them
+with the method of the metric (the `distintos_r` path, which is also the
+one of a reference held in R):
+
+``` r
+
+invisible(DBI::dbExecute(
+  base_ref, "UPDATE ventas SET zona = 'Sur ' WHERE id_venta = 12"
+))
+# The warning repeats what the coverage says.
+con_guarda <- suppressWarnings(medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30"
+))
+no_medidas <- attr(con_guarda, "cobertura_metricas")
+no_medidas$metrica_instanciada
+#> [1] "Zona coincide@ventas.id_sucursal.zona"
+writeLines(strwrap(no_medidas$motivo, 88))
+#> La métrica `Zona coincide@ventas.id_sucursal.zona` no se midió en la base: el texto de
+#> la entidad o del referencial tiene caracteres que la normalización de R podría cambiar
+#> y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil)
+por_bloques <- medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30",
+  estrategia_no_sql = "bloques"
+)
+attr(por_bloques, "ejecucion_dbi")$vias
+#>       Sucursal existe@ventas.id_sucursal    Zona coincide@ventas.id_sucursal.zona 
+#>               "sql_dedicado_referencial"                            "distintos_r" 
+#> Sucursales con ventas@ventas.id_sucursal 
+#>               "sql_dedicado_referencial"
+```
+
+[`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+checks on the server the folding it uses, as in the previous section.
+The seal of these metrics includes the location of the database:
+measuring the same model on another database warns that the definition
+changed, because the same table name is another table.
+[`?metricas_referencial`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
+details what is compared in the engine and what is declared.
+
+## Joining parts of a run
+
+A run can be measured in parts: what lives in the database with
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md),
+and a spreadsheet that is not in the database with
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+[`rbind()`](https://rdrr.io/r/base/cbind.html) with names and
+`prioridad` (*priority*) joins parts of one and the same run, with the
+same `id_medicion` and the same declared `fecha`. The column `fuente`
+(*source*) says which part each row came from:
+
+``` r
+
+del_motor <- medir_dbi(
+  modelo(
+    instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona"),
+    instanciar(especializar(nucleo$NoNulo, "Sucursal presente"), "ventas",
+               "id_sucursal")
+  ),
+  base_ref, id_medicion = "junio", fecha = "2026-06-30"
+)
+planilla <- data.frame(id_sucursal = 1:4, horario = c("8-16", "9-17", NA, "8-16"))
+de_la_planilla <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Horario presente"),
+                    "planilla", "horario")),
+  list(planilla = planilla), id_medicion = "junio", fecha = "2026-06-30",
+  detalle = "resumen"
+)
+corrida <- rbind(
+  motor = del_motor, memoria = de_la_planilla, prioridad = c("motor", "memoria")
+)
+as.data.frame(corrida)[, c("metrica_instanciada", "resultado", "fuente")]
+#>                    metrica_instanciada resultado  fuente
+#> 1            Zona presente@ventas.zona 1.0000000   motor
+#> 2 Sucursal presente@ventas.id_sucursal 0.9166667   motor
+#> 3    Horario presente@planilla.horario 0.7500000 memoria
+```
+
+If the same metric on the same object is in several parts, the one with
+the highest priority wins, and what was not chosen stays in
+`attr(x, "descartadas")` (*discarded*), with whether it matches what was
+chosen. Only what is comparable is joined: the seal of each part with
+the same fingerprint for each shared metric, and the same snapshot of
+the data of each table read by more than one part. In memory the
+snapshot is proved by the fingerprint of the data; in the engine, by a
+modification counter. SQLite and DuckDB do not have one that `lupa`
+reads, so a table read by the 2 parts is not joined, and the error says
+why:
+
+``` r
+
+ventas_en_r <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona")),
+  list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+rechazo <- tryCatch(
+  rbind(motor = del_motor, memoria = ventas_en_r, prioridad = c("motor", "memoria")),
+  error = function(e) e
+)
+writeLines(strwrap(conditionMessage(rechazo), 88))
+#> `rbind(..., prioridad = )` no junta estas partes: la tabla `ventas` la leyeron varias
+#> partes y no hay cómo probar que vieron la misma instantánea de los datos: en `motor`
+#> solo se sabe cuántas filas tenía (el motor no tiene un contador de modificaciones que
+#> lupa lea, o la tabla se leyó en partes). Igual cantidad de filas no prueba los mismos
+#> datos. Medir la tabla en una sola parte. Lo que el motor no traduce se mide en la misma
+#> corrida con `estrategia_no_sql = "bloques"`; o quitar la métrica del modelo de la parte
+#> que no la puede medir y unir sin `prioridad`.
+```
+
+Without `prioridad`, [`rbind()`](https://rdrr.io/r/base/cbind.html)
+joins parts that do not repeat metric and object and looks again at the
+counts of the union: if 2 parts saw different versions of a table (in
+the engine without a counter, a different number of rows), their figures
+are left `no_cierran` (*do not add up*). What each state of the counts
+says, and how
+[`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+uses it, is in [From findings to
+metrics](https://sebollin.github.io/lupa/articles/from-findings-to-metrics.html#the-counts-and-the-traffic-light).
 
 ## The primary key by engine
 

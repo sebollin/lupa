@@ -114,6 +114,8 @@ and is compared with a requirement?</p>
 <code><a href="../reference/agregar.html">agregar()</a></code>;</li>
 <li>evaluating the aggregated measure against a threshold with
 <code><a href="../reference/evaluar.html">evaluar()</a></code>;</li>
+<li>checking whether the counts of each figure add up and classifying
+them with <code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code>;</li>
 <li>seeing which part of a quality framework was covered with
 <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code>.</li>
 </ul>
@@ -388,6 +390,171 @@ does not read <code>datos_operativos</code> again or replace the
 measurement.</p>
 </div>
 <div class="section level2">
+<h2 id="the-counts-and-the-traffic-light">🚦 The counts and the traffic light<a class="anchor" aria-label="anchor" href="#the-counts-and-the-traffic-light"></a>
+</h2>
+<p>A proportion says little if it is not known what it was computed on.
+<code>medir(..., detalle = "resumen")</code> (<em>summary detail</em>)
+returns one row per metric and column, with its counts: the numerator,
+the denominator, the universe and what was not evaluated. The column
+<code>estado_cuentas</code> (<em>state of the counts</em>) says whether
+those counts add up:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">resumen</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="va">modelo_completitud</span>, <span class="va">datos_operativos</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"entrega-enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-15"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">resumen</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"atributo"</span>, <span class="st">"resultado"</span>, <span class="st">"numerador"</span>, <span class="st">"denominador"</span>, <span class="st">"n_no_evaluados"</span>,</span>
+<span>  <span class="st">"estado_cuentas"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Resumen de medición</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> 4 métricas resumidas</span></span>
+<span><span class="co">#&gt;        atributo resultado numerador denominador n_no_evaluados estado_cuentas</span></span>
+<span><span class="co">#&gt;           canal 0.8461538        11          13              0        cierran</span></span>
+<span><span class="co">#&gt;  codigo_usuario 0.9230769        12          13              0        cierran</span></span>
+<span><span class="co">#&gt;    fecha_evento 0.9230769        12          13              0        cierran</span></span>
+<span><span class="co">#&gt;           monto 0.9230769        12          13              0        cierran</span></span></code></pre></div>
+<p>The 4 add up (<code>cierran</code>). A figure is <code>parcial</code>
+(<em>partial</em>) when it was computed on a declared part, such as a
+vocabulary truncated by <code>max_valores</code>, and
+<code>sin_cuentas</code> (<em>without counts</em>) when there are no
+counts of its universe. It is <code>no_cierran</code> (<em>do not add
+up</em>) when the metric gave more measures than its universe, when what
+it did not evaluate is not what it declares not to evaluate (for a
+validity metric, the empty values) or when 2 reads of the same table in
+a run saw different tables.</p>
+<p>The last case shows up when parts of the same run are joined with
+<code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>. Here the completeness of <code>canal</code> and
+<code>codigo_usuario</code> is measured on the table, and that of the
+other 2 columns on a version where someone corrected the channel of row
+5:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">modelo_de</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">columnas</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">elegidas</span> <span class="op">&lt;-</span> <span class="va">propuesta</span></span>
+<span>  <span class="va">elegidas</span><span class="op">$</span><span class="va">incluir</span> <span class="op">&lt;-</span> <span class="va">elegidas</span><span class="op">$</span><span class="va">metrica</span> <span class="op">==</span> <span class="st">"NoNulo"</span> <span class="op">&amp;</span></span>
+<span>    <span class="va">elegidas</span><span class="op">$</span><span class="va">atributos</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">columnas</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_desde_propuesta.html">modelo_desde_propuesta</a></span><span class="op">(</span><span class="va">elegidas</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">otra_version</span> <span class="op">&lt;-</span> <span class="va">datos_operativos</span></span>
+<span><span class="va">otra_version</span><span class="op">$</span><span class="va">canal</span><span class="op">[</span><span class="fl">5</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"web"</span></span>
+<span><span class="va">parte_1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu">modelo_de</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"canal"</span>, <span class="st">"codigo_usuario"</span><span class="op">)</span><span class="op">)</span>, <span class="va">datos_operativos</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"entrega-enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-15"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">parte_2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu">modelo_de</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fecha_evento"</span>, <span class="st">"monto"</span><span class="op">)</span><span class="op">)</span>, <span class="va">otra_version</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"entrega-enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-15"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">aviso</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
+<span><span class="va">unidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">withCallingHandlers</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">parte_1</span>, <span class="va">parte_2</span><span class="op">)</span>,</span>
+<span>  warning <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">aviso</span> <span class="op">&lt;&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">invokeRestart</a></span><span class="op">(</span><span class="st">"muffleWarning"</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">aviso</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 4 cifras cuyas cuentas no cierran: la tabla cambió entre lecturas de la corrida (4). No</span></span>
+<span><span class="co">#&gt; se pintan ni entran al índice; el detalle está en `estado_cuentas` y `motivo_cuentas`.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">unidas</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"atributo"</span>, <span class="st">"resultado"</span>, <span class="st">"estado_cuentas"</span>, <span class="st">"motivo_cuentas"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;         atributo resultado estado_cuentas              motivo_cuentas</span></span>
+<span><span class="co">#&gt; 1          canal 0.8461538     no_cierran tabla_cambio_entre_lecturas</span></span>
+<span><span class="co">#&gt; 2 codigo_usuario 0.9230769     no_cierran tabla_cambio_entre_lecturas</span></span>
+<span><span class="co">#&gt; 3   fecha_evento 0.9230769     no_cierran tabla_cambio_entre_lecturas</span></span>
+<span><span class="co">#&gt; 4          monto 0.9230769     no_cierran tabla_cambio_entre_lecturas</span></span></code></pre></div>
+<p>Each part kept the fingerprint of the data it read, and the
+fingerprints do not match. The 4 figures may each be right on their own,
+but they do not describe one and the same table, and they say so.</p>
+<p><code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code> (<em>quality traffic light</em>)
+classifies each figure into levels, with cut-offs declared by whoever
+measures: per dimension of the framework or, if needed, per metric.
+There are no factory cut-offs, and without <code>cortes</code>
+(<em>cut-offs</em>) the function stops. It only colors the figures whose
+counts add up:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Cut-offs of this example, not of the package.</span></span>
+<span><span class="va">cortes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Completitud <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.85</span>, <span class="fl">0.92</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/semaforo_calidad.html">semaforo_calidad</a></span><span class="op">(</span><span class="va">resumen</span>, cortes <span class="op">=</span> <span class="va">cortes</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Semáforo de calidad</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt;    dimension   metrica_instanciada         objeto     valor escala_comparada</span></span>
+<span><span class="co">#&gt;  Completitud          NoNulo:canal          canal 0.8461538            valor</span></span>
+<span><span class="co">#&gt;  Completitud NoNulo:codigo_usuario codigo_usuario 0.9230769            valor</span></span>
+<span><span class="co">#&gt;  Completitud   NoNulo:fecha_evento   fecha_evento 0.9230769            valor</span></span>
+<span><span class="co">#&gt;  Completitud          NoNulo:monto          monto 0.9230769            valor</span></span>
+<span><span class="co">#&gt;                  regla nivel motivo_sin_color control_lecturas</span></span>
+<span><span class="co">#&gt;  dimension:Completitud  rojo             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt;  dimension:Completitud verde             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt;  dimension:Completitud verde             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt;  dimension:Completitud verde             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Por dimensión</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo</span></span>
+<span><span class="co">#&gt;  Completitud    1        0     3         0         0                  0</span></span>
+<span><span class="va">sin_color</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/semaforo_calidad.html">semaforo_calidad</a></span><span class="op">(</span><span class="va">unidas</span>, cortes <span class="op">=</span> <span class="va">cortes</span><span class="op">)</span></span>
+<span><span class="va">sin_color</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"objeto"</span>, <span class="st">"valor"</span>, <span class="st">"nivel"</span>, <span class="st">"motivo_sin_color"</span>, <span class="st">"control_lecturas"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Semáforo de calidad</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt;          objeto     valor nivel motivo_sin_color control_lecturas</span></span>
+<span><span class="co">#&gt;           canal 0.8461538  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt;  codigo_usuario 0.9230769  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt;    fecha_evento 0.9230769  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt;           monto 0.9230769  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Por dimensión</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo</span></span>
+<span><span class="co">#&gt;  Completitud    0        0     0         4         0                  0</span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Sin color</span> ──</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> no_cierran: 4.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Cuentas que no cierran</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> 4 cifras no representan la tabla: no se pintan ni entran al índice.</span></span>
+<span><span class="co">#&gt;       componente   metrica_instanciada          entidad       atributo estado_cuentas</span></span>
+<span><span class="co">#&gt;  componente-0001          NoNulo:canal datos_operativos          canal     no_cierran</span></span>
+<span><span class="co">#&gt;  componente-0002 NoNulo:codigo_usuario datos_operativos codigo_usuario     no_cierran</span></span>
+<span><span class="co">#&gt;  componente-0003   NoNulo:fecha_evento datos_operativos   fecha_evento     no_cierran</span></span>
+<span><span class="co">#&gt;  componente-0004          NoNulo:monto datos_operativos          monto     no_cierran</span></span>
+<span><span class="co">#&gt;               motivo_cuentas diferencia_cuentas control_lecturas</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span></code></pre></div>
+<p>With these cut-offs, <code>canal</code> is red (<code>rojo</code>)
+and the other 3 green (<code>verde</code>). The same figures, taken from
+the union, have no color: their reason is <code>no_cierran</code>.</p>
+<p><code>control_lecturas</code> (<em>control of the reads</em>) says
+how much the control of the reads backs each figure.
+<code>una_lectura</code> (<em>one read</em>) is a table read in a single
+query, or in memory; <code>completo</code> (<em>complete</em>), several
+reads with the snapshot proved by the fingerprint of the data or by a
+modification counter of the engine; <code>limitado</code>
+(<em>limited</em>), several reads and some without a snapshot, where
+only the number of rows was compared. The 2 parts above were read in
+memory and the fingerprint saw the change: their control is
+<code>completo</code>. <code>limitado</code> shows up in the engine,
+when a table is read in several queries without a counter that
+<code>lupa</code> reads, as in SQLite and DuckDB. There a row added or
+removed between reads is seen, but an <code>UPDATE</code> that does not
+change the number of rows is not, and the print of the traffic light
+warns about it.</p>
+<p>The traffic light does not combine dimensions: there is no “worst
+color” of the table and no total, and
+<code>attr(semaforo, "conteo_niveles")</code> (<em>count of levels</em>)
+is a distribution per dimension. The metrics that do not give a
+proportion, such as days out of date, stay in
+<code>attr(semaforo, "fuera_del_semaforo")</code> (<em>outside the
+traffic light</em>) with their reason. A validity metric evaluates its
+own universe, the values present: it has a color even if the column has
+empty values, which belong to completeness. An index that combines
+figures only exists with declared weights, and it does not use the ones
+that do not add up either (<a href="marcos-y-modelos.html#un-%C3%ADndice-s%C3%B3lo-con-pesos-declarados">Marcos
+y modelos de calidad</a>, <em>Quality frameworks and models</em>, in
+Spanish).</p>
+</div>
+<div class="section level2">
 <h2 id="what-was-covered">🔎 What was covered<a class="anchor" aria-label="anchor" href="#what-was-covered"></a>
 </h2>
 <p>The absence of findings does not prove that a table is fine: maybe
@@ -397,7 +564,7 @@ with a quality framework. It says, factor by factor, what was measured.
 The third argument is called <code>modelo</code> (<em>model</em>), but
 it takes a framework such as the one <code><a href="../reference/marco_calidad.html">marco_calidad()</a></code>
 (<em>quality framework</em>) creates. By default, the AGESIC one.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cobertura</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cobertura_analisis.html">cobertura_analisis</a></span><span class="op">(</span><span class="va">perfil</span>, <span class="va">medicion</span>, modelo <span class="op">=</span> <span class="fu"><a href="../reference/marco_calidad.html">marco_agesic</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">cobertura</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dimension"</span>, <span class="st">"factor"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;       dimension                        factor           estado</span></span>
@@ -434,7 +601,7 @@ geometries;</li>
 <code>lupa</code> cannot measure it and says so.</li>
 </ul>
 <p>Each row explains why:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">medidos</span> <span class="op">&lt;-</span> <span class="va">cobertura</span><span class="op">[</span><span class="va">cobertura</span><span class="op">$</span><span class="va">estado</span> <span class="op">==</span> <span class="st">"medida"</span>, <span class="op">]</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">medidos</span><span class="op">$</span><span class="va">factor</span>, <span class="st">": "</span>, <span class="va">medidos</span><span class="op">$</span><span class="va">motivo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Densidad: La corrida contiene al menos una métrica instanciada para este factor.</span></span>
@@ -442,7 +609,7 @@ geometries;</li>
 <p>Density was backed by the measurement; non-duplication, by what the
 profile examines on its own. What is missing carries how to solve
 it:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sintaxis</span> <span class="op">&lt;-</span> <span class="va">cobertura</span><span class="op">$</span><span class="va">factor</span> <span class="op">==</span> <span class="st">"Correctitud sintáctica"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">cobertura</span><span class="op">$</span><span class="va">como_resolverlo</span><span class="op">[</span><span class="va">sintaxis</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Aplicar `especializar()` a `metricas_nucleo()$Formato` con `expresion_regular`, o bien `diccionario`, o bien `validador`; luego `instanciar()` sobre un atributo; después `medir()`.</span></span></code></pre></div>
@@ -465,6 +632,11 @@ off.</li>
 <code>agregar(medicion, "atributo", "ratio")</code> gives the
 completeness of each column, and the rule compares that number with its
 threshold.</li>
+<li>
+<code>estado_cuentas</code> says whether the counts of each figure
+add up. <code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code> colors only those, with cut-offs
+declared by whoever measures, with no factory cut-offs and no figure
+that combines dimensions.</li>
 <li>
 <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> says which factors of the
 framework were measured and how to cover the missing ones.</li>

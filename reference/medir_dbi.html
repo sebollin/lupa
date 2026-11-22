@@ -95,7 +95,9 @@ columnas que <code>medir(..., detalle = "resumen")</code>.</p>
 <span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  validadores_personales <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  instrumentar <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  instrumentar <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  orden_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"idioma"</span>, <span class="st">"bytes"</span><span class="op">)</span>,</span>
+<span>  conformidad <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -179,12 +181,56 @@ igual que en <code><a href="medir.html">medir()</a></code>.</p></dd>
 <dd><p>Si es <code>TRUE</code> (por omisión), conserva las consultas SQL y
 el tiempo transcurrido en <code>attr(resultado, "ejecucion_dbi")</code>.</p></dd>
 
+
+<dt id="arg-orden-texto">orden_texto<a class="anchor" aria-label="anchor" href="#arg-orden-texto"></a></dt>
+<dd><p>Orden del texto en el rango de
+<code>ValoresPosiblesPorComprension</code> y en las comparaciones <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code> y
+<code>&gt;=</code> de la fórmula de <code>ReglaIntegridadIntraEntidad</code>, como en <code><a href="medir.html">medir()</a></code>. Con
+<code>"idioma"</code> (por omisión) esas reglas sobre texto quedan <code>no_medible</code>:
+ningún motor reproduce el orden del locale de la sesión de R. Con
+<code>"bytes"</code> se traducen a una comparación por los bytes del UTF-8 —el orden
+por punto de código: <code>"Z"</code> antes que <code>"a"</code>, <code>"ñ"</code> después de <code>"z"</code>— y
+miden lo mismo que <code>medir(orden_texto = "bytes")</code>: en SQLite con <code>COLLATE BINARY</code>, si la base guarda el texto en UTF-8, y en DuckDB con <code>encode()</code>.
+Un texto con bytes que no son UTF-8 válido se ordena por sus bytes, como en
+memoria; y el rango lo deja afuera, como en memoria: en DuckDB con
+<code>try(decode())</code> (una versión sin <code><a href="https://rdrr.io/r/base/try.html" class="external-link">try()</a></code> lo declara <code>no_medible</code>) y en
+SQLite con su guarda de siempre para el texto no ASCII, porque SQLite no
+valida UTF-8. En PostgreSQL, MySQL, MariaDB y
+SQL Server la traducción está escrita pero todavía no se comparó con la
+medición en memoria: se declara <code>no_medible</code> con ese motivo, y con
+<code>estrategia_no_sql = "bloques"</code> la regla se mide en R, por bytes.</p></dd>
+
+
+<dt id="arg-conformidad">conformidad<a class="anchor" aria-label="anchor" href="#arg-conformidad"></a></dt>
+<dd><p>Tabla devuelta por <code><a href="conformidad_dbi.html">conformidad_dbi()</a></code> con esta misma
+conexión, modelo y configuración. Una regla que se cuenta en el motor deja
+de contarse en él sólo si la batería la encontró <code>no_conforme</code>: el motor
+cuenta y da distinto que R. Con <code>estrategia_no_sql = "bloques"</code> se mide
+leyendo sus columnas por bloques en R, como lo que no se traduce a SQL; si
+no, se declara <code>no_medible</code>. Si la diferencia apareció sólo con <code>NULL</code>
+(<code>condicion = "con_nulos"</code>), esto se aplica únicamente si la tabla real tiene
+<code>NULL</code> en las columnas de la regla. Una <code>abstencion</code> no quita la regla: con los datos
+reales decide la guarda de siempre. Si la batería es de otra conexión o de
+otra configuración, o si una regla no está en ella, cambió su definición,
+no se evaluó o su motor no está verificado, se avisa y la regla se mide como
+siempre. Una tabla sin la clase y los atributos de <code><a href="conformidad_dbi.html">conformidad_dbi()</a></code> se
+rechaza. <code>NULL</code> conserva la medición habitual.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Un <code>data.frame</code> de clase <code>medicion_resumen</code> (sin heredar de
-<code>medicion</code>) con las 23 columnas del resumen y los atributos de
-<code>medir(detalle = "resumen")</code> más <code>ejecucion_dbi</code>.</p>
+<code>medicion</code>) con las columnas del resumen —también las de sus cuentas,
+ver <code><a href="medir.html">medir()</a></code>— y los atributos de <code>medir(detalle = "resumen")</code> más
+<code>ejecucion_dbi</code>. Cada fila sale de una sola lectura, y cada lectura de una
+tabla queda en <code>attr(x, "lecturas")</code>: si dos lecturas de la misma tabla en la
+corrida ven distinto número de filas, sus cifras quedan <code>no_cierran</code> y
+<code>medir_dbi()</code> avisa. Ese control ve filas agregadas o quitadas, no un
+<code>UPDATE</code> que no cambia el conteo; donde el motor ofrece un contador de
+modificaciones que lupa lee, se compara también ese contador y el control
+se publica como <code>contador_del_motor</code>; si no, como
+<code>solo_filas_agregadas_o_quitadas</code>. En SQL Server con <code>READ COMMITTED</code> por
+bloqueo una sola sentencia tampoco es una instantánea.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

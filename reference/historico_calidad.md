@@ -74,7 +74,27 @@ atributo no sobrevive a
 [`write.csv()`](https://rdrr.io/r/utils/write.table.html): un histórico
 releído de un CSV la recupera de ahí. Son columnas agregadas al esquema
 1: un histórico anterior que no las trae se lee igual, con ellas en
-`NA`.
+`NA`. La columna `sello_metricas` lleva, como texto, el sello de las
+métricas que la corrida evaluó —versión de lupa, huella de su definición
+y su nivel de certificación, y el entorno de la sesión que midió, ver
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)—.
+`historico_calidad()`, `acumular_historico()` y
+[`rbind()`](https://rdrr.io/r/base/cbind.html) avisan cuando una métrica
+cambió de definición de una corrida a la siguiente, cuando la misma
+definición se midió en otro entorno de sesión («misma definición, otro
+entorno»), o cuando una corrida sin sello —medida con una versión
+anterior— queda al lado de una sellada; cada par de corridas se avisa
+una vez, cuando se juntan. Cuando la huella no cambió pero no alcanza
+para decir que la definición siga igual —es parcial, o no se pudo
+certificar—, el atributo `cobertura_sello` lo declara, sin aviso: una
+fila por par de corridas consecutivas de esa métrica, con `id_medicion`,
+`id_medicion_anterior`, `metrica_instanciada`, `aspecto`,
+`certificacion` y `descripcion` («huella parcial: una función del
+usuario puede haber cambiado lo que lee sin que la huella lo vea»).
+Declara también los pares medidos en otro entorno
+(`aspecto = "entorno"`, con lo que cambió) y los que no registran su
+entorno (`"entorno_desconocido"`). Sin nada que declarar, el atributo no
+está.
 
 ## Details
 
@@ -183,4 +203,9 @@ historico_calidad(medidas, evaluacion)
 #> 2                                                                                                                                                                                                                         <NA>
 #> 3                                                                                                                                                                                                                         <NA>
 #> 4 list{version=integer[1];nombre=character[Basico];reglas=character[list{nombre=character[Presente];metricas=NULL;nivel=character[medida];proporcion_minima=NULL;desenlace=NULL;umbrales=NULL;condicion=function (x)  x > 0}]}
+#>                                                                                                                                                                                           sello_metricas
+#> 1                                                                                                                                                                                                   <NA>
+#> 2                                                                                                                                                                                                   <NA>
+#> 3                                                                                                                                                                                                   <NA>
+#> 4 sello-2;entorno=R%3D4.6.2%3Bscipen%3D0%3BOutDec%3D.%3BLC_COLLATE%3DC%3BLC_CTYPE%3DC.UTF-8%3BLC_TIME%3DC.UTF-8%3BTZ%3DUTC;=NoNulo%40personas.edad|=0.1.2.9000|c424dcec110d05356150a3633fb2e69f|completa
 ```

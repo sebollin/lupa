@@ -25,7 +25,9 @@ medir_dbi(
   proteger_datos_personales = FALSE,
   columnas_personales = character(),
   validadores_personales = NULL,
-  instrumentar = TRUE
+  instrumentar = TRUE,
+  orden_texto = c("idioma", "bytes"),
+  conformidad = NULL
 )
 ```
 
@@ -112,11 +114,63 @@ medir_dbi(
   Si es `TRUE` (por omisión), conserva las consultas SQL y el tiempo
   transcurrido en `attr(resultado, "ejecucion_dbi")`.
 
+- orden_texto:
+
+  Orden del texto en el rango de `ValoresPosiblesPorComprension` y en
+  las comparaciones `<`, `<=`, `>` y `>=` de la fórmula de
+  `ReglaIntegridadIntraEntidad`, como en
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md). Con
+  `"idioma"` (por omisión) esas reglas sobre texto quedan `no_medible`:
+  ningún motor reproduce el orden del locale de la sesión de R. Con
+  `"bytes"` se traducen a una comparación por los bytes del UTF-8 —el
+  orden por punto de código: `"Z"` antes que `"a"`, `"ñ"` después de
+  `"z"`— y miden lo mismo que `medir(orden_texto = "bytes")`: en SQLite
+  con `COLLATE BINARY`, si la base guarda el texto en UTF-8, y en DuckDB
+  con `encode()`. Un texto con bytes que no son UTF-8 válido se ordena
+  por sus bytes, como en memoria; y el rango lo deja afuera, como en
+  memoria: en DuckDB con `try(decode())` (una versión sin
+  [`try()`](https://rdrr.io/r/base/try.html) lo declara `no_medible`) y
+  en SQLite con su guarda de siempre para el texto no ASCII, porque
+  SQLite no valida UTF-8. En PostgreSQL, MySQL, MariaDB y SQL Server la
+  traducción está escrita pero todavía no se comparó con la medición en
+  memoria: se declara `no_medible` con ese motivo, y con
+  `estrategia_no_sql = "bloques"` la regla se mide en R, por bytes.
+
+- conformidad:
+
+  Tabla devuelta por
+  [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  con esta misma conexión, modelo y configuración. Una regla que se
+  cuenta en el motor deja de contarse en él sólo si la batería la
+  encontró `no_conforme`: el motor cuenta y da distinto que R. Con
+  `estrategia_no_sql = "bloques"` se mide leyendo sus columnas por
+  bloques en R, como lo que no se traduce a SQL; si no, se declara
+  `no_medible`. Si la diferencia apareció sólo con `NULL`
+  (`condicion = "con_nulos"`), esto se aplica únicamente si la tabla
+  real tiene `NULL` en las columnas de la regla. Una `abstencion` no
+  quita la regla: con los datos reales decide la guarda de siempre. Si
+  la batería es de otra conexión o de otra configuración, o si una regla
+  no está en ella, cambió su definición, no se evaluó o su motor no está
+  verificado, se avisa y la regla se mide como siempre. Una tabla sin la
+  clase y los atributos de
+  [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  se rechaza. `NULL` conserva la medición habitual.
+
 ## Value
 
 Un `data.frame` de clase `medicion_resumen` (sin heredar de `medicion`)
-con las 23 columnas del resumen y los atributos de
-`medir(detalle = "resumen")` más `ejecucion_dbi`.
+con las columnas del resumen —también las de sus cuentas, ver
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)— y los
+atributos de `medir(detalle = "resumen")` más `ejecucion_dbi`. Cada fila
+sale de una sola lectura, y cada lectura de una tabla queda en
+`attr(x, "lecturas")`: si dos lecturas de la misma tabla en la corrida
+ven distinto número de filas, sus cifras quedan `no_cierran` y
+`medir_dbi()` avisa. Ese control ve filas agregadas o quitadas, no un
+`UPDATE` que no cambia el conteo; donde el motor ofrece un contador de
+modificaciones que lupa lee, se compara también ese contador y el
+control se publica como `contador_del_motor`; si no, como
+`solo_filas_agregadas_o_quitadas`. En SQL Server con `READ COMMITTED`
+por bloqueo una sola sentencia tampoco es una instantánea.
 
 ## Details
 

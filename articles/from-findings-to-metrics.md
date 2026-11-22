@@ -20,6 +20,9 @@ repeats with each delivery and is compared with a requirement?
 >   [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md);
 > - evaluating the aggregated measure against a threshold with
 >   [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md);
+> - checking whether the counts of each figure add up and classifying
+>   them with
+>   [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md);
 > - seeing which part of a quality framework was covered with
 >   [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md).
 
@@ -323,6 +326,180 @@ why the measures are aggregated before evaluating.
 The evaluation applies a condition to measures that already exist. It
 does not read `datos_operativos` again or replace the measurement.
 
+## 🚦 The counts and the traffic light
+
+A proportion says little if it is not known what it was computed on.
+`medir(..., detalle = "resumen")` (*summary detail*) returns one row per
+metric and column, with its counts: the numerator, the denominator, the
+universe and what was not evaluated. The column `estado_cuentas` (*state
+of the counts*) says whether those counts add up:
+
+``` r
+
+resumen <- medir(
+  modelo_completitud, datos_operativos,
+  id_medicion = "entrega-enero", fecha = "2026-01-15", detalle = "resumen"
+)
+resumen[, c(
+  "atributo", "resultado", "numerador", "denominador", "n_no_evaluados",
+  "estado_cuentas"
+)]
+#> 
+#> ── Resumen de medición ───────────────────────────────────────────────────────────────────
+#> ℹ 4 métricas resumidas
+#>        atributo resultado numerador denominador n_no_evaluados estado_cuentas
+#>           canal 0.8461538        11          13              0        cierran
+#>  codigo_usuario 0.9230769        12          13              0        cierran
+#>    fecha_evento 0.9230769        12          13              0        cierran
+#>           monto 0.9230769        12          13              0        cierran
+```
+
+The 4 add up (`cierran`). A figure is `parcial` (*partial*) when it was
+computed on a declared part, such as a vocabulary truncated by
+`max_valores`, and `sin_cuentas` (*without counts*) when there are no
+counts of its universe. It is `no_cierran` (*do not add up*) when the
+metric gave more measures than its universe, when what it did not
+evaluate is not what it declares not to evaluate (for a validity metric,
+the empty values) or when 2 reads of the same table in a run saw
+different tables.
+
+The last case shows up when parts of the same run are joined with
+[`rbind()`](https://rdrr.io/r/base/cbind.html). Here the completeness of
+`canal` and `codigo_usuario` is measured on the table, and that of the
+other 2 columns on a version where someone corrected the channel of row
+5:
+
+``` r
+
+modelo_de <- function(columnas) {
+  elegidas <- propuesta
+  elegidas$incluir <- elegidas$metrica == "NoNulo" &
+    elegidas$atributos %in% columnas
+  modelo_desde_propuesta(elegidas)
+}
+otra_version <- datos_operativos
+otra_version$canal[5] <- "web"
+parte_1 <- medir(
+  modelo_de(c("canal", "codigo_usuario")), datos_operativos,
+  id_medicion = "entrega-enero", fecha = "2026-01-15", detalle = "resumen"
+)
+parte_2 <- medir(
+  modelo_de(c("fecha_evento", "monto")), otra_version,
+  id_medicion = "entrega-enero", fecha = "2026-01-15", detalle = "resumen"
+)
+aviso <- NULL
+unidas <- withCallingHandlers(
+  rbind(parte_1, parte_2),
+  warning = function(w) {
+    aviso <<- conditionMessage(w)
+    invokeRestart("muffleWarning")
+  }
+)
+writeLines(strwrap(aviso, 88))
+#> 4 cifras cuyas cuentas no cierran: la tabla cambió entre lecturas de la corrida (4). No
+#> se pintan ni entran al índice; el detalle está en `estado_cuentas` y `motivo_cuentas`.
+as.data.frame(unidas)[, c("atributo", "resultado", "estado_cuentas", "motivo_cuentas")]
+#>         atributo resultado estado_cuentas              motivo_cuentas
+#> 1          canal 0.8461538     no_cierran tabla_cambio_entre_lecturas
+#> 2 codigo_usuario 0.9230769     no_cierran tabla_cambio_entre_lecturas
+#> 3   fecha_evento 0.9230769     no_cierran tabla_cambio_entre_lecturas
+#> 4          monto 0.9230769     no_cierran tabla_cambio_entre_lecturas
+```
+
+Each part kept the fingerprint of the data it read, and the fingerprints
+do not match. The 4 figures may each be right on their own, but they do
+not describe one and the same table, and they say so.
+
+[`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+(*quality traffic light*) classifies each figure into levels, with
+cut-offs declared by whoever measures: per dimension of the framework
+or, if needed, per metric. There are no factory cut-offs, and without
+`cortes` (*cut-offs*) the function stops. It only colors the figures
+whose counts add up:
+
+``` r
+
+# Cut-offs of this example, not of the package.
+cortes <- list(Completitud = c(0.85, 0.92))
+semaforo_calidad(resumen, cortes = cortes)
+#> 
+#> ── Semáforo de calidad ───────────────────────────────────────────────────────────────────
+#>    dimension   metrica_instanciada         objeto     valor escala_comparada
+#>  Completitud          NoNulo:canal          canal 0.8461538            valor
+#>  Completitud NoNulo:codigo_usuario codigo_usuario 0.9230769            valor
+#>  Completitud   NoNulo:fecha_evento   fecha_evento 0.9230769            valor
+#>  Completitud          NoNulo:monto          monto 0.9230769            valor
+#>                  regla nivel motivo_sin_color control_lecturas
+#>  dimension:Completitud  rojo             <NA>      una_lectura
+#>  dimension:Completitud verde             <NA>      una_lectura
+#>  dimension:Completitud verde             <NA>      una_lectura
+#>  dimension:Completitud verde             <NA>      una_lectura
+#> 
+#> ── Por dimensión ──
+#> 
+#>    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo
+#>  Completitud    1        0     3         0         0                  0
+sin_color <- semaforo_calidad(unidas, cortes = cortes)
+sin_color[, c("objeto", "valor", "nivel", "motivo_sin_color", "control_lecturas")]
+#> ── Semáforo de calidad ───────────────────────────────────────────────────────────────────
+#>          objeto     valor nivel motivo_sin_color control_lecturas
+#>           canal 0.8461538  <NA>       no_cierran         completo
+#>  codigo_usuario 0.9230769  <NA>       no_cierran         completo
+#>    fecha_evento 0.9230769  <NA>       no_cierran         completo
+#>           monto 0.9230769  <NA>       no_cierran         completo
+#> 
+#> ── Por dimensión ──
+#> 
+#>    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo
+#>  Completitud    0        0     0         4         0                  0
+#> ── Sin color ──
+#> ℹ no_cierran: 4.
+#> 
+#> ── Cuentas que no cierran ──
+#> 
+#> ! 4 cifras no representan la tabla: no se pintan ni entran al índice.
+#>       componente   metrica_instanciada          entidad       atributo estado_cuentas
+#>  componente-0001          NoNulo:canal datos_operativos          canal     no_cierran
+#>  componente-0002 NoNulo:codigo_usuario datos_operativos codigo_usuario     no_cierran
+#>  componente-0003   NoNulo:fecha_evento datos_operativos   fecha_evento     no_cierran
+#>  componente-0004          NoNulo:monto datos_operativos          monto     no_cierran
+#>               motivo_cuentas diferencia_cuentas control_lecturas
+#>  tabla_cambio_entre_lecturas                  0         completo
+#>  tabla_cambio_entre_lecturas                  0         completo
+#>  tabla_cambio_entre_lecturas                  0         completo
+#>  tabla_cambio_entre_lecturas                  0         completo
+```
+
+With these cut-offs, `canal` is red (`rojo`) and the other 3 green
+(`verde`). The same figures, taken from the union, have no color: their
+reason is `no_cierran`.
+
+`control_lecturas` (*control of the reads*) says how much the control of
+the reads backs each figure. `una_lectura` (*one read*) is a table read
+in a single query, or in memory; `completo` (*complete*), several reads
+with the snapshot proved by the fingerprint of the data or by a
+modification counter of the engine; `limitado` (*limited*), several
+reads and some without a snapshot, where only the number of rows was
+compared. The 2 parts above were read in memory and the fingerprint saw
+the change: their control is `completo`. `limitado` shows up in the
+engine, when a table is read in several queries without a counter that
+`lupa` reads, as in SQLite and DuckDB. There a row added or removed
+between reads is seen, but an `UPDATE` that does not change the number
+of rows is not, and the print of the traffic light warns about it.
+
+The traffic light does not combine dimensions: there is no “worst color”
+of the table and no total, and `attr(semaforo, "conteo_niveles")`
+(*count of levels*) is a distribution per dimension. The metrics that do
+not give a proportion, such as days out of date, stay in
+`attr(semaforo, "fuera_del_semaforo")` (*outside the traffic light*)
+with their reason. A validity metric evaluates its own universe, the
+values present: it has a color even if the column has empty values,
+which belong to completeness. An index that combines figures only exists
+with declared weights, and it does not use the ones that do not add up
+either ([Marcos y modelos de
+calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html#un-%C3%ADndice-s%C3%B3lo-con-pesos-declarados),
+*Quality frameworks and models*, in Spanish).
+
 ## 🔎 What was covered
 
 The absence of findings does not prove that a table is fine: maybe
@@ -401,6 +578,10 @@ writeLines(cobertura$como_resolverlo[sintaxis])
 - Aggregate before evaluating: `agregar(medicion, "atributo", "ratio")`
   gives the completeness of each column, and the rule compares that
   number with its threshold.
+- `estado_cuentas` says whether the counts of each figure add up.
+  [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+  colors only those, with cut-offs declared by whoever measures, with no
+  factory cut-offs and no figure that combines dimensions.
 - [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
   says which factors of the framework were measured and how to cover the
   missing ones.

@@ -127,6 +127,7 @@ sin seleccionar filas para el cliente.
 <span>  columnas_opcionales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  sentinelas_numericos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">9</span>, <span class="op">-</span><span class="fl">99</span>, <span class="op">-</span><span class="fl">999</span>, <span class="op">-</span><span class="fl">9999</span>, <span class="fl">999</span><span class="op">)</span>,</span>
+<span>  estrategia_no_sql <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"no_medible"</span>, <span class="st">"bloques"</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -564,7 +565,10 @@ compara lo que la regla cambia.</p></dd>
 
 <dt id="arg-sentinelas-numericos">sentinelas_numericos<a class="anchor" aria-label="anchor" href="#arg-sentinelas-numericos"></a></dt>
 <dd><p>Vector completo de valores numéricos que se
-declaran como faltantes en el <code>perfil_muestra</code>. Se normaliza como un
+declaran como faltantes en el <code>perfil_muestra</code>, o la lista por columna de
+<code><a href="perfilar.html">perfilar()</a></code> —también para <code>cadenas_ausencia</code>, que viaja por <code>...</code>—: se
+valida contra las columnas de la tabla y la reciben igual el resumen SQL,
+la muestra y la corroboración. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 agregados y lo declara en <code>resumen_tabla$cobertura</code>; la corroboración no
@@ -575,6 +579,19 @@ corroboración reconoce esa representacion como el mismo centinela.</p>
 <p>Rige la misma reserva que en <code><a href="perfilar.html">perfilar()</a></code>: un valor de la lista <strong>por
 omisión</strong> que aparece una sola vez y dentro del rango de los demás no se
 señala. Declarar el valor lo vuelve a contar.</p></dd>
+
+
+<dt id="arg-estrategia-no-sql">estrategia_no_sql<a class="anchor" aria-label="anchor" href="#arg-estrategia-no-sql"></a></dt>
+<dd><p>Qué hacer, con <code>resumen_fechas = TRUE</code>, con una
+columna de fecha que el SQL no cuenta como R la lee: <code>"no_medible"</code> (por
+omisión) la declara <code>no_disponible</code> en <code>resumen_tabla$sql</code> con el motivo, y
+<code>"bloques"</code> la lee en R por bloques, con el mismo controlador, y la cuenta
+con la misma regla. Son tres casos: una columna de SQLite que guarda las
+fechas como texto (lo que deja un CSV importado; se mide con <code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code>),
+instantes a menos de un segundo de una fecha centinela lejana con
+resolución de microsegundos (R los lee como esa fecha) y una columna de
+texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
+la columna entera. Mismo nombre y valores que en <code><a href="medir_dbi.html">medir_dbi()</a></code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -591,7 +608,20 @@ al entrar, también con <code>bloque_muestra = "solo_agregados"</code>: un nombr
 los valida <code><a href="perfilar.html">perfilar()</a></code> al perfilar la muestra —sin muestra no se
 validan—, y uno inválido deja <code>perfil_muestra = NULL</code> con el error de
 <code><a href="perfilar.html">perfilar()</a></code> como motivo, legible también con la protección: un error que
-se repite sobre la muestra sin filas no cita ninguna celda.</p></dd>
+se repite sobre la muestra sin filas no cita ninguna celda.</p>
+<p><code>resumen_fechas</code>, <code>centinelas_fecha</code>, <code>periodos</code> y <code>dominios</code> valen además
+en <code>resumen_tabla</code>, sobre la tabla completa: con <code>resumen_fechas = TRUE</code>,
+<code>resumen_tabla$columnas</code> agrega los mismos campos de fechas que
+<code><a href="perfilar.html">perfilar()</a></code> (con su fila en <code>resumen_tabla$sql</code>, etapa <code>"fechas"</code>) y
+<code>resumen_tabla$meta$actualidad</code> la misma tabla de actualidad; con
+<code>periodos</code>, <code>resumen_tabla$meta$periodos</code> la misma partición. El motor
+compara contra literales y decide con la misma regla que la memoria;
+sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los demás
+motores y con <code>universo = "muestra_motor"</code> se declara y se lee de
+<code>perfil_muestra</code>). Con <code>resumen_fechas</code> y sin <code>fecha</code>, la fecha se congela
+una vez al entrar (al segundo) para el resumen y la muestra, y las dos
+dicen <code>fecha_declarada = FALSE</code>. Sin estos argumentos el objeto es el de
+siempre.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -692,7 +722,18 @@ corta en el segundo intento conserva la primera muestra válida.</p>
 <code>catalogo_bytes_muestra</code> se conservan aparte en
 <code>resumen_tabla$meta$consultas$sondas_fallidas</code> y no disparan el aviso de
 degradacion. El aviso que informa que la muestra no esta disponible conserva
-ademas la clase historica <code>lupa_muestra_dbi_no_disponible</code>.</p>
+ademas la clase historica <code>lupa_muestra_dbi_no_disponible</code>.
+<code>resumen_tabla$meta$consultas$conciliacion</code> conserva además el estado de la
+cuenta (<code>"conciliado"</code> o <code>"desfasado"</code>), los totales anunciados y emitidos y
+un <code>detalle</code> por clase de consulta cuando una clase anunciada no corrió o la
+corrida emitió una clase que el plan no tenía. Cada detalle dice la clase,
+ambas cantidades y el motivo de la diferencia; la falla original permanece
+en <code>fallas</code> o <code>sondas_fallidas</code>. <code>plan_corrida</code> conserva la misma estructura
+para la comparación contra el plan que la corrida publicó en <code>meta$plan</code>;
+permite distinguirla de los campos históricos de la conciliación. En una
+tabla vacía, <code>plan_previo</code> conserva el total que se anunció antes de conocer
+ese estado y explica por qué <code>plan_corrida</code> usa el plan publicado por la
+corrida.</p>
 <p>Cuando el catálogo estima al menos <code>1e8</code> filas y se pidió
 <code>universo = "tabla_completa"</code>, la función avisa antes de los agregados con
 la clase <code>lupa_aviso_costo_dbi</code> y sugiere usar
@@ -931,9 +972,14 @@ un tipo, una vista rota—: con una transacción abierta, cada sentencia de la
 vía va entre un <code>SAVEPOINT</code> propio y su <code>RELEASE</code>, y si falla se vuelve con
 <code>ROLLBACK TO SAVEPOINT</code>. La transacción se reconoce por RPostgres
 (<code>dbBegin()</code>, <code>dbWithTransaction()</code>) o por el motor, para un <code>BEGIN</code> mandado
-a mano. El paquete nunca manda <code>BEGIN</code>, <code>COMMIT</code> ni <code>ROLLBACK</code>; fuera de una
-transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
-<code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>, <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>.
+a mano. El paquete nunca manda <code>BEGIN</code>, <code>COMMIT</code> ni <code>ROLLBACK</code> sobre la
+transacción del usuario; fuera de una transacción no agrega ninguna
+sentencia de ese tipo. Lo mismo vale para <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>,
+<code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>. La única excepción es
+<code>compilar = TRUE</code> de <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> y <code><a href="plan_medicion_dbi.html">plan_medicion_dbi()</a></code> en
+PostgreSQL sin transacción del usuario: cada sentencia se compila en una
+transacción propia que se revierte (ver la sección Compilación de
+<code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>).
 SQL Server puede deshacer la transacción completa ante un error de ejecución,
 incluso con <code>XACT_ABORT</code> apagado: antes y después de cada envío y lectura la
 vía mide <code>@TRANCOUNT</code> y <code>XACT_STATE()</code>. Si cambian, levanta

@@ -114,7 +114,9 @@ its 2 blocks, <code>resumen_tabla</code> and
 <li>finding the sampling metadata, which lives in 2 places depending on
 the option;</li>
 <li>reading the result with the same accessors as a profile in
-memory.</li>
+memory;</li>
+<li>counting sentinel dates, periods and recency, in memory and in the
+engine.</li>
 </ul>
 </blockquote>
 <div class="section level2">
@@ -458,11 +460,172 @@ failure.</li>
 <span><span class="co">#&gt; 1 perfil_muestra   ventas no_solicitado</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="dates">📅 Sentinel dates, periods and recency<a class="anchor" aria-label="anchor" href="#dates"></a>
+</h2>
+<p>A date can be there to say something else: <code>1900-01-01</code>
+for “unknown”, <code>9999-12-31</code> for “still in force”. By default
+<code><a href="../reference/perfilar.html">perfilar()</a></code> suspects 4 of them (1900-01-01, 9999-12-31,
+1970-01-01 and 1899-12-30), and only if they repeat and stand apart from
+the rest of the dates. Three arguments say more, and they work the same
+in <code><a href="../reference/perfilar.html">perfilar()</a></code> and in <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>:</p>
+<ul>
+<li>
+<code>centinelas_fecha</code> (<em>sentinel dates</em>) declares the
+sentinel dates of the database, which are flagged as <code>error</code>
+from their first appearance;</li>
+<li>
+<code>periodos</code> (<em>periods</em>) declares which pair of
+columns is the start and the end of a period and, with
+<code>fin_abierto</code> (<em>open end</em>), which end date means “in
+force”. They are never guessed from the name;</li>
+<li>
+<code>resumen_fechas = TRUE</code> (<em>date summary</em>) adds the
+counts of sentinel and future dates of each date column, and its
+recency: the latest value and how many days ago it was.</li>
+</ul>
+<p>The example is a table of contracts. The ones in force end on
+<code>9999-12-31</code>, 2 have no end and one ends before it starts. In
+<code>alta</code> (<em>registration</em>) there are 3
+<code>1900-01-01</code>, one <code>2000-01-01</code>, which in this
+database also means “no data”, and one future date. The date of the run
+is fixed so that the example always gives the same result.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dias</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2025-01-01"</span><span class="op">)</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">60</span> <span class="op">*</span> <span class="fl">11</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="fl">500</span></span>
+<span><span class="va">contratos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id_contrato <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">60</span>, alta <span class="op">=</span> <span class="va">dias</span>, desde <span class="op">=</span> <span class="va">dias</span>, hasta <span class="op">=</span> <span class="va">dias</span> <span class="op">+</span> <span class="fl">90</span><span class="op">)</span></span>
+<span><span class="va">contratos</span><span class="op">$</span><span class="va">hasta</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">9</span>, <span class="fl">15</span>, <span class="fl">21</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"9999-12-31"</span><span class="op">)</span></span>
+<span><span class="va">contratos</span><span class="op">$</span><span class="va">hasta</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">10</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
+<span><span class="va">contratos</span><span class="op">$</span><span class="va">hasta</span><span class="op">[</span><span class="fl">5</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">contratos</span><span class="op">$</span><span class="va">desde</span><span class="op">[</span><span class="fl">5</span><span class="op">]</span> <span class="op">-</span> <span class="fl">10</span></span>
+<span><span class="va">contratos</span><span class="op">$</span><span class="va">alta</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">7</span>, <span class="fl">14</span>, <span class="fl">28</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"1900-01-01"</span><span class="op">)</span></span>
+<span><span class="va">contratos</span><span class="op">$</span><span class="va">alta</span><span class="op">[</span><span class="fl">33</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2000-01-01"</span><span class="op">)</span></span>
+<span><span class="va">contratos</span><span class="op">$</span><span class="va">alta</span><span class="op">[</span><span class="fl">40</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2027-06-01"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">periodo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>inicio <span class="op">=</span> <span class="st">"desde"</span>, fin <span class="op">=</span> <span class="st">"hasta"</span>, fin_abierto <span class="op">=</span> <span class="st">"9999-12-31"</span><span class="op">)</span></span>
+<span><span class="va">en_memoria</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
+<span>  <span class="va">contratos</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>, centinelas_fecha <span class="op">=</span> <span class="st">"2000-01-01"</span>,</span>
+<span>  periodos <span class="op">=</span> <span class="va">periodo</span>, resumen_fechas <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">campos_fecha</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"columna"</span>, <span class="st">"n_fechas_centinela"</span>, <span class="st">"n_fechas_centinela_declaradas"</span>,</span>
+<span>  <span class="st">"n_fechas_fin_abierto"</span>, <span class="st">"n_fechas_futuras"</span>, <span class="st">"lectura_fechas_futuras"</span>,</span>
+<span>  <span class="st">"ultimo_dato_fecha"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">[</span><span class="op">-</span><span class="fl">1</span>, <span class="va">campos_fecha</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   columna n_fechas_centinela n_fechas_centinela_declaradas n_fechas_fin_abierto</span></span>
+<span><span class="co">#&gt; 2    alta                  4                             1                    0</span></span>
+<span><span class="co">#&gt; 3   desde                  0                             0                    0</span></span>
+<span><span class="co">#&gt; 4   hasta                  4                             0                    4</span></span>
+<span><span class="co">#&gt;   n_fechas_futuras lectura_fechas_futuras ultimo_dato_fecha</span></span>
+<span><span class="co">#&gt; 2                1                   fila        2026-05-11</span></span>
+<span><span class="co">#&gt; 3                0                   &lt;NA&gt;        2026-05-11</span></span>
+<span><span class="co">#&gt; 4                8              admitidas        2026-06-26</span></span></code></pre></div>
+<p>In <code>alta</code>, the 4 sentinel dates are the 3 built-in ones
+and the declared one; the future date is a stray value, and
+<code>lectura_fechas_futuras = "fila"</code> (<em>read as row</em>) says
+it is flagged with its row. In <code>hasta</code> (<em>until</em>), the
+4 <code>9999-12-31</code> are open ends, not defects. In a column whose
+name looks ahead, such as <code>hasta</code> or an expiry date, future
+dates are counted all the same, but they can be legitimate and their
+reading is <code>admitidas</code> (<em>admitted</em>).</p>
+<p><code>general$actualidad</code> (<em>recency</em>) gives, per column,
+the latest value that is neither future nor a declared sentinel, and how
+many days before the <code>fecha</code> of the run it falls. There is no
+winning date across columns and no score. <code>general$periodos</code>
+splits the rows of each declared period into categories that do not
+overlap:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">en_memoria</span><span class="op">$</span><span class="va">general</span><span class="op">$</span><span class="va">actualidad</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span></span>
+<span>  , <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"ultimo_dato_fecha"</span>, <span class="st">"antiguedad_dias"</span>, <span class="st">"n_evaluadas"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="co">#&gt;   columna ultimo_dato_fecha antiguedad_dias n_evaluadas</span></span>
+<span><span class="co">#&gt; 1    alta        2026-05-11              50          58</span></span>
+<span><span class="co">#&gt; 2   desde        2026-05-11              50          60</span></span>
+<span><span class="co">#&gt; 3   hasta        2026-06-26               4          50</span></span>
+<span><span class="va">particion</span> <span class="op">&lt;-</span> <span class="va">en_memoria</span><span class="op">$</span><span class="va">general</span><span class="op">$</span><span class="va">periodos</span></span>
+<span><span class="va">particion</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"n"</span>, <span class="st">"n_cerrados_validos"</span>, <span class="st">"n_fin_antes_inicio"</span>, <span class="st">"n_fin_abierto_nulo"</span>,</span>
+<span>  <span class="st">"n_fin_abierto_centinela"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    n n_cerrados_validos n_fin_antes_inicio n_fin_abierto_nulo n_fin_abierto_centinela</span></span>
+<span><span class="co">#&gt; 1 60                 53                  1                  2                       4</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">particion</span><span class="op">$</span><span class="va">aviso</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; El fin abierto mezcla dos convenciones: fines ausentes y fines con la fecha declarada</span></span>
+<span><span class="co">#&gt; en `fin_abierto`.</span></span></code></pre></div>
+<p>Of the 60 rows, 53 are valid closed periods, 1 ends before it starts,
+2 have no end and 4 end on the in-force date. The warning points out
+that the open end is written in 2 ways. An end date that is usually a
+sentinel and was not declared is counted apart, with a warning of a
+possible open end: it does not pass for a closed period.</p>
+<p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> takes the same arguments and counts the
+same on the whole table, in SQLite and DuckDB, against literals and with
+the same rule as memory. The counts go to
+<code>resumen_tabla$columnas</code>, the recency to
+<code>resumen_tabla$meta$actualidad</code> and the periods to
+<code>resumen_tabla$meta$periodos</code>. SQLite has no date type: with
+<code>extended_types = TRUE</code> when connecting, RSQLite stores dates
+as dates (<a href="engines-and-scale.html#differences-with-r">Engines
+and scale</a> has the details).</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">con_fechas</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span>, extended_types <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con_fechas</span>, <span class="st">"contratos"</span>, <span class="va">contratos</span><span class="op">)</span></span>
+<span><span class="va">en_motor</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">con_fechas</span>, <span class="st">"contratos"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>, centinelas_fecha <span class="op">=</span> <span class="st">"2000-01-01"</span>,</span>
+<span>  periodos <span class="op">=</span> <span class="va">periodo</span>, resumen_fechas <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span></span>
+<span>  <span class="va">en_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="va">campos_fecha</span><span class="op">]</span>,</span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">[</span>, <span class="va">campos_fecha</span><span class="op">]</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="va">en_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">periodos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n"</span>, <span class="st">"n_cerrados_validos"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    n n_cerrados_validos    estado</span></span>
+<span><span class="co">#&gt; 1 60                 53 calculado</span></span></code></pre></div>
+<p>What SQL cannot count the way R reads it is declared. There are 3
+cases: a SQLite column that stores dates as text, instants less than a
+second away from a distant sentinel with microsecond resolution, and a
+text column that the sample reads as a date. The <code>fecha</code>
+column of <code>ventas</code> is the last case:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">texto</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">conexion</span>, <span class="st">"ventas"</span>, muestra <span class="op">=</span> <span class="fl">200</span>, orden_muestra <span class="op">=</span> <span class="st">"id_venta"</span>,</span>
+<span>  fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>, resumen_fechas <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">sql_fechas</span> <span class="op">&lt;-</span> <span class="va">texto</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span></span>
+<span><span class="va">sql_fechas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span></span>
+<span>  <span class="va">sql_fechas</span><span class="op">[</span><span class="va">sql_fechas</span><span class="op">$</span><span class="va">etapa</span> <span class="op">==</span> <span class="st">"fechas"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"estado"</span>, <span class="st">"motivo"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">sql_fechas</span><span class="op">$</span><span class="va">estado</span></span>
+<span><span class="co">#&gt; [1] "no_disponible"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">sql_fechas</span><span class="op">$</span><span class="va">motivo</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; La columna `fecha` es texto en el motor y la muestra la lee como fecha: sus formatos</span></span>
+<span><span class="co">#&gt; los decide la columna entera. Con `estrategia_no_sql = "bloques"` se cuenta en R.</span></span>
+<span><span class="va">por_bloques</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">conexion</span>, <span class="st">"ventas"</span>, muestra <span class="op">=</span> <span class="fl">200</span>, orden_muestra <span class="op">=</span> <span class="st">"id_venta"</span>,</span>
+<span>  fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>, resumen_fechas <span class="op">=</span> <span class="cn">TRUE</span>, estrategia_no_sql <span class="op">=</span> <span class="st">"bloques"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">por_bloques</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">actualidad</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span></span>
+<span>  , <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"ultimo_dato_fecha"</span>, <span class="st">"antiguedad_dias"</span>, <span class="st">"n_evaluadas"</span>, <span class="st">"estado"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="co">#&gt;   columna ultimo_dato_fecha antiguedad_dias n_evaluadas    estado</span></span>
+<span><span class="co">#&gt; 1   fecha        2026-06-29               1        1000 calculado</span></span></code></pre></div>
+<p>With <code>estrategia_no_sql = "no_medible"</code> (<em>strategy for
+what is not SQL</em>; <em>not measurable</em>), the default, those
+counts are left <code>no_disponible</code> (<em>not available</em>) in
+<code>resumen_tabla$sql</code> with their reason, and never as zero.
+With <code>"bloques"</code> (<em>blocks</em>), <code>lupa</code> reads
+the column in R by blocks, with the same driver, and counts it with the
+same rule: the 1,000 dates, not only the 200 of the sample. The
+partition of a period, on the other hand, needs its 2 columns to be
+dates in the engine: on text it is left <code>no_disponible</code> with
+its reason, also with <code>"bloques"</code>.
+<code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> takes the same arguments and counts
+those queries before running.</p>
+</div>
+<div class="section level2">
 <h2 id="what-the-summary-does-not-guarantee">⚠️ What the summary does not guarantee<a class="anchor" aria-label="anchor" href="#what-the-summary-does-not-guarantee"></a>
 </h2>
 <p>The aggregates are separate queries, and the table can change between
 one and the next. The summary declares it:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">completo</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">snapshot</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">completo</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">nota_snapshot</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
@@ -482,7 +645,7 @@ run, not an accusation against the engine.</p>
 whoever uses <code>lupa</code>. The error that shows up when one of them
 is missing rarely says which. <code><a href="../reference/requisitos_motor.html">requisitos_motor()</a></code>
 (<em>engine requirements</em>) says it before connecting:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># the whole catalog</span></span>
 <span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"mariadb"</span><span class="op">)</span>   <span class="co"># what MariaDB needs and how to get it</span></span></code></pre></div>
 <p>For each engine it returns:</p>
@@ -494,6 +657,46 @@ one;</li>
 <li>the expected dialect;</li>
 <li>the testing status of the engine.</li>
 </ul>
+</div>
+<div class="section level2">
+<h2 id="compiling-the-plan">Compiling the plan before running<a class="anchor" aria-label="anchor" href="#compiling-the-plan"></a>
+</h2>
+<p>Counting the queries does not say whether the engine accepts them.
+With <code>compilar = TRUE</code> (<em>compile</em>), the plan asks the
+engine to compile each statement without executing it and without
+fetching rows, and leaves one row per statement in
+<code>attr(plan, "compilacion")</code>:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"ventas"</span>, compilar <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">compilacion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"compilacion"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">compilacion</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; candidata_rechazada           compilada       no_verificada </span></span>
+<span><span class="co">#&gt;                   1                  11                  10</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">compilacion</span><span class="op">$</span><span class="va">metodo</span><span class="op">[</span><span class="va">compilacion</span><span class="op">$</span><span class="va">estado</span> <span class="op">==</span> <span class="st">"compilada"</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "EXPLAIN QUERY PLAN"</span></span></code></pre></div>
+<p><code>compilada</code> means the engine accepted the statement;
+<code>no_compilada</code>, that it rejected it, and then
+<code>motivo</code> carries its message: a column or function that does
+not exist, a missing permission. The error shows up before a long run,
+not halfway through. <code>no_verificada</code> is what could not be
+known, because the shape of the query depends on an earlier result or on
+reading rows, and <code>candidata_rechazada</code> is the answer of a
+capability probe (the deviation is tried as <code>STDDEV_SAMP</code> and
+as <code>STDEV</code>, and SQLite knows only one), not a failure of the
+plan. How it compiles depends on the engine: <code>EXPLAIN</code> in
+SQLite, DuckDB and PostgreSQL, <code>PREPARE</code> in MySQL and
+MariaDB, and <code>SET NOEXEC ON</code> in SQL Server. It does not touch
+a transaction you have open.</p>
+<p>Compiling does not guarantee that the query runs: an error that
+depends on the data, such as a <code>CAST</code> of a text that is not a
+number, compiles and fails on execution, and some engines do not check
+permissions when compiling. Nor does it guarantee that nothing is
+executed: the preparation queries of the plan run as they do without
+compiling, without reading rows of the table.
+<code><a href="../reference/plan_perfilado_dbi.html">?plan_perfilado_dbi</a></code> has the full “Compilación” section.
+<code><a href="../reference/plan_medicion_dbi.html">plan_medicion_dbi()</a></code> accepts the same argument. By default,
+<code>compilar = FALSE</code>, and nothing changes.</p>
 </div>
 <div class="section level2">
 <h2 id="for-a-large-table">⏱ For a large table<a class="anchor" aria-label="anchor" href="#for-a-large-table"></a>
@@ -512,7 +715,7 @@ needed to decide:</p>
 <li>the guarantee of the primary key depending on the engine;</li>
 <li>the matrix of tested engines.</li>
 </ul>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -536,8 +739,19 @@ caps.</li>
 engine, in <code>resumen_tabla$meta$muestreo</code>, only with
 <code>muestra_motor</code>.</li>
 <li>
+<code>centinelas_fecha</code>, <code>periodos</code> and
+<code>resumen_fechas = TRUE</code> count sentinel and future dates,
+periods and recency. <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> counts them in the
+engine with the same rule as memory; what SQL cannot count the same way
+is declared, or counted in R with
+<code>estrategia_no_sql = "bloques"</code>.</li>
+<li>
 <code>meta$snapshot = FALSE</code>: the aggregates are not an
 instantaneous reading.</li>
+<li>
+<code>plan_perfilado_dbi(compilar = TRUE)</code> asks the engine to
+compile each query of the plan without executing it: a syntax, name or
+permission error shows up beforehand.</li>
 </ul>
 </div>
 <div class="section level2">

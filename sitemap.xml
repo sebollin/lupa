@@ -36,6 +36,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/aplicar_decisiones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/as.data.frame.perfil_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/as_tibble.perfil.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/catalogo_agesic.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/clasificar_variables.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/cobertura_analisis.html</loc></url>
@@ -43,6 +44,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/comparar_equivalencia.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/comparar_evaluaciones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/comparar_perfiles.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/conformidad_dbi.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/contratos_medicion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/datos_administrativos.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/datos_operativos.html</loc></url>
@@ -56,6 +58,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_relaciones.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/distribucion_valores.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/elegir_clave.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/estadisticos_estimacion.html</loc></url>
@@ -97,6 +100,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/relaciones_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/reportar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/requisitos_motor.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/semaforo_calidad.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/senal_redundante.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/sentinelas_naniar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/sugerir_clave.html</loc></url>

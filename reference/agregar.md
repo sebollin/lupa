@@ -131,9 +131,11 @@ una métrica de defecto sigue siendo la proporción de defectos.
 
 Una agregación hereda lo que sus partes declararon:
 `configuracion_modelo`, `configuracion_aplicabilidad`,
-`cobertura_metricas`, `marco_calidad` y `fecha_declarada` viajan en el
-objeto. Lo último no es decorativo: sin `fecha_declarada`, la guarda que
-impide comparar dos entregas en orden invertido queda desactivada y
+`cobertura_metricas`, `marco_calidad`, `sello_metricas` (ver
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)) y
+`fecha_declarada` viajan en el objeto. Lo último no es decorativo: sin
+`fecha_declarada`, la guarda que impide comparar dos entregas en orden
+invertido queda desactivada y
 [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
 publicaría el delta con el signo al revés.
 
@@ -219,9 +221,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                                                                     id_medida
-#> 1 medicion-20261122T143213.327851-8375-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad
+#> 1 medicion-20261122T181844.548370-8351-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261122T143213.327851-8375 2026-11-22 14:32:13  NoNulo
+#> 1 medicion-20261122T181844.548370-8351 2026-11-22 18:18:44  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

@@ -134,7 +134,26 @@ columnas <code>identidad_tabla</code>, <code>configuracion_modelo</code>, <code>
 <code>configuracion_perfil</code> —en <code>NA</code> en los demás niveles—, porque el atributo no
 sobrevive a <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code>: un histórico releído de un CSV la recupera de
 ahí. Son columnas agregadas al esquema 1: un histórico anterior que no las
-trae se lee igual, con ellas en <code>NA</code>.</p>
+trae se lee igual, con ellas en <code>NA</code>. La columna <code>sello_metricas</code> lleva,
+como texto, el sello de las métricas que la corrida evaluó —versión de
+lupa, huella de su definición y su nivel de certificación, y el entorno de
+la sesión que midió, ver <code><a href="medir.html">medir()</a></code>—. <code>historico_calidad()</code>,
+<code>acumular_historico()</code> y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> avisan cuando una métrica cambió de
+definición de una corrida a la siguiente, cuando la misma definición se
+midió en otro entorno de sesión («misma definición, otro entorno»), o
+cuando una corrida sin sello —medida con una versión anterior— queda al
+lado de una sellada; cada par de corridas se avisa una vez, cuando se
+juntan.
+Cuando la huella no cambió pero no alcanza para decir que la definición
+siga igual —es parcial, o no se pudo certificar—, el atributo
+<code>cobertura_sello</code> lo declara, sin aviso: una fila por par de corridas
+consecutivas de esa métrica, con <code>id_medicion</code>, <code>id_medicion_anterior</code>,
+<code>metrica_instanciada</code>, <code>aspecto</code>, <code>certificacion</code> y <code>descripcion</code>
+(«huella parcial: una función del usuario puede haber cambiado lo que lee
+sin que la huella lo vea»). Declara también los pares medidos en otro
+entorno (<code>aspecto = "entorno"</code>, con lo que cambió) y los que no registran
+su entorno (<code>"entorno_desconocido"</code>). Sin nada que declarar, el atributo no
+está.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -229,6 +248,11 @@ evaluación.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                                                                                                                                                                                         &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                                                                                                                                                                                                                         &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4 list{version=integer[1];nombre=character[Basico];reglas=character[list{nombre=character[Presente];metricas=NULL;nivel=character[medida];proporcion_minima=NULL;desenlace=NULL;umbrales=NULL;condicion=function (x)  x &gt; 0}]}</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                                                                           sello_metricas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                                                                                                                                                                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                                                                                                                                                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                                                                                                                                                                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 sello-2;entorno=R%3D4.6.2%3Bscipen%3D0%3BOutDec%3D.%3BLC_COLLATE%3DC%3BLC_CTYPE%3DC.UTF-8%3BLC_TIME%3DC.UTF-8%3BTZ%3DUTC;=NoNulo%40personas.edad|=0.1.2.9000|c424dcec110d05356150a3633fb2e69f|completa</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

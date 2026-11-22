@@ -19,7 +19,10 @@ otra?
 >   [`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
 >   cuánto cuesta buscar relaciones;
 > - buscar claves foráneas candidatas con
->   [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+>   [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md);
+> - seguir una corrida cortada con `reanudar = TRUE`;
+> - encontrar las tablas de códigos y declarar, columna por columna, qué
+>   códigos quieren decir «sin dato».
 
 ## Una base pequeña
 
@@ -405,6 +408,273 @@ lectura quedó truncada (`muestreado_1`, `muestreado_2`). Con la tabla de
 referencia truncada, la cobertura sólo puede subir al leer más: es una
 cota inferior.
 
+## ⏯️ Reanudar una corrida cortada
+
+Una base de cientos de tablas puede tardar una noche. Si el proceso
+muere en la tabla doscientos, o se cae la conexión y las que siguen
+fallan, no hace falta empezar de nuevo. Con `directorio_reanudacion`,
+cada tabla que se perfila sin consultas fallidas se guarda en ese
+directorio en cuanto termina.
+
+La base del ejemplo está en memoria, y una base en memoria no sobrevive
+al proceso: no tiene nada que reanudar. Se copia a un archivo y se
+declara la misma colección, con `pagos` incluida:
+
+``` r
+
+archivo <- tempfile(fileext = ".sqlite")
+en_archivo <- DBI::dbConnect(RSQLite::SQLite(), archivo)
+RSQLite::sqliteCopyDatabase(conexion, en_archivo)
+base_archivo <- coleccion(
+  en_archivo,
+  c("sucursales", "productos", "ventas", "devoluciones", "pagos"),
+  nombre = "comercial"
+)
+directorio <- tempfile("corridas-")
+corrida <- perfilar_coleccion(base_archivo, directorio_reanudacion = directorio)
+corrida$meta$reanudacion$tablas
+#>   identificador    origen        motivo  estado
+#> 1    sucursales perfilada corrida_nueva  limpia
+#> 2     productos perfilada corrida_nueva  limpia
+#> 3        ventas perfilada corrida_nueva  limpia
+#> 4  devoluciones perfilada corrida_nueva  limpia
+#> 5         pagos perfilada corrida_nueva fallida
+```
+
+`pagos` quedó `fallida`, como quedaría una tabla a la que la corrida
+llegó con la conexión caída. La misma llamada con `reanudar = TRUE`
+sigue esa corrida: las tablas guardadas no vuelven a consultar la base,
+y se perfilan de nuevo las que faltan, las que tuvieron alguna consulta
+fallida y las que no se pudieron perfilar.
+
+``` r
+
+seguida <- perfilar_coleccion(
+  base_archivo, directorio_reanudacion = directorio, reanudar = TRUE
+)
+#> ℹ Se reanuda la corrida corrida-20261122-181923-2d2c6712f633, empezada el 2026-11-22 18:19:23 UTC: se reusan 4 tablas y se vuelven a perfilar 1.
+seguida$meta$reanudacion[c("intento", "reanudada")]
+#> $intento
+#> [1] 2
+#> 
+#> $reanudada
+#> [1] TRUE
+seguida$meta$reanudacion$tablas
+#>   identificador    origen  motivo  estado
+#> 1    sucursales   reusada    <NA>  limpia
+#> 2     productos   reusada    <NA>  limpia
+#> 3        ventas   reusada    <NA>  limpia
+#> 4  devoluciones   reusada    <NA>  limpia
+#> 5         pagos perfilada fallida fallida
+```
+
+`meta$reanudacion` dice qué corrida se siguió, en qué intento va y, por
+tabla, si se reusó o se perfiló y por qué. El objeto es el mismo que el
+de una corrida sin cortes, salvo los tiempos y el `momento` de cada
+tabla, que en una tabla reusada es el de su medición original. La
+corrida reanudada usa también la `fecha` de la original. Para seguir una
+corrida tienen que coincidir la base, las tablas declaradas y su orden,
+los argumentos, y las versiones de `lupa`, de R y del controlador; el
+error nombra lo que difiere. Si la corrida compatible más reciente ya
+terminó con todas sus tablas, o no hay ninguna, `reanudar = TRUE` se
+niega y no empieza otra por su cuenta.
+
+Reanudar también se niega si la base cambió desde el corte. Las tablas
+guardadas la describen como era y las que faltan la describirían como
+es: el resultado no sería el de ninguna corrida. Si alguien crea `pagos`
+antes de reanudar:
+
+``` r
+
+DBI::dbWriteTable(en_archivo, "pagos", data.frame(id_pago = 1:3, id_venta = 1:3))
+rechazo <- tryCatch(
+  perfilar_coleccion(
+    base_archivo, directorio_reanudacion = directorio, reanudar = TRUE
+  ),
+  lupa_error_reanudacion = function(e) e
+)
+rechazo$motivo
+#> [1] "base_cambiada"
+# La carpeta temporal se abrevia para que el mensaje se lea.
+mensaje <- gsub(dirname(archivo), "...", conditionMessage(rechazo), fixed = TRUE)
+writeLines(strwrap(mensaje, 88))
+#> No se reanuda la corrida corrida-20261122-181923-2d2c6712f633: desde su intento
+#> anterior (2026-11-22T18:19:24+0000) cambió la base: en `.../file2d2c7f9cf8ae.sqlite`,
+#> el tamaño, de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-22
+#> 18:19:23.466 UTC a 2026-11-22 18:19:24.491 UTC. Las tablas guardadas la describen como
+#> era y las que faltan la describirían como es ahora: el resultado no sería el de ninguna
+#> corrida. Una corrida nueva, con `reanudar = FALSE`, la mide entera como está.
+```
+
+La base se reconoce por su archivo, con su tamaño y su fecha de
+modificación. Abrir, leer y perfilar la base no cuentan como cambio.
+`reanudar = FALSE`, el valor por omisión, empieza siempre una corrida
+nueva y mide la base entera como está.
+
+Por ahora se reanuda con SQLite y DuckDB en archivo. Una base en
+memoria, un motor de servidor, `proteger_datos_personales = TRUE` o
+`incluir_valores = FALSE` se rechazan con un error de clase
+`lupa_error_reanudacion` que dice por qué. Un bloqueo impide que dos
+procesos sigan la misma corrida. El directorio guarda el perfil completo
+de cada tabla, con lo que el perfil publica de los datos: hay que
+tratarlo como a los datos, y las corridas no se borran solas. La sección
+«Reanudar una corrida cortada» de
+[`?perfilar_coleccion`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+explica qué se compara y qué hacer si el proceso murió con la corrida
+tomada.
+
+## 🏷️ Tablas de códigos
+
+Muchas columnas guardan un código cuyo significado está en otra tabla.
+Que `medio = 9` quiera decir «sin dato» sólo se sabe leyendo
+`medios_pago`. El perfil de la columna sola ve un 9 que se aparta del
+resto, no un faltante.
+
+El ejemplo suma a la base 2 tablas de códigos y una de cobros que las
+usa. Las claves foráneas quedan declaradas en el catálogo:
+
+``` r
+
+ejecutar <- function(sql) invisible(DBI::dbExecute(conexion, sql))
+ejecutar("CREATE TABLE medios_pago (codigo INTEGER PRIMARY KEY, etiqueta TEXT)")
+ejecutar("INSERT INTO medios_pago VALUES
+  (1, 'Efectivo'), (2, 'Tarjeta'), (3, 'Transferencia'), (9, 'Sin dato')")
+ejecutar("CREATE TABLE canales (codigo TEXT PRIMARY KEY, descripcion TEXT)")
+ejecutar("INSERT INTO canales VALUES
+  ('MOS', 'Mostrador'), ('WEB', 'Web'), ('NS', 'No sabe')")
+ejecutar("CREATE TABLE cobros (id_cobro INTEGER, id_venta INTEGER,
+  medio INTEGER REFERENCES medios_pago(codigo),
+  canal TEXT REFERENCES canales(codigo))")
+cobros <- data.frame(
+  id_cobro = 1:30,
+  id_venta = 1:30,
+  medio = c(rep(1:3, 8), 9, 9, 9, 9, 1, 2),
+  canal = c(rep(c("MOS", "WEB"), 13), "NS", "NS", "MOS", "WEB")
+)
+invisible(DBI::dbAppendTable(conexion, "cobros", cobros))
+```
+
+[`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md)
+recibe la colección y su perfil:
+
+``` r
+
+base_cobros <- coleccion(conexion, c("medios_pago", "canales", "cobros"))
+perfil_cobros <- perfilar_coleccion(base_cobros, conservar_perfiles = TRUE)
+codigos <- detectar_tablas_codigos(base_cobros, perfil_cobros, max_filas = 10)
+codigos
+#> Tablas de códigos
+#>   Tablas: 3 (2 con a lo sumo 10 filas)
+#>   Candidatas: 2; posibles: 0; sin clave: 0
+#>   Usos: 2
+#>   Propuestas de ausencia: 2 (ninguna se aplica sola: marcar `incluir` y usar ausencias_desde_propuesta())
+codigos$tablas[, c("tabla", "columna_codigo", "n_usos", "cobertura_maxima", "estado")]
+#>         tabla columna_codigo n_usos cobertura_maxima    estado
+#> 1 medios_pago         codigo      1                1 candidata
+#> 2     canales         codigo      1                1 candidata
+```
+
+Una tabla de códigos es chica —hasta `max_filas` filas, 1.000 por
+omisión; acá 10, porque en esta base de juguete todas las tablas son
+chicas—, tiene una columna completa y única, el código, y otra tabla la
+usa. El uso sale de las claves foráneas que declara el catálogo, como
+acá, o de las relaciones que midió
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md),
+que se pasan en `relaciones`. Si alguna columna la usa con una cobertura
+de al menos `umbral_cobertura` (0,9 por omisión), la tabla es
+`candidata`; por la forma sola queda `posible`.
+
+Después lee las etiquetas. Cuando una dice que el código significa «sin
+dato», «no sabe» o «no corresponde», propone declararlo como ausencia en
+cada columna que lo usa:
+
+``` r
+
+propuesta <- codigos$propuesta
+propuesta[, c(
+  "codigo", "etiqueta", "semantica", "tabla", "columna", "argumento", "n_filas",
+  "incluir"
+)]
+#>   codigo etiqueta   semantica  tabla columna            argumento n_filas incluir
+#> 1      9 Sin dato    sin_dato cobros   medio sentinelas_numericos       4   FALSE
+#> 2     NS  No sabe no_responde cobros   canal     cadenas_ausencia       2   FALSE
+```
+
+Cada propuesta trae su evidencia: la etiqueta y cuántas filas de la
+columna usan ese código (`n_filas`), contadas en el motor. `argumento`
+dice adónde va: un número, a `sentinelas_numericos` si R lee la columna
+como número; un texto, a `cadenas_ausencia` si la lee como texto. La
+función no aplica nada ni calcula un puntaje: cada propuesta nace con
+`incluir = FALSE`, y quien conoce la base marca las que confirma. El
+léxico reconoce esas expresiones en castellano, inglés y portugués;
+`Ninguno` u `Otro` son categorías válidas y no se proponen, y
+`etiquetas_ausencia` agrega las propias.
+
+[`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
+convierte las filas marcadas en la declaración. Sin `tabla`, es una
+lista por tabla y, dentro de cada una, por columna, que es lo que
+reciben `sentinelas_numericos` y `cadenas_ausencia` en
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md):
+
+``` r
+
+propuesta$incluir <- TRUE
+declaracion <- ausencias_desde_propuesta(propuesta)
+str(declaracion)
+#> List of 2
+#>  $ sentinelas_numericos:List of 1
+#>   ..$ cobros:List of 1
+#>   .. ..$ medio: num 9
+#>  $ cadenas_ausencia    :List of 1
+#>   ..$ cobros:List of 1
+#>   .. ..$ canal: chr "NS"
+declarado <- do.call(
+  perfilar_coleccion,
+  c(list(base_cobros, conservar_perfiles = TRUE), declaracion)
+)
+mirar <- function(perfil) {
+  h <- hallazgos(perfil$perfiles$cobros)
+  h[h$columna %in% c("medio", "canal"), c("columna", "tipo_hallazgo", "n_afectados")]
+}
+mirar(perfil_cobros)
+#>   columna tipo_hallazgo n_afectados
+#> 3   medio      outliers           4
+mirar(declarado)
+#>   columna         tipo_hallazgo n_afectados
+#> 3   medio             faltantes           4
+#> 4   medio faltantes_disfrazados           4
+#> 5   canal faltantes_disfrazados           2
+```
+
+Sin la declaración, los 4 nueves de `medio` eran valores atípicos y los
+2 `NS` de `canal` no se veían. Declarados, los dos son faltantes
+disfrazados.
+
+Con `tabla`, la salida son las listas por columna de esa tabla, para
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+
+``` r
+
+ausencias_desde_propuesta(propuesta, tabla = "cobros")
+#> $sentinelas_numericos
+#> $sentinelas_numericos$medio
+#> [1] 9
+#> 
+#> 
+#> $cadenas_ausencia
+#> $cadenas_ausencia$canal
+#> [1] "NS"
+```
+
+Cada entrada vale para su columna lo que el vector valdría para ella, y
+las columnas que la lista no nombra reciben el valor por omisión. Por
+eso la lista es más precisa que el vector: `sentinelas_numericos = 9`
+contaría también como faltante el 9 de `id_cobro` y el de `id_venta`;
+`list(medio = 9)`, sólo el de `medio`. Qué cambia en el perfil cada una
+de estas declaraciones está en [El vacío por
+diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html#todo-lo-que-se-le-declara-al-paquete).
+
 ``` r
 
 DBI::dbDisconnect(conexion)
@@ -425,6 +695,14 @@ DBI::dbDisconnect(conexion)
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
   propone claves foráneas candidatas con su cobertura en las 2
   direcciones: un indicio, no una prueba.
+- Con `directorio_reanudacion`, una corrida cortada se sigue con
+  `reanudar = TRUE` y da lo mismo que una sin cortes. Si la base cambió
+  desde el corte, no se reanuda.
+- [`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md)
+  propone qué códigos quieren decir «sin dato», sin aplicar nada;
+  [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
+  convierte lo confirmado en listas por columna para
+  `sentinelas_numericos` y `cadenas_ausencia`.
 
 ## 🧭 Paso siguiente
 

@@ -148,7 +148,28 @@ normalización funde —<code>A</code> y <code>a</code>— son una sola clave de
 claves, <code>RatioCobertura</code> no se mide: la cobertura de un universo vacío no es
 una proporción, y la métrica queda <code>sin_valores</code> con ese motivo, igual que
 cuando la entidad no tiene filas o ningún valor en los atributos ligados:
-lo que no se pudo medir no se publica como una cobertura cero.</p>
+lo que no se pudo medir no se publica como una cobertura cero. El resumen
+de <code>RatioCobertura</code> (<code>medir(detalle = "resumen")</code> y <code><a href="medir_dbi.html">medir_dbi()</a></code>) publica
+las claves cubiertas en <code>numerador</code> y las del universo en <code>denominador</code>.</p>
+<p><strong>En el motor.</strong> Con un referencial del motor (ver <code><a href="referencial.html">referencial()</a></code>),
+<code><a href="medir_dbi.html">medir_dbi()</a></code> mide las tres métricas en SQL —SQLite y DuckDB— y cuenta lo
+que <code><a href="medir.html">medir()</a></code> contaría con las dos tablas leídas: cada par de columnas se
+compara por el texto canónico de su valor, con la intercalación binaria
+explícita para el texto y el entero escrito como texto contra una clave de
+texto (<code>"01"</code> no es <code>1</code>; <code>"1"</code> sí); un <code>NaN</code> es ausente; una clave
+compuesta y un <code>valor</code> de varias columnas comparan todos sus pares. La
+normalización se escribe en el motor sólo donde es exacta: sobre texto
+ASCII, el pliegue de mayúsculas es <code>LOWER()</code>, y una guarda cuenta las filas
+cuyo texto el perfil podría cambiar y el SQL no escribe igual —lo que no es
+ASCII, que se descompone aun sin pasos; los blancos de los bordes, los
+dobles y los controles; las comillas; la puntuación con <code>"amplio"</code>—. Con
+alguna, la métrica queda <code>no_medible</code> con ese motivo, salvo que se pida
+<code>estrategia_no_sql = "bloques"</code>: entonces se cuentan en el motor los
+valores distintos de la entidad y se comparan en R con el método de la
+métrica, cada uno con el peso de su grupo (vía <code>distintos_r</code>), que es
+también la vía de un referencial que está en R. Una columna cuyo
+cotejamiento declarado no es binario no se compara en el motor.
+<code><a href="conformidad_dbi.html">conformidad_dbi()</a></code> comprueba el pliegue en el servidor del usuario.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -166,11 +187,11 @@ lo que no se pudo medir no se publica como una cobertura cero.</p>
 <span class="r-in"><span>  <span class="st">"personas"</span>, <span class="st">"id"</span>, referencial <span class="op">=</span> <span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">fuerte</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                                      id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T143229.533969-8375-CorrectitudSemFuerte@personas.id-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261122T143229.533969-8375-CorrectitudSemFuerte@personas.id-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T181858.299047-8351-CorrectitudSemFuerte@personas.id-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261122T181858.299047-8351-CorrectitudSemFuerte@personas.id-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T143229.533969-8375 2026-11-22 14:32:29 CorrectitudSemFuerte</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261122T143229.533969-8375 2026-11-22 14:32:29 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T181858.299047-8351 2026-11-22 18:18:58 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261122T181858.299047-8351 2026-11-22 18:18:58 CorrectitudSemFuerte</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica              metrica_instanciada dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>

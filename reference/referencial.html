@@ -98,7 +98,10 @@ puede usarse para correctitud.</p>
 
 
 <dl><dt id="arg-datos">datos<a class="anchor" aria-label="anchor" href="#arg-datos"></a></dt>
-<dd><p>Tabla de referencia. Se conserva una copia ordinaria de R.</p></dd>
+<dd><p>Tabla de referencia. Se conserva una copia ordinaria de R. O
+una tabla del motor, nombrada con un <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id()</a></code> o con su nombre: el
+referencial no copia nada y <code><a href="medir_dbi.html">medir_dbi()</a></code> la resuelve en su conexión o
+su colección como resuelve las entidades.</p></dd>
 
 
 <dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
@@ -145,6 +148,22 @@ declarado o <code>NA</code>, el <code>nombre</code>, y el perfil de normalizaci�
 <code>valor</code> no puede repetir columnas de <code>clave</code> y representa atributos que se
 contrastan en correctitud semántica débil. El constructor copia la tabla y
 no consulta fuentes externas.</p>
+<p><strong>Un referencial que vive en el motor.</strong> Con <code>datos = DBI::Id(...)</code> o el
+nombre de una tabla, el referencial no copia la tabla a R: guarda la
+referencia (en <code>tabla_motor</code>, sin conexión: se serializa como cualquier
+lista) y <code>datos</code> queda <code>NULL</code>. Que las columnas existan y que la clave no
+tenga ausentes y sea única se verifica en cada <code><a href="medir_dbi.html">medir_dbi()</a></code>, con una
+consulta y con las mismas frases, porque la tabla puede cambiar entre la
+declaración y la medición. <code><a href="medir.html">medir()</a></code> no lo lee: las métricas se abstienen
+con estado <code>no_medible</code> y el motivo. <code>nombre</code>, si se omite, es el de la
+tabla. Como el nombre se resuelve en la conexión de cada medición, el mismo
+referencial medido en otra base es otra tabla: el sello de la medición
+(<code>attr(, "sello_metricas")</code>) firma también la ubicación de esa conexión
+—archivo, anfitrión, puerto y base, sin usuario ni credenciales—, y unir o
+comparar corridas de dos bases avisa que la métrica cambió de definición.
+Dos bases en memoria no se distinguen. En <code><a href="medir_dbi.html">medir_dbi()</a></code> las tres métricas de <code><a href="metricas_referencial.html">metricas_referencial()</a></code> cuentan
+lo que contaría <code><a href="medir.html">medir()</a></code> con las dos tablas leídas por <code>dbReadTable()</code>; ver
+allí qué se mide en el motor y qué se declara.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

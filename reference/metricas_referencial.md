@@ -62,7 +62,35 @@ referencial sin claves, `RatioCobertura` no se mide: la cobertura de un
 universo vacío no es una proporción, y la métrica queda `sin_valores`
 con ese motivo, igual que cuando la entidad no tiene filas o ningún
 valor en los atributos ligados: lo que no se pudo medir no se publica
-como una cobertura cero.
+como una cobertura cero. El resumen de `RatioCobertura`
+(`medir(detalle = "resumen")` y
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md))
+publica las claves cubiertas en `numerador` y las del universo en
+`denominador`.
+
+**En el motor.** Con un referencial del motor (ver
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)),
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+mide las tres métricas en SQL —SQLite y DuckDB— y cuenta lo que
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) contaría
+con las dos tablas leídas: cada par de columnas se compara por el texto
+canónico de su valor, con la intercalación binaria explícita para el
+texto y el entero escrito como texto contra una clave de texto (`"01"`
+no es `1`; `"1"` sí); un `NaN` es ausente; una clave compuesta y un
+`valor` de varias columnas comparan todos sus pares. La normalización se
+escribe en el motor sólo donde es exacta: sobre texto ASCII, el pliegue
+de mayúsculas es `LOWER()`, y una guarda cuenta las filas cuyo texto el
+perfil podría cambiar y el SQL no escribe igual —lo que no es ASCII, que
+se descompone aun sin pasos; los blancos de los bordes, los dobles y los
+controles; las comillas; la puntuación con `"amplio"`—. Con alguna, la
+métrica queda `no_medible` con ese motivo, salvo que se pida
+`estrategia_no_sql = "bloques"`: entonces se cuentan en el motor los
+valores distintos de la entidad y se comparan en R con el método de la
+métrica, cada uno con el peso de su grupo (vía `distintos_r`), que es
+también la vía de un referencial que está en R. Una columna cuyo
+cotejamiento declarado no es binario no se compara en el motor.
+[`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+comprueba el pliegue en el servidor del usuario.
 
 ## See also
 
@@ -82,11 +110,11 @@ fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                                                      id_medida
-#> 1 medicion-20261122T143229.533969-8375-CorrectitudSemFuerte@personas.id-000001
-#> 2 medicion-20261122T143229.533969-8375-CorrectitudSemFuerte@personas.id-000002
+#> 1 medicion-20261122T181858.299047-8351-CorrectitudSemFuerte@personas.id-000001
+#> 2 medicion-20261122T181858.299047-8351-CorrectitudSemFuerte@personas.id-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20261122T143229.533969-8375 2026-11-22 14:32:29 CorrectitudSemFuerte
-#> 2 medicion-20261122T143229.533969-8375 2026-11-22 14:32:29 CorrectitudSemFuerte
+#> 1 medicion-20261122T181858.299047-8351 2026-11-22 18:18:58 CorrectitudSemFuerte
+#> 2 medicion-20261122T181858.299047-8351 2026-11-22 18:18:58 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud

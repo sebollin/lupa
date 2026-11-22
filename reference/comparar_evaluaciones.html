@@ -90,8 +90,10 @@ de N corridas use <code><a href="historico_calidad.html">historico_calidad()</a>
 <code>comparacion</code>. El delta es el que publica <code><a href="detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code> sobre
 el histórico de las dos evaluaciones, con la misma regla: queda en <code>NA</code>
 cuando las corridas miden tablas distintas, cambia el marco o los tipos de
-resultado, cambia la parte medida de la frontera o un resultado no se
-evaluó, y <code>comparacion</code> dice por qué con la palabra de la deriva. El orden
+resultado, cambia la parte medida de la frontera, una métrica cambió de
+definición sin que la configuración de la corrida lo declare (ver
+<code><a href="detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>) o un resultado no se evaluó, y <code>comparacion</code>
+dice por qué con la palabra de la deriva. El orden
 lo dan los argumentos, no la fecha: <code>anterior</code> es siempre el primero.</p>
     </div>
 

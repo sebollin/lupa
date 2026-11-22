@@ -69,7 +69,13 @@ tablero_calidad(
 
 Data frame S3 `tablero_calidad`. Los atributos `alcance` y `cobertura`
 conservan los conteos y el detalle del marco, y `pares_fuera_del_marco`
-nombra los pares medidos que ese marco no declara.
+nombra los pares medidos que ese marco no declara. Sobre un resumen
+cuyas cuentas no cierran en alguna celda (ver `estado_cuentas` en
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)), el
+atributo `cuentas` nombra esas celdas, su motivo y su diferencia, y la
+impresión lo muestra; sobre una consolidación
+(`rbind(..., prioridad = )`), cada celda lleva su `fuente` y los
+atributos `descartadas` y `consolidacion` viajan.
 
 ## Details
 

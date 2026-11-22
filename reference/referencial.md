@@ -25,7 +25,12 @@ referencial(
 
 - datos:
 
-  Tabla de referencia. Se conserva una copia ordinaria de R.
+  Tabla de referencia. Se conserva una copia ordinaria de R. O una tabla
+  del motor, nombrada con un
+  [`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html) o con su
+  nombre: el referencial no copia nada y
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  la resuelve en su conexión o su colección como resuelve las entidades.
 
 - clave:
 
@@ -70,6 +75,31 @@ La clave no admite ausentes y debe identificar cada fila de forma única.
 `valor` no puede repetir columnas de `clave` y representa atributos que
 se contrastan en correctitud semántica débil. El constructor copia la
 tabla y no consulta fuentes externas.
+
+**Un referencial que vive en el motor.** Con `datos = DBI::Id(...)` o el
+nombre de una tabla, el referencial no copia la tabla a R: guarda la
+referencia (en `tabla_motor`, sin conexión: se serializa como cualquier
+lista) y `datos` queda `NULL`. Que las columnas existan y que la clave
+no tenga ausentes y sea única se verifica en cada
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md),
+con una consulta y con las mismas frases, porque la tabla puede cambiar
+entre la declaración y la medición.
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no lo
+lee: las métricas se abstienen con estado `no_medible` y el motivo.
+`nombre`, si se omite, es el de la tabla. Como el nombre se resuelve en
+la conexión de cada medición, el mismo referencial medido en otra base
+es otra tabla: el sello de la medición (`attr(, "sello_metricas")`)
+firma también la ubicación de esa conexión —archivo, anfitrión, puerto y
+base, sin usuario ni credenciales—, y unir o comparar corridas de dos
+bases avisa que la métrica cambió de definición. Dos bases en memoria no
+se distinguen. En
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+las tres métricas de
+[`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
+cuentan lo que contaría
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) con las
+dos tablas leídas por `dbReadTable()`; ver allí qué se mide en el motor
+y qué se declara.
 
 ## See also
 

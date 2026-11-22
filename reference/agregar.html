@@ -184,8 +184,8 @@ de defecto sigue siendo la proporción de defectos.</p>
 
 
 <p>Una agregación hereda lo que sus partes declararon: <code>configuracion_modelo</code>,
-<code>configuracion_aplicabilidad</code>, <code>cobertura_metricas</code>, <code>marco_calidad</code> y
-<code>fecha_declarada</code> viajan en el objeto. Lo último no es decorativo: sin
+<code>configuracion_aplicabilidad</code>, <code>cobertura_metricas</code>, <code>marco_calidad</code>,
+<code>sello_metricas</code> (ver <code><a href="medir.html">medir()</a></code>) y <code>fecha_declarada</code> viajan en el objeto. Lo último no es decorativo: sin
 <code>fecha_declarada</code>, la guarda que impide comparar dos entregas en orden
 invertido queda desactivada y <code><a href="comparar_evaluaciones.html">comparar_evaluaciones()</a></code> publicaría el delta
 con el signo al revés.</p>
@@ -261,9 +261,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T143213.327851-8375-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T181844.548370-8351-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T143213.327851-8375 2026-11-22 14:32:13  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T181844.548370-8351 2026-11-22 18:18:44  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

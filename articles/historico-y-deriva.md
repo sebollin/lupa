@@ -320,6 +320,103 @@ tryCatch(guardar_historico(historico, archivo), error = conditionMessage)
 unlink(archivo)
 ```
 
+## Qué se midió, con qué definición
+
+Una cifra de febrero sólo se compara con la de enero si las dos miden lo
+mismo. Cada
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) deja en
+`attr(, "sello_metricas")` una fila por métrica con la versión de
+`lupa`, una huella de su definición (la especificación, los parámetros,
+la regla, el referencial, la aplicabilidad) y cuánto certifica esa
+huella. Guarda también el entorno de la sesión que puede cambiar lo
+medido: `scipen`, `OutDec`, el locale, el huso y la versión de R.
+
+``` r
+
+dominio <- data.frame(estado = c("A", "B", "C", "A", "Z", "B"))
+modelo_dominio <- function(permitidos) {
+  modelo(instanciar(
+    especializar(metricas_nucleo()$ValoresPosiblesPorExtension, "Dominio",
+                 valores = permitidos),
+    "dominio", "estado"
+  ))
+}
+sellado <- medir(
+  modelo_dominio(c("A", "B", "C")), dominio,
+  id_medicion = "enero", fecha = "2026-01-31"
+)
+sello <- attr(sellado, "sello_metricas")
+sello[, c("metrica_instanciada", "version_lupa", "certificacion")]
+#>      metrica_instanciada version_lupa certificacion
+#> 1 Dominio@dominio.estado   0.1.2.9000      completa
+```
+
+`certificacion` es `completa` cuando todo lo que entra en la definición
+es dato, como acá; `parcial` en cuanto entra una función tuya o de otro
+paquete, porque la huella ve su texto pero no todo lo que esa función
+puede leer; y `no_certificable` cuando la definición se lee de forma
+dinámica. Una huella igual con certificación completa quiere decir que
+la definición no cambió; con una parcial, que no se sabe. Sellar no
+ejecuta tu código ni hace fallar una medición.
+
+Ahora febrero, con un valor más en el dominio permitido: la columna y
+los datos son los mismos, pero la regla no. Al juntar las corridas, el
+histórico avisa:
+
+``` r
+
+medir_dominio <- function(permitidos, id, fecha) {
+  medicion <- medir(
+    modelo_dominio(permitidos), dominio, id_medicion = id, fecha = fecha
+  )
+  evaluar(agregar(medicion, "atributo", "ratio"), publicable)
+}
+dominio_enero <- medir_dominio(c("A", "B", "C"), "enero", "2026-01-31")
+dominio_febrero <- medir_dominio(c("A", "B", "C", "Z"), "febrero", "2026-02-28")
+
+aviso <- NULL
+dominio_historico <- withCallingHandlers(
+  historico_calidad(dominio_enero, dominio_febrero),
+  warning = function(w) {
+    aviso <<- conditionMessage(w)
+    invokeRestart("muffleWarning")
+  }
+)
+writeLines(strwrap(aviso, 88))
+#> historico_calidad(): una métrica cambió de definición de una corrida a la siguiente, y
+#> sus resultados no miden lo mismo: `Dominio@dominio.estado` entre `enero` y `febrero`
+#> (huella ea0d845ae578, lupa 0.1.2.9000 -> huella db2707301428, lupa 0.1.2.9000). El
+#> sello de cada corrida está en `attr(historico,
+#> "configuracion_evaluacion")$sello_metricas`.
+```
+
+El aviso nombra la métrica y las dos huellas.
+[`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)
+tampoco lo deja pasar como un delta más: publica una fila
+`definicion_metrica` con severidad `error`. Y si el cambio sólo lo ve el
+sello y la configuración del modelo no lo declara, el cambio es
+`no_comparable` y la fila del resultado no se publica. Acá el modelo
+también cambió, y la configuración lo declara: por eso la fila del
+resultado se conserva y aparece además `configuracion_modelo`.
+
+``` r
+
+detectar_deriva_calidad(dominio_historico, umbral = 0.05)[
+  , c("aspecto", "severidad")
+]
+#>                aspecto severidad
+#> 1            resultado        ok
+#> 2   definicion_metrica     error
+#> 3 configuracion_modelo     error
+```
+
+Con la misma definición y otro entorno (otro locale, otro `OutDec`, otra
+versión de R) el aviso dice «misma definición, otro entorno»: la cifra
+se compara como siempre, pero con la salvedad. Una corrida guardada con
+una versión anterior, sin sello, también se compara como antes y se
+dice. El sello no certifica que la cifra sea correcta: certifica que dos
+corridas pueden leerse como medidas de lo mismo.
+
 ## Resumen
 
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
@@ -338,6 +435,10 @@ unlink(archivo)
   y
   [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
   mantienen la serie entre sesiones.
+- Cada medición lleva un sello de definición
+  (`attr(, "sello_metricas")`): al comparar corridas, un cambio de
+  definición o de entorno se avisa y no se confunde con un cambio de los
+  datos.
 
 ## 🧭 Paso siguiente
 

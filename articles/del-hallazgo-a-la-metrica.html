@@ -107,6 +107,8 @@ un requisito?</p>
 <code><a href="../reference/agregar.html">agregar()</a></code>;</li>
 <li>evaluar la medida agregada contra un umbral con
 <code><a href="../reference/evaluar.html">evaluar()</a></code>;</li>
+<li>mirar si las cuentas de cada cifra cierran y clasificarlas con
+<code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code>;</li>
 <li>ver qué parte de un marco de calidad quedó cubierta con
 <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code>.</li>
 </ul>
@@ -371,6 +373,161 @@ vuelve a leer <code>datos_operativos</code> ni reemplaza la
 medición.</p>
 </div>
 <div class="section level2">
+<h2 id="las-cuentas-y-el-semaforo">🚦 Las cuentas y el semáforo<a class="anchor" aria-label="anchor" href="#las-cuentas-y-el-semaforo"></a>
+</h2>
+<p>Una proporción dice poco si no se sabe sobre qué se calculó.
+<code>medir(..., detalle = "resumen")</code> devuelve una fila por
+métrica y columna, con sus cuentas: el numerador, el denominador, el
+universo y lo que no se evaluó. La columna <code>estado_cuentas</code>
+dice si esas cuentas cierran:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">resumen</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="va">modelo_completitud</span>, <span class="va">datos_operativos</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"entrega-enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-15"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">resumen</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"atributo"</span>, <span class="st">"resultado"</span>, <span class="st">"numerador"</span>, <span class="st">"denominador"</span>, <span class="st">"n_no_evaluados"</span>,</span>
+<span>  <span class="st">"estado_cuentas"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Resumen de medición</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> 4 métricas resumidas</span></span>
+<span><span class="co">#&gt;        atributo resultado numerador denominador n_no_evaluados estado_cuentas</span></span>
+<span><span class="co">#&gt;           canal 0.8461538        11          13              0        cierran</span></span>
+<span><span class="co">#&gt;  codigo_usuario 0.9230769        12          13              0        cierran</span></span>
+<span><span class="co">#&gt;    fecha_evento 0.9230769        12          13              0        cierran</span></span>
+<span><span class="co">#&gt;           monto 0.9230769        12          13              0        cierran</span></span></code></pre></div>
+<p>Las 4 cierran. Una cifra queda <code>parcial</code> cuando se calculó
+sobre una parte declarada, como un vocabulario truncado por
+<code>max_valores</code>, y <code>sin_cuentas</code> cuando no hay
+cuentas de su universo. Queda <code>no_cierran</code> cuando la métrica
+dio más medidas que su universo, cuando lo que no evaluó no es lo que
+declara no evaluar (para una métrica de validez, los vacíos) o cuando 2
+lecturas de la misma tabla en una corrida vieron tablas distintas.</p>
+<p>El último caso aparece al unir partes de una misma corrida con
+<code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>. Acá la completitud de <code>canal</code> y
+<code>codigo_usuario</code> se mide sobre la tabla y la de las otras 2
+columnas sobre una versión en la que alguien corrigió el canal de la
+fila 5:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">modelo_de</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">columnas</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">elegidas</span> <span class="op">&lt;-</span> <span class="va">propuesta</span></span>
+<span>  <span class="va">elegidas</span><span class="op">$</span><span class="va">incluir</span> <span class="op">&lt;-</span> <span class="va">elegidas</span><span class="op">$</span><span class="va">metrica</span> <span class="op">==</span> <span class="st">"NoNulo"</span> <span class="op">&amp;</span></span>
+<span>    <span class="va">elegidas</span><span class="op">$</span><span class="va">atributos</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">columnas</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_desde_propuesta.html">modelo_desde_propuesta</a></span><span class="op">(</span><span class="va">elegidas</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">otra_version</span> <span class="op">&lt;-</span> <span class="va">datos_operativos</span></span>
+<span><span class="va">otra_version</span><span class="op">$</span><span class="va">canal</span><span class="op">[</span><span class="fl">5</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"web"</span></span>
+<span><span class="va">parte_1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu">modelo_de</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"canal"</span>, <span class="st">"codigo_usuario"</span><span class="op">)</span><span class="op">)</span>, <span class="va">datos_operativos</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"entrega-enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-15"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">parte_2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu">modelo_de</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fecha_evento"</span>, <span class="st">"monto"</span><span class="op">)</span><span class="op">)</span>, <span class="va">otra_version</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"entrega-enero"</span>, fecha <span class="op">=</span> <span class="st">"2026-01-15"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">aviso</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
+<span><span class="va">unidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">withCallingHandlers</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">parte_1</span>, <span class="va">parte_2</span><span class="op">)</span>,</span>
+<span>  warning <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">aviso</span> <span class="op">&lt;&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">invokeRestart</a></span><span class="op">(</span><span class="st">"muffleWarning"</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">aviso</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 4 cifras cuyas cuentas no cierran: la tabla cambió entre lecturas de la corrida (4). No</span></span>
+<span><span class="co">#&gt; se pintan ni entran al índice; el detalle está en `estado_cuentas` y `motivo_cuentas`.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">unidas</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"atributo"</span>, <span class="st">"resultado"</span>, <span class="st">"estado_cuentas"</span>, <span class="st">"motivo_cuentas"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;         atributo resultado estado_cuentas              motivo_cuentas</span></span>
+<span><span class="co">#&gt; 1          canal 0.8461538     no_cierran tabla_cambio_entre_lecturas</span></span>
+<span><span class="co">#&gt; 2 codigo_usuario 0.9230769     no_cierran tabla_cambio_entre_lecturas</span></span>
+<span><span class="co">#&gt; 3   fecha_evento 0.9230769     no_cierran tabla_cambio_entre_lecturas</span></span>
+<span><span class="co">#&gt; 4          monto 0.9230769     no_cierran tabla_cambio_entre_lecturas</span></span></code></pre></div>
+<p>Cada parte guardó la huella de los datos que leyó, y las huellas no
+coinciden. Las 4 cifras pueden ser correctas cada una por su lado, pero
+no describen una misma tabla, y lo dicen.</p>
+<p><code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code> clasifica cada cifra en niveles, con
+cortes que declara quien mide: por dimensión del marco o, si hace falta,
+por métrica. No hay cortes de fábrica, y sin <code>cortes</code> la
+función se detiene. Sólo pinta las cifras cuyas cuentas cierran:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Cortes de este ejemplo, no del paquete.</span></span>
+<span><span class="va">cortes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Completitud <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.85</span>, <span class="fl">0.92</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/semaforo_calidad.html">semaforo_calidad</a></span><span class="op">(</span><span class="va">resumen</span>, cortes <span class="op">=</span> <span class="va">cortes</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Semáforo de calidad</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt;    dimension   metrica_instanciada         objeto     valor escala_comparada</span></span>
+<span><span class="co">#&gt;  Completitud          NoNulo:canal          canal 0.8461538            valor</span></span>
+<span><span class="co">#&gt;  Completitud NoNulo:codigo_usuario codigo_usuario 0.9230769            valor</span></span>
+<span><span class="co">#&gt;  Completitud   NoNulo:fecha_evento   fecha_evento 0.9230769            valor</span></span>
+<span><span class="co">#&gt;  Completitud          NoNulo:monto          monto 0.9230769            valor</span></span>
+<span><span class="co">#&gt;                  regla nivel motivo_sin_color control_lecturas</span></span>
+<span><span class="co">#&gt;  dimension:Completitud  rojo             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt;  dimension:Completitud verde             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt;  dimension:Completitud verde             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt;  dimension:Completitud verde             &lt;NA&gt;      una_lectura</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Por dimensión</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo</span></span>
+<span><span class="co">#&gt;  Completitud    1        0     3         0         0                  0</span></span>
+<span><span class="va">sin_color</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/semaforo_calidad.html">semaforo_calidad</a></span><span class="op">(</span><span class="va">unidas</span>, cortes <span class="op">=</span> <span class="va">cortes</span><span class="op">)</span></span>
+<span><span class="va">sin_color</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"objeto"</span>, <span class="st">"valor"</span>, <span class="st">"nivel"</span>, <span class="st">"motivo_sin_color"</span>, <span class="st">"control_lecturas"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Semáforo de calidad</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt;          objeto     valor nivel motivo_sin_color control_lecturas</span></span>
+<span><span class="co">#&gt;           canal 0.8461538  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt;  codigo_usuario 0.9230769  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt;    fecha_evento 0.9230769  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt;           monto 0.9230769  &lt;NA&gt;       no_cierran         completo</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Por dimensión</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo</span></span>
+<span><span class="co">#&gt;  Completitud    0        0     0         4         0                  0</span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Sin color</span> ──</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> no_cierran: 4.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">Cuentas que no cierran</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> 4 cifras no representan la tabla: no se pintan ni entran al índice.</span></span>
+<span><span class="co">#&gt;       componente   metrica_instanciada          entidad       atributo estado_cuentas</span></span>
+<span><span class="co">#&gt;  componente-0001          NoNulo:canal datos_operativos          canal     no_cierran</span></span>
+<span><span class="co">#&gt;  componente-0002 NoNulo:codigo_usuario datos_operativos codigo_usuario     no_cierran</span></span>
+<span><span class="co">#&gt;  componente-0003   NoNulo:fecha_evento datos_operativos   fecha_evento     no_cierran</span></span>
+<span><span class="co">#&gt;  componente-0004          NoNulo:monto datos_operativos          monto     no_cierran</span></span>
+<span><span class="co">#&gt;               motivo_cuentas diferencia_cuentas control_lecturas</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span>
+<span><span class="co">#&gt;  tabla_cambio_entre_lecturas                  0         completo</span></span></code></pre></div>
+<p>Con estos cortes, <code>canal</code> queda en rojo y las otras 3 en
+verde. Las mismas cifras, sacadas de la unión, no tienen color: su
+motivo es <code>no_cierran</code>.</p>
+<p><code>control_lecturas</code> dice cuánto respalda el control de
+lecturas a cada cifra. <code>una_lectura</code> es una tabla que se leyó
+en una sola consulta, o en memoria; <code>completo</code>, varias
+lecturas con la instantánea probada por la huella de los datos o por un
+contador de modificaciones del motor; <code>limitado</code>, varias
+lecturas y alguna sin instantánea, en las que sólo se comparó el número
+de filas. Las 2 partes de arriba se leyeron en memoria y la huella vio
+el cambio: su control es <code>completo</code>. <code>limitado</code>
+aparece en el motor, cuando una tabla se lee en varias consultas sin un
+contador que <code>lupa</code> lea, como en SQLite y DuckDB. Ahí una
+fila agregada o quitada entre lecturas se ve, pero un
+<code>UPDATE</code> que no cambia el número de filas no, y la impresión
+del semáforo lo avisa.</p>
+<p>El semáforo no combina dimensiones: no hay un «peor color» de la
+tabla ni un total, y <code>attr(semaforo, "conteo_niveles")</code> es
+una distribución por dimensión. Las métricas que no dan una proporción,
+como los días de desactualización, quedan en
+<code>attr(semaforo, "fuera_del_semaforo")</code> con su motivo. Una
+métrica de validez evalúa su propio universo, los valores presentes:
+tiene color aunque la columna tenga vacíos, que son de la completitud.
+Un índice que combine cifras sólo existe con pesos declarados, y tampoco
+usa las que no cierran (<a href="marcos-y-modelos.html#un-%C3%ADndice-s%C3%B3lo-con-pesos-declarados">Marcos
+y modelos de calidad</a>).</p>
+</div>
+<div class="section level2">
 <h2 id="qué-quedó-cubierto">🔎 Qué quedó cubierto<a class="anchor" aria-label="anchor" href="#qu%C3%A9-qued%C3%B3-cubierto"></a>
 </h2>
 <p>Que no aparezcan hallazgos no prueba que una tabla esté bien: puede
@@ -379,7 +536,7 @@ cruza el perfil y la medición con un marco de calidad. Dice, factor por
 factor, qué quedó medido. El tercer argumento se llama
 <code>modelo</code>, pero recibe un marco como el que crea
 <code><a href="../reference/marco_calidad.html">marco_calidad()</a></code>. Por omisión, el de AGESIC.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cobertura</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cobertura_analisis.html">cobertura_analisis</a></span><span class="op">(</span><span class="va">perfil</span>, <span class="va">medicion</span>, modelo <span class="op">=</span> <span class="fu"><a href="../reference/marco_calidad.html">marco_agesic</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">cobertura</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dimension"</span>, <span class="st">"factor"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;       dimension                        factor           estado</span></span>
@@ -414,7 +571,7 @@ tabla, como la exactitud posicional si no hay geometrías;</li>
 medir y lo dice.</li>
 </ul>
 <p>Cada fila explica por qué:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">medidos</span> <span class="op">&lt;-</span> <span class="va">cobertura</span><span class="op">[</span><span class="va">cobertura</span><span class="op">$</span><span class="va">estado</span> <span class="op">==</span> <span class="st">"medida"</span>, <span class="op">]</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">medidos</span><span class="op">$</span><span class="va">factor</span>, <span class="st">": "</span>, <span class="va">medidos</span><span class="op">$</span><span class="va">motivo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Densidad: La corrida contiene al menos una métrica instanciada para este factor.</span></span>
@@ -422,7 +579,7 @@ medir y lo dice.</li>
 <p>La densidad quedó respaldada por la medición; la no duplicación, por
 lo que el perfil examina por su cuenta. Lo que falta trae cómo
 resolverlo:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sintaxis</span> <span class="op">&lt;-</span> <span class="va">cobertura</span><span class="op">$</span><span class="va">factor</span> <span class="op">==</span> <span class="st">"Correctitud sintáctica"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">cobertura</span><span class="op">$</span><span class="va">como_resolverlo</span><span class="op">[</span><span class="va">sintaxis</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Aplicar `especializar()` a `metricas_nucleo()$Formato` con `expresion_regular`, o bien `diccionario`, o bien `validador`; luego `instanciar()` sobre un atributo; después `medir()`.</span></span></code></pre></div>
@@ -443,6 +600,11 @@ aprendido de una sola entrega llega apagado.</li>
 <li>Se agrega antes de evaluar:
 <code>agregar(medicion, "atributo", "ratio")</code> da la completitud de
 cada columna, y la regla compara ese número con su umbral.</li>
+<li>
+<code>estado_cuentas</code> dice si las cuentas de cada cifra
+cierran. <code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code> pinta sólo esas, con cortes que
+declara quien mide, sin cortes de fábrica ni una cifra que combine
+dimensiones.</li>
 <li>
 <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> dice qué factores del marco
 quedaron medidos y cómo cubrir los que faltan.</li>

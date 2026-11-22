@@ -51,8 +51,10 @@ tablero, ambas capas de pesos, las inversiones, las exclusiones, los
 universos y la cobertura del marco.
 
 Una métrica sin dimensión no entra al índice: se excluye con su motivo,
-como las de orientación `no_aplica`. Un peso para una dimensión cuyas
-métricas se excluyeron se rechaza diciéndolo.
+como las de orientación `no_aplica` y las cifras cuyas cuentas no
+cierran o son parciales (el atributo `cuentas` del tablero): una cifra
+que no representa la tabla no se combina. Un peso para una dimensión
+cuyas métricas se excluyeron se rechaza diciéndolo.
 
 `advertencia_universos` **se calcula de los universos que el propio
 objeto publica**, no es un texto fijo. Con un solo universo lo nombra y

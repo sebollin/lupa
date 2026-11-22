@@ -112,7 +112,10 @@ detectar_dependencias(
   un valor declarado no participan en la dependencia, igual que una
   celda `NA`; por eso `n_evaluados` cuenta sólo las filas con ambas
   columnas presentes. La lista por omisión no se considera una
-  declaración.
+  declaración. Acepta también una lista por columna, como en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  cada columna enmascara sólo lo declarado para ella, y un nombre que la
+  tabla no tiene es un error.
 
 ## Value
 

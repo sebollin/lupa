@@ -15,6 +15,8 @@ repita con cada entrega y se compare con un requisito?
 >   [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md);
 > - evaluar la medida agregada contra un umbral con
 >   [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md);
+> - mirar si las cuentas de cada cifra cierran y clasificarlas con
+>   [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md);
 > - ver qué parte de un marco de calidad quedó cubierta con
 >   [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md).
 
@@ -312,6 +314,174 @@ cual sea el umbral. Por eso se agrega antes de evaluar.
 La evaluación aplica una condición a medidas que ya existen. No vuelve a
 leer `datos_operativos` ni reemplaza la medición.
 
+## 🚦 Las cuentas y el semáforo
+
+Una proporción dice poco si no se sabe sobre qué se calculó.
+`medir(..., detalle = "resumen")` devuelve una fila por métrica y
+columna, con sus cuentas: el numerador, el denominador, el universo y lo
+que no se evaluó. La columna `estado_cuentas` dice si esas cuentas
+cierran:
+
+``` r
+
+resumen <- medir(
+  modelo_completitud, datos_operativos,
+  id_medicion = "entrega-enero", fecha = "2026-01-15", detalle = "resumen"
+)
+resumen[, c(
+  "atributo", "resultado", "numerador", "denominador", "n_no_evaluados",
+  "estado_cuentas"
+)]
+#> 
+#> ── Resumen de medición ───────────────────────────────────────────────────────────────────
+#> ℹ 4 métricas resumidas
+#>        atributo resultado numerador denominador n_no_evaluados estado_cuentas
+#>           canal 0.8461538        11          13              0        cierran
+#>  codigo_usuario 0.9230769        12          13              0        cierran
+#>    fecha_evento 0.9230769        12          13              0        cierran
+#>           monto 0.9230769        12          13              0        cierran
+```
+
+Las 4 cierran. Una cifra queda `parcial` cuando se calculó sobre una
+parte declarada, como un vocabulario truncado por `max_valores`, y
+`sin_cuentas` cuando no hay cuentas de su universo. Queda `no_cierran`
+cuando la métrica dio más medidas que su universo, cuando lo que no
+evaluó no es lo que declara no evaluar (para una métrica de validez, los
+vacíos) o cuando 2 lecturas de la misma tabla en una corrida vieron
+tablas distintas.
+
+El último caso aparece al unir partes de una misma corrida con
+[`rbind()`](https://rdrr.io/r/base/cbind.html). Acá la completitud de
+`canal` y `codigo_usuario` se mide sobre la tabla y la de las otras 2
+columnas sobre una versión en la que alguien corrigió el canal de la
+fila 5:
+
+``` r
+
+modelo_de <- function(columnas) {
+  elegidas <- propuesta
+  elegidas$incluir <- elegidas$metrica == "NoNulo" &
+    elegidas$atributos %in% columnas
+  modelo_desde_propuesta(elegidas)
+}
+otra_version <- datos_operativos
+otra_version$canal[5] <- "web"
+parte_1 <- medir(
+  modelo_de(c("canal", "codigo_usuario")), datos_operativos,
+  id_medicion = "entrega-enero", fecha = "2026-01-15", detalle = "resumen"
+)
+parte_2 <- medir(
+  modelo_de(c("fecha_evento", "monto")), otra_version,
+  id_medicion = "entrega-enero", fecha = "2026-01-15", detalle = "resumen"
+)
+aviso <- NULL
+unidas <- withCallingHandlers(
+  rbind(parte_1, parte_2),
+  warning = function(w) {
+    aviso <<- conditionMessage(w)
+    invokeRestart("muffleWarning")
+  }
+)
+writeLines(strwrap(aviso, 88))
+#> 4 cifras cuyas cuentas no cierran: la tabla cambió entre lecturas de la corrida (4). No
+#> se pintan ni entran al índice; el detalle está en `estado_cuentas` y `motivo_cuentas`.
+as.data.frame(unidas)[, c("atributo", "resultado", "estado_cuentas", "motivo_cuentas")]
+#>         atributo resultado estado_cuentas              motivo_cuentas
+#> 1          canal 0.8461538     no_cierran tabla_cambio_entre_lecturas
+#> 2 codigo_usuario 0.9230769     no_cierran tabla_cambio_entre_lecturas
+#> 3   fecha_evento 0.9230769     no_cierran tabla_cambio_entre_lecturas
+#> 4          monto 0.9230769     no_cierran tabla_cambio_entre_lecturas
+```
+
+Cada parte guardó la huella de los datos que leyó, y las huellas no
+coinciden. Las 4 cifras pueden ser correctas cada una por su lado, pero
+no describen una misma tabla, y lo dicen.
+
+[`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+clasifica cada cifra en niveles, con cortes que declara quien mide: por
+dimensión del marco o, si hace falta, por métrica. No hay cortes de
+fábrica, y sin `cortes` la función se detiene. Sólo pinta las cifras
+cuyas cuentas cierran:
+
+``` r
+
+# Cortes de este ejemplo, no del paquete.
+cortes <- list(Completitud = c(0.85, 0.92))
+semaforo_calidad(resumen, cortes = cortes)
+#> 
+#> ── Semáforo de calidad ───────────────────────────────────────────────────────────────────
+#>    dimension   metrica_instanciada         objeto     valor escala_comparada
+#>  Completitud          NoNulo:canal          canal 0.8461538            valor
+#>  Completitud NoNulo:codigo_usuario codigo_usuario 0.9230769            valor
+#>  Completitud   NoNulo:fecha_evento   fecha_evento 0.9230769            valor
+#>  Completitud          NoNulo:monto          monto 0.9230769            valor
+#>                  regla nivel motivo_sin_color control_lecturas
+#>  dimension:Completitud  rojo             <NA>      una_lectura
+#>  dimension:Completitud verde             <NA>      una_lectura
+#>  dimension:Completitud verde             <NA>      una_lectura
+#>  dimension:Completitud verde             <NA>      una_lectura
+#> 
+#> ── Por dimensión ──
+#> 
+#>    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo
+#>  Completitud    1        0     3         0         0                  0
+sin_color <- semaforo_calidad(unidas, cortes = cortes)
+sin_color[, c("objeto", "valor", "nivel", "motivo_sin_color", "control_lecturas")]
+#> ── Semáforo de calidad ───────────────────────────────────────────────────────────────────
+#>          objeto     valor nivel motivo_sin_color control_lecturas
+#>           canal 0.8461538  <NA>       no_cierran         completo
+#>  codigo_usuario 0.9230769  <NA>       no_cierran         completo
+#>    fecha_evento 0.9230769  <NA>       no_cierran         completo
+#>           monto 0.9230769  <NA>       no_cierran         completo
+#> 
+#> ── Por dimensión ──
+#> 
+#>    dimension rojo amarillo verde sin_color sin_medir fuera_del_semaforo
+#>  Completitud    0        0     0         4         0                  0
+#> ── Sin color ──
+#> ℹ no_cierran: 4.
+#> 
+#> ── Cuentas que no cierran ──
+#> 
+#> ! 4 cifras no representan la tabla: no se pintan ni entran al índice.
+#>       componente   metrica_instanciada          entidad       atributo estado_cuentas
+#>  componente-0001          NoNulo:canal datos_operativos          canal     no_cierran
+#>  componente-0002 NoNulo:codigo_usuario datos_operativos codigo_usuario     no_cierran
+#>  componente-0003   NoNulo:fecha_evento datos_operativos   fecha_evento     no_cierran
+#>  componente-0004          NoNulo:monto datos_operativos          monto     no_cierran
+#>               motivo_cuentas diferencia_cuentas control_lecturas
+#>  tabla_cambio_entre_lecturas                  0         completo
+#>  tabla_cambio_entre_lecturas                  0         completo
+#>  tabla_cambio_entre_lecturas                  0         completo
+#>  tabla_cambio_entre_lecturas                  0         completo
+```
+
+Con estos cortes, `canal` queda en rojo y las otras 3 en verde. Las
+mismas cifras, sacadas de la unión, no tienen color: su motivo es
+`no_cierran`.
+
+`control_lecturas` dice cuánto respalda el control de lecturas a cada
+cifra. `una_lectura` es una tabla que se leyó en una sola consulta, o en
+memoria; `completo`, varias lecturas con la instantánea probada por la
+huella de los datos o por un contador de modificaciones del motor;
+`limitado`, varias lecturas y alguna sin instantánea, en las que sólo se
+comparó el número de filas. Las 2 partes de arriba se leyeron en memoria
+y la huella vio el cambio: su control es `completo`. `limitado` aparece
+en el motor, cuando una tabla se lee en varias consultas sin un contador
+que `lupa` lea, como en SQLite y DuckDB. Ahí una fila agregada o quitada
+entre lecturas se ve, pero un `UPDATE` que no cambia el número de filas
+no, y la impresión del semáforo lo avisa.
+
+El semáforo no combina dimensiones: no hay un «peor color» de la tabla
+ni un total, y `attr(semaforo, "conteo_niveles")` es una distribución
+por dimensión. Las métricas que no dan una proporción, como los días de
+desactualización, quedan en `attr(semaforo, "fuera_del_semaforo")` con
+su motivo. Una métrica de validez evalúa su propio universo, los valores
+presentes: tiene color aunque la columna tenga vacíos, que son de la
+completitud. Un índice que combine cifras sólo existe con pesos
+declarados, y tampoco usa las que no cierran ([Marcos y modelos de
+calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html#un-%C3%ADndice-s%C3%B3lo-con-pesos-declarados)).
+
 ## 🔎 Qué quedó cubierto
 
 Que no aparezcan hallazgos no prueba que una tabla esté bien: puede que
@@ -389,6 +559,10 @@ writeLines(cobertura$como_resolverlo[sintaxis])
 - Se agrega antes de evaluar: `agregar(medicion, "atributo", "ratio")`
   da la completitud de cada columna, y la regla compara ese número con
   su umbral.
+- `estado_cuentas` dice si las cuentas de cada cifra cierran.
+  [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+  pinta sólo esas, con cortes que declara quien mide, sin cortes de
+  fábrica ni una cifra que combine dimensiones.
 - [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
   dice qué factores del marco quedaron medidos y cómo cubrir los que
   faltan.

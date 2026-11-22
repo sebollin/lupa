@@ -136,6 +136,10 @@ producción</a></li>
 <li><a href="#dialectos">Dialectos y sondas</a></li>
 <li><a href="#diferencias-con-r">Lo que el motor guarda distinto que
 R</a></li>
+<li><a href="#conformidad">Comprobar que el motor cuenta como R</a></li>
+<li><a href="#referencial-motor">Medir contra un referencial del
+motor</a></li>
+<li><a href="#juntar-partes">Juntar partes de una corrida</a></li>
 <li><a href="#clave-primaria">La clave primaria según el motor</a></li>
 <li><a href="#motores-probados">Motores probados</a></li>
 <li><a href="#fallos">Fallos parciales y errores</a></li>
@@ -350,12 +354,47 @@ y, entre paréntesis, las demás.</p>
 <td align="left"><code>c(-9, -99, -999, -9999, 999)</code></td>
 </tr>
 <tr class="even">
+<td align="left"><code>estrategia_no_sql</code></td>
+<td align="left"><code>c("no_medible", "bloques")</code></td>
+<td align="left"><code>c("no_medible", "bloques")</code></td>
+</tr>
+<tr class="odd">
 <td align="left"><code>cadenas_ausencia</code></td>
 <td align="left">—</td>
 <td align="left"><code>NULL</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><code>clave</code></td>
+<td align="left">—</td>
+<td align="left"><code>NULL</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>compilar</code></td>
+<td align="left">—</td>
+<td align="left"><code>FALSE</code></td>
+</tr>
+<tr class="even">
+<td align="left"><code>centinelas_fecha</code></td>
+<td align="left">—</td>
+<td align="left"><code>NULL</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>dominios</code></td>
+<td align="left">—</td>
+<td align="left"><code>NULL</code></td>
+</tr>
+<tr class="even">
+<td align="left"><code>periodos</code></td>
+<td align="left">—</td>
+<td align="left"><code>NULL</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>resumen_fechas</code></td>
+<td align="left">—</td>
+<td align="left"><code>FALSE</code></td>
+</tr>
+<tr class="even">
+<td align="left"><code>fecha</code></td>
 <td align="left">—</td>
 <td align="left"><code>NULL</code></td>
 </tr>
@@ -1320,10 +1359,10 @@ plan:</p>
 <span>  distintos_4 <span class="op">=</span> <span class="fu">consultas_por_lote</span><span class="op">(</span>tamano_lote_distintos <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;             planos distintos total</span></span>
-<span><span class="co">#&gt; planos_1         6         2    26</span></span>
-<span><span class="co">#&gt; por_omision      3         2    23</span></span>
-<span><span class="co">#&gt; distintos_1      3         4    25</span></span>
-<span><span class="co">#&gt; distintos_4      3         1    22</span></span></code></pre></div>
+<span><span class="co">#&gt; planos_1         4         2    26</span></span>
+<span><span class="co">#&gt; por_omision      1         2    23</span></span>
+<span><span class="co">#&gt; distintos_1      1         4    25</span></span>
+<span><span class="co">#&gt; distintos_4      1         1    22</span></span></code></pre></div>
 <p>El valor de <code>tamano_lote_distintos</code> es un supuesto del
 código, anotado junto a la constante (<code>R/perfilar-dbi.R</code>). En
 PostgreSQL, la lectura de la tabla es la misma con cualquier lote. El
@@ -1488,48 +1527,78 @@ alcance. No escanea datos para decidir el costo.</p>
 <tbody>
 <tr class="odd">
 <td align="left">portones (esquema y sondas)</td>
-<td align="right">7</td>
+<td align="right">4</td>
 <td align="left">una vez</td>
-<td align="right">7</td>
+<td align="right">4</td>
 </tr>
 <tr class="even">
-<td align="left">agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM
-CASE + desvio)</td>
-<td align="right">3</td>
-<td align="left">escanea la tabla completa</td>
-<td align="right">3</td>
+<td align="left">capacidad de dialecto (formas candidatas)</td>
+<td align="right">1</td>
+<td align="left">una vez</td>
+<td align="right">1</td>
 </tr>
 <tr class="odd">
+<td align="left">capacidad de moda con guardian (formas candidatas)</td>
+<td align="right">1</td>
+<td align="left">una vez</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">capacidad de mediana escalar (formas candidatas)</td>
+<td align="right">1</td>
+<td align="left">una vez</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">capacidad de desvio (formas candidatas)</td>
+<td align="right">2</td>
+<td align="left">una vez</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">capacidad de bytes de muestra</td>
+<td align="right">1</td>
+<td align="left">una vez</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM
+CASE + desvio)</td>
+<td align="right">1</td>
+<td align="left">escanea la tabla completa</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
 <td align="left">distintos por lotes (clase separada)</td>
 <td align="right">2</td>
 <td align="left">escanea la tabla completa</td>
 <td align="right">2</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">duplicados exactos (GROUP BY)</td>
 <td align="right">1</td>
 <td align="left">escanea la tabla completa</td>
 <td align="right">1</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">moda (GROUP BY + orden + limite)</td>
 <td align="right">4</td>
 <td align="left">ordena o agrupa la tabla completa</td>
 <td align="right">4</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">mediana (orden total + limite/salto)</td>
 <td align="right">3</td>
 <td align="left">ordena la tabla completa</td>
 <td align="right">3</td>
 </tr>
-<tr class="odd">
-<td align="left">muestra</td>
-<td align="right">2</td>
-<td align="left">lee las filas pedidas</td>
-<td align="right">2</td>
-</tr>
 <tr class="even">
+<td align="left">muestra</td>
+<td align="right">1</td>
+<td align="left">lee las filas pedidas</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
 <td align="left">verificacion de estabilidad (conteo y agregado
 final)</td>
 <td align="right">1</td>
@@ -1583,8 +1652,8 @@ columnas, todas de texto:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     338                     329                     257</span></span></code></pre></div>
-<p>De las 338 consultas de la tabla ancha, 329 escanean, ordenan o
+<span><span class="co">#&gt;                     338                     327                     257</span></span></code></pre></div>
+<p>De las 338 consultas de la tabla ancha, 327 escanean, ordenan o
 agrupan la tabla entera. Las columnas de texto cuestan menos, sobre todo
 porque la mediana —que ordena la tabla— se pide sólo sobre columnas
 numéricas. <code>muestra</code> no acota nada de eso: acota lo que se
@@ -2441,6 +2510,268 @@ valores.</p>
 <span><span class="co">#&gt; 1       f     NA     NA    NA</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="conformidad">Comprobar que el motor cuenta como R<a class="anchor" aria-label="anchor" href="#conformidad"></a>
+</h2>
+<p>La tabla de arriba es lo que se sabe de los motores en general.
+<code><a href="../reference/conformidad_dbi.html">conformidad_dbi()</a></code> lo comprueba en el servidor que vas a
+usar. Corre, sólo con <code>SELECT</code> y sin crear tablas ni leer
+filas tuyas, valores límite inventados con el tipo y la intercalación de
+las columnas reales (los lee del catálogo) por cada regla del modelo que
+<code><a href="../reference/medir_dbi.html">medir_dbi()</a></code> traduce a SQL, y compara lo que cuenta el motor
+con lo que cuenta R.</p>
+<p>Un ejemplo con una columna de texto que no compara por bytes:</p>
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">base_conf</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span></span>
+<span>  <span class="va">base_conf</span>, <span class="st">"CREATE TABLE tramites (id INTEGER, estado TEXT COLLATE NOCASE)"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span></span>
+<span>  <span class="va">base_conf</span>,</span>
+<span>  <span class="st">"INSERT INTO tramites VALUES (1, 'abierto'), (2, 'CERRADO'), (3, 'cerrado'),</span></span>
+<span><span class="st">   (4, 'otro'), (5, NULL)"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 5</span></span>
+<span><span class="va">nucleo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">metricas_nucleo</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">modelo_tramites</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">ValoresPosiblesPorExtension</span>, <span class="st">"Estado"</span>,</span>
+<span>                 valores <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"abierto"</span>, <span class="st">"cerrado"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    <span class="st">"tramites"</span>, <span class="st">"estado"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span>, <span class="st">"Completo"</span><span class="op">)</span>, <span class="st">"tramites"</span>, <span class="st">"id"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">bateria</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/conformidad_dbi.html">conformidad_dbi</a></span><span class="op">(</span><span class="va">base_conf</span>, <span class="va">modelo_tramites</span><span class="op">)</span></span>
+<span><span class="va">bateria</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metrica_instanciada"</span>, <span class="st">"caso"</span>, <span class="st">"conformidad"</span>, <span class="st">"motivo"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;      metrica_instanciada                   caso conformidad</span></span>
+<span><span class="co">#&gt; 1 Estado@tramites.estado          limites_texto  abstencion</span></span>
+<span><span class="co">#&gt; 2 Estado@tramites.estado limites_texto_no_ascii  abstencion</span></span>
+<span><span class="co">#&gt; 3   Completo@tramites.id         limites_entero    conforme</span></span>
+<span><span class="co">#&gt;                                                             motivo</span></span>
+<span><span class="co">#&gt; 1 la columna `estado` no compara por bytes (cotejamiento `nocase`)</span></span>
+<span><span class="co">#&gt; 2 la columna `estado` no compara por bytes (cotejamiento `nocase`)</span></span>
+<span><span class="co">#&gt; 3                                                             &lt;NA&gt;</span></span></code></pre></div>
+<p><code>conformidad</code> contesta una sola pregunta: si el motor,
+cuando cuenta, da lo mismo que R. <code>conforme</code> es que con esos
+valores dan el mismo numerador y el mismo denominador.
+<code>no_conforme</code>, que el motor cuenta y da distinto.
+<code>abstencion</code>, que <code><a href="../reference/medir_dbi.html">medir_dbi()</a></code> no publicaría una
+cifra con esos valores por una guarda propia (acá, el cotejamiento
+<code>nocase</code>); el motivo dice cuál. <code>no_evaluada</code> y
+<code>no_verificado</code> dicen que la batería no pudo construir el
+caso o que el motor no está verificado en ella; la regla se mide como
+siempre, con un aviso. La batería está verificada en SQLite y
+DuckDB.</p>
+<p>El resultado se pasa a <code><a href="../reference/medir_dbi.html">medir_dbi()</a></code>:</p>
+<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">medicion_conf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">modelo_tramites</span>, <span class="va">base_conf</span>, conformidad <span class="op">=</span> <span class="va">bateria</span>,</span>
+<span>  estrategia_no_sql <span class="op">=</span> <span class="st">"bloques"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">medicion_conf</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metrica_instanciada"</span>, <span class="st">"resultado"</span>, <span class="st">"numerador"</span>, <span class="st">"denominador"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="co">#&gt;      metrica_instanciada resultado numerador denominador</span></span>
+<span><span class="co">#&gt; 1 Estado@tramites.estado       0.5         2           4</span></span>
+<span><span class="co">#&gt; 2   Completo@tramites.id       1.0         5           5</span></span></code></pre></div>
+<p>Sólo una regla <code>no_conforme</code> deja de contarse en el motor:
+se mide por bloques en R con <code>estrategia_no_sql = "bloques"</code>,
+o queda <code>no_medible</code> con su motivo. Una
+<code>abstencion</code> no quita la regla: con los datos reales decide
+la guarda de siempre. El límite es conservador, porque un valor
+inventado que el motor cuenta distinto (un entero cerca de 2^53, un
+texto con espacios) saca la regla del motor aunque tu tabla no lo tenga.
+Y una batería de otra conexión, otro modelo u otra configuración se
+rechaza con un aviso, y las reglas se miden como si no se la hubiera
+pasado.</p>
+</div>
+<div class="section level2">
+<h2 id="referencial-motor">Medir contra un referencial del motor<a class="anchor" aria-label="anchor" href="#referencial-motor"></a>
+</h2>
+<p>Un referencial, como un padrón o un catálogo, suele vivir en la misma
+base que la tabla que se mide. <code><a href="../reference/referencial.html">referencial()</a></code> acepta esa
+tabla, nombrada con un <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id()</a></code> o con su nombre, y no la
+copia a R: guarda la referencia, sin la conexión.
+<code><a href="../reference/medir_dbi.html">medir_dbi()</a></code> mide contra ella
+<code>CorrectitudSemFuerte</code>, <code>CorrectitudSemDebil</code> y
+<code>RatioCobertura</code> en SQLite y DuckDB, y cuenta lo mismo que
+<code><a href="../reference/medir.html">medir()</a></code> con las 2 tablas leídas. Que las columnas existan y
+que la clave no tenga ausentes y sea única se verifica en cada medición,
+con una consulta, porque la tabla puede cambiar entre la declaración y
+la medición.</p>
+<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">base_ref</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">base_ref</span>, <span class="st">"sucursales"</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id_sucursal <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, zona <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Norte"</span>, <span class="st">"Sur"</span>, <span class="st">"Este"</span>, <span class="st">"Oeste"</span><span class="op">)</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">base_ref</span>, <span class="st">"ventas"</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id_venta <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">12</span>,</span>
+<span>  id_sucursal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">9</span>, <span class="cn">NA</span>, <span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  zona <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Norte"</span>, <span class="st">"Sur"</span>, <span class="st">"Este"</span>, <span class="st">"norte"</span>, <span class="st">"Sur"</span>, <span class="st">"Oeste"</span>, <span class="st">"Norte"</span>, <span class="st">"Sur"</span>,</span>
+<span>           <span class="st">"Norte"</span>, <span class="st">"Sur"</span>, <span class="st">"Norte"</span>, <span class="st">"Sur"</span><span class="op">)</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">padron</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/referencial.html">referencial</a></span><span class="op">(</span></span>
+<span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">Id</a></span><span class="op">(</span>table <span class="op">=</span> <span class="st">"sucursales"</span><span class="op">)</span>, clave <span class="op">=</span> <span class="st">"id_sucursal"</span>, valor <span class="op">=</span> <span class="st">"zona"</span>,</span>
+<span>  completo <span class="op">=</span> <span class="cn">TRUE</span>, alcance <span class="op">=</span> <span class="st">"sucursales del ejemplo"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">padron</span></span>
+<span><span class="co">#&gt; Referencial: sucursales</span></span>
+<span><span class="co">#&gt;   Tabla del motor: sucursales (no se copia a R; la clave se verifica en cada medir_dbi())</span></span>
+<span><span class="co">#&gt;   Clave: id_sucursal</span></span>
+<span><span class="co">#&gt;   Valores: zona</span></span>
+<span><span class="co">#&gt;   Completo: sí</span></span>
+<span><span class="co">#&gt;   Alcance: sucursales del ejemplo</span></span>
+<span><span class="va">ref</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/metricas_referencial.html">metricas_referencial</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">contra</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">padron</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">ref</span><span class="op">$</span><span class="va">CorrectitudSemFuerte</span>, <span class="st">"Sucursal existe"</span><span class="op">)</span>,</span>
+<span>               <span class="st">"ventas"</span>, <span class="st">"id_sucursal"</span>, referencial <span class="op">=</span> <span class="va">padron</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">ref</span><span class="op">$</span><span class="va">CorrectitudSemDebil</span>, <span class="st">"Zona coincide"</span><span class="op">)</span>,</span>
+<span>               <span class="st">"ventas"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_sucursal"</span>, <span class="st">"zona"</span><span class="op">)</span>, referencial <span class="op">=</span> <span class="va">padron</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">ref</span><span class="op">$</span><span class="va">RatioCobertura</span>, <span class="st">"Sucursales con ventas"</span><span class="op">)</span>,</span>
+<span>               <span class="st">"ventas"</span>, <span class="st">"id_sucursal"</span>, referencial <span class="op">=</span> <span class="va">padron</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">en_motor</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span><span class="fu">contra</span><span class="op">(</span><span class="va">padron</span><span class="op">)</span>, <span class="va">base_ref</span>, id_medicion <span class="op">=</span> <span class="st">"junio"</span>,</span>
+<span>                      fecha <span class="op">=</span> <span class="st">"2026-06-30"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">en_motor</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metrica_instanciada"</span>, <span class="st">"resultado"</span>, <span class="st">"numerador"</span>, <span class="st">"denominador"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="co">#&gt;                        metrica_instanciada resultado numerador denominador</span></span>
+<span><span class="co">#&gt; 1       Sucursal existe@ventas.id_sucursal 0.9090909        10          11</span></span>
+<span><span class="co">#&gt; 2    Zona coincide@ventas.id_sucursal.zona 0.8181818         9          11</span></span>
+<span><span class="co">#&gt; 3 Sucursales con ventas@ventas.id_sucursal 0.7500000         3           4</span></span></code></pre></div>
+<p>La venta de la sucursal 9 no encuentra su sucursal, la que no tiene
+sucursal no se evalúa, y la de la fila 6 dice <code>Oeste</code> donde
+el padrón dice <code>Este</code>; <code>norte</code> coincide con
+<code>Norte</code> porque el referencial normaliza por omisión. La
+sucursal 4 no tiene ventas: la cobertura es 3 de 4. Con las 2 tablas
+leídas a R, <code><a href="../reference/medir.html">medir()</a></code> da las mismas cuentas:</p>
+<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">padron_en_r</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/referencial.html">referencial</a></span><span class="op">(</span></span>
+<span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbReadTable.html" class="external-link">dbReadTable</a></span><span class="op">(</span><span class="va">base_ref</span>, <span class="st">"sucursales"</span><span class="op">)</span>, clave <span class="op">=</span> <span class="st">"id_sucursal"</span>,</span>
+<span>  valor <span class="op">=</span> <span class="st">"zona"</span>, completo <span class="op">=</span> <span class="cn">TRUE</span>, alcance <span class="op">=</span> <span class="st">"sucursales del ejemplo"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">en_memoria</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu">contra</span><span class="op">(</span><span class="va">padron_en_r</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>ventas <span class="op">=</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbReadTable.html" class="external-link">dbReadTable</a></span><span class="op">(</span><span class="va">base_ref</span>, <span class="st">"ventas"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">en_motor</span><span class="op">$</span><span class="va">numerador</span>, <span class="va">en_memoria</span><span class="op">$</span><span class="va">numerador</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">en_motor</span><span class="op">$</span><span class="va">denominador</span>, <span class="va">en_memoria</span><span class="op">$</span><span class="va">denominador</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p><code><a href="../reference/medir.html">medir()</a></code> no lee un referencial del motor: con él, las 3
+métricas quedan <code>no_medible</code> con el motivo y cómo resolverlo.
+La normalización se escribe en el motor sólo donde es exacta: sobre
+texto ASCII, el pliegue de mayúsculas es <code>LOWER()</code>. Una
+guarda cuenta las filas cuyo texto la normalización de R podría cambiar
+y el SQL no escribe igual: lo que no es ASCII, los blancos de los
+bordes, los dobles, las comillas. Con alguna, la métrica queda
+<code>no_medible</code>. Con <code>estrategia_no_sql = "bloques"</code>,
+el motor cuenta los valores distintos de la entidad y R los compara con
+el método de la métrica (la vía <code>distintos_r</code>, que es también
+la de un referencial que está en R):</p>
+<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span></span>
+<span>  <span class="va">base_ref</span>, <span class="st">"UPDATE ventas SET zona = 'Sur ' WHERE id_venta = 12"</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># El aviso repite lo que dice la cobertura.</span></span>
+<span><span class="va">con_guarda</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span><span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="fu">contra</span><span class="op">(</span><span class="va">padron</span><span class="op">)</span>, <span class="va">base_ref</span>, id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">no_medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">con_guarda</span>, <span class="st">"cobertura_metricas"</span><span class="op">)</span></span>
+<span><span class="va">no_medidas</span><span class="op">$</span><span class="va">metrica_instanciada</span></span>
+<span><span class="co">#&gt; [1] "Zona coincide@ventas.id_sucursal.zona"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">no_medidas</span><span class="op">$</span><span class="va">motivo</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; La métrica `Zona coincide@ventas.id_sucursal.zona` no se midió en la base: el texto de</span></span>
+<span><span class="co">#&gt; la entidad o del referencial tiene caracteres que la normalización de R podría cambiar</span></span>
+<span><span class="co">#&gt; y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil)</span></span>
+<span><span class="va">por_bloques</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="fu">contra</span><span class="op">(</span><span class="va">padron</span><span class="op">)</span>, <span class="va">base_ref</span>, id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>,</span>
+<span>  estrategia_no_sql <span class="op">=</span> <span class="st">"bloques"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">por_bloques</span>, <span class="st">"ejecucion_dbi"</span><span class="op">)</span><span class="op">$</span><span class="va">vias</span></span>
+<span><span class="co">#&gt;       Sucursal existe@ventas.id_sucursal    Zona coincide@ventas.id_sucursal.zona </span></span>
+<span><span class="co">#&gt;               "sql_dedicado_referencial"                            "distintos_r" </span></span>
+<span><span class="co">#&gt; Sucursales con ventas@ventas.id_sucursal </span></span>
+<span><span class="co">#&gt;               "sql_dedicado_referencial"</span></span></code></pre></div>
+<p><code><a href="../reference/conformidad_dbi.html">conformidad_dbi()</a></code> comprueba en el servidor el pliegue
+que usa, como en la sección anterior. El sello de estas métricas incluye
+la ubicación de la base: medir el mismo modelo en otra base avisa que
+cambió la definición, porque el mismo nombre de tabla es otra tabla.
+<code><a href="../reference/metricas_referencial.html">?metricas_referencial</a></code> detalla qué se compara en el motor y
+qué se declara.</p>
+</div>
+<div class="section level2">
+<h2 id="juntar-partes">Juntar partes de una corrida<a class="anchor" aria-label="anchor" href="#juntar-partes"></a>
+</h2>
+<p>Una corrida puede medirse en partes: lo que vive en la base con
+<code><a href="../reference/medir_dbi.html">medir_dbi()</a></code>, y una planilla que no está en la base con
+<code><a href="../reference/medir.html">medir()</a></code>. <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> con nombres y
+<code>prioridad</code> junta partes de una misma corrida, con el mismo
+<code>id_medicion</code> y la misma <code>fecha</code> declarada. La
+columna <code>fuente</code> dice de qué parte salió cada fila:</p>
+<div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">del_motor</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span>, <span class="st">"Zona presente"</span><span class="op">)</span>, <span class="st">"ventas"</span>, <span class="st">"zona"</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span>, <span class="st">"Sucursal presente"</span><span class="op">)</span>, <span class="st">"ventas"</span>,</span>
+<span>               <span class="st">"id_sucursal"</span><span class="op">)</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  <span class="va">base_ref</span>, id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">planilla</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id_sucursal <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, horario <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"8-16"</span>, <span class="st">"9-17"</span>, <span class="cn">NA</span>, <span class="st">"8-16"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">de_la_planilla</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span>, <span class="st">"Horario presente"</span><span class="op">)</span>,</span>
+<span>                    <span class="st">"planilla"</span>, <span class="st">"horario"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>planilla <span class="op">=</span> <span class="va">planilla</span><span class="op">)</span>, id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>,</span>
+<span>  detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">corrida</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  motor <span class="op">=</span> <span class="va">del_motor</span>, memoria <span class="op">=</span> <span class="va">de_la_planilla</span>, prioridad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"motor"</span>, <span class="st">"memoria"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">corrida</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metrica_instanciada"</span>, <span class="st">"resultado"</span>, <span class="st">"fuente"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;                    metrica_instanciada resultado  fuente</span></span>
+<span><span class="co">#&gt; 1            Zona presente@ventas.zona 1.0000000   motor</span></span>
+<span><span class="co">#&gt; 2 Sucursal presente@ventas.id_sucursal 0.9166667   motor</span></span>
+<span><span class="co">#&gt; 3    Horario presente@planilla.horario 0.7500000 memoria</span></span></code></pre></div>
+<p>Si la misma métrica sobre el mismo objeto está en varias partes, gana
+la de mayor prioridad, y lo no elegido queda en
+<code>attr(x, "descartadas")</code>, con si coincide con lo elegido.
+Sólo se junta lo comparable: el sello de cada parte con la misma huella
+para cada métrica compartida, y la misma instantánea de los datos de
+cada tabla leída por más de una parte. En memoria la instantánea la
+prueba la huella de los datos; en el motor, un contador de
+modificaciones. SQLite y DuckDB no tienen uno que <code>lupa</code> lea,
+así que una tabla leída por las 2 partes no se junta, y el error dice
+por qué:</p>
+<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ventas_en_r</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir.html">medir</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span>, <span class="st">"Zona presente"</span><span class="op">)</span>, <span class="st">"ventas"</span>, <span class="st">"zona"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>ventas <span class="op">=</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbReadTable.html" class="external-link">dbReadTable</a></span><span class="op">(</span><span class="va">base_ref</span>, <span class="st">"ventas"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>, detalle <span class="op">=</span> <span class="st">"resumen"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">rechazo</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span>motor <span class="op">=</span> <span class="va">del_motor</span>, memoria <span class="op">=</span> <span class="va">ventas_en_r</span>, prioridad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"motor"</span>, <span class="st">"memoria"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="va">e</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">rechazo</span><span class="op">)</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; `rbind(..., prioridad = )` no junta estas partes: la tabla `ventas` la leyeron varias</span></span>
+<span><span class="co">#&gt; partes y no hay cómo probar que vieron la misma instantánea de los datos: en `motor`</span></span>
+<span><span class="co">#&gt; solo se sabe cuántas filas tenía (el motor no tiene un contador de modificaciones que</span></span>
+<span><span class="co">#&gt; lupa lea, o la tabla se leyó en partes). Igual cantidad de filas no prueba los mismos</span></span>
+<span><span class="co">#&gt; datos. Medir la tabla en una sola parte. Lo que el motor no traduce se mide en la misma</span></span>
+<span><span class="co">#&gt; corrida con `estrategia_no_sql = "bloques"`; o quitar la métrica del modelo de la parte</span></span>
+<span><span class="co">#&gt; que no la puede medir y unir sin `prioridad`.</span></span></code></pre></div>
+<p>Sin <code>prioridad</code>, <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> une partes que no
+repiten métrica y objeto y vuelve a mirar las cuentas de la unión: si 2
+partes vieron versiones distintas de una tabla (en el motor sin
+contador, distinto número de filas), sus cifras quedan
+<code>no_cierran</code>. Qué dice cada estado de las cuentas, y cómo lo
+usa <code><a href="../reference/semaforo_calidad.html">semaforo_calidad()</a></code>, está en <a href="del-hallazgo-a-la-metrica.html#las-cuentas-y-el-semaforo">Del
+hallazgo a la métrica</a>.</p>
+</div>
+<div class="section level2">
 <h2 id="clave-primaria">La clave primaria según el motor<a class="anchor" aria-label="anchor" href="#clave-primaria"></a>
 </h2>
 <p>La clave primaria no se adivina: se lee del catálogo del motor. Esa
@@ -2522,7 +2853,7 @@ queda <code>desconocida</code>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">crear</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">conexion</span>, <span class="va">sql</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="va">sql</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu">crear</span><span class="op">(</span><span class="va">con</span>, <span class="st">"CREATE TABLE con_nulos (id INTEGER PRIMARY KEY, x TEXT)"</span><span class="op">)</span></span>
 <span><span class="fu">crear</span><span class="op">(</span><span class="va">con</span>, <span class="st">"CREATE TABLE sin_nulos (id INTEGER NOT NULL PRIMARY KEY, x TEXT)"</span><span class="op">)</span></span>
@@ -2717,7 +3048,7 @@ como <code>id_persona</code>;</li>
 <li>Termina con código distinto de cero si alguna comprobación
 falla.</li>
 </ul>
-<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
 <span>  <span class="va">con</span>, <span class="st">"tramites"</span>, muestra <span class="op">=</span> <span class="fl">500L</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  duplicados_aproximados <span class="op">=</span> <span class="cn">FALSE</span>, proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -2837,7 +3168,7 @@ y locales</a>.</li>
 <li>
 <code>lupa_error_transaccion_dbi</code>.</li>
 </ul>
-<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb47"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">error</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"no_existe"</span><span class="op">)</span>, error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="va">e</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">error</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "lupa_error_tabla_dbi" "lupa_error_dbi"       "error"               </span></span>
@@ -2909,7 +3240,7 @@ chocarse.</p>
 Las 2 versiones de Oracle cuentan por separado. Las genéricas
 (<code>dbi</code>, <code>odbc</code> y <code>otro_dbi</code>) no son
 motores medidos.</p>
-<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb48"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="va">r</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_motor"</span>, <span class="st">"motor"</span>, <span class="st">"version"</span>, <span class="st">"paquete_r"</span>, <span class="st">"dialecto"</span>,</span>
 <span>                   <span class="st">"estado_prueba"</span><span class="op">)</span><span class="op">]</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
@@ -3032,7 +3363,7 @@ motores medidos.</p>
 <p>Cada entrada declara además la biblioteca del sistema y su paquete en
 Debian y en Fedora. Si existe una salida sin permisos de administrador,
 también la declara:</p>
-<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb49"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"sql_server"</span><span class="op">)</span><span class="op">$</span><span class="va">alternativa_sin_administrador</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Compilar FreeTDS en un prefijo del usuario y pasar la ruta directa del controlador en</span></span>
 <span><span class="co">#&gt; la cadena de conexión; no hace falta registrar un DSN.</span></span></code></pre></div>

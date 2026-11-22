@@ -44,11 +44,14 @@ y con su fuente.
 16. [Consistencia entre consultas](#consistencia)
 17. [Dialectos y sondas](#dialectos)
 18. [Lo que el motor guarda distinto que R](#diferencias-con-r)
-19. [La clave primaria según el motor](#clave-primaria)
-20. [Motores probados](#motores-probados)
-21. [Fallos parciales y errores](#fallos)
-22. [Dependencias e instalación](#dependencias)
-23. [Hilos](#hilos)
+19. [Comprobar que el motor cuenta como R](#conformidad)
+20. [Medir contra un referencial del motor](#referencial-motor)
+21. [Juntar partes de una corrida](#juntar-partes)
+22. [La clave primaria según el motor](#clave-primaria)
+23. [Motores probados](#motores-probados)
+24. [Fallos parciales y errores](#fallos)
+25. [Dependencias e instalación](#dependencias)
+26. [Hilos](#hilos)
 
 ## Valores por omisión
 
@@ -92,8 +95,15 @@ paréntesis, las demás.
 | `columnas_opcionales` | `character(0)` | `character(0)` |
 | `aplicabilidad` | `NULL` | `NULL` |
 | `sentinelas_numericos` | `c(-9, -99, -999, -9999, 999)` | `c(-9, -99, -999, -9999, 999)` |
+| `estrategia_no_sql` | `c("no_medible", "bloques")` | `c("no_medible", "bloques")` |
 | `cadenas_ausencia` | — | `NULL` |
 | `clave` | — | `NULL` |
+| `compilar` | — | `FALSE` |
+| `centinelas_fecha` | — | `NULL` |
+| `dominios` | — | `NULL` |
+| `periodos` | — | `NULL` |
+| `resumen_fechas` | — | `FALSE` |
+| `fecha` | — | `NULL` |
 
 Consecuencias para una corrida en producción:
 
@@ -850,10 +860,10 @@ rbind(
   distintos_4 = consultas_por_lote(tamano_lote_distintos = 4)
 )
 #>             planos distintos total
-#> planos_1         6         2    26
-#> por_omision      3         2    23
-#> distintos_1      3         4    25
-#> distintos_4      3         1    22
+#> planos_1         4         2    26
+#> por_omision      1         2    23
+#> distintos_1      1         4    25
+#> distintos_4      1         1    22
 ```
 
 El valor de `tamano_lote_distintos` es un supuesto del código, anotado
@@ -1014,13 +1024,18 @@ knitr::kable(as.data.frame(plan))
 
 | clase_consulta | n_consultas | alcance | n_consultas_max |
 |:---|---:|:---|---:|
-| portones (esquema y sondas) | 7 | una vez | 7 |
-| agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio) | 3 | escanea la tabla completa | 3 |
+| portones (esquema y sondas) | 4 | una vez | 4 |
+| capacidad de dialecto (formas candidatas) | 1 | una vez | 1 |
+| capacidad de moda con guardian (formas candidatas) | 1 | una vez | 1 |
+| capacidad de mediana escalar (formas candidatas) | 1 | una vez | 1 |
+| capacidad de desvio (formas candidatas) | 2 | una vez | 2 |
+| capacidad de bytes de muestra | 1 | una vez | 1 |
+| agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio) | 1 | escanea la tabla completa | 1 |
 | distintos por lotes (clase separada) | 2 | escanea la tabla completa | 2 |
 | duplicados exactos (GROUP BY) | 1 | escanea la tabla completa | 1 |
 | moda (GROUP BY + orden + limite) | 4 | ordena o agrupa la tabla completa | 4 |
 | mediana (orden total + limite/salto) | 3 | ordena la tabla completa | 3 |
-| muestra | 2 | lee las filas pedidas | 2 |
+| muestra | 1 | lee las filas pedidas | 1 |
 | verificacion de estabilidad (conteo y agregado final) | 1 | lee el conteo y maximo de la clave | 1 |
 
 El costo es un **rango**:
@@ -1067,10 +1082,10 @@ c(
   solo_texto = attr(plan_perfilado_dbi(con, "ancha_texto"), "total")
 )
 #>                   ancha ancha_recorren_la_tabla              solo_texto 
-#>                     338                     329                     257
+#>                     338                     327                     257
 ```
 
-De las 338 consultas de la tabla ancha, 329 escanean, ordenan o agrupan
+De las 338 consultas de la tabla ancha, 327 escanean, ordenan o agrupan
 la tabla entera. Las columnas de texto cuestan menos, sobre todo porque
 la mediana —que ordena la tabla— se pide sólo sobre columnas numéricas.
 `muestra` no acota nada de eso: acota lo que se trae a R, no el trabajo
@@ -1634,6 +1649,301 @@ perfilar_fechas(extended_types = TRUE)
 #>   columna minimo maximo media
 #> 1       f     NA     NA    NA
 ```
+
+## Comprobar que el motor cuenta como R
+
+La tabla de arriba es lo que se sabe de los motores en general.
+[`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+lo comprueba en el servidor que vas a usar. Corre, sólo con `SELECT` y
+sin crear tablas ni leer filas tuyas, valores límite inventados con el
+tipo y la intercalación de las columnas reales (los lee del catálogo)
+por cada regla del modelo que
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+traduce a SQL, y compara lo que cuenta el motor con lo que cuenta R.
+
+Un ejemplo con una columna de texto que no compara por bytes:
+
+``` r
+
+base_conf <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbExecute(
+  base_conf, "CREATE TABLE tramites (id INTEGER, estado TEXT COLLATE NOCASE)"
+)
+#> [1] 0
+DBI::dbExecute(
+  base_conf,
+  "INSERT INTO tramites VALUES (1, 'abierto'), (2, 'CERRADO'), (3, 'cerrado'),
+   (4, 'otro'), (5, NULL)"
+)
+#> [1] 5
+nucleo <- metricas_nucleo()
+modelo_tramites <- modelo(
+  instanciar(
+    especializar(nucleo$ValoresPosiblesPorExtension, "Estado",
+                 valores = c("abierto", "cerrado")),
+    "tramites", "estado"
+  ),
+  instanciar(especializar(nucleo$NoNulo, "Completo"), "tramites", "id")
+)
+bateria <- conformidad_dbi(base_conf, modelo_tramites)
+bateria[, c("metrica_instanciada", "caso", "conformidad", "motivo")]
+#>      metrica_instanciada                   caso conformidad
+#> 1 Estado@tramites.estado          limites_texto  abstencion
+#> 2 Estado@tramites.estado limites_texto_no_ascii  abstencion
+#> 3   Completo@tramites.id         limites_entero    conforme
+#>                                                             motivo
+#> 1 la columna `estado` no compara por bytes (cotejamiento `nocase`)
+#> 2 la columna `estado` no compara por bytes (cotejamiento `nocase`)
+#> 3                                                             <NA>
+```
+
+`conformidad` contesta una sola pregunta: si el motor, cuando cuenta, da
+lo mismo que R. `conforme` es que con esos valores dan el mismo
+numerador y el mismo denominador. `no_conforme`, que el motor cuenta y
+da distinto. `abstencion`, que
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+no publicaría una cifra con esos valores por una guarda propia (acá, el
+cotejamiento `nocase`); el motivo dice cuál. `no_evaluada` y
+`no_verificado` dicen que la batería no pudo construir el caso o que el
+motor no está verificado en ella; la regla se mide como siempre, con un
+aviso. La batería está verificada en SQLite y DuckDB.
+
+El resultado se pasa a
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md):
+
+``` r
+
+medicion_conf <- medir_dbi(
+  modelo_tramites, base_conf, conformidad = bateria,
+  estrategia_no_sql = "bloques"
+)
+as.data.frame(medicion_conf)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+#>      metrica_instanciada resultado numerador denominador
+#> 1 Estado@tramites.estado       0.5         2           4
+#> 2   Completo@tramites.id       1.0         5           5
+```
+
+Sólo una regla `no_conforme` deja de contarse en el motor: se mide por
+bloques en R con `estrategia_no_sql = "bloques"`, o queda `no_medible`
+con su motivo. Una `abstencion` no quita la regla: con los datos reales
+decide la guarda de siempre. El límite es conservador, porque un valor
+inventado que el motor cuenta distinto (un entero cerca de 2^53, un
+texto con espacios) saca la regla del motor aunque tu tabla no lo tenga.
+Y una batería de otra conexión, otro modelo u otra configuración se
+rechaza con un aviso, y las reglas se miden como si no se la hubiera
+pasado.
+
+## Medir contra un referencial del motor
+
+Un referencial, como un padrón o un catálogo, suele vivir en la misma
+base que la tabla que se mide.
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+acepta esa tabla, nombrada con un
+[`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html) o con su nombre,
+y no la copia a R: guarda la referencia, sin la conexión.
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+mide contra ella `CorrectitudSemFuerte`, `CorrectitudSemDebil` y
+`RatioCobertura` en SQLite y DuckDB, y cuenta lo mismo que
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) con las
+2 tablas leídas. Que las columnas existan y que la clave no tenga
+ausentes y sea única se verifica en cada medición, con una consulta,
+porque la tabla puede cambiar entre la declaración y la medición.
+
+``` r
+
+base_ref <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(base_ref, "sucursales", data.frame(
+  id_sucursal = 1:4, zona = c("Norte", "Sur", "Este", "Oeste")
+))
+DBI::dbWriteTable(base_ref, "ventas", data.frame(
+  id_venta = 1:12,
+  id_sucursal = c(1, 2, 3, 1, 2, 3, 1, 2, 9, NA, 1, 2),
+  zona = c("Norte", "Sur", "Este", "norte", "Sur", "Oeste", "Norte", "Sur",
+           "Norte", "Sur", "Norte", "Sur")
+))
+padron <- referencial(
+  DBI::Id(table = "sucursales"), clave = "id_sucursal", valor = "zona",
+  completo = TRUE, alcance = "sucursales del ejemplo"
+)
+padron
+#> Referencial: sucursales
+#>   Tabla del motor: sucursales (no se copia a R; la clave se verifica en cada medir_dbi())
+#>   Clave: id_sucursal
+#>   Valores: zona
+#>   Completo: sí
+#>   Alcance: sucursales del ejemplo
+ref <- metricas_referencial()
+contra <- function(padron) {
+  modelo(
+    instanciar(especializar(ref$CorrectitudSemFuerte, "Sucursal existe"),
+               "ventas", "id_sucursal", referencial = padron),
+    instanciar(especializar(ref$CorrectitudSemDebil, "Zona coincide"),
+               "ventas", c("id_sucursal", "zona"), referencial = padron),
+    instanciar(especializar(ref$RatioCobertura, "Sucursales con ventas"),
+               "ventas", "id_sucursal", referencial = padron)
+  )
+}
+en_motor <- medir_dbi(contra(padron), base_ref, id_medicion = "junio",
+                      fecha = "2026-06-30")
+as.data.frame(en_motor)[
+  , c("metrica_instanciada", "resultado", "numerador", "denominador")
+]
+#>                        metrica_instanciada resultado numerador denominador
+#> 1       Sucursal existe@ventas.id_sucursal 0.9090909        10          11
+#> 2    Zona coincide@ventas.id_sucursal.zona 0.8181818         9          11
+#> 3 Sucursales con ventas@ventas.id_sucursal 0.7500000         3           4
+```
+
+La venta de la sucursal 9 no encuentra su sucursal, la que no tiene
+sucursal no se evalúa, y la de la fila 6 dice `Oeste` donde el padrón
+dice `Este`; `norte` coincide con `Norte` porque el referencial
+normaliza por omisión. La sucursal 4 no tiene ventas: la cobertura es 3
+de 4. Con las 2 tablas leídas a R,
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) da las
+mismas cuentas:
+
+``` r
+
+padron_en_r <- referencial(
+  DBI::dbReadTable(base_ref, "sucursales"), clave = "id_sucursal",
+  valor = "zona", completo = TRUE, alcance = "sucursales del ejemplo"
+)
+en_memoria <- medir(
+  contra(padron_en_r), list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+identical(en_motor$numerador, en_memoria$numerador)
+#> [1] TRUE
+identical(en_motor$denominador, en_memoria$denominador)
+#> [1] TRUE
+```
+
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no lee
+un referencial del motor: con él, las 3 métricas quedan `no_medible` con
+el motivo y cómo resolverlo. La normalización se escribe en el motor
+sólo donde es exacta: sobre texto ASCII, el pliegue de mayúsculas es
+`LOWER()`. Una guarda cuenta las filas cuyo texto la normalización de R
+podría cambiar y el SQL no escribe igual: lo que no es ASCII, los
+blancos de los bordes, los dobles, las comillas. Con alguna, la métrica
+queda `no_medible`. Con `estrategia_no_sql = "bloques"`, el motor cuenta
+los valores distintos de la entidad y R los compara con el método de la
+métrica (la vía `distintos_r`, que es también la de un referencial que
+está en R):
+
+``` r
+
+invisible(DBI::dbExecute(
+  base_ref, "UPDATE ventas SET zona = 'Sur ' WHERE id_venta = 12"
+))
+# El aviso repite lo que dice la cobertura.
+con_guarda <- suppressWarnings(medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30"
+))
+no_medidas <- attr(con_guarda, "cobertura_metricas")
+no_medidas$metrica_instanciada
+#> [1] "Zona coincide@ventas.id_sucursal.zona"
+writeLines(strwrap(no_medidas$motivo, 88))
+#> La métrica `Zona coincide@ventas.id_sucursal.zona` no se midió en la base: el texto de
+#> la entidad o del referencial tiene caracteres que la normalización de R podría cambiar
+#> y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil)
+por_bloques <- medir_dbi(
+  contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30",
+  estrategia_no_sql = "bloques"
+)
+attr(por_bloques, "ejecucion_dbi")$vias
+#>       Sucursal existe@ventas.id_sucursal    Zona coincide@ventas.id_sucursal.zona 
+#>               "sql_dedicado_referencial"                            "distintos_r" 
+#> Sucursales con ventas@ventas.id_sucursal 
+#>               "sql_dedicado_referencial"
+```
+
+[`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+comprueba en el servidor el pliegue que usa, como en la sección
+anterior. El sello de estas métricas incluye la ubicación de la base:
+medir el mismo modelo en otra base avisa que cambió la definición,
+porque el mismo nombre de tabla es otra tabla.
+[`?metricas_referencial`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
+detalla qué se compara en el motor y qué se declara.
+
+## Juntar partes de una corrida
+
+Una corrida puede medirse en partes: lo que vive en la base con
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md),
+y una planilla que no está en la base con
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+[`rbind()`](https://rdrr.io/r/base/cbind.html) con nombres y `prioridad`
+junta partes de una misma corrida, con el mismo `id_medicion` y la misma
+`fecha` declarada. La columna `fuente` dice de qué parte salió cada
+fila:
+
+``` r
+
+del_motor <- medir_dbi(
+  modelo(
+    instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona"),
+    instanciar(especializar(nucleo$NoNulo, "Sucursal presente"), "ventas",
+               "id_sucursal")
+  ),
+  base_ref, id_medicion = "junio", fecha = "2026-06-30"
+)
+planilla <- data.frame(id_sucursal = 1:4, horario = c("8-16", "9-17", NA, "8-16"))
+de_la_planilla <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Horario presente"),
+                    "planilla", "horario")),
+  list(planilla = planilla), id_medicion = "junio", fecha = "2026-06-30",
+  detalle = "resumen"
+)
+corrida <- rbind(
+  motor = del_motor, memoria = de_la_planilla, prioridad = c("motor", "memoria")
+)
+as.data.frame(corrida)[, c("metrica_instanciada", "resultado", "fuente")]
+#>                    metrica_instanciada resultado  fuente
+#> 1            Zona presente@ventas.zona 1.0000000   motor
+#> 2 Sucursal presente@ventas.id_sucursal 0.9166667   motor
+#> 3    Horario presente@planilla.horario 0.7500000 memoria
+```
+
+Si la misma métrica sobre el mismo objeto está en varias partes, gana la
+de mayor prioridad, y lo no elegido queda en `attr(x, "descartadas")`,
+con si coincide con lo elegido. Sólo se junta lo comparable: el sello de
+cada parte con la misma huella para cada métrica compartida, y la misma
+instantánea de los datos de cada tabla leída por más de una parte. En
+memoria la instantánea la prueba la huella de los datos; en el motor, un
+contador de modificaciones. SQLite y DuckDB no tienen uno que `lupa`
+lea, así que una tabla leída por las 2 partes no se junta, y el error
+dice por qué:
+
+``` r
+
+ventas_en_r <- medir(
+  modelo(instanciar(especializar(nucleo$NoNulo, "Zona presente"), "ventas", "zona")),
+  list(ventas = DBI::dbReadTable(base_ref, "ventas")),
+  id_medicion = "junio", fecha = "2026-06-30", detalle = "resumen"
+)
+rechazo <- tryCatch(
+  rbind(motor = del_motor, memoria = ventas_en_r, prioridad = c("motor", "memoria")),
+  error = function(e) e
+)
+writeLines(strwrap(conditionMessage(rechazo), 88))
+#> `rbind(..., prioridad = )` no junta estas partes: la tabla `ventas` la leyeron varias
+#> partes y no hay cómo probar que vieron la misma instantánea de los datos: en `motor`
+#> solo se sabe cuántas filas tenía (el motor no tiene un contador de modificaciones que
+#> lupa lea, o la tabla se leyó en partes). Igual cantidad de filas no prueba los mismos
+#> datos. Medir la tabla en una sola parte. Lo que el motor no traduce se mide en la misma
+#> corrida con `estrategia_no_sql = "bloques"`; o quitar la métrica del modelo de la parte
+#> que no la puede medir y unir sin `prioridad`.
+```
+
+Sin `prioridad`, [`rbind()`](https://rdrr.io/r/base/cbind.html) une
+partes que no repiten métrica y objeto y vuelve a mirar las cuentas de
+la unión: si 2 partes vieron versiones distintas de una tabla (en el
+motor sin contador, distinto número de filas), sus cifras quedan
+`no_cierran`. Qué dice cada estado de las cuentas, y cómo lo usa
+[`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md),
+está en [Del hallazgo a la
+métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html#las-cuentas-y-el-semaforo).
 
 ## La clave primaria según el motor
 

@@ -77,6 +77,30 @@ fila `aspecto = "cobertura_frontera"`, `cambio = "no_comparable"`, lo
 declara, con las partes sin medir de cada lado en `evidencia`. Dos
 corridas a las que les falta la misma parte sí se comparan.
 
+**Un cambio de definición de una métrica se declara.** Si alguna métrica
+que las dos corridas evaluaron cambió de definición —su huella en el
+sello de
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)—, una
+fila `aspecto = "definicion_metrica"`, severidad `error`, nombra en
+`evidencia` cada métrica con sus dos huellas y versiones. Si la
+configuración de la corrida ya declara el cambio —cambió el modelo o la
+aplicabilidad—, la fila de resultado se conserva, como con la fila
+`configuracion_modelo`; si sólo el sello lo ve —la especificación de la
+métrica, su referencial, el orden del texto—, `cambio` es
+`no_comparable` y la fila de resultado no se publica. Un par con una
+corrida sin sello —guardada por una versión anterior— se compara como
+antes, y `cobertura_diagnosticos` lo declara (`sin_sello`); lo mismo una
+métrica cuya definición no se pudo certificar (`no_certificable`, ver
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)): no se
+sabe si cambió, y se dice. Y una métrica con la misma huella en las dos
+corridas, pero parcial —su definición incluye una función del usuario—,
+se compara como antes y `cobertura_diagnosticos` dice que la huella no
+alcanza para afirmar que no cambió («huella parcial»). Un par medido en
+otro entorno de sesión —otras opciones, otro locale, otro huso, otra
+versión de R— se compara como antes y `cobertura_diagnosticos` dice qué
+cambió («otro entorno»); uno sin el entorno registrado, «entorno
+desconocido».
+
 ## Examples
 
 ``` r

@@ -136,10 +136,13 @@ Declarar métricas, referenciales, granularidad y agregaciones.
 - [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
   [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md)
   : Granularidades y transiciones de agregación
-- [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) :
+- [`rbind(`*`<medicion_resumen>`*`)`](https://sebollin.github.io/lupa/reference/medir.md)
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) :
   Medir un modelo de calidad
 - [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
   : Medir un modelo de calidad dentro de una base de datos DBI
+- [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  : Comprobar la conformidad entre R y un motor DBI
 - [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
   : Planificar una medición de calidad en una base de datos DBI
 - [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) :
@@ -148,6 +151,8 @@ Declarar métricas, referenciales, granularidad y agregaciones.
   : Construir un tablero de calidad
 - [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
   : Calcular un índice de calidad declarado por el usuario
+- [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+  : Semáforo de calidad por tipo de indicador
 - [`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md)
   : Catálogo de estadísticos de estimación reconocidos
 - [`medicion_desde_estimaciones()`](https://sebollin.github.io/lupa/reference/medicion_desde_estimaciones.md)
@@ -168,6 +173,11 @@ Declarar una base de varias tablas y perfilarla como conjunto.
   : Estimar el costo de buscar relaciones en una colección
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
   : Buscar claves foráneas candidatas entre pares declarados
+- [`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md)
+  : Detectar tablas de códigos y proponer qué códigos quieren decir «sin
+  dato»
+- [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
+  : Convertir una propuesta de ausencias en la declaración por columna
 
 ## Validar
 

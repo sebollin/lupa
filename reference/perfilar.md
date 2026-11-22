@@ -65,7 +65,10 @@ perfilar(
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
   avisar_costo_tabla_ancha = TRUE,
   umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA,
-  dominios = NULL
+  dominios = NULL,
+  centinelas_fecha = NULL,
+  periodos = NULL,
+  resumen_fechas = FALSE
 )
 ```
 
@@ -421,6 +424,33 @@ perfilar(
   `"9.007199254740993e15"` y `"9007199254740991.5"` no se confunden con
   el centinela `9007199254740992`.
 
+  **Por columna.** Además del vector, que vale para todas las columnas,
+  acepta una lista con nombre `list(<columna> = valores)`: un `99` puede
+  ser «no sabe» en una columna y una edad en la de al lado. Cada entrada
+  vale para su columna lo mismo que el vector valdría para ella —el
+  conjunto completo de esa columna, que reemplaza la lista por omisión;
+  [`numeric()`](https://rdrr.io/r/base/numeric.html) la apaga— y las
+  columnas que la lista no nombra reciben la lista por omisión, con su
+  reserva. La fila de una columna declarada es la que daría perfilarla
+  sola con ese vector; las relaciones entre columnas, el plan de
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y la deriva de
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  usan la entrada de cada una, y el perfil la guarda en
+  `meta$ausencias_por_columna` (con vectores, `meta` es la de siempre).
+  Un nombre que la tabla no tiene es un error, y también uno que la
+  tabla repite: no dice a cuál de las columnas se refiere, y hay que
+  renombrarlas. Con la lista no se expresa «un vector para todas y
+  excepciones»: se escribe cada columna, por ejemplo
+  `c(sapply(setdiff(names(datos), "edad"), function(x) sentinelas_naniar, simplify = FALSE), list(edad = c(setdiff(sentinelas_naniar, 88), 99)))`
+  declara la lista de naniar en todas y, en `edad`, la misma sin `88` y
+  con `99`. Una entrada igual a una lista publicada se trata como
+  heurística, columna por columna.
+  [`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md)
+  y
+  [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
+  arman esta lista a partir de las tablas de códigos de una colección.
+
 - cadenas_ausencia:
 
   Cadenas que el usuario declara como ausencia, además de la lista
@@ -432,6 +462,12 @@ perfilar(
   sin distinguir mayúsculas, con el pliegue de caja de
   [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md):
   `SIN INFORMACIÓN` es `sin información` en cualquier locale.
+
+  También acepta una **lista por columna**, `list(<columna> = cadenas)`:
+  la entrada de una columna se suma a la lista incorporada en esa
+  columna, y las columnas que la lista no nombra reciben sólo la lista
+  incorporada. La forma por columna no retira marcas incorporadas. Ver
+  `sentinelas_numericos` para la regla común a las dos.
 
 - analizar_dependencias:
 
@@ -1398,6 +1434,52 @@ perfilar(
   resto de las fechas; si el día aparece en una proporción plausible
   dentro del recorrido de la columna, no se acusa. Las reglas inferidas
   con filas se publican como sospechosas; las declaradas, como errores.
+
+- centinelas_fecha:
+
+  Fechas que el usuario declara como centinela en toda columna de fecha
+  de la tabla (texto `"AAAA-MM-DD"`, `Date` o `POSIXt`; la hora de un
+  texto se descarta, como en `dominios`). Se suman a las cuatro fechas
+  que el paquete sospecha por omisión (1900-01-01, 9999-12-31,
+  1970-01-01 y 1899-12-30) sin quitarles su reserva: lo declarado se
+  acusa desde una aparición como `error`, en un hallazgo
+  `fecha_centinela` propio, y lo incorporado sigue necesitando repetirse
+  y estar separado del resto de las fechas. Para medir esa separación se
+  apartan todas las demás candidatas, las declaradas incluidas: un
+  `0001-01-01` declarado no esconde un `1900-01-01`. Una columna con
+  `centinelas` propias en `dominios` usa las suyas; con
+  `dominios = FALSE` (o `FALSE` para la columna) rigen sólo las
+  declaradas acá. `NULL` (por omisión) no cambia nada.
+
+- periodos:
+
+  Pares de columnas de fecha declarados como inicio y fin de un período:
+  `c(inicio = "desde", fin = "hasta")`, una lista con esos campos y,
+  opcionalmente, `fin_abierto` (las fechas que significan «vigente»,
+  como `"9999-12-31"`), o una lista nombrada de varios. Nunca se
+  adivinan por el nombre. Cada fila cae en una sola categoría y la tabla
+  se publica en `general$periodos`: cerrados válidos, fin antes del
+  inicio, fin abierto (ausente o una fecha de `fin_abierto`), fin con
+  una centinela declarada, fin con una fecha que suele ser centinela y
+  no se declaró (con un aviso de posible fin abierto sin declarar: no se
+  cuenta como período cerrado ni como inversión), sin inicio y ambos
+  ausentes. `NULL` (por omisión) no agrega nada.
+
+- resumen_fechas:
+
+  Si es `TRUE`, `columnas` agrega por columna de fecha
+  `n_fechas_centinela` (y de ellas `n_fechas_centinela_declaradas` y
+  `n_fechas_fin_abierto`), `lectura_fechas_centinela`,
+  `n_fechas_futuras` (con la misma regla que `fecha_futura`, también
+  donde las futuras son legítimas: ahí su lectura es `"admitidas"`),
+  `lectura_fechas_futuras` y `ultimo_dato_fecha`, y `general$actualidad`
+  dice, por columna, el último dato que no es futuro ni una centinela
+  declarada y cuántos días hace de él. No hay una fecha ganadora entre
+  columnas ni un puntaje. Los mismos campos los publica
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  sobre la tabla completa y
+  [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  los compara. `FALSE` (por omisión) deja el perfil como siempre.
 
 ## Value
 
