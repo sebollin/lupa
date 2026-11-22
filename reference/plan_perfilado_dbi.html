@@ -96,6 +96,7 @@ lectura de catálogo ya disponible."><meta property="og:image" content="https://
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -107,6 +108,7 @@ lectura de catálogo ya disponible."><meta property="og:image" content="https://
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul></li>
@@ -189,7 +191,8 @@ lectura de catálogo ya disponible.</p>
 <span>  columnas_opcionales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  sentinelas_numericos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">9</span>, <span class="op">-</span><span class="fl">99</span>, <span class="op">-</span><span class="fl">999</span>, <span class="op">-</span><span class="fl">9999</span>, <span class="fl">999</span><span class="op">)</span>,</span>
-<span>  cadenas_ausencia <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  cadenas_ausencia <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  clave <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -243,15 +246,63 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.</p></dd>
 <dt id="arg-orden-muestra">orden_muestra<a class="anchor" aria-label="anchor" href="#arg-orden-muestra"></a></dt>
 <dd><p>Columnas para <code>ORDER BY</code>. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
-argumento, DBI no garantiza el orden ni la pertenencia de una muestra
-limitada, y <code>meta</code> lo declara expresamente. No se usa cuando
-<code>bloque_muestra = "solo_agregados"</code>. Con la lectura por bloques, la identidad de la
-fuente por bloques gobierna el recorrido y este pedido queda declarado en
-<code>meta$orden_muestra</code> con el motivo estable de que no gobierna esa via. Si
-el motor falla al evaluar una columna del <code>ORDER BY</code>, la vía prueba cada
-componente, recupera las columnas legibles sin ese orden cuando puede y
-publica <code>alcance_distinto</code> con el motivo de que el orden pedido no se pudo
-aplicar; no lo presenta como si ninguna columna fallara.</p></dd>
+argumento, cuando se recorta una muestra sobre <code>universo = "tabla_completa"</code>
+y existe una clave primaria o única de grado <code>total</code> en <code>meta$catalogo</code>, o
+se declara <code>clave =</code> (vía <code>...</code>), el motor muestrea automáticamente por una
+huella determinista de esa clave (<code>md5()</code> en PostgreSQL, MySQL, MariaDB y
+DuckDB; <code>HASHBYTES('MD5', ...)</code> en SQL Server; huella aritmética
+determinista en SQLite) con desempate por la clave y prefiltro por umbral
+en tablas grandes, declarando <code>metodo = "muestra_huella_motor"</code> y
+<code>reproducible = TRUE</code>. Cuando el motor calcula MD5 sobre UTF-8 (PostgreSQL,
+MySQL, MariaDB, DuckDB y SQL Server 2019 o posterior) y todas las columnas
+de la clave son de tipos canónicos (enteros, decimales sin ceros de escala,
+fechas ISO, UUID en minúsculas o texto UTF-8), se publica
+<code>alcance_reproducibilidad = "entre_motores_md5"</code>; en SQLite, en SQL Server
+anterior a 2019 o con otros tipos dependientes del motor se publica
+<code>alcance_reproducibilidad = "motor"</code> (reproducible en ese motor, sin
+prometer la misma selección en otros motores). Si no hay clave disponible
+ni <code>clave =</code>, DBI no garantiza el orden ni la pertenencia de la muestra
+limitada y <code>meta</code> lo declara expresamente. No se usa cuando
+<code>bloque_muestra = "solo_agregados"</code>. Con la lectura por bloques, la
+identidad de la fuente por bloques gobierna el recorrido y este pedido
+queda declarado en <code>meta$orden_muestra</code> con el motivo estable de que no
+gobierna esa vía. Si el motor falla al evaluar una columna del <code>ORDER BY</code>,
+la vía prueba cada componente, recupera las columnas legibles sin ese orden
+cuando puede y publica <code>alcance_distinto</code> con el motivo de que el orden
+pedido no se pudo aplicar; no lo presenta como si ninguna columna fallara.
+Además, <code>resumen_tabla$meta$estabilidad</code> informa si la tabla cambió durante
+la lectura cuando la corrida emite dos o más consultas de datos sobre la
+tabla completa (con o sin recorte de muestra): usa contadores síncronos de
+modificaciones del motor cuando están activos (<code>xmin</code> en tablas
+base/particionadas de PostgreSQL, <code>rowversion</code> o
+<code>sys.dm_db_index_operational_stats</code> en SQL Server, <code>performance_schema</code>
+verificando <code>setup_instruments</code>, <code>setup_consumers</code>, <code>setup_objects</code>,
+<code>setup_actors</code> (comodín activo sin exclusiones) y <code>threads</code> (sin hilos no
+instrumentados) en MySQL, <code>INNODB_SYS_TABLESTATS</code> y <code>UPDATE_TIME</code> en
+MariaDB) y emite el cierre más barato posible (<code>"sin_cambio_observado"</code> /
+<code>"cambio_detectado"</code>). En PostgreSQL y SQL Server un <code>UPDATE</code> que reescribe
+el mismo valor —y en PostgreSQL 9.3 un <code>VACUUM FREEZE</code>, que reescribe
+<code>xmin</code>— se informan de forma conservadora como <code>"cambio_detectado"</code> porque
+avanza la versión física o el contador de escrituras. En PostgreSQL sobre
+tablas de un millón de filas, la selección por huella y la verificación por
+<code>xmin</code> agregan en conjunto alrededor de 6 a 10 % al tiempo total del perfil
+completo. Cuando no existe un contador activo de modificaciones por tabla
+(por ejemplo en SQLite, DuckDB, vistas, MySQL con <code>performance_schema</code>
+parcial o con hilos/actores sin instrumentar, o sin permiso de DMV), el
+cierre consulta únicamente <code>COUNT(*)</code> y el máximo de la clave indexada de
+una columna (nunca agregados que barran columnas no indexadas) y publica
+<code>"sin_cambio_en_los_controles"</code> con la lista exacta de controles en
+<code>controles</code> y <code>cambio_detectado = NA</code>, porque un cambio fuera de esos
+controles no se detecta; cuando no se pudo verificar, declara
+<code>"no_verificada"</code> con su motivo. Si la consulta con huella falla en el
+motor en cualquier etapa (preparar, leer filas o cerrar), la vía no pierde
+<code>perfil_muestra</code>: reintenta la lectura sin orden garantizado (y, si hace
+falta, el descarte por columnas sin huella) con <code>reproducible = FALSE</code> y el
+motivo del motor. Como límite de la representación <code><a href="https://bit64.r-lib.org/reference/bit64-package.html" class="external-link">bit64::integer64</a></code> en R,
+el entero de 64 bits <code>-9223372036854775808</code> (<code>-2^63</code>) comparte el patrón de
+bits de <code>NA_integer64_</code>: al materializarse en <code>perfil_muestra</code> se trata como
+valor ausente tanto en columnas comunes como al evaluar <code>clave =</code> sobre la
+muestra.</p></dd>
 
 
 <dt id="arg-metricas">metricas<a class="anchor" aria-label="anchor" href="#arg-metricas"></a></dt>
@@ -490,6 +541,13 @@ anticipar las consultas de la métrica nueva.</p></dd>
 <dt id="arg-cadenas-ausencia">cadenas_ausencia<a class="anchor" aria-label="anchor" href="#arg-cadenas-ausencia"></a></dt>
 <dd><p>Cadenas adicionales que se consideran ausencia
 textual al anticipar las consultas de la métrica nueva.</p></dd>
+
+
+<dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
+<dd><p>Vector opcional con nombres de columnas clave para el muestreo
+reproducible por huella en el motor cuando no se especifica <code>orden_muestra</code>.
+Si el catálogo ya garantiza su unicidad no agrega consultas; si no, el plan
+cuenta la consulta de verificación de unicidad.</p></dd>
 
 </dl></div>
     <div class="section level2">

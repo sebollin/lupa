@@ -38,6 +38,7 @@ de incorporarlo al documento."><meta property="og:image" content="https://seboll
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -49,6 +50,7 @@ de incorporarlo al documento."><meta property="og:image" content="https://seboll
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul></li>
@@ -98,8 +100,8 @@ de incorporarlo al documento.</p>
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Objetos adicionales de clase <code>analisis</code>, <code>perfil</code>, <code>medicion</code>,
 <code>evaluacion_calidad</code>, <code>historico_calidad</code>, <code>deriva_perfil</code>,
-<code>deriva_calidad</code>, <code>plan_limpieza</code>, <code>resultado_limpieza</code> o
-<code>duplicados_aproximados</code>.</p></dd>
+<code>deriva_calidad</code>, <code>plan_limpieza</code>, <code>resultado_limpieza</code>,
+<code>duplicados_aproximados</code> o <code>perfil_coleccion</code>.</p></dd>
 
 
 <dt id="arg-archivo">archivo<a class="anchor" aria-label="anchor" href="#arg-archivo"></a></dt>
@@ -161,6 +163,21 @@ completa, el perfil se arma con la proteccion activa.</p>
 fallidas, el motivo de cada falla, los cambios contados por accion y
 columna, y las filas y columnas retiradas. Se puede pasar solo o junto al
 perfil y el plan que lo originaron.</p>
+<p>Un <code>perfil_coleccion</code> de <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> agrega una sección con
+las tablas de <code><a href="as.data.frame.perfil_coleccion.html">as.data.frame.perfil_coleccion()</a></code>: cuántas tablas se
+declararon, perfilaron, quedaron vacías, sin medición, con error o sin
+medir por su tipo; el índice de tablas con su estado y su motivo; la
+matriz de tablas por dimensión y factor del marco que
+<code><a href="cobertura_analisis.html">cobertura_analisis()</a></code> usa por omisión, con el estado que le da a cada
+perfil; lo no medido con el
+motivo de cada cobertura; y los hallazgos de cada tabla. Ninguna cifra
+resume la colección. La matriz y los hallazgos necesitan
+<code>conservar_perfiles = TRUE</code>: sin los perfiles, la sección lo dice. Con
+<code>proteger_datos_personales = TRUE</code>, cada perfil de muestra se vuelve a
+proteger antes de publicar sus hallazgos, como un perfil suelto, y la
+sección dice cuántos se armaron sin la protección; los motivos de la
+cobertura se publican como los dejó <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, que los
+protege sólo si la colección se perfiló con la protección activa.</p>
 <p>Un objeto <code>medicion_resumen</code> se rechaza con clase
 <code>lupa_resumen_no_admitido</code>; publicar la medición completa o el resumen
 con <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> y su <code><a href="tablero_calidad.html">tablero_calidad()</a></code>.</p></dd>

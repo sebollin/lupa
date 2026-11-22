@@ -52,6 +52,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -63,6 +64,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
@@ -306,13 +308,56 @@ como valores atípicos de <code>id_sucursal</code>. Sin
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> sobre la tabla que interesa.</p>
 </div>
 <div class="section level2">
+<h2 id="un-informe-de-la-coleccion">📋 Un informe de la colección<a class="anchor" aria-label="anchor" href="#un-informe-de-la-coleccion"></a>
+</h2>
+<p>Con cientos de tablas, el perfil no se lee tabla por tabla.
+<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> devuelve el índice: una fila por tabla declarada,
+con su estado y el motivo que registró la cobertura.
+<code>devoluciones</code> queda <code>vacia</code> y <code>pagos</code>,
+<code>con_error</code>; ninguna se cuenta como una tabla sana:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">indice</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
+<span><span class="va">indice</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tabla"</span>, <span class="st">"estado"</span>, <span class="st">"n_filas"</span>, <span class="st">"n_hallazgos_sospechoso"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;          tabla    estado n_filas n_hallazgos_sospechoso</span></span>
+<span><span class="co">#&gt; 1   sucursales perfilada       4                      0</span></span>
+<span><span class="co">#&gt; 2    productos perfilada       6                      0</span></span>
+<span><span class="co">#&gt; 3       ventas perfilada      40                      1</span></span>
+<span><span class="co">#&gt; 4 devoluciones     vacia       0                     NA</span></span>
+<span><span class="co">#&gt; 5        pagos con_error      NA                     NA</span></span></code></pre></div>
+<p><code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> da las otras tablas planas, listas para
+<code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code>. <code>parte = "matriz"</code> ubica cada tabla
+en las dimensiones y factores del marco, con el estado que
+<code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> da a su perfil; las celdas no se
+combinan en ninguna cifra, porque la jerarquía del marco es taxonómica.
+<code>parte = "no_medido"</code> junta lo que no se midió con el motivo
+de cada cobertura, y <code>parte = "hallazgos"</code>, los hallazgos de
+cada tabla:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">matriz</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">perfil</span>, parte <span class="op">=</span> <span class="st">"matriz"</span><span class="op">)</span></span>
+<span><span class="va">matriz</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tabla"</span>, <span class="st">"estado_tabla"</span>, <span class="st">"Completitud / Densidad"</span>, <span class="st">"Frescura / Actualidad"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;          tabla estado_tabla Completitud / Densidad Frescura / Actualidad</span></span>
+<span><span class="co">#&gt; 1   sucursales    perfilada                 medida             no_aplica</span></span>
+<span><span class="co">#&gt; 2    productos    perfilada                 medida             no_aplica</span></span>
+<span><span class="co">#&gt; 3       ventas    perfilada                 medida             no_aplica</span></span>
+<span><span class="co">#&gt; 4 devoluciones        vacia              no_aplica             no_aplica</span></span>
+<span><span class="co">#&gt; 5        pagos    con_error                   &lt;NA&gt;                  &lt;NA&gt;</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">perfil</span>, parte <span class="op">=</span> <span class="st">"no_medido"</span><span class="op">)</span><span class="op">$</span><span class="va">origen</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;    cobertura_coleccion cobertura_diagnosticos     cobertura_metricas </span></span>
+<span><span class="co">#&gt;                      2                      9                     63</span></span></code></pre></div>
+<p><code>reportar(perfil)</code> publica las mismas tablas en un HTML
+autocontenido. La matriz y los hallazgos necesitan los perfiles: sin
+<code>conservar_perfiles = TRUE</code>, el índice y lo no medido se
+arman igual, y el informe dice lo que falta.</p>
+</div>
+<div class="section level2">
 <h2 id="cuánto-cuesta-buscar-relaciones">Cuánto cuesta buscar relaciones<a class="anchor" aria-label="anchor" href="#cu%C3%A1nto-cuesta-buscar-relaciones"></a>
 </h2>
 <p>Buscar claves foráneas compara columnas de una tabla con columnas de
 otra. Una clave foránea tiene dirección: cada par de tablas cuenta 2
 veces. Antes de comparar nada, <code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code>
 cuenta las comparaciones leyendo sólo los nombres de las columnas:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">costo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">costo</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"n_pares_dirigidos"</span>, <span class="st">"n_pares_estimados"</span>, <span class="st">"n_pares_sin_estimar"</span>,</span>
@@ -333,7 +378,7 @@ se declaran.</p>
 <p>Se declaran los 2 pares de interés —cada tabla de referencia contra
 <code>ventas</code>— y, además, las columnas que pueden participar de
 una relación:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pares</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  tabla_1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sucursales"</span>, <span class="st">"productos"</span><span class="op">)</span>,</span>
 <span>  tabla_2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ventas"</span>, <span class="st">"ventas"</span><span class="op">)</span></span>
@@ -359,7 +404,7 @@ comparaciones.</p>
 <code>orden</code> hace que la lectura de cada tabla sea repetible. Sin
 él, una lectura acotada devuelve un subconjunto arbitrario, y el
 resultado lo declara.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">relaciones</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relaciones_coleccion.html">relaciones_coleccion</a></span><span class="op">(</span></span>
 <span>  <span class="va">base</span>, pares <span class="op">=</span> <span class="va">pares</span>, columnas_candidatas <span class="op">=</span> <span class="va">candidatas</span>,</span>
 <span>  orden <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>sucursales <span class="op">=</span> <span class="st">"id_sucursal"</span>, productos <span class="op">=</span> <span class="st">"id_producto"</span>,</span>
@@ -408,7 +453,7 @@ leyó de cada lado y si la lectura quedó truncada
 (<code>muestreado_1</code>, <code>muestreado_2</code>). Con la tabla de
 referencia truncada, la cobertura sólo puede subir al leer más: es una
 cota inferior.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">

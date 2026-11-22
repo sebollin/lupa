@@ -244,6 +244,58 @@ obtiene con
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 sobre la tabla que interesa.
 
+## 📋 Un informe de la colección
+
+Con cientos de tablas, el perfil no se lee tabla por tabla.
+[`summary()`](https://rdrr.io/r/base/summary.html) devuelve el índice:
+una fila por tabla declarada, con su estado y el motivo que registró la
+cobertura. `devoluciones` queda `vacia` y `pagos`, `con_error`; ninguna
+se cuenta como una tabla sana:
+
+``` r
+
+indice <- summary(perfil)
+indice[, c("tabla", "estado", "n_filas", "n_hallazgos_sospechoso")]
+#>          tabla    estado n_filas n_hallazgos_sospechoso
+#> 1   sucursales perfilada       4                      0
+#> 2    productos perfilada       6                      0
+#> 3       ventas perfilada      40                      1
+#> 4 devoluciones     vacia       0                     NA
+#> 5        pagos con_error      NA                     NA
+```
+
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) da las
+otras tablas planas, listas para
+[`write.csv()`](https://rdrr.io/r/utils/write.table.html).
+`parte = "matriz"` ubica cada tabla en las dimensiones y factores del
+marco, con el estado que
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+da a su perfil; las celdas no se combinan en ninguna cifra, porque la
+jerarquía del marco es taxonómica. `parte = "no_medido"` junta lo que no
+se midió con el motivo de cada cobertura, y `parte = "hallazgos"`, los
+hallazgos de cada tabla:
+
+``` r
+
+matriz <- as.data.frame(perfil, parte = "matriz")
+matriz[, c("tabla", "estado_tabla", "Completitud / Densidad", "Frescura / Actualidad")]
+#>          tabla estado_tabla Completitud / Densidad Frescura / Actualidad
+#> 1   sucursales    perfilada                 medida             no_aplica
+#> 2    productos    perfilada                 medida             no_aplica
+#> 3       ventas    perfilada                 medida             no_aplica
+#> 4 devoluciones        vacia              no_aplica             no_aplica
+#> 5        pagos    con_error                   <NA>                  <NA>
+table(as.data.frame(perfil, parte = "no_medido")$origen)
+#> 
+#>    cobertura_coleccion cobertura_diagnosticos     cobertura_metricas 
+#>                      2                      9                     63
+```
+
+`reportar(perfil)` publica las mismas tablas en un HTML autocontenido.
+La matriz y los hallazgos necesitan los perfiles: sin
+`conservar_perfiles = TRUE`, el índice y lo no medido se arman igual, y
+el informe dice lo que falta.
+
 ## Cuánto cuesta buscar relaciones
 
 Buscar claves foráneas compara columnas de una tabla con columnas de

@@ -5,6 +5,8 @@ articles:
   articles/alcance-y-cobertura: alcance-y-cobertura.html
   articles/codificacion-y-locales: codificacion-y-locales.html
   articles/colecciones: colecciones.html
+  articles/crossing-two-databases: crossing-two-databases.html
+  articles/cruzar-dos-bases: cruzar-dos-bases.html
   articles/del-hallazgo-a-la-metrica: del-hallazgo-a-la-metrica.html
   articles/engines-and-scale: engines-and-scale.html
   articles/escala-y-duplicados: escala-y-duplicados.html
@@ -22,7 +24,7 @@ articles:
   articles/perfilar-una-base: perfilar-una-base.html
   articles/profiling-a-database: profiling-a-database.html
   vacio-por-diseno: vacio-por-diseno.html
-last_built: 2026-11-21T22:07Z
+last_built: 2026-11-22T10:45Z
 urls:
   reference: https://sebollin.github.io/lupa/reference
   article: https://sebollin.github.io/lupa/articles

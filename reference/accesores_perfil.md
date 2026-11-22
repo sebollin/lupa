@@ -34,6 +34,9 @@ sql_perfil(x, ...)
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   o
   [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+  `hallazgos()` acepta además el resultado de
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  que ya es la tabla de hallazgos por grupo.
 
 - ...:
 

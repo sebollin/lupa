@@ -13,7 +13,9 @@ se cumple?
 > - cómo leer cualquier perfil con los mismos accesores;
 > - cómo se declara y se comprueba una clave;
 > - cómo encontrar filas donde se contradicen columnas que dicen lo
->   mismo.
+>   mismo;
+> - cómo decidir sobre los hallazgos una vez y que valga en la entrega
+>   siguiente.
 >
 > Al final hay un glosario con las palabras del paquete.
 
@@ -496,6 +498,141 @@ discordante ni como concordante, y sale del universo evaluado
 `ventana` fija cuánto pueden separarse los valores numéricos (con años,
 `ventana = 1` acepta 1 año).
 
+## Decidir sobre los hallazgos y que valga la próxima vez
+
+Un perfil de una base real puede traer decenas de miles de hallazgos, y
+la mayoría se repite entrega tras entrega. Si cada vez volvés a leer lo
+que ya revisaste, el perfil no sirve. El ciclo es: decidir una vez,
+guardar la decisión en un archivo y aplicarla en la entrega siguiente.
+Lo decidido no desaparece: se muestra aparte de lo pendiente, con su
+motivo.
+
+Armamos una entrega de pagos con dos hallazgos que ya conocemos: unos
+montos atípicos y una columna de observaciones que es opcional. Le damos
+un nombre a la tabla con `nombre`, porque el nombre es parte de la
+identidad de cada hallazgo.
+
+``` r
+
+set.seed(7)
+n <- 200L
+entrega1 <- data.frame(
+  id = seq_len(n),
+  monto = c(round(rnorm(n - 2L, 100, 10), 1), 5000, -300),
+  obs = ifelse(seq_len(n) %% 5L == 0L, NA, "ok"),
+  stringsAsFactors = FALSE
+)
+p1 <- perfilar(entrega1, nombre = "pagos", clave = "id", analizar_dependencias = FALSE)
+identificar_hallazgos(p1)[, c("id_hallazgo", "severidad", "n_afectados")]
+#>                       id_hallazgo  severidad n_afectados
+#> 1 pagos||id|posible_identificador         ok           1
+#> 2           pagos||monto|outliers sospechoso           3
+#> 3            pagos||obs|constante sospechoso         160
+#> 4            pagos||obs|faltantes sospechoso          40
+```
+
+[`identificar_hallazgos()`](https://sebollin.github.io/lupa/reference/identificar_hallazgos.md)
+le da a cada hallazgo una identidad que no depende del orden de las
+filas: tabla, columna y tipo. Con esa identidad decidimos. Hay tres
+decisiones: `"aceptado"` (es un defecto y lo reconocemos),
+`"falso_positivo"` (el paquete se equivocó) y `"propiedad_legitima"` (es
+cierto, pero no es un defecto). Toda decisión lleva un motivo y quién la
+toma.
+
+``` r
+
+decisiones <- decidir_hallazgos(
+  p1, "propiedad_legitima", motivo = "Las observaciones son opcionales.",
+  quien = "equipo de datos", tipo_hallazgo = "faltantes"
+)
+decisiones <- decidir_hallazgos(
+  p1, "aceptado", motivo = "Dos montos atipicos ya conocidos.",
+  quien = "equipo de datos", tipo_hallazgo = "outliers",
+  datos = entrega1, decisiones = decisiones
+)
+archivo <- tempfile(fileext = ".csv")
+guardar_decisiones(decisiones, archivo)
+decisiones[, c("id_hallazgo", "decision", "quien")]
+#>             id_hallazgo           decision           quien
+#> 1  pagos||obs|faltantes propiedad_legitima equipo de datos
+#> 2 pagos||monto|outliers           aceptado equipo de datos
+```
+
+El archivo es un CSV que se edita a mano y se versiona con el proyecto
+(acá es temporal). Además del motivo guarda lo que vimos al decidir: la
+severidad, la cantidad de filas afectadas y una huella del contenido
+afectado. Para los valores atípicos la huella necesita los valores, por
+eso pasamos `datos`.
+
+La entrega siguiente trae los mismos montos atípicos en cantidad, pero
+con otros valores. Perfilamos y aplicamos el archivo.
+
+``` r
+
+entrega2 <- entrega1
+entrega2$monto[1L] <- 101
+entrega2$monto[n] <- -900
+p2 <- perfilar(entrega2, nombre = "pagos", clave = "id", analizar_dependencias = FALSE)
+p2d <- aplicar_decisiones(p2, archivo, datos = entrega2)
+hallazgos(p2d)[, c("columna", "tipo_hallazgo", "estado_decision", "cambio_desde_decision")]
+#>   columna         tipo_hallazgo               estado_decision cambio_desde_decision
+#> 1      id posible_identificador                     pendiente                  <NA>
+#> 2   monto              outliers                       revisar               valores
+#> 3     obs             constante                     pendiente                  <NA>
+#> 4     obs             faltantes descartado_propiedad_legitima                  <NA>
+```
+
+Las observaciones quedaron como `descartado_propiedad_legitima`: no
+cuentan como pendientes, pero siguen en la tabla con su motivo
+(`motivo_decision`). Los valores atípicos volvieron como `revisar`: la
+cuenta es la misma, pero los valores cambiaron, y una decisión no se
+aplica en silencio sobre algo distinto de lo que se decidió.
+`print(p2d)` y `summary(p2d)` separan lo pendiente de lo decidido, y
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+agrega una sección con las decisiones.
+
+``` r
+
+attr(summary(p2d), "decisiones")
+#>                 estado_decision error sospechoso ok total
+#> 1                     pendiente     0          1  1     2
+#> 2                       revisar     0          1  0     1
+#> 3        decidido_sin_verificar     0          0  0     0
+#> 4                      aceptado     0          0  0     0
+#> 5     descartado_falso_positivo     0          0  0     0
+#> 6 descartado_propiedad_legitima     0          1  0     1
+```
+
+Hay un tercer estado. Si aplicamos las decisiones sin pasar `datos`, el
+paquete no puede comparar los valores atípicos con lo que se vio al
+decidir:
+
+``` r
+
+p2s <- aplicar_decisiones(p2, archivo)
+h2 <- hallazgos(p2s)
+h2[h2$tipo_hallazgo == "outliers", c("estado_decision", "verificacion")]
+#>          estado_decision                                    verificacion
+#> 2 decidido_sin_verificar valores o estructura: no se pudo calcular ahora
+```
+
+`decidido_sin_verificar` quiere decir que hay una decisión pero no se
+pudo comprobar que el hallazgo sea el mismo, y `verificacion` dice qué
+faltó. No es lo mismo que `revisar`, que quiere decir que algo cambió.
+Un descarte sin verificar tampoco deja que
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+limpie sobre esa decisión: en un
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+sus acciones del plan quedan sin aplicar hasta que las revises.
+
+Qué verifica cada tipo de hallazgo depende de lo que puede cambiar sin
+que cambie la cuenta. Los hallazgos de valores, como los atípicos,
+necesitan los valores: pasá `datos` al decidir y al aplicar, o usá
+`analizar(conservar_datos = TRUE)`. Los de filas, como los faltantes, se
+verifican con las filas afectadas, y para nombrarlas sin depender del
+orden hace falta una `clave`. Los de estructura se verifican con las
+columnas, sin datos. Con clave y datos verifica casi todo.
+
 ## Glosario
 
 Las palabras que usan el paquete y sus guías, en orden alfabético.
@@ -630,6 +767,14 @@ calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html).
   declara columnas que dicen lo mismo, y
   [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
   encuentra las filas donde se contradicen.
+- [`decidir_hallazgos()`](https://sebollin.github.io/lupa/reference/decidir_hallazgos.md),
+  [`guardar_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md)
+  y
+  [`aplicar_decisiones()`](https://sebollin.github.io/lupa/reference/aplicar_decisiones.md)
+  hacen que una decisión valga en la entrega siguiente: lo decidido se
+  muestra aparte, `revisar` es que algo cambió y
+  `decidido_sin_verificar` es que no se pudo comprobar; `datos` y una
+  `clave` verifican más.
 
 ## 🧭 Paso siguiente
 

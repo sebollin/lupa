@@ -161,6 +161,9 @@ Declarar una base de varias tablas y perfilarla como conjunto.
   : Declarar la frontera de una colección
 - [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
   : Perfilar una colección declarada
+- [`as.data.frame(`*`<perfil_coleccion>`*`)`](https://sebollin.github.io/lupa/reference/as.data.frame.perfil_coleccion.md)
+  [`summary(`*`<perfil_coleccion>`*`)`](https://sebollin.github.io/lupa/reference/as.data.frame.perfil_coleccion.md)
+  : Tablas planas de un perfil de colección
 - [`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
   : Estimar el costo de buscar relaciones en una colección
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
@@ -216,6 +219,21 @@ Revisar y aplicar planes trazables sin mutación implícita.
 
   Sentinelas numéricos publicados por
   [naniar](https://github.com/njtierney/naniar)
+
+## Triaje de hallazgos
+
+Decidir sobre los hallazgos y que la decisión valga en la corrida
+siguiente.
+
+- [`identificar_hallazgos()`](https://sebollin.github.io/lupa/reference/identificar_hallazgos.md)
+  : Identificar los hallazgos de un perfil entre corridas
+- [`decidir_hallazgos()`](https://sebollin.github.io/lupa/reference/decidir_hallazgos.md)
+  : Decidir sobre hallazgos: aceptarlos o descartarlos con su motivo
+- [`guardar_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md)
+  [`leer_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md)
+  : Guardar y leer decisiones sobre hallazgos
+- [`aplicar_decisiones()`](https://sebollin.github.io/lupa/reference/aplicar_decisiones.md)
+  : Aplicar las decisiones guardadas a una corrida
 
 ## Monitorear
 

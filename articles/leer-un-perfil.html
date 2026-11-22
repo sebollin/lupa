@@ -52,6 +52,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -63,6 +64,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
@@ -103,7 +105,9 @@ trazabilidad;</li>
 <li>cómo leer cualquier perfil con los mismos accesores;</li>
 <li>cómo se declara y se comprueba una clave;</li>
 <li>cómo encontrar filas donde se contradicen columnas que dicen lo
-mismo.</li>
+mismo;</li>
+<li>cómo decidir sobre los hallazgos una vez y que valga en la entrega
+siguiente.</li>
 </ul>
 <p>Al final hay un glosario con las palabras del paquete.</p>
 </blockquote>
@@ -585,6 +589,120 @@ diferencias, <code>ventana</code> fija cuánto pueden separarse los
 valores numéricos (con años, <code>ventana = 1</code> acepta 1 año).</p>
 </div>
 <div class="section level2">
+<h2 id="decidir-sobre-los-hallazgos-y-que-valga-la-próxima-vez">Decidir sobre los hallazgos y que valga la próxima vez<a class="anchor" aria-label="anchor" href="#decidir-sobre-los-hallazgos-y-que-valga-la-pr%C3%B3xima-vez"></a>
+</h2>
+<p>Un perfil de una base real puede traer decenas de miles de hallazgos,
+y la mayoría se repite entrega tras entrega. Si cada vez volvés a leer
+lo que ya revisaste, el perfil no sirve. El ciclo es: decidir una vez,
+guardar la decisión en un archivo y aplicarla en la entrega siguiente.
+Lo decidido no desaparece: se muestra aparte de lo pendiente, con su
+motivo.</p>
+<p>Armamos una entrega de pagos con dos hallazgos que ya conocemos: unos
+montos atípicos y una columna de observaciones que es opcional. Le damos
+un nombre a la tabla con <code>nombre</code>, porque el nombre es parte
+de la identidad de cada hallazgo.</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">7</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">200L</span></span>
+<span><span class="va">entrega1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span>
+<span>  monto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span> <span class="op">-</span> <span class="fl">2L</span>, <span class="fl">100</span>, <span class="fl">10</span><span class="op">)</span>, <span class="fl">1</span><span class="op">)</span>, <span class="fl">5000</span>, <span class="op">-</span><span class="fl">300</span><span class="op">)</span>,</span>
+<span>  obs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="fl">5L</span> <span class="op">==</span> <span class="fl">0L</span>, <span class="cn">NA</span>, <span class="st">"ok"</span><span class="op">)</span>,</span>
+<span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">entrega1</span>, nombre <span class="op">=</span> <span class="st">"pagos"</span>, clave <span class="op">=</span> <span class="st">"id"</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/identificar_hallazgos.html">identificar_hallazgos</a></span><span class="op">(</span><span class="va">p1</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_hallazgo"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;                       id_hallazgo  severidad n_afectados</span></span>
+<span><span class="co">#&gt; 1 pagos||id|posible_identificador         ok           1</span></span>
+<span><span class="co">#&gt; 2           pagos||monto|outliers sospechoso           3</span></span>
+<span><span class="co">#&gt; 3            pagos||obs|constante sospechoso         160</span></span>
+<span><span class="co">#&gt; 4            pagos||obs|faltantes sospechoso          40</span></span></code></pre></div>
+<p><code><a href="../reference/identificar_hallazgos.html">identificar_hallazgos()</a></code> le da a cada hallazgo una
+identidad que no depende del orden de las filas: tabla, columna y tipo.
+Con esa identidad decidimos. Hay tres decisiones:
+<code>"aceptado"</code> (es un defecto y lo reconocemos),
+<code>"falso_positivo"</code> (el paquete se equivocó) y
+<code>"propiedad_legitima"</code> (es cierto, pero no es un defecto).
+Toda decisión lleva un motivo y quién la toma.</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">decisiones</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/decidir_hallazgos.html">decidir_hallazgos</a></span><span class="op">(</span></span>
+<span>  <span class="va">p1</span>, <span class="st">"propiedad_legitima"</span>, motivo <span class="op">=</span> <span class="st">"Las observaciones son opcionales."</span>,</span>
+<span>  quien <span class="op">=</span> <span class="st">"equipo de datos"</span>, tipo_hallazgo <span class="op">=</span> <span class="st">"faltantes"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">decisiones</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/decidir_hallazgos.html">decidir_hallazgos</a></span><span class="op">(</span></span>
+<span>  <span class="va">p1</span>, <span class="st">"aceptado"</span>, motivo <span class="op">=</span> <span class="st">"Dos montos atipicos ya conocidos."</span>,</span>
+<span>  quien <span class="op">=</span> <span class="st">"equipo de datos"</span>, tipo_hallazgo <span class="op">=</span> <span class="st">"outliers"</span>,</span>
+<span>  datos <span class="op">=</span> <span class="va">entrega1</span>, decisiones <span class="op">=</span> <span class="va">decisiones</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".csv"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/guardar_decisiones.html">guardar_decisiones</a></span><span class="op">(</span><span class="va">decisiones</span>, <span class="va">archivo</span><span class="op">)</span></span>
+<span><span class="va">decisiones</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_hallazgo"</span>, <span class="st">"decision"</span>, <span class="st">"quien"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;             id_hallazgo           decision           quien</span></span>
+<span><span class="co">#&gt; 1  pagos||obs|faltantes propiedad_legitima equipo de datos</span></span>
+<span><span class="co">#&gt; 2 pagos||monto|outliers           aceptado equipo de datos</span></span></code></pre></div>
+<p>El archivo es un CSV que se edita a mano y se versiona con el
+proyecto (acá es temporal). Además del motivo guarda lo que vimos al
+decidir: la severidad, la cantidad de filas afectadas y una huella del
+contenido afectado. Para los valores atípicos la huella necesita los
+valores, por eso pasamos <code>datos</code>.</p>
+<p>La entrega siguiente trae los mismos montos atípicos en cantidad,
+pero con otros valores. Perfilamos y aplicamos el archivo.</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">entrega2</span> <span class="op">&lt;-</span> <span class="va">entrega1</span></span>
+<span><span class="va">entrega2</span><span class="op">$</span><span class="va">monto</span><span class="op">[</span><span class="fl">1L</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">101</span></span>
+<span><span class="va">entrega2</span><span class="op">$</span><span class="va">monto</span><span class="op">[</span><span class="va">n</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="op">-</span><span class="fl">900</span></span>
+<span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">entrega2</span>, nombre <span class="op">=</span> <span class="st">"pagos"</span>, clave <span class="op">=</span> <span class="st">"id"</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">p2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/aplicar_decisiones.html">aplicar_decisiones</a></span><span class="op">(</span><span class="va">p2</span>, <span class="va">archivo</span>, datos <span class="op">=</span> <span class="va">entrega2</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">p2d</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"estado_decision"</span>, <span class="st">"cambio_desde_decision"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   columna         tipo_hallazgo               estado_decision cambio_desde_decision</span></span>
+<span><span class="co">#&gt; 1      id posible_identificador                     pendiente                  &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 2   monto              outliers                       revisar               valores</span></span>
+<span><span class="co">#&gt; 3     obs             constante                     pendiente                  &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 4     obs             faltantes descartado_propiedad_legitima                  &lt;NA&gt;</span></span></code></pre></div>
+<p>Las observaciones quedaron como
+<code>descartado_propiedad_legitima</code>: no cuentan como pendientes,
+pero siguen en la tabla con su motivo (<code>motivo_decision</code>).
+Los valores atípicos volvieron como <code>revisar</code>: la cuenta es
+la misma, pero los valores cambiaron, y una decisión no se aplica en
+silencio sobre algo distinto de lo que se decidió.
+<code>print(p2d)</code> y <code>summary(p2d)</code> separan lo pendiente
+de lo decidido, y <code><a href="../reference/reportar.html">reportar()</a></code> agrega una sección con las
+decisiones.</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">p2d</span><span class="op">)</span>, <span class="st">"decisiones"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                 estado_decision error sospechoso ok total</span></span>
+<span><span class="co">#&gt; 1                     pendiente     0          1  1     2</span></span>
+<span><span class="co">#&gt; 2                       revisar     0          1  0     1</span></span>
+<span><span class="co">#&gt; 3        decidido_sin_verificar     0          0  0     0</span></span>
+<span><span class="co">#&gt; 4                      aceptado     0          0  0     0</span></span>
+<span><span class="co">#&gt; 5     descartado_falso_positivo     0          0  0     0</span></span>
+<span><span class="co">#&gt; 6 descartado_propiedad_legitima     0          1  0     1</span></span></code></pre></div>
+<p>Hay un tercer estado. Si aplicamos las decisiones sin pasar
+<code>datos</code>, el paquete no puede comparar los valores atípicos
+con lo que se vio al decidir:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">p2s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/aplicar_decisiones.html">aplicar_decisiones</a></span><span class="op">(</span><span class="va">p2</span>, <span class="va">archivo</span><span class="op">)</span></span>
+<span><span class="va">h2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">p2s</span><span class="op">)</span></span>
+<span><span class="va">h2</span><span class="op">[</span><span class="va">h2</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"outliers"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"estado_decision"</span>, <span class="st">"verificacion"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;          estado_decision                                    verificacion</span></span>
+<span><span class="co">#&gt; 2 decidido_sin_verificar valores o estructura: no se pudo calcular ahora</span></span></code></pre></div>
+<p><code>decidido_sin_verificar</code> quiere decir que hay una decisión
+pero no se pudo comprobar que el hallazgo sea el mismo, y
+<code>verificacion</code> dice qué faltó. No es lo mismo que
+<code>revisar</code>, que quiere decir que algo cambió. Un descarte sin
+verificar tampoco deja que <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> limpie sobre esa
+decisión: en un <code><a href="../reference/analizar.html">analizar()</a></code>, sus acciones del plan quedan
+sin aplicar hasta que las revises.</p>
+<p>Qué verifica cada tipo de hallazgo depende de lo que puede cambiar
+sin que cambie la cuenta. Los hallazgos de valores, como los atípicos,
+necesitan los valores: pasá <code>datos</code> al decidir y al aplicar,
+o usá <code>analizar(conservar_datos = TRUE)</code>. Los de filas, como
+los faltantes, se verifican con las filas afectadas, y para nombrarlas
+sin depender del orden hace falta una <code>clave</code>. Los de
+estructura se verifican con las columnas, sin datos. Con clave y datos
+verifica casi todo.</p>
+</div>
+<div class="section level2">
 <h2 id="glosario">Glosario<a class="anchor" aria-label="anchor" href="#glosario"></a>
 </h2>
 <p>Las palabras que usan el paquete y sus guías, en orden
@@ -687,7 +805,7 @@ tiene marca de auto. Se declara; lo explica <a href="vacio-por-diseno.html">5. E
 </ul>
 <p>La tabla que traduce las granularidades al vocabulario de las bases
 de datos:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/granularidades.html">granularidades</a></span><span class="op">(</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nivel"</span>, <span class="st">"granularidad"</span>, <span class="st">"relacional"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;    nivel           granularidad           relacional</span></span>
 <span><span class="co">#&gt; 1      1      instanciaAtributo                celda</span></span>
@@ -726,6 +844,13 @@ candidatas; no decide.</li>
 <code><a href="../reference/senal_redundante.html">senal_redundante()</a></code> declara columnas que dicen lo mismo,
 y <code><a href="../reference/detectar_discordancias.html">detectar_discordancias()</a></code> encuentra las filas donde se
 contradicen.</li>
+<li>
+<code><a href="../reference/decidir_hallazgos.html">decidir_hallazgos()</a></code>, <code><a href="../reference/guardar_decisiones.html">guardar_decisiones()</a></code>
+y <code><a href="../reference/aplicar_decisiones.html">aplicar_decisiones()</a></code> hacen que una decisión valga en la
+entrega siguiente: lo decidido se muestra aparte, <code>revisar</code>
+es que algo cambió y <code>decidido_sin_verificar</code> es que no se
+pudo comprobar; <code>datos</code> y una <code>clave</code> verifican
+más.</li>
 </ul>
 </div>
 <div class="section level2">

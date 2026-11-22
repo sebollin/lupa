@@ -52,6 +52,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -63,6 +64,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
@@ -354,6 +356,11 @@ default is shown and, in parentheses, the others.</p>
 </tr>
 <tr class="even">
 <td align="left"><code>cadenas_ausencia</code></td>
+<td align="left">—</td>
+<td align="left"><code>NULL</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>clave</code></td>
 <td align="left">—</td>
 <td align="left"><code>NULL</code></td>
 </tr>
@@ -1333,10 +1340,10 @@ to the plan:</p>
 <span>  distintos_4 <span class="op">=</span> <span class="fu">consultas_por_lote</span><span class="op">(</span>tamano_lote_distintos <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;             planos distintos total</span></span>
-<span><span class="co">#&gt; planos_1         6         2    25</span></span>
-<span><span class="co">#&gt; por_omision      3         2    22</span></span>
-<span><span class="co">#&gt; distintos_1      3         4    24</span></span>
-<span><span class="co">#&gt; distintos_4      3         1    21</span></span></code></pre></div>
+<span><span class="co">#&gt; planos_1         6         2    26</span></span>
+<span><span class="co">#&gt; por_omision      3         2    23</span></span>
+<span><span class="co">#&gt; distintos_1      3         4    25</span></span>
+<span><span class="co">#&gt; distintos_4      3         1    22</span></span></code></pre></div>
 <p>The value of <code>tamano_lote_distintos</code> is an assumption of
 the code, noted next to the constant (<code>R/perfilar-dbi.R</code>). In
 PostgreSQL, the read of the table is the same with any batch. The engine
@@ -1453,8 +1460,8 @@ table that follows has 200 rows and 158 columns:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">por_politica</span></span>
 <span><span class="co">#&gt;            todas por_cardinalidad </span></span>
-<span><span class="co">#&gt;              335              257</span></span></code></pre></div>
-<p>With <code>"por_cardinalidad"</code>, the run saved 78 of 335
+<span><span class="co">#&gt;              336              258</span></span></code></pre></div>
+<p>With <code>"por_cardinalidad"</code>, the run saved 78 of 336
 queries, all of them of mode.</p>
 <p>The structural sources are resolved whenever the policy needs the
 cardinality, even if <code>estrategia_distintos</code> is omitted or not
@@ -1545,22 +1552,29 @@ CASE + desvio)</td>
 <td align="left">lee las filas pedidas</td>
 <td align="right">2</td>
 </tr>
+<tr class="even">
+<td align="left">verificacion de estabilidad (conteo y agregado
+final)</td>
+<td align="right">1</td>
+<td align="left">lee el conteo y maximo de la clave</td>
+<td align="right">1</td>
+</tr>
 </tbody>
 </table>
 <p>The cost is a <strong>range</strong>:</p>
 <ul>
 <li>
-<code>attr(plan, "total")</code> (22 here) counts the queries if no
+<code>attr(plan, "total")</code> (23 here) counts the queries if no
 batch is rejected. With
 <code>politica_costo = "por_cardinalidad"</code>, it assumes that the
 mode whose cardinality is not known is omitted.</li>
 <li>
-<code>attr(plan, "total_maximo")</code> (35) adds the path that runs
+<code>attr(plan, "total_maximo")</code> (36) adds the path that runs
 that mode and the bisection probes, if the engine rejected every batch.
 They are up to <code>2n − 1</code> per batch of <code>n</code> columns.
 <code>total_lotes_rechazados</code> publishes the same number.</li>
 </ul>
-<p>The default run of the example emitted 22.</p>
+<p>The default run of the example emitted 23.</p>
 <p>The range holds when the sampling can be built. If
 <code>universo = "muestra_motor"</code> and the form cannot be built,
 <code>attr(plan, "muestreo")</code> declares it and the plan excludes
@@ -1592,8 +1606,8 @@ columns, all of them text:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     337                     328                     256</span></span></code></pre></div>
-<p>Of the 337 queries of the wide table, 328 scan, sort or group the
+<span><span class="co">#&gt;                     338                     329                     257</span></span></code></pre></div>
+<p>Of the 338 queries of the wide table, 329 scan, sort or group the
 whole table. Text columns cost less, above all because the median —which
 sorts the table— is requested only on numeric columns.
 <code>muestra</code> bounds none of that: it bounds what is brought into

@@ -106,16 +106,69 @@ perfilar_dbi(
 
   Columnas para `ORDER BY`. La salida solo declara orden reproducible
   cuando la combinación es única en toda la tabla. Sin este argumento,
-  DBI no garantiza el orden ni la pertenencia de una muestra limitada, y
-  `meta` lo declara expresamente. No se usa cuando
-  `bloque_muestra = "solo_agregados"`. Con la lectura por bloques, la
-  identidad de la fuente por bloques gobierna el recorrido y este pedido
-  queda declarado en `meta$orden_muestra` con el motivo estable de que
-  no gobierna esa via. Si el motor falla al evaluar una columna del
-  `ORDER BY`, la vía prueba cada componente, recupera las columnas
-  legibles sin ese orden cuando puede y publica `alcance_distinto` con
-  el motivo de que el orden pedido no se pudo aplicar; no lo presenta
-  como si ninguna columna fallara.
+  cuando se recorta una muestra sobre `universo = "tabla_completa"` y
+  existe una clave primaria o única de grado `total` en `meta$catalogo`,
+  o se declara `clave =` (vía `...`), el motor muestrea automáticamente
+  por una huella determinista de esa clave (`md5()` en PostgreSQL,
+  MySQL, MariaDB y DuckDB; `HASHBYTES('MD5', ...)` en SQL Server; huella
+  aritmética determinista en SQLite) con desempate por la clave y
+  prefiltro por umbral en tablas grandes, declarando
+  `metodo = "muestra_huella_motor"` y `reproducible = TRUE`. Cuando el
+  motor calcula MD5 sobre UTF-8 (PostgreSQL, MySQL, MariaDB, DuckDB y
+  SQL Server 2019 o posterior) y todas las columnas de la clave son de
+  tipos canónicos (enteros, decimales sin ceros de escala, fechas ISO,
+  UUID en minúsculas o texto UTF-8), se publica
+  `alcance_reproducibilidad = "entre_motores_md5"`; en SQLite, en SQL
+  Server anterior a 2019 o con otros tipos dependientes del motor se
+  publica `alcance_reproducibilidad = "motor"` (reproducible en ese
+  motor, sin prometer la misma selección en otros motores). Si no hay
+  clave disponible ni `clave =`, DBI no garantiza el orden ni la
+  pertenencia de la muestra limitada y `meta` lo declara expresamente.
+  No se usa cuando `bloque_muestra = "solo_agregados"`. Con la lectura
+  por bloques, la identidad de la fuente por bloques gobierna el
+  recorrido y este pedido queda declarado en `meta$orden_muestra` con el
+  motivo estable de que no gobierna esa vía. Si el motor falla al
+  evaluar una columna del `ORDER BY`, la vía prueba cada componente,
+  recupera las columnas legibles sin ese orden cuando puede y publica
+  `alcance_distinto` con el motivo de que el orden pedido no se pudo
+  aplicar; no lo presenta como si ninguna columna fallara. Además,
+  `resumen_tabla$meta$estabilidad` informa si la tabla cambió durante la
+  lectura cuando la corrida emite dos o más consultas de datos sobre la
+  tabla completa (con o sin recorte de muestra): usa contadores
+  síncronos de modificaciones del motor cuando están activos (`xmin` en
+  tablas base/particionadas de PostgreSQL, `rowversion` o
+  `sys.dm_db_index_operational_stats` en SQL Server,
+  `performance_schema` verificando `setup_instruments`,
+  `setup_consumers`, `setup_objects`, `setup_actors` (comodín activo sin
+  exclusiones) y `threads` (sin hilos no instrumentados) en MySQL,
+  `INNODB_SYS_TABLESTATS` y `UPDATE_TIME` en MariaDB) y emite el cierre
+  más barato posible (`"sin_cambio_observado"` / `"cambio_detectado"`).
+  En PostgreSQL y SQL Server un `UPDATE` que reescribe el mismo valor —y
+  en PostgreSQL 9.3 un `VACUUM FREEZE`, que reescribe `xmin`— se
+  informan de forma conservadora como `"cambio_detectado"` porque avanza
+  la versión física o el contador de escrituras. En PostgreSQL sobre
+  tablas de un millón de filas, la selección por huella y la
+  verificación por `xmin` agregan en conjunto alrededor de 6 a 10 % al
+  tiempo total del perfil completo. Cuando no existe un contador activo
+  de modificaciones por tabla (por ejemplo en SQLite, DuckDB, vistas,
+  MySQL con `performance_schema` parcial o con hilos/actores sin
+  instrumentar, o sin permiso de DMV), el cierre consulta únicamente
+  `COUNT(*)` y el máximo de la clave indexada de una columna (nunca
+  agregados que barran columnas no indexadas) y publica
+  `"sin_cambio_en_los_controles"` con la lista exacta de controles en
+  `controles` y `cambio_detectado = NA`, porque un cambio fuera de esos
+  controles no se detecta; cuando no se pudo verificar, declara
+  `"no_verificada"` con su motivo. Si la consulta con huella falla en el
+  motor en cualquier etapa (preparar, leer filas o cerrar), la vía no
+  pierde `perfil_muestra`: reintenta la lectura sin orden garantizado
+  (y, si hace falta, el descarte por columnas sin huella) con
+  `reproducible = FALSE` y el motivo del motor. Como límite de la
+  representación
+  [`bit64::integer64`](https://bit64.r-lib.org/reference/bit64-package.html)
+  en R, el entero de 64 bits `-9223372036854775808` (`-2^63`) comparte
+  el patrón de bits de `NA_integer64_`: al materializarse en
+  `perfil_muestra` se trata como valor ausente tanto en columnas comunes
+  como al evaluar `clave =` sobre la muestra.
 
 - metricas:
 
@@ -1271,8 +1324,10 @@ eso no es lo mismo que la tabla en R:
   y `perfilar_dbi(..., bloque_filas = n)` suman los cuadrados sin error
   en una unidad que es potencia de dos —la que deja el mayor valor en
   2^400— y que sube cuando llega un bloque que no cubre: el desvío es el
-  doble más cercano también en esas magnitudes. Las columnas de magnitud
-  común no cambian de consulta ni de cifra.
+  doble más cercano también en esas magnitudes, salvo cuando el desvío
+  verdadero ya no cabe en un doble (dos valores de ±1,7e308 lo tienen en
+  2,4e308): ahí queda `NA`, igual que en el motor, y no `Inf`. Las
+  columnas de magnitud común no cambian de consulta ni de cifra.
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las

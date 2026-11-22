@@ -20,6 +20,7 @@
   apilados no se acusan) y `escala_mixta` (`ok`: una minoría de valores
   separada del resto por una potencia de diez, que puede ser una mezcla
   de unidades o dos poblaciones).
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   lee del catálogo, además de la clave primaria, las restricciones e
   índices únicos (con su semántica de `NULL`; los parciales o filtrados
@@ -32,6 +33,7 @@
   unicidad garantizada no se vuelve a medir.
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   cuenta las mismas consultas.
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   cuenta en el motor las filas repetidas exactas con una regla publicada
   en `resumen_tabla$meta$duplicados_exactos`, igual en R y en los seis
@@ -41,6 +43,7 @@
   los decimales anchos a `double` y podía unir valores distintos. Donde
   el motor no puede reproducir la regla, la cifra queda `NA` con el
   motivo.
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   con `muestra` cuenta en el motor, sobre la tabla entera, los faltantes
   disfrazados (centinelas numéricos como `-99` y cadenas de ausencia
@@ -58,6 +61,7 @@
   las cadenas no ASCII en SQLite, los números con separador de miles— la
   cifra queda `NA` con el motivo, y nunca se publica un cero que no se
   contó. Sin muestra no cambia nada: la tabla ya se lee entera.
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa las horas y fechas escritas como texto que no existen
   (`hora_invalida`, `fecha_invalida`, sospechosos: `"12:61"`,
@@ -74,6 +78,7 @@
   y una hora de 24 o más con minutos válidos sólo se acusa si el nombre
   de la columna dice hora del día (puede ser una duración).
   `umbral_patron_raro = 0` los apaga.
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa las columnas casi constantes (`casi_constante`, `ok`: un valor
   ocupa el 99 % o más de los presentes, con al menos 100 valores; la
@@ -89,6 +94,7 @@
   declararla con `clave =` la acusa como `clave_con_ausentes`). Los dos
   cuentan sobre el universo aplicable y, con
   `universo = "muestra_motor"`, se declaran en la cobertura.
+
 - [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
   y
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
@@ -98,6 +104,7 @@
   pocos valores (`ciudad -> pais`) se sigue informando.
   `casi_duplicados_vocabulario` ya no toma dos valores de un solo
   carácter como errata uno del otro.
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa los patrones de ausencia: `faltantes_conjuntos` cuando varias
   columnas comparten un bloque de filas ausentes (se lee de la tabla de
@@ -119,6 +126,7 @@
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   una fila es vacía sólo si lo es en la tabla entera. El plan de
   limpieza no propone borrar filas por estos hallazgos.
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   infiere por el nombre el dominio de edades, porcentajes, coordenadas y
   fechas (nacimientos, registros, vigencias) y dice lo que cae afuera
@@ -155,6 +163,7 @@
   informa el paso de filas a columna. `dominios` declara la regla de una
   columna o, con `FALSE`, apaga la inferencia; de las fechas centinela
   declaradas, la evidencia nombra sólo las que aparecen en la columna.
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa los códigos que perdieron los ceros a la izquierda
   (`largo_codigo_inconsistente`, sospechoso): en una columna de texto
@@ -171,6 +180,7 @@
   formato válido (facturas que crecieron de cinco a seis dígitos,
   códigos postales de dos países), la sugerencia lo dice.
   `umbral_patron_raro = 0` lo apaga.
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   informa los documentos que no cumplen su dígito verificador
   (`digito_verificador_invalido`, sospechoso): en una columna de
@@ -182,6 +192,7 @@
   centinela como `00000000` no se cuenta como inválido, y la evidencia
   dice cuántos quedaron aparte. La evidencia no lleva valores.
   `validadores_personales = FALSE` lo apaga.
+
 - [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   informa una columna enteramente ausente en toda la tabla. Dentro de
   cada grupo se descartan, como antes, las columnas que faltan en ese
@@ -206,6 +217,7 @@
   [`rbind()`](https://rdrr.io/r/base/cbind.html) no lo llevan. Con 20
   columnas vacías en un millón de filas, el tiempo es el mismo que
   antes.
+
 - La muestra de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   ya no depende del orden de las filas. Con más filas que `muestra`
@@ -238,6 +250,7 @@
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
   que usan su propia muestra de `muestra_asociacion` filas (10.000 por
   omisión).
+
 - Una tabla que no supera `muestra` y cabe en `max_celdas_muestra` y en
   `max_bytes_muestra` se lee entera sin medir antes una sonda; entonces
   `meta$bytes_sonda` queda en `NA`. Cuando un tope recorta, la muestra
@@ -254,6 +267,7 @@
   también con más filas que `muestra`. Cuando un tope recorta una tabla
   que no supera `muestra`, todos los diagnósticos miran las mismas
   filas, elegidas por la huella, y `meta$muestra_huella` lo declara.
+
 - [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   calcula esa selección una sola vez y la comparten todos sus
   diagnósticos, y las funciones de diagnóstico llamadas solas
@@ -277,6 +291,118 @@
   [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
   sobre 2.000.000 de textos distintos pasa de 0,2 a 6,5 segundos y de 50
   a 498 MB. Son medianas en Linux de `benchmark/medir_costo_huella.R`.
+
+- [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  tiene un informe de colección.
+  [`summary()`](https://rdrr.io/r/base/summary.html) y
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) sobre
+  el perfil de colección devuelven tablas planas, sin columnas lista y
+  listas para [`write.csv()`](https://rdrr.io/r/utils/write.table.html):
+  el índice de tablas con su estado (`perfilada`, `vacia`,
+  `medicion_incompleta`, `con_error` o `no_medida`), el motivo que
+  registró la cobertura y cuántas métricas no medidas no se listaron por
+  `tope_cobertura_metricas` (`parte = "tablas"`, por omisión); la matriz
+  de tablas por dimensión y factor del marco, con el estado de
+  [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  de cada perfil (`"matriz"` y, en largo, `"dimensiones"`); lo no medido
+  con el motivo de cada cobertura (`"no_medido"`); y los hallazgos de
+  cada tabla (`"hallazgos"`). Ninguna parte calcula un puntaje: no se
+  promedian factores, dimensiones ni tablas.
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  acepta un perfil de colección (antes lo rechazaba) y publica las
+  mismas tablas en una sección propia.
+
+- Un número con una unidad de medida conocida pegada (`4197.38ml`) se
+  lee como número escrito como texto y no como identificador; su
+  conversión se ofrece sin marcar, porque puede ser un código o una
+  versión, salvo que el resto de la columna establezca la misma unidad.
+  Con la unidad separada por un espacio, una lista cerrada de unidades
+  comunes (longitud, masa, volumen, energía, presión, electricidad,
+  tiempo, pantalla y datos) decide qué conversión se marca por omisión:
+  `120 kcal` sí, `1.0 beta` no.
+
+- El código de moneda (`USD 35`) acepta el espacio duro o fino entre el
+  código y el número, como ya lo aceptaba el símbolo, y un espacio duro
+  dentro de un importe ya no se acusa como control invisible (dos
+  espacios, uno al borde o junto a otro invisible, o uno en texto libre,
+  se siguen acusando). Un importe con ceros a la izquierda
+  (`USD 000101`, `$ 000101`) ofrece su conversión sin marcar, porque
+  puede ser un código de documento, salvo que el resto de la columna
+  sean importes de la misma moneda.
+
+- [`decidir_hallazgos()`](https://sebollin.github.io/lupa/reference/decidir_hallazgos.md),
+  [`guardar_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md),
+  [`leer_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md),
+  [`aplicar_decisiones()`](https://sebollin.github.io/lupa/reference/aplicar_decisiones.md)
+  e
+  [`identificar_hallazgos()`](https://sebollin.github.io/lupa/reference/identificar_hallazgos.md)
+  permiten decidir una vez sobre los hallazgos y que la decisión valga
+  en la entrega siguiente: un hallazgo se acepta como defecto, o se
+  descarta como falso positivo o como propiedad legítima del dato, con
+  su motivo, quién y cuándo, en un CSV que se edita y se versiona
+  (UTF-8, con coma o punto y coma, y que una planilla abre). Cada
+  hallazgo tiene una identidad que no depende del orden de las filas: la
+  tabla calificada con su esquema, el grupo, la columna y el tipo.
+  [`aplicar_decisiones()`](https://sebollin.github.io/lupa/reference/aplicar_decisiones.md)
+  funciona sobre
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md);
+  [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  acepta ahora el resultado de
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md).
+  Lo decidido no desaparece:
+  [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  lo muestra con su `estado_decision` y su motivo, y
+  [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html) y
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  lo cuentan aparte de lo pendiente.
+
+- Una decisión nunca se aplica en silencio sobre un hallazgo que cambió
+  o que no se pudo comprobar. Cada tipo de hallazgo se verifica con lo
+  que puede cambiar sin que cambie la cuenta: los valores afectados
+  (pasando `datos` o con `analizar(conservar_datos = TRUE)`), las filas
+  afectadas (con una `clave`), la estructura de las columnas o un
+  detalle que el perfil ya publica, como los centinelas de los faltantes
+  o el valor constante. Si algo de eso cambió, el hallazgo vuelve como
+  `revisar`; si no se pudo comparar, queda como `decidido_sin_verificar`
+  con lo que faltó en `verificacion`. Sobre un
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  las acciones del plan de limpieza de un hallazgo descartado quedan sin
+  aplicar (también las de un descarte sin verificar, con una nota que
+  pide revisarlo), el plan se recalcula siempre desde las decisiones
+  vigentes y conserva las ediciones a mano;
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  las respeta igual.
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con un [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html) publica
+  ahora `meta$tabla` calificada con su esquema (antes publicaba la
+  descripción de la clase).
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con `muestra` y una clave (la declarada con `clave =`, o la primaria o
+  un índice único de grado total leídos del catálogo) elige las filas
+  por una huella de la clave calculada en el motor: dos corridas sobre
+  la misma tabla leen las mismas filas, y PostgreSQL, MySQL, MariaDB,
+  SQL Server y DuckDB eligen las mismas para los mismos datos (en
+  SQLite, o donde la codificación de la clave depende del motor, `meta`
+  dice que es reproducible en ese motor). Si la huella falla en
+  cualquier etapa, la muestra se conserva con la lectura de siempre,
+  `reproducible = FALSE` y el motivo. Con un millón de filas en
+  PostgreSQL cuesta entre un 8 y un 10 % más.
+  `resumen_tabla$meta$estabilidad` dice si la tabla cambió durante la
+  lectura con los contadores de modificaciones del motor (`xmin` en
+  PostgreSQL, `rowversion` o las estadísticas de índice en SQL Server,
+  `performance_schema` en MySQL cuando cuenta todas las escrituras, los
+  contadores de InnoDB en MariaDB) y, donde no los hay, con `COUNT(*)` y
+  el máximo de una clave indexada: entonces dice `cambio_detectado = NA`
+  con la lista de lo controlado, nunca que no cambió lo que no pudo ver.
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  cuenta esas consultas.
 
 ### Medir la calidad
 
@@ -499,7 +625,51 @@
   agrega al final `asociacion_con_signo`, el coeficiente con su
   dirección; las columnas que ya publicaba no cambian.
 
+### Documentación
+
+- La viñeta «Leer un perfil» muestra cómo decidir sobre los hallazgos y
+  que la decisión valga en la entrega siguiente.
+- El sitio publica «Cruzar dos bases», una guía para comparar una tabla
+  de cada una de dos conexiones: perfilar cada lado en su motor con
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  leer sólo las claves por bloques y medir la cobertura y la integridad
+  referencial en R con
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  y [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) con
+  `ReglaIntegridadInterEntidad`. También está en inglés, como «Crossing
+  two databases».
+- El artículo de colecciones muestra el informe de colección: el índice,
+  la matriz por dimensión y lo no medido.
+
 ### Correcciones
+
+- Un centinela declarado como entero de 64 bits, o escrito como texto
+  con más de 15 cifras significativas en cualquier notación, se compara
+  con el valor exacto en el perfil, el plan,
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  `9007199254740992` ya no arrastra a su vecino `…993`, y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  ya no lo borra.
+
+- Un desvío que no cabe en un doble (valores cercanos a ±1,7e308) se
+  publica `NA` con su fila de cobertura, en memoria y en
+  `perfil_muestra` de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  en vez de `Inf`.
+
+- La normalización de espacios invisibles cambia exactamente las celdas
+  que el plan anuncia.
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publicaba en `resumen_tabla$meta$mediana_consolidada`, y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  en su atributo del mismo nombre, las funciones que arman el SQL de la
+  mediana, con el entorno donde nacieron: en DuckDB un perfil de 200
+  filas pesaba 15 MB serializado en vez de 75 KB. Se publica lo que se
+  decidió y por qué, como ya se hacía con la moda y la mediana escalar.
 
 - [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   anunciaba menos consultas de las que

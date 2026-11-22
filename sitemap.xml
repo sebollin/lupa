@@ -6,6 +6,8 @@
 <url><loc>https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/codificacion-y-locales.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/colecciones.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/articles/crossing-two-databases.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/articles/cruzar-dos-bases.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/engines-and-scale.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/escala-y-duplicados.html</loc></url>
@@ -31,6 +33,8 @@
 <url><loc>https://sebollin.github.io/lupa/reference/agregar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/analizar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/analizar_tiempo.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/aplicar_decisiones.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/as.data.frame.perfil_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/as_tibble.perfil.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/catalogo_agesic.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/clasificar_variables.html</loc></url>
@@ -42,6 +46,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/contratos_medicion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/datos_administrativos.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/datos_operativos.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/decidir_hallazgos.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/descubrir_patrones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_asociaciones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_claves.html</loc></url>
@@ -58,9 +63,11 @@
 <url><loc>https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/evaluar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/granularidades.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/guardar_decisiones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/guardar_historico.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/guiar_limpieza.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/historico_calidad.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/identificar_hallazgos.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/index.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/indice_calidad.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/inferir_tipo.html</loc></url>

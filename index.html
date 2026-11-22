@@ -57,6 +57,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -68,6 +69,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
@@ -319,9 +321,9 @@
 </h2>
 <table class="table">
 <colgroup>
-<col width="12%">
-<col width="39%">
-<col width="48%">
+<col width="15%">
+<col width="38%">
+<col width="46%">
 </colgroup>
 <thead><tr>
 <th>Tarea</th>
@@ -337,6 +339,13 @@
 <td>
 <a href="https://sebollin.github.io/lupa/articles/lupa.html">Empezar en diez minutos</a>, <a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a>
 </td>
+</tr>
+<tr>
+<td>Decidir sobre los hallazgos y que valga en la entrega siguiente</td>
+<td>
+<code><a href="reference/identificar_hallazgos.html">identificar_hallazgos()</a></code>, <code><a href="reference/decidir_hallazgos.html">decidir_hallazgos()</a></code>, <code><a href="reference/guardar_decisiones.html">guardar_decisiones()</a></code>, <code><a href="reference/guardar_decisiones.html">leer_decisiones()</a></code>, <code><a href="reference/aplicar_decisiones.html">aplicar_decisiones()</a></code>
+</td>
+<td><a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a></td>
 </tr>
 <tr>
 <td>Explorar columnas y compartir el resultado</td>
@@ -529,7 +538,7 @@
 <li>
 <a href="https://sebollin.github.io/lupa/articles/lupa.html">Empezar en diez minutos</a>: perfilar una tabla, empezar por los errores, ir de un hallazgo a sus filas con <code>clave</code>, leer la cobertura, guardar un informe y limpiar una columna en una copia.</li>
 <li>
-<a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a>: las severidades, qué trae cada hallazgo, los accesores, las claves, las contradicciones entre columnas y el glosario.</li>
+<a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a>: las severidades, qué trae cada hallazgo, los accesores, las claves, las contradicciones entre columnas, cómo decidir sobre los hallazgos para que valga en la entrega siguiente y el glosario.</li>
 <li>
 <a href="https://sebollin.github.io/lupa/articles/explorar-columnas.html">Explorar columnas con <code>analizar()</code></a>: qué arma <code><a href="reference/analizar.html">analizar()</a></code> en una llamada, cómo se leen patrones, tipos, fechas, distribuciones, asociaciones y tiempo, y cómo se guarda y se informa.</li>
 <li>
@@ -547,9 +556,11 @@
 <li>
 <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a>: los dos bloques de <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>, qué trae a R cada opción y dónde queda el metadato del muestreo.</li>
 <li>
-<a href="https://sebollin.github.io/lupa/articles/colecciones.html">Colecciones</a>: perfilar las tablas de una base, leer lo que no se pudo medir y buscar relaciones entre ellas.</li>
+<a href="https://sebollin.github.io/lupa/articles/colecciones.html">Colecciones</a>: perfilar las tablas de una base, leer lo que no se pudo medir, armar el informe de la colección y buscar relaciones entre ellas.</li>
 <li>
 <a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Escala y duplicados aproximados</a>: pedir la comparación aproximada, estimar su costo, saber cuándo entra LSH y qué recorta cada tope.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/cruzar-dos-bases.html">Cruzar dos bases</a>: comparar una tabla de cada una de dos conexiones: perfilar cada lado en su motor, leer sólo las claves por bloques y medir la cobertura y la integridad referencial en R.</li>
 </ol>
 </div>
 <div class="section level2">

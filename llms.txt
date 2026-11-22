@@ -254,6 +254,7 @@ lugar.
 | Tarea | Funciones principales | Guía |
 |----|----|----|
 | Mirar una tabla por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md), [`columnas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md), [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md) | [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html), [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) |
+| Decidir sobre los hallazgos y que valga en la entrega siguiente | [`identificar_hallazgos()`](https://sebollin.github.io/lupa/reference/identificar_hallazgos.md), [`decidir_hallazgos()`](https://sebollin.github.io/lupa/reference/decidir_hallazgos.md), [`guardar_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md), [`leer_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md), [`aplicar_decisiones()`](https://sebollin.github.io/lupa/reference/aplicar_decisiones.md) | [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) |
 | Explorar columnas y compartir el resultado | [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md), [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md) | [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) |
 | Encontrar estructura y vacíos legítimos | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md), [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html), [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html) |
 | Limpiar sin tocar el original | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md), [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md), [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md); la estrategia `reparar_codificacion` para texto mal codificado | [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
@@ -428,7 +429,8 @@ abre la primera); de la 7 a la 12 están sólo en el sitio.
 2.  [Leer un
     perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html):
     las severidades, qué trae cada hallazgo, los accesores, las claves,
-    las contradicciones entre columnas y el glosario.
+    las contradicciones entre columnas, cómo decidir sobre los hallazgos
+    para que valga en la entrega siguiente y el glosario.
 3.  [Explorar columnas con
     `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html):
     qué arma
@@ -466,12 +468,17 @@ abre la primera); de la 7 a la 12 están sólo en el sitio.
     [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
     qué trae a R cada opción y dónde queda el metadato del muestreo.
 11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html):
-    perfilar las tablas de una base, leer lo que no se pudo medir y
-    buscar relaciones entre ellas.
+    perfilar las tablas de una base, leer lo que no se pudo medir, armar
+    el informe de la colección y buscar relaciones entre ellas.
 12. [Escala y duplicados
     aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html):
     pedir la comparación aproximada, estimar su costo, saber cuándo
     entra LSH y qué recorta cada tope.
+13. [Cruzar dos
+    bases](https://sebollin.github.io/lupa/articles/cruzar-dos-bases.html):
+    comparar una tabla de cada una de dos conexiones: perfilar cada lado
+    en su motor, leer sólo las claves por bloques y medir la cobertura y
+    la integridad referencial en R.
 
 ## Para usuarios avanzados
 
@@ -701,6 +708,9 @@ Declarar una base de varias tablas y perfilarla como conjunto.
   : Declarar la frontera de una colección
 - [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
   : Perfilar una colección declarada
+- [`as.data.frame(`*`<perfil_coleccion>`*`)`](https://sebollin.github.io/lupa/reference/as.data.frame.perfil_coleccion.md)
+  [`summary(`*`<perfil_coleccion>`*`)`](https://sebollin.github.io/lupa/reference/as.data.frame.perfil_coleccion.md)
+  : Tablas planas de un perfil de colección
 - [`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
   : Estimar el costo de buscar relaciones en una colección
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
@@ -757,6 +767,21 @@ Revisar y aplicar planes trazables sin mutación implícita.
   Sentinelas numéricos publicados por
   [naniar](https://github.com/njtierney/naniar)
 
+## Triaje de hallazgos
+
+Decidir sobre los hallazgos y que la decisión valga en la corrida
+siguiente.
+
+- [`identificar_hallazgos()`](https://sebollin.github.io/lupa/reference/identificar_hallazgos.md)
+  : Identificar los hallazgos de un perfil entre corridas
+- [`decidir_hallazgos()`](https://sebollin.github.io/lupa/reference/decidir_hallazgos.md)
+  : Decidir sobre hallazgos: aceptarlos o descartarlos con su motivo
+- [`guardar_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md)
+  [`leer_decisiones()`](https://sebollin.github.io/lupa/reference/guardar_decisiones.md)
+  : Guardar y leer decisiones sobre hallazgos
+- [`aplicar_decisiones()`](https://sebollin.github.io/lupa/reference/aplicar_decisiones.md)
+  : Aplicar las decisiones guardadas a una corrida
+
 ## Monitorear
 
 Acumular corridas y detectar cambios entre entregas.
@@ -812,13 +837,15 @@ medición y el seguimiento entre entregas.
 
 ### Bases y escala
 
-Perfilar en el motor, declarar una base de varias tablas y buscar
-duplicados en tablas grandes.
+Perfilar en el motor, declarar una base de varias tablas, cruzar dos
+conexiones y buscar duplicados en tablas grandes.
 
 - [10. Perfilar una
   base](https://sebollin.github.io/lupa/articles/perfilar-una-base.md):
 - [11.
   Colecciones](https://sebollin.github.io/lupa/articles/colecciones.md):
+- [13. Cruzar dos
+  bases](https://sebollin.github.io/lupa/articles/cruzar-dos-bases.md):
 - [12. Escala y duplicados
   aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.md):
 
@@ -860,6 +887,8 @@ lupa prints its messages and tables in Spanish.
   minutes](https://sebollin.github.io/lupa/articles/getting-started.md):
 - [Profiling a
   database](https://sebollin.github.io/lupa/articles/profiling-a-database.md):
+- [Crossing two
+  databases](https://sebollin.github.io/lupa/articles/crossing-two-databases.md):
 - [Engines and
   scale](https://sebollin.github.io/lupa/articles/engines-and-scale.md):
 - [From findings to

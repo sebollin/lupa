@@ -52,6 +52,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
     <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
     <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/cruzar-dos-bases.html">13. Cruzar dos bases</a></li>
     <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
@@ -63,6 +64,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Guides in English</h6></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started in ten minutes</a></li>
     <li><a class="dropdown-item" href="../articles/profiling-a-database.html">Profiling a database</a></li>
+    <li><a class="dropdown-item" href="../articles/crossing-two-databases.html">Crossing two databases</a></li>
     <li><a class="dropdown-item" href="../articles/engines-and-scale.html">Engines and scale</a></li>
     <li><a class="dropdown-item" href="../articles/from-findings-to-metrics.html">From findings to metrics</a></li>
   </ul>
@@ -349,6 +351,11 @@ y, entre paréntesis, las demás.</p>
 </tr>
 <tr class="even">
 <td align="left"><code>cadenas_ausencia</code></td>
+<td align="left">—</td>
+<td align="left"><code>NULL</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>clave</code></td>
 <td align="left">—</td>
 <td align="left"><code>NULL</code></td>
 </tr>
@@ -1313,10 +1320,10 @@ plan:</p>
 <span>  distintos_4 <span class="op">=</span> <span class="fu">consultas_por_lote</span><span class="op">(</span>tamano_lote_distintos <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;             planos distintos total</span></span>
-<span><span class="co">#&gt; planos_1         6         2    25</span></span>
-<span><span class="co">#&gt; por_omision      3         2    22</span></span>
-<span><span class="co">#&gt; distintos_1      3         4    24</span></span>
-<span><span class="co">#&gt; distintos_4      3         1    21</span></span></code></pre></div>
+<span><span class="co">#&gt; planos_1         6         2    26</span></span>
+<span><span class="co">#&gt; por_omision      3         2    23</span></span>
+<span><span class="co">#&gt; distintos_1      3         4    25</span></span>
+<span><span class="co">#&gt; distintos_4      3         1    22</span></span></code></pre></div>
 <p>El valor de <code>tamano_lote_distintos</code> es un supuesto del
 código, anotado junto a la constante (<code>R/perfilar-dbi.R</code>). En
 PostgreSQL, la lectura de la tabla es la misma con cualquier lote. El
@@ -1430,8 +1437,8 @@ consultas. La tabla que sigue tiene 200 filas y 158 columnas:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">por_politica</span></span>
 <span><span class="co">#&gt;            todas por_cardinalidad </span></span>
-<span><span class="co">#&gt;              335              257</span></span></code></pre></div>
-<p>Con <code>"por_cardinalidad"</code>, la corrida ahorró 78 de 335
+<span><span class="co">#&gt;              336              258</span></span></code></pre></div>
+<p>Con <code>"por_cardinalidad"</code>, la corrida ahorró 78 de 336
 consultas, todas de moda.</p>
 <p>Las fuentes estructurales se resuelven siempre que la política
 necesita la cardinalidad, aunque <code>estrategia_distintos</code> esté
@@ -1522,23 +1529,30 @@ CASE + desvio)</td>
 <td align="left">lee las filas pedidas</td>
 <td align="right">2</td>
 </tr>
+<tr class="even">
+<td align="left">verificacion de estabilidad (conteo y agregado
+final)</td>
+<td align="right">1</td>
+<td align="left">lee el conteo y maximo de la clave</td>
+<td align="right">1</td>
+</tr>
 </tbody>
 </table>
 <p>El costo es un <strong>rango</strong>:</p>
 <ul>
 <li>
-<code>attr(plan, "total")</code> (22 aquí) cuenta las consultas si
+<code>attr(plan, "total")</code> (23 aquí) cuenta las consultas si
 ningún lote se rechaza. Con
 <code>politica_costo = "por_cardinalidad"</code>, supone que se omite la
 moda cuya cardinalidad no se conoce.</li>
 <li>
-<code>attr(plan, "total_maximo")</code> (35) suma el camino que
+<code>attr(plan, "total_maximo")</code> (36) suma el camino que
 ejecuta esa moda y las sondas de bisección, si el motor rechazara todos
 los lotes. Son hasta <code>2n − 1</code> por lote de <code>n</code>
 columnas. <code>total_lotes_rechazados</code> publica el mismo
 número.</li>
 </ul>
-<p>La corrida por omisión del ejemplo emitió 22.</p>
+<p>La corrida por omisión del ejemplo emitió 23.</p>
 <p>El rango vale cuando el muestreo se puede construir. Si
 <code>universo = "muestra_motor"</code> y la forma no se puede
 construir, <code>attr(plan, "muestreo")</code> lo declara y el plan
@@ -1569,8 +1583,8 @@ columnas, todas de texto:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     337                     328                     256</span></span></code></pre></div>
-<p>De las 337 consultas de la tabla ancha, 328 escanean, ordenan o
+<span><span class="co">#&gt;                     338                     329                     257</span></span></code></pre></div>
+<p>De las 338 consultas de la tabla ancha, 329 escanean, ordenan o
 agrupan la tabla entera. Las columnas de texto cuestan menos, sobre todo
 porque la mediana —que ordena la tabla— se pide sólo sobre columnas
 numéricas. <code>muestra</code> no acota nada de eso: acota lo que se

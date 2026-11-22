@@ -26,13 +26,15 @@ medición y el seguimiento entre entregas.
 
 ### Bases y escala
 
-Perfilar en el motor, declarar una base de varias tablas y buscar
-duplicados en tablas grandes.
+Perfilar en el motor, declarar una base de varias tablas, cruzar dos
+conexiones y buscar duplicados en tablas grandes.
 
 - [10. Perfilar una
   base](https://sebollin.github.io/lupa/articles/perfilar-una-base.md):
 - [11.
   Colecciones](https://sebollin.github.io/lupa/articles/colecciones.md):
+- [13. Cruzar dos
+  bases](https://sebollin.github.io/lupa/articles/cruzar-dos-bases.md):
 - [12. Escala y duplicados
   aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.md):
 
@@ -74,6 +76,8 @@ lupa prints its messages and tables in Spanish.
   minutes](https://sebollin.github.io/lupa/articles/getting-started.md):
 - [Profiling a
   database](https://sebollin.github.io/lupa/articles/profiling-a-database.md):
+- [Crossing two
+  databases](https://sebollin.github.io/lupa/articles/crossing-two-databases.md):
 - [Engines and
   scale](https://sebollin.github.io/lupa/articles/engines-and-scale.md):
 - [From findings to

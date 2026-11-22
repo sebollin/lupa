@@ -68,9 +68,11 @@ completo
 #> Perfil DBI de ventas
 #> Resumen de tabla completa: 4 columnas sobre 1000 filas
 #> Clave primaria: no declara clave (fuente `pragma`).
+#> Estabilidad de la tabla: sin cambios en los controles verificados (conteo de filas
+#> (COUNT(*)); no descarta cambios fuera de esos controles).
 #> Duplicados exactos: 0 excedente(s) (calculado).
 #> Métricas: calculado 45, no_aplica 15
-#> Consultas emitidas: 21 (dialecto limit)
+#> Consultas emitidas: 22 (dialecto limit)
 #> Derrame estimado: no se pudo estimar (No se pudo estimar el derrame: la conexión no fue
 #> reconocida como PostgreSQL y no hay un `pg_stats` portable.).
 #> Derrame: no disponible (El controlador no fue reconocido como PostgreSQL; no se puede
