@@ -213,7 +213,7 @@ decisiones
 #>                                              motivo           quien
 #> 1 La columna es opcional por diseño del formulario. equipo de datos
 #>                  fecha  severidad n_afectados
-#> 1 2026-11-23T12:46:54Z sospechoso           2
+#> 1 2026-11-23T14:18:31Z sospechoso           2
 #>                                             evidencia huella_valores
 #> 1 0 ausentes reales y 2 disfrazados (0.154 del total)           <NA>
 #>   huella_filas                                                    detalle
