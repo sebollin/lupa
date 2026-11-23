@@ -19,7 +19,9 @@ indice_calidad(medidas, pesos, pesos_internos = NULL, ...)
   Medición (completa o `medicion_resumen` de
   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) /
   [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)),
-  tablero o análisis de `lupa`.
+  tablero o análisis de `lupa`. Un resumen recortado a algunas columnas
+  se rechaza como en
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md).
 
 - pesos:
 

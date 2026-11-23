@@ -29,7 +29,13 @@ tablero_calidad(
   Con un resumen, `ratio` coincide exactamente
   (`numerador / denominador`), no se admiten `agregaciones` ni
   `umbrales` propios y se rechaza si el resumen dejó métricas
-  `no_resumible`.
+  `no_resumible`. Un resumen recortado a algunas columnas se rechaza con
+  clase `lupa_resumen_incompleto` y las columnas que faltan; sin
+  `entidad_referida` el tablero trabaja y el control de lecturas de sus
+  cuentas es `desconocido`. Las filas vacías que agrega `x[cond, ]`
+  cuando `cond` tiene `NA` se rechazan igual: filtrar con
+  [`which()`](https://rdrr.io/r/base/which.html) o
+  [`subset()`](https://rdrr.io/r/base/subset.html).
 
 - agregaciones:
 

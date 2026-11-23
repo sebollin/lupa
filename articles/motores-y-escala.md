@@ -1847,7 +1847,7 @@ no_medidas$metrica_instanciada
 writeLines(strwrap(no_medidas$motivo, 88))
 #> La métrica `Zona coincide@ventas.id_sucursal.zona` no se midió en la base: el texto de
 #> la entidad o del referencial tiene caracteres que la normalización de R podría cambiar
-#> y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil)
+#> y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil).
 por_bloques <- medir_dbi(
   contra(padron), base_ref, id_medicion = "junio", fecha = "2026-06-30",
   estrategia_no_sql = "bloques"

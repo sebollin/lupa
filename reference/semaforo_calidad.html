@@ -105,7 +105,11 @@ universo quedan sin color, con su motivo.</p>
 <dd><p>Un resumen de medición: <code>medir(detalle = "resumen")</code>,
 <code><a href="medir_dbi.html">medir_dbi()</a></code> o la consolidación <code>rbind(..., prioridad = )</code>. Una medición
 completa, un agregado o un tablero no traen las cuentas que el semáforo
-necesita y se rechazan con clase <code>lupa_semaforo_sin_cuentas</code>.</p></dd>
+necesita y se rechazan con clase <code>lupa_semaforo_sin_cuentas</code>. Un resumen
+recortado a algunas columnas se rechaza con clase <code>lupa_resumen_incompleto</code>
+y las columnas que faltan; sin <code>entidad_referida</code> el semáforo trabaja y el
+control de lecturas es <code>desconocido</code>. Las filas vacías que agrega
+<code>x[cond, ]</code> cuando <code>cond</code> tiene <code>NA</code> se rechazan igual.</p></dd>
 
 
 <dt id="arg-cortes">cortes<a class="anchor" aria-label="anchor" href="#arg-cortes"></a></dt>
@@ -131,12 +135,22 @@ tablero, con las columnas del tablero más <code>metrica_especifica</code>,
 resumen es una consolidación, <code>fuente</code>. <code>control_lecturas</code> dice cuánto
 respalda el control de lecturas a la cifra: <code>una_lectura</code> (la tabla se leyó
 en una sola sentencia, o en memoria), <code>completo</code> (varias lecturas con la
-instantánea probada por el contador del motor o la huella de los datos) o
+instantánea probada por el contador del motor o la huella de los datos),
 <code>limitado</code> (varias lecturas y alguna sin instantánea: sólo se comparó el
-número de filas, que no ve un <code>UPDATE</code> que no lo cambia). Una celda con
-color y control <code>limitado</code> lo dice también la impresión. Atributos: <code>cortes</code>, <code>niveles</code>,
-<code>comparacion</code>, <code>conteo_niveles</code>, <code>cortes_sin_celdas</code>, <code>fuera_del_semaforo</code>
-y los del tablero.</p>
+número de filas, que no ve un <code>UPDATE</code> que no lo cambia) o <code>desconocido</code>:
+no se puede saber qué lecturas respaldan la cifra. Tiene cuatro causas. El
+resumen no conserva <code>id_medicion</code>, <code>entidad</code> o <code>entidad_referida</code>. El motor
+no resolvió la tabla de alguna lectura: en SQLite y DuckDB se resuelve, en
+los demás motores todavía no, y tampoco la trae un resumen medido antes de
+que las lecturas registraran su tabla. El nombre de la entidad da más de
+una tabla en las partes unidas: una parte la leyó en memoria y otra en el
+motor, o dos partes leyeron bases distintas adjuntas con el mismo alias. O
+un referencial en R comparte su nombre con otro de las mismas filas y otros
+datos, respaldado de otra forma, o con una tabla de otra parte que no
+tiene sus mismos datos. Una celda con color y
+control <code>limitado</code> o <code>desconocido</code> lo dice también la impresión.
+Atributos: <code>cortes</code>, <code>niveles</code>, <code>comparacion</code>, <code>conteo_niveles</code>,
+<code>cortes_sin_celdas</code>, <code>fuera_del_semaforo</code> y los del tablero.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

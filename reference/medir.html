@@ -205,7 +205,9 @@ rechazan indicando qué hacer.</p>
 <code><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na()</a></code>, <code>NaN</code> incluido), <code>n_filas_leidas</code> (filas de la tabla que vio la
 lectura que produjo la cifra, antes del recorte por aplicabilidad),
 <code>entidad_referida</code> y <code>n_filas_leidas_referida</code> (en una referencial, la
-tabla referida y sus filas en la misma lectura), y <code>estado_cuentas</code>,
+tabla referida y sus filas en la misma lectura; con un referencial en R, su
+nombre —o <code>referencial &lt;nombre&gt;</code> si es también el de una entidad— y sus
+filas), y <code>estado_cuentas</code>,
 <code>motivo_cuentas</code> y <code>diferencia_cuentas</code>. <code>estado_cuentas</code> es <code>cierran</code>,
 <code>no_cierran</code> (la métrica dio más medidas que su universo; lo no evaluado no
 son los vacíos que la métrica declara no evaluar; o dos lecturas de la misma
@@ -218,12 +220,34 @@ no cierra; <code><a href="tablero_calidad.html">tablero_calidad()</a></code> lo 
 <code><a href="indice_calidad.html">indice_calidad()</a></code> no combina esas cifras y <code><a href="semaforo_calidad.html">semaforo_calidad()</a></code> no las
 pinta. <code>attr(x, "lecturas")</code> registra cada lectura de cada tabla, con su
 huella de datos en memoria; dos partes de una corrida sobre la misma tabla
-se reconocen por esa huella. <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code> exporta las columnas, no los
+se reconocen por esa huella. Un referencial en R se registra también, en
+<code><a href="medir_dbi.html">medir_dbi()</a></code> con <code>estrategia_no_sql = "bloques"</code> igual que en <code>medir()</code>,
+y lo identifican su nombre y la huella de sus datos, que van en la columna
+<code>tabla</code> de su lectura: dos referenciales distintos con el mismo nombre —el
+nombre por omisión de <code>referencial(&lt;expresión&gt;)</code> es siempre
+<code>referencial</code>— son dos referenciales y no uno que cambió, cada cifra cierra
+con la lectura del suyo, y eso no depende de si van en una llamada o en
+varias partes. En el motor, la columna <code>tabla</code> de las lecturas es la
+tabla que el motor resolvió —su catálogo, su esquema y su nombre como los
+guarda el catálogo, buscada en el orden del motor para un nombre sin
+esquema (en SQLite <code>temp</code>, <code>main</code> y las adjuntas; en DuckDB <code>temp</code> y
+después <code>search_path</code>) y comparando los nombres como el motor, cada parte
+citada—: dos rótulos de la misma tabla (<code>Sucursales</code> y <code>sucursales</code>,
+<code>MAIN</code> y <code>main</code>) se comparan como una. Si la base es un archivo, la tabla
+lleva la ruta del archivo en lugar del nombre con que se adjuntó: el mismo
+archivo con dos alias es una sola base. Una
+lectura del motor cuya tabla no se resolvió (<code>tabla</code> <code>NA</code>; en motores
+distintos de SQLite y DuckDB, todavía todas) no prueba nada: el control
+de sus cifras es <code>desconocido</code>. <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code> exporta las columnas, no los
 atributos: lecturas, sello, cobertura y consolidación no viajan en un CSV.</p>
 <p><strong>Partes de una corrida.</strong> <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> une resúmenes de una misma corrida
 —mismo <code>id_medicion</code> y misma <code>fecha</code>— que no repiten métrica y objeto, y
 vuelve a mirar las cuentas de la unión: dos partes que leyeron versiones
-distintas de una tabla quedan <code>no_cierran</code>. Una métrica con cifra en una
+distintas de una tabla quedan <code>no_cierran</code>. También si una parte la leyó
+en memoria y otra en el motor, o si las lecturas de una no traen la tabla
+que resolvió el motor: sin una identidad que comparar, se comparan por el
+nombre de la entidad, y con otro número de filas no cierran; con el mismo,
+cierran y el control de lecturas es <code>desconocido</code>. Una métrica con cifra en una
 parte y sin medir en otra se rechaza. Con <code>prioridad</code>
 (<code>rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))</code>) la
 misma celda en varias partes se resuelve por la parte de mayor prioridad,
@@ -235,7 +259,9 @@ mismo marco, y <strong>la misma instantánea de los datos</strong> de cada tabla
 más de una parte —la huella de los datos en memoria o el contador de
 modificaciones del motor—. La igualdad de filas no alcanza: si no hay cómo
 probar la instantánea, no se junta y se dice por qué. Una consolidación no
-se vuelve a unir.</p></dd>
+se vuelve a unir. Las partes van enteras: una recortada a algunas columnas,
+con columnas que otra no trae o con filas vacías (las que agrega <code>x[cond, ]</code>
+cuando <code>cond</code> tiene <code>NA</code>) se rechaza con clase <code>lupa_resumen_incompleto</code>.</p></dd>
 
 
 <dt id="arg-orden-texto">orden_texto<a class="anchor" aria-label="anchor" href="#arg-orden-texto"></a></dt>
@@ -434,13 +460,13 @@ trae.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                              id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T203548.241070-8493-NoNuloEdad@personas.edad-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261122T203548.241070-8493-NoNuloEdad@personas.edad-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261122T203548.241070-8493-NoNuloEdad@personas.edad-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261123T124704.412691-8877-NoNuloEdad@personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261123T124704.412691-8877-NoNuloEdad@personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261123T124704.412691-8877-NoNuloEdad@personas.edad-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261122T203548.241070-8493 2026-11-22 20:35:48  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261122T203548.241070-8493 2026-11-22 20:35:48  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261122T203548.241070-8493 2026-11-22 20:35:48  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261123T124704.412691-8877 2026-11-23 12:47:04  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261123T124704.412691-8877 2026-11-23 12:47:04  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261123T124704.412691-8877 2026-11-23 12:47:04  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

@@ -171,16 +171,18 @@ medir(
   `n_filas_leidas` (filas de la tabla que vio la lectura que produjo la
   cifra, antes del recorte por aplicabilidad), `entidad_referida` y
   `n_filas_leidas_referida` (en una referencial, la tabla referida y sus
-  filas en la misma lectura), y `estado_cuentas`, `motivo_cuentas` y
-  `diferencia_cuentas`. `estado_cuentas` es `cierran`, `no_cierran` (la
-  métrica dio más medidas que su universo; lo no evaluado no son los
-  vacíos que la métrica declara no evaluar; o dos lecturas de la misma
-  tabla en la corrida vieron otra tabla), `parcial` (la cifra se calculó
-  sobre una parte declarada: un vocabulario truncado por `max_valores`)
-  o `sin_cuentas`. Cada métrica del catálogo declara su universo:
-  `NoNulo` evalúa también los vacíos —es lo que mide—; una de validez
-  evalúa los valores presentes. Lo escribe quien produce la cifra y
-  avisa cuando alguna no cierra;
+  filas en la misma lectura; con un referencial en R, su nombre —o
+  `referencial <nombre>` si es también el de una entidad— y sus filas),
+  y `estado_cuentas`, `motivo_cuentas` y `diferencia_cuentas`.
+  `estado_cuentas` es `cierran`, `no_cierran` (la métrica dio más
+  medidas que su universo; lo no evaluado no son los vacíos que la
+  métrica declara no evaluar; o dos lecturas de la misma tabla en la
+  corrida vieron otra tabla), `parcial` (la cifra se calculó sobre una
+  parte declarada: un vocabulario truncado por `max_valores`) o
+  `sin_cuentas`. Cada métrica del catálogo declara su universo: `NoNulo`
+  evalúa también los vacíos —es lo que mide—; una de validez evalúa los
+  valores presentes. Lo escribe quien produce la cifra y avisa cuando
+  alguna no cierra;
   [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
   lo publica en su atributo `cuentas`,
   [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
@@ -188,7 +190,27 @@ medir(
   [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
   no las pinta. `attr(x, "lecturas")` registra cada lectura de cada
   tabla, con su huella de datos en memoria; dos partes de una corrida
-  sobre la misma tabla se reconocen por esa huella.
+  sobre la misma tabla se reconocen por esa huella. Un referencial en R
+  se registra también, en
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  con `estrategia_no_sql = "bloques"` igual que en `medir()`, y lo
+  identifican su nombre y la huella de sus datos, que van en la columna
+  `tabla` de su lectura: dos referenciales distintos con el mismo nombre
+  —el nombre por omisión de `referencial(<expresión>)` es siempre
+  `referencial`— son dos referenciales y no uno que cambió, cada cifra
+  cierra con la lectura del suyo, y eso no depende de si van en una
+  llamada o en varias partes. En el motor, la columna `tabla` de las
+  lecturas es la tabla que el motor resolvió —su catálogo, su esquema y
+  su nombre como los guarda el catálogo, buscada en el orden del motor
+  para un nombre sin esquema (en SQLite `temp`, `main` y las adjuntas;
+  en DuckDB `temp` y después `search_path`) y comparando los nombres
+  como el motor, cada parte citada—: dos rótulos de la misma tabla
+  (`Sucursales` y `sucursales`, `MAIN` y `main`) se comparan como una.
+  Si la base es un archivo, la tabla lleva la ruta del archivo en lugar
+  del nombre con que se adjuntó: el mismo archivo con dos alias es una
+  sola base. Una lectura del motor cuya tabla no se resolvió (`tabla`
+  `NA`; en motores distintos de SQLite y DuckDB, todavía todas) no
+  prueba nada: el control de sus cifras es `desconocido`.
   [`write.csv()`](https://rdrr.io/r/utils/write.table.html) exporta las
   columnas, no los atributos: lecturas, sello, cobertura y consolidación
   no viajan en un CSV.
@@ -197,9 +219,13 @@ medir(
   [`rbind()`](https://rdrr.io/r/base/cbind.html) une resúmenes de una
   misma corrida —mismo `id_medicion` y misma `fecha`— que no repiten
   métrica y objeto, y vuelve a mirar las cuentas de la unión: dos partes
-  que leyeron versiones distintas de una tabla quedan `no_cierran`. Una
-  métrica con cifra en una parte y sin medir en otra se rechaza. Con
-  `prioridad`
+  que leyeron versiones distintas de una tabla quedan `no_cierran`.
+  También si una parte la leyó en memoria y otra en el motor, o si las
+  lecturas de una no traen la tabla que resolvió el motor: sin una
+  identidad que comparar, se comparan por el nombre de la entidad, y con
+  otro número de filas no cierran; con el mismo, cierran y el control de
+  lecturas es `desconocido`. Una métrica con cifra en una parte y sin
+  medir en otra se rechaza. Con `prioridad`
   (`rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))`)
   la misma celda en varias partes se resuelve por la parte de mayor
   prioridad, que queda en la columna `fuente`, y lo no elegido en
@@ -211,7 +237,10 @@ medir(
   —la huella de los datos en memoria o el contador de modificaciones del
   motor—. La igualdad de filas no alcanza: si no hay cómo probar la
   instantánea, no se junta y se dice por qué. Una consolidación no se
-  vuelve a unir.
+  vuelve a unir. Las partes van enteras: una recortada a algunas
+  columnas, con columnas que otra no trae o con filas vacías (las que
+  agrega `x[cond, ]` cuando `cond` tiene `NA`) se rechaza con clase
+  `lupa_resumen_incompleto`.
 
 - orden_texto:
 
@@ -480,13 +509,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261122T203548.241070-8493-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261122T203548.241070-8493-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261122T203548.241070-8493-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261123T124704.412691-8877-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261123T124704.412691-8877-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261123T124704.412691-8877-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261122T203548.241070-8493 2026-11-22 20:35:48  NoNulo
-#> 2 medicion-20261122T203548.241070-8493 2026-11-22 20:35:48  NoNulo
-#> 3 medicion-20261122T203548.241070-8493 2026-11-22 20:35:48  NoNulo
+#> 1 medicion-20261123T124704.412691-8877 2026-11-23 12:47:04  NoNulo
+#> 2 medicion-20261123T124704.412691-8877 2026-11-23 12:47:04  NoNulo
+#> 3 medicion-20261123T124704.412691-8877 2026-11-23 12:47:04  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

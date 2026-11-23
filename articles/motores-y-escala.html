@@ -2685,7 +2685,7 @@ la de un referencial que está en R):</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">no_medidas</span><span class="op">$</span><span class="va">motivo</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; La métrica `Zona coincide@ventas.id_sucursal.zona` no se midió en la base: el texto de</span></span>
 <span><span class="co">#&gt; la entidad o del referencial tiene caracteres que la normalización de R podría cambiar</span></span>
-<span><span class="co">#&gt; y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil)</span></span>
+<span><span class="co">#&gt; y el motor no escribe igual (no ASCII, blancos, comillas o puntuación según el perfil).</span></span>
 <span><span class="va">por_bloques</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span></span>
 <span>  <span class="fu">contra</span><span class="op">(</span><span class="va">padron</span><span class="op">)</span>, <span class="va">base_ref</span>, id_medicion <span class="op">=</span> <span class="st">"junio"</span>, fecha <span class="op">=</span> <span class="st">"2026-06-30"</span>,</span>
 <span>  estrategia_no_sql <span class="op">=</span> <span class="st">"bloques"</span></span>
