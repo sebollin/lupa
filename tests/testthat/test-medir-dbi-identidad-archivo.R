@@ -60,9 +60,11 @@ test_that("otra base con el mismo alias es otra tabla", {
     u <- rbind(a, b)
     l <- attr(u, "lecturas", exact = TRUE)
     expect_identical(length(unique(l$tabla)), 2L, label = motor)
+    # Por nombre de archivo: el motor publica la ruta resuelta, que puede no
+    # ser la que dio `tempfile()` si la carpeta temporal es un enlace.
     for (k in seq_along(archivos)) {
-      ruta <- normalizePath(archivos[[k]], winslash = "/", mustWork = FALSE)
-      expect_true(any(grepl(ruta, l$tabla, fixed = TRUE, useBytes = TRUE)),
+      expect_true(any(grepl(basename(archivos[[k]]), l$tabla, fixed = TRUE,
+                            useBytes = TRUE)),
                   label = paste(motor, k))
     }
     # Cuatro filas en una y siete en la otra: no es un cambio entre lecturas.
