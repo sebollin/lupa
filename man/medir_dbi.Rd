@@ -114,7 +114,13 @@ corrida ven distinto número de filas, sus cifras quedan \code{no_cierran} y
 modificaciones que lupa lee, se compara también ese contador y el control
 se publica como \code{contador_del_motor}; si no, como
 \code{solo_filas_agregadas_o_quitadas}. En SQL Server con \verb{READ COMMITTED} por
-bloqueo una sola sentencia tampoco es una instantánea.
+bloqueo una sola sentencia tampoco es una instantánea. La tabla de cada
+lectura es la que el motor resuelve para su nombre al leer su esquema, una
+vez por llamada —si la base es un archivo, con la ruta del archivo en
+lugar del nombre con que se adjuntó—: si
+durante la medición cambia lo que resuelve un nombre, por ejemplo se crea
+una tabla temporal con ese nombre, ese cambio no se ve. Dos o más
+lecturas de la misma tabla nunca son \code{una_lectura}.
 }
 \description{
 Evalúa un modelo de calidad directamente en el motor SQL (SQLite, DuckDB,

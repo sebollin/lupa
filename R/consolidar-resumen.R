@@ -173,6 +173,7 @@
   tablas <- lapply(seq_along(partes), function(k) {
     l <- attr(partes[[k]], "lecturas", exact = TRUE)
     if (!inherits(l, "data.frame") || !nrow(l)) return(NULL)
+    l <- .completar_lecturas(l)
     l$parte <- names(partes)[[k]]
     l
   })
@@ -189,6 +190,10 @@
   }
   todas <- do.call(rbind, Filter(Negate(is.null), tablas))
   if (is.null(todas)) return(invisible(NULL))
+  # Un referencial en R es el de su nombre y su huella: dos con el mismo nombre
+  # y otros datos son dos referenciales, no una tabla con otra instantanea. La
+  # misma celda con otro referencial ya la rechaza el sello, por su definicion.
+  todas <- todas[.clase_lecturas(todas) != "r", , drop = FALSE]
   for (e in unique(todas$entidad)) {
     t <- todas[.clave_bytes(todas$entidad) == .clave_bytes(e), , drop = FALSE]
     if (length(unique(t$parte)) < 2L) next

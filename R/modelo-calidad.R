@@ -1851,23 +1851,61 @@ metricas_nucleo <- function() {
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura)) {
     return(invisible(NULL))
   }
-  fallidas <- cobertura$estado == "no_medible"
+  fallidas <- !is.na(cobertura$estado) & cobertura$estado == "no_medible"
   if (!any(fallidas)) return(invisible(NULL))
+  n <- sum(fallidas)
+  # "porque su metodo fallo" solo de las que fallaron: una que el motor no mide
+  # o cuyo referencial vive en otra parte no tiene un metodo que fallara.
+  por_metodo <- sum(!.no_medible_por_limite(cobertura[fallidas, , drop = FALSE]))
   # "las demas siguieron" solo si HAY otras: con una metrica sola la frase
   # afirmaria algo que no paso.
-  otras <- n_metricas > sum(fallidas)
-  .avisar(
-    sum(fallidas),
-    if (sum(fallidas) == 1L) " m\u00e9trica no se midi\u00f3 porque su m\u00e9todo " else
-      " m\u00e9tricas no se midieron porque su m\u00e9todo ",
-    "fall\u00f3",
+  otras <- n_metricas > n
+  # Con su clase: quien mide por partes calla el de cada parte y avisa una vez
+  # por todas; reconocerlo por su texto dejaba pasar el que no dice "fallo".
+  aviso <- simpleWarning(.mensaje_condicion(
+    n,
+    if (n == 1L) " m\u00e9trica no se midi\u00f3" else " m\u00e9tricas no se midieron",
+    if (por_metodo == n) {
+      " porque su m\u00e9todo fall\u00f3"
+    } else if (por_metodo) {
+      paste0(" (", por_metodo, " porque su m\u00e9todo fall\u00f3)")
+    } else "",
     if (otras) "; la corrida sigui\u00f3 con las dem\u00e1s del modelo" else "",
     ". ",
-    paste(cobertura$motivo[fallidas], collapse = " "),
-    " El detalle est\u00e1 en `attr(medicion, \"cobertura_metricas\")`.",
-    call. = FALSE
-  )
+    paste(.frases_no_medibles(cobertura$motivo[fallidas]), collapse = " "),
+    " El detalle est\u00e1 en `attr(medicion, \"cobertura_metricas\")`."
+  ))
+  class(aviso) <- c("lupa_aviso_no_medibles", class(aviso))
+  .avisar(aviso)
   invisible(NULL)
+}
+
+# Las no medibles por un limite de donde estan los datos y no por su metodo: la
+# base no la mide (`.no_medible_dbi(en_base = TRUE)`: no se traduce, la guarda
+# del pliegue la aparta, el motor dio error) o el referencial vive en una tabla
+# del motor que `medir()` no copia (`.abstencion_referencial_motor()`). Se
+# reconocen por el comienzo con que esas dos funciones escriben su motivo.
+.no_medible_por_limite <- function(cobertura) {
+  motivo <- as.character(cobertura$motivo)
+  en_base <- startsWith(motivo, paste0(
+    "La m\u00e9trica `", as.character(cobertura$metrica_instanciada),
+    "` no se midi\u00f3 en la base"
+  ))
+  en_motor <- startsWith(motivo, "El referencial `") &
+    grepl("` del motor y no se copia a R.", motivo, fixed = TRUE, useBytes = TRUE)
+  en_base %in% TRUE | en_motor %in% TRUE
+}
+
+# Los motivos del aviso: una vez cada uno -el de un referencial del motor es el
+# mismo para todas sus metricas- y cada uno con su punto, aunque el mensaje de un
+# metodo no lo traiga. El punto va antes de quitar los repetidos: `x` y `x.`
+# son el mismo motivo.
+.frases_no_medibles <- function(motivos) {
+  motivos <- as.character(motivos)
+  motivos <- motivos[!is.na(motivos)]
+  sin_punto <- !grepl("[.!?][[:space:]]*$", motivos, useBytes = TRUE)
+  motivos[sin_punto] <- paste0(motivos[sin_punto], ".")
+  motivos[!duplicated(.clave_bytes(motivos))]
 }
 
 # Una metrica que necesita un campo del contrato y no lo tiene SE ABSTIENE. La
@@ -2340,7 +2378,9 @@ metricas_nucleo <- function() {
 #'   `is.na()`, `NaN` incluido), `n_filas_leidas` (filas de la tabla que vio la
 #'   lectura que produjo la cifra, antes del recorte por aplicabilidad),
 #'   `entidad_referida` y `n_filas_leidas_referida` (en una referencial, la
-#'   tabla referida y sus filas en la misma lectura), y `estado_cuentas`,
+#'   tabla referida y sus filas en la misma lectura; con un referencial en R, su
+#'   nombre —o `referencial <nombre>` si es también el de una entidad— y sus
+#'   filas), y `estado_cuentas`,
 #'   `motivo_cuentas` y `diferencia_cuentas`. `estado_cuentas` es `cierran`,
 #'   `no_cierran` (la métrica dio más medidas que su universo; lo no evaluado no
 #'   son los vacíos que la métrica declara no evaluar; o dos lecturas de la misma
@@ -2353,13 +2393,35 @@ metricas_nucleo <- function() {
 #'   [indice_calidad()] no combina esas cifras y [semaforo_calidad()] no las
 #'   pinta. `attr(x, "lecturas")` registra cada lectura de cada tabla, con su
 #'   huella de datos en memoria; dos partes de una corrida sobre la misma tabla
-#'   se reconocen por esa huella. `write.csv()` exporta las columnas, no los
+#'   se reconocen por esa huella. Un referencial en R se registra también, en
+#'   [medir_dbi()] con `estrategia_no_sql = "bloques"` igual que en `medir()`,
+#'   y lo identifican su nombre y la huella de sus datos, que van en la columna
+#'   `tabla` de su lectura: dos referenciales distintos con el mismo nombre —el
+#'   nombre por omisión de `referencial(<expresión>)` es siempre
+#'   `referencial`— son dos referenciales y no uno que cambió, cada cifra cierra
+#'   con la lectura del suyo, y eso no depende de si van en una llamada o en
+#'   varias partes. En el motor, la columna `tabla` de las lecturas es la
+#'   tabla que el motor resolvió —su catálogo, su esquema y su nombre como los
+#'   guarda el catálogo, buscada en el orden del motor para un nombre sin
+#'   esquema (en SQLite `temp`, `main` y las adjuntas; en DuckDB `temp` y
+#'   después `search_path`) y comparando los nombres como el motor, cada parte
+#'   citada—: dos rótulos de la misma tabla (`Sucursales` y `sucursales`,
+#'   `MAIN` y `main`) se comparan como una. Si la base es un archivo, la tabla
+#'   lleva la ruta del archivo en lugar del nombre con que se adjuntó: el mismo
+#'   archivo con dos alias es una sola base. Una
+#'   lectura del motor cuya tabla no se resolvió (`tabla` `NA`; en motores
+#'   distintos de SQLite y DuckDB, todavía todas) no prueba nada: el control
+#'   de sus cifras es `desconocido`. `write.csv()` exporta las columnas, no los
 #'   atributos: lecturas, sello, cobertura y consolidación no viajan en un CSV.
 #'
 #'   **Partes de una corrida.** `rbind()` une resúmenes de una misma corrida
 #'   —mismo `id_medicion` y misma `fecha`— que no repiten métrica y objeto, y
 #'   vuelve a mirar las cuentas de la unión: dos partes que leyeron versiones
-#'   distintas de una tabla quedan `no_cierran`. Una métrica con cifra en una
+#'   distintas de una tabla quedan `no_cierran`. También si una parte la leyó
+#'   en memoria y otra en el motor, o si las lecturas de una no traen la tabla
+#'   que resolvió el motor: sin una identidad que comparar, se comparan por el
+#'   nombre de la entidad, y con otro número de filas no cierran; con el mismo,
+#'   cierran y el control de lecturas es `desconocido`. Una métrica con cifra en una
 #'   parte y sin medir en otra se rechaza. Con `prioridad`
 #'   (`rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))`) la
 #'   misma celda en varias partes se resuelve por la parte de mayor prioridad,
@@ -2371,7 +2433,9 @@ metricas_nucleo <- function() {
 #'   más de una parte —la huella de los datos en memoria o el contador de
 #'   modificaciones del motor—. La igualdad de filas no alcanza: si no hay cómo
 #'   probar la instantánea, no se junta y se dice por qué. Una consolidación no
-#'   se vuelve a unir.
+#'   se vuelve a unir. Las partes van enteras: una recortada a algunas columnas,
+#'   con columnas que otra no trae o con filas vacías (las que agrega `x[cond, ]`
+#'   cuando `cond` tiene `NA`) se rechaza con clase `lupa_resumen_incompleto`.
 #' @param ... En `rbind()`, los resúmenes que se unen; con `prioridad`, con
 #'   nombre: el nombre de cada parte es su `fuente`.
 #' @param prioridad En `rbind()` sobre resúmenes, los nombres de todas las

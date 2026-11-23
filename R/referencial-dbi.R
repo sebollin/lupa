@@ -163,11 +163,12 @@
   entidad <- instancia$entidad[[1L]]
   esq <- esquemas[[entidad]]
   bloques <- identical(estrategia_no_sql, "bloques")
-  distintos <- function(motivo, esq_ref = NULL, columnas_ref_reales = NULL) {
+  distintos <- function(motivo, esq_ref = NULL, columnas_ref_reales = NULL,
+                        referida = NULL) {
     c(base, list(
       via = "distintos_r", motivo = motivo, referencial_motor = !is.null(esq_ref),
       esquema_referencial = esq_ref, columnas_referencial = columnas_ref_reales,
-      metrica_referencial = nombre
+      metrica_referencial = nombre, entidad_referida_motor = referida
     ))
   }
   if (!motor %in% .MOTORES_REFERENCIAL_DBI) {
@@ -202,6 +203,7 @@
     ), via = "no_medible_metodo"))
   }
   columnas_ref_reales <- esq_ref$campos[indices]
+  referida <- .entidad_referida_motor_dbi(esq_ref, resuelto$clave, esquemas)
   faltan <- setdiff(instancia$atributos, esq$campos)
   if (length(faltan)) {
     return(.plan_no_medible_referencial(base, paste0(
@@ -219,7 +221,7 @@
     motivo <- paste0(
       "sin traducci\u00f3n exacta a SQL (", conditionMessage(compilado), ")"
     )
-    if (bloques) return(distintos(motivo, esq_ref, columnas_ref_reales))
+    if (bloques) return(distintos(motivo, esq_ref, columnas_ref_reales, referida))
     return(.plan_no_medible_referencial(base, paste0(
       motivo, ". Pedir `estrategia_no_sql = \"bloques\"` para comparar en R los ",
       "valores distintos, contados en el motor"
@@ -228,8 +230,34 @@
   c(base, compilado, list(
     via = "sql_dedicado_referencial", referencial_motor = TRUE,
     esquema_referencial = esq_ref, columnas_referencial = columnas_ref_reales,
-    metrica_referencial = nombre, admite_distintos = bloques
+    metrica_referencial = nombre, admite_distintos = bloques,
+    entidad_referida_motor = referida
   ))
+}
+
+# El nombre con que se registran las lecturas de la tabla del referencial y que
+# publica `entidad_referida`. Si es la tabla de una entidad del modelo -la misma
+# sentencia `FROM`-, el de esa entidad: sus lecturas se comparan con las de la
+# entidad. Si no, el texto de la tabla; y si ese texto es el nombre de una
+# entidad que es OTRA tabla (una coleccion la renombra), el identificador citado,
+# para no comparar lecturas de dos tablas distintas.
+.entidad_referida_motor_dbi <- function(esq_ref, clave, esquemas) {
+  # La misma tabla es la que el motor resuelve igual (`identidad`), aunque se
+  # escriba distinto: `Sucursales` y `sucursales`, o con su esquema.
+  misma <- function(esq) {
+    if (.es_texto_escalar(esq$identidad) && .es_texto_escalar(esq_ref$identidad)) {
+      return(identical(.clave_bytes(esq$identidad), .clave_bytes(esq_ref$identidad)))
+    }
+    identical(esq$sql, esq_ref$sql)
+  }
+  for (e in names(esquemas)) {
+    esq <- esquemas[[e]]
+    if (!is.null(esq) && misma(esq)) return(e)
+  }
+  if (.clave_bytes(clave) %in% .clave_bytes(names(esquemas))) {
+    return(as.character(esq_ref$sql))
+  }
+  clave
 }
 
 # Las expresiones de cada par (atributo de la entidad, columna del
@@ -376,7 +404,8 @@
       ), motor), " AS cubiertas, ",
       "(SELECT ", .sql_suma(evaluable, motor), " FROM ", esq$sql,
       " lupa_d) AS evaluables, (SELECT ", .sql_conteo_total(motor), " FROM ",
-      esq$sql, " lupa_d) AS n_filas", guarda_ratio,
+      esq$sql, " lupa_d) AS n_filas, (SELECT ", .sql_conteo_total(motor), " FROM ",
+      esq_ref$sql, " lupa_r) AS n_filas_ref", guarda_ratio,
       " FROM (SELECT DISTINCT ", paste0(lados, " AS lupa_k", seq_along(lados), collapse = ", "),
       " FROM ", esq_ref$sql, " lupa_r WHERE ", no_nulos_r, ") lupa_u"
     )
@@ -403,7 +432,8 @@
       .sql_suma(evaluable, motor), " AS den, ",
       .sql_suma(.sql_y(U$sql), motor), " AS univ, ",
       "(", sin_valor, ") AS sin_valor, ",
-      .sql_conteo_total(motor), " AS n_filas", guarda,
+      .sql_conteo_total(motor), " AS n_filas, (SELECT ", .sql_conteo_total(motor),
+      " FROM ", esq_ref$sql, " lupa_r) AS n_filas_ref", guarda,
       " FROM ", esq$sql, " lupa_d"
     )
   }
@@ -413,7 +443,7 @@
     motivo_guarda = paste0(
       "el texto de la entidad o del referencial tiene caracteres que la ",
       "normalizaci\u00f3n de R podr\u00eda cambiar y el motor no escribe igual (no ASCII, ",
-      "blancos, comillas o puntuaci\u00f3n seg\u00fan el perfil)"
+      "blancos, comillas o puntuaci\u00f3n seg\u00fan el perfil)."
     )
   )
 }
@@ -447,7 +477,28 @@
     list(motivo = NULL, n = as.numeric(q$n))
   }
   assign(clave, salida, envir = validaciones)
+  # La lectura se publica una vez, con la sentencia que la hizo: las metricas
+  # que comparten la validacion no vuelven a leer la tabla.
+  if (!inherits(q, "error")) {
+    salida$lecturas <- list(.lectura_referencial_dbi(
+      x$entidad_referida_motor, q$n, contador, x$esquema_referencial$identidad
+    ))
+  }
   salida
+}
+
+# Una lectura de una tabla en la sentencia que el contador acaba de emitir, en
+# la forma que `medir_dbi()` registra (`registrar()`).
+.lectura_referencial_dbi <- function(entidad, n_filas, contador,
+                                     tabla = NA_character_,
+                                     instantanea = NA_character_, control = NULL,
+                                     lectura = paste0("consulta-", contador$n)) {
+  list(
+    entidad = entidad, n_filas = suppressWarnings(as.numeric(n_filas))[1L],
+    lectura = lectura,
+    tabla = if (.es_texto_escalar(tabla)) tabla else NA_character_,
+    instantanea = instantanea, control = control
+  )
 }
 
 # Las filas y coberturas de una medicion referencial a partir de sus conteos:
@@ -493,7 +544,8 @@
       agregacion = "promedio", tipo_resultado = "real",
       numerador = conteos$cubiertas, denominador = conteos$universo,
       n_universo = NA_real_, n_no_evaluados = NA_real_,
-      motivo_no_evaluados = NA_character_
+      motivo_no_evaluados = NA_character_,
+      entidad_referida = x$entidad_referida_motor %||% NA_character_
     )
     return(salida)
   }
@@ -522,20 +574,25 @@
     n_no_evaluados = no,
     motivo_no_evaluados = if (!no) NA_character_ else if (!is.na(sv) && sv == no)
       "sin_valor" else "sin_medida", n_sin_valor = sv,
-    unidad = unidad
+    unidad = unidad,
+    entidad_referida = x$entidad_referida_motor %||% NA_character_
   )
   salida
 }
 
+# Cada salida lleva en `lecturas` las lecturas que hizo de la entidad y de la
+# tabla del referencial, con su sentencia: `medir_dbi()` las registra como las
+# de las demas vias, tambien las de una medicion que no llego a una cifra.
 .ejecutar_referencial_dbi <- function(x, con, contador, id_medicion, fecha,
                                       validaciones) {
   instancia <- x$instancia
   validacion <- .validar_referencial_dbi(x, con, contador, validaciones)
+  lecturas <- validacion$lecturas
   if (!is.null(validacion$motivo)) {
     return(list(cobertura = .no_medible_dbi(
       instancia, id_medicion, fecha, validacion$motivo,
       en_base = isTRUE(validacion$en_base)
-    )))
+    ), lecturas = lecturas))
   }
   q <- tryCatch(
     .consultar_medicion_dbi(con, x$consulta, contador),
@@ -548,14 +605,21 @@
     } else .mensaje_motor(q)
     return(list(cobertura = .no_medible_dbi(
       instancia, id_medicion, fecha, msg, en_base = TRUE
-    )))
+    ), lecturas = lecturas))
   }
+  lecturas <- c(lecturas, list(
+    .lectura_referencial_dbi(instancia$entidad[[1L]], q$n_filas, contador),
+    .lectura_referencial_dbi(x$entidad_referida_motor, q$n_filas_ref, contador,
+                             x$esquema_referencial$identidad)
+  ))
   if (!is.null(q$guarda) && as.numeric(q$guarda) > 0) {
-    return(list(guarda = TRUE, motivo = x$motivo_guarda))
+    return(list(guarda = TRUE, motivo = x$motivo_guarda, lecturas = lecturas))
   }
   conteos <- lapply(as.list(q), as.numeric)
   salida <- .salida_conteos_referencial_dbi(x, conteos, id_medicion, fecha)
   salida$n_filas <- as.numeric(q$n_filas)
+  salida$n_filas_ref <- as.numeric(q$n_filas_ref)
+  salida$lecturas <- lecturas
   salida
 }
 
@@ -567,6 +631,12 @@
 # representantes, con el peso de cada grupo, da lo que daria sobre la tabla.
 .consulta_distintos_referencial_dbi <- function(esq, columnas, motor, conexion,
                                                 donde = "", alias = "lupa_d") {
+  # Con un filtro, la suma de los grupos no es la tabla: el total va en la misma
+  # sentencia, para registrar su lectura con sus filas.
+  total <- if (nzchar(donde)) {
+    paste0(", (SELECT ", .sql_conteo_total(motor), " FROM ", esq$sql,
+           " lupa_t) AS lupa_total")
+  } else ""
   expr <- vapply(columnas, function(cn) {
     e <- .columna_sql_medicion(conexion, esq, cn, motor, alias = alias,
                                normalizar_nan = TRUE)
@@ -575,7 +645,7 @@
   nombres <- vapply(columnas, function(cn) .citar_col_dbi(conexion, cn), character(1L))
   paste0(
     "SELECT ", paste0(expr, " AS ", nombres, collapse = ", "),
-    ", ", .sql_conteo_total(motor), " AS lupa_n FROM ", esq$sql, " ", alias,
+    ", ", .sql_conteo_total(motor), " AS lupa_n", total, " FROM ", esq$sql, " ", alias,
     if (nzchar(donde)) paste0(" WHERE ", donde) else "",
     " GROUP BY ", paste(expr, collapse = ", ")
   )
@@ -588,9 +658,16 @@
   entidad <- instancia$entidad[[1L]]
   esq <- esquemas[[entidad]]
   atributos <- instancia$atributos
+  lecturas <- list()
+  leer <- function(entidad_leida, n_filas, tabla = NA_character_, ...) {
+    lecturas[[length(lecturas) + 1L]] <<- .lectura_referencial_dbi(
+      entidad_leida, n_filas, contador, tabla, ...
+    )
+  }
   no_medible <- function(motivo, en_base = TRUE) {
     list(cobertura = .no_medible_dbi(instancia, id_medicion, fecha, motivo,
-                                     en_base = en_base))
+                                     en_base = en_base),
+         lecturas = lecturas)
   }
   comprobado <- tryCatch({
     for (a in atributos) .validar_columna_comparacion_dbi(esq, a, motor)
@@ -624,17 +701,28 @@
       conditionMessage(grupos)
     } else .mensaje_motor(grupos)))
   }
+  # Sin filtro, los grupos suman la tabla; con filtro, el total viene en cada
+  # grupo, y sin grupos la lectura queda sin su conteo.
+  total <- grupos[["lupa_total"]]
+  leer(entidad, if (is.null(total)) {
+    sum(as.numeric(grupos[["lupa_n"]]))
+  } else if (nrow(grupos)) total[[1L]] else NA_real_)
+  grupos[["lupa_total"]] <- NULL
   n_filas_q <- consultar(paste0(
     "SELECT ", .sql_conteo_total(motor), " AS n FROM ", esq$sql, " lupa_d"
   ))
   if (inherits(n_filas_q, "error")) return(no_medible(.mensaje_motor(n_filas_q)))
+  leer(entidad, n_filas_q$n)
   referencia <- instancia$referencial
+  n_filas_ref <- NA_real_
   if (.referencial_en_motor(referencia)) {
     esq_ref <- x$esquema_referencial
     filas_ref <- consultar(.consulta_distintos_referencial_dbi(
       esq_ref, x$columnas_referencial, motor, con, alias = "lupa_r"
     ))
     if (inherits(filas_ref, "error")) return(no_medible(.mensaje_motor(filas_ref)))
+    n_filas_ref <- sum(as.numeric(filas_ref$lupa_n))
+    leer(x$entidad_referida_motor, n_filas_ref, esq_ref$identidad)
     tabla_ref <- filas_ref[setdiff(names(filas_ref), "lupa_n")]
     names(tabla_ref) <- c(referencia$clave, referencia$valor)
     if (any(as.numeric(filas_ref$lupa_n) > 1)) {
@@ -651,6 +739,15 @@
     )
     if (inherits(en_r, "error")) return(no_medible(conditionMessage(en_r), en_base = FALSE))
     instancia$referencial <- en_r
+  } else if (!is.null(x$referida_memoria)) {
+    # El referencial en R es la tabla referida, con su lectura en memoria, la
+    # huella de sus datos y su identidad, como en `medir()`
+    # (`.referidas_memoria()`).
+    r <- x$referida_memoria
+    n_filas_ref <- r$n
+    x$entidad_referida_motor <- r$rotulo
+    leer(r$rotulo, r$n, r$identidad, instantanea = paste0("huella:", r$huella),
+         control = "huella_de_datos", lectura = "memoria")
   }
   pesos <- as.numeric(grupos$lupa_n)
   tabla <- grupos[atributos]
@@ -663,7 +760,7 @@
   if (!is.null(abstencion)) {
     return(list(cobertura = .cobertura_metrica_abstenida(
       instancia, id_medicion, fecha, abstencion
-    )))
+    ), lecturas = lecturas))
   }
   n_filas <- as.numeric(n_filas_q$n)
   if (identical(x$metrica_referencial, "RatioCobertura")) {
@@ -676,6 +773,8 @@
     if (!nrow(medida)) conteos$evaluables <- 0
     salida <- .salida_conteos_referencial_dbi(x, conteos, id_medicion, fecha)
     salida$n_filas <- n_filas
+    salida$n_filas_ref <- n_filas_ref
+    salida$lecturas <- lecturas
     return(salida)
   }
   filas <- as.integer(medida$fila)
@@ -694,6 +793,8 @@
   )
   salida <- .salida_conteos_referencial_dbi(x, conteos, id_medicion, fecha)
   salida$n_filas <- n_filas
+  salida$n_filas_ref <- n_filas_ref
+  salida$lecturas <- lecturas
   salida
 }
 

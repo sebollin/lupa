@@ -805,7 +805,7 @@
 #' publica además `medidos_fuera_del_marco`, que **no** suma con las otras cuatro
 #' casillas, y el atributo `pares_fuera_del_marco` los nombra.
 #'
-#' @param medidas Objeto creado por [medir()] (completo o con `detalle = "resumen"`), [medir_dbi()] o [agregar()]. Con un resumen, `ratio` coincide exactamente (`numerador / denominador`), no se admiten `agregaciones` ni `umbrales` propios y se rechaza si el resumen dejó métricas `no_resumible`.
+#' @param medidas Objeto creado por [medir()] (completo o con `detalle = "resumen"`), [medir_dbi()] o [agregar()]. Con un resumen, `ratio` coincide exactamente (`numerador / denominador`), no se admiten `agregaciones` ni `umbrales` propios y se rechaza si el resumen dejó métricas `no_resumible`. Un resumen recortado a algunas columnas se rechaza con clase `lupa_resumen_incompleto` y las columnas que faltan; sin `entidad_referida` el tablero trabaja y el control de lecturas de sus cuentas es `desconocido`. Las filas vacías que agrega `x[cond, ]` cuando `cond` tiene `NA` se rechazan igual: filtrar con `which()` o `subset()`.
 #' @param agregaciones `NULL`, una agregación para todas las métricas, un
 #'   vector con nombres de métrica instanciada o un data frame con
 #'   `metrica_instanciada`, `agregacion` y, opcionalmente, `umbral`.
@@ -846,6 +846,7 @@
 tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
                             marco = NULL, cobertura = NULL) {
   if (.es_medicion_resumen(medidas)) {
+    .exigir_resumen_entero(medidas, "tablero_calidad")
     return(.tablero_desde_resumen(
       medidas, agregaciones = agregaciones, umbrales = umbrales,
       marco = marco, cobertura = cobertura
@@ -1343,7 +1344,7 @@ print.tablero_calidad <- function(x, ...) {
 #' objeto desmentiría en su columna `universo`—, y nombra los componentes, que
 #' es justamente lo que promete declarar.
 #'
-#' @param medidas Medición (completa o `medicion_resumen` de [medir()] / [medir_dbi()]), tablero o análisis de `lupa`.
+#' @param medidas Medición (completa o `medicion_resumen` de [medir()] / [medir_dbi()]), tablero o análisis de `lupa`. Un resumen recortado a algunas columnas se rechaza como en [tablero_calidad()].
 #' @param pesos Vector numérico nombrado por dimensión, en `[0, 1]` y con
 #'   suma uno. Si se omite, se devuelve el tablero.
 #' @param pesos_internos Vector opcional nombrado por `componente`; es
@@ -1375,6 +1376,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   # `.con_coberturas_frontera()`: la pieza que dice sobre cuantas tablas de la
   # coleccion se calculo el numero tiene que llegar hasta el ultimo consumidor.
   cobertura_coleccion <- .cobertura_coleccion_de(medidas)
+  if (.es_medicion_resumen(medidas)) .exigir_resumen_entero(medidas, "indice_calidad")
   tablero <- if (inherits(medidas, "analisis")) {
     tablero_calidad(medidas)
   } else if (inherits(medidas, "tablero_calidad")) {

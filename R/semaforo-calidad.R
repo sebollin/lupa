@@ -61,7 +61,11 @@
 #' @param medidas Un resumen de medición: `medir(detalle = "resumen")`,
 #'   [medir_dbi()] o la consolidación `rbind(..., prioridad = )`. Una medición
 #'   completa, un agregado o un tablero no traen las cuentas que el semáforo
-#'   necesita y se rechazan con clase `lupa_semaforo_sin_cuentas`.
+#'   necesita y se rechazan con clase `lupa_semaforo_sin_cuentas`. Un resumen
+#'   recortado a algunas columnas se rechaza con clase `lupa_resumen_incompleto`
+#'   y las columnas que faltan; sin `entidad_referida` el semáforo trabaja y el
+#'   control de lecturas es `desconocido`. Las filas vacías que agrega
+#'   `x[cond, ]` cuando `cond` tiene `NA` se rechazan igual.
 #' @param cortes Lista con nombres de dimensión o `data.frame`, como arriba. Sin
 #'   valor por omisión.
 #' @param niveles Nombres de los niveles, de peor a mejor.
@@ -75,12 +79,22 @@
 #'   resumen es una consolidación, `fuente`. `control_lecturas` dice cuánto
 #'   respalda el control de lecturas a la cifra: `una_lectura` (la tabla se leyó
 #'   en una sola sentencia, o en memoria), `completo` (varias lecturas con la
-#'   instantánea probada por el contador del motor o la huella de los datos) o
+#'   instantánea probada por el contador del motor o la huella de los datos),
 #'   `limitado` (varias lecturas y alguna sin instantánea: sólo se comparó el
-#'   número de filas, que no ve un `UPDATE` que no lo cambia). Una celda con
-#'   color y control `limitado` lo dice también la impresión. Atributos: `cortes`, `niveles`,
-#'   `comparacion`, `conteo_niveles`, `cortes_sin_celdas`, `fuera_del_semaforo`
-#'   y los del tablero.
+#'   número de filas, que no ve un `UPDATE` que no lo cambia) o `desconocido`:
+#'   no se puede saber qué lecturas respaldan la cifra. Tiene cuatro causas. El
+#'   resumen no conserva `id_medicion`, `entidad` o `entidad_referida`. El motor
+#'   no resolvió la tabla de alguna lectura: en SQLite y DuckDB se resuelve, en
+#'   los demás motores todavía no, y tampoco la trae un resumen medido antes de
+#'   que las lecturas registraran su tabla. El nombre de la entidad da más de
+#'   una tabla en las partes unidas: una parte la leyó en memoria y otra en el
+#'   motor, o dos partes leyeron bases distintas adjuntas con el mismo alias. O
+#'   un referencial en R comparte su nombre con otro de las mismas filas y otros
+#'   datos, respaldado de otra forma, o con una tabla de otra parte que no
+#'   tiene sus mismos datos. Una celda con color y
+#'   control `limitado` o `desconocido` lo dice también la impresión.
+#'   Atributos: `cortes`, `niveles`, `comparacion`, `conteo_niveles`,
+#'   `cortes_sin_celdas`, `fuera_del_semaforo` y los del tablero.
 #' @export
 #' @seealso [tablero_calidad()], [indice_calidad()], [medir()], [medir_dbi()]
 #'
@@ -116,6 +130,7 @@ semaforo_calidad <- function(medidas, cortes,
       )
     ))
   }
+  .exigir_resumen_entero(medidas, "semaforo_calidad", .COLUMNAS_SEMAFORO_RESUMEN)
   if (missing(cortes)) {
     .detener(
       "`cortes` es obligatorio: no hay cortes de f\u00e1brica.", call. = FALSE
@@ -542,6 +557,22 @@ print.semaforo_calidad <- function(x, ...) {
       "varias consultas sin un contador de modificaciones del motor, y s\u00f3lo se ",
       "compar\u00f3 el n\u00famero de filas. Una fila agregada o quitada entre lecturas ",
       "se ve; un `UPDATE` que no cambia ese n\u00famero, no."
+    )))
+  }
+  desconocidas <- !is.na(tabla$nivel) & tabla$control_lecturas %in% "desconocido"
+  if (any(desconocidas)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      sum(desconocidas),
+      if (sum(desconocidas) == 1L) " celda con color tiene" else " celdas con color tienen",
+      " un control de lecturas desconocido (`control_lecturas`): no se puede ",
+      "saber qu\u00e9 lecturas respaldan la cifra. Pasa si el resumen no conserva ",
+      "`id_medicion`, `entidad` o `entidad_referida`; si el motor no resolvi\u00f3 ",
+      "la tabla de alguna lectura (fuera de SQLite y DuckDB, o en un resumen ",
+      "medido con una versi\u00f3n anterior); si el nombre de la entidad da m\u00e1s ",
+      "de una tabla en las partes unidas (una parte en memoria y otra en el ",
+      "motor, u otra base adjunta con el mismo alias); o si un referencial en R ",
+      "comparte su nombre con otro de las mismas filas y otros datos, o con una ",
+      "tabla de otra parte. `attr(x, \"lecturas\")` muestra las de cada nombre."
     )))
   }
   sin_celdas <- attr(x, "cortes_sin_celdas", exact = TRUE)

@@ -438,9 +438,17 @@ test_that("C5 sin contador del motor se publica limitado; con contador ve un UPD
   on.exit(DBI::dbDisconnect(con))
   DBI::dbWriteTable(con, "d", data.frame(x = c(1, 2, 3, 2)))
   sin <- correr(con, NULL)
-  # El conteo no cambia con un UPDATE: el control lo dice.
+  # El conteo no cambia con un UPDATE: el control lo dice, en las lecturas y
+  # en el semaforo.
   expect_identical(sin$estado_cuentas, c("cierran", "cierran"))
-  expect_identical(lupa:::.control_lecturas_filas(sin), rep("solo_filas_agregadas_o_quitadas", 2L))
+  lecturas <- attr(sin, "lecturas", exact = TRUE)
+  expect_identical(nrow(lecturas), 2L)
+  expect_identical(lecturas$control, rep("solo_filas_agregadas_o_quitadas", 2L))
+  expect_identical(
+    semaforo_calidad(sin, cortes = list(Completitud = c(0.5, 0.9),
+                                        Consistencia = c(0.5, 0.9)))$control_lecturas,
+    c("limitado", "limitado")
+  )
   DBI::dbExecute(con, "UPDATE d SET x = 1 WHERE x = 9")
   espec <- list(
     motor = "sqlite", mecanismo = "prueba", requiere_tabla_base = FALSE,
@@ -449,6 +457,8 @@ test_that("C5 sin contador del motor se publica limitado; con contador ve un UPD
                        sql = "CAST(SUM(x) AS TEXT)", obligatorio = TRUE))
   )
   con_contador <- correr(con, espec)
+  expect_identical(attr(con_contador, "lecturas", exact = TRUE)$control,
+                   rep("contador_del_motor", 2L))
   expect_identical(con_contador$estado_cuentas, c("no_cierran", "no_cierran"))
   expect_identical(con_contador$motivo_cuentas, rep("tabla_cambio_entre_lecturas", 2L))
 })

@@ -1665,10 +1665,7 @@ leer_analisis <- function(archivo) {
       medir(sola, datos, id_medicion = id_medicion, fecha = fecha,
             aplicabilidad = aplicabilidad),
       warning = function(w) {
-        if (grepl("no se midieron porque su m", conditionMessage(w),
-                  fixed = TRUE, useBytes = TRUE)) {
-          invokeRestart("muffleWarning")
-        }
+        if (inherits(w, "lupa_aviso_no_medibles")) invokeRestart("muffleWarning")
       }
     )
     if (is.null(declarado)) {

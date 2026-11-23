@@ -121,7 +121,10 @@ test_that("dos partes del motor con el mismo contador se juntan; lo que una no t
   con_bloques <- suppressWarnings(medir_dbi(mod, con, id_medicion = "e", fecha = .rp_fecha,
                                             estrategia_no_sql = "bloques"))
   expect_identical(attr(sin_bloques, "cobertura_metricas")$metrica_instanciada, "Rx@d.t")
-  expect_identical(lupa:::.control_lecturas_filas(sin_bloques), "contador_del_motor")
+  # Con el contador, cada lectura lleva su instantanea y el control lo dice.
+  lecturas <- attr(sin_bloques, "lecturas", exact = TRUE)
+  expect_identical(unique(lecturas$control), "contador_del_motor")
+  expect_false(anyNA(lecturas$instantanea))
   k <- rbind(sql = sin_bloques, bloques = con_bloques, prioridad = c("sql", "bloques"))
   expect_identical(k$fuente[k$metrica_instanciada == "Rx@d.t"], "bloques")
   expect_identical(attr(k, "cobertura_resuelta")$metrica_instanciada, "Rx@d.t")

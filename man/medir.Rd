@@ -117,7 +117,9 @@ rechazan indicando qué hacer.
 \code{is.na()}, \code{NaN} incluido), \code{n_filas_leidas} (filas de la tabla que vio la
 lectura que produjo la cifra, antes del recorte por aplicabilidad),
 \code{entidad_referida} y \code{n_filas_leidas_referida} (en una referencial, la
-tabla referida y sus filas en la misma lectura), y \code{estado_cuentas},
+tabla referida y sus filas en la misma lectura; con un referencial en R, su
+nombre —o \verb{referencial <nombre>} si es también el de una entidad— y sus
+filas), y \code{estado_cuentas},
 \code{motivo_cuentas} y \code{diferencia_cuentas}. \code{estado_cuentas} es \code{cierran},
 \code{no_cierran} (la métrica dio más medidas que su universo; lo no evaluado no
 son los vacíos que la métrica declara no evaluar; o dos lecturas de la misma
@@ -130,13 +132,35 @@ no cierra; \code{\link[=tablero_calidad]{tablero_calidad()}} lo publica en su at
 \code{\link[=indice_calidad]{indice_calidad()}} no combina esas cifras y \code{\link[=semaforo_calidad]{semaforo_calidad()}} no las
 pinta. \code{attr(x, "lecturas")} registra cada lectura de cada tabla, con su
 huella de datos en memoria; dos partes de una corrida sobre la misma tabla
-se reconocen por esa huella. \code{write.csv()} exporta las columnas, no los
+se reconocen por esa huella. Un referencial en R se registra también, en
+\code{\link[=medir_dbi]{medir_dbi()}} con \code{estrategia_no_sql = "bloques"} igual que en \code{medir()},
+y lo identifican su nombre y la huella de sus datos, que van en la columna
+\code{tabla} de su lectura: dos referenciales distintos con el mismo nombre —el
+nombre por omisión de \verb{referencial(<expresión>)} es siempre
+\code{referencial}— son dos referenciales y no uno que cambió, cada cifra cierra
+con la lectura del suyo, y eso no depende de si van en una llamada o en
+varias partes. En el motor, la columna \code{tabla} de las lecturas es la
+tabla que el motor resolvió —su catálogo, su esquema y su nombre como los
+guarda el catálogo, buscada en el orden del motor para un nombre sin
+esquema (en SQLite \code{temp}, \code{main} y las adjuntas; en DuckDB \code{temp} y
+después \code{search_path}) y comparando los nombres como el motor, cada parte
+citada—: dos rótulos de la misma tabla (\code{Sucursales} y \code{sucursales},
+\code{MAIN} y \code{main}) se comparan como una. Si la base es un archivo, la tabla
+lleva la ruta del archivo en lugar del nombre con que se adjuntó: el mismo
+archivo con dos alias es una sola base. Una
+lectura del motor cuya tabla no se resolvió (\code{tabla} \code{NA}; en motores
+distintos de SQLite y DuckDB, todavía todas) no prueba nada: el control
+de sus cifras es \code{desconocido}. \code{write.csv()} exporta las columnas, no los
 atributos: lecturas, sello, cobertura y consolidación no viajan en un CSV.
 
 \strong{Partes de una corrida.} \code{rbind()} une resúmenes de una misma corrida
 —mismo \code{id_medicion} y misma \code{fecha}— que no repiten métrica y objeto, y
 vuelve a mirar las cuentas de la unión: dos partes que leyeron versiones
-distintas de una tabla quedan \code{no_cierran}. Una métrica con cifra en una
+distintas de una tabla quedan \code{no_cierran}. También si una parte la leyó
+en memoria y otra en el motor, o si las lecturas de una no traen la tabla
+que resolvió el motor: sin una identidad que comparar, se comparan por el
+nombre de la entidad, y con otro número de filas no cierran; con el mismo,
+cierran y el control de lecturas es \code{desconocido}. Una métrica con cifra en una
 parte y sin medir en otra se rechaza. Con \code{prioridad}
 (\code{rbind(motor = a, memoria = b, prioridad = c("motor", "memoria"))}) la
 misma celda en varias partes se resuelve por la parte de mayor prioridad,
@@ -148,7 +172,9 @@ mismo marco, y \strong{la misma instantánea de los datos} de cada tabla leída 
 más de una parte —la huella de los datos en memoria o el contador de
 modificaciones del motor—. La igualdad de filas no alcanza: si no hay cómo
 probar la instantánea, no se junta y se dice por qué. Una consolidación no
-se vuelve a unir.}
+se vuelve a unir. Las partes van enteras: una recortada a algunas columnas,
+con columnas que otra no trae o con filas vacías (las que agrega \code{x[cond, ]}
+cuando \code{cond} tiene \code{NA}) se rechaza con clase \code{lupa_resumen_incompleto}.}
 
 \item{orden_texto}{Cómo se ordena el texto en las reglas que el paquete
 interpreta con un operador de orden: el rango (\code{minimo} y \code{maximo}) de

@@ -16,7 +16,11 @@ semaforo_calidad(
 \item{medidas}{Un resumen de medición: \code{medir(detalle = "resumen")},
 \code{\link[=medir_dbi]{medir_dbi()}} o la consolidación \code{rbind(..., prioridad = )}. Una medición
 completa, un agregado o un tablero no traen las cuentas que el semáforo
-necesita y se rechazan con clase \code{lupa_semaforo_sin_cuentas}.}
+necesita y se rechazan con clase \code{lupa_semaforo_sin_cuentas}. Un resumen
+recortado a algunas columnas se rechaza con clase \code{lupa_resumen_incompleto}
+y las columnas que faltan; sin \code{entidad_referida} el semáforo trabaja y el
+control de lecturas es \code{desconocido}. Las filas vacías que agrega
+\code{x[cond, ]} cuando \code{cond} tiene \code{NA} se rechazan igual.}
 
 \item{cortes}{Lista con nombres de dimensión o \code{data.frame}, como arriba. Sin
 valor por omisión.}
@@ -34,12 +38,22 @@ tablero, con las columnas del tablero más \code{metrica_especifica},
 resumen es una consolidación, \code{fuente}. \code{control_lecturas} dice cuánto
 respalda el control de lecturas a la cifra: \code{una_lectura} (la tabla se leyó
 en una sola sentencia, o en memoria), \code{completo} (varias lecturas con la
-instantánea probada por el contador del motor o la huella de los datos) o
+instantánea probada por el contador del motor o la huella de los datos),
 \code{limitado} (varias lecturas y alguna sin instantánea: sólo se comparó el
-número de filas, que no ve un \code{UPDATE} que no lo cambia). Una celda con
-color y control \code{limitado} lo dice también la impresión. Atributos: \code{cortes}, \code{niveles},
-\code{comparacion}, \code{conteo_niveles}, \code{cortes_sin_celdas}, \code{fuera_del_semaforo}
-y los del tablero.
+número de filas, que no ve un \code{UPDATE} que no lo cambia) o \code{desconocido}:
+no se puede saber qué lecturas respaldan la cifra. Tiene cuatro causas. El
+resumen no conserva \code{id_medicion}, \code{entidad} o \code{entidad_referida}. El motor
+no resolvió la tabla de alguna lectura: en SQLite y DuckDB se resuelve, en
+los demás motores todavía no, y tampoco la trae un resumen medido antes de
+que las lecturas registraran su tabla. El nombre de la entidad da más de
+una tabla en las partes unidas: una parte la leyó en memoria y otra en el
+motor, o dos partes leyeron bases distintas adjuntas con el mismo alias. O
+un referencial en R comparte su nombre con otro de las mismas filas y otros
+datos, respaldado de otra forma, o con una tabla de otra parte que no
+tiene sus mismos datos. Una celda con color y
+control \code{limitado} o \code{desconocido} lo dice también la impresión.
+Atributos: \code{cortes}, \code{niveles}, \code{comparacion}, \code{conteo_niveles},
+\code{cortes_sin_celdas}, \code{fuera_del_semaforo} y los del tablero.
 }
 \description{
 Clasifica cada celda del tablero —una métrica sobre un objeto— en niveles,

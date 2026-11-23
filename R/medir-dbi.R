@@ -605,6 +605,39 @@
   )
 }
 
+# La identidad de una tabla resuelta por el motor, con cada parte citada por la
+# conexion: unida con un punto suelto, `main."a.b"` y `"main.a".b` eran la
+# misma. `base` es el nombre con que la conexion llama a la base de la tabla
+# -el esquema de SQLite, el catalogo de DuckDB- y `esquema`, el esquema dentro
+# de esa base. Si la base es un archivo, lo que la identifica es el archivo y
+# no ese nombre: la identidad lleva la ruta normalizada, como literal, en lugar
+# del nombre. Asi otra base adjunta con el mismo alias -un `DETACH` y otro
+# `ATTACH` entre dos llamadas- es otra tabla, y el mismo archivo con dos alias
+# es una sola. En memoria no hay archivo y queda el nombre. No es
+# `.identificadores_tabla()`, que arma el identificador de una coleccion y lo
+# leen el sello y la reanudacion.
+.identidad_tabla_dbi <- function(conexion, tabla, esquema = NA_character_,
+                                 base = NA_character_, archivo = NA_character_) {
+  if (!.es_texto_escalar(tabla)) return(NA_character_)
+  tryCatch({
+    archivo <- as.character(archivo)
+    con_archivo <- length(archivo) == 1L && .es_texto_escalar(archivo)
+    partes <- c(
+      catalog = if (con_archivo) NA_character_ else base,
+      schema = esquema, table = tabla
+    )
+    nombre <- as.character(DBI::dbQuoteIdentifier(
+      conexion, do.call(DBI::Id, as.list(partes[!is.na(partes)]))
+    ))
+    if (con_archivo) {
+      # La misma normalizacion que la reanudacion (`.identidad_fuente_reanudacion()`).
+      ruta <- normalizePath(archivo, winslash = "/", mustWork = FALSE)
+      nombre <- paste0(as.character(DBI::dbQuoteString(conexion, ruta)), ".", nombre)
+    }
+    nombre
+  }, error = function(e) NA_character_)
+}
+
 .esquema_medicion_dbi <- function(conexion, ref_tabla, motor, contador = NULL,
                                   sesion = NULL) {
   consultas <- character()
@@ -635,6 +668,20 @@
   } else {
     NA_character_
   }
+  catalogo_cat <- if (inherits(ref_tabla, "Id") &&
+                      "catalog" %in% names(ref_tabla@name)) {
+    as.character(ref_tabla@name[["catalog"]])
+  } else {
+    NA_character_
+  }
+  # La tabla que resuelve el motor: el catalogo, el esquema y el nombre con que
+  # la guarda su catalogo -no los que escribio el usuario-, buscada en el orden
+  # en que el motor busca un nombre sin esquema y con su comparacion de
+  # mayusculas. Es la clave de sus lecturas (`.lectura()`): dos rotulos de la
+  # misma tabla son una tabla. Cada parte va citada (`.identidad_tabla_dbi()`):
+  # `main."a.b"` y `"main.a".b` son dos tablas. Donde no se resuelve, `NA`, y el
+  # control de sus cifras es `desconocido`.
+  identidad <- NA_character_
   proto <- consultar(paste0("SELECT * FROM ", q, " WHERE 1 = 0"))
   n_consultas <- 1L
   campos <- names(proto)
@@ -648,39 +695,174 @@
   colacion_bin2 <- stats::setNames(rep(NA, length(campos)), campos)
   crear <- NA_character_
   if (identical(motor, "sqlite")) {
-    info <- consultar(paste0("PRAGMA table_info(", q, ")"))
+    # En SQLite el esquema va delante del PRAGMA y del catalogo:
+    # `PRAGMA table_info("main"."t")` es un error de sintaxis, y un referencial
+    # `DBI::Id(schema = "main", ...)` quedaba sin medir con la tabla presente.
+    cita_esquema <- if (!is.na(esquema_cat)) {
+      paste0(as.character(DBI::dbQuoteIdentifier(conexion, esquema_cat)), ".")
+    } else ""
+    info <- consultar(if (nzchar(cita_esquema)) {
+      paste0("PRAGMA ", cita_esquema, "table_info(",
+             as.character(DBI::dbQuoteIdentifier(conexion, nombre_cat)), ")")
+    } else {
+      paste0("PRAGMA table_info(", q, ")")
+    })
     n_consultas <- n_consultas + 1L
     if (is.data.frame(info) && nrow(info)) {
       tipos[info$name] <- .mayusculas_ascii(info$type)
     }
-    crear_df <- consultar(paste0(
-      "SELECT sql FROM sqlite_master WHERE type IN ('table', 'view') AND name = ",
-      DBI::dbQuoteString(conexion, nombre_cat)
-    ))
+    # Sin esquema, SQLite busca en `temp`, en `main` y en las bases adjuntas en
+    # su orden (`PRAGMA database_list`), sin distinguir mayusculas: el catalogo
+    # dice cual es la tabla y como se llaman ella y su esquema. Las adjuntas se
+    # miran solo si no esta en las dos primeras, que es lo comun.
+    filtro_cat <- paste0(
+      " WHERE type IN ('table', 'view') AND name = ",
+      DBI::dbQuoteString(conexion, nombre_cat), " COLLATE NOCASE"
+    )
+    # El archivo de cada base sale de `pragma_database_list`, en la misma consulta.
+    desde <- function(esquema, orden, nombre_esquema) {
+      paste0(
+        "SELECT ", orden, " AS lupa_orden, ", nombre_esquema, " AS lupa_esquema, ",
+        "(SELECT file FROM pragma_database_list WHERE name = ",
+        DBI::dbQuoteString(conexion, esquema), " COLLATE NOCASE) AS lupa_archivo, ",
+        "name, sql FROM ", as.character(DBI::dbQuoteIdentifier(conexion, esquema)),
+        ".sqlite_master", filtro_cat
+      )
+    }
+    crear_df <- consultar(if (nzchar(cita_esquema)) {
+      # El esquema con el nombre que le da la base, no el que se escribio.
+      desde(esquema_cat, 0L, paste0(
+        "COALESCE((SELECT name FROM pragma_database_list WHERE name = ",
+        DBI::dbQuoteString(conexion, esquema_cat), " COLLATE NOCASE), ",
+        "CASE WHEN ", DBI::dbQuoteString(conexion, esquema_cat),
+        " = 'temp' COLLATE NOCASE THEN 'temp' END)"
+      ))
+    } else {
+      paste0(desde("temp", 0L, "'temp'"), " UNION ALL ", desde("main", 1L, "'main'"))
+    })
     n_consultas <- n_consultas + 1L
+    if (!nzchar(cita_esquema) && (!is.data.frame(crear_df) || !nrow(crear_df))) {
+      bases <- consultar("PRAGMA database_list")
+      n_consultas <- n_consultas + 1L
+      adjuntas <- if (is.data.frame(bases) && nrow(bases)) {
+        bases <- bases[.orden_por_bytes(as.integer(bases$seq)), , drop = FALSE]
+        as.character(bases$name[!bases$name %in% c("main", "temp")])
+      } else character()
+      if (length(adjuntas)) {
+        crear_df <- consultar(paste(vapply(seq_along(adjuntas), function(i) {
+          desde(adjuntas[[i]], i + 1L, DBI::dbQuoteString(conexion, adjuntas[[i]]))
+        }, character(1L)), collapse = " UNION ALL "))
+        n_consultas <- n_consultas + 1L
+      }
+    }
     if (is.data.frame(crear_df) && nrow(crear_df)) {
-      crear <- crear_df$sql[[1L]]
+      crear_df <- crear_df[crear_df$lupa_orden == min(crear_df$lupa_orden), ,
+                           drop = FALSE]
+      # `COLLATE NOCASE` pliega como SQLite: en un esquema casa una sola tabla.
+      fila <- crear_df[1L, , drop = FALSE]
+      crear <- fila$sql[[1L]]
+      # Sin el nombre del esquema que da la base, la tabla no esta resuelta.
+      if (.es_texto_escalar(fila$lupa_esquema[[1L]])) {
+        identidad <- .identidad_tabla_dbi(
+          conexion, base = fila$lupa_esquema[[1L]], tabla = fila$name[[1L]],
+          archivo = fila$lupa_archivo[[1L]]
+        )
+      }
     }
     cotejamientos <- .cotejamientos_sql_tabla(crear, campos, "binary")
   } else if (identical(motor, "duckdb")) {
-    filtro_esq <- if (!is.na(esquema_cat)) {
-      paste0(" AND table_schema = ", DBI::dbQuoteString(conexion, esquema_cat))
-    } else ""
+    # DuckDB busca un nombre sin esquema primero en `temp` y despues en los
+    # esquemas de `search_path` (`current_schemas(false)`) de la base de la
+    # sesion; con esquema y sin catalogo, `temp` antes que la base de la sesion
+    # (`main.t` lee la temporal), y si no hay tal esquema, una base con ese
+    # nombre. Tabla, esquema y catalogo se comparan como el motor, que no
+    # distingue mayusculas solo en ASCII, y se toman con el nombre que les da el
+    # catalogo. Con `lower()`, que pliega todo Unicode, dos tablas que difieren
+    # en la caja de una letra no ASCII eran una, y un nombre se leia de una y se
+    # registraba como la otra.
+    lit <- function(x) as.character(DBI::dbQuoteString(conexion, x))
+    igual <- function(columna, valor) {
+      paste0(
+        "translate(", columna, ", '", .MAYUSCULAS_ASCII, "', '",
+        .MINUSCULAS_ASCII, "') = ", lit(.minusculas_ascii(valor))
+      )
+    }
+    # Sin `search_path`, `current_schemas(false)` es una lista vacia y el
+    # esquema es el de la sesion.
+    ruta <- paste0(
+      "(CASE WHEN len(current_schemas(false)) > 0 THEN current_schemas(false) ",
+      "ELSE [current_schema()] END)"
+    )
+    filtro_duck <- if (!is.na(catalogo_cat)) {
+      paste0(
+        igual("table_catalog", catalogo_cat),
+        if (!is.na(esquema_cat)) {
+          paste0(" AND ", igual("table_schema", esquema_cat))
+        } else " AND table_schema = 'main'"
+      )
+    } else if (!is.na(esquema_cat)) {
+      paste0(
+        "((table_catalog IN ('temp', current_database()) AND ",
+        igual("table_schema", esquema_cat), ") OR (",
+        igual("table_catalog", esquema_cat), " AND table_schema = 'main'))"
+      )
+    } else {
+      paste0(
+        "(table_catalog = 'temp' OR (table_catalog = current_database() AND ",
+        "list_contains(", ruta, ", table_schema)))"
+      )
+    }
+    orden_duck <- if (!is.na(catalogo_cat)) "0" else if (!is.na(esquema_cat)) {
+      paste0(
+        "CASE WHEN table_catalog = 'temp' THEN 0 WHEN table_catalog = ",
+        "current_database() AND ", igual("table_schema", esquema_cat),
+        " THEN 1 ELSE 2 END"
+      )
+    } else {
+      paste0(
+        "CASE WHEN table_catalog = 'temp' THEN 0 ELSE ",
+        "list_position(", ruta, ", table_schema) END"
+      )
+    }
     info <- consultar(paste0(
-      "SELECT column_name, data_type FROM information_schema.columns ",
-      "WHERE table_name = ", DBI::dbQuoteString(conexion, nombre_cat),
-      filtro_esq
+      "SELECT table_catalog, table_schema, table_name, column_name, data_type, ",
+      orden_duck, " AS lupa_orden, (SELECT lupa_b.path FROM duckdb_databases() ",
+      "lupa_b WHERE lupa_b.database_name = table_catalog) AS lupa_archivo ",
+      "FROM information_schema.columns WHERE ", igual("table_name", nombre_cat),
+      " AND ", filtro_duck
     ))
     n_consultas <- n_consultas + 1L
+    nombre_guardado <- nombre_cat
+    esquema_guardado <- esquema_cat
+    catalogo_guardado <- catalogo_cat
     if (is.data.frame(info) && nrow(info)) {
+      info$lupa_orden <- suppressWarnings(as.numeric(info$lupa_orden))
+      info <- info[!is.na(info$lupa_orden), , drop = FALSE]
+    }
+    if (is.data.frame(info) && nrow(info)) {
+      info <- info[info$lupa_orden == min(info$lupa_orden), , drop = FALSE]
+      fila <- info[1L, , drop = FALSE]
+      info <- info[info$table_catalog == fila$table_catalog[[1L]] &
+                     info$table_schema == fila$table_schema[[1L]] &
+                     info$table_name == fila$table_name[[1L]], , drop = FALSE]
       tipos[info$column_name] <- .mayusculas_ascii(info$data_type)
+      nombre_guardado <- as.character(fila$table_name[[1L]])
+      esquema_guardado <- as.character(fila$table_schema[[1L]])
+      catalogo_guardado <- as.character(fila$table_catalog[[1L]])
+      identidad <- .identidad_tabla_dbi(
+        conexion, base = catalogo_guardado, esquema = esquema_guardado,
+        tabla = nombre_guardado, archivo = fila$lupa_archivo[[1L]]
+      )
     }
     crear_df <- tryCatch(
       consultar(paste0(
         "SELECT sql FROM duckdb_tables() WHERE table_name = ",
-        DBI::dbQuoteString(conexion, nombre_cat),
-        if (!is.na(esquema_cat)) {
-          paste0(" AND schema_name = ", DBI::dbQuoteString(conexion, esquema_cat))
+        lit(nombre_guardado),
+        if (!is.na(esquema_guardado)) {
+          paste0(" AND schema_name = ", lit(esquema_guardado))
+        } else "",
+        if (!is.na(catalogo_guardado)) {
+          paste0(" AND database_name = ", lit(catalogo_guardado))
         } else ""
       )),
       error = function(e) NULL
@@ -893,7 +1075,8 @@
     n_campos = length(campos),
     prototipo = .normalizar_columnas_texto(proto),
     n_consultas_esquema = n_consultas,
-    consultas_esquema = consultas
+    consultas_esquema = consultas,
+    identidad = identidad
   )
 }
 
@@ -3332,10 +3515,7 @@
             interno_bloque = TRUE
           ),
           warning = function(w) {
-            if (grepl("porque su m", conditionMessage(w),
-                      fixed = TRUE, useBytes = TRUE)) {
-              invokeRestart("muffleWarning")
-            }
+            if (inherits(w, "lupa_aviso_no_medibles")) invokeRestart("muffleWarning")
           }
         ),
         error = function(e) e
@@ -3850,7 +4030,13 @@ print.plan_medicion_dbi <- function(x, ...) {
 #'   modificaciones que lupa lee, se compara también ese contador y el control
 #'   se publica como `contador_del_motor`; si no, como
 #'   `solo_filas_agregadas_o_quitadas`. En SQL Server con `READ COMMITTED` por
-#'   bloqueo una sola sentencia tampoco es una instantánea.
+#'   bloqueo una sola sentencia tampoco es una instantánea. La tabla de cada
+#'   lectura es la que el motor resuelve para su nombre al leer su esquema, una
+#'   vez por llamada —si la base es un archivo, con la ruta del archivo en
+#'   lugar del nombre con que se adjuntó—: si
+#'   durante la medición cambia lo que resuelve un nombre, por ejemplo se crea
+#'   una tabla temporal con ese nombre, ese cambio no se ve. Dos o más
+#'   lecturas de la misma tabla nunca son `una_lectura`.
 #' @export
 #' @seealso [plan_medicion_dbi()], [medir()], [perfilar_dbi()],
 #'   [tablero_calidad()], [indice_calidad()]
@@ -3944,16 +4130,30 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   # tiene un contador de modificaciones, con su valor: si dos lecturas de la
   # misma tabla no coinciden, las cifras de esa tabla no cierran (C5).
   lecturas <- list()
+  # La tabla que resolvio el motor para cada entidad: la clave de su lectura.
+  tabla_de <- function(entidad) {
+    esq <- if (.es_texto_escalar(entidad)) p$esquemas[[entidad]]
+    if (is.list(esq) && .es_texto_escalar(esq$identidad)) esq$identidad else NA_character_
+  }
   registrar <- function(entidad, n_filas, instantanea = NA_character_,
-                        lectura = paste0("consulta-", contador$n)) {
+                        lectura = paste0("consulta-", contador$n),
+                        tabla = tabla_de(entidad), control = NULL) {
     if (is.null(entidad) || is.na(entidad) || !length(n_filas)) return(invisible(NULL))
+    if (is.null(control)) {
+      control <- if (is.na(instantanea)) {
+        "solo_filas_agregadas_o_quitadas"
+      } else "contador_del_motor"
+    }
     lecturas[[length(lecturas) + 1L]] <<- .lectura(
       id_medicion, entidad, suppressWarnings(as.numeric(n_filas)), instantanea,
-      if (is.na(instantanea)) "solo_filas_agregadas_o_quitadas" else "contador_del_motor",
-      lectura = lectura
+      control, lectura = lectura, tabla = tabla
     )
     invisible(NULL)
   }
+  # Los referenciales en R, como tablas referidas de la via `distintos_r`.
+  referidas_memoria <- .referidas_memoria(modelo, unique(c(
+    names(p$esquemas), unlist(lapply(modelo$metricas, `[[`, "entidad"))
+  )))
   contadores <- lapply(names(p$esquemas), function(e) {
     esq <- p$esquemas[[e]]
     if (is.null(esq)) return(NULL)
@@ -3998,6 +4198,13 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   pendientes_bloques <- list()
   validaciones_referencial <- new.env(parent = emptyenv())
   agregar_salida <- function(s) {
+    for (l in s$lecturas) {
+      registrar(l$entidad, l$n_filas,
+                instantanea = if (is.null(l$instantanea)) NA_character_ else l$instantanea,
+                lectura = l$lectura,
+                tabla = if (.es_texto_escalar(l$tabla)) l$tabla else tabla_de(l$entidad),
+                control = l$control)
+    }
     if (!is.null(s$fila) && !is.null(s$n_filas)) {
       s$fila <- .cerrar_fila_dbi(
         s$fila, instancia, s$n_filas, s$n_filas_ref %||% NA_real_
@@ -4037,6 +4244,8 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
         x, con, contador, id_medicion, fecha, validaciones_referencial
       )
       if (isTRUE(s$guarda)) {
+        # La consulta que encontro la guarda tambien leyo las dos tablas.
+        previas <- s$lecturas
         if (isTRUE(x$admite_distintos)) {
           x$via <- "distintos_r"
           vias_finales[[j]] <- "distintos_r"
@@ -4048,11 +4257,13 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
             instancia, id_medicion, fecha, s$motivo, en_base = TRUE
           ))
         }
+        s$lecturas <- c(previas, s$lecturas)
       }
       agregar_salida(s)
       next
     }
     if (identical(x$via, "distintos_r")) {
+      x$referida_memoria <- referidas_memoria[[instancia$nombre]]
       agregar_salida(.ejecutar_distintos_referencial_dbi(
         x, con, contador, id_medicion, fecha, p$esquemas, universos, motor
       ))

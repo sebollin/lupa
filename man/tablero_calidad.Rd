@@ -13,7 +13,7 @@ tablero_calidad(
 )
 }
 \arguments{
-\item{medidas}{Objeto creado por \code{\link[=medir]{medir()}} (completo o con \code{detalle = "resumen"}), \code{\link[=medir_dbi]{medir_dbi()}} o \code{\link[=agregar]{agregar()}}. Con un resumen, \code{ratio} coincide exactamente (\code{numerador / denominador}), no se admiten \code{agregaciones} ni \code{umbrales} propios y se rechaza si el resumen dejó métricas \code{no_resumible}.}
+\item{medidas}{Objeto creado por \code{\link[=medir]{medir()}} (completo o con \code{detalle = "resumen"}), \code{\link[=medir_dbi]{medir_dbi()}} o \code{\link[=agregar]{agregar()}}. Con un resumen, \code{ratio} coincide exactamente (\code{numerador / denominador}), no se admiten \code{agregaciones} ni \code{umbrales} propios y se rechaza si el resumen dejó métricas \code{no_resumible}. Un resumen recortado a algunas columnas se rechaza con clase \code{lupa_resumen_incompleto} y las columnas que faltan; sin \code{entidad_referida} el tablero trabaja y el control de lecturas de sus cuentas es \code{desconocido}. Las filas vacías que agrega \code{x[cond, ]} cuando \code{cond} tiene \code{NA} se rechazan igual: filtrar con \code{which()} o \code{subset()}.}
 
 \item{agregaciones}{\code{NULL}, una agregación para todas las métricas, un
 vector con nombres de métrica instanciada o un data frame con

@@ -33,6 +33,108 @@
   ))
 }
 
+# Las columnas del resumen sin las que el tablero, el indice y el semaforo no
+# trabajan. Medido quitando una por una sobre un resumen con cifras que cierran,
+# que no cierran y referenciales: sin cualquiera de estas, los tres abortaban con
+# un error de R -"los argumentos implican un numero diferente de filas"- o
+# publicaban otra cosa sin decirlo. Sin `entidad` o sin `granularidad`, `$` tomaba
+# por coincidencia parcial `entidad_referida` o `granularidad_origen`; sin
+# `estado_cuentas`, el tablero publicaba como las demas una cifra que no cierra.
+# `entidad_referida` no esta: sin ella el control de lecturas se declara
+# `desconocido`. Las demas (`numerador`, `n_filas_leidas`, ...) no se leen.
+.COLUMNAS_TABLERO_RESUMEN <- c(
+  "id_medicion", "fecha", "metrica", "metrica_especifica", "metrica_instanciada",
+  "dimension", "factor", "orientacion", "granularidad", "granularidad_origen",
+  "tipo_resultado", "entidad", "atributo", "objeto_medible", "resultado",
+  "agregacion", "estado_cuentas", "motivo_cuentas", "diferencia_cuentas"
+)
+# El semaforo ademas mide la fraccion evaluada de cada cifra.
+.COLUMNAS_SEMAFORO_RESUMEN <- c(
+  .COLUMNAS_TABLERO_RESUMEN, "denominador", "n_universo", "n_no_evaluados",
+  "n_sin_valor"
+)
+
+# Un resumen recortado a algunas columnas sigue siendo un resumen, y se imprime;
+# el tablero, el indice y el semaforo lo rechazan con las columnas que faltan.
+.exigir_resumen_entero <- function(medidas, funcion,
+                                   columnas = .COLUMNAS_TABLERO_RESUMEN) {
+  faltan <- columnas[!columnas %in% names(medidas)]
+  if (length(faltan)) {
+    .rechazar_resumen_incompleto(paste0(
+      "`", funcion, "()` necesita el resumen de medici\u00f3n entero, y a este le ",
+      if (length(faltan) == 1L) "falta la columna " else "faltan las columnas ",
+      paste0("`", faltan, "`", collapse = ", "), ". Pasarle el resumen sin ",
+      "recortar sus columnas; para ver solo algunas, recortar lo que devuelve: ",
+      "`", funcion, "(x)[, ...]`."
+    ))
+  }
+  .rechazar_filas_vacias(medidas, paste0("`", funcion, "()` recibi\u00f3"))
+  invisible(medidas)
+}
+
+.rechazar_resumen_incompleto <- function(mensaje) {
+  .detener(structure(
+    class = c("lupa_resumen_incompleto", "error", "condition"),
+    list(message = mensaje, call = NULL)
+  ))
+}
+
+# `x[cond, ]` con un `NA` en `cond` agrega una fila con todas sus columnas `NA`
+# (es `[.data.frame`). Una fila asi no es una cifra: se rechaza con la causa en
+# vez de abortar adentro con "valor ausente donde TRUE/FALSE es necesario", y
+# no se descarta en silencio, porque quien filtro no sabe que la agrego.
+.rechazar_filas_vacias <- function(medidas, quien) {
+  vacias <- if ("metrica_instanciada" %in% names(medidas)) {
+    sum(is.na(medidas[["metrica_instanciada"]]))
+  } else 0L
+  if (!vacias) return(invisible(NULL))
+  .rechazar_resumen_incompleto(paste0(
+    quien, " ", vacias, if (vacias == 1L) " fila vac\u00eda" else " filas vac\u00edas",
+    " (todas sus columnas `NA`): las agrega `x[cond, ]` cuando `cond` tiene `NA`. ",
+    "Filtrar con `x[which(cond), ]` o con `subset(x, cond)`, que dejan afuera ",
+    "esos `NA`."
+  ))
+}
+
+# `rbind()` junta resumenes enteros: con columnas distintas o filas vacias,
+# `rbind.data.frame()` abortaba con un error de R, o la consolidacion con
+# "argumento tiene longitud cero" al leer una columna que no estaba.
+.exigir_partes_enteras <- function(partes) {
+  nombres <- names(partes)
+  if (is.null(nombres)) nombres <- rep("", length(partes))
+  nombres <- ifelse(nzchar(nombres), paste0("`", nombres, "`"),
+                    paste0(seq_along(partes)))
+  for (k in seq_along(partes)) {
+    faltan <- .COLUMNAS_RESUMEN[!.COLUMNAS_RESUMEN %in% names(partes[[k]])]
+    if (length(faltan)) {
+      .rechazar_resumen_incompleto(paste0(
+        "`rbind()` necesita los res\u00famenes de medici\u00f3n enteros, y a la parte ",
+        nombres[[k]], if (length(faltan) == 1L) " le falta la columna " else
+          " le faltan las columnas ",
+        paste0("`", faltan, "`", collapse = ", "), ". Unir los res\u00famenes sin ",
+        "recortar sus columnas y recortar lo que devuelve."
+      ))
+    }
+  }
+  sobran <- lapply(partes, function(p) setdiff(names(p), .COLUMNAS_RESUMEN))
+  if (!all(vapply(sobran[-1L], function(s) {
+    setequal(.clave_bytes(s), .clave_bytes(sobran[[1L]]))
+  }, logical(1L)))) {
+    k <- which(lengths(sobran) > 0L)[[1L]]
+    .rechazar_resumen_incompleto(paste0(
+      "`rbind()` necesita res\u00famenes con las mismas columnas, y la parte ",
+      nombres[[k]], " trae columnas que otra no: ",
+      paste0("`", sobran[[k]], "`", collapse = ", "), ". Quitarlas antes de unir."
+    ))
+  }
+  for (k in seq_along(partes)) {
+    .rechazar_filas_vacias(partes[[k]], paste0(
+      "En la parte ", nombres[[k]], ", `rbind()` recibi\u00f3"
+    ))
+  }
+  invisible(partes)
+}
+
 .resumen_vacio <- function() {
   .data_frame_simple(
     id_medida = character(),
@@ -371,6 +473,9 @@
   }
   tablas <- .normalizar_tablas_modelo(datos, modelo)
   aplicables <- .mascaras_aplicabilidad_medicion(tablas, aplicabilidad)
+  referidas <- .referidas_memoria(
+    modelo, unique(c(names(tablas), unlist(lapply(modelo$metricas, `[[`, "entidad"))))
+  )
   filas <- list()
   coberturas <- list()
   alcances <- list()
@@ -392,7 +497,7 @@
       avisos <- attr(rapida, "avisos_resumen", exact = TRUE)
       attr(rapida, "avisos_resumen") <- NULL
       filas[[length(filas) + 1L]] <- .cuentas_filas_memoria(
-        rapida, instancia, tablas
+        rapida, instancia, tablas, referida = referidas[[instancia$nombre]]
       )
       parcial <- if (rapida$granularidad_origen %in%
                      c("instanciaAtributo", "instanciaEntidad")) {
@@ -419,10 +524,7 @@
         detalle = "completo", orden_texto = orden_texto
       ),
       warning = function(w) {
-        if (grepl("porque su m", conditionMessage(w),
-                  fixed = TRUE, useBytes = TRUE)) {
-          invokeRestart("muffleWarning")
-        }
+        if (inherits(w, "lupa_aviso_no_medibles")) invokeRestart("muffleWarning")
       }
     )
     cobertura <- attr(medidas, "cobertura_metricas", exact = TRUE)
@@ -449,7 +551,8 @@
     }
     filas[[length(filas) + 1L]] <- .cuentas_filas_memoria(
       general$filas, instancia, tablas,
-      parcial = if (isTRUE(am[[instancia$nombre]]$truncado)) "truncada" else NA_character_
+      parcial = if (isTRUE(am[[instancia$nombre]]$truncado)) "truncada" else NA_character_,
+      referida = referidas[[instancia$nombre]]
     )
   }
   resultado <- if (length(filas)) do.call(rbind, filas) else .resumen_vacio()
@@ -461,7 +564,8 @@
   }
   resultado <- resultado[.COLUMNAS_RESUMEN]
   lecturas <- .lecturas_memoria(
-    resultado, tablas, id_medicion, huella = !isTRUE(interno_bloque)
+    resultado, tablas, id_medicion, huella = !isTRUE(interno_bloque),
+    referidas = referidas
   )
   resultado <- .estado_cuentas_lecturas(resultado, lecturas)
   attr(resultado, "lecturas") <- lecturas
@@ -648,6 +752,7 @@ rbind.medicion_resumen <- function(..., prioridad = NULL, deparse.level = 1) {
       "Consolidar todas las partes de una vez."
     )
   }
+  .exigir_partes_enteras(partes)
   if (!is.null(prioridad)) return(.consolidar_resumenes(partes, prioridad))
   if (length(partes) == 1L) return(partes[[1L]])
   mismo <- function(atributo) {
@@ -789,6 +894,10 @@ print.medicion_resumen <- function(x, ...) {
   malas <- .cuentas_que_no_cierran(x)
   if (!is.null(malas)) {
     cli::cli_h2("Cuentas que no cierran")
+    # Un resumen recortado muestra solo las columnas que conserva, mas el
+    # control de lecturas, que sin las columnas que lo identifican es
+    # `desconocido`.
+    malas <- malas[intersect(names(malas), c(names(x), "control_lecturas"))]
     .print_data_frame_bytes(malas, row.names = FALSE)
   }
   .imprimir_consolidacion(x)

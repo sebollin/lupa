@@ -21,14 +21,6 @@
 
 .ESTADOS_CUENTAS <- c("cierran", "no_cierran", "parcial", "sin_cuentas")
 
-# Lo que cada control de lecturas puede afirmar. Con un contador del motor, dos
-# lecturas con el mismo valor vieron la misma tabla; con el conteo de filas
-# solo se ve que se agregaron o quitaron filas: un `UPDATE` entre dos lecturas
-# no cambia el conteo.
-.CONTROLES_LECTURAS <- c(
-  "huella_de_datos", "contador_del_motor", "solo_filas_agregadas_o_quitadas"
-)
-
 # Que elementos declara evaluar una metrica del catalogo: los que tienen valor
 # en sus columnas de valor (`excluye`), o tambien los vacios (`incluye`, como
 # `NoNulo`, cuyo vacio es lo que mide). La declaracion vive en
@@ -176,7 +168,7 @@
   data.frame(
     id_medicion = character(), entidad = character(), n_filas = numeric(),
     instantanea = character(), control = character(), lectura = character(),
-    stringsAsFactors = FALSE
+    tabla = character(), stringsAsFactors = FALSE
   )
 }
 
@@ -184,15 +176,75 @@
 # son una lectura, y dos consultas con el mismo conteo son dos. Sin el
 # identificador, dos lecturas iguales se fundian en una y una tabla leida dos
 # veces se publicaba como leida una vez.
+#
+# `tabla` es la tabla que resolvio el motor -su esquema, explicito aunque se
+# haya omitido, y su nombre como lo guarda el catalogo-: dos rotulos de la misma
+# tabla (`Sucursales` y `sucursales`, o `DBI::Id(schema = "main", ...)` y el
+# nombre pelado) son una tabla, y sus lecturas se comparan. En memoria no hay
+# motor que la resuelva y queda `NA`: cuenta el nombre de la entidad. Para un
+# referencial en R es su identidad (`.identidad_referencial_memoria()`).
+#
+# `control` dice que puede afirmar la lectura: con la huella de los datos
+# (`huella_de_datos`) o un contador del motor (`contador_del_motor`), dos
+# lecturas con el mismo valor vieron la misma tabla; con el conteo de filas
+# (`solo_filas_agregadas_o_quitadas`) solo se ve que se agregaron o quitaron
+# filas: un `UPDATE` entre dos lecturas no cambia el conteo.
 .lectura <- function(id_medicion, entidad, n_filas, instantanea = NA_character_,
                      control = "solo_filas_agregadas_o_quitadas",
-                     lectura = NA_character_) {
+                     lectura = NA_character_, tabla = NA_character_) {
   data.frame(
     id_medicion = as.character(id_medicion), entidad = as.character(entidad),
     n_filas = as.double(n_filas), instantanea = as.character(instantanea),
     control = as.character(control), lectura = as.character(lectura),
-    stringsAsFactors = FALSE
+    tabla = as.character(tabla), stringsAsFactors = FALSE
   )
+}
+
+# Las lecturas de antes de `lectura` o de `tabla` no las traen: se completan.
+.completar_lecturas <- function(l) {
+  for (columna in c("lectura", "tabla")) {
+    if (!columna %in% names(l)) l[[columna]] <- rep(NA_character_, nrow(l))
+  }
+  l[names(.lecturas_vacias())]
+}
+
+# Lo que identifica a cada lectura:
+# - `t`, una tabla que resolvio el motor (`tabla`);
+# - `r`, un referencial en R: su nombre y la huella de sus datos, que van
+#   tambien en `tabla` y se reconocen por el control `huella_de_datos`;
+# - `e`, solo el rotulo: una entidad en memoria, o una lectura del motor cuya
+#   tabla no se resolvio (otro motor, o un resumen medido antes de ese campo).
+.clase_lecturas <- function(lecturas) {
+  ifelse(
+    is.na(lecturas$tabla), "e",
+    ifelse(lecturas$control %in% "huella_de_datos", "r", "t")
+  )
+}
+
+# La clave de un rotulo -la corrida y el nombre de la entidad-, que es tambien
+# la de una lectura sin otra identidad.
+.clave_rotulo_lecturas <- function(id_medicion, entidad) {
+  .clave_bytes(paste(id_medicion, paste0("e\035", entidad), sep = "\034"))
+}
+
+# La clave de cada lectura: la corrida y lo que la identifica. Las tres clases
+# no se confunden aunque un nombre se escriba como una tabla.
+.clave_tabla_lecturas <- function(lecturas) {
+  tabla <- as.character(lecturas$tabla)
+  .clave_bytes(paste(
+    lecturas$id_medicion,
+    paste0(.clase_lecturas(lecturas), "\035",
+           ifelse(is.na(tabla), lecturas$entidad, tabla)),
+    sep = "\034"
+  ))
+}
+
+# La identidad de un referencial en R: su nombre y la huella de sus datos. Dos
+# huellas bajo un nombre son dos referenciales, no uno que cambio -el nombre
+# por omision de `referencial(<expresion>)` es siempre `referencial`-, y el
+# resultado no depende de si van en una llamada o en dos partes.
+.identidad_referencial_memoria <- function(nombre, huella) {
+  paste0("referencial en R ", nombre, " [", huella, "]")
 }
 
 # Las lecturas de las partes de un `rbind()`, con el identificador de la parte:
@@ -201,8 +253,12 @@
   .unir_lecturas(lapply(seq_along(partes), function(k) {
     l <- attr(partes[[k]], "lecturas", exact = TRUE)
     if (!inherits(l, "data.frame") || !nrow(l)) return(NULL)
-    if (!"lectura" %in% names(l)) l$lectura <- NA_character_
-    l$lectura <- paste0("parte-", k, ":", ifelse(is.na(l$lectura), "", l$lectura))
+    l <- .completar_lecturas(l)
+    # Una lectura sin identificador sigue sin el: con la parte delante, dos
+    # lecturas de una tabla sin identificador se contaban como una sola y
+    # sumaban `una_lectura`.
+    l$lectura <- ifelse(is.na(l$lectura), NA_character_,
+                        paste0("parte-", k, ":", l$lectura))
     l
   }))
 }
@@ -210,10 +266,188 @@
 .unir_lecturas <- function(tablas) {
   tablas <- Filter(function(t) inherits(t, "data.frame") && nrow(t), tablas)
   if (!length(tablas)) return(.lecturas_vacias())
-  unidas <- do.call(rbind, unname(tablas))
+  unidas <- do.call(rbind, lapply(unname(tablas), .completar_lecturas))
   unidas <- unidas[!duplicated(unidas), , drop = FALSE]
   rownames(unidas) <- NULL
   unidas
+}
+
+# Cuanto respaldan a una cifra las lecturas de una tabla, en tres palabras:
+# `una_lectura` -se leyo en una sola sentencia, o es un objeto en memoria: no
+# hay dos lecturas que puedan discrepar-; `completo` -varias lecturas, todas
+# con la instantanea probada por el contador del motor o la huella de los
+# datos-; `limitado` -varias lecturas y alguna sin instantanea: solo se comparo
+# el numero de filas, que no ve un `UPDATE` que no lo cambia-.
+.alcance_de_lecturas <- function(l) {
+  n <- length(unique(l$lectura))
+  if (!n) return("limitado")
+  if (n == 1L && !anyNA(l$lectura)) return("una_lectura")
+  if (!anyNA(l$instantanea) &&
+      all(l$control %in% c("huella_de_datos", "contador_del_motor"))) {
+    return("completo")
+  }
+  "limitado"
+}
+
+# Lo que las lecturas dicen de cada fila del resumen: si alguna de sus tablas
+# cambio entre lecturas (`cambia`, con la `diferencia` de filas) y cuanto
+# respalda el control a su cifra (`alcance`). Una sola regla para las dos
+# cosas: el estado y el control leen lo mismo de las mismas lecturas.
+#
+# El rotulo de la fila -su entidad, o su tabla referida- solo dice donde buscar:
+# las lecturas con ese rotulo dicen que se leyo.
+# - Una sola tabla: sus lecturas y las filas que la leyeron se comparan por el
+#   numero de filas y, donde hay, por la instantanea.
+# - Varias tablas que el motor resolvio -otra base adjunta con el mismo alias
+#   en otra parte-: son tablas distintas y no se comparan entre si. La fila no
+#   dice cual leyo: el control es `desconocido`, y si alguna de ellas cambio
+#   entre sus propias lecturas, la fila no cierra.
+# - Lecturas sin identidad comparable -una parte en memoria y otra en el motor,
+#   o una lectura del motor sin tabla resuelta junto a otra resuelta-: se
+#   comparan ademas por el rotulo, como antes de que las lecturas trajeran su
+#   tabla. Con otras filas u otra instantanea, la tabla cambio; con las mismas,
+#   no se sabe si es la misma tabla y el control es `desconocido`.
+# - Un referencial en R (solo en la tabla referida) es el de su nombre y su
+#   huella, y sus filas son parte de esa identidad: entre varios con el mismo
+#   nombre, la fila leyo el que tiene sus filas. No cambia entre lecturas.
+.respaldo_lecturas_filas <- function(resumen, lecturas) {
+  n_resumen <- nrow(resumen)
+  columna <- function(nombre, vacio) {
+    if (nombre %in% names(resumen)) resumen[[nombre]] else rep(vacio, n_resumen)
+  }
+  ids <- as.character(columna("id_medicion", NA_character_))
+  hay <- nrow(lecturas) > 0L
+  clase <- .clase_lecturas(lecturas)
+  clave <- .clave_tabla_lecturas(lecturas)
+  rotulo <- .clave_rotulo_lecturas(lecturas$id_medicion, lecturas$entidad)
+  # Una lectura del motor sin tabla resuelta no prueba nada.
+  sin_tabla <- unique(
+    clave[clase == "e" & !(lecturas$control %in% "huella_de_datos")]
+  )
+  lado <- function(i, entidad, n, referida) {
+    if (is.na(entidad)) return(NULL)
+    propio <- .clave_rotulo_lecturas(ids[[i]], entidad)
+    bajo <- rotulo == propio
+    tablas <- unique(clave[bajo & clase != "r"])
+    refs <- if (referida) unique(clave[bajo & clase == "r"]) else character()
+    if (length(refs)) {
+      con_filas <- unique(clave[
+        bajo & clase == "r" & !is.na(lecturas$n_filas) & !is.na(n) &
+          lecturas$n_filas == n
+      ])
+      # Ningun referencial con esas filas: la fila leyo la tabla.
+      if (length(con_filas)) refs <- con_filas else if (length(tablas)) refs <- character()
+    }
+    # Sin lecturas con ese rotulo, cuenta el nombre.
+    if (!length(tablas) && !length(refs)) tablas <- propio
+    list(
+      fila = i, n = n, rotulo = propio, tablas = tablas, refs = refs,
+      mixto = length(tablas) > 1L && any(clase[match(tablas, clave)] == "e")
+    )
+  }
+  lados <- c(
+    lapply(seq_len(n_resumen), function(i) {
+      lado(i, as.character(columna("entidad", NA_character_)[[i]]),
+           as.double(columna("n_filas_leidas", NA_real_)[[i]]), FALSE)
+    }),
+    lapply(seq_len(n_resumen), function(i) {
+      lado(i, as.character(columna("entidad_referida", NA_character_)[[i]]),
+           as.double(columna("n_filas_leidas_referida", NA_real_)[[i]]), TRUE)
+    })
+  )
+  lados <- Filter(Negate(is.null), lados)
+  # El conteo de una fila va a la tabla que leyo, si se sabe cual es; si su
+  # rotulo da lecturas sin identidad comparable, al rotulo; si no, a ninguna.
+  a_tabla <- vapply(lados, function(l) {
+    if (!length(l$refs) && length(l$tablas) == 1L) l$tablas else NA_character_
+  }, character(1L))
+  a_rotulo <- vapply(lados, function(l) {
+    if (!length(l$refs) && l$mixto) l$rotulo else NA_character_
+  }, character(1L))
+  conteo <- vapply(lados, function(l) l$n, numeric(1L))
+  comparar <- function(n, instantanea) {
+    n <- n[!is.na(n)]
+    fichas <- unique(instantanea[!is.na(instantanea)])
+    list(
+      cambia = length(unique(n)) > 1L || length(fichas) > 1L,
+      diferencia = if (length(n)) max(n) - min(n) else NA_real_
+    )
+  }
+  # Cada tabla y cada rotulo se miran una vez, no una por fila.
+  vistas <- unique(unlist(lapply(lados, function(l) c(l$tablas, l$refs))))
+  mixtos <- unique(unlist(lapply(lados, function(l) if (l$mixto) l$rotulo)))
+  grupo_tabla <- lapply(vistas, function(k) {
+    suyas <- clave == k
+    comparar(c(conteo[a_tabla %in% k], lecturas$n_filas[suyas]),
+             lecturas$instantanea[suyas])
+  })
+  grupo_rotulo <- lapply(mixtos, function(r) {
+    suyas <- rotulo == r & clase != "r"
+    comparar(c(conteo[a_rotulo %in% r], lecturas$n_filas[suyas]),
+             lecturas$instantanea[suyas])
+  })
+  alcance_tabla <- vapply(vistas, function(k) {
+    if (k %in% sin_tabla) return("desconocido")
+    .alcance_de_lecturas(lecturas[clave == k, , drop = FALSE])
+  }, character(1L), USE.NAMES = FALSE)
+  de_tabla <- function(k) grupo_tabla[[match(k, vistas)]]
+  de_rotulo <- function(r) grupo_rotulo[[match(r, mixtos)]]
+  alcance_de_tabla <- function(k) alcance_tabla[[match(k, vistas)]]
+  alcance_de_lado <- function(l) {
+    if (!hay) return("limitado")
+    if (length(l$refs) && length(l$tablas)) {
+      # Un referencial en R con el nombre de una tabla de otra parte: la fila
+      # no dice cual leyo. Si todas sus lecturas tienen la misma huella, son
+      # los mismos datos y da igual.
+      suyas <- lecturas[clave %in% c(l$refs, l$tablas), , drop = FALSE]
+      if (anyNA(suyas$instantanea) || length(unique(suyas$instantanea)) != 1L) {
+        return("desconocido")
+      }
+      return(.alcance_de_lecturas(suyas))
+    }
+    if (length(l$refs)) {
+      # Varios referenciales con el mismo nombre y las mismas filas: se sabe
+      # solo si a todos los respalda lo mismo.
+      alcances <- unique(vapply(l$refs, alcance_de_tabla, character(1L)))
+      return(if (length(alcances) == 1L) alcances else "desconocido")
+    }
+    if (length(l$tablas) > 1L) return("desconocido")
+    alcance_de_tabla(l$tablas)
+  }
+  veredictos <- lapply(lados, function(l) {
+    grupos <- c(
+      lapply(l$tablas, de_tabla),
+      if (l$mixto) list(de_rotulo(l$rotulo))
+    )
+    diferencias <- unlist(lapply(grupos, `[[`, "diferencia"))
+    list(
+      cambia = any(vapply(grupos, function(g) isTRUE(g$cambia), logical(1L))),
+      diferencia = diferencias[!is.na(diferencias)],
+      alcance = alcance_de_lado(l)
+    )
+  })
+  de_fila <- vapply(lados, function(l) l$fila, integer(1L))
+  salida <- data.frame(
+    cambia = rep(FALSE, n_resumen), diferencia = rep(NA_real_, n_resumen),
+    alcance = rep("limitado", n_resumen), stringsAsFactors = FALSE
+  )
+  for (i in seq_len(n_resumen)) {
+    suyos <- veredictos[de_fila == i]
+    if (!length(suyos)) next
+    salida$cambia[[i]] <- any(vapply(suyos, `[[`, logical(1L), "cambia"))
+    diferencias <- unlist(lapply(suyos, `[[`, "diferencia"))
+    if (length(diferencias)) salida$diferencia[[i]] <- max(diferencias)
+    alcances <- vapply(suyos, `[[`, character(1L), "alcance")
+    # Una fila referencial toma el peor de sus dos tablas.
+    salida$alcance[[i]] <- if ("desconocido" %in% alcances) {
+      "desconocido"
+    } else if ("limitado" %in% alcances) {
+      "limitado"
+    } else if (all(alcances == "una_lectura")) {
+      "una_lectura"
+    } else "completo"
+  }
+  salida
 }
 
 # C5: todas las lecturas de una tabla en una corrida vieron la misma tabla. Se
@@ -224,124 +458,38 @@
 # Monotono: una fila que ya no cerraba no pasa a cerrar.
 .estado_cuentas_lecturas <- function(resumen, lecturas = NULL) {
   if (!nrow(resumen)) return(resumen)
-  lecturas <- .unir_lecturas(list(lecturas))
-  ids <- as.character(resumen$id_medicion)
-  claves <- function(id, entidad) .clave_bytes(paste(id, entidad, sep = "\034"))
-  filas_ent <- data.frame(
-    clave = c(claves(ids, resumen$entidad),
-              claves(ids, resumen$entidad_referida)),
-    n = c(resumen$n_filas_leidas, resumen$n_filas_leidas_referida),
-    stringsAsFactors = FALSE
-  )
-  filas_ent <- filas_ent[!is.na(c(resumen$entidad, resumen$entidad_referida)), ,
-                         drop = FALSE]
-  lect <- data.frame(
-    clave = claves(lecturas$id_medicion, lecturas$entidad),
-    n = lecturas$n_filas, instantanea = lecturas$instantanea,
-    control = lecturas$control, stringsAsFactors = FALSE
-  )
-  todas <- unique(c(filas_ent$clave, lect$clave))
-  info <- lapply(todas, function(k) {
-    n <- c(filas_ent$n[filas_ent$clave == k], lect$n[lect$clave == k])
-    n <- n[!is.na(n)]
-    l <- lect[lect$clave == k, , drop = FALSE]
-    tokens <- unique(l$instantanea[!is.na(l$instantanea)])
-    list(
-      cambia = length(unique(n)) > 1L || length(tokens) > 1L,
-      diferencia = if (length(n)) max(n) - min(n) else NA_real_
-    )
-  })
-  names(info) <- todas
-  clave_e <- claves(ids, resumen$entidad)
-  clave_r <- claves(ids, resumen$entidad_referida)
-  for (i in seq_len(nrow(resumen))) {
-    e <- info[[clave_e[[i]]]]
-    r <- if (!is.na(resumen$entidad_referida[[i]])) info[[clave_r[[i]]]] else NULL
-    cambia <- isTRUE(e$cambia) || isTRUE(r$cambia)
-    if (cambia && !identical(resumen$estado_cuentas[[i]], "no_cierran")) {
-      resumen$estado_cuentas[[i]] <- "no_cierran"
-      resumen$motivo_cuentas[[i]] <- "tabla_cambio_entre_lecturas"
-      diferencias <- c(e$diferencia, r$diferencia)
-      diferencias <- diferencias[!is.na(diferencias)]
-      resumen$diferencia_cuentas[[i]] <- if (length(diferencias)) {
-        max(diferencias)
-      } else NA_real_
-    }
+  respaldo <- .respaldo_lecturas_filas(resumen, .unir_lecturas(list(lecturas)))
+  for (i in which(respaldo$cambia)) {
+    if (identical(resumen$estado_cuentas[[i]], "no_cierran")) next
+    resumen$estado_cuentas[[i]] <- "no_cierran"
+    resumen$motivo_cuentas[[i]] <- "tabla_cambio_entre_lecturas"
+    resumen$diferencia_cuentas[[i]] <- respaldo$diferencia[[i]]
   }
   resumen
 }
 
-# El control de lecturas que respalda cada fila: el mas debil entre el de su
-# tabla y el de su tabla referida. Es un dato de la tabla y no de la fila, y
-# vive en `attr(resumen, "lecturas")`: como columna, la misma cifra medida en
-# memoria y en el motor dejaba de ser identica sin que cambiara nada medido.
-.control_lecturas_filas <- function(resumen) {
-  if (!nrow(resumen)) return(character())
-  lecturas <- attr(resumen, "lecturas", exact = TRUE)
-  orden <- .CONTROLES_LECTURAS
-  control_de <- function(id, entidad) {
-    if (is.na(entidad)) return(NA_character_)
-    if (!inherits(lecturas, "data.frame") || !nrow(lecturas)) {
-      return("solo_filas_agregadas_o_quitadas")
-    }
-    l <- lecturas[.clave_bytes(lecturas$id_medicion) == .clave_bytes(id) &
-                    .clave_bytes(lecturas$entidad) == .clave_bytes(entidad), ,
-                  drop = FALSE]
-    if (nrow(l) && !anyNA(l$instantanea) && length(unique(l$control)) == 1L &&
-        l$control[[1L]] %in% orden[1:2]) {
-      l$control[[1L]]
-    } else {
-      "solo_filas_agregadas_o_quitadas"
-    }
-  }
-  vapply(seq_len(nrow(resumen)), function(i) {
-    a <- control_de(resumen$id_medicion[[i]], resumen$entidad[[i]])
-    b <- control_de(resumen$id_medicion[[i]], resumen$entidad_referida[[i]])
-    controles <- c(a, b)
-    controles <- controles[!is.na(controles)]
-    if (!length(controles)) return("solo_filas_agregadas_o_quitadas")
-    orden[[max(match(controles, orden))]]
-  }, character(1L))
+# Las columnas que identifican la lectura de una fila. Un resumen recortado
+# (`x[, c("atributo", "estado_cuentas")]`) puede no tenerlas: el control no se
+# puede leer y se declara `desconocido`. Imprimir no aborta por eso.
+.COLUMNAS_CONTROL_LECTURAS <- c("id_medicion", "entidad", "entidad_referida")
+
+.control_lecturas_legible <- function(resumen) {
+  all(.COLUMNAS_CONTROL_LECTURAS %in% names(resumen))
 }
 
-# Cuanto respalda el control de lecturas a cada fila, en tres palabras:
-# `una_lectura` -la tabla se leyo en una sola sentencia, o es un objeto en
-# memoria: no hay dos lecturas que puedan discrepar-; `completo` -varias
-# lecturas, todas con la instantanea probada por el contador del motor o la
-# huella de los datos-; `limitado` -varias lecturas y alguna sin instantanea:
-# solo se comparo el numero de filas, que no ve un `UPDATE` que no lo cambia-.
-# Una fila referencial toma el peor de sus dos tablas.
+# El control de lecturas que respalda cada fila (`.alcance_de_lecturas()`), o
+# `desconocido` si no se puede saber que lecturas la respaldan
+# (`.respaldo_lecturas_filas()`). Es un dato de la tabla y no de la fila, y
+# vive en `attr(resumen, "lecturas")`: como columna, la misma cifra medida en
+# memoria y en el motor dejaba de ser identica sin que cambiara nada medido.
 .alcance_lecturas_filas <- function(resumen) {
   if (!nrow(resumen)) return(character())
+  if (!.control_lecturas_legible(resumen)) return(rep("desconocido", nrow(resumen)))
   lecturas <- attr(resumen, "lecturas", exact = TRUE)
-  mecanismo <- .control_lecturas_filas(resumen)
-  alcance_de <- function(id, entidad) {
-    if (is.na(entidad)) return(NA_character_)
-    if (!inherits(lecturas, "data.frame") || !nrow(lecturas) ||
-        !"lectura" %in% names(lecturas)) {
-      return("limitado")
-    }
-    l <- lecturas[.clave_bytes(lecturas$id_medicion) == .clave_bytes(id) &
-                    .clave_bytes(lecturas$entidad) == .clave_bytes(entidad), ,
-                  drop = FALSE]
-    n <- length(unique(l$lectura))
-    if (!n) return("limitado")
-    if (n == 1L && !anyNA(l$lectura)) return("una_lectura")
-    if (!anyNA(l$instantanea) &&
-        all(l$control %in% c("huella_de_datos", "contador_del_motor"))) {
-      return("completo")
-    }
-    "limitado"
-  }
-  vapply(seq_len(nrow(resumen)), function(i) {
-    a <- alcance_de(resumen$id_medicion[[i]], resumen$entidad[[i]])
-    b <- alcance_de(resumen$id_medicion[[i]], resumen$entidad_referida[[i]])
-    alcances <- c(a, b)
-    alcances <- alcances[!is.na(alcances)]
-    if (!length(alcances) || "limitado" %in% alcances) return("limitado")
-    if (all(alcances == "una_lectura")) return("una_lectura")
-    "completo"
-  }, character(1L))
+  hay <- inherits(lecturas, "data.frame") && nrow(lecturas) > 0L &&
+    "lectura" %in% names(lecturas)
+  lecturas <- if (hay) .completar_lecturas(lecturas) else .lecturas_vacias()
+  .respaldo_lecturas_filas(resumen, lecturas)$alcance
 }
 
 # El aviso de quien produce las cifras: una vez, con cuantas no cierran y por
@@ -383,13 +531,18 @@
   malas <- !is.na(resumen$estado_cuentas) &
     resumen$estado_cuentas %in% c("no_cierran", "parcial")
   if (!any(malas)) return(NULL)
+  # Con `[[` y una columna faltante como `NA`: en un resumen recortado `$`
+  # tomaria por coincidencia parcial `entidad_referida` por `entidad`.
+  columna <- function(nombre, vacio) {
+    if (nombre %in% names(resumen)) resumen[[nombre]][malas] else rep(vacio, sum(malas))
+  }
   salida <- data.frame(
-    metrica_instanciada = resumen$metrica_instanciada[malas],
-    entidad = resumen$entidad[malas],
-    atributo = resumen$atributo[malas],
-    estado_cuentas = resumen$estado_cuentas[malas],
-    motivo_cuentas = resumen$motivo_cuentas[malas],
-    diferencia_cuentas = resumen$diferencia_cuentas[malas],
+    metrica_instanciada = columna("metrica_instanciada", NA_character_),
+    entidad = columna("entidad", NA_character_),
+    atributo = columna("atributo", NA_character_),
+    estado_cuentas = resumen[["estado_cuentas"]][malas],
+    motivo_cuentas = columna("motivo_cuentas", NA_character_),
+    diferencia_cuentas = columna("diferencia_cuentas", NA_real_),
     control_lecturas = .alcance_lecturas_filas(resumen)[malas],
     stringsAsFactors = FALSE
   )
@@ -420,16 +573,23 @@
 # filas, y comparar ese numero con el de otra metrica de la misma tabla acusaba
 # un cambio que no hubo.
 .cuentas_filas_memoria <- function(filas, instancia, tablas,
-                                   parcial = NA_character_) {
+                                   parcial = NA_character_, referida = NULL) {
   if (!inherits(filas, "data.frame") || !nrow(filas)) return(filas)
   n_tabla <- function(entidad) {
     if (is.na(entidad)) return(NA_real_)
     tabla <- tablas[[entidad]]
     if (inherits(tabla, "data.frame")) as.double(nrow(tabla)) else NA_real_
   }
+  # El referencial en R es la tabla referida de la fila (`.referidas_memoria()`).
+  del_referencial <- if (!is.null(referida)) {
+    is.na(filas$entidad_referida)
+  } else rep(FALSE, nrow(filas))
+  filas$entidad_referida[del_referencial] <- referida$rotulo
   for (i in seq_len(nrow(filas))) {
     filas$n_filas_leidas[[i]] <- n_tabla(filas$entidad[[i]])
-    filas$n_filas_leidas_referida[[i]] <- n_tabla(filas$entidad_referida[[i]])
+    filas$n_filas_leidas_referida[[i]] <- if (del_referencial[[i]]) {
+      referida$n
+    } else n_tabla(filas$entidad_referida[[i]])
     estado <- .estado_cuentas_fila(filas[i, , drop = FALSE], instancia, parcial)
     filas$estado_cuentas[[i]] <- estado$estado
     filas$motivo_cuentas[[i]] <- estado$motivo
@@ -438,9 +598,41 @@
   filas
 }
 
+# Los referenciales en R de un modelo, como tablas referidas: su lectura se
+# registra con la huella de sus datos. Se identifican por su nombre y su huella
+# (`.identidad_referencial_memoria()`): dos referenciales distintos con el
+# mismo nombre son dos, cada uno con su lectura, vayan en una llamada o en dos
+# partes. La huella se toma siempre: sin ella dos referenciales del mismo
+# tamano serian una lectura. El rotulo es el nombre, salvo que sea el de una
+# entidad: entonces `referencial <nombre>`.
+.referidas_memoria <- function(modelo, entidades) {
+  salida <- list()
+  for (instancia in modelo$metricas) {
+    ref <- instancia$referencial
+    if (!inherits(ref, "referencial") || .referencial_en_motor(ref) ||
+        !inherits(ref$datos, "data.frame")) next
+    huella <- .huella_tabla_memoria(ref$datos)
+    if (is.na(huella)) {
+      huella <- .md5_crudos(list(serialize(ref$datos, NULL, version = 2L)))
+    }
+    salida[[instancia$nombre]] <- list(
+      nombre = ref$nombre, n = as.double(nrow(ref$datos)), huella = huella,
+      identidad = .identidad_referencial_memoria(ref$nombre, huella)
+    )
+  }
+  if (!length(salida)) return(salida)
+  lapply(salida, function(r) {
+    r$rotulo <- if (.clave_bytes(r$nombre) %in% .clave_bytes(entidades)) {
+      paste0("referencial ", r$nombre)
+    } else r$nombre
+    r
+  })
+}
+
 # Una lectura por tabla en memoria, con la huella de sus datos: dos partes de
 # una corrida sobre la misma tabla se reconocen por la huella, no por el conteo.
-.lecturas_memoria <- function(resumen, tablas, id_medicion, huella = TRUE) {
+.lecturas_memoria <- function(resumen, tablas, id_medicion, huella = TRUE,
+                              referidas = list()) {
   entidades <- unique(c(resumen$entidad, resumen$entidad_referida))
   entidades <- entidades[!is.na(entidades)]
   partes <- lapply(entidades, function(e) {
@@ -453,6 +645,15 @@
       "huella_de_datos", lectura = "memoria"
     )
   })
+  usadas <- .clave_bytes(resumen$entidad_referida)
+  for (r in referidas) {
+    if (!.clave_bytes(r$rotulo) %in% usadas) next
+    partes[[length(partes) + 1L]] <- .lectura(
+      id_medicion, r$rotulo, r$n,
+      if (is.na(r$huella)) NA_character_ else paste0("huella:", r$huella),
+      "huella_de_datos", lectura = "memoria", tabla = r$identidad
+    )
+  }
   .unir_lecturas(partes)
 }
 

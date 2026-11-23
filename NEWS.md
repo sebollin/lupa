@@ -449,10 +449,19 @@
   sobre una parte declarada (un vocabulario truncado por `max_valores`);
   `sin_cuentas` cuando no hay cuentas de su universo. El resumen publica además
   `n_sin_valor`, `n_filas_leidas` y, en la referencial, la tabla referida y sus
-  filas; `attr(resumen, "lecturas")` lista cada lectura de cada tabla. Donde el
-  motor no ofrece un contador de modificaciones que lupa lea, el control de
-  lecturas dice que es limitado: ve una fila agregada o quitada entre lecturas,
-  no un `UPDATE` que no cambia el número de filas.
+  filas; `attr(resumen, "lecturas")` lista cada lectura de cada tabla, con la
+  tabla que resuelve el motor: en SQLite y DuckDB, con su orden de búsqueda, los
+  nombres del catálogo y, si la base es un archivo, el archivo y no el alias con
+  que se adjuntó; un referencial en R se identifica por su nombre y la huella de
+  sus datos. Dos nombres de la misma tabla son una tabla. Donde el motor no
+  ofrece un contador de modificaciones que lupa lea, el control de lecturas dice
+  que es limitado: ve una fila agregada o quitada entre lecturas, no un `UPDATE`
+  que no cambia el número de filas; si la tabla de una lectura no se puede
+  resolver, o la lectura viene de una versión de desarrollo anterior, el control
+  es `desconocido`. Una parte medida en memoria y otra en el motor sobre la
+  misma entidad se comparan por sus filas. Un resumen al que le faltan columnas
+  se imprime igual; `tablero_calidad()`, `indice_calidad()`, `semaforo_calidad()`
+  y `rbind()` lo rechazan con `lupa_resumen_incompleto`, nombrando lo que falta.
 - Nueva `semaforo_calidad()`: clasifica cada celda en niveles con cortes que
   declara quien mide, por dimensión o por métrica. Sólo pinta cifras cuyas
   cuentas cierran; una métrica de validez evalúa su propio universo —los valores
