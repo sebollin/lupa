@@ -1706,7 +1706,10 @@
       rm(bloque)
       gc(verbose = FALSE)
     }
-    completado <- tryCatch(DBI::dbHasCompleted(resultado), error = function(e) FALSE)
+    completado <- tryCatch(
+      .dbi("dbHasCompleted", conexion, DBI::dbHasCompleted(resultado)),
+      error = function(e) FALSE
+    )
     if (isTRUE(completado) || n < bloque_filas) break
   }
   sobres <- .finalizar_bloques_fuente_dbi(acumuladores)
@@ -1832,7 +1835,10 @@
     observados[[length(observados) + 1L]] <- .valor_columna_bloque_dbi(
       .marcar_utf8_tabla(bloque), .ALIAS_LOCALIZADOR_DBI
     )
-    if (isTRUE(tryCatch(DBI::dbHasCompleted(rs), error = function(e) FALSE)) ||
+    if (isTRUE(tryCatch(
+      .dbi("dbHasCompleted", conexion, DBI::dbHasCompleted(rs)),
+      error = function(e) FALSE
+    )) ||
         nrow(bloque) < bloque_filas) break
   }
   vistos <- unlist(observados, use.names = FALSE)

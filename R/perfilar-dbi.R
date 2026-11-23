@@ -215,7 +215,9 @@
 .existe_tabla_dbi <- function(conexion, nombre) {
   .exigir_nombre_representable_dbi(conexion, nombre)
   .con_guarda_transaccion_dbi(
-    conexion, function() DBI::dbExistsTable(conexion, nombre)
+    conexion, function() {
+      .dbi("dbExistsTable", conexion, DBI::dbExistsTable(conexion, nombre))
+    }
   )
 }
 
@@ -223,7 +225,9 @@
   .exigir_nombre_representable_dbi(conexion, nombre)
   withCallingHandlers(
     .con_guarda_transaccion_dbi(
-      conexion, function() DBI::dbListFields(conexion, nombre)
+      conexion, function() {
+        .dbi("dbListFields", conexion, DBI::dbListFields(conexion, nombre))
+      }
     ),
     warning = function(aviso) {
       .controlar_aviso_rmysql_dbi(conexion, aviso)
@@ -766,7 +770,7 @@
     return(NULL)
   }
   tryCatch({
-    datos <- suppressWarnings(DBI::dbGetQuery(
+    datos <- suppressWarnings(.dbi("dbGetQuery", conexion, DBI::dbGetQuery(
       conexion,
       paste(
         "SELECT @@TRANCOUNT AS lupa_trancount,",
@@ -774,7 +778,7 @@
         "CASE WHEN (@@OPTIONS & 2) = 2 THEN 1 ELSE 0 END",
         "AS lupa_implicit_transactions"
       )
-    ))
+    )))
     if (!is.data.frame(datos) || !nrow(datos) ||
         !all(c("lupa_trancount", "lupa_xact_state") %in% names(datos))) {
       return(NULL)
@@ -949,9 +953,12 @@
   enviar <- function() {
     withCallingHandlers({
       if (inherits(conexion, "OdbcConnection")) {
-        return(DBI::dbSendQuery(conexion, sql, immediate = TRUE))
+        return(.dbi(
+          "dbSendQuery", conexion,
+          DBI::dbSendQuery(conexion, sql, immediate = TRUE)
+        ))
       }
-      DBI::dbSendQuery(conexion, sql)
+      .dbi("dbSendQuery", conexion, DBI::dbSendQuery(conexion, sql))
     }, warning = function(aviso) {
       .controlar_aviso_rmysql_dbi(conexion, aviso)
     })
@@ -990,7 +997,9 @@
       conexion, "dbGetQuery", function() {
         withCallingHandlers(
           .con_guarda_transaccion_dbi(
-            conexion, function() DBI::dbGetQuery(conexion, sql)
+            conexion, function() {
+              .dbi("dbGetQuery", conexion, DBI::dbGetQuery(conexion, sql))
+            }
           ),
           warning = function(aviso) {
             .controlar_aviso_rmysql_dbi(conexion, aviso)
@@ -1039,7 +1048,7 @@
 .traer_filas_dbi <- function(resultado, n = -1L, conexion) {
   vigilancia <- .mirar_vigilancia_resultado_dbi(conexion, resultado)
   informacion <- tryCatch(
-    DBI::dbColumnInfo(resultado),
+    .dbi("dbColumnInfo", conexion, DBI::dbColumnInfo(resultado)),
     error = function(e) {
       if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
       NULL
@@ -1050,7 +1059,7 @@
   } else character()
   datos <- tryCatch(
     withCallingHandlers(
-      DBI::dbFetch(resultado, n = n),
+      .dbi("dbFetch", conexion, DBI::dbFetch(resultado, n = n)),
       warning = function(aviso) {
         .controlar_aviso_rmysql_dbi(conexion, aviso)
       }
@@ -1294,7 +1303,10 @@
 # no se ve desde aca.
 .limpiar_consulta_dbi <- function(resultado, conexion) {
   vigilancia <- .mirar_vigilancia_resultado_dbi(conexion, resultado)
-  limpio <- suppressWarnings(try(DBI::dbClearResult(resultado), silent = TRUE))
+  limpio <- suppressWarnings(try(
+    .dbi("dbClearResult", conexion, DBI::dbClearResult(resultado)),
+    silent = TRUE
+  ))
   .vigilar_despues_consulta_dbi(
     conexion, vigilancia, etapa = "dbClearResult"
   )
@@ -1411,7 +1423,10 @@
 .transaccion_abierta_dbi <- function(conexion) {
   if (inherits(conexion, "PqConnection") && isNamespaceLoaded("RPostgres")) {
     marca <- tryCatch(
-      isTRUE(RPostgres::postgresIsTransacting(conexion)),
+      isTRUE(.dbi(
+        "postgresIsTransacting", conexion,
+        RPostgres::postgresIsTransacting(conexion)
+      )),
       error = function(e) FALSE
     )
     if (marca) return(TRUE)
@@ -1441,8 +1456,10 @@
 # MySQL y MariaDB, con nombre propio, donde `PREPARE` lleva la sentencia como
 # literal y pasa antes por la guarda de codificacion.
 .orden_transaccion_dbi <- function(conexion, orden, traer = FALSE) {
-  if (isTRUE(traer)) return(DBI::dbGetQuery(conexion, orden))
-  DBI::dbExecute(conexion, orden)
+  if (isTRUE(traer)) {
+    return(.dbi("dbGetQuery", conexion, DBI::dbGetQuery(conexion, orden)))
+  }
+  .dbi("dbExecute", conexion, DBI::dbExecute(conexion, orden))
 }
 
 .abrir_guarda_transaccion_dbi <- function(conexion) {
@@ -5136,18 +5153,31 @@
       return(as.character(valor[[1L]]))
     }
   }
-  texto <- tryCatch(conditionMessage(error), error = function(e) "")
-  captura <- regmatches(
-    texto, regexpr("(^|[^0-9])57014([^0-9]|$)", texto, perl = TRUE)
-  )
-  if (length(captura) && nzchar(captura[[1L]])) "57014" else NA_character_
+  # Sin campo estructurado, solo el estado que odbc escribe en su encabezado.
+  # El texto del mensaje no se busca: un `57014` en un dato o en un nombre de
+  # columna se leia como el estado de una cancelacion.
+  if (inherits(error, "odbc_database_error")) {
+    estado <- .partes_error_dbi("odbc", error)$estado
+    if (!is.na(estado)) return(estado)
+  }
+  NA_character_
 }
 
+# Cancelada o rechazada. Lo dice el reconocedor del punto unico, que lee el
+# error donde el controlador lo escribe (`.reconocer_error_dbi()`); sin el, el
+# estado estructurado. El texto del motivo no decide: "timeout" en un nombre de
+# columna o "cancel" en un literal salian `cancelada`.
 .clasificar_falla_consulta_dbi <- function(sqlstate = NA_character_,
-                                           motivo = NA_character_) {
-  estado <- .minusculas_ascii(paste(c(sqlstate, motivo), collapse = " "))
-  if (grepl("(^|[^0-9])57014([^0-9]|$)|cancel|timeout|timed out",
-            estado, perl = TRUE)) {
+                                           motivo = NA_character_,
+                                           reconocido = NA_character_) {
+  if (length(reconocido) == 1L && !is.na(reconocido)) {
+    return(if (identical(reconocido, "cancelada")) "cancelada" else "rechazada")
+  }
+  estado <- .mayusculas_ascii(as.character(sqlstate))
+  estado <- estado[!is.na(estado) & nzchar(estado)]
+  if (length(estado) && identical(
+    .reconocer_estado_dbi(estado[[1L]]), "cancelada"
+  )) {
     "cancelada"
   } else {
     "rechazada"
@@ -5170,17 +5200,18 @@
   }
   motivo <- resultado$motivo %||% NA_character_
   sqlstate <- resultado$sqlstate %||% NA_character_
+  reconocido <- resultado$reconocido %||% NA_character_
   clase <- if (length(motivo) == 1L && !is.na(motivo) &&
                identical(as.character(motivo), .motivo_presupuesto_dbi(presupuesto))) {
     "presupuesto_agotado"
   } else {
-    .clasificar_falla_consulta_dbi(sqlstate, motivo)
+    .clasificar_falla_consulta_dbi(sqlstate, motivo, reconocido)
   }
   falla <- list(
     etapa = as.character(resultado$etapa),
     consulta_id = suppressWarnings(as.integer(resultado$consulta_id)),
     motivo = as.character(motivo), sqlstate = as.character(sqlstate),
-    tipo = clase
+    tipo = clase, reconocido = as.character(reconocido)
   )
   if (isTRUE(presupuesto$posponer_fallas_lotes) &&
       as.character(resultado$etapa) %in% c(
@@ -5230,6 +5261,140 @@
   .publicar_fallas_dbi(presupuesto$fallas_sondas)
 }
 
+# Una prueba de capacidad manda una forma candidata sabiendo que el motor puede
+# rechazarla: si la rechaza porque no tiene esa capacidad, ESA es la respuesta, y
+# queda en `sondas_fallidas` como siempre. Pero si falla por otra causa -la
+# consulta se cancelo, la credencial no tiene permiso, un interbloqueo, la
+# transaccion estaba abortada- la corrida igual concluye "no la tiene" y cambia
+# de estrategia sin dejar rastro (medido: 27 de 78 puntos de corte en SQLite y
+# 34 de 77 en DuckDB). No se reintenta, porque cambiaria la cuenta del plan: se
+# dice que prueba fue, por que fallo y que estrategia uso la corrida por eso.
+.CAUSAS_AJENAS_CAPACIDAD_DBI <- c(
+  cancelada = "la consulta se cancel\u00f3",
+  permiso = "la credencial no tiene permiso",
+  transaccion = "la transacci\u00f3n estaba abortada",
+  transitoria = "una falla transitoria del motor"
+)
+
+# La estrategia que la corrida uso de verdad para la capacidad de una etapa.
+.estrategia_falla_capacidad_dbi <- function(etapa, preparacion = NULL,
+                                            presupuesto = NULL) {
+  if (!is.list(preparacion)) preparacion <- list()
+  if (is.null(presupuesto)) presupuesto <- preparacion$presupuesto
+  candidato <- function(x, por_defecto = NA_character_) {
+    if (is.list(x) && is.list(x$candidato) &&
+        length(x$candidato$nombre) == 1L && !is.na(x$candidato$nombre)) {
+      return(as.character(x$candidato$nombre))
+    }
+    por_defecto
+  }
+  etapa <- as.character(etapa)
+  if (identical(etapa, "sonda_desvio")) {
+    # El presupuesto es un entorno: leido como lista daba siempre `NULL`.
+    forma <- if (is.environment(presupuesto) || is.list(presupuesto)) {
+      presupuesto$forma_desvio
+    } else NULL
+    if (length(forma) != 1L || is.na(forma)) return("dos pasadas")
+    return(switch(as.character(forma),
+      `1` = "STDDEV_SAMP", `2` = "STDEV", `3` = "dos pasadas",
+      "dos pasadas"
+    ))
+  }
+  if (identical(etapa, "sonda_muestreo")) {
+    muestreo <- preparacion$muestreo
+    if (is.list(muestreo) && isTRUE(muestreo$disponible)) {
+      return(candidato(muestreo, "muestreo aceptado"))
+    }
+    return("sin muestra del motor")
+  }
+  if (identical(etapa, "sonda_mediana_escalar")) {
+    return(candidato(preparacion$mediana_escalar_resolucion, "dos consultas"))
+  }
+  if (identical(etapa, "sonda_mediana_cte_ventana") ||
+      identical(etapa, "sonda_mediana_cte_ventana_control_negativo")) {
+    return(candidato(preparacion$mediana_cte_ventana_resolucion,
+                     "mediana por columna"))
+  }
+  if (identical(etapa, "sonda_moda_guardian")) {
+    return(candidato(preparacion$moda_guardian_resolucion,
+                     "moda sin guardian"))
+  }
+  if (identical(etapa, "sonda_mediana_consolidada")) {
+    return(candidato(preparacion$mediana_consolidada_resolucion,
+                     "mediana por columna"))
+  }
+  if (identical(etapa, "sonda_aproximacion")) {
+    aproximaciones <- preparacion$aproximaciones_resolucion
+    nombres <- if (is.list(aproximaciones)) unlist(lapply(
+      aproximaciones, candidato, por_defecto = NA_character_
+    ), use.names = FALSE) else character()
+    nombres <- nombres[!is.na(nombres) & nzchar(nombres)]
+    return(if (length(nombres)) nombres[[1L]] else "exacta por columna")
+  }
+  if (identical(etapa, "sonda_dialecto") && is.list(preparacion$resolucion)) {
+    dialecto <- preparacion$resolucion$dialecto
+    if (is.list(dialecto) && length(dialecto$nombre) == 1L) {
+      return(as.character(dialecto$nombre))
+    }
+  }
+  NA_character_
+}
+
+# Las pruebas de capacidad que fallaron por una causa ajena a la capacidad, con
+# la estrategia que la corrida uso. `NULL` si no hubo ninguna: una tabla sana no
+# publica nada nuevo.
+.fallas_capacidad_ajenas_dbi <- function(presupuesto, preparacion = NULL) {
+  if (is.null(presupuesto)) return(NULL)
+  fallas <- presupuesto$fallas_sondas
+  ajenas <- vapply(fallas, function(x) {
+    causa <- x$reconocido
+    length(causa) == 1L && !is.na(causa) &&
+      causa %in% names(.CAUSAS_AJENAS_CAPACIDAD_DBI) &&
+      startsWith(as.character(x$etapa), "sonda_")
+  }, logical(1L))
+  if (!any(ajenas)) return(NULL)
+  fallas <- fallas[ajenas]
+  detalle <- .publicar_fallas_dbi(fallas)
+  detalle$causa <- vapply(
+    fallas, function(x) as.character(x$reconocido), character(1L)
+  )
+  detalle$estrategia_elegida <- vapply(
+    detalle$etapa, .estrategia_falla_capacidad_dbi, character(1L),
+    preparacion = preparacion, presupuesto = presupuesto,
+    USE.NAMES = FALSE
+  )
+  detalle
+}
+
+.cobertura_fallas_capacidad_dbi <- function(detalle) {
+  do.call(rbind, lapply(seq_len(nrow(detalle)), function(i) {
+    estrategia <- detalle$estrategia_elegida[[i]]
+    .registro_cobertura_dbi(
+      "resumen_tabla",
+      paste0("capacidad::", detalle$etapa[[i]], "::", detalle$consulta_id[[i]]),
+      "advertido",
+      paste0(
+        "La prueba de capacidad `", detalle$etapa[[i]], "` fall\u00f3 por una ",
+        "causa que no es la falta de esa capacidad (",
+        .CAUSAS_AJENAS_CAPACIDAD_DBI[[detalle$causa[[i]]]], "): ",
+        sub("[[:space:].]+$", "", detalle$motivo[[i]], perl = TRUE,
+            useBytes = TRUE),
+        ". ", if (is.na(estrategia)) {
+          "La corrida sigui\u00f3 como si el motor no la tuviera."
+        } else {
+          paste0("La corrida sigui\u00f3 como si el motor no la tuviera y us\u00f3 `",
+                 estrategia, "`.")
+        }
+      ),
+      paste(
+        "No se reintenta, para conservar la cuenta del plan: resolver la",
+        "causa y repetir la corrida."
+      ),
+      NA_character_
+    )
+  }))
+}
+
 # Las pruebas de capacidad tienen una clase propia: su rechazo describe una
 # decision del motor, no una consulta de datos que haya quedado sin explicar.
 # Dos etapas pueden pertenecer a una misma capacidad cuando una es el control
@@ -5239,7 +5404,7 @@
   "mediana_escalar", "mediana_cte_ventana",
   "mediana_cte_ventana_control_negativo", "moda_guardian",
   "mediana_consolidada", "aproximacion", "dialecto", "infinitos",
-  "magnitud", "lectura_muestra", "bytes_muestra"
+  "magnitud", "lectura_muestra", "bytes_muestra", "transaccion_abierta"
 )
 
 .capacidad_etapa_dbi <- function(nombre) paste0("son", "da_", nombre)
@@ -5259,7 +5424,10 @@
   "capacidad de infinitos",
   paste0("son", "da de magnitud (MIN)"),
   "capacidad de lectura de muestra",
-  "capacidad de bytes de muestra"
+  "capacidad de bytes de muestra",
+  # Las dos sentencias con que la corrida se niega a leer dentro de una
+  # transaccion abierta de DuckDB: ver `.negar_transaccion_duckdb_dbi()`.
+  "guarda de transaccion abierta (DuckDB)"
 ), .capacidad_etapa_dbi(.CAPACIDAD_ETAPAS_DBI))
 
 .clase_capacidad_dbi <- function(etapa) {
@@ -5448,7 +5616,8 @@
 .plan_ejecutado_consultas_dbi <- function(plan, presupuesto,
                                           consultas_antes_resumen = 0L,
                                           tabla_vacia = FALSE,
-                                          muestra_no_disponible = FALSE) {
+                                          muestra_no_disponible = FALSE,
+                                          sin_valores = FALSE) {
   if (!is.data.frame(plan) || !nrow(plan)) return(plan)
   clases <- as.character(plan$clase_consulta)
   bruto <- plan
@@ -5523,6 +5692,27 @@
     if (!is.na(clase_mediana)) {
       posicion_mediana <- match(clase_mediana, clases)
       ejecutado$n_consultas[[posicion_mediana]] <- 0
+    }
+  }
+  # Sin ningun valor no nulo hay dos sentencias que no hacen falta y no se
+  # mandan: el desvio que el motor calcula aparte (PostgreSQL y SQL Server; los
+  # demas lo traen en la de los agregados) y las medianas -todas, o todas menos
+  # la consolidada, segun el motor-. Las dos corren antes de este punto: su
+  # clase queda en lo que se mando, si se mando menos. Antes el plan rehecho
+  # las seguia contando salvo en la tabla vacia con el bloque de muestra
+  # pedido: una tabla toda nula, o la vacia con `solo_agregados`, quedaban
+  # desfasadas en una o dos consultas, atribuidas a los portones.
+  if (isTRUE(sin_valores)) {
+    for (etapa_omitida in c("desvio", "mediana")) {
+      clase_omitida <- .clase_consulta_por_etapa_dbi(etapa_omitida, clases)
+      if (is.na(clase_omitida)) next
+      posicion_omitida <- match(clase_omitida, clases)
+      if (is.finite(ejecutado$n_consultas[[posicion_omitida]]) &&
+          bruto$n_consultas[[posicion_omitida]] <
+            ejecutado$n_consultas[[posicion_omitida]]) {
+        ejecutado$n_consultas[[posicion_omitida]] <-
+          bruto$n_consultas[[posicion_omitida]]
+      }
     }
   }
   if (isTRUE(muestra_no_disponible)) {
@@ -7579,39 +7769,19 @@
 # se consulta al armar cada sentencia -175 veces sobre una tabla de cuatro
 # columnas-, y `DBI::dbGetInfo()` no siempre es gratis: en duckdb 1.1 cada
 # llamada manda `pragma_version()` al motor, que el plan no anuncia ni
-# `max_consultas` cuenta. Un estado de la llamada, como `.CONTEXTO_COPIAS`: lo
-# fijan `perfilar_dbi()` y `plan_perfilado_dbi()`, y se restaura al salir.
+# `max_consultas` cuenta. La lectura la hace la corrida al abrirse
+# (`.con_corrida_dbi()`), y se restaura al salir.
 .CONTEXTO_SENAS <- new.env(parent = emptyenv())
 .CONTEXTO_SENAS$conexion <- NULL
 .CONTEXTO_SENAS$info <- NULL
 
-.fijar_senas_conexion_dbi <- function(conexion, marco = parent.frame()) {
-  volver <- substitute({
-    .CONTEXTO_SENAS$conexion <- conexion_previa
-    .CONTEXTO_SENAS$info <- info_previa
-  }, list(conexion_previa = .CONTEXTO_SENAS$conexion,
-          info_previa = .CONTEXTO_SENAS$info))
-  # Una corrida anidada sobre la misma conexion -el plan dentro del perfil-
-  # usa la lectura que ya esta.
-  if (!is.null(.CONTEXTO_SENAS$conexion) &&
-      identical(conexion, .CONTEXTO_SENAS$conexion)) {
-    return(invisible(NULL))
-  }
-  # Solo se guarda una lectura que funciono: si falla, cada sitio sigue
-  # preguntando y recibe el error como antes.
-  info <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
-  .CONTEXTO_SENAS$conexion <- if (is.null(info)) NULL else conexion
-  .CONTEXTO_SENAS$info <- info
-  do.call(on.exit, list(volver, add = TRUE), envir = marco)
-  invisible(NULL)
-}
-
 .info_dbi_corrida <- function(conexion) {
-  if (!is.null(.CONTEXTO_SENAS$conexion) &&
-      identical(conexion, .CONTEXTO_SENAS$conexion)) {
-    return(.CONTEXTO_SENAS$info)
+  corrida <- .corrida_dbi(conexion)
+  if (!is.null(corrida)) {
+    info <- .leer_info_corrida_dbi(corrida)
+    if (!is.null(info)) return(info)
   }
-  DBI::dbGetInfo(conexion)
+  .dbi("dbGetInfo", conexion, DBI::dbGetInfo(conexion))
 }
 
 .info_senas_conexion_dbi <- function(conexion) {
@@ -7619,6 +7789,17 @@
 }
 
 .senas_conexion_dbi <- function(conexion) {
+  # Dentro de una corrida las senas se arman una vez: salen de la clase y de la
+  # lectura de `dbGetInfo()` que la corrida guarda, y con JDBC cada armado son
+  # cuatro llamadas al controlador.
+  corrida <- .corrida_dbi(conexion)
+  if (!is.null(corrida) && !is.null(corrida$senas)) return(corrida$senas)
+  senas <- .armar_senas_conexion_dbi(conexion)
+  if (!is.null(corrida) && !is.null(corrida$info)) corrida$senas <- senas
+  senas
+}
+
+.armar_senas_conexion_dbi <- function(conexion) {
   informacion <- .info_senas_conexion_dbi(conexion)
   nombres <- names(informacion)
   normalizar <- function(x) {
@@ -7645,21 +7826,23 @@
     metadata <- tryCatch({
       java_con <- tryCatch(conexion@jc, error = function(e) NULL)
       if (is.null(java_con)) NULL else {
-        rJava::.jcall(java_con, "Ljava/sql/DatabaseMetaData;", "getMetaData")
+        .dbi("jcall", conexion, rJava::.jcall(
+          java_con, "Ljava/sql/DatabaseMetaData;", "getMetaData"
+        ))
       }
     }, error = function(e) NULL)
     if (!is.null(metadata)) {
       textos <- c(
         textos,
-        tryCatch(rJava::.jcall(
+        tryCatch(.dbi("jcall", conexion, rJava::.jcall(
           metadata, "Ljava/lang/String;", "getDatabaseProductName"
-        ), error = function(e) NA_character_),
-        tryCatch(rJava::.jcall(
+        )), error = function(e) NA_character_),
+        tryCatch(.dbi("jcall", conexion, rJava::.jcall(
           metadata, "Ljava/lang/String;", "getDriverName"
-        ), error = function(e) NA_character_),
-        tryCatch(rJava::.jcall(
+        )), error = function(e) NA_character_),
+        tryCatch(.dbi("jcall", conexion, rJava::.jcall(
           metadata, "Ljava/lang/String;", "getDatabaseProductVersion"
-        ), error = function(e) NA_character_)
+        )), error = function(e) NA_character_)
       )
     }
   }
@@ -7801,10 +7984,10 @@
 
 .conexion_valida_dbi <- function(conexion) {
   tryCatch(
-    isTRUE(DBI::dbIsValid(conexion)),
+    isTRUE(.dbi("dbIsValid", conexion, DBI::dbIsValid(conexion))),
     error = function(e) {
       isTRUE(tryCatch({
-        DBI::dbGetInfo(conexion)
+        .dbi("dbGetInfo", conexion, DBI::dbGetInfo(conexion))
         TRUE
       }, error = function(e) FALSE))
     }
@@ -8188,8 +8371,9 @@
   # El mensaje de la cancelacion sale en el idioma del servidor: el tiempo
   # transcurrido la reconoce tambien cuando no dice "timeout".
   vencida <- !inherits(falla, "lupa_error_dbi") && (
-    identical(.clasificar_falla_consulta_dbi(.sqlstate_dbi(falla), motivo),
-              "cancelada") || transcurrido >= tope
+    identical(.clasificar_falla_consulta_dbi(
+      .sqlstate_dbi(falla), motivo, .reconocer_falla_dbi(conexion, falla)
+    ), "cancelada") || transcurrido >= tope
   )
   if (!vencida) .detener(falla)
   list(
@@ -8273,11 +8457,30 @@
 # sentencia: ahi no hace falta saberlo.
 .transaccion_para_compilar_dbi <- function(conexion, motor) {
   if (!motor %in% c("postgresql", "duckdb")) return(NA)
+  if (identical(motor, "duckdb")) {
+    # La corrida ya lo pregunto al abrirse y se nego si habia una; fuera de una
+    # corrida se pregunta aca, de la misma forma (`txid_current()`, que no
+    # depende de como la sesion entrega las fechas).
+    corrida <- .corrida_dbi(conexion)
+    if (!is.null(corrida) && isTRUE(corrida$sin_transaccion_duckdb)) {
+      return(FALSE)
+    }
+    abierta <- .transaccion_abierta_duckdb_dbi(conexion)
+    if (isTRUE(abierta)) {
+      .detener_dbi(
+        "lupa_error_transaccion_dbi", .MENSAJE_TRANSACCION_DUCKDB_DBI
+      )
+    }
+    return(FALSE)
+  }
   abierta <- NULL
   if (identical(motor, "postgresql") && inherits(conexion, "PqConnection") &&
       isNamespaceLoaded("RPostgres")) {
     marca <- tryCatch(
-      isTRUE(RPostgres::postgresIsTransacting(conexion)),
+      isTRUE(.dbi(
+        "postgresIsTransacting", conexion,
+        RPostgres::postgresIsTransacting(conexion)
+      )),
       error = function(e) FALSE
     )
     if (marca) abierta <- TRUE
@@ -8553,7 +8756,8 @@
       error = function(e) {
         if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
         list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e),
-             sqlstate = .sqlstate_dbi(e))
+             sqlstate = .sqlstate_dbi(e),
+             reconocido = .reconocer_falla_dbi(conexion, e))
       }
     )
     return(finalizar(
@@ -8579,7 +8783,8 @@
   }, error = function(e) {
     if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
     list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e),
-         sqlstate = .sqlstate_dbi(e))
+         sqlstate = .sqlstate_dbi(e),
+         reconocido = .reconocer_falla_dbi(conexion, e))
   })
   finalizar(
     salida, .terminar_consulta_dbi(medicion, salida$datos)
@@ -11699,7 +11904,8 @@
 # `double precision`- y el tipo del motor en `.typname`. La guarda del decimal
 # necesita distinguirlos (ver `.tipo_declarado_decimal_dbi()`): el tipo
 # declarado de una columna `numeric` pasa a ser `numeric`. Solo ese; las otras
-# columnas conservan lo que publico el controlador.
+# columnas conservan lo que publico el controlador. (`money` de PostgreSQL se
+# resuelve en quien llama, solo para ese motor: ver `.preparar_dbi()`.)
 .tipos_declarados_con_motor_dbi <- function(tipos, tipos_motor) {
   if (is.null(tipos) || is.null(tipos_motor) ||
       length(tipos) != length(tipos_motor)) {
@@ -11759,16 +11965,35 @@
 # algo que ya esta resuelto: el reverso del invariante, y en una corrida real
 # fueron veintitres tablas descritas como "no existe o no hay permiso" cuando el
 # motor habia dicho que era permiso.
+# No entran `ORA-00942` -el objeto no existe- ni el `access denied` de un inicio
+# de sesion fallido: los dos decian "permiso" de algo que no lo es. Si entran
+# las formas de MySQL y MariaDB (`command denied to user ... for table`, tambien
+# la de una columna y la de una rutina) y las de un servidor en castellano.
 .PATRON_PERMISO_DBI <- paste0(
   "permiso denegado|permission denied|permission was denied|",
   "insufficient privilege|no tiene privilegios|not authorized|",
-  "acceso denegado|access denied|ORA-00942|ORA-01031"
+  "acceso denegado|access denied for user [^\\r\\n]* to database|",
+  "access denied; you need|command denied to user [^\\r\\n]* for (table|column)|",
+  "execute command denied to user [^\\r\\n]* for routine|",
+  "se deneg\u00f3 el permiso|no est\u00e1 permitido|ORA-01031"
 )
 
-.mensaje_tabla_inaccesible_dbi <- function(motivo) {
+.motivo_de_permiso_dbi <- function(motivo, reconocido = NA_character_) {
+  if (length(reconocido) == 1L && identical(as.character(reconocido), "permiso")) {
+    return(TRUE)
+  }
+  if (is.null(motivo) || !length(motivo) || all(is.na(motivo))) return(FALSE)
+  texto <- paste(as.character(motivo[!is.na(motivo)]), collapse = " ")
+  isTRUE(tryCatch(
+    grepl(.regex_sin_caja(.PATRON_PERMISO_DBI), texto, perl = TRUE),
+    error = function(e) FALSE
+  ))
+}
+
+.mensaje_tabla_inaccesible_dbi <- function(motivo,
+                                           reconocido = NA_character_) {
   detalle <- if (!is.na(motivo)) motivo else ""
-  if (!is.na(motivo) &&
-      grepl(.regex_sin_caja(.PATRON_PERMISO_DBI), motivo, perl = TRUE)) {
+  if (.motivo_de_permiso_dbi(motivo, reconocido)) {
     return(paste(
       "La tabla existe pero la credencial no tiene permiso para verla: el",
       "motor lo dijo expl\u00edcitamente.", detalle
@@ -11776,7 +12001,7 @@
   }
   paste(
     "La tabla solicitada no existe en la conexi\u00f3n DBI, o la credencial no",
-    "tiene permiso para verla. El motor no distinguio entre las dos, y",
+    "tiene permiso para verla. El motor no distingui\u00f3 entre las dos, y",
     "`dbExistsTable()` tampoco.", detalle
   )
 }
@@ -19613,7 +19838,10 @@
   salida <- tryCatch({
     resultado <- .enviar_consulta_dbi(conexion, sql)
     prototipo <- .traer_filas_dbi(resultado, n = 0L, conexion)
-    informacion <- tryCatch(DBI::dbColumnInfo(resultado), error = function(e) NULL)
+    informacion <- tryCatch(
+      .dbi("dbColumnInfo", conexion, DBI::dbColumnInfo(resultado)),
+      error = function(e) NULL
+    )
     tipos <- if (is.data.frame(informacion) && "type" %in% names(informacion)) {
       as.character(informacion$type)
     } else {
@@ -20098,7 +20326,10 @@
   # plan, que prepara igual, la anticipa con la misma cuenta.
   .contar_dbi(presupuesto)
   valor <- tryCatch(
-    DBI::dbGetQuery(conexion, "SHOW extra_float_digits"),
+    .dbi(
+      "dbGetQuery", conexion,
+      DBI::dbGetQuery(conexion, "SHOW extra_float_digits")
+    ),
     error = function(e) NULL
   )
   if (!is.data.frame(valor) || !ncol(valor) || !nrow(valor)) {
@@ -22037,7 +22268,9 @@
 #'   manda al motor, salvo las de la guarda de transacción, las lecturas de
 #'   `pg_stat_statements` de `instrumentar` y las que algunos controladores
 #'   mandan para contestar `DBI::dbGetInfo()` o `DBI::dbIsValid()` (duckdb 1.1,
-#'   una o dos por corrida). Con `max_consultas` igual a
+#'   una o dos por corrida). En DuckDB el plan cuenta además, con la clase
+#'   `guarda de transaccion abierta (DuckDB)`, las dos sentencias con que la
+#'   llamada averigua si hay una transacción abierta. Con `max_consultas` igual a
 #'   `total_maximo` ninguna métrica queda afuera por el presupuesto; con
 #'   `total`, sólo las consultas que piden los datos pueden quedar afuera.
 #'
@@ -22234,7 +22467,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
   .normalizar_centinelas_fecha(centinelas_fecha)
   if (!is.null(fecha)) .fecha_argumento_utc(fecha)
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
-  .fijar_senas_conexion_dbi(conexion)
+  .con_corrida_dbi(conexion, "planificar un perfil", {
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
   # quien lo llama; `incluir_valores = FALSE` la suma, como en `perfilar_dbi()`
   # (ver `.protege_mensaje_motor()`): las consultas de prueba del dialecto
@@ -22406,9 +22639,12 @@ plan_perfilado_dbi <- function(conexion, tabla,
   # preparacion es la de este plan: `consultas_antes_agregados`.
   if (identical(preparacion$universo, "muestra_motor") &&
       .solicita_muestra_dbi(preparacion$bloque_muestra)) {
+    # Las dos sentencias de la guarda de DuckDB se mandan una vez por
+    # llamada, al abrir: la preparacion que la corrida repite no las repite.
     plan <- .plan_spool_dbi(
       conexion, tabla, preparacion, emitidas = emitidas_plan,
-      replan = consultas_antes_agregados,
+      replan = consultas_antes_agregados -
+        .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI),
       conteo_en_preparacion = conteo_muestreo,
       capacidades = capacidades_plan
     )
@@ -22612,6 +22848,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
   }
   class(plan) <- unique(c("plan_perfilado_dbi", class(plan)))
   plan
+  })
 }
 
 .miles_dbi <- function(x) {
@@ -26658,6 +26895,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   presupuesto <- .presupuesto_dbi(max_consultas, instrumentar = instrumentar)
   .contar_dbi(presupuesto)
+  # En DuckDB la corrida ya mando las dos sentencias de su guarda de
+  # transaccion: el plan las anuncia y `max_consultas` las cuenta, con su clase.
+  guarda_duckdb <- .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI)
+  if (guarda_duckdb > 0L) {
+    .contar_dbi(
+      presupuesto, n = guarda_duckdb,
+      etapa = .capacidad_etapa_dbi("transaccion_abierta")
+    )
+  }
   # El nombre se normaliza y pasa por la guarda ANTES de la primera llamada que
   # toca la conexion: con un nombre marcado latin1, `dbExistsTable()` de odbc
   # dejaba la conexion rota y la consulta siguiente del usuario hacia caer a R.
@@ -26676,6 +26922,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     error = function(e) e
   )
   if (inherits(existe, "condition")) {
+    # El tope de tiempo de R que vence aca no dice nada de la tabla: sale como
+    # la interrupcion que es, y no como una tabla que no se pudo comprobar.
+    if (.es_interrupcion_dbi(existe)) .detener(existe)
     if (inherits(existe, "lupa_error_codificacion_dbi")) {
       .detener_dbi(
         "lupa_error_codificacion_dbi", conditionMessage(existe)
@@ -26708,6 +26957,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     )
   }
   motivo_existe <- NA_character_
+  reconocido_existe <- NA_character_
   if (!isTRUE(existe)) {
     # Algunos controladores no implementan nombres calificados en
     # `dbExistsTable()`. La consulta no trae datos y confirma la tabla sin
@@ -26717,11 +26967,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
       presupuesto, etapa = "porton_tabla"
     )
     existe <- isTRUE(comprobacion$ok)
-    if (!isTRUE(existe)) motivo_existe <- comprobacion$motivo
+    if (!isTRUE(existe)) {
+      motivo_existe <- comprobacion$motivo
+      reconocido_existe <- comprobacion$reconocido %||% NA_character_
+    }
   }
   if (!isTRUE(existe)) {
     .detener_dbi("lupa_error_tabla_dbi", paste(
-      .mensaje_tabla_inaccesible_dbi(motivo_existe)
+      .mensaje_tabla_inaccesible_dbi(motivo_existe, reconocido_existe)
     ))
   }
   lista_campos <- .campos_dbi(conexion, tabla, tabla_sql, presupuesto)
@@ -26937,6 +27190,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
   } else as.character(esquema$tipos_motor)
   if (length(tipos_motor) < length(campos)) length(tipos_motor) <- length(campos)
   names(tipos_motor) <- campos
+  # `money` de PostgreSQL conserva su nombre de motor en el tipo declarado,
+  # para no recibir una operacion que el tipo no admite. Solo en PostgreSQL:
+  # el `money` de SQL Server tiene su propia lectura exacta, que lo reconoce
+  # por el codigo que publica odbc.
+  tipos_para_guardas <- esquema$tipos
+  if (identical(.motor_medicion_dbi(conexion, "auto"), "postgresql") &&
+      length(tipos_para_guardas) == length(tipos_motor)) {
+    es_money <- !is.na(tipos_motor) & grepl(
+      "^money$", .minusculas_ascii(trimws(as.character(tipos_motor))),
+      perl = TRUE
+    )
+    tipos_para_guardas[es_money] <- unname(tipos_motor)[es_money]
+  }
+  tipos_declarados <- .tipos_declarados_con_motor_dbi(
+    tipos_para_guardas, unname(tipos_motor)
+  )
+  if (!is.null(tipos_declarados)) names(tipos_declarados) <- campos
   tipos_sin_agregados <- if (any(grepl(
     "sql server|microsoft sql|sqlserver|mssql",
     .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE
@@ -27208,7 +27478,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
   )
   columnas_nan_prep <- .columnas_candidatas_nan_dbi(
-    conexion, campos, es_numerico, esquema$tipos, prototipo
+    conexion, campos, es_numerico, tipos_declarados, prototipo
   )
   columnas_not_null_garantizadas <- .columnas_not_null_garantizadas_dbi(
     catalogo_garantias, campos
@@ -27304,12 +27574,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     conexion, campos, esquema$campos_sql, esquema$tipos_motor,
     tipos = esquema$tipos, presupuesto = presupuesto
   )
-  tipos_declarados <- .tipos_declarados_con_motor_dbi(
-    esquema$tipos, esquema$tipos_motor
-  )
-  nombres_tipos <- campos
-  if (!is.null(tipos_declarados)) names(tipos_declarados) <- nombres_tipos
-  if (!is.null(esquema$tipos_motor)) names(esquema$tipos_motor) <- nombres_tipos
+  if (!is.null(esquema$tipos_motor)) names(esquema$tipos_motor) <- campos
   proyeccion_binaria <- .proyeccion_binaria_muestra_dbi(
     conexion, campos, lectura$proyeccion_sql,
     tipos_declarados = tipos_declarados,
@@ -27451,8 +27716,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'
 #' Las fallas de consultas solicitadas se conservan en
 #' `resumen_tabla$meta$consultas$fallas`, con `etapa`, `consulta_id`,
-#' `sqlstate`, `tipo` y `motivo`. Un `SQLSTATE` `57014` se publica como
-#' `cancelada`; los rechazos tienen `tipo = "rechazada"`. Las etapas internas
+#' `sqlstate`, `tipo` y `motivo`. Una consulta que el motor canceló —por un
+#' tope de tiempo o a pedido— se publica como `cancelada`; los rechazos tienen
+#' `tipo = "rechazada"`. La cancelación se reconoce en el error mismo, donde el
+#' controlador la escribe: el estado `SQLSTATE` (`57014`, `HYT00`) o el código
+#' del motor si la condición lo trae, y si no el encabezado de su mensaje, con
+#' el SQL y los literales entre comillas quitados antes. Un nombre de columna o
+#' un dato que diga «timeout» o `57014` no decide nada. Las etapas internas
 #' `clave_primaria`, `proteccion_coleccion`, `sonda_collation_dbi`,
 #' `sonda_fuente_bloques`, `sonda_desvio`, `estimacion_derrame`, `explain_moda`,
 #' `sonda_muestreo`, `sonda_mediana_escalar`, `sonda_mediana_cte_ventana`,
@@ -27463,7 +27733,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `proteccion_fuera_de_muestra`, `porton_tabla` y
 #' `catalogo_bytes_muestra` se conservan aparte en
 #' `resumen_tabla$meta$consultas$sondas_fallidas` y no disparan el aviso de
-#' degradacion. El aviso que informa que la muestra no esta disponible conserva
+#' degradacion. Una forma candidata que el motor rechaza porque no tiene esa
+#' capacidad es su respuesta, y queda ahí sin más. Si en cambio una prueba de
+#' capacidad falla por otra causa —la consulta se canceló, la credencial no
+#' tiene permiso, un interbloqueo, la transacción estaba abortada—, la corrida
+#' sigue como si el motor no la tuviera y lo deja escrito: una fila en
+#' `resumen_tabla$meta$consultas$sondas_fallidas_detalle`, con la `causa` y la
+#' `estrategia_elegida`, y una fila `capacidad::<etapa>::<consulta>` de estado
+#' `advertido` en `resumen_tabla$cobertura`. No se reintenta, para conservar la
+#' cuenta del plan. El aviso que informa que la muestra no esta disponible conserva
 #' ademas la clase historica `lupa_muestra_dbi_no_disponible`.
 #' `resumen_tabla$meta$consultas$conciliacion` conserva además el estado de la
 #' cuenta (`"conciliado"` o `"desfasado"`), los totales anunciados y emitidos y
@@ -27473,9 +27751,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' en `fallas` o `sondas_fallidas`. `plan_corrida` conserva la misma estructura
 #' para la comparación contra el plan que la corrida publicó en `meta$plan`;
 #' permite distinguirla de los campos históricos de la conciliación. En una
-#' tabla vacía, `plan_previo` conserva el total que se anunció antes de conocer
-#' ese estado y explica por qué `plan_corrida` usa el plan publicado por la
-#' corrida.
+#' tabla vacía o sin ningún valor no nulo, las consultas que no hacen falta no
+#' se mandan y la cuenta se concilia con el plan que publica la corrida;
+#' `plan_previo` conserva el total que se anunció antes de conocer ese estado,
+#' con su diferencia, la clase que no corrió y el motivo.
 #'
 #' Cuando el catálogo estima al menos `1e8` filas y se pidió
 #' `universo = "tabla_completa"`, la función avisa antes de los agregados con
@@ -27696,6 +27975,71 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' los agregados que calcula el motor se devuelven y la muestra no, con un aviso
 #' que dice por qué. Alcanza `bit64` 4.0.5 o posterior.
 #'
+#' @section Conexión perdida:
+#' Si la conexión se pierde mientras se la lee —el servidor termina la sesión,
+#' se corta la red, alguien la cierra—, la llamada se corta con
+#' `lupa_error_conexion_dbi` y no devuelve un perfil parcial. Vale para toda
+#' función que recibe una conexión: [plan_perfilado_dbi()], [medir_dbi()],
+#' [plan_medicion_dbi()], [conformidad_dbi()], [coleccion()],
+#' [perfilar_coleccion()] —que no saltea la tabla y sigue—,
+#' [estimar_costo_coleccion()], [relaciones_coleccion()] y
+#' [detectar_tablas_codigos()]. Después del corte no se manda ninguna sentencia
+#' más por esa conexión, tampoco las de limpieza: con odbc y FreeTDS la
+#' sentencia siguiente a un corte hace caer a R. El mensaje trae lo que dijo el
+#' motor en el primer error.
+#'
+#' La pérdida se reconoce sin mandar nada de más: en el error del controlador
+#' —su código o el encabezado de su mensaje, no el SQL ni los datos—, en
+#' `DBI::dbIsValid()` cuando deja de ser cierto a mitad de la llamada, y en el
+#' identificador de sesión que el controlador guarda del lado del cliente.
+#' Esto último cubre a los controladores que reabren la sesión sin avisar
+#' —RPostgres siempre, RMariaDB con `reconnect = TRUE`—: lo leído después se
+#' leería en otra sesión, sin las tablas temporales ni los ajustes de la
+#' primera. El identificador se compara en cada error que no se reconoce, al
+#' cerrar un resultado, entre una tabla y la siguiente de una colección y al
+#' terminar la llamada; si cambió, la llamada se corta igual.
+#'
+#' El paquete no vuelve a usar una conexión en la que reconoció un corte: una
+#' llamada posterior sobre esa misma conexión falla con
+#' `lupa_error_conexion_dbi` sin mandarle ni preguntarle nada al controlador,
+#' también después de cerrada. Vale aunque el controlador la reabra
+#' —RPostgres, RMariaDB con `reconnect = TRUE`—: la sesión nueva ya no tiene
+#' la transacción abierta, las tablas temporales, el esquema o la base
+#' elegidos, el rol ni los parámetros de sesión de la que se cortó, y un perfil
+#' leído ahí saldría de otro lugar sin avisar. Hay que cerrarla con
+#' `DBI::dbDisconnect()` y abrir otra. La marca va en la conexión misma: la ven
+#' todos los nombres de esa conexión y ninguna otra, no impide que se la
+#' recolecte, y una conexión nueva nunca se toma por perdida.
+#'
+#' Un error que el servidor informa no es un corte, diga lo que diga su texto:
+#' si pudo informarlo, la sesión sigue. Importa porque reconocer un corte
+#' cuesta la conexión entera. Con RPostgres deciden la gravedad —sólo `FATAL` y
+#' `PANIC` terminan la sesión— y las frases que escribe el cliente, que no
+#' traen gravedad: una función que levanta un error con el texto de un corte, o
+#' una tabla foránea cuyo servidor remoto se cae a mitad de la consulta, dan un
+#' `ERROR` común y la conexión sigue sirviendo. Con RSQLite y duckdb el texto
+#' se confirma con `DBI::dbIsValid()`, que ahí contesta sin mandar nada.
+#'
+#' Límites conocidos. Con RMariaDB y RMySQL decide el número del error, y con
+#' odbc y FreeTDS sólo hay texto: esos controladores no dicen, sin mandar una
+#' sentencia, si la conexión sigue abierta. Una rutina que levanta a propósito
+#' el número de un error del cliente (`SIGNAL ... MYSQL_ERRNO = 2013`), o un
+#' lote con `RAISERROR('Communication link failure', ...)`, se toman por un
+#' corte; las sentencias que manda el paquete a SQL Server no pueden recibir
+#' ese texto, porque ahí una vista o una función no pueden levantar un error
+#' propio. RMySQL no deja reconocer la misma conexión entre una
+#' llamada y otra: ahí no se recuerda nada, y la llamada siguiente vuelve a
+#' cortarse por el error del controlador, que no reabre la sesión. RPostgres no
+#' entrega el estado `SQLSTATE` y el texto del
+#' servidor sale en su idioma: con mensajes que no estén en inglés o en
+#' castellano, una cancelación se publica como `rechazada` y una sesión
+#' terminada por el servidor puede no reconocerse en el error, aunque sí por el
+#' identificador de sesión. FreeTDS entrega siempre el estado `00000`: con SQL
+#' Server todo se reconoce por el texto, en inglés o en castellano. No se midió
+#' un intermediario de conexiones en modo transacción, el controlador ODBC de
+#' Microsoft, psqlODBC, Oracle ni JDBC: ahí sólo vale el estado `SQLSTATE`
+#' cuando la condición lo trae.
+#'
 #' @section Dentro de una transacción:
 #' La vía se puede correr dentro de una transacción abierta por el usuario —es
 #' lo que recomienda el motivo de `consistencia` para una lectura consistente—.
@@ -27714,6 +28058,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' PostgreSQL sin transacción del usuario: cada sentencia se compila en una
 #' transacción propia que se revierte (ver la sección Compilación de
 #' [plan_perfilado_dbi()]).
+#' Si la transacción ya estaba abortada al llamar —en PostgreSQL un error
+#' anterior la deja rechazando toda sentencia hasta que termine—, la llamada
+#' falla con `lupa_error_transaccion_dbi` y lo dice, en lugar de informar que
+#' la tabla no existe: hay que deshacerla con `DBI::dbRollback()` y volver a
+#' llamar. La conexión sigue sirviendo. Vale para toda función que recibe una
+#' conexión o una colección.
 #' SQL Server puede deshacer la transacción completa ante un error de ejecución,
 #' incluso con `XACT_ABORT` apagado: antes y después de cada envío y lectura la
 #' vía mide `@@TRANCOUNT` y `XACT_STATE()`. Si cambian, levanta
@@ -27729,11 +28079,21 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Un desbordamiento de datos que el motor no puede aislar puede abortarla
 #' igualmente y queda documentado en `lupa_error_transaccion_dbi`. MySQL,
 #' MariaDB y SQLite no abortan la transacción por el error de una consulta.
-#' duckdb sí la aborta por un error al
-#' preparar, como el de una sonda de dialecto— y no tiene `SAVEPOINT`: dentro
-#' de una transacción de duckdb, un objeto que falla al leerse —una vista que
-#' convierte un texto sucio— la deja abortada, y hay que cerrarla con
-#' `ROLLBACK`.
+#' DuckDB sí la aborta, por cualquier error del motor —también el de una forma
+#' candidata que el motor no tiene, que es la respuesta esperada de una prueba
+#' de capacidad—, sin avisar: el `DBI::dbCommit()` siguiente devuelve `TRUE` y
+#' pierde lo hecho en ella, y DuckDB no tiene `SAVEPOINT` para aislarlo. Por
+#' eso, con una transacción abierta en DuckDB la llamada se niega con
+#' `lupa_error_transaccion_dbi` antes de leer nada, y también si no puede
+#' saberlo (una transacción ya abortada). Lo averigua con dos sentencias
+#' `SELECT CAST(txid_current() AS VARCHAR)`, que no tocan la transacción ni
+#' dependen de cómo la conexión entrega las fechas o los enteros: son las
+#' únicas que la vía manda de más, sólo en DuckDB, y el plan las cuenta con la
+#' clase `guarda de transaccion abierta (DuckDB)`. Se mandan una vez por
+#' llamada: en una colección, una vez para todas las tablas, y no entran en la
+#' cuenta de ninguna. Lo mismo vale para las demás funciones que reciben una
+#' conexión. Fuera de una transacción, un objeto que falla al leerse —una vista
+#' que convierte un texto sucio— no deja nada abortado.
 #'
 #' @section Muestra y aproximaciones:
 #' La cuenta de faltantes disfrazados de la tabla completa se publica separada
@@ -28867,7 +29227,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   transacción abierta antes de cada consulta), ni las lecturas de
 #'   `pg_stat_statements` de `instrumentar`, ni las que algunos controladores
 #'   mandan para contestar `DBI::dbGetInfo()` o `DBI::dbIsValid()`: duckdb 1.1
-#'   pregunta su versión y manda `SELECT 1`, una o dos veces por corrida. La
+#'   pregunta su versión y manda `SELECT 1`, una o dos veces por corrida. En
+#'   DuckDB sí cuentan las dos sentencias con que la llamada averigua si hay
+#'   una transacción abierta (ver la sección Dentro de una transacción). La
 #'   preparación y el recorrido por
 #'   bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 #'   `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda afuera
@@ -29150,7 +29512,7 @@ perfilar_dbi <- function(conexion, tabla,
   argumentos_originales <- captura_argumentos$argumentos
   argumentos_declarados <- captura_argumentos$declarados
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
-  .fijar_senas_conexion_dbi(conexion)
+  .con_corrida_dbi(conexion, "perfilar una tabla", {
   # Lo que el controlador entrego en latin1 ANTES de esta tabla -otra tabla de
   # la misma coleccion-: se declara solo lo de esta. Ver
   # `.texto_del_controlador_dbi()`.
@@ -29431,9 +29793,12 @@ perfilar_dbi <- function(conexion, tabla,
     # Armar ese plan vuelve a preparar la tabla, y esas consultas viajan al
     # motor: se cuentan con las demas y el plan las anuncia
     # (ver `.plan_spool_dbi()`).
+    # Menos las dos de la guarda de DuckDB, que ese plan anuncia y esta misma
+    # llamada ya mando y conto al abrir.
     .contar_dbi(
       preparacion$presupuesto,
-      attr(plan_corrida, "consultas_emitidas", exact = TRUE) %||% 0
+      max(0, (attr(plan_corrida, "consultas_emitidas", exact = TRUE) %||% 0) -
+            .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI))
     )
     if (is.list(resultado$resumen_tabla$meta$consultas) &&
         !is.null(preparacion$presupuesto)) {
@@ -30278,7 +30643,8 @@ perfilar_dbi <- function(conexion, tabla,
     ),
     muestra_no_disponible = identical(preparacion$universo, "muestra_motor") &&
       is.list(preparacion$muestreo) &&
-      !isTRUE(preparacion$muestreo$disponible)
+      !isTRUE(preparacion$muestreo$disponible),
+    sin_valores = isTRUE(preparacion$tabla_sin_valores)
   )
   if (identical(preparacion$universo, "muestra_motor")) {
     if (!is.null(fuente_muestreada)) {
@@ -30432,6 +30798,13 @@ perfilar_dbi <- function(conexion, tabla,
   if (isTRUE(preparacion$tabla_sin_valores)) {
     actualizar <- actualizar | grepl(
       "^mediana \\(", plan$clase_consulta, perl = TRUE, useBytes = TRUE
+    )
+    actualizar <- actualizar | (
+      !grepl("^capacidad ", plan$clase_consulta, perl = TRUE,
+             useBytes = TRUE) &
+        is.finite(plan_ejecutado$n_consultas) &
+        is.finite(plan$n_consultas) &
+        plan_ejecutado$n_consultas < plan$n_consultas
     )
   }
   if (identical(preparacion$universo, "muestra_motor") &&
@@ -30820,6 +31193,12 @@ perfilar_dbi <- function(conexion, tabla,
   conciliacion_corrida <- .atributos_conciliacion_dbi(
     conciliacion_corrida, plan_conciliacion
   )
+  # Una tabla vacia, o sin ningun valor, no emite las consultas que el plan
+  # anuncio antes de saberlo. Se concilia con el plan de la corrida, como en
+  # DuckDB, y lo anunciado antes queda en `plan_previo` con su diferencia y su
+  # motivo: SQLite quedaba `desfasado` 20 contra 18 sobre una tabla sana.
+  conciliacion_previa <- conciliacion
+  if (isTRUE(preparacion$tabla_sin_valores)) conciliacion <- conciliacion_corrida
   plan_previo <- NULL
   if (isTRUE(preparacion$tabla_sin_valores)) {
     totales_previos <- .totales_plan_consultas_dbi(plan)
@@ -30827,13 +31206,13 @@ perfilar_dbi <- function(conexion, tabla,
       is.finite(preparacion$n_total) && preparacion$n_total == 0
     )) {
       paste(
-        "El plan previo se anuncio antes de comprobar que la tabla estaba",
-        "vacia. La conciliacion usa el plan publicado por la corrida."
+        "El plan previo se anunci\u00f3 antes de comprobar que la tabla estaba",
+        "vac\u00eda. La conciliaci\u00f3n usa el plan publicado por la corrida."
       )
     } else {
       paste(
-        "El plan previo se anuncio antes de comprobar que no habia valores",
-        "no nulos. La conciliacion usa el plan publicado por la corrida."
+        "El plan previo se anunci\u00f3 antes de comprobar que no hab\u00eda valores",
+        "no nulos. La conciliaci\u00f3n usa el plan publicado por la corrida."
       )
     }
     plan_previo <- list(
@@ -30842,6 +31221,11 @@ perfilar_dbi <- function(conexion, tabla,
         totales_previos$minimo,
       total_maximo = attr(plan, "total_maximo", exact = TRUE) %||%
         totales_previos$maximo,
+      estado = conciliacion_previa$estado,
+      anunciadas = conciliacion_previa$anunciadas,
+      emitidas = conciliacion_previa$emitidas,
+      diferencia = conciliacion_previa$diferencia,
+      detalle = conciliacion_previa$detalle,
       motivo = motivo_plan_previo
     )
     plan_previo <- .atributos_conciliacion_dbi(plan_previo, plan)
@@ -30857,6 +31241,13 @@ perfilar_dbi <- function(conexion, tabla,
   resumen$meta$consultas$conciliacion$plan_corrida <- conciliacion_corrida
   if (!is.null(plan_previo)) {
     resumen$meta$consultas$conciliacion$plan_previo <- plan_previo
+  }
+  fallas_capacidad <- .fallas_capacidad_ajenas_dbi(presupuesto, preparacion)
+  if (!is.null(fallas_capacidad)) {
+    resumen$meta$consultas$sondas_fallidas_detalle <- fallas_capacidad
+    cobertura <- rbind(
+      cobertura, .cobertura_fallas_capacidad_dbi(fallas_capacidad)
+    )
   }
   fallas_consultas <- resumen$meta$consultas$fallas
   if (is.data.frame(fallas_consultas) && nrow(fallas_consultas)) {
@@ -30976,6 +31367,7 @@ perfilar_dbi <- function(conexion, tabla,
     )
   estructura <- .sellar_perfil_dbi(estructura)
   con_fecha(estructura)
+  })
 }
 
 .texto_clave_dbi <- function(clave, catalogo = NULL) {

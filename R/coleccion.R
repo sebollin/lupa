@@ -670,7 +670,8 @@
 #' }
 coleccion <- function(conexion, tablas, nombre = NULL) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
-  .validar_conexion_dbi(conexion, accion = "declarar una colecci\u00f3n")
+  .con_corrida_dbi(conexion, "declarar una colecci\u00f3n", {
+    .validar_conexion_dbi(conexion, accion = "declarar una colecci\u00f3n")
   declaradas <- .normalizar_tablas_coleccion(tablas)
   # Los nombres declarados -por texto, por `data.frame` o por `DBI::Id`- son los
   # que van a la conexion, y se normalizan una vez, aca, como en
@@ -711,6 +712,7 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
   )
   class(estructura) <- "coleccion_lupa"
   estructura
+  })
 }
 
 #' @export
@@ -961,13 +963,14 @@ print.coleccion_lupa <- function(x, ...) {
 #' Una colección grande puede tardar horas. Con `directorio_reanudacion`, cada
 #' tabla que se perfila sin consultas fallidas se guarda en ese directorio en
 #' cuanto termina —un subdirectorio por corrida—, y si la corrida se corta —el
-#' proceso muere, se cae la máquina, se la interrumpe, o la conexión se cae y
-#' las tablas que siguen fallan— la misma llamada con `reanudar = TRUE` sigue
+#' proceso muere, se cae la máquina, se la interrumpe, o la conexión se pierde,
+#' que corta la llamada con `lupa_error_conexion_dbi`— la misma llamada con
+#' `reanudar = TRUE` y una conexión nueva sigue
 #' desde ahí: las tablas guardadas no vuelven a consultar la base, y se vuelven
 #' a perfilar las que faltan, las que tuvieron alguna consulta fallida y las que
-#' no se pudieron perfilar. No hace falta saber si la conexión se cayó: una
-#' tabla que la perdió a mitad termina con consultas fallidas o sin perfil, y se
-#' rehace. El objeto que se devuelve es el mismo que el de una corrida sin
+#' no se pudieron perfilar. La tabla que se estaba leyendo cuando la conexión
+#' se perdió no se guarda, y se rehace. El objeto que se devuelve es el mismo
+#' que el de una corrida sin
 #' cortes, salvo lo que describe la ejecución: `meta$inicio`, `meta$fin`, la
 #' duración de cada consulta en `meta$lecturas` y `resumen_coleccion$momento`,
 #' que para una tabla reusada es el de su medición original. `meta$reanudacion`
@@ -1233,7 +1236,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   }
   tope_cobertura_metricas <- as.numeric(tope_cobertura_metricas)
   conexion <- coleccion$conexion
-  .validar_conexion_dbi(conexion, accion = "perfilar una colecci\u00f3n")
+  .con_corrida_dbi(conexion, "perfilar una colecci\u00f3n", {
+    .validar_conexion_dbi(conexion, accion = "perfilar una colecci\u00f3n")
   # Un objeto de otra generacion del esquema se completa antes de leerlo: el
   # paquete ya establecio ese precedente para `catalogo`, y el recorrido mostro
   # que habia cinco columnas mas en el mismo estado.
@@ -1261,6 +1265,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     },
     proteger = proteger, incluir_valores = incluir_valores
   )
+  # Si la conexion se pierde, lo ya perfilado queda guardado y el mensaje lo
+  # dice: ver `.condicion_conexion_perdida_dbi()`.
+  if (!is.null(reanudacion)) .marcar_corrida_reanudable_dbi(conexion)
   # Los nombres de las tablas declaradas, para el mensaje del motor: ver
   # `.sin_literales_motor()`. Cada `perfilar_dbi()` suma los de sus columnas.
   identificadores_previos <- .sumar_identificadores_motor(c(
@@ -1455,6 +1462,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           e
         }
       )
+      # En el borde de la tabla, sin ningun resultado abierto: si el
+      # controlador reabrio la sesion sin avisar, la tabla que sigue se leeria
+      # en otra. No cuesta una sentencia.
+      .comprobar_sesion_corrida_dbi(conexion)
       # Fuera del `tryCatch`: si no se puede guardar, la llamada se corta, en
       # lugar de seguir sin punto de reanudacion.
       if (!is.null(reanudacion)) {
@@ -2021,6 +2032,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   if (!is.null(reanudacion)) estructura$meta$reanudacion <- reanudacion$cerrar()
   class(estructura) <- "perfil_coleccion"
   estructura
+  })
 }
 
 # Los textos de los avisos juntados, como una tabla de motivos: la forma en que
@@ -2528,6 +2540,7 @@ print.perfil_coleccion <- function(x, ...) {
     .columnas_tabla_dbi(conexion, referencia, catalogo = catalogo),
     error = function(e) {
       .repropagar_transaccion_dbi(e)
+      if (.es_interrupcion_dbi(e)) .detener(e)
       NULL
     }
   )
@@ -2652,6 +2665,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   if (!inherits(coleccion, "coleccion_lupa")) {
     .detener("`coleccion` debe venir de coleccion().", call. = FALSE)
   }
+  .con_corrida_dbi(coleccion$conexion, "estimar el costo de una colecci\u00f3n", {
   columnas_candidatas <- .validar_columnas_candidatas_coleccion(
     coleccion, columnas_candidatas
   )
@@ -2753,6 +2767,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       "quedan en `tablas_sin_esquema` y sus pares en `n_pares_sin_estimar`."
     )
   )
+  })
 }
 
 # `pares` con cero filas significaba "error" y el mensaje decia que faltaban las
@@ -3708,7 +3723,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         consulta <- .enviar_consulta_dbi(conexion, sql)
         on.exit(.limpiar_consulta_dbi(consulta, conexion), add = TRUE)
         tipos <- tryCatch(
-          as.character(DBI::dbColumnInfo(consulta)$type),
+          as.character(.dbi(
+            "dbColumnInfo", conexion, DBI::dbColumnInfo(consulta)
+          )$type),
           error = function(e) NULL
         )
         list(
@@ -4194,6 +4211,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
                                  podar = FALSE,
                                  tope_memoria_mb = 512) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
+  .con_corrida_dbi(if (inherits(coleccion, "coleccion_lupa")) {
+    coleccion$conexion
+  }, "medir relaciones de una colecci\u00f3n", {
   # Un argumento malo aborta con la clase de la via, como en `perfilar_dbi()`:
   # antes salia como `simpleError`.
   .argumento_dbi({
@@ -4707,4 +4727,5 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   estructura$cobertura_podas <- cobertura_podas
   class(estructura) <- "relaciones_coleccion"
   estructura
+  })
 }

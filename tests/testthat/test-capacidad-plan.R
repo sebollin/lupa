@@ -83,6 +83,7 @@ test_that("una tabla vacia publica el conocimiento observado del plan", {
     ), , drop = FALSE]
     detalle <- perfil$resumen_tabla$meta$consultas$conciliacion$detalle
     detalle_con_diferencia <- detalle[detalle$diferencia != 0, , drop = FALSE]
+    previo <- perfil$resumen_tabla$meta$consultas$conciliacion$plan_previo
     expect_equal(nrow(medianas), 1L)
     expect_equal(medianas$n_consultas, 0)
     expect_gte(medianas$n_consultas_max, 1)
@@ -90,9 +91,16 @@ test_that("una tabla vacia publica el conocimiento observado del plan", {
       "^capacidad de desvio", capacidades$clase_consulta,
       perl = TRUE, useBytes = TRUE
     )))
-    expect_true(nrow(detalle_con_diferencia) >= 1L)
-    expect_true(all(grepl(
-      "^mediana \\(", detalle_con_diferencia$clase_consulta,
+    expect_identical(
+      perfil$resumen_tabla$meta$consultas$conciliacion$estado,
+      "conciliado"
+    )
+    expect_equal(nrow(detalle_con_diferencia), 0L)
+    expect_true(is.list(previo))
+    previo_con_diferencia <- previo$detalle[previo$detalle$diferencia != 0, , drop = FALSE]
+    expect_true(nrow(previo_con_diferencia) >= 1L)
+    expect_true(any(grepl(
+      "^mediana \\(", previo_con_diferencia$clase_consulta,
       perl = TRUE, useBytes = TRUE
     )))
     expect_false(any(grepl(

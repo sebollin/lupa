@@ -670,6 +670,9 @@
   }
   medicion <- .iniciar_consulta_dbi(presupuesto, "materializacion_muestra")
   error_lectura <- NULL
+  # Lo que el reconocedor dijo del error de lectura: el texto del motivo no
+  # decide si la consulta se cancelo.
+  error_reconocido <- NA_character_
   fetches <- 0L
   bytes_traidos_r <- 0
   bytes_por_fila_medido <- NA_real_
@@ -678,6 +681,7 @@
     error = function(e) {
       .repropagar_transaccion_dbi(e)
       error_lectura <<- .mensaje_motor(e)
+      error_reconocido <<- .reconocer_falla_dbi(conexion, e)
       NULL
     }
   )
@@ -767,6 +771,7 @@
       error = function(e) {
         .repropagar_transaccion_dbi(e)
         error_lectura <<- .mensaje_motor(e)
+        error_reconocido <<- .reconocer_falla_dbi(conexion, e)
         NULL
       }
     )
@@ -787,7 +792,10 @@
       )
     }
     if (isTRUE(escritor$truncada)) break
-    completado <- tryCatch(DBI::dbHasCompleted(resultado), error = function(e) NA)
+    completado <- tryCatch(
+      .dbi("dbHasCompleted", conexion, DBI::dbHasCompleted(resultado)),
+      error = function(e) NA
+    )
     if (isTRUE(completado)) break
   }
   if (!is.null(resultado)) {
@@ -814,6 +822,7 @@
       n_filas = NA_real_, bytes = NA_real_, checksum = NA_character_,
       fetches = fetches, bytes_bloques = cerrado$bytes_bloques,
       motivo = if (!is.null(escritor$motivo)) escritor$motivo else cerrado$motivo,
+      reconocido = error_reconocido,
       eventos = cerrado$eventos, max_filas = max_filas,
       truncada = isTRUE(cerrado$truncada)
     ))
@@ -1147,7 +1156,9 @@
           consulta_id = if (is.null(spool$consulta)) NA_integer_ else
             as.integer(spool$consulta$consulta_id),
           motivo = as.character(spool$motivo), sqlstate = NA_character_,
-          tipo = .clasificar_falla_consulta_dbi(NA_character_, spool$motivo)
+          tipo = .clasificar_falla_consulta_dbi(
+            NA_character_, spool$motivo, spool$reconocido %||% NA_character_
+          )
         )
     }
     materializacion <- .materializacion_spool_vacia_dbi(

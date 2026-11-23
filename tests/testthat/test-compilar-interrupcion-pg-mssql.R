@@ -186,7 +186,7 @@ test_that("PostgreSQL 9.3: una interrupcion en cualquier paso de la compilacion 
   .cint_probar_pg(Sys.getenv("LUPA_PG93_PORT", "55493"), "pg93")
 })
 
-test_that("PostgreSQL: sin saber si hay una transaccion abierta, no se compila", {
+test_that("PostgreSQL: con la transaccion de quien llama abortada, no se compila y se dice por que", {
   con <- .cint_conectar_pg(Sys.getenv("LUPA_PG_PORT", "55432"))
   tabla <- "lupa_compilar_abortada_pg"
   on.exit({
@@ -199,9 +199,21 @@ test_that("PostgreSQL: sin saber si hay una transaccion abierta, no se compila",
   # Un `BEGIN` a mano, que RPostgres no marca, y un error que la aborta.
   DBI::dbExecute(con, "BEGIN")
   try(DBI::dbGetQuery(con, "SELECT columna_que_no_existe FROM pg_class"), silent = TRUE)
-  expect_error(
-    plan_perfilado_dbi(con, tabla, compilar = TRUE),
-    class = "lupa_error_transaccion_dbi", regexp = "no se pudo saber"
+  # Antes decia que no se pudo saber si habia una transaccion abierta, porque
+  # la consulta que lo averigua fallaba. Lo primero que el motor contesta es
+  # que la transaccion esta abortada, y eso es lo que se dice: como deshacerla,
+  # y que la conexion sigue sirviendo.
+  error <- tryCatch(
+    plan_perfilado_dbi(con, tabla, compilar = TRUE), error = function(e) e
+  )
+  expect_s3_class(error, "lupa_error_transaccion_dbi")
+  expect_true(isTRUE(error$datos$abortada))
+  expect_match(conditionMessage(error), "est.{1,2} abortada")
+  expect_match(conditionMessage(error), "`DBI::dbRollback()`", fixed = TRUE)
+  DBI::dbExecute(con, "ROLLBACK")
+  expect_s3_class(
+    suppressWarnings(plan_perfilado_dbi(con, tabla, compilar = TRUE)),
+    "plan_perfilado_dbi"
   )
 })
 

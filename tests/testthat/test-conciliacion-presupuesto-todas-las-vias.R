@@ -154,7 +154,7 @@ testthat::test_that(
         )
         testthat::expect_true(is.list(previo))
         if (identical(tabla, "vacia")) {
-          testthat::expect_match(previo$motivo, "vacia")
+          testthat::expect_match(previo$motivo, "vac.a\\.")
         } else {
           testthat::expect_match(previo$motivo, "valores no nulos")
         }

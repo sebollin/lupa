@@ -221,7 +221,9 @@ guarda de transacción (\code{SAVEPOINT} y, en SQL Server, la pregunta por la
 transacción abierta antes de cada consulta), ni las lecturas de
 \code{pg_stat_statements} de \code{instrumentar}, ni las que algunos controladores
 mandan para contestar \code{DBI::dbGetInfo()} o \code{DBI::dbIsValid()}: duckdb 1.1
-pregunta su versión y manda \verb{SELECT 1}, una o dos veces por corrida. La
+pregunta su versión y manda \verb{SELECT 1}, una o dos veces por corrida. En
+DuckDB sí cuentan las dos sentencias con que la llamada averigua si hay
+una transacción abierta (ver la sección Dentro de una transacción). La
 preparación y el recorrido por
 bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 \code{max_consultas = attr(plan, "total_maximo")} ninguna métrica queda afuera
@@ -558,8 +560,13 @@ corta en el segundo intento conserva la primera muestra válida.
 
 Las fallas de consultas solicitadas se conservan en
 \code{resumen_tabla$meta$consultas$fallas}, con \code{etapa}, \code{consulta_id},
-\code{sqlstate}, \code{tipo} y \code{motivo}. Un \code{SQLSTATE} \code{57014} se publica como
-\code{cancelada}; los rechazos tienen \code{tipo = "rechazada"}. Las etapas internas
+\code{sqlstate}, \code{tipo} y \code{motivo}. Una consulta que el motor canceló —por un
+tope de tiempo o a pedido— se publica como \code{cancelada}; los rechazos tienen
+\code{tipo = "rechazada"}. La cancelación se reconoce en el error mismo, donde el
+controlador la escribe: el estado \code{SQLSTATE} (\code{57014}, \code{HYT00}) o el código
+del motor si la condición lo trae, y si no el encabezado de su mensaje, con
+el SQL y los literales entre comillas quitados antes. Un nombre de columna o
+un dato que diga «timeout» o \code{57014} no decide nada. Las etapas internas
 \code{clave_primaria}, \code{proteccion_coleccion}, \code{sonda_collation_dbi},
 \code{sonda_fuente_bloques}, \code{sonda_desvio}, \code{estimacion_derrame}, \code{explain_moda},
 \code{sonda_muestreo}, \code{sonda_mediana_escalar}, \code{sonda_mediana_cte_ventana},
@@ -570,7 +577,15 @@ Las fallas de consultas solicitadas se conservan en
 \code{proteccion_fuera_de_muestra}, \code{porton_tabla} y
 \code{catalogo_bytes_muestra} se conservan aparte en
 \code{resumen_tabla$meta$consultas$sondas_fallidas} y no disparan el aviso de
-degradacion. El aviso que informa que la muestra no esta disponible conserva
+degradacion. Una forma candidata que el motor rechaza porque no tiene esa
+capacidad es su respuesta, y queda ahí sin más. Si en cambio una prueba de
+capacidad falla por otra causa —la consulta se canceló, la credencial no
+tiene permiso, un interbloqueo, la transacción estaba abortada—, la corrida
+sigue como si el motor no la tuviera y lo deja escrito: una fila en
+\code{resumen_tabla$meta$consultas$sondas_fallidas_detalle}, con la \code{causa} y la
+\code{estrategia_elegida}, y una fila \verb{capacidad::<etapa>::<consulta>} de estado
+\code{advertido} en \code{resumen_tabla$cobertura}. No se reintenta, para conservar la
+cuenta del plan. El aviso que informa que la muestra no esta disponible conserva
 ademas la clase historica \code{lupa_muestra_dbi_no_disponible}.
 \code{resumen_tabla$meta$consultas$conciliacion} conserva además el estado de la
 cuenta (\code{"conciliado"} o \code{"desfasado"}), los totales anunciados y emitidos y
@@ -580,9 +595,10 @@ ambas cantidades y el motivo de la diferencia; la falla original permanece
 en \code{fallas} o \code{sondas_fallidas}. \code{plan_corrida} conserva la misma estructura
 para la comparación contra el plan que la corrida publicó en \code{meta$plan};
 permite distinguirla de los campos históricos de la conciliación. En una
-tabla vacía, \code{plan_previo} conserva el total que se anunció antes de conocer
-ese estado y explica por qué \code{plan_corrida} usa el plan publicado por la
-corrida.
+tabla vacía o sin ningún valor no nulo, las consultas que no hacen falta no
+se mandan y la cuenta se concilia con el plan que publica la corrida;
+\code{plan_previo} conserva el total que se anunció antes de conocer ese estado,
+con su diferencia, la clase que no corrió y el motivo.
 
 Cuando el catálogo estima al menos \code{1e8} filas y se pidió
 \code{universo = "tabla_completa"}, la función avisa antes de los agregados con
@@ -807,6 +823,73 @@ los agregados que calcula el motor se devuelven y la muestra no, con un aviso
 que dice por qué. Alcanza \code{bit64} 4.0.5 o posterior.
 }
 
+\section{Conexión perdida}{
+
+Si la conexión se pierde mientras se la lee —el servidor termina la sesión,
+se corta la red, alguien la cierra—, la llamada se corta con
+\code{lupa_error_conexion_dbi} y no devuelve un perfil parcial. Vale para toda
+función que recibe una conexión: \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=medir_dbi]{medir_dbi()}},
+\code{\link[=plan_medicion_dbi]{plan_medicion_dbi()}}, \code{\link[=conformidad_dbi]{conformidad_dbi()}}, \code{\link[=coleccion]{coleccion()}},
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}} —que no saltea la tabla y sigue—,
+\code{\link[=estimar_costo_coleccion]{estimar_costo_coleccion()}}, \code{\link[=relaciones_coleccion]{relaciones_coleccion()}} y
+\code{\link[=detectar_tablas_codigos]{detectar_tablas_codigos()}}. Después del corte no se manda ninguna sentencia
+más por esa conexión, tampoco las de limpieza: con odbc y FreeTDS la
+sentencia siguiente a un corte hace caer a R. El mensaje trae lo que dijo el
+motor en el primer error.
+
+La pérdida se reconoce sin mandar nada de más: en el error del controlador
+—su código o el encabezado de su mensaje, no el SQL ni los datos—, en
+\code{DBI::dbIsValid()} cuando deja de ser cierto a mitad de la llamada, y en el
+identificador de sesión que el controlador guarda del lado del cliente.
+Esto último cubre a los controladores que reabren la sesión sin avisar
+—RPostgres siempre, RMariaDB con \code{reconnect = TRUE}—: lo leído después se
+leería en otra sesión, sin las tablas temporales ni los ajustes de la
+primera. El identificador se compara en cada error que no se reconoce, al
+cerrar un resultado, entre una tabla y la siguiente de una colección y al
+terminar la llamada; si cambió, la llamada se corta igual.
+
+El paquete no vuelve a usar una conexión en la que reconoció un corte: una
+llamada posterior sobre esa misma conexión falla con
+\code{lupa_error_conexion_dbi} sin mandarle ni preguntarle nada al controlador,
+también después de cerrada. Vale aunque el controlador la reabra
+—RPostgres, RMariaDB con \code{reconnect = TRUE}—: la sesión nueva ya no tiene
+la transacción abierta, las tablas temporales, el esquema o la base
+elegidos, el rol ni los parámetros de sesión de la que se cortó, y un perfil
+leído ahí saldría de otro lugar sin avisar. Hay que cerrarla con
+\code{DBI::dbDisconnect()} y abrir otra. La marca va en la conexión misma: la ven
+todos los nombres de esa conexión y ninguna otra, no impide que se la
+recolecte, y una conexión nueva nunca se toma por perdida.
+
+Un error que el servidor informa no es un corte, diga lo que diga su texto:
+si pudo informarlo, la sesión sigue. Importa porque reconocer un corte
+cuesta la conexión entera. Con RPostgres deciden la gravedad —sólo \code{FATAL} y
+\code{PANIC} terminan la sesión— y las frases que escribe el cliente, que no
+traen gravedad: una función que levanta un error con el texto de un corte, o
+una tabla foránea cuyo servidor remoto se cae a mitad de la consulta, dan un
+\code{ERROR} común y la conexión sigue sirviendo. Con RSQLite y duckdb el texto
+se confirma con \code{DBI::dbIsValid()}, que ahí contesta sin mandar nada.
+
+Límites conocidos. Con RMariaDB y RMySQL decide el número del error, y con
+odbc y FreeTDS sólo hay texto: esos controladores no dicen, sin mandar una
+sentencia, si la conexión sigue abierta. Una rutina que levanta a propósito
+el número de un error del cliente (\verb{SIGNAL ... MYSQL_ERRNO = 2013}), o un
+lote con \code{RAISERROR('Communication link failure', ...)}, se toman por un
+corte; las sentencias que manda el paquete a SQL Server no pueden recibir
+ese texto, porque ahí una vista o una función no pueden levantar un error
+propio. RMySQL no deja reconocer la misma conexión entre una
+llamada y otra: ahí no se recuerda nada, y la llamada siguiente vuelve a
+cortarse por el error del controlador, que no reabre la sesión. RPostgres no
+entrega el estado \code{SQLSTATE} y el texto del
+servidor sale en su idioma: con mensajes que no estén en inglés o en
+castellano, una cancelación se publica como \code{rechazada} y una sesión
+terminada por el servidor puede no reconocerse en el error, aunque sí por el
+identificador de sesión. FreeTDS entrega siempre el estado \code{00000}: con SQL
+Server todo se reconoce por el texto, en inglés o en castellano. No se midió
+un intermediario de conexiones en modo transacción, el controlador ODBC de
+Microsoft, psqlODBC, Oracle ni JDBC: ahí sólo vale el estado \code{SQLSTATE}
+cuando la condición lo trae.
+}
+
 \section{Dentro de una transacción}{
 
 La vía se puede correr dentro de una transacción abierta por el usuario —es
@@ -826,6 +909,12 @@ sentencia de ese tipo. Lo mismo vale para \code{\link[=plan_perfilado_dbi]{plan_
 PostgreSQL sin transacción del usuario: cada sentencia se compila en una
 transacción propia que se revierte (ver la sección Compilación de
 \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}).
+Si la transacción ya estaba abortada al llamar —en PostgreSQL un error
+anterior la deja rechazando toda sentencia hasta que termine—, la llamada
+falla con \code{lupa_error_transaccion_dbi} y lo dice, en lugar de informar que
+la tabla no existe: hay que deshacerla con \code{DBI::dbRollback()} y volver a
+llamar. La conexión sigue sirviendo. Vale para toda función que recibe una
+conexión o una colección.
 SQL Server puede deshacer la transacción completa ante un error de ejecución,
 incluso con \code{XACT_ABORT} apagado: antes y después de cada envío y lectura la
 vía mide \verb{@TRANCOUNT} y \code{XACT_STATE()}. Si cambian, levanta
@@ -841,11 +930,21 @@ aborte la transacción por una sentencia que no corresponde a ese motor.
 Un desbordamiento de datos que el motor no puede aislar puede abortarla
 igualmente y queda documentado en \code{lupa_error_transaccion_dbi}. MySQL,
 MariaDB y SQLite no abortan la transacción por el error de una consulta.
-duckdb sí la aborta por un error al
-preparar, como el de una sonda de dialecto— y no tiene \code{SAVEPOINT}: dentro
-de una transacción de duckdb, un objeto que falla al leerse —una vista que
-convierte un texto sucio— la deja abortada, y hay que cerrarla con
-\code{ROLLBACK}.
+DuckDB sí la aborta, por cualquier error del motor —también el de una forma
+candidata que el motor no tiene, que es la respuesta esperada de una prueba
+de capacidad—, sin avisar: el \code{DBI::dbCommit()} siguiente devuelve \code{TRUE} y
+pierde lo hecho en ella, y DuckDB no tiene \code{SAVEPOINT} para aislarlo. Por
+eso, con una transacción abierta en DuckDB la llamada se niega con
+\code{lupa_error_transaccion_dbi} antes de leer nada, y también si no puede
+saberlo (una transacción ya abortada). Lo averigua con dos sentencias
+\verb{SELECT CAST(txid_current() AS VARCHAR)}, que no tocan la transacción ni
+dependen de cómo la conexión entrega las fechas o los enteros: son las
+únicas que la vía manda de más, sólo en DuckDB, y el plan las cuenta con la
+clase \verb{guarda de transaccion abierta (DuckDB)}. Se mandan una vez por
+llamada: en una colección, una vez para todas las tablas, y no entran en la
+cuenta de ninguna. Lo mismo vale para las demás funciones que reciben una
+conexión. Fuera de una transacción, un objeto que falla al leerse —una vista
+que convierte un texto sucio— no deja nada abortado.
 }
 
 \section{Muestra y aproximaciones}{

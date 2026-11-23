@@ -220,7 +220,9 @@ guarda de transacción (\code{SAVEPOINT} y, en SQL Server, la pregunta por la
 transacción abierta antes de cada consulta), ni las lecturas de
 \code{pg_stat_statements} de \code{instrumentar}, ni las que algunos controladores
 mandan para contestar \code{DBI::dbGetInfo()} o \code{DBI::dbIsValid()}: duckdb 1.1
-pregunta su versión y manda \verb{SELECT 1}, una o dos veces por corrida. La
+pregunta su versión y manda \verb{SELECT 1}, una o dos veces por corrida. En
+DuckDB sí cuentan las dos sentencias con que la llamada averigua si hay
+una transacción abierta (ver la sección Dentro de una transacción). La
 preparación y el recorrido por
 bloques se cuentan pero no se omiten: sin ellos no hay perfil. Con
 \code{max_consultas = attr(plan, "total_maximo")} ninguna métrica queda afuera
@@ -426,7 +428,9 @@ motor. La cuenta es la de \code{max_consultas} y la de
 manda al motor, salvo las de la guarda de transacción, las lecturas de
 \code{pg_stat_statements} de \code{instrumentar} y las que algunos controladores
 mandan para contestar \code{DBI::dbGetInfo()} o \code{DBI::dbIsValid()} (duckdb 1.1,
-una o dos por corrida). Con \code{max_consultas} igual a
+una o dos por corrida). En DuckDB el plan cuenta además, con la clase
+\verb{guarda de transaccion abierta (DuckDB)}, las dos sentencias con que la
+llamada averigua si hay una transacción abierta. Con \code{max_consultas} igual a
 \code{total_maximo} ninguna métrica queda afuera por el presupuesto; con
 \code{total}, sólo las consultas que piden los datos pueden quedar afuera.
 

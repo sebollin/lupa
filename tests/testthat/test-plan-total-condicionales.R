@@ -108,7 +108,7 @@ test_that("la tabla vacia concilia contra el plan publicado de la corrida", {
     )
     expect_true(is.list(conciliacion_historica$plan_previo))
     expect_gt(as.numeric(conciliacion_historica$plan_previo$total), esperado)
-    expect_match(conciliacion_historica$plan_previo$motivo, "vacia")
+    expect_match(conciliacion_historica$plan_previo$motivo, "vac.a\\.")
     .pmt_desconectar(con, motor)
   }
 })

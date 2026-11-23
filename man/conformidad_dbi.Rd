@@ -65,7 +65,13 @@ las columnas: \code{"tabla"} (el catálogo), \code{"supuesto"} (los valores de l
 regla) o \code{"parcial"}. Los atributos \code{identidad}, \code{configuracion} y \code{reglas}
 son huellas de la conexión, de la configuración y de la definición de cada
 regla, sin datos personales; \code{medir_dbi()} los usa para no aplicar una
-batería ajena. El atributo \code{intercalacion} es la que el motor usa por
+batería ajena. La huella de la conexión identifica el servidor y la base
+por lo que el motor dice de sí mismo, no por cómo se abrió la conexión: el
+archivo que SQLite o DuckDB tienen abierto, con la ruta normalizada; en
+PostgreSQL el identificador del sistema y la base; en MySQL y MariaDB
+\verb{@hostname}, \verb{@port} y la base; en SQL Server \verb{@SERVERNAME}, la máquina
+y la base. Se pregunta con una sentencia, una vez por llamada. Dos bases
+en memoria no se distinguen. El atributo \code{intercalacion} es la que el motor usa por
 omisión (\code{NA} con su motivo en \code{intercalacion_motivo} si no se pudo leer).
 }
 \description{

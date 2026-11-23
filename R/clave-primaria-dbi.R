@@ -344,15 +344,8 @@
          as.character(x))
 }
 
-.error_permiso_clave <- function(motivo) {
-  if (is.null(motivo) || !length(motivo) || all(is.na(motivo))) {
-    return(FALSE)
-  }
-  texto <- .minusculas_ascii(paste(as.character(motivo), collapse = " "))
-  grepl(
-    "permission|privilege|permiso|privileg|access denied|command denied|denegad|not authorized|unauthorized",
-    texto
-  )
+.error_permiso_clave <- function(motivo, reconocido = NA_character_) {
+  .motivo_de_permiso_dbi(motivo, reconocido)
 }
 
 # El estado bruto se conserva aparte de la conclusion. Una entrada visible en
@@ -755,7 +748,7 @@
     return(vacio(
       via$nombre, paste0(
         via$nombre, ": ", respuesta$motivo,
-        if (.error_permiso_clave(respuesta$motivo)) {
+        if (.error_permiso_clave(respuesta$motivo, respuesta$reconocido)) {
           " El mensaje parece relacionado con permisos, pero eso no alcanza para afirmarlo."
         } else {
           ""
@@ -2585,7 +2578,7 @@
     if (!isTRUE(resp_idx$ok)) {
       motivo <- paste0(
         "show_index: ", resp_idx$motivo,
-        if (.error_permiso_clave(resp_idx$motivo)) {
+        if (.error_permiso_clave(resp_idx$motivo, resp_idx$reconocido)) {
           " El mensaje parece relacionado con permisos, pero eso no alcanza para afirmarlo."
         } else ""
       )
@@ -2606,7 +2599,7 @@
     if (!isTRUE(respuesta$ok)) {
       motivo <- paste0(
         via, ": ", respuesta$motivo,
-        if (.error_permiso_clave(respuesta$motivo)) {
+        if (.error_permiso_clave(respuesta$motivo, respuesta$reconocido)) {
           " El mensaje parece relacionado con permisos, pero eso no alcanza para afirmarlo."
         } else ""
       )

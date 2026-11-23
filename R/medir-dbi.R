@@ -3616,7 +3616,10 @@
         proteger_datos_personales, columnas_personales, validadores_personales
       )
       rm(bloque)
-      if (isTRUE(tryCatch(DBI::dbHasCompleted(rs), error = function(e) FALSE))) break
+      if (isTRUE(tryCatch(
+        .dbi("dbHasCompleted", conexion, DBI::dbHasCompleted(rs)),
+        error = function(e) FALSE
+      ))) break
     }
     return(acum)
   }
@@ -3879,7 +3882,7 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
     tamano_lote, bloque_filas
   )
   con <- if (inherits(conexion, "coleccion_lupa")) conexion$conexion else conexion
-  .fijar_senas_conexion_dbi(con)
+  .con_corrida_dbi(con, "planificar una medici\u00f3n", {
   .fijar_proteccion_motor(.protege_mensaje_motor())
   motor <- .motor_medicion_dbi(con, dialecto)
   if (isTRUE(compilar)) .exigir_compilacion_segura_dbi(con, motor)
@@ -3932,6 +3935,12 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
     ),
     bloques = as.integer(sum(plan$via %in% c("bloques_r", "distintos_r")))
   )
+  guarda_duckdb <- .guarda_duckdb_contada_dbi(con, .ACCIONES_MEDICION_DBI)
+  if (guarda_duckdb > 0L) {
+    attr(plan, "consultas") <- c(
+      attr(plan, "consultas"), transaccion = guarda_duckdb
+    )
+  }
   if (isTRUE(compilar)) {
     compilacion <- .compilar_plan_medicion_dbi(
       con, p, tablas, aplicabilidad, args$max_valores_in,
@@ -3946,6 +3955,7 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
   }
   class(plan) <- c("plan_medicion_dbi", "data.frame")
   plan
+  })
 }
 
 #' @export
@@ -4085,13 +4095,15 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     .detener("`id_medicion` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   con <- if (inherits(conexion, "coleccion_lupa")) conexion$conexion else conexion
-  .fijar_senas_conexion_dbi(con)
+  .con_corrida_dbi(con, "medir", {
   .fijar_proteccion_motor(proteger_datos_personales)
 
   inicio <- proc.time()[["elapsed"]]
   motor <- .motor_medicion_dbi(con, dialecto)
   contador <- new.env(parent = emptyenv())
-  contador$n <- 0L
+  # En DuckDB la corrida ya mando las dos sentencias de su guarda de
+  # transaccion, y el plan las anuncia.
+  contador$n <- .guarda_duckdb_contada_dbi(con, .ACCIONES_MEDICION_DBI)
   contador$tope <- args$max_consultas
   contador$sql <- character()
   p <- .planificar_medicion_dbi(
@@ -4553,4 +4565,5 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   )
   class(resultado) <- c("medicion_resumen", "data.frame")
   resultado
+  })
 }

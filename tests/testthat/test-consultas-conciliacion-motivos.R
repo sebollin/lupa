@@ -15,19 +15,23 @@ test_that("una tabla vacia explica las consultas de mediana que no emite", {
   ))
   conciliacion <- perfil$resumen_tabla$meta$consultas$conciliacion
 
-  expect_identical(conciliacion$estado, "desfasado")
-  expect_equal(as.numeric(conciliacion$anunciadas), 20)
+  expect_identical(conciliacion$estado, "conciliado")
+  expect_equal(as.numeric(conciliacion$anunciadas), 18)
   expect_equal(as.numeric(conciliacion$emitidas), 18)
+  previo <- conciliacion$plan_previo
+  expect_identical(previo$estado, "desfasado")
+  expect_equal(as.numeric(previo$anunciadas), 20)
+  expect_equal(as.numeric(previo$emitidas), 18)
   expect_true(any(grepl(
     "mediana (orden total + limite/salto)",
-    conciliacion$detalle$clase_consulta, fixed = TRUE, useBytes = TRUE
+    previo$detalle$clase_consulta, fixed = TRUE, useBytes = TRUE
   )))
   expect_true(any(grepl(
-    "tabla esta vacia", conciliacion$detalle$motivo,
+    "tabla esta vacia", previo$detalle$motivo,
     fixed = TRUE, useBytes = TRUE
   )))
   expect_false(any(grepl(
-    "sondas_fallidas", conciliacion$detalle$motivo,
+    "sondas_fallidas", previo$detalle$motivo,
     fixed = TRUE, useBytes = TRUE
   )))
 })

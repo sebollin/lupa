@@ -295,7 +295,10 @@
       )
     )
   }
-  valida <- tryCatch(DBI::dbIsValid(conexion), error = function(e) e)
+  valida <- tryCatch(
+    .dbi("dbIsValid", conexion, DBI::dbIsValid(conexion)),
+    error = function(e) e
+  )
   if (inherits(valida, "condition")) {
     # Un controlador que no implementa `dbIsValid()` no es una conexion
     # invalida: es un controlador incompleto. El `ROracle` archivado es el caso,
@@ -303,7 +306,7 @@
     # aunque el SQL funcionara. Antes de rendirse se prueba `dbGetInfo()`, que
     # responde si la conexion esta viva.
     respira <- isTRUE(tryCatch({
-      DBI::dbGetInfo(conexion)
+      .dbi("dbGetInfo", conexion, DBI::dbGetInfo(conexion))
       TRUE
     }, error = function(e) FALSE))
     if (!respira) .detener_error_conexion_dbi(valida, accion = accion)

@@ -241,13 +241,14 @@ no es tabla de la colección es un error antes de leer
 Una colección grande puede tardar horas. Con \code{directorio_reanudacion}, cada
 tabla que se perfila sin consultas fallidas se guarda en ese directorio en
 cuanto termina —un subdirectorio por corrida—, y si la corrida se corta —el
-proceso muere, se cae la máquina, se la interrumpe, o la conexión se cae y
-las tablas que siguen fallan— la misma llamada con \code{reanudar = TRUE} sigue
+proceso muere, se cae la máquina, se la interrumpe, o la conexión se pierde,
+que corta la llamada con \code{lupa_error_conexion_dbi}— la misma llamada con
+\code{reanudar = TRUE} y una conexión nueva sigue
 desde ahí: las tablas guardadas no vuelven a consultar la base, y se vuelven
 a perfilar las que faltan, las que tuvieron alguna consulta fallida y las que
-no se pudieron perfilar. No hace falta saber si la conexión se cayó: una
-tabla que la perdió a mitad termina con consultas fallidas o sin perfil, y se
-rehace. El objeto que se devuelve es el mismo que el de una corrida sin
+no se pudieron perfilar. La tabla que se estaba leyendo cuando la conexión
+se perdió no se guarda, y se rehace. El objeto que se devuelve es el mismo
+que el de una corrida sin
 cortes, salvo lo que describe la ejecución: \code{meta$inicio}, \code{meta$fin}, la
 duración de cada consulta en \code{meta$lecturas} y \code{resumen_coleccion$momento},
 que para una tabla reusada es el de su medición original. \code{meta$reanudacion}

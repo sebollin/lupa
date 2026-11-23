@@ -103,7 +103,111 @@
   )
 }
 
+# El lugar es la identidad del servidor y de la base, y lo dice el motor en UNA
+# sentencia, una vez por corrida y solo cuando alguien la pide (la bateria de
+# conformidad, el sello de un referencial del motor). Lo que la conexion
+# declara -`dbname`, `host`, `port`- es como se llego, no adonde: `localhost`
+# y `127.0.0.1` son el mismo servidor, una ruta relativa y la absoluta son el
+# mismo archivo, y dos servidores con una base del mismo nombre no son el mismo
+# lugar. Dos bases en memoria no se distinguen: no tienen nada que las nombre.
+#
+# * SQLite y DuckDB: el archivo que el motor dice tener abierto, con la ruta
+#   normalizada, en el mismo campo `dbname` de siempre: la huella de un archivo
+#   abierto por su ruta absoluta no cambia.
+# * PostgreSQL: el identificador del sistema (`pg_control_system()`, 9.6 en
+#   adelante; antes, la direccion y el puerto del servidor) y la base actual.
+# * MySQL y MariaDB: `@@hostname`, `@@port` y la base actual.
+# * SQL Server: `@@SERVERNAME`, el nombre de la maquina y la base actual.
+#
+# Si el motor no contesta -otro motor, una credencial sin permiso- queda lo que
+# la conexion declara, como antes.
+.normalizar_archivo_lugar_dbi <- function(valor) {
+  valor <- as.character(valor)
+  if (length(valor) != 1L || is.na(valor) || !nzchar(trimws(valor))) {
+    return(NA_character_)
+  }
+  # Sin plegar la caja con el locale de la sesion: solo ASCII.
+  if (.minusculas_ascii(trimws(valor)) %in% c("memory", ":memory:", "<na>")) {
+    return(NA_character_)
+  }
+  suppressWarnings(normalizePath(path.expand(valor), winslash = "/",
+                                  mustWork = FALSE))
+}
+
+.SQL_LUGAR_DBI <- list(
+  sqlite = "PRAGMA database_list",
+  duckdb = paste(
+    "SELECT path AS archivo FROM duckdb_databases()",
+    "WHERE database_name = current_database()"
+  ),
+  postgresql = paste(
+    "SELECT CAST(system_identifier AS TEXT) AS sistema,",
+    "current_database() AS base FROM pg_control_system()"
+  ),
+  postgresql_viejo = paste(
+    "SELECT host(inet_server_addr()) AS direccion,",
+    "CAST(inet_server_port() AS TEXT) AS puerto, current_database() AS base"
+  ),
+  mysql = paste(
+    "SELECT @@hostname AS anfitrion, CAST(@@port AS CHAR) AS puerto,",
+    "DATABASE() AS base"
+  ),
+  sqlserver = paste(
+    "SELECT CAST(@@SERVERNAME AS NVARCHAR(128)) AS servidor,",
+    "CAST(SERVERPROPERTY('MachineName') AS NVARCHAR(128)) AS maquina,",
+    "DB_NAME() AS base"
+  )
+)
+
+# Lo que el motor dice de si mismo: una lista con `archivo`, o con las partes
+# del servidor; `NULL` si no contesto.
+.lugar_del_motor_dbi <- function(conexion) {
+  motor <- tryCatch(.motor_medicion_dbi(conexion, "auto"),
+                    error = function(e) "otro")
+  forma <- switch(
+    motor,
+    sqlite = "sqlite", duckdb = "duckdb", mysql = , mariadb = "mysql",
+    sqlserver = "sqlserver",
+    postgresql = {
+      version <- .version_servidor_postgresql_dbi(conexion)
+      if (!is.na(version) && version < 90600L) {
+        "postgresql_viejo"
+      } else "postgresql"
+    },
+    NULL
+  )
+  if (is.null(forma)) return(NULL)
+  datos <- tryCatch(
+    .traer_consulta_dbi(conexion, .SQL_LUGAR_DBI[[forma]]),
+    error = function(e) {
+      .repropagar_transaccion_dbi(e)
+      if (.es_interrupcion_dbi(e)) .detener(e)
+      NULL
+    }
+  )
+  if (!is.data.frame(datos) || !nrow(datos)) return(NULL)
+  if (identical(forma, "sqlite")) {
+    if (!all(c("name", "file") %in% names(datos))) return(NULL)
+    principal <- which(as.character(datos$name) == "main")
+    if (!length(principal)) return(NULL)
+    archivo <- .normalizar_archivo_lugar_dbi(datos$file[[principal[[1L]]]])
+    return(if (is.na(archivo)) NULL else list(archivo = archivo))
+  }
+  if (identical(forma, "duckdb")) {
+    archivo <- .normalizar_archivo_lugar_dbi(datos[[1L]][[1L]])
+    return(if (is.na(archivo)) NULL else list(archivo = archivo))
+  }
+  partes <- vapply(datos[1L, , drop = FALSE], function(x) {
+    as.character(x[[1L]])
+  }, character(1L))
+  names(partes) <- .minusculas_ascii(names(datos))
+  if (all(is.na(partes))) return(NULL)
+  list(servidor = partes)
+}
+
 .lugar_conexion_dbi <- function(conexion) {
+  corrida <- .corrida_dbi(conexion)
+  if (!is.null(corrida) && !is.null(corrida$lugar)) return(corrida$lugar)
   info <- .info_senas_conexion_dbi(conexion)
   nombres <- names(info)
   if (is.null(nombres)) nombres <- character()
@@ -112,11 +216,22 @@
     "dbname", "databasename", "dbdir", "host", "hostname", "port",
     "server", "servername"
   ))
-  partes <- vapply(lugar, function(i) {
-    paste0(normales[[i]], "=", paste(as.character(unlist(info[[i]])),
-                                    collapse = ","))
-  }, character(1L))
-  .huella_conformidad_dbi(c(class(conexion)[[1L]], .sort_por_bytes(partes)))
+  del_motor <- .lugar_del_motor_dbi(conexion)
+  partes <- if (!is.null(del_motor$servidor)) {
+    paste0(names(del_motor$servidor), "=", del_motor$servidor)
+  } else {
+    vapply(lugar, function(i) {
+      valor <- paste(as.character(unlist(info[[i]])), collapse = ",")
+      if (!is.null(del_motor$archivo) &&
+          normales[[i]] %in% c("dbname", "databasename", "dbdir")) {
+        valor <- del_motor$archivo
+      }
+      paste0(normales[[i]], "=", valor)
+    }, character(1L))
+  }
+  huella <- .huella_conformidad_dbi(c(class(conexion)[[1L]], .sort_por_bytes(partes)))
+  if (!is.null(corrida)) corrida$lugar <- huella
+  huella
 }
 
 .formulas_conformidad <- function(x) {
@@ -1521,7 +1636,13 @@
 #'   regla) o `"parcial"`. Los atributos `identidad`, `configuracion` y `reglas`
 #'   son huellas de la conexión, de la configuración y de la definición de cada
 #'   regla, sin datos personales; `medir_dbi()` los usa para no aplicar una
-#'   batería ajena. El atributo `intercalacion` es la que el motor usa por
+#'   batería ajena. La huella de la conexión identifica el servidor y la base
+#'   por lo que el motor dice de sí mismo, no por cómo se abrió la conexión: el
+#'   archivo que SQLite o DuckDB tienen abierto, con la ruta normalizada; en
+#'   PostgreSQL el identificador del sistema y la base; en MySQL y MariaDB
+#'   `@@hostname`, `@@port` y la base; en SQL Server `@@SERVERNAME`, la máquina
+#'   y la base. Se pregunta con una sentencia, una vez por llamada. Dos bases
+#'   en memoria no se distinguen. El atributo `intercalacion` es la que el motor usa por
 #'   omisión (`NA` con su motivo en `intercalacion_motivo` si no se pudo leer).
 #' @export
 #' @seealso [medir_dbi()], [plan_medicion_dbi()]
@@ -1533,7 +1654,7 @@ conformidad_dbi <- function(conexion, modelo, tablas = NULL,
   )
   .fijar_numerica_c()
   con <- if (inherits(conexion, "coleccion_lupa")) conexion$conexion else conexion
-  .fijar_senas_conexion_dbi(con)
+  .con_corrida_dbi(con, "verificar la conformidad", {
   motor <- .motor_medicion_dbi(con, dialecto)
   procedencia <- .procedencia_conformidad_dbi(
     conexion, modelo, tablas, aplicabilidad, max_valores_in, motor
@@ -1575,4 +1696,5 @@ conformidad_dbi <- function(conexion, modelo, tablas = NULL,
   attr(salida, "configuracion") <- procedencia$configuracion
   attr(salida, "reglas") <- procedencia$reglas
   salida
+  })
 }

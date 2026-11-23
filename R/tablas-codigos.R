@@ -274,7 +274,8 @@ detectar_tablas_codigos <- function(coleccion, perfil, relaciones = NULL,
   ))
   max_filas <- as.integer(max_filas)
   conexion <- coleccion$conexion
-  .validar_conexion_dbi(conexion, accion = "detectar tablas de c\u00f3digos")
+  .con_corrida_dbi(conexion, "detectar tablas de c\u00f3digos", {
+    .validar_conexion_dbi(conexion, accion = "detectar tablas de c\u00f3digos")
   declaradas <- .completar_columnas_coleccion(coleccion$tablas)
   resumen <- perfil$resumen_coleccion
   consultas <- new.env(parent = emptyenv())
@@ -473,6 +474,7 @@ detectar_tablas_codigos <- function(coleccion, perfil, relaciones = NULL,
   attr(estructura$propuesta, "consultas") <- NULL
   class(estructura) <- "tablas_codigos"
   estructura
+  })
 }
 
 # El identificador de la coleccion de una tabla que el catalogo nombra.

@@ -86,8 +86,13 @@ test_that("DuckDB: con una transaccion abierta no se compila nada y la transacci
       r <- .ctr_enviadas(eval(llamada))
       expect_s3_class(r$valor, "lupa_error_transaccion_dbi")
       expect_match(conditionMessage(r$valor), "DuckDB", fixed = TRUE, info = abrir)
-      # Antes de mandar nada: solo la lectura de `now()` que lo averigua.
-      expect_true(all(grepl("^SELECT now\\(\\) AS lupa_ahora$", r$sql)), info = abrir)
+      # Antes de mandar nada: solo las dos lecturas de `txid_current()` que lo
+      # averiguan. No `now()`, que con `tz_out_convert = "force"` llega truncado
+      # al segundo y daba por abierta una transaccion que no habia.
+      expect_true(all(grepl(
+        "^SELECT CAST\\(txid_current\\(\\) AS VARCHAR\\) AS lupa_transaccion$",
+        r$sql
+      )), info = abrir)
     }
     # La transaccion sigue viva, con la fila del usuario, y el commit la guarda.
     expect_equal(.ctr_contar(con), 31, info = abrir)

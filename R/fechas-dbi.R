@@ -240,7 +240,7 @@
   salida <- tryCatch({
     res <- .enviar_consulta_dbi(conexion, sql)
     on.exit(.limpiar_consulta_dbi(res, conexion), add = TRUE)
-    while (!DBI::dbHasCompleted(res)) {
+    while (!.dbi("dbHasCompleted", conexion, DBI::dbHasCompleted(res))) {
       bloque <- withCallingHandlers(
         .traer_filas_dbi(res, n = .BLOQUE_FECHAS_DBI, conexion),
         warning = function(w) {
