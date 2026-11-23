@@ -405,7 +405,13 @@ corroboración no lo compara: ver «Lo que el motor guarda distinto que R».}
 \item{aplicabilidad}{Lista nombrada de fórmulas de un solo lado, con una
 regla por columna. Se reenvía al \code{perfil_muestra}; el resumen SQL no la
 traduce y lo declara en \code{resumen_tabla$cobertura}, y la corroboración no
-compara lo que la regla cambia.}
+compara lo que la regla cambia. Una regla que no da un valor lógico —una
+columna sola que el motor guarda como 0 y 1, como hace SQLite con una
+lógica: \code{~ activo}— no se aplica: se avisa, se declara para su columna en
+\code{resumen_tabla$cobertura} con cómo escribirla (\code{~ activo == 1}), y el resto
+del perfil sale igual. Se decide con el tipo de las columnas y, si el motor
+no lo declara, con las filas leídas. Un periodo sobre esa columna queda
+\code{no_disponible} con ese motivo.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 declaran como faltantes en el \code{perfil_muestra}, o la lista por columna de
@@ -433,7 +439,23 @@ fechas como texto (lo que deja un CSV importado; se mide con \code{typeof()}),
 instantes a menos de un segundo de una fecha centinela lejana con
 resolución de microsegundos (R los lee como esa fecha) y una columna de
 texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
-la columna entera. Mismo nombre y valores que en \code{\link[=medir_dbi]{medir_dbi()}}.}
+la columna entera. Rige igual para un \code{TIMESTAMP} de MariaDB (se lee en el
+huso de la sesión), para los motores donde la cuenta contra literales no
+está medida (fuera de SQLite, DuckDB y MariaDB: toda columna de fecha), para
+una conexión de DuckDB abierta con \code{tz_out_convert = "force"} y un huso
+distinto de UTC (R recibe instantes que no son los que guarda el motor) y
+para \code{periodos}: columnas que el motor guarda como texto, fechas guardadas
+como texto en SQLite, una columna que no corresponde a todas las filas
+(\code{aplicabilidad} o \code{columnas_opcionales}), que la consulta del motor no
+traduce, o, en DuckDB, un \code{infinity} en un periodo cuyas dos columnas son de
+tipos distintos (R lee el infinito de cada tipo como una fecha lejana
+distinta; con las dos del mismo tipo el motor lo cuenta como R lo lee). Un
+periodo contado en R lo cuenta \code{\link[=perfilar]{perfilar()}} sobre las columnas
+leídas enteras, con las mismas declaraciones: da lo que da la memoria o no
+se publica. Si \code{\link[=perfilar]{perfilar()}} no lee las dos columnas como fechas, o la tabla
+pasa de cinco millones de filas —ahí se deja de leer—, el periodo queda
+\code{no_disponible} con su motivo. Leer por bloques es lo que R lee en
+cualquier motor. Mismo nombre y valores que en \code{\link[=medir_dbi]{medir_dbi()}}.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.
 \code{columnas_codigo} vale además en \code{resumen_tabla}: \code{media}, \code{mediana} y
@@ -457,7 +479,7 @@ en \code{resumen_tabla}, sobre la tabla completa: con \code{resumen_fechas = TRU
 \code{resumen_tabla$meta$actualidad} la misma tabla de actualidad; con
 \code{periodos}, \code{resumen_tabla$meta$periodos} la misma partición. El motor
 compara contra literales y decide con la misma regla que la memoria;
-sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los demás
+sólo en SQLite, DuckDB y MariaDB, donde esa equivalencia está medida (en los demás
 motores y con \code{universo = "muestra_motor"} se declara y se lee de
 \code{perfil_muestra}). Con \code{resumen_fechas} y sin \code{fecha}, la fecha se congela
 una vez al entrar (al segundo) para el resumen y la muestra, y las dos

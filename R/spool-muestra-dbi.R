@@ -1622,6 +1622,16 @@
         ))
       }
       if (any(sacar)) datos <- .seleccionar_columnas(datos, which(!sacar))
+      # La regla de `aplicabilidad` que sobre estas filas no da un valor logico
+      # no se aplica y se declara (ver `.aplicabilidad_sobre_datos_dbi()`).
+      resuelto <- .aplicabilidad_sobre_datos_dbi(datos, args)
+      args <- resuelto$argumentos
+      if (nrow(resuelto$reglas)) {
+        cobertura <- rbind(
+          cobertura, .cobertura_aplicabilidad_no_logica_dbi(resuelto$reglas)
+        )
+        .avisar_muestra_motor_dbi(.aviso_aplicabilidad_no_logica_dbi(resuelto$reglas))
+      }
       perfil <- tryCatch(
         .medir_etapa_dbi(
           trazador, "perfilado_muestra",

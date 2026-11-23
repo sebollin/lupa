@@ -223,16 +223,19 @@
   fin_declarado <- !fin_nulo & !fin_marca & fin %in% declaradas_fin
   fin_conocido <- !fin_nulo & !fin_marca & !fin_declarado & fin %in% conocidas
   fin_valido <- !fin_nulo & !fin_marca & !fin_declarado & !fin_conocido
+  # Cuentas como dobles, como las demas del resumen de fechas: el motor las
+  # trae asi, y las dos vias publican el mismo objeto.
+  cuenta <- function(x) as.numeric(sum(x))
   list(
-    n = length(inicio),
-    n_cerrados_validos = sum(inicio_valido & fin_valido & inicio <= fin),
-    n_fin_antes_inicio = sum(inicio_valido & fin_valido & fin < inicio),
-    n_fin_abierto_nulo = sum(inicio_valido & fin_nulo),
-    n_fin_abierto_centinela = sum(inicio_valido & fin_marca),
-    n_fin_centinela_declarado = sum(inicio_valido & fin_declarado),
-    n_fin_centinela_sin_declarar = sum(inicio_valido & fin_conocido),
-    n_sin_inicio_con_fin = sum(!inicio_valido & fin_valido),
-    n_ambos_ausentes_o_centinela = sum(!inicio_valido & !fin_valido),
+    n = as.numeric(length(inicio)),
+    n_cerrados_validos = cuenta(inicio_valido & fin_valido & inicio <= fin),
+    n_fin_antes_inicio = cuenta(inicio_valido & fin_valido & fin < inicio),
+    n_fin_abierto_nulo = cuenta(inicio_valido & fin_nulo),
+    n_fin_abierto_centinela = cuenta(inicio_valido & fin_marca),
+    n_fin_centinela_declarado = cuenta(inicio_valido & fin_declarado),
+    n_fin_centinela_sin_declarar = cuenta(inicio_valido & fin_conocido),
+    n_sin_inicio_con_fin = cuenta(!inicio_valido & fin_valido),
+    n_ambos_ausentes_o_centinela = cuenta(!inicio_valido & !fin_valido),
     conocidas_observadas = .sort_por_bytes(unique(fin[inicio_valido & fin_conocido]))
   )
 }
@@ -299,11 +302,14 @@
     fin <- vf$valores[filas_universo]
     inicio[!is.finite(inicio)] <- NA_real_
     fin[!is.finite(fin)] <- NA_real_
-    declaradas_fin <- .centinelas_declaradas_regla(reglas[[j]], p$fin)
+    regla_inicio <- if (length(reglas) >= i) reglas[[i]] else NULL
+    regla_fin <- if (length(reglas) >= j) reglas[[j]] else NULL
+    declaradas_fin <- .centinelas_declaradas_regla(regla_fin, p$fin)
     marcas <- if (length(p$fin_abierto)) .dominio_fecha_numero(p$fin_abierto, p$fin) else numeric()
     particion <- .particion_periodo(
-      inicio, fin, .centinelas_declaradas_regla(reglas[[i]], p$inicio),
-      declaradas_fin, marcas, setdiff(conocidas_base, c(declaradas_fin, marcas))
+      inicio, fin, .centinelas_declaradas_regla(regla_inicio, p$inicio),
+      .centinelas_declaradas_regla(regla_fin, p$fin), marcas,
+      setdiff(conocidas_base, c(declaradas_fin, marcas))
     )
     particion$conocidas_observadas <- vapply(
       particion$conocidas_observadas, .fecha_resumida, character(1L), clase = "fecha"

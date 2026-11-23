@@ -347,12 +347,19 @@ por sentencia en \code{attr(plan, "compilacion")}. Ver la sección Compilación.
 
 \item{centinelas_fecha, dominios, periodos, resumen_fechas, fecha}{Los mismos
 que recibe \code{\link[=perfilar_dbi]{perfilar_dbi()}} por \code{...} (ver \code{\link[=perfilar]{perfilar()}}). Con
-\code{resumen_fechas = TRUE} el plan cuenta la consulta de cuentas de fechas y,
-en el extremo superior, la de la reserva de las centinelas incorporadas, una
-de la grilla por columna de fecha y, con \code{estrategia_no_sql = "bloques"},
-una lectura por columna que se cuente en R; con \code{periodos}, una consulta
-más. Sólo en SQLite y DuckDB y sobre la tabla completa: en lo demás el
-resumen se declara y no consulta.}
+\code{resumen_fechas = TRUE} o con \code{periodos} el plan cuenta las consultas de
+fechas que la corrida emite, también con \code{bloque_filas}. En el total va lo
+que no depende de los datos: la consulta de cuentas de fechas, la de
+periodos y, con \code{estrategia_no_sql = "bloques"}, una lectura por cada
+columna y por cada periodo que el motor no cuenta como R. En el extremo
+superior, lo que los datos pueden activar: la reserva de las centinelas
+incorporadas, la grilla de cada columna con fechas futuras y, con
+\code{"bloques"}, la lectura de cada texto que la muestra lea como fecha y la de
+cada columna o periodo que la consulta mande a R. Una columna con
+\code{aplicabilidad} se declara y no consulta. La corrida concilia estas
+consultas con las demás en \code{resumen_tabla$meta$consultas}. Fuera de SQLite,
+DuckDB y MariaDB sólo consulta la lectura por bloques, si se pide; con
+\code{universo = "muestra_motor"}, nada.}
 
 \item{estrategia_no_sql}{Qué hacer, con \code{resumen_fechas = TRUE}, con una
 columna de fecha que el SQL no cuenta como R la lee: \code{"no_medible"} (por
@@ -363,7 +370,23 @@ fechas como texto (lo que deja un CSV importado; se mide con \code{typeof()}),
 instantes a menos de un segundo de una fecha centinela lejana con
 resolución de microsegundos (R los lee como esa fecha) y una columna de
 texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
-la columna entera. Mismo nombre y valores que en \code{\link[=medir_dbi]{medir_dbi()}}.}
+la columna entera. Rige igual para un \code{TIMESTAMP} de MariaDB (se lee en el
+huso de la sesión), para los motores donde la cuenta contra literales no
+está medida (fuera de SQLite, DuckDB y MariaDB: toda columna de fecha), para
+una conexión de DuckDB abierta con \code{tz_out_convert = "force"} y un huso
+distinto de UTC (R recibe instantes que no son los que guarda el motor) y
+para \code{periodos}: columnas que el motor guarda como texto, fechas guardadas
+como texto en SQLite, una columna que no corresponde a todas las filas
+(\code{aplicabilidad} o \code{columnas_opcionales}), que la consulta del motor no
+traduce, o, en DuckDB, un \code{infinity} en un periodo cuyas dos columnas son de
+tipos distintos (R lee el infinito de cada tipo como una fecha lejana
+distinta; con las dos del mismo tipo el motor lo cuenta como R lo lee). Un
+periodo contado en R lo cuenta \code{\link[=perfilar]{perfilar()}} sobre las columnas
+leídas enteras, con las mismas declaraciones: da lo que da la memoria o no
+se publica. Si \code{\link[=perfilar]{perfilar()}} no lee las dos columnas como fechas, o la tabla
+pasa de cinco millones de filas —ahí se deja de leer—, el periodo queda
+\code{no_disponible} con su motivo. Leer por bloques es lo que R lee en
+cualquier motor. Mismo nombre y valores que en \code{\link[=medir_dbi]{medir_dbi()}}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},

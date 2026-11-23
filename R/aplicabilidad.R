@@ -114,8 +114,11 @@
   list(entorno = entorno, expresion = reemplazar(expr))
 }
 
-.evaluar_predicado_aplicabilidad <- function(datos, columna, f) {
-  n <- nrow(datos)
+# El valor de la regla sobre la tabla, tal como lo da la expresion: todavia sin
+# exigirle que sea logico. Lo usan `.evaluar_predicado_aplicabilidad()`, que lo
+# exige, y la via DBI, que pregunta si la regla da un valor logico antes de
+# aplicarla (`.reglas_aplicabilidad_no_logicas()`).
+.valor_predicado_aplicabilidad <- function(datos, columna, f) {
   if (!.aplicabilidad_es_predicado_fila(f[[2L]])) {
     .detener(
       "aplicabilidad_no_fila:", .formula_a_texto(f),
@@ -141,6 +144,12 @@
       conditionMessage(valor), call. = FALSE
     )
   }
+  valor
+}
+
+.evaluar_predicado_aplicabilidad <- function(datos, columna, f) {
+  n <- nrow(datos)
+  valor <- .valor_predicado_aplicabilidad(datos, columna, f)
   if (!is.logical(valor)) {
     .detener(
       "La regla de aplicabilidad de `", columna,
@@ -157,6 +166,57 @@
     )
   }
   valor
+}
+
+# Las reglas de `aplicabilidad` que sobre estas columnas no dan un valor
+# logico, una fila por regla: la columna, la regla como se escribio, la clase
+# de lo que da y, si se sabe, como escribirla. Evaluarlas aca no toca `datos`.
+# Con `por_tipo`, `datos` es la tabla sin filas -el tipo de cada columna- y
+# solo cuenta lo que no depende de cuantas filas haya: un vector de otra
+# clase. Una funcion que arma su resultado elemento por elemento (`sapply()`)
+# da sin filas una lista, que no dice que daria con datos: esa regla se decide
+# al leer. Una regla que no se puede evaluar no entra aca: su error lo da
+# quien la aplica.
+.reglas_aplicabilidad_no_logicas <- function(datos, aplicabilidad,
+                                             por_tipo = FALSE) {
+  vacia <- data.frame(
+    columna = character(), regla = character(), clase = character(),
+    ejemplo = character(), stringsAsFactors = FALSE
+  )
+  if (!is.data.frame(datos) || !is.list(aplicabilidad) ||
+      !length(aplicabilidad) || is.null(names(aplicabilidad))) {
+    return(vacia)
+  }
+  filas <- lapply(seq_along(aplicabilidad), function(k) {
+    f <- aplicabilidad[[k]]
+    columna <- names(aplicabilidad)[[k]]
+    if (!inherits(f, "formula") || length(f) != 2L) return(NULL)
+    valor <- tryCatch(
+      suppressWarnings(.valor_predicado_aplicabilidad(datos, columna, f)),
+      error = function(e) NULL
+    )
+    if (is.null(valor) || is.logical(valor)) return(NULL)
+    if (isTRUE(por_tipo) && !is.atomic(valor)) return(NULL)
+    # Si la regla es una columna sola que llega como numero, el ejemplo la
+    # compara con 1: es como se escribe una columna que el motor guarda como 0
+    # y 1. De otra regla no se sabe que comparacion quiso decir.
+    ejemplo <- if (is.symbol(f[[2L]]) && is.numeric(valor)) {
+      paste0(
+        "~ ", paste(.deparse_por_omision(f[[2L]], backtick = TRUE), collapse = ""),
+        " == 1"
+      )
+    } else NA_character_
+    data.frame(
+      columna = columna, regla = .formula_a_texto(f),
+      clase = class(valor)[[1L]], ejemplo = ejemplo,
+      stringsAsFactors = FALSE
+    )
+  })
+  filas <- Filter(Negate(is.null), filas)
+  if (!length(filas)) return(vacia)
+  salida <- do.call(rbind, filas)
+  rownames(salida) <- NULL
+  salida
 }
 
 .resolver_aplicabilidad <- function(datos, nombres, columnas_opcionales = character(),

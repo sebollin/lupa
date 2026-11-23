@@ -131,10 +131,10 @@ test_that("A4 y N8: solo lo declarado abre el fin; una centinela conocida se avi
   p <- suppressWarnings(perfilar(datos, fecha = .fm_fecha, analizar_dependencias = FALSE,
                                  periodos = par))
   tabla <- p$general$periodos
-  expect_identical(tabla$n_fin_abierto_centinela, 0L)
-  expect_identical(tabla$n_fin_centinela_sin_declarar, 26L)
-  expect_identical(tabla$n_fin_abierto_nulo, 15L)
-  expect_identical(tabla$n_fin_antes_inicio, 0L)
+  expect_identical(tabla$n_fin_abierto_centinela, 0)
+  expect_identical(tabla$n_fin_centinela_sin_declarar, 26)
+  expect_identical(tabla$n_fin_abierto_nulo, 15)
+  expect_identical(tabla$n_fin_antes_inicio, 0)
   expect_match(tabla$aviso, "Posible fin abierto sin declarar", fixed = TRUE)
   suma <- tabla$n_cerrados_validos + tabla$n_fin_antes_inicio + tabla$n_fin_abierto_nulo +
     tabla$n_fin_abierto_centinela + tabla$n_fin_centinela_declarado +
@@ -145,8 +145,8 @@ test_that("A4 y N8: solo lo declarado abre el fin; una centinela conocida se avi
     datos, fecha = .fm_fecha, analizar_dependencias = FALSE,
     periodos = list(inicio = "fecha_inicio", fin = "fecha_fin", fin_abierto = "9999-12-31")
   ))$general$periodos
-  expect_identical(abierto$n_fin_abierto_centinela, 20L)
-  expect_identical(abierto$n_fin_centinela_sin_declarar, 6L)
+  expect_identical(abierto$n_fin_abierto_centinela, 20)
+  expect_identical(abierto$n_fin_centinela_sin_declarar, 6)
   for (motor in c("sqlite", "duckdb")) {
     .fm_saltar(motor)
     con <- .fm_conectar(motor)
@@ -510,4 +510,89 @@ test_that("comparar_perfiles() declara un cambio de centinelas_fecha con su fila
   expect_match(fila$valor_actual, "0001-01-01", fixed = TRUE)
   igual <- suppressWarnings(comparar_perfiles(b, b))
   expect_false("configuracion_centinelas_fecha" %in% igual$aspecto)
+})
+
+# Un contrato por fila: cerrados, abiertos por la marca, sin fin y una inversion.
+.fm_contratos <- function() {
+  n <- 60
+  dia <- as.Date("2025-01-01") + (seq_len(n) * 11) %% 500
+  d <- data.frame(id_contrato = seq_len(n), desde = dia, hasta = dia + 90)
+  d$hasta[c(3, 9, 15, 21)] <- as.Date("9999-12-31")
+  d$hasta[c(4, 10)] <- NA
+  d$hasta[5] <- d$desde[5] - 10
+  d
+}
+.fm_periodo <- list(inicio = "desde", fin = "hasta", fin_abierto = "9999-12-31")
+.fm_cifras_periodo <- c("n", "n_cerrados_validos", "n_fin_antes_inicio", "n_fin_abierto_nulo",
+                        "n_fin_abierto_centinela", "n_fin_centinela_declarado",
+                        "n_fin_centinela_sin_declarar", "n_sin_inicio_con_fin",
+                        "n_ambos_ausentes_o_centinela", "prop_fin_abierto")
+
+test_that("la tabla de periodos es el mismo objeto en memoria y en el motor", {
+  datos <- .fm_contratos()
+  memoria <- suppressWarnings(perfilar(datos, fecha = .fm_fecha, analizar_dependencias = FALSE,
+                                       periodos = .fm_periodo))$general$periodos
+  expect_type(memoria$n, "double")
+  expect_type(memoria$n_cerrados_validos, "double")
+  for (motor in c("sqlite", "duckdb")) {
+    .fm_saltar(motor)
+    con <- .fm_conectar(motor)
+    DBI::dbWriteTable(con, "t", datos)
+    en_motor <- suppressWarnings(perfilar_dbi(con, "t", fecha = .fm_fecha, periodos = .fm_periodo))
+    expect_identical(en_motor$resumen_tabla$meta$periodos, memoria, label = motor)
+    DBI::dbDisconnect(con, shutdown = TRUE)
+  }
+})
+
+test_that("un periodo que el motor no cuenta no publica cifras, y con bloques se cuenta en R", {
+  .fm_saltar("sqlite")
+  # Fechas escritas como texto, en una conexion sin tipos extendidos: el motor
+  # tiene texto y R las lee como fechas.
+  datos <- data.frame(
+    id = 1:6,
+    desde = c("2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01"),
+    hasta = c("2025-01-31", "9999-12-31", NA, "2025-03-01", "2025-05-31", "2025-06-30"),
+    stringsAsFactors = FALSE
+  )
+  memoria <- suppressWarnings(perfilar(datos, fecha = .fm_fecha, analizar_dependencias = FALSE,
+                                       periodos = .fm_periodo))$general$periodos
+  expect_identical(memoria$n, 6)
+  expect_identical(memoria$n_fin_antes_inicio, 1)
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "d", datos)
+  declarado <- suppressWarnings(perfilar_dbi(con, "d", fecha = .fm_fecha, periodos = .fm_periodo))
+  tabla <- declarado$resumen_tabla$meta$periodos
+  expect_identical(tabla$estado, "no_disponible")
+  expect_true(all(is.na(unlist(tabla[.fm_cifras_periodo]))))
+  expect_match(tabla$motivo, "bloques", fixed = TRUE)
+  contado <- suppressWarnings(perfilar_dbi(con, "d", fecha = .fm_fecha, periodos = .fm_periodo,
+                                           estrategia_no_sql = "bloques"))
+  tabla <- contado$resumen_tabla$meta$periodos
+  expect_identical(tabla$estado, "calculado")
+  expect_identical(tabla[.fm_cifras_periodo], memoria[.fm_cifras_periodo])
+})
+
+test_that("un periodo sobre fechas guardadas como texto en una columna DATE de SQLite", {
+  .fm_saltar("sqlite")
+  con <- .fm_conectar("sqlite")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, "CREATE TABLE p(desde DATE, hasta DATE)")
+  DBI::dbExecute(con, paste(
+    "INSERT INTO p VALUES ('2025-01-01', '2025-01-31'), ('2025-02-01', '9999-12-31'),",
+    "('2025-03-01', NULL), ('2025-04-01', '2025-03-01'), ('2025-05-01', '2025-05-31')"
+  ))
+  memoria <- suppressWarnings(perfilar(DBI::dbReadTable(con, "p"), fecha = .fm_fecha,
+                                       analizar_dependencias = FALSE,
+                                       periodos = .fm_periodo))$general$periodos
+  expect_identical(memoria$n_fin_abierto_centinela, 1)
+  declarado <- suppressWarnings(perfilar_dbi(con, "p", fecha = .fm_fecha, periodos = .fm_periodo))
+  tabla <- declarado$resumen_tabla$meta$periodos
+  expect_identical(tabla$estado, "no_disponible")
+  expect_true(all(is.na(unlist(tabla[.fm_cifras_periodo]))))
+  expect_match(tabla$motivo, "typeof", fixed = TRUE)
+  contado <- suppressWarnings(perfilar_dbi(con, "p", fecha = .fm_fecha, periodos = .fm_periodo,
+                                           estrategia_no_sql = "bloques"))
+  expect_identical(contado$resumen_tabla$meta$periodos[.fm_cifras_periodo],
+                   memoria[.fm_cifras_periodo])
 })

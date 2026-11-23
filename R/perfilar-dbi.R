@@ -9773,6 +9773,114 @@
   )
 }
 
+# El tipo de cada columna de la tabla, como una tabla sin filas: lo que hace
+# falta para preguntar que clase de valor da una regla sin leer datos, y lo que
+# R leeria de la tabla vacia. `NULL` si el esquema no se leyo entero de una vez
+# (columna por columna, o sin presupuesto, el prototipo no es una tabla).
+.prototipo_tabla_dbi <- function(preparacion) {
+  prototipo <- preparacion$prototipo
+  if (!is.data.frame(prototipo)) return(NULL)
+  prototipo[0L, , drop = FALSE]
+}
+
+# Las reglas de `aplicabilidad` que no dan un valor logico no se aplican. Se
+# resuelve dos veces con la misma pregunta (`.reglas_aplicabilidad_no_logicas()`):
+# en `perfilar_dbi()`, con el tipo de las columnas, antes de leer; y aca, con
+# los datos leidos, justo antes de perfilarlos, porque hay columnas cuyo tipo
+# el motor no declara -una columna de SQLite sin tipo, la expresion de una
+# vista- y solo las filas dicen que llega. Devuelve los argumentos de
+# `perfilar()` sin esas reglas, y las reglas, para declararlas.
+.aplicabilidad_sobre_datos_dbi <- function(datos, argumentos) {
+  reglas <- .reglas_aplicabilidad_no_logicas(datos, argumentos[["aplicabilidad"]])
+  if (nrow(reglas)) {
+    argumentos["aplicabilidad"] <- list(.quitar_reglas_aplicabilidad_dbi(
+      argumentos[["aplicabilidad"]], reglas
+    ))
+  }
+  list(argumentos = argumentos, reglas = reglas)
+}
+
+# La `aplicabilidad` resuelta con el tipo de las columnas, antes de leer: las
+# reglas que quedan y las que no dan un valor logico. La corrida y el plan
+# resuelven aca.
+.aplicabilidad_por_tipo_dbi <- function(preparacion, aplicabilidad) {
+  no_logicas <- .reglas_aplicabilidad_no_logicas(
+    .prototipo_tabla_dbi(preparacion), aplicabilidad, por_tipo = TRUE
+  )
+  if (nrow(no_logicas)) {
+    aplicabilidad <- .quitar_reglas_aplicabilidad_dbi(aplicabilidad, no_logicas)
+  }
+  list(aplicabilidad = aplicabilidad, no_logicas = no_logicas)
+}
+
+# `aplicabilidad` sin las reglas de esas columnas; `NULL` si no queda ninguna.
+.quitar_reglas_aplicabilidad_dbi <- function(aplicabilidad, reglas) {
+  aplicabilidad <- aplicabilidad[is.na(.indice_nombre(
+    names(aplicabilidad), reglas$columna
+  ))]
+  if (length(aplicabilidad)) aplicabilidad else NULL
+}
+
+# La declaracion de las reglas que no se aplicaron, una fila por columna: que
+# regla, que da y como escribirla. La regla no llego a `perfilar()`, asi que
+# la columna se perfilo sobre todas las filas de la muestra.
+.cobertura_aplicabilidad_no_logica_dbi <- function(reglas) {
+  do.call(rbind, lapply(seq_len(nrow(reglas)), function(k) {
+    .registro_cobertura_dbi(
+      "perfil_muestra", reglas$columna[[k]], "degradado",
+      .motivo_aplicabilidad_no_logica_dbi(reglas[k, , drop = FALSE]),
+      .remedio_aplicabilidad_no_logica_dbi(reglas[k, , drop = FALSE])
+    )
+  }))
+}
+
+# Las que se resolvieron con el tipo de las columnas se declaran al salir, en
+# el objeto ya armado.
+.declarar_aplicabilidad_no_logica_dbi <- function(x, reglas) {
+  if (!is.data.frame(reglas) || !nrow(reglas) || !is.list(x) ||
+      !is.list(x$resumen_tabla)) {
+    return(x)
+  }
+  nuevas <- .cobertura_aplicabilidad_no_logica_dbi(reglas)
+  cobertura <- x$resumen_tabla$cobertura
+  x$resumen_tabla$cobertura <- if (is.data.frame(cobertura) && nrow(cobertura)) {
+    rbind(cobertura, nuevas)
+  } else nuevas
+  rownames(x$resumen_tabla$cobertura) <- NULL
+  x
+}
+
+.motivo_aplicabilidad_no_logica_dbi <- function(regla) {
+  paste0(
+    "La regla de `aplicabilidad` de `", regla$columna[[1L]], "` (`",
+    regla$regla[[1L]], "`) no da un valor l\u00f3gico: da `",
+    regla$clase[[1L]], "`. No se aplic\u00f3."
+  )
+}
+
+.remedio_aplicabilidad_no_logica_dbi <- function(regla) {
+  paste0(
+    "Escribirla como una condici\u00f3n que d\u00e9 verdadero o falso",
+    if (is.na(regla$ejemplo[[1L]])) {
+      ", por ejemplo una comparaci\u00f3n."
+    } else paste0(", por ejemplo `", regla$ejemplo[[1L]], "`.")
+  )
+}
+
+.aviso_aplicabilidad_no_logica_dbi <- function(reglas) {
+  n <- nrow(reglas)
+  paste0(
+    if (n == 1L) "Una regla de `aplicabilidad` no da un valor l\u00f3gico y no se aplic\u00f3: " else
+      paste0(n, " reglas de `aplicabilidad` no dan un valor l\u00f3gico y no se aplicaron: "),
+    paste0(
+      "`", reglas$columna, "` (`", reglas$regla, "` da `", reglas$clase, "`",
+      ifelse(is.na(reglas$ejemplo), "", paste0("; escribir `", reglas$ejemplo, "`")),
+      ")", collapse = ", "
+    ),
+    ". El resto del perfil sale igual. Ver `resumen_tabla$cobertura`."
+  )
+}
+
 .cobertura_politicas_muestra_dbi <- function(
     aplicabilidad = NULL, columnas_opcionales = character(),
     sentinelas_numericos = c(-9, -99, -999, -9999, 999)) {
@@ -21362,7 +21470,7 @@
     c("conteo del universo", if (isTRUE(conteo_en_preparacion)) 0 else 1,
       "escanea la tabla completa",
       if (isTRUE(conteo_en_preparacion)) 0 else 1),
-    c("seleccion de la muestra (spool de la sesion)", if (disponible) 1 else 0,
+    c(.CLASE_SELECCION_SPOOL_DBI, if (disponible) 1 else 0,
       .ALCANCE_BLOQUE_CLIENTE_DBI,
       if (disponible) 1 + as.numeric(reintento) else 0),
     c("preparacion del plan publicado en meta$plan", replan, "lee el catalogo",
@@ -21379,6 +21487,25 @@
   rownames(plan) <- NULL
   attr(plan, "extra_si_se_rechazan_lotes") <- 0
   attr(plan, "extra_si_se_reintenta_muestreo") <- 0
+  plan
+}
+
+.CLASE_SELECCION_SPOOL_DBI <- "seleccion de la muestra (spool de la sesion)"
+
+# Lo que la corrida de la muestra del motor emitio, clase por clase: su plan y,
+# en la seleccion de la muestra, lo que gasto esa etapa. Un `TABLESAMPLE` que
+# devuelve menos filas que las pedidas se reintenta, y el plan lo anuncia en el
+# maximo de esa clase. Conciliar el plan contra si mismo dejaba a la segunda
+# seleccion sin clase: la cuenta quedaba desfasada en una consulta, atribuida a
+# los portones, dentro del maximo anunciado.
+.plan_ejecutado_spool_dbi <- function(plan, presupuesto) {
+  if (!is.data.frame(plan) || is.null(presupuesto)) return(plan)
+  k <- match(.CLASE_SELECCION_SPOOL_DBI, as.character(plan$clase_consulta))
+  if (is.na(k)) return(plan)
+  selecciones <- sum(
+    as.character(presupuesto$consultas_emitidas) == "materializacion_muestra"
+  )
+  if (selecciones > plan$n_consultas[[k]]) plan$n_consultas[[k]] <- selecciones
   plan
 }
 
@@ -22196,12 +22323,19 @@
 #'   por sentencia en `attr(plan, "compilacion")`. Ver la sección Compilación.
 #' @param centinelas_fecha,dominios,periodos,resumen_fechas,fecha Los mismos
 #'   que recibe [perfilar_dbi()] por `...` (ver [perfilar()]). Con
-#'   `resumen_fechas = TRUE` el plan cuenta la consulta de cuentas de fechas y,
-#'   en el extremo superior, la de la reserva de las centinelas incorporadas, una
-#'   de la grilla por columna de fecha y, con `estrategia_no_sql = "bloques"`,
-#'   una lectura por columna que se cuente en R; con `periodos`, una consulta
-#'   más. Sólo en SQLite y DuckDB y sobre la tabla completa: en lo demás el
-#'   resumen se declara y no consulta.
+#'   `resumen_fechas = TRUE` o con `periodos` el plan cuenta las consultas de
+#'   fechas que la corrida emite, también con `bloque_filas`. En el total va lo
+#'   que no depende de los datos: la consulta de cuentas de fechas, la de
+#'   periodos y, con `estrategia_no_sql = "bloques"`, una lectura por cada
+#'   columna y por cada periodo que el motor no cuenta como R. En el extremo
+#'   superior, lo que los datos pueden activar: la reserva de las centinelas
+#'   incorporadas, la grilla de cada columna con fechas futuras y, con
+#'   `"bloques"`, la lectura de cada texto que la muestra lea como fecha y la de
+#'   cada columna o periodo que la consulta mande a R. Una columna con
+#'   `aplicabilidad` se declara y no consulta. La corrida concilia estas
+#'   consultas con las demás en `resumen_tabla$meta$consultas`. Fuera de SQLite,
+#'   DuckDB y MariaDB sólo consulta la lectura por bloques, si se pide; con
+#'   `universo = "muestra_motor"`, nada.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -22649,10 +22783,18 @@ plan_perfilado_dbi <- function(conexion, tabla,
       capacidades = capacidades_plan
     )
   }
-  plan <- .plan_resumen_fechas_dbi(
-    plan, conexion, preparacion, resumen_fechas,
-    .normalizar_periodos(periodos, preparacion$campos), estrategia_no_sql
+  # Las consultas del resumen de fechas y de los periodos: las mismas filas que
+  # la corrida concilia contra lo que emite (`.filas_plan_fechas_dbi()`), con
+  # la `aplicabilidad` resuelta como la resuelve la corrida.
+  aplicabilidad_fechas <- .aplicabilidad_por_tipo_dbi(preparacion, aplicabilidad)
+  filas_fechas <- .filas_plan_fechas_dbi(
+    conexion, preparacion, resumen_fechas,
+    .normalizar_periodos(periodos, preparacion$campos), estrategia_no_sql,
+    aplicabilidad = aplicabilidad_fechas$aplicabilidad,
+    columnas_opcionales = columnas_opcionales,
+    aplicabilidad_no_logica = aplicabilidad_fechas$no_logicas
   )
+  plan <- .sumar_filas_plan_dbi(plan, filas_fechas)
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
   if (is.null(extra)) extra <- 0
@@ -22815,6 +22957,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
       ),
       orden_muestra = NULL
     )
+    # El plan por bloques reemplaza al anterior: las fechas, que la corrida
+    # consulta igual, se le suman.
+    plan <- .sumar_filas_plan_dbi(plan, filas_fechas, totales = TRUE)
   }
   if (identical(preparacion$universo, "muestra_motor") &&
       .solicita_muestra_dbi(preparacion$bloque_muestra)) {
@@ -25874,6 +26019,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
   argumentos$max_bytes_muestra <- Inf
   if (!is.null(trazador)) {
     attr(datos_muestra, "lupa_trazador_tiempos_dbi") <- trazador
+  }
+  # La regla de `aplicabilidad` que sobre estas filas no da un valor logico no
+  # se aplica y se declara: `perfilar()` la rechazaria y la tabla quedaria sin
+  # `perfil_muestra`.
+  resuelto <- .aplicabilidad_sobre_datos_dbi(datos_muestra, argumentos)
+  argumentos <- resuelto$argumentos
+  if (nrow(resuelto$reglas)) {
+    cobertura <- rbind(
+      cobertura, .cobertura_aplicabilidad_no_logica_dbi(resuelto$reglas)
+    )
+    .avisar_muestra_motor_dbi(.aviso_aplicabilidad_no_logica_dbi(resuelto$reglas))
   }
   perfil <- tryCatch(
     .medir_etapa_dbi(
@@ -29331,7 +29487,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param aplicabilidad Lista nombrada de fórmulas de un solo lado, con una
 #'   regla por columna. Se reenvía al `perfil_muestra`; el resumen SQL no la
 #'   traduce y lo declara en `resumen_tabla$cobertura`, y la corroboración no
-#'   compara lo que la regla cambia.
+#'   compara lo que la regla cambia. Una regla que no da un valor lógico —una
+#'   columna sola que el motor guarda como 0 y 1, como hace SQLite con una
+#'   lógica: `~ activo`— no se aplica: se avisa, se declara para su columna en
+#'   `resumen_tabla$cobertura` con cómo escribirla (`~ activo == 1`), y el resto
+#'   del perfil sale igual. Se decide con el tipo de las columnas y, si el motor
+#'   no lo declara, con las filas leídas. Un periodo sobre esa columna queda
+#'   `no_disponible` con ese motivo.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
 #'   declaran como faltantes en el `perfil_muestra`, o la lista por columna de
 #'   [perfilar()] —también para `cadenas_ausencia`, que viaja por `...`—: se
@@ -29377,7 +29539,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   instantes a menos de un segundo de una fecha centinela lejana con
 #'   resolución de microsegundos (R los lee como esa fecha) y una columna de
 #'   texto que la muestra lee como fecha, cuyos formatos se deciden entonces con
-#'   la columna entera. Mismo nombre y valores que en [medir_dbi()].
+#'   la columna entera. Rige igual para un `TIMESTAMP` de MariaDB (se lee en el
+#'   huso de la sesión), para los motores donde la cuenta contra literales no
+#'   está medida (fuera de SQLite, DuckDB y MariaDB: toda columna de fecha), para
+#'   una conexión de DuckDB abierta con `tz_out_convert = "force"` y un huso
+#'   distinto de UTC (R recibe instantes que no son los que guarda el motor) y
+#'   para `periodos`: columnas que el motor guarda como texto, fechas guardadas
+#'   como texto en SQLite, una columna que no corresponde a todas las filas
+#'   (`aplicabilidad` o `columnas_opcionales`), que la consulta del motor no
+#'   traduce, o, en DuckDB, un `infinity` en un periodo cuyas dos columnas son de
+#'   tipos distintos (R lee el infinito de cada tipo como una fecha lejana
+#'   distinta; con las dos del mismo tipo el motor lo cuenta como R lo lee). Un
+#'   periodo contado en R lo cuenta [perfilar()] sobre las columnas
+#'   leídas enteras, con las mismas declaraciones: da lo que da la memoria o no
+#'   se publica. Si [perfilar()] no lee las dos columnas como fechas, o la tabla
+#'   pasa de cinco millones de filas —ahí se deja de leer—, el periodo queda
+#'   `no_disponible` con su motivo. Leer por bloques es lo que R lee en
+#'   cualquier motor. Mismo nombre y valores que en [medir_dbi()].
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'   `columnas_codigo` vale además en `resumen_tabla`: `media`, `mediana` y
 #'   `desvio` de una columna declarada quedan en `NA` y
@@ -29400,7 +29578,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `resumen_tabla$meta$actualidad` la misma tabla de actualidad; con
 #'   `periodos`, `resumen_tabla$meta$periodos` la misma partición. El motor
 #'   compara contra literales y decide con la misma regla que la memoria;
-#'   sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los demás
+#'   sólo en SQLite, DuckDB y MariaDB, donde esa equivalencia está medida (en los demás
 #'   motores y con `universo = "muestra_motor"` se declara y se lee de
 #'   `perfil_muestra`). Con `resumen_fechas` y sin `fecha`, la fecha se congela
 #'   una vez al entrar (al segundo) para el resumen y la muestra, y las dos
@@ -29552,10 +29730,14 @@ perfilar_dbi <- function(conexion, tabla,
     argumentos_muestra$fecha <- fecha_corrida
     fecha_congelada <- TRUE
   }
+  # Las reglas de `aplicabilidad` que no dan un valor logico: se resuelven mas
+  # abajo, con el tipo de las columnas, y se declaran al salir.
+  aplicabilidad_no_logica <- .reglas_aplicabilidad_no_logicas(NULL, NULL)
   # Y el tipo que declara el motor por columna, que no depende de las filas
   # leidas: la comparacion de entregas lo necesita para no tomar por cambio de
   # tipo lo que es un cambio de la muestra (`preparacion` se resuelve al salir).
   con_fecha <- function(x) {
+    x <- .declarar_aplicabilidad_no_logica_dbi(x, aplicabilidad_no_logica)
     # Con `universo = "muestra_motor"` el perfil describe la muestra del motor:
     # lo que pide la tabla entera se declara, no se publica.
     if (identical(preparacion$universo, "muestra_motor") &&
@@ -29580,7 +29762,8 @@ perfilar_dbi <- function(conexion, tabla,
     .agregar_resumen_fechas_dbi(
       x, conexion, preparacion, argumentos_muestra, fecha_corrida,
       fecha_declarada = !fecha_congelada, estrategia_no_sql = estrategia_no_sql,
-      incluir_valores = incluir_valores
+      incluir_valores = incluir_valores,
+      aplicabilidad_no_logica = aplicabilidad_no_logica
     )
   }
   # Sin proteccion, el mensaje del motor se publica entero: antes de la primera
@@ -29725,6 +29908,23 @@ perfilar_dbi <- function(conexion, tabla,
   }
   # Lo mismo para los periodos: sin muestra, un nombre mal escrito pasaba.
   .argumento_dbi(.normalizar_periodos(argumentos_muestra[["periodos"]], preparacion$campos))
+  # Una regla de `aplicabilidad` que no da un valor logico -`~ activo` con
+  # `activo` guardada como 0 y 1, que en SQLite no es logica- no se aplica: se
+  # declara para su columna, con como escribirla, y el resto del perfil sale
+  # igual. `perfilar()` la rechaza entera, y aca eso dejaba a la tabla sin
+  # `perfil_muestra`. Aca se decide con el tipo de las columnas que entrega el
+  # controlador, sin filas: lo que queda es lo que reciben la muestra, la
+  # corroboracion y las fechas. Si el motor no declara el tipo de una columna,
+  # lo decide quien la lee (`.aplicabilidad_sobre_datos_dbi()`).
+  aplicabilidad_por_tipo <- .aplicabilidad_por_tipo_dbi(preparacion, aplicabilidad)
+  aplicabilidad_no_logica <- aplicabilidad_por_tipo$no_logicas
+  if (nrow(aplicabilidad_no_logica)) {
+    aplicabilidad <- aplicabilidad_por_tipo$aplicabilidad
+    argumentos_muestra["aplicabilidad"] <- list(aplicabilidad)
+    .avisar_muestra_motor_dbi(.aviso_aplicabilidad_no_logica_dbi(
+      aplicabilidad_no_logica
+    ))
+  }
   # Los nombres de la tabla y de sus columnas son lo unico de la consulta que
   # el mensaje de un error del motor puede citar en claro: ver
   # `.sin_literales_motor()`.
@@ -29806,7 +30006,8 @@ perfilar_dbi <- function(conexion, tabla,
         preparacion$presupuesto$usadas
       resultado$resumen_tabla$meta$consultas$conciliacion <-
         .conciliar_consultas_dbi(
-          plan_corrida, plan_corrida,
+          plan_corrida,
+          .plan_ejecutado_spool_dbi(plan_corrida, preparacion$presupuesto),
           preparacion$presupuesto$usadas, preparacion,
           preparacion$presupuesto
         )
