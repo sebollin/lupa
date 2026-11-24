@@ -1598,8 +1598,10 @@
 .huso_forzado_dbi <- function(conexion, motor) {
   if (!identical(motor, "duckdb") || is.null(conexion)) return(FALSE)
   tryCatch(
-    identical(methods::slot(conexion, "tz_out_convert"), "force") &&
-      !identical(methods::slot(conexion, "timezone_out"), "UTC"),
+    # Los slots de una clase S4 son atributos: se leen sin `methods`, que el
+    # paquete no declara.
+    identical(attr(conexion, "tz_out_convert", exact = TRUE), "force") &&
+      !identical(attr(conexion, "timezone_out", exact = TRUE), "UTC"),
     error = function(e) FALSE
   )
 }

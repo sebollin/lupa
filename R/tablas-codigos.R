@@ -616,14 +616,14 @@ detectar_tablas_codigos <- function(coleccion, perfil, relaciones = NULL,
     } else propuesta$codigo[[i]]
     instancias[[length(instancias) + 1L]] <- instanciar(
       especializar(nucleo$NoNulo, valores_nulos = valor),
-      propuesta$tabla[[i]], propuesta$columna[[i]], nombre = paste0("lupa_c", i)
+      propuesta$tabla[[i]], propuesta$columna[[i]], nombre_instancia = paste0("lupa_c", i)
     )
     clave_base <- paste(propuesta$tabla[[i]], propuesta$columna[[i]], sep = "\r")
     if (!clave_base %in% bases) {
       bases <- c(bases, clave_base)
       instancias[[length(instancias) + 1L]] <- instanciar(
         especializar(nucleo$NoNulo), propuesta$tabla[[i]], propuesta$columna[[i]],
-        nombre = base_de(i)
+        nombre_instancia = base_de(i)
       )
     }
   }
@@ -780,7 +780,7 @@ ausencias_desde_propuesta <- function(propuesta, tabla = NULL) {
       nombre = usos$tabla_codigos[[i]]
     )
     instanciar(especializar(fuerte), usos$tabla[[i]], usos$columna[[i]],
-               referencial = ref, nombre = paste0("lupa_u", i))
+               referencial = ref, nombre_instancia = paste0("lupa_u", i))
   })
   medicion <- tryCatch(
     suppressWarnings(medir_dbi(do.call(modelo, instancias), coleccion)),

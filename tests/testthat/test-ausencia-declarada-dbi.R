@@ -987,7 +987,11 @@ test_that("un resumen calculado sin la politica no se compara con uno calculado 
     unique(as.character(de(columna, campos)$veredicto))
   }
   expect_identical(veredictos("v", c("n_validos", "n_distintos")), "identico")
-  expect_identical(veredictos("w", .aud_magnitudes), "identico")
+  # `w` se compara como siempre: identico, o igual dentro de la tolerancia
+  # cuando la politica de otra columna cambia la forma del lote y el punto
+  # flotante acumula distinto en el ultimo bit (macOS).
+  expect_true(all(veredictos("w", .aud_magnitudes) %in%
+                    c("identico", "equivalente")))
 
   # Control: dos corridas que la aplican se comparan, y son iguales.
   otra <- .aud_entrega(con, "2026-03-01")

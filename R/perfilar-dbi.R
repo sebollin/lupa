@@ -8481,7 +8481,7 @@
   alias <- alias[nzchar(alias)]
   if (!length(alias)) return(data.frame(stringsAsFactors = FALSE))
   datos <- as.data.frame(
-    setNames(rep(list(0), length(alias)), alias),
+    stats::setNames(rep(list(0), length(alias)), alias),
     stringsAsFactors = FALSE
   )
   cardinales <- grepl(
