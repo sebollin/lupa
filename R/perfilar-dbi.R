@@ -5534,6 +5534,117 @@
   list(total = minimo, minimo = minimo, maximo = maximo)
 }
 
+# El esquema no dice que una columna tenga valores, infinitos o texto guardado
+# con una afinidad numerica. Esas decisiones ocurren durante el resumen. Las
+# filas del plan conservan la cuenta esperada; aca solo se abren sus extremos
+# para que una cuenta posible antes de leer no quede fuera del intervalo.
+.cotas_datos_plan_dbi <- function(plan, preparacion, conexion, es_numerico,
+                                  incluir_valores) {
+  if (!is.data.frame(plan) || !nrow(plan) || !is.list(preparacion)) {
+    return(list(omitibles = 0, adicionales = 0))
+  }
+  clases <- as.character(plan$clase_consulta)
+  cuenta_clase <- function(patron, exacta = FALSE) {
+    posiciones <- if (isTRUE(exacta)) {
+      clases == patron
+    } else {
+      grepl(patron, clases, fixed = TRUE, useBytes = TRUE)
+    }
+    if (!any(posiciones)) return(0)
+    valores <- suppressWarnings(as.numeric(plan$n_consultas[posiciones]))
+    sum(valores[is.finite(valores)])
+  }
+  metricas <- as.character(preparacion$metricas_ejecucion %||% character())
+  pedidas <- intersect(metricas, .METRICAS_NUMERICAS_DBI)
+  datos_sql <- !(
+    identical(as.character(preparacion$universo), "muestra_motor") &&
+      .solicita_muestra_dbi(preparacion$bloque_muestra)
+  )
+  rango_datos <- identical(
+    as.character(preparacion$universo), "muestra_motor"
+  ) || isTRUE(is.infinite(preparacion$muestra))
+  omitibles <- 0
+  if (isTRUE(rango_datos) && isTRUE(incluir_valores) && length(pedidas)) {
+    if ("mediana" %in% pedidas) {
+      omitibles <- omitibles + cuenta_clase("mediana (", exacta = FALSE)
+    }
+    if (length(intersect(pedidas, c("mediana", "desvio")))) {
+      omitibles <- omitibles + cuenta_clase(
+        "sonda de magnitud (MIN)", exacta = TRUE
+      )
+    }
+  }
+  if (isTRUE(rango_datos) && isTRUE(datos_sql)) {
+    # La corrida quita el cierre de estabilidad cuando confirma una tabla sin
+    # valores; antes de leerla, ese cierre tambien debe quedar en el extremo
+    # inferior posible.
+    omitibles <- omitibles + cuenta_clase(
+      .CLASE_PLAN_ESTABILIDAD_DBI, exacta = TRUE
+    )
+    if ("desvio" %in% pedidas && isTRUE(.desvio_separado_dbi(
+      conexion, metricas, preparacion$universo,
+      preparacion$columnas_float8_numeric
+    ))) {
+      omitibles <- omitibles + 1L
+    }
+  }
+
+  n_columnas <- length(es_numerico)
+  n_numericas <- sum(es_numerico, na.rm = TRUE)
+  tipos <- vapply(seq_along(preparacion$campos), function(i) {
+    tipo <- .atributo_columna_dbi(
+      preparacion$esquema$tipos_motor,
+      preparacion$campos[[i]], i
+    ) %||% .atributo_columna_dbi(
+      preparacion$tipos, preparacion$campos[[i]], i
+    )
+    if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) {
+      NA_character_
+    } else as.character(tipo[[1L]])
+  }, character(1L))
+  tipos <- tipos[seq_len(min(length(tipos), n_columnas))]
+  numericas <- rep(FALSE, n_columnas)
+  numericas[seq_along(tipos)] <- as.logical(es_numerico[seq_along(tipos)])
+  punto_flotante <- numericas & grepl(
+    "double|float|real|numeric|decimal|number", tipos,
+    perl = TRUE, useBytes = TRUE
+  )
+  ancho <- numericas & vapply(
+    seq_along(tipos), function(i) .tipo_declarado_entero_ancho_dbi(tipos[[i]]),
+    logical(1L)
+  )
+  adicionales <- 0
+  if (length(pedidas) && isTRUE(datos_sql) && n_numericas > 0) {
+    puede_infinito <- !is.null(.literales_infinito_dbi(conexion))
+    if (isTRUE(puede_infinito) && identical(pedidas, "mediana")) {
+      # La lectura finita vuelve a pedir la sonda que descubre el caso, el
+      # conteo y cada familia numerica solicitada; el plan no puede saber si
+      # habra que excluir infinitos o NaN.
+      candidatas_infinitos <- if (any(punto_flotante)) {
+        sum(punto_flotante)
+      } else {
+        n_numericas
+      }
+      adicionales <- adicionales + candidatas_infinitos * (2 + length(pedidas))
+    }
+    senas <- .senas_conexion_dbi(conexion)
+    if (grepl("sqlite", senas, fixed = TRUE, useBytes = TRUE)) {
+      # `typeof()` es la consulta que descubre texto en una afinidad numerica;
+      # la mediana de esa columna se omite despues de descubrirlo.
+      adicionales <- adicionales + n_numericas
+    }
+    if ("mediana" %in% pedidas) adicionales <- adicionales + sum(ancho)
+    if ("desvio" %in% pedidas) adicionales <- adicionales + n_numericas
+  }
+  if (identical(as.character(preparacion$universo), "muestra_motor") &&
+      is.list(preparacion$muestreo) &&
+      identical(as.character(preparacion$muestreo$candidato$tipo),
+                "tablesample")) {
+    adicionales <- adicionales + 1
+  }
+  list(omitibles = omitibles, adicionales = adicionales)
+}
+
 .atributos_conciliacion_dbi <- function(conciliacion, plan) {
   if (!is.list(conciliacion)) return(conciliacion)
   totales <- .totales_plan_consultas_dbi(plan)
@@ -23330,9 +23441,16 @@ plan_perfilado_dbi <- function(conexion, tabla,
   reintento <- attr(plan, "extra_si_se_reintenta_muestreo", exact = TRUE)
   if (is.null(reintento)) reintento <- 0
   totales <- .totales_plan_consultas_dbi(plan, extra, reintento)
+  cotas_datos <- .cotas_datos_plan_dbi(
+    plan, preparacion, conexion, es_numerico, incluir_valores
+  )
   attr(plan, "total") <- totales$total
-  attr(plan, "total_minimo") <- totales$minimo
-  attr(plan, "total_maximo") <- totales$maximo
+  attr(plan, "total_minimo") <- max(
+    0, totales$minimo - cotas_datos$omitibles
+  )
+  attr(plan, "total_maximo") <- max(
+    totales$maximo, totales$total + cotas_datos$adicionales
+  )
   attr(plan, "total_lotes_rechazados") <- attr(plan, "total_maximo")
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
   attr(plan, "extra_si_se_reintenta_muestreo") <- NULL
