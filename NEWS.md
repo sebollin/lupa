@@ -740,6 +740,11 @@
 
 ## Correcciones
 
+- `relaciones_coleccion()` con una tabla cuyo nombre no se puede escribir en
+  la consulta (bytes que no son UTF-8 válido y no declaran su codificación)
+  mandaba al motor `SELECT ... FROM NA`, y si la base tenía una tabla llamada
+  `NA` calculaba las relaciones sobre esa otra tabla. Ahora la lectura de esa
+  tabla se declara fallida con el motivo y no se manda nada.
 - `plan_perfilado_dbi()` anunciaba un máximo que la corrida podía pasar: con
   `metricas = "mediana"`, una columna entera ancha o con un infinito mandaba
   hasta tres sentencias más que `total_maximo`, y quien lo pasaba como

@@ -3508,20 +3508,42 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     medibles <- which(familias %in% c("numerica", "fecha", "fecha-hora"))
     if (length(medibles)) {
+      # Un nombre que la guarda no deja citar no llega a la sentencia: se
+      # declara y no se manda nada con el. Antes la cita quedaba en `NA` y el
+      # motor recibia `FROM NA` (y leia una tabla `NA` si existia).
       referencia <- referencia_de(identificador)
       tabla_sql <- tryCatch(
-          .citar_identificador_dbi(conexion, referencia),
-        error = function(e) NA_character_
+        .citar_identificador_dbi(conexion, referencia),
+        error = function(e) e
       )
+      citas <- lapply(nombres[medibles], function(nombre) tryCatch(
+        .citar_identificador_dbi(conexion, nombre),
+        error = function(e) e
+      ))
+      rechazadas <- vapply(citas, inherits, logical(1L), what = "condition")
+      if (inherits(tabla_sql, "condition")) {
+        for (k in medibles) {
+          salida[[nombres[[k]]]] <- sin_evidencia(
+            "no_disponible", paste0("MIN/MAX: ", conditionMessage(tabla_sql))
+          )
+        }
+        medibles <- integer()
+      } else if (any(rechazadas)) {
+        for (j in which(rechazadas)) {
+          salida[[nombres[[medibles[[j]]]]]] <- sin_evidencia(
+            "no_disponible", paste0("MIN/MAX: ", conditionMessage(citas[[j]]))
+          )
+        }
+        citas <- citas[!rechazadas]
+        medibles <- medibles[!rechazadas]
+      }
+    }
+    if (length(medibles)) {
       alias_minimos <- paste0("lupa_rango_", seq_along(medibles), "_min")
       alias_maximos <- paste0("lupa_rango_", seq_along(medibles), "_max")
       expresiones <- unlist(lapply(seq_along(medibles), function(k) {
         nombre <- nombres[[medibles[[k]]]]
-        columna_sql <- tryCatch(
-          .citar_identificador_dbi(conexion, nombre),
-          error = function(e) NA_character_
-        )
-        columna_sql <- expresion_de(identificador, nombre, columna_sql)
+        columna_sql <- expresion_de(identificador, nombre, citas[[k]])
         c(
           paste0("MIN(", columna_sql, ") AS ", alias_minimos[[k]]),
           paste0("MAX(", columna_sql, ") AS ", alias_maximos[[k]])
@@ -3588,8 +3610,21 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     referencia <- referencia_de(identificador)
     tabla_sql <- tryCatch(
       .citar_identificador_dbi(conexion, referencia),
-      error = function(e) NA_character_
+      error = function(e) e
     )
+    # La guarda no deja citar el nombre: no se lee nada y se declara, como una
+    # tabla sin columnas que se puedan nombrar.
+    if (inherits(tabla_sql, "condition")) {
+      motivo_tabla <- conditionMessage(tabla_sql)
+      lecturas <<- lecturas + 1L
+      bitacora[[length(bitacora) + 1L]] <<- data.frame(
+        tabla = identificador, sql = NA_character_, via = NA_character_,
+        filas_leidas = NA_real_, filas_totales = NA_real_, muestreado = NA,
+        orden_declarado = FALSE, momento = Sys.time(), ok = FALSE,
+        motivo = motivo_tabla, stringsAsFactors = FALSE
+      )
+      return(.condicion_lectura_coleccion(motivo_tabla, codificacion = TRUE))
+    }
     columnas_orden <- orden_de(identificador)
     columnas_seleccionadas <- candidatas_de(identificador)
     # Una columna que la credencial no puede leer no se nombra en ninguna
