@@ -409,6 +409,44 @@
   `bloque_filas`. `comparar_equivalencia()` compara los
   campos del resumen de fechas; los que dependen de la fecha de la corrida, sólo
   entre corridas con la misma fecha (`fecha_de_corrida_distinta`).
+- `perfilar_dbi()` aplica en el resumen de la tabla completa la política de
+  ausencia declarada, con la regla de `perfilar()` (cambia una cifra publicada).
+  Los `sentinelas_numericos` declarados salen de `minimo`, `maximo`, `media`,
+  `mediana`, `desvio`, `n_ceros` y `n_negativos`, y siguen contando en
+  `n_validos`, `n_distintos` y la moda: sobre `c(-9, 1, 2, NULL)` con `-9`
+  declarado el resumen daba mínimo -9 y media -2, y ahora da 1 y 1,5. Los
+  `NULL` de una columna de `columnas_opcionales` no son faltantes. Vale para las
+  consultas agregadas, para `bloque_filas` y para `universo = "muestra_motor"`,
+  en los siete motores. Una regla de `aplicabilidad` restringe todas las cifras
+  de su columna a las filas donde se cumple: los bloques y la muestra del motor
+  la evalúan en R, y las consultas agregadas de SQLite y DuckDB la traducen al
+  SQL del motor si está hecha de comparaciones, `%in%`, `is.na()`, `&`, `|` y
+  `!` sobre columnas y valores. La que no se puede traducir, y toda regla en los
+  motores de servidor, no se aplica a medias en las agregadas: se declara para
+  esa columna. La lista por omisión y `sentinelas_naniar` se siguen señalando
+  sin excluir: sin declaración nada cambia. `resumen_tabla$columnas` gana
+  `n_valores_excluidos_resumen` y, con universo declarado, `n_aplicables`,
+  `n_no_aplica` y `n_aplicabilidad_indeterminada`;
+  `resumen_tabla$meta$politica_ausencia` dice a qué columnas se aplicó cada
+  política y a cuáles no. La fila `degradado` de la cobertura es ahora por
+  columna (`<columna>::<política>`) y sólo de lo que no se aplicó, y la
+  corroboración vuelve a comparar el resto con la muestra. La política no
+  agrega sentencias de otra clase.
+- `comparar_perfiles()` y `comparar_equivalencia()` no informan como cambio las
+  cifras de un resumen calculado sin la política contra uno calculado con ella:
+  quedan `no_comparable`, con el motivo
+  `politica_ausencia:sin_aplicar_vs_aplicada`.
+- `perfilar_coleccion()` reparte `columnas_opcionales` y `aplicabilidad` por
+  tabla: cada tabla recibe las que nombran columnas suyas. Donde una no
+  corresponde, la tabla se perfila completa —antes conservaba el resumen y
+  perdía la muestra—, `cobertura_coleccion` lo dice con el alcance
+  `declaracion_no_aplicada` y la colección avisa. Una columna que no está en
+  ninguna tabla se rechaza antes de leer.
+- `perfilar_dbi()` rechaza, como `perfilar()`, un nombre de
+  `columnas_opcionales` o de `aplicabilidad` que la tabla no tiene, la misma
+  columna declarada de las dos formas y una regla que nombra una columna
+  inexistente. Antes el resumen se devolvía calculado y la muestra sin perfil.
+  `plan_perfilado_dbi()` rechaza lo mismo.
 - `sentinelas_numericos` y `cadenas_ausencia` aceptan una lista por columna,
   `list(edad = 99)`, en `perfilar()`, `perfilar_dbi()`, `plan_perfilado_dbi()`,
   `perfilar_por()`, `analizar()`, `detectar_dependencias()` y
@@ -702,6 +740,22 @@
 
 ## Correcciones
 
+- `perfilar_coleccion()` con `directorio_reanudacion` y `sentinelas_numericos`
+  o `cadenas_ausencia` declarados por tabla no perfilaba ninguna tabla («nombra
+  columnas inexistentes»): la lista por tabla le llegaba entera a cada una.
+  Ahora cada tabla recibe lo suyo, con directorio y al reanudar.
+- En DuckDB, MySQL, MariaDB y SQL Server, un centinela con fracción declarado
+  sobre una columna de punto flotante de 4 bytes (`FLOAT`, `REAL`) no se
+  reconocía: tres `-9.9` con `-9.9` declarado daban 0 faltantes disfrazados y el
+  mínimo seguía en -9,9. Se compara en el tipo de la columna.
+- `perfilar_dbi()` contaba de más los faltantes disfrazados de una columna
+  entera de 64 bits con el centinela en el borde: con `2^53` declarado,
+  `9007199254740993` contaba como centinela. La comparación es ahora entre
+  enteros, también en MySQL y MariaDB.
+- En PostgreSQL anterior a la 12, el resumen con centinelas declarados calcula
+  una vez por fila la lectura exacta de cada columna doble, en lugar de una vez
+  por mención: sobre 200.000 filas por 20 columnas la corrida con la política
+  pasó de 2,4 a 0,5 veces el tiempo de la corrida sin ella.
 - `ReglaIntegridadInterEntidad` cuenta un `NaN` de la clave foránea como vacío
   y no como huérfano, igual que `is.na()`, `NoNulo` y los rangos. Cambia la
   cobertura publicada: en una columna de 10 filas con 2 `NA`, un `NaN` y 4
