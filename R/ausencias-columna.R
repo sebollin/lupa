@@ -293,21 +293,217 @@
       }
     })
   }
-  function(identificador) {
-    argumentos <- extras
+  # `base`: la lista de argumentos donde se reemplaza. Es `extras`, o la que la
+  # reanudacion arma con ellos -los mismos nombres, con la `fecha` de la
+  # corrida-: sin esto la reanudacion le pasaba la lista entera a cada tabla,
+  # que la leia como una lista por columna y la rechazaba.
+  function(identificador, base = extras) {
+    argumentos <- base
+    cuales <- if (is.null(names(base))) character() else {
+      formales[pmatch(names(base), formales, duplicates.ok = FALSE)]
+    }
     for (j in posiciones) {
+      k <- match(completos[[j]], cuales)
+      if (is.na(k)) next
       lista <- extras[[j]]
       indice <- if (length(lista)) {
         .indice_nombre(identificador, names(lista))
       } else NA_integer_
       if (length(indice) == 1L && !is.na(indice)) {
-        argumentos[j] <- list(lista[[indice]])
+        argumentos[k] <- list(lista[[indice]])
       } else if (identical(completos[[j]], "sentinelas_numericos")) {
-        argumentos[[j]] <- .numeros_na_locales
+        argumentos[[k]] <- .numeros_na_locales
       } else {
-        argumentos[j] <- list(NULL)
+        argumentos[k] <- list(NULL)
       }
     }
     argumentos
   }
+}
+
+# En una coleccion `columnas_opcionales` y `aplicabilidad` llegan iguales a
+# todas las tablas, y no todas tienen las columnas que nombran. Una tabla que
+# no tiene la columna no es un error: ahi la declaracion no se aplica y se
+# dice. Si ninguna tabla la tiene, es un nombre mal escrito, y se rechaza antes
+# de leer. Devuelve `NULL` si no hay nada declarado -la coleccion sigue como
+# siempre-, o una lista:
+# * `argumentos(identificador, base)`: los argumentos de una tabla, con las dos
+#   declaraciones reducidas a lo que esa tabla tiene.
+# * `omitidas(identificador)`: lo que no se aplico en esa tabla y por que.
+# * `avisos`: un aviso por declaracion que no vale en todas las tablas.
+# Las columnas de cada tabla se leen por metadatos, una vez por tabla y solo
+# con alguna de las dos declaraciones.
+.universo_por_tabla_coleccion <- function(extras, coleccion) {
+  if (!length(extras) || is.null(names(extras))) return(NULL)
+  formales <- c("columnas_opcionales", "aplicabilidad")
+  completar <- function(nombres) {
+    formales[pmatch(nombres, formales, duplicates.ok = FALSE)]
+  }
+  completos <- completar(names(extras))
+  de <- function(nombre) {
+    j <- match(nombre, completos)
+    if (is.na(j)) NULL else extras[[j]]
+  }
+  opcionales <- de("columnas_opcionales")
+  aplicabilidad <- de("aplicabilidad")
+  if (!length(opcionales) && !length(aplicabilidad)) return(NULL)
+  # Una declaracion mal formada la rechaza cada `perfilar_dbi()`, como siempre.
+  if ((length(opcionales) && !is.character(opcionales)) ||
+      (length(aplicabilidad) && (!is.list(aplicabilidad) ||
+                                 is.null(names(aplicabilidad)) ||
+                                 any(!nzchar(names(aplicabilidad)))))) {
+    return(NULL)
+  }
+  opcionales <- as.character(opcionales)
+  identificadores <- as.character(coleccion$tablas$identificador)
+  campos_de <- lapply(seq_along(identificadores), function(k) {
+    .columnas_tabla_coleccion(
+      coleccion$conexion, coleccion$tablas$referencia[[k]], catalogo = FALSE
+    )$campos
+  })
+  leidas <- which(vapply(campos_de, length, integer(1L)) > 0L)
+  # Sin las columnas de ninguna tabla no hay con que repartir.
+  if (!length(leidas)) return(NULL)
+  todas <- unique(unlist(campos_de[leidas], use.names = FALSE))
+  # Donde vale cada declaracion: una columna opcional, donde esta; una regla,
+  # donde `perfilar()` la aceptaria.
+  opcional_en <- lapply(opcionales, function(columna) {
+    vapply(campos_de, function(campos) {
+      length(campos) > 0L && !is.na(.indice_nombre(columna, campos))
+    }, logical(1L))
+  })
+  regla_en <- lapply(seq_along(aplicabilidad), function(j) {
+    lapply(campos_de, function(campos) {
+      if (!length(campos)) return(NA_character_)
+      tryCatch({
+        .validar_universo_declarado(campos, character(), aplicabilidad[j])
+        ""
+      }, error = function(e) conditionMessage(e))
+    })
+  })
+  vale_regla <- function(j, k) identical(regla_en[[j]][[k]], "")
+  .argumento_dbi({
+    en_ninguna <- opcionales[!vapply(opcional_en, any, logical(1L))]
+    if (length(en_ninguna)) {
+      .detener(
+        "`columnas_opcionales` nombra columnas que no est\u00e1n en ninguna ",
+        "tabla de la colecci\u00f3n: ", paste(en_ninguna, collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    sin_tabla <- names(aplicabilidad)[is.na(.indice_nombre(
+      names(aplicabilidad), todas
+    ))]
+    if (length(sin_tabla)) {
+      .detener(
+        "`aplicabilidad` nombra columnas que no est\u00e1n en ninguna tabla ",
+        "de la colecci\u00f3n: ", paste(sin_tabla, collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    # Lo que no depende de la tabla -las dos declaraciones sobre la misma
+    # columna, una regla que no es una formula- vale para la coleccion entera.
+    .validar_aplicabilidad(todas, opcionales, aplicabilidad)
+    for (j in seq_along(aplicabilidad)) {
+      if (any(vapply(leidas, function(k) vale_regla(j, k), logical(1L)))) next
+      # La regla no se puede evaluar en ninguna tabla: el error de la primera.
+      .detener(regla_en[[j]][[leidas[[1L]]]], call. = FALSE)
+    }
+  })
+  omitidas_de <- lapply(seq_along(identificadores), function(k) {
+    vacia <- data.frame(
+      politica = character(), columna = character(), motivo = character(),
+      stringsAsFactors = FALSE
+    )
+    if (!length(campos_de[[k]])) return(vacia)
+    filas <- list(vacia)
+    for (i in seq_along(opcionales)) {
+      if (opcional_en[[i]][[k]]) next
+      filas[[length(filas) + 1L]] <- data.frame(
+        politica = "columnas_opcionales", columna = opcionales[[i]],
+        motivo = "la tabla no tiene esa columna", stringsAsFactors = FALSE
+      )
+    }
+    for (j in seq_along(aplicabilidad)) {
+      if (vale_regla(j, k)) next
+      columna <- names(aplicabilidad)[[j]]
+      filas[[length(filas) + 1L]] <- data.frame(
+        politica = "aplicabilidad", columna = columna,
+        motivo = if (is.na(.indice_nombre(columna, campos_de[[k]]))) {
+          "la tabla no tiene esa columna"
+        } else {
+          sub("[.[:space:]]+$", "", regla_en[[j]][[k]], perl = TRUE)
+        },
+        stringsAsFactors = FALSE
+      )
+    }
+    do.call(rbind, filas)
+  })
+  indice_de <- function(identificador) {
+    .indice_identificador(identificador, identificadores)
+  }
+  n_omitidas <- function(politica, columna) {
+    sum(vapply(omitidas_de, function(x) {
+      any(x$politica == politica & x$columna == columna)
+    }, logical(1L)))
+  }
+  declaradas <- rbind(
+    data.frame(politica = rep("columnas_opcionales", length(opcionales)),
+               columna = opcionales, stringsAsFactors = FALSE),
+    data.frame(politica = rep("aplicabilidad", length(aplicabilidad)),
+               columna = as.character(names(aplicabilidad)),
+               stringsAsFactors = FALSE)
+  )
+  avisos <- list()
+  for (i in seq_len(nrow(declaradas))) {
+    n <- n_omitidas(declaradas$politica[[i]], declaradas$columna[[i]])
+    if (!n) next
+    avisos[[length(avisos) + 1L]] <- simpleWarning(paste0(
+      "`", declaradas$politica[[i]], "` declara `", declaradas$columna[[i]],
+      "`, y en ", n, " de las ", length(leidas),
+      " tablas de la colecci\u00f3n no se aplic\u00f3. Esas tablas se ",
+      "perfilaron completas; `cobertura_coleccion` las nombra con el alcance ",
+      "`declaracion_no_aplicada`."
+    ))
+  }
+  list(
+    argumentos = function(identificador, base) {
+      k <- indice_de(identificador)
+      if (is.na(k) || !length(campos_de[[k]]) || !length(base)) return(base)
+      cuales <- completar(names(base))
+      posicion <- match("columnas_opcionales", cuales)
+      if (!is.na(posicion)) {
+        base[[posicion]] <- opcionales[vapply(
+          opcional_en, function(en) en[[k]], logical(1L)
+        )]
+      }
+      posicion <- match("aplicabilidad", cuales)
+      if (!is.na(posicion)) {
+        quedan <- aplicabilidad[vapply(
+          seq_along(aplicabilidad), function(j) vale_regla(j, k), logical(1L)
+        )]
+        base[posicion] <- list(if (length(quedan)) quedan else NULL)
+      }
+      base
+    },
+    omitidas = function(identificador) {
+      k <- indice_de(identificador)
+      if (is.na(k)) return(NULL)
+      omitidas_de[[k]]
+    },
+    avisos = avisos
+  )
+}
+
+# La fila de `cobertura_coleccion` de una tabla donde una declaracion de la
+# coleccion no se aplico (ver `.universo_por_tabla_coleccion()`).
+.motivo_declaracion_no_aplicada <- function(omitidas) {
+  paste0(
+    "La colecci\u00f3n declara ",
+    paste0(
+      "`", omitidas$politica, "` para `", omitidas$columna, "` (",
+      omitidas$motivo, ")", collapse = "; "
+    ),
+    ": en esta tabla no se aplic\u00f3. La tabla se perfil\u00f3 completa."
+  )
 }

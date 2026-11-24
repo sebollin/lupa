@@ -2,7 +2,11 @@
 # suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
 testthat::skip_on_cran()
 
-test_that("las politicas sample-only quedan explicitas y cubiertas en DBI", {
+# El resumen de tabla completa aplica los centinelas declarados, las columnas
+# opcionales y la regla de aplicabilidad. Antes afirmaba lo contrario: una fila
+# `degradado` por argumento, para toda la tabla, y el maximo del resumen
+# distinto del de la muestra.
+test_that("las politicas de ausencia se aplican en el resumen de tabla completa", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
 
@@ -27,32 +31,36 @@ test_that("las politicas sample-only quedan explicitas y cubiertas en DBI", {
     proteger_datos_personales = FALSE, analizar_dependencias = FALSE
   ))
   cobertura <- resultado$resumen_tabla$cobertura
-  for (argumento in c(
-    "sentinelas_numericos", "aplicabilidad", "columnas_opcionales"
-  )) {
-    fila <- cobertura[
-      cobertura$bloque == "resumen_tabla" &
-        cobertura$elemento == argumento,
-      , drop = FALSE
-    ]
-    expect_equal(nrow(fila), 1L, info = argumento)
-    expect_equal(fila$estado, "degradado", info = argumento)
-    expect_match(fila$motivo, paste0("`", argumento, "`"), info = argumento)
-    expect_match(fila$como_resolverlo, "perfil_muestra", info = argumento)
-  }
+  degradadas <- cobertura[
+    cobertura$bloque == "resumen_tabla" & cobertura$estado == "degradado",
+    , drop = FALSE
+  ]
+  # Las tres se aplicaron: no queda nada que declarar.
+  expect_identical(nrow(degradadas), 0L)
 
   sql <- resultado$resumen_tabla$columnas
   muestra <- resultado$perfil_muestra$columnas
-  sql_centinela <- sql[sql$columna == "centinela", "maximo"]
-  muestra_centinela <- muestra[
-    muestra$columna == "centinela", "maximo"
-  ]
-  expect_false(identical(sql_centinela, muestra_centinela))
-  sql_aplicable <- sql[sql$columna == "aplicable", "maximo"]
-  muestra_aplicable <- muestra[
-    muestra$columna == "aplicable", "maximo"
-  ]
-  expect_false(identical(sql_aplicable, muestra_aplicable))
+  de <- function(tabla, columna, campo) tabla[tabla$columna == columna, campo]
+  # A mano: sin el 9999, `centinela` es 10, 20, 99, 30.
+  expect_equal(de(sql, "centinela", "maximo"), 99)
+  expect_equal(de(sql, "centinela", "media"), (10 + 20 + 99 + 30) / 4)
+  expect_equal(de(sql, "centinela", "n_validos"), 5)
+  expect_equal(de(sql, "centinela", "n_valores_excluidos_resumen"), 1)
+  expect_equal(de(sql, "centinela", "maximo"),
+               de(muestra, "centinela", "maximo"))
+  # `opcional` tiene un `NULL` y no es un faltante.
+  expect_equal(de(sql, "opcional", "n_faltantes"), 0)
+  expect_equal(de(sql, "opcional", "n_aplicables"), 5)
+  expect_equal(de(muestra, "opcional", "n_faltantes"), 0)
+  # La regla deja las tres filas de `flag == "Si"`: 10, 20 y un `NULL`.
+  expect_equal(de(sql, "aplicable", "maximo"), 20)
+  expect_equal(de(sql, "aplicable", "n_aplicables"), 3)
+  expect_equal(de(sql, "aplicable", "n_faltantes"), 1)
+  expect_equal(de(muestra, "aplicable", "maximo"), 20)
+  politica <- resultado$resumen_tabla$meta$politica_ausencia
+  expect_identical(politica$columnas_opcionales, "opcional")
+  expect_identical(politica$aplicabilidad, "aplicable")
+  expect_identical(nrow(politica$sin_aplicar), 0L)
 })
 
 test_that("las formas equivalentes de la lista por omision dan lo mismo en DBI", {

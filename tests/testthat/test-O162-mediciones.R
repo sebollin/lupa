@@ -269,35 +269,57 @@ test_that("M1: la corroboracion no publica como divergencia lo que una declaraci
   sin <- perfil()
   expect_identical(.divergencias_O162(sin), character())
 
-  # Centinelas declarados: a mano, el SQL ve -999 como minimo y la media
-  # (3 * -999 + 1,5 * (1 + ... + 37)) / 40 = -48,5625; la muestra los saca:
-  # minimo 1,5 y media 1,5 * 19 = 28,5. Las dos cifras son correctas en su
-  # politica, y la cobertura ya declara `sentinelas_numericos` degradado.
+  # Centinelas declarados: a mano, sin los tres -999 el minimo es 1,5 y la
+  # media 1,5 * 19 = 28,5, en el resumen y en la muestra. El resumen los saca
+  # de sus magnitudes, asi que las siete se corroboran en lugar de quedar sin
+  # comparar. Antes el resumen publicaba -999 y -48,5625 y esta prueba pedia
+  # que las siete quedaran fuera de la comparacion.
   cen <- perfil(sentinelas_numericos = -999)
   rc <- cen$resumen_tabla$columnas; pm <- cen$perfil_muestra$columnas
-  expect_equal(rc$minimo[rc$columna == "v"], -999)
-  expect_equal(rc$media[rc$columna == "v"], (3 * -999 + 1.5 * sum(1:37)) / 40)
+  expect_equal(rc$minimo[rc$columna == "v"], 1.5)
+  expect_equal(rc$media[rc$columna == "v"], 28.5)
+  expect_equal(rc$n_valores_excluidos_resumen[rc$columna == "v"], 3)
   expect_equal(pm$minimo[pm$columna == "v"], 1.5)
   expect_equal(pm$media[pm$columna == "v"], 28.5)
   expect_identical(.divergencias_O162(cen), character())
-  expect_true(all(paste0("v:", c("media", "mediana", "minimo", "maximo",
-                                 "desvio", "n_ceros", "n_negativos"),
-                         ":sentinelas_numericos") %in% no_comparadas(cen)))
+  expect_false(any(grepl(":sentinelas_numericos$", no_comparadas(cen))))
   # `n_distintos` y la moda se cuentan con los centinelas en los dos lados:
   # se siguen corroborando.
   expect_false(any(grepl("^v:n_distintos", no_comparadas(cen))))
 
-  # Universo declarado: el SQL cuenta los 10 `NA` de `w`; la muestra, 0.
-  for (args in list(list(aplicabilidad = list(w = ~ tipo == "a")),
-                    list(columnas_opcionales = "w"))) {
-    p <- do.call(perfil, args)
-    expect_equal(p$resumen_tabla$columnas$n_faltantes[
-      p$resumen_tabla$columnas$columna == "w"], 10)
-    expect_equal(p$perfil_muestra$columnas$n_faltantes[
-      p$perfil_muestra$columnas$columna == "w"], 0)
-    expect_identical(.divergencias_O162(p), character())
-    expect_identical(no_comparadas(p), paste0("w:n_faltantes:", names(args)))
-  }
+  # `columnas_opcionales`: los 10 `NA` de `w` no son faltantes en ninguno de
+  # los dos lados, y la cifra se corrobora.
+  opc <- perfil(columnas_opcionales = "w")
+  expect_equal(opc$resumen_tabla$columnas$n_faltantes[
+    opc$resumen_tabla$columnas$columna == "w"], 0)
+  expect_equal(opc$perfil_muestra$columnas$n_faltantes[
+    opc$perfil_muestra$columnas$columna == "w"], 0)
+  expect_identical(.divergencias_O162(opc), character())
+  expect_identical(no_comparadas(opc), character())
+
+  # `aplicabilidad`: una regla que el motor evalua igual que R se aplica en
+  # el resumen, y `w` se corrobora entera.
+  apl <- perfil(aplicabilidad = list(w = ~ tipo == "a"))
+  expect_equal(apl$resumen_tabla$columnas$n_faltantes[
+    apl$resumen_tabla$columnas$columna == "w"], 0)
+  expect_identical(.divergencias_O162(apl), character())
+  expect_identical(no_comparadas(apl), character())
+
+  # Una que no -lleva una funcion- no se aplica en el resumen, y se declara
+  # para `w`. El resumen cuenta los 10 `NA`; la muestra, 0; y esa cifra no se
+  # compara.
+  apl <- perfil(aplicabilidad = list(w = ~ toupper(tipo) == "A"))
+  expect_equal(apl$resumen_tabla$columnas$n_faltantes[
+    apl$resumen_tabla$columnas$columna == "w"], 10)
+  expect_equal(apl$perfil_muestra$columnas$n_faltantes[
+    apl$perfil_muestra$columnas$columna == "w"], 0)
+  expect_identical(.divergencias_O162(apl), character())
+  expect_identical(no_comparadas(apl), "w:n_faltantes:aplicabilidad")
+  cb <- apl$resumen_tabla$cobertura
+  expect_identical(
+    cb$elemento[cb$bloque == "resumen_tabla" & cb$estado == "degradado"],
+    "w::aplicabilidad"
+  )
 
   # `perfilar_coleccion()` ya no sube la tabla a `alcance = "divergencias"`.
   col <- suppressWarnings(perfilar_coleccion(
@@ -306,20 +328,15 @@ test_that("M1: la corroboracion no publica como divergencia lo que una declaraci
   ))
   expect_false(any(col$cobertura_coleccion$alcance %in% "divergencias"))
 
-  # La guarda que recorre: toda politica que el resumen SQL declara no honrar
-  # -una fila `degradado` en su cobertura- tiene su caso en esta prueba. Una
-  # politica nueva entra como argumento de esa funcion, y esta linea falla hasta
-  # que alguien decida que metricas cambia y se lo diga a la corroboracion.
+  # La guarda que recorre: toda politica de ausencia que el resumen puede
+  # declarar sin aplicar -una fila `degradado` por columna en su cobertura-
+  # tiene su caso en esta prueba. Una politica nueva entra como argumento de
+  # esa funcion, y esta linea falla hasta que alguien decida que metricas
+  # cambia y se lo diga a la corroboracion.
   expect_setequal(
     names(formals(lupa:::.cobertura_politicas_muestra_dbi)),
-    c("aplicabilidad", "columnas_opcionales", "sentinelas_numericos")
-  )
-  expect_setequal(
-    lupa:::.cobertura_politicas_muestra_dbi(
-      aplicabilidad = list(w = ~ TRUE), columnas_opcionales = "w",
-      sentinelas_numericos = -999
-    )$elemento,
-    c("aplicabilidad", "columnas_opcionales", "sentinelas_numericos")
+    c("aplicabilidad", "columnas_opcionales", "sentinelas_numericos",
+      "politica_ausencia")
   )
 
   # Control: la divergencia real sigue saliendo, con los centinelas declarados.

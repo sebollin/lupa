@@ -206,7 +206,11 @@ testthat::test_that("SQLite no publica cero ante un plegado no reproducible", {
   testthat::expect_true(is.na(obtenido))
 })
 
-testthat::test_that("DECIMAL y REAL se comparan en doble", {
+# El `REAL` de DuckDB es su tipo de 4 bytes: guarda el numero de 4 bytes mas
+# cercano a -99.9, y el centinela declarado se compara en 4 bytes, como promete
+# la ayuda para una columna `real`. Antes se comparaba pasando la columna a
+# doble, la cuenta daba 0 y esta prueba lo afirmaba.
+testthat::test_that("DECIMAL se compara en doble y el REAL de DuckDB en 4 bytes", {
   testthat::skip_if_not_installed("DBI")
   testthat::skip_if_not_installed("RSQLite")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -229,7 +233,7 @@ testthat::test_that("DECIMAL y REAL se comparan en doble", {
     con2, "real_sql", sentinelas_numericos = -99.9
   )
   testthat::expect_equal(
-    perfil2$resumen_tabla$columnas$n_faltantes_disfrazados, 0
+    perfil2$resumen_tabla$columnas$n_faltantes_disfrazados, 1
   )
 })
 

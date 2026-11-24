@@ -397,21 +397,35 @@ se adaptan a los bytes medidos; el resultado conserva
 \code{meta$bytes_muestra} y \code{meta$tiempos}. \code{Inf} desactiva este límite.}
 
 \item{columnas_opcionales}{Nombres de columnas que sólo son aplicables a
-parte de las filas. Esta política se aplica al \code{perfil_muestra}; el
-resumen SQL no la traduce y lo declara en \code{resumen_tabla$cobertura}. Los
-dos bloques cuentan \code{n_faltantes} sobre universos distintos, así que la
-corroboración no lo compara: ver «Lo que el motor guarda distinto que R».}
+parte de las filas. La política se aplica al \code{perfil_muestra} y al
+resumen de tabla completa, que no cuenta sus \code{NULL} como faltantes
+(\code{n_faltantes = 0}) y publica \code{n_aplicables}, \code{n_no_aplica} y
+\code{n_aplicabilidad_indeterminada}: ver «Política de ausencia declarada».
+Un nombre que la tabla no tiene se rechaza, como en \code{\link[=perfilar]{perfilar()}}.}
 
 \item{aplicabilidad}{Lista nombrada de fórmulas de un solo lado, con una
-regla por columna. Se reenvía al \code{perfil_muestra}; el resumen SQL no la
-traduce y lo declara en \code{resumen_tabla$cobertura}, y la corroboración no
-compara lo que la regla cambia. Una regla que no da un valor lógico —una
-columna sola que el motor guarda como 0 y 1, como hace SQLite con una
-lógica: \code{~ activo}— no se aplica: se avisa, se declara para su columna en
+regla por columna. Se aplica al \code{perfil_muestra} y al resumen de tabla
+completa: todas las cifras de la columna son de las filas donde la regla
+se cumple, y el resumen publica \code{n_aplicables}, \code{n_no_aplica} y
+\code{n_aplicabilidad_indeterminada}. Cuando el resumen lee las filas
+—\code{bloque_filas} o \code{universo = "muestra_motor"}— evalúa la regla en R. Las
+consultas agregadas la traducen al SQL del motor si está hecha de
+comparaciones, \code{\%in\%}, \code{is.na()}, \code{&}, \code{|} y \code{!} sobre columnas y valores
+—un valor puede ser un objeto de donde se escribió la regla, como
+\code{~ edad > tope}—; una regla con funciones, aritmética sobre columnas u
+orden de textos no se traduce: el resumen lo declara para esa columna en
+\code{resumen_tabla$cobertura} (\verb{<columna>::aplicabilidad}) y la corroboración
+no compara lo que la regla cambia. Ver «Política de ausencia declarada».
+Una regla que no da un valor lógico —una columna sola que el motor guarda
+como 0 y 1, como hace SQLite con una lógica: \code{~ activo}— no se aplica ni
+en la muestra ni en el resumen: se avisa, se declara para su columna en
 \code{resumen_tabla$cobertura} con cómo escribirla (\code{~ activo == 1}), y el resto
 del perfil sale igual. Se decide con el tipo de las columnas y, si el motor
 no lo declara, con las filas leídas. Un periodo sobre esa columna queda
-\code{no_disponible} con ese motivo.}
+\code{no_disponible} con ese motivo.
+Una regla sobre una columna que la tabla no tiene, o que nombra algo que
+no es una columna ni un objeto de donde se escribió, se rechaza; también
+declarar la misma columna aquí y en \code{columnas_opcionales}.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 declaran como faltantes en el \code{perfil_muestra}, o la lista por columna de
@@ -419,12 +433,16 @@ declaran como faltantes en el \code{perfil_muestra}, o la lista por columna de
 valida contra las columnas de la tabla y la reciben igual el resumen SQL,
 la muestra y la corroboración. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
-duplicados no cambian el resultado. El resumen SQL no los excluye de sus
-agregados y lo declara en \code{resumen_tabla$cobertura}; la corroboración no
-compara las métricas de magnitud de una columna de la que la muestra
-excluyó alguno. En una columna \code{real}, una representacion float32 del
-centinela fraccionario se alinea antes de perfilar la muestra; la
-corroboración reconoce esa representacion como el mismo centinela.
+duplicados no cambian el resultado. Un valor declarado —una lista que no
+es la de omisión ni \code{sentinelas_naniar}— sale también de las magnitudes
+del resumen de tabla completa (\code{minimo}, \code{maximo}, \code{media}, \code{mediana},
+\code{desvio}, \code{n_ceros} y \code{n_negativos}) y sigue contando en \code{n_validos},
+\code{n_distintos} y la moda, como en \code{\link[=perfilar]{perfilar()}}; el resumen publica cuántos
+sacó en \code{n_valores_excluidos_resumen}: ver «Política de ausencia
+declarada». En una columna de 4 bytes —\code{real}, y \code{FLOAT} en DuckDB, MySQL
+y MariaDB—, una representación float32 del centinela fraccionario se
+alinea antes de perfilar la muestra, y el resumen compara la columna con
+esa representación; la corroboración la reconoce como el mismo centinela.
 
 Rige la misma reserva que en \code{\link[=perfilar]{perfilar()}}: un valor de la lista \strong{por
 omisión} que aparece una sola vez y dentro del rango de los demás no se
@@ -1520,12 +1538,11 @@ señal.
 calculan con la misma semántica. No compara lo que una declaración o una
 guarda hacen distinto a propósito, porque esa diferencia no es del motor,
 del controlador ni de un snapshot: la \code{media}, la \code{mediana} y el \code{desvio}
-de una columna de \code{columnas_codigo}, que no se calculan; \code{n_faltantes} de
-una columna de \code{columnas_opcionales} o de \code{aplicabilidad}, que la muestra
-cuenta sobre su universo —y todas las métricas de la columna con
-\code{aplicabilidad} si la muestra dejó afuera valores presentes—; las métricas
-de magnitud de una columna de la que la muestra excluyó los
-\code{sentinelas_numericos} declarados; las de un entero ancho desde
+de una columna de \code{columnas_codigo}, que no se calculan; lo que el
+resumen no pudo aplicar de la política de ausencia declarada —\code{n_faltantes}
+de una columna con \code{aplicabilidad}, y todas sus métricas si la muestra dejó
+afuera valores presentes; lo que sí aplicó mide lo mismo que la muestra y
+se compara—; las de un entero ancho desde
 2^53, que el resumen no publica; y el \code{desvio} de un decimal que la
 muestra leyó como doble y no publicó (causa \code{decimal_doble}, ver
 \code{perfil_muestra$meta$desvio_decimal_doble}). Tampoco lo que un bloque no calculó: una
@@ -1551,6 +1568,60 @@ columnas cuyos valores no son pequeños pero cuyo desvio es menor que
 unidades del sistema internacional— la corroboración tampoco distingue
 dos lecturas.
 }
+}
+
+\section{Política de ausencia declarada}{
+
+\code{sentinelas_numericos}, \code{columnas_opcionales} y \code{aplicabilidad} dicen qué
+valores y qué filas no cuentan. El resumen de tabla completa las aplica con
+la regla de \code{\link[=perfilar]{perfilar()}}, campo por campo, o dice por columna que no pudo:
+\itemize{
+\item \strong{Centinelas declarados.} Salen de \code{minimo}, \code{maximo}, \code{media},
+\code{mediana}, \code{desvio}, \code{n_ceros} y \code{n_negativos}; siguen en \code{n_validos},
+\code{n_faltantes}, \code{n_distintos} y la moda. Una columna que es toda centinela
+queda sin magnitudes. \code{n_valores_excluidos_resumen} cuenta las celdas
+presentes que quedaron fuera de las magnitudes: los centinelas, los \code{NaN}
+y los infinitos. La lista por omisión y \code{sentinelas_naniar} no se
+excluyen: sólo se usan para señalar faltantes disfrazados.
+\item \strong{Columnas opcionales.} Sus \code{NULL} no son faltantes: \code{n_faltantes} y
+\code{prop_faltantes} valen 0 y \code{n_aplicables} es la cantidad de celdas con
+valor.
+\item \strong{Aplicabilidad.} Todas las cifras de la columna son de las filas donde
+la regla se cumple; \code{n_no_aplica} cuenta las filas donde no se cumple y
+\code{n_aplicabilidad_indeterminada} aquellas donde no se sabe, porque la
+columna que discrimina falta. Con \code{bloque_filas} o
+\code{universo = "muestra_motor"} el resumen evalúa la regla en R sobre las
+filas que lee. Las consultas agregadas la traducen al SQL del motor con la
+semántica de \code{NA} de R, sin consultas nuevas; hoy en SQLite y DuckDB. La
+regla que no se puede traducir —una función, aritmética sobre columnas, el
+orden de un texto, una comparación entre tipos que R convierte y el motor
+no— no se aplica a medias: esa columna cuenta todas las filas y lo dice.
+La regla que no da un valor lógico (ver \code{aplicabilidad}) no se aplica por
+ningún camino y no figura en \code{meta$politica_ausencia}: tiene una sola fila
+en \code{resumen_tabla$cobertura}, la de su columna en el bloque
+\code{perfil_muestra}. Si con \code{bloque_filas} eso se supo después de haber leído
+filas —una columna sin tipo declarado cuyas primeras filas son todas
+\code{NULL}—, las cifras por bloques de esa columna no se publican.
+}
+
+Las columnas \code{n_valores_excluidos_resumen}, \code{n_aplicables}, \code{n_no_aplica} y
+\code{n_aplicabilidad_indeterminada} aparecen en \code{resumen_tabla$columnas} sólo si
+se declaró la política que las llena. Son conteos: se calculan cuando
+\code{metricas} incluye \code{"validos"} —y \code{n_valores_excluidos_resumen}, además, las
+magnitudes— y quedan en \code{NA} si no. Una columna \verb{NOT NULL} con una regla de
+\code{aplicabilidad} cuenta sus válidos en lugar de tomarlos del catálogo.
+\code{resumen_tabla$meta$politica_ausencia}
+dice a qué columnas se aplicó cada una y, en \code{sin_aplicar}, a cuáles no y por
+qué; cada una de esas tiene su fila \code{degradado} en \code{resumen_tabla$cobertura},
+con \code{elemento = "<columna>::<política>"}. Sin política declarada el resumen
+es el de siempre. La política no agrega consultas: la exclusión viaja dentro
+de los mismos agregados.
+
+Entre un objeto guardado por una versión que calculaba el resumen sin la
+política y uno que la aplica, \code{\link[=comparar_perfiles]{comparar_perfiles()}} y
+\code{\link[=comparar_equivalencia]{comparar_equivalencia()}} no comparan las cifras que la política cambia: las
+dejan \code{no_comparable} con el motivo
+\code{politica_ausencia:sin_aplicar_vs_aplicada}.
 }
 
 \section{Costo}{

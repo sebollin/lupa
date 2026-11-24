@@ -682,8 +682,14 @@
   salida
 }
 
-.absorber_bloque_fuente_dbi <- function(acumuladores, datos, inicio, fin) {
+.absorber_bloque_fuente_dbi <- function(acumuladores, datos, inicio, fin,
+                                        ausencia = NULL) {
   if (!length(acumuladores)) return(acumuladores)
+  # La politica de ausencia declarada, por bloque: que filas aplican a cada
+  # columna y que celdas son un centinela declarado (ver
+  # `.politica_ausencia_bloques_dbi()`). El acumulador ya sabe leer `aplicable`:
+  # es el mismo que usa `perfilar()`.
+  mascaras <- if (is.null(ausencia)) NULL else ausencia$mascaras(datos)
   for (nombre in names(acumuladores)) {
     partes <- strsplit(nombre, "\u001f", fixed = TRUE)[[1L]]
     campo <- partes[[1L]]
@@ -694,9 +700,28 @@
       )
       next
     }
+    aplicable <- rep(TRUE, length(valor))
+    mascara <- mascaras[[campo]]
+    if (!is.null(mascara$fallo)) {
+      acumuladores[[nombre]] <- .marcar_fallo_acumulador(
+        acumuladores[[nombre]], mascara$fallo
+      )
+      next
+    }
+    if (!is.null(mascara)) {
+      if (length(mascara$aplicable) == length(valor)) {
+        aplicable <- mascara$aplicable
+      }
+      # Un centinela declarado sale solo de las magnitudes: sigue contando en
+      # validos, distintos y moda.
+      if (length(partes) >= 2L && identical(partes[[2L]], "cuantitativos") &&
+          length(mascara$centinela) == length(valor)) {
+        aplicable <- aplicable & !mascara$centinela
+      }
+    }
     bloque <- list(
       valores = valor, ordinal_inicio = inicio, ordinal_fin = fin,
-      aplicable = rep(TRUE, length(valor))
+      aplicable = aplicable
     )
     acumuladores[[nombre]] <- .absorber_acumulador(
       acumuladores[[nombre]], bloque
@@ -923,8 +948,16 @@
                                           moda_precalculada = NULL,
                                           tipos_motor = NULL,
                                           prototipo_desconocido = FALSE,
-                                          decimal_exacto = NULL) {
+                                          decimal_exacto = NULL,
+                                          ausencia = NULL) {
   fila <- .fila_vacia_bloques_dbi(campo, n_total)
+  # Lo que la politica de ausencia declarada dice de esta columna: si tiene un
+  # universo declarado y que centinelas salen de sus magnitudes.
+  con_universo <- !is.null(ausencia) && isTRUE(ausencia$con_universo(campo))
+  centinelas_declarados <- if (is.null(ausencia)) numeric() else {
+    ausencia$declarados(campo)
+  }
+  universo_columna <- NULL
   # La media y la mediana de un decimal que el motor sumo en su tipo (ver
   # `.media_mediana_decimal_bloques_dbi()`), en lugar de las de los dobles.
   exacta <- function(metrica, nombre) {
@@ -983,6 +1016,21 @@
       fila$prop_faltantes <- if (is.finite(n_total) && n_total > 0) {
         fila$n_faltantes / n_total
       } else NA_real_
+      # Con universo declarado la ausencia se mide sobre las filas que aplican,
+      # como en `perfilar()`: las cuenta el mismo acumulador.
+      if (!is.null(ausencia)) {
+        universo_columna <- list(
+          n_aplicables = sobre$resultado$n_aplicables,
+          n_no_aplica = sobre$resultado$n_no_aplica,
+          n_aplicabilidad_indeterminada = sobre$resultado$n_indeterminada
+        )
+      }
+      if (con_universo) {
+        fila$n_faltantes <- sobre$resultado$n_faltantes
+        fila$prop_faltantes <- if (isTRUE(sobre$resultado$n_aplicables > 0)) {
+          fila$n_faltantes / sobre$resultado$n_aplicables
+        } else NA_real_
+      }
       fila$n_nan <- sobre$resultado$n_nan %||% NA_real_
       fila$n_infinito_positivo <- sobre$resultado$n_infinito_positivo %||% NA_real_
       fila$n_infinito_negativo <- sobre$resultado$n_infinito_negativo %||% NA_real_
@@ -1145,6 +1193,15 @@
   if (inherits(distintos, "acumulador_bloques")) distintos <- distintos$resultado
   mapa <- if (is.null(distintos)) NULL else distintos$resultado
   mapa_truncado <- !is.null(distintos) && identical(distintos$estado, "cota")
+  # La mediana se reconstruye del mapa de distintos, donde los centinelas
+  # declarados siguen estando -cuentan en `n_distintos` y en la moda-: para la
+  # mediana se les quita la frecuencia.
+  mapa_mediana <- .mapa_sin_centinelas_bloques_dbi(
+    mapa, centinelas_declarados,
+    es_centinela = if (!is.null(ausencia)) {
+      function(valores) ausencia$centinela(campo, valores)
+    }
+  )
   motivo_mapa <- if (mapa_truncado) {
     paste0("familia_sin_acumulador:", distintos$motivo %||%
       "mapa_distintos_truncado")
@@ -1261,10 +1318,12 @@
       metadatos = .metadatos_sql_dbi()
     )
   } else if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
-    fila$mediana <- .mediana_mapa_bloques_dbi(mapa)
+    fila$mediana <- .mediana_mapa_bloques_dbi(mapa_mediana)
     estado_mediana <- if (is.na(fila$mediana)) "no_disponible" else "calculado"
     motivo_mediana <- if (is.na(fila$mediana)) {
-      if (mapa_truncado) motivo_mapa else .motivo_mediana_mapa_bloques_dbi(mapa)
+      if (mapa_truncado) motivo_mapa else {
+        .motivo_mediana_mapa_bloques_dbi(mapa_mediana)
+      }
     } else NA_character_
     mediana <- exacta(list(
       valor = fila$mediana, estado = estado_mediana, motivo = motivo_mediana
@@ -1339,7 +1398,7 @@
     # exacta. Un `UNSIGNED` que aparece negativo no: ahi el doble es otro
     # numero.
     centrales <- if (unsigned_inconsistente) NULL else {
-      .centrales_mapa_bloques_dbi(mapa)
+      .centrales_mapa_bloques_dbi(mapa_mediana)
     }
     mediana_por_valor <- "mediana" %in% names(fila) &&
       length(fila$mediana) == 1L && is.finite(fila$mediana) &&
@@ -1386,7 +1445,32 @@
     sql$estado[tapar] <- "no_disponible"
     sql$motivo[tapar] <- .MOTIVO_DESVIO_DECIMAL_DOBLE_DBI
   }
-  list(fila = fila, sql = sql)
+  # Lo que la politica de ausencia agrega a la fila publicada: el universo de la
+  # columna y cuantas celdas presentes quedaron fuera de las magnitudes
+  # -centinelas declarados, `NaN` e infinitos-, con la cuenta de `perfilar()`.
+  ausencia_columna <- NULL
+  if (!is.null(ausencia)) {
+    evaluados <- if (!is.null(sobre_cuantitativos) &&
+                     identical(sobre_cuantitativos$estado, "calculado")) {
+      suppressWarnings(as.numeric(
+        .numero_dbi(sobre_cuantitativos$resultado$n_evaluados)
+      ))
+    } else NA_real_
+    n_nan <- suppressWarnings(as.numeric(fila$n_nan))
+    if (length(n_nan) != 1L || is.na(n_nan)) n_nan <- 0
+    validos <- suppressWarnings(as.numeric(fila$n_validos))
+    ausencia_columna <- c(
+      universo_columna %||% list(
+        n_aplicables = NA_real_, n_no_aplica = NA_real_,
+        n_aplicabilidad_indeterminada = NA_real_
+      ),
+      list(n_valores_excluidos_resumen = if (
+        length(evaluados) == 1L && is.finite(evaluados) &&
+          length(validos) == 1L && is.finite(validos)
+      ) validos + n_nan - evaluados else NA_real_)
+    )
+  }
+  list(fila = fila, sql = sql, ausencia = ausencia_columna)
 }
 
 .plan_bloques_fuente_dbi <- function(fuente, bloque_filas, campos, metricas,
@@ -1592,7 +1676,8 @@
                                          incluir_valores = TRUE,
                                          max_bytes_procesamiento =
                                            .MAX_BYTES_ESTADO_BLOQUES,
-                                         columnas_binarias = character()) {
+                                         columnas_binarias = character(),
+                                         ausencia = NULL) {
   metricas_acumuladores <- unique(c(
     metricas,
     if (isTRUE(incluir_valores) &&
@@ -1689,7 +1774,7 @@
       )
     }
     acumuladores <- .absorber_bloque_fuente_dbi(
-      acumuladores, bloque, inicio, fin
+      acumuladores, bloque, inicio, fin, ausencia = ausencia
     )
     if (!is.null(vigilante)) {
       # La medicion ocurre entre bloques, despues de soltar la referencia de
@@ -1951,12 +2036,26 @@
     corrida_id = paste0("dbi-bloques-", as.integer(Sys.time())),
     tope_bytes = max_bytes_procesamiento
   )
+  # La politica de ausencia declarada vale tambien aca: el resumen por bloques
+  # es de la tabla completa, igual que el SQL.
+  ausencia <- .politica_ausencia_bloques_dbi(
+    argumentos, preparacion$campos,
+    alinear = function(datos) {
+      .ajustar_sentinelas_real_dbi(
+        datos, preparacion$campos, preparacion$tipos,
+        argumentos[["sentinelas_numericos"]],
+        tipos_motor = preparacion$esquema$tipos_motor,
+        senas = .senas_conexion_dbi(conexion)
+      )
+    }
+  )
   recorrido <- .recorrer_fuente_bloques_dbi(
     conexion, fuente, metricas, preparacion$prototipo, preparacion$tipos,
     bloque_filas, vigilante = vigilante,
     incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento,
-    columnas_binarias = preparacion$columnas_binarias_bloques
+    columnas_binarias = preparacion$columnas_binarias_bloques,
+    ausencia = ausencia
   )
   # El recorrido no pasa por el presupuesto -sin el no hay perfil- pero viaja
   # al motor: se cuenta antes de las consultas que si pueden quedar afuera, para
@@ -2249,7 +2348,8 @@
       conexion, preparacion, fuente, recorrido$sobres, metricas,
       incluir_valores, tipo_motor_de, presupuesto = presupuesto,
       reserva_media = reserva_decimales,
-      n_filas = recorrido$bloques$filas_vistas %||% NA_real_
+      n_filas = recorrido$bloques$filas_vistas %||% NA_real_,
+      ausencia = ausencia
     )
   } else list(columnas = list(), consultas = 0L)
   # La muestra corre sin reserva, como en la via SQL.
@@ -2276,6 +2376,7 @@
   filas <- vector("list", length(preparacion$campos))
   names(filas) <- preparacion$campos
   sql <- list()
+  universos_ausencia <- list()
   for (campo in preparacion$campos) {
     resultado <- if (isTRUE(fuente$disponible) && is.null(recorrido$error)) {
       .fila_y_registros_bloques_dbi(
@@ -2288,7 +2389,8 @@
         prototipo_desconocido = isTRUE(
           preparacion$esquema$prototipo_desconocido
         ),
-        decimal_exacto = decimales_bloques$columnas[[campo]]
+        decimal_exacto = decimales_bloques$columnas[[campo]],
+        ausencia = ausencia
       )
     } else {
       fila <- .fila_resumen_dbi(campo, NA_real_)
@@ -2307,6 +2409,7 @@
     }
     filas[[campo]] <- resultado$fila
     sql[[length(sql) + 1L]] <- resultado$sql
+    universos_ausencia[[campo]] <- resultado$ausencia
   }
   # Las columnas que el esquema no pudo leer -el motor las rechazo, o la sesion
   # no puede escribir su nombre- se declaran como en la via SQL: esta via las
@@ -2341,6 +2444,13 @@
       valor <- as.integer(valor)
     }
     columnas[[nombre]] <- valor
+  }
+  # Con una politica de ausencia declarada, las columnas que dicen sobre que
+  # se midio, como el resumen SQL.
+  if (!is.null(ausencia) && recorrida) {
+    columnas <- .columnas_ausencia_bloques_dbi(
+      columnas, ausencia, universos_ausencia
+    )
   }
   rownames(columnas) <- NULL
   sql <- if (length(sql)) do.call(rbind, sql) else data.frame()
@@ -2441,6 +2551,21 @@
       "representaci\u00f3n del controlador, no a una conversi\u00f3n silenciosa."
     )
   )
+  # Tambien si la fuente no se pudo recorrer: ahi no hay cifras, y decir que se
+  # calcularon sin la politica seria afirmar algo de cifras que no estan.
+  if (!is.null(ausencia)) meta$politica_ausencia <- ausencia$meta()
+  # La regla de `aplicabilidad` que sobre las filas leidas no dio un valor
+  # logico no se aplico: se declara aca, una vez, como la declara la muestra
+  # (`.aplicabilidad_sobre_datos_dbi()`), que ya no la recibe.
+  reglas_no_logicas <- if (is.null(ausencia)) NULL else ausencia$no_logicas()
+  if (NROW(reglas_no_logicas)) {
+    cobertura <- rbind(
+      cobertura, .cobertura_aplicabilidad_no_logica_dbi(reglas_no_logicas)
+    )
+    .avisar_muestra_motor_dbi(
+      .aviso_aplicabilidad_no_logica_dbi(reglas_no_logicas)
+    )
+  }
   resumen <- list(columnas = columnas, sql = sql, cobertura = cobertura,
                   meta = meta, tiempos = .resumen_tiempos_dbi(NULL))
   if (identical(preparacion$bloque_muestra, "solo_agregados")) {
@@ -2460,6 +2585,13 @@
     trazador <- .trazador_tiempos_dbi(preparacion$instrumentar)
     argumentos_muestra <- argumentos
     argumentos_muestra$antes_segunda_pasada <- NULL
+    if (NROW(reglas_no_logicas)) {
+      argumentos_muestra["aplicabilidad"] <- list(
+        .quitar_reglas_aplicabilidad_dbi(
+          argumentos_muestra[["aplicabilidad"]], reglas_no_logicas
+        )
+      )
+    }
     bloque_muestra <- .bloque_muestra_dbi(
       conexion, tabla, preparacion$tabla_sql, preparacion$campos,
       preparacion$campos_sql_proyeccion, preparacion$muestra,
@@ -4055,7 +4187,8 @@
                                                incluir_valores, tipo_de,
                                                presupuesto = NULL,
                                                reserva_media = 0,
-                                               n_filas = NA_real_) {
+                                               n_filas = NA_real_,
+                                               ausencia = NULL) {
   salida <- list(columnas = list(), consultas = 0L)
   senas <- .senas_conexion_dbi(conexion)
   dialecto <- preparacion$dialecto
@@ -4102,7 +4235,21 @@
     if (length(media_dobles) != 1L) media_dobles <- NA_real_
     media_pedida <- "basicos" %in% metricas
     desvio_pedido <- "desvio" %in% metricas
-    if (media_pedida || desvio_pedido) {
+    # Las sumas exactas las hace el motor sobre la columna entera: con una
+    # politica de ausencia declarada contarian lo que los bloques dejaron
+    # afuera. Ahi la media y el desvio del decimal no se publican, y se dice.
+    con_ausencia <- !is.null(ausencia) && (
+      isTRUE(ausencia$con_universo(campo)) ||
+        length(ausencia$declarados(campo)) > 0L
+    )
+    if (con_ausencia && (media_pedida || desvio_pedido)) {
+      motivo_ausencia <- fallo(paste(
+        "La columna tiene una pol\u00edtica de ausencia declarada y la suma",
+        "exacta del motor contar\u00eda los valores que esa pol\u00edtica deja afuera."
+      ))
+      if (media_pedida) columna$media <- motivo_ausencia
+      if (desvio_pedido) columna$desvio <- motivo_ausencia
+    } else if (media_pedida || desvio_pedido) {
       finitos <- extremos[is.finite(extremos)]
       exactas[[campo]] <- list(
         columna_sql = columna_sql, tipo = tipo, n = n,

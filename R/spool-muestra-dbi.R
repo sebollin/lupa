@@ -1510,16 +1510,23 @@
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
     datos_materializados, columnas_castadas, preparacion$tipos
   )
+  # La politica de ausencia que vale sobre estas filas: sin la regla de
+  # `aplicabilidad` que sobre ellas no da un valor logico, que `perfilar()` no
+  # recibe (ver `.aplicabilidad_sobre_datos_dbi()`, que la declara mas abajo).
+  argumentos_ausencia <- .argumentos_ausencia_sobre_datos_dbi(
+    conversion_muestra$datos, argumentos
+  )
   # La media, la mediana y el desvio de un decimal que llego como texto y
   # quedo en doble se publican del texto, no de los dobles.
   decimales_texto <- .media_mediana_decimales_muestra_dbi(
     datos_materializados, conversion_muestra$datos, columnas_castadas,
-    preparacion$tipos
+    preparacion$tipos, politica = argumentos_ausencia
   )
   datos_completos <- .ajustar_sentinelas_real_dbi(
     conversion_muestra$datos, campos, preparacion$tipos,
     argumentos[["sentinelas_numericos"]],
-    tipos_motor = preparacion$esquema$tipos_motor
+    tipos_motor = preparacion$esquema$tipos_motor,
+    senas = .senas_conexion_dbi(conexion)
   )
   datos <- datos_completos
   if (!is.null(datos) && is.finite(preparacion$muestra) &&
@@ -1912,7 +1919,14 @@
       columnas[[nombre]] <- perfil_columnas[[nombre]][posicion]
     }
     if (all(c("n", "n_faltantes") %in% names(perfil_columnas))) {
-      columnas$n_validos <- as.numeric(perfil_columnas$n)[posicion] -
+      # Los validos son los del universo de la columna: con `aplicabilidad` o
+      # `columnas_opcionales` declaradas, `n - n_faltantes` contaba las filas
+      # que no aplican (cinco validos con tres celdas no nulas). Sin
+      # declaracion `n_aplicables` es `n` y la cuenta es la de siempre.
+      universo_columna <- if ("n_aplicables" %in% names(perfil_columnas)) {
+        as.numeric(perfil_columnas$n_aplicables)[posicion]
+      } else as.numeric(perfil_columnas$n)[posicion]
+      columnas$n_validos <- universo_columna -
         as.numeric(perfil_columnas$n_faltantes)[posicion]
     }
     # La completitud de la que no se perfilo, sobre las mismas filas: DDM
@@ -1958,6 +1972,43 @@
     ))
   }
   columnas$n_faltantes_disfrazados <- faltantes_disfrazados
+  # Con una politica de ausencia declarada el resumen publica ademas sobre que
+  # se midio, como el resumen SQL (`.columnas_ausencia_resumen_dbi()`): aca sale
+  # del perfil de la materializacion, que ya la aplico.
+  politica_ausencia_spool <- .politica_ausencia_spool_dbi(
+    argumentos_ausencia, campos
+  )
+  if (is.null(politica_ausencia_spool) && !identical(
+    argumentos_ausencia[["aplicabilidad"]], argumentos[["aplicabilidad"]]
+  )) {
+    # Lo unico declarado era una regla que sobre estas filas no da un valor
+    # logico: no quedo nada que aplicar y la regla se declara aparte. El
+    # resumen lo dice, para que la cobertura no declare sin aplicar -y aplicada
+    # por `perfil_muestra`- una politica que nadie aplico.
+    politica_ausencia_spool <- list(
+      campos = character(),
+      meta = list(
+        sentinelas_numericos = character(), columnas_opcionales = character(),
+        aplicabilidad = character(),
+        sin_aplicar = data.frame(
+          politica = character(), columna = character(), motivo = character(),
+          stringsAsFactors = FALSE
+        )
+      )
+    )
+  }
+  if (is.list(politica_ausencia_spool) && !is.null(perfil_columnas)) {
+    posicion_ausencia <- .indice_nombre(
+      as.character(columnas$columna), as.character(perfil_columnas$columna)
+    )
+    for (nombre in intersect(
+      politica_ausencia_spool$campos, names(perfil_columnas)
+    )) {
+      columnas[[nombre]] <- suppressWarnings(as.numeric(
+        perfil_columnas[[nombre]][posicion_ausencia]
+      ))
+    }
+  }
   if (!is.null(motivo_muestra_sin_filas)) {
     for (nombre in setdiff(names(columnas), c("columna", "n"))) {
       columnas[[nombre]][] <- NA
@@ -2247,6 +2298,12 @@
       NA_character_
     ))
   }
+  # Lo que el resumen aplico de la politica declarada: aca, todo lo que aplico
+  # `perfilar()` sobre la materializacion. Sin esto la cobertura declaraba
+  # `degradado` unas cifras que ya salen con la politica aplicada.
+  if (is.list(politica_ausencia_spool) && !is.null(perfil_columnas)) {
+    meta$politica_ausencia <- politica_ausencia_spool$meta
+  }
   resumen <- list(
     columnas = columnas, sql = sql, cobertura = cobertura,
     literales = character(), meta = meta, tiempos = meta$tiempos
@@ -2301,12 +2358,18 @@
 # texto (`.media_mediana_decimal_texto_dbi()`). Un decimal entero que la
 # conversion llevo a `integer64` o a `integer` ya es exacto y no entra.
 .media_mediana_decimales_muestra_dbi <- function(textos, datos, columnas,
-                                                tipos) {
+                                                tipos, politica = NULL) {
   salida <- list()
   if (!is.data.frame(textos) || !is.data.frame(datos) || !length(columnas) ||
       nrow(textos) != nrow(datos)) {
     return(salida)
   }
+  # Las celdas que no entran en las magnitudes segun la politica de ausencia
+  # declarada. Estas cifras reemplazan a las de `perfilar()` en el resumen, y
+  # `perfilar()` ya las calculo sin ellas: sumar el texto de todas las celdas
+  # publicaba el minimo sin el centinela al lado de la media con el (medido:
+  # 1,25 y -2,79 sobre la misma columna).
+  fuera_de_magnitudes <- .mascaras_ausencia_muestra_dbi(datos, politica)
   for (columna in intersect(columnas, names(datos))) {
     posicion <- match(columna, names(datos))
     tipo <- .atributo_columna_dbi(tipos, columna, posicion) %||% NA_character_
@@ -2317,8 +2380,10 @@
         inherits(x, "integer64") || !is.character(texto)) {
       next
     }
+    fuera <- fuera_de_magnitudes(columna, x)
     salida[[columna]] <- .media_mediana_decimal_texto_dbi(
-      texto, x
+      if (any(fuera)) texto[!fuera] else texto,
+      if (any(fuera)) x[!fuera] else x
     )
   }
   salida

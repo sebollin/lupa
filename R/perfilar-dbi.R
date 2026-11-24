@@ -10214,7 +10214,14 @@
 
 .cobertura_politicas_muestra_dbi <- function(
     aplicabilidad = NULL, columnas_opcionales = character(),
-    sentinelas_numericos = c(-9, -99, -999, -9999, 999)) {
+    sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+    politica_ausencia = NULL) {
+  # El resumen que resolvio la politica dice que aplico y que no
+  # (`meta$politica_ausencia`): se declara solo lo que no pudo, por columna y
+  # con su motivo. Sin esa resolucion se declara la politica entera.
+  if (is.list(politica_ausencia)) {
+    return(.cobertura_politica_sin_aplicar_dbi(politica_ausencia$sin_aplicar))
+  }
   politicas <- character()
   if (!is.null(aplicabilidad) && length(aplicabilidad)) {
     politicas <- c(politicas, "aplicabilidad")
@@ -10318,7 +10325,8 @@
   nuevas <- .cobertura_politicas_muestra_dbi(
     aplicabilidad = aplicabilidad,
     columnas_opcionales = columnas_opcionales,
-    sentinelas_numericos = sentinelas_numericos
+    sentinelas_numericos = sentinelas_numericos,
+    politica_ausencia = resultado$resumen_tabla$meta[["politica_ausencia"]]
   )
   # El texto que el controlador entrega en latin1 -bajo una sesion que no es
   # UTF-8, o configurado asi-: ver `.texto_del_controlador_dbi()`.
@@ -10558,18 +10566,28 @@
   nombres <- unique(intersect(
     as.character(resumen$columnas$columna), as.character(perfil$columnas$columna)
   ))
+  # Lo que el resumen SI aplico de la politica de ausencia
+  # (`meta$politica_ausencia`): esas cifras miden lo mismo que las de la
+  # muestra y se corroboran. Solo queda sin comparar lo que no se pudo aplicar.
+  politica_aplicada <- if (is.list(resumen$meta)) {
+    resumen$meta[["politica_ausencia", exact = TRUE]]
+  }
+  aplicada <- function(politica, columna) {
+    is.list(politica_aplicada) &&
+      operar(columna) %in% operar(as.character(politica_aplicada[[politica]]))
+  }
   for (columna in nombres) {
     clave <- operar(columna)
     if (clave %in% codigos) {
       agregar(columna, c("media", "mediana", "desvio"), "columnas_codigo")
     }
-    if (clave %in% opcionales) {
+    if (clave %in% opcionales && !aplicada("columnas_opcionales", columna)) {
       agregar(columna, "n_faltantes", "columnas_opcionales")
     }
     if (clave %in% desvio_doble) {
       agregar(columna, "desvio", "decimal_doble")
     }
-    if (clave %in% con_aplicabilidad) {
+    if (clave %in% con_aplicabilidad && !aplicada("aplicabilidad", columna)) {
       fuera <- campo(columna, "n_presentes_fuera_de_aplicabilidad") +
         campo(columna, "n_presentes_en_aplicabilidad_indeterminada")
       agregar(
@@ -10579,7 +10597,8 @@
       )
     }
     if (length(sentinelas_de(columna)) &&
-        .tipo_numerico_corroboracion_dbi(perfil$columnas, columna)) {
+        .tipo_numerico_corroboracion_dbi(perfil$columnas, columna) &&
+        !aplicada("sentinelas_numericos", columna)) {
       no_finitos <- campo(columna, "n_nan") +
         campo(columna, "n_infinito_positivo") +
         campo(columna, "n_infinito_negativo")
@@ -12784,7 +12803,12 @@
       "se calculan s\u00f3lo con valores finitos."
     )
   }
-  list(fila = interno$fila[campos], sql = sql, literales = interno$literales)
+  # `n_finitos`: cuantos valores entraron en esas magnitudes. Lo lee la cuenta
+  # de valores excluidos del resumen (`.columnas_ausencia_resumen_dbi()`).
+  list(
+    fila = interno$fila[campos], sql = sql, literales = interno$literales,
+    n_finitos = interno$fila[["n_validos"]]
+  )
 }
 
 .motivo_nan_dbi <- function(que) {
@@ -15260,6 +15284,14 @@
         consulta, sql, aliases$faltantes, metadatos
       )
     }
+    if (length(aliases$extras)) {
+      resultado$extras <- lapply(aliases$extras, function(alias_extra) {
+        .adjuntar_denominador_consulta_dbi(
+          .resultado_lote_dbi(consulta, sql, alias_extra, metadatos),
+          consulta, aliases$total
+        )
+      })
+    }
     salida[[i]] <- resultado
   }
   salida
@@ -15304,7 +15336,8 @@
     columnas_double_originales = character(),
     columnas_not_null_skip = character(),
     columnas_not_null_texto = character(),
-    contador_estabilidad = NULL) {
+    contador_estabilidad = NULL,
+    columnas_medibles = NULL, agregados_extra = NULL) {
   fallas_lote_inicio <- if (is.null(presupuesto)) 0L else {
     if (is.null(presupuesto$fallas_lotes)) presupuesto$fallas_lotes <- list()
     length(presupuesto$fallas_lotes)
@@ -15347,6 +15380,17 @@
          campo %in% columnas_float8_numeric)
     )
   }
+  # La columna como entra a las magnitudes: sin lo declarado ausente (ver
+  # `.columna_medible_dbi()`). `columnas_medibles` trae, por campo, la condicion
+  # "es un centinela declarado"; sin ella es la misma expresion de siempre.
+  columna_magnitud_de <- function(i) {
+    .columna_medible_dbi(
+      columna_operacion_de(i), columnas_medibles[[lote[[i]]]]
+    )
+  }
+  nombre_magnitud_sql <- function(campo) {
+    .columna_medible_dbi(nombres_sql[[campo]], columnas_medibles[[campo]])
+  }
   alias_por_columna <- vector("list", length(lote))
   names(alias_por_columna) <- lote
   for (i in seq_along(lote)) {
@@ -15378,6 +15422,13 @@
       },
       desvio = if ("desvio" %in% metricas && es_numerico[[i]]) {
         .alias_agregado_dbi(alias, numero, i, "desvio")
+      },
+      # Agregados que la politica de ausencia pide en la misma sentencia (la
+      # cuenta de medibles, las de aplicabilidad): un alias por cada uno.
+      extras = if (length(agregados_extra[[campo]])) {
+        stats::setNames(lapply(names(agregados_extra[[campo]]), function(s) {
+          .alias_agregado_dbi(alias, numero, i, s)
+        }), names(agregados_extra[[campo]]))
       },
       faltantes = if (!is.null(politicas_faltantes) &&
                       !is.null(politicas_faltantes[[campo]])) {
@@ -15470,7 +15521,7 @@
       datos_campo <- decimales_exactos[[campo]]
       if (is.null(datos_campo) || !isTRUE(es_numerico[[i]])) next
       piezas <- .piezas_sumas_sin_centro_dbi(
-        senas, nombres_sql[[campo]], datos_campo$tipo, datos_campo$filas,
+        senas, nombre_magnitud_sql(campo), datos_campo$tipo, datos_campo$filas,
         isTRUE(datos_campo$desvio) || "desvio" %in% metricas,
         paste0("lupa_suma_l", numero, "_c", i, "_"), alias
       )
@@ -15515,7 +15566,7 @@
   # sentencia entera, con las sumas adentro. Se promedia y se desvia el doble.
   promedio_de <- function(campo) {
     i <- match(campo, lote)
-    columna <- columna_operacion_de(i)
+    columna <- columna_magnitud_de(i)
     if (!is.null(piezas_exactas[[campo]]) && .duckdb_senas_dbi(senas)) {
       paste0("CAST(", columna, " AS DOUBLE)")
     } else columna
@@ -15590,10 +15641,27 @@
       alias("lupa_desvio_ventana")
     )
   }
+  # Con una politica de ausencia cada agregado nombra la columna dos veces -en
+  # la condicion y en el valor-. Sobre una lectura convertida, que es una
+  # subconsulta, PostgreSQL la funde con esta y vuelve a calcular la conversion
+  # en cada mencion: la reconstruccion exacta de un doble en un servidor
+  # anterior a la 12 se evaluaba 17 veces por fila y columna en lugar de 7, y el
+  # lote tardaba 2,9 veces mas (medido en 9.3 sobre 50.000 filas y 20
+  # columnas). `OFFSET 0` deja la lectura sin fundir: cada columna se convierte
+  # una vez por fila. Sin politica la consulta es la de siempre.
+  if (length(columnas_medibles) && any(lote %in% names(columnas_medibles)) &&
+      grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
+      startsWith(trimws(tabla_sql), "(")) {
+    tabla_agregados_sql <- paste0(
+      "(SELECT * FROM ", tabla_agregados_sql, " OFFSET 0) AS ",
+      alias(paste0("lupa_lectura_l", numero))
+    )
+  }
   expresiones_columna <- function(i, incluir_faltantes = TRUE) {
     campo <- lote[[i]]
     aliases <- alias_por_columna[[i]]
     columna <- columna_operacion_de(i)
+    columna_m <- columna_magnitud_de(i)
     exacta <- isTRUE(infinitos_como_numeric) &&
       campo %in% columnas_float8_numeric ||
       .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
@@ -15651,31 +15719,35 @@
         )
       },
       if (!is.null(aliases$cuenta)) paste0(
-        .contar_no_nulos_sql_dbi(columna, senas), " AS ", aliases$cuenta
+        .contar_no_nulos_sql_dbi(columna_m, senas), " AS ", aliases$cuenta
       ),
       if (!is.null(aliases$magnitud)) .expresiones_sonda_magnitud_dbi(
-        conexion, columna, aliases$magnitud, alias
+        conexion, columna_m, aliases$magnitud, alias
+      ),
+      if (length(aliases$extras)) paste0(
+        unname(agregados_extra[[campo]][names(aliases$extras)]), " AS ",
+        unlist(aliases$extras, use.names = FALSE)
       ),
       if ("basicos" %in% metricas && es_numerico[[i]]) c(
         if (incluir_valores) paste0(
-          "MIN(", columna, ") AS ", aliases$basicos$minimo
+          "MIN(", columna_m, ") AS ", aliases$basicos$minimo
         ),
         if (incluir_valores) paste0(
-          "MAX(", columna, ") AS ", aliases$basicos$maximo
+          "MAX(", columna_m, ") AS ", aliases$basicos$maximo
         ),
         if (!incluir_valores) paste0(
-          "MIN(", columna, ") AS ", aliases$basicos$minimo
+          "MIN(", columna_m, ") AS ", aliases$basicos$minimo
         ),
         if (!incluir_valores) paste0(
-          "MAX(", columna, ") AS ", aliases$basicos$maximo
+          "MAX(", columna_m, ") AS ", aliases$basicos$maximo
         ),
         if (!incluir_valores) paste0(
-          "MAX(", .abs_sql_seguro_dbi(conexion, columna),
+          "MAX(", .abs_sql_seguro_dbi(conexion, columna_m),
           ") AS ",
           aliases$basicos$maximo_abs
         ),
         if (!incluir_valores) paste0(
-          "MIN(", .abs_sql_seguro_dbi(conexion, columna),
+          "MIN(", .abs_sql_seguro_dbi(conexion, columna_m),
           ") AS ",
           aliases$basicos$minimo_abs
         ),
@@ -15689,13 +15761,13 @@
         ),
         paste0(
           .conteo_sql_dbi(
-            paste0("SUM(CASE WHEN ", columna,
+            paste0("SUM(CASE WHEN ", columna_m,
                    " = 0 THEN 1 ELSE 0 END)"), senas
           ), " AS ", aliases$basicos$n_ceros
         ),
         paste0(
           .conteo_sql_dbi(
-            paste0("SUM(CASE WHEN ", columna,
+            paste0("SUM(CASE WHEN ", columna_m,
                    " < 0 THEN 1 ELSE 0 END)"), senas
           ), " AS ", aliases$basicos$n_negativos
         )
@@ -15993,8 +16065,11 @@
       individual$faltantes <- conteos_columna$faltantes
     }
     if ("basicos" %in% metricas && es_numerico[[i]]) {
+      extras_ausencia <- .extras_ausencia_consulta_dbi(
+        agregados_extra[[campo]], alias
+      )
       individual$basicos <- .basicos_columna_dbi(
-        conexion, tabla_sql, nombres_sql[[campo]], alias, incluir_valores,
+        conexion, tabla_sql, nombre_magnitud_sql(campo), alias, incluir_valores,
         presupuesto, metadatos,
         float8_seguro = campo %in% columnas_float8_numeric,
         infinitos_como_numeric = isTRUE(infinitos_como_numeric) &&
@@ -16002,7 +16077,13 @@
           .es_lectura_double_exacta_dbi(nombres_sql[[campo]]),
         tipo = if (is.null(tipos_declarados)) NA_character_ else
           tipos_declarados[[campo]] %||% NA_character_,
-        faltantes_expresiones = character()
+        # Con la cuenta de medibles y las de la regla: sin ellas la columna
+        # que se mide con su propia consulta publica sus magnitudes sin decir
+        # cuantos valores quedaron afuera.
+        faltantes_expresiones = extras_ausencia$expresiones
+      )
+      individual$extras <- .extras_ausencia_resultado_dbi(
+        individual$basicos, extras_ausencia$aliases, metadatos
       )
       if (is.null(individual$faltantes) && !is.null(extras) &&
           isTRUE(individual$basicos$ok)) {
@@ -16018,7 +16099,7 @@
     if ("desvio" %in% metricas && es_numerico[[i]] &&
         !(length(n_val_ind) == 1L && is.finite(n_val_ind) && n_val_ind < 2)) {
       individual$desvio <- .desvio_columna_dbi(
-        conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
+        conexion, tabla_sql, nombre_magnitud_sql(campo), alias, forma,
         presupuesto, metadatos,
           centro = if (is.null(centros_desvio)) NULL else {
             centros_desvio[[campo]]
@@ -16545,7 +16626,9 @@
                                         columnas_double_originales = character(),
                                         columnas_not_null_skip = character(),
                                         columnas_not_null_texto = character(),
-                                        contador_estabilidad = NULL) {
+                                        contador_estabilidad = NULL,
+                                        columnas_medibles = NULL,
+                                        agregados_extra = NULL) {
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
@@ -16585,6 +16668,22 @@
         (isTRUE(infinitos_como_numeric) &&
          campo %in% columnas_float8_numeric)
     )
+  }
+  # La columna de las magnitudes: sin los centinelas declarados. Las vias de
+  # respaldo por columna tienen que pedir lo mismo que pidio el lote.
+  columna_magnitud_de <- function(campo) {
+    .columna_medible_dbi(
+      columna_operacion_de(campo), columnas_medibles[[campo]]
+    )
+  }
+  # La cuenta que decide si el desvio tiene con que calcularse es la de los
+  # valores que entran en el: los medibles, si la columna tiene exclusion.
+  resultado_medible <- function(resultado, campo) {
+    if (is.null(columnas_medibles[[campo]]) || !is.list(resultado)) {
+      return(resultado)
+    }
+    resultado$validos <- resultado$extras[["n_medibles"]]
+    resultado
   }
   conteo <- conteo_inicial
   n_total <- if (is.null(conteo)) NA_real_ else .conteo_dbi(conteo$valor)
@@ -16727,7 +16826,9 @@
         columnas_double_originales = dobles_originales,
         columnas_not_null_skip = columnas_not_null_skip,
         columnas_not_null_texto = columnas_not_null_texto,
-        contador_estabilidad = if (identical(numero, 1L)) contador_estabilidad else NULL
+        contador_estabilidad = if (identical(numero, 1L)) contador_estabilidad else NULL,
+        columnas_medibles = columnas_medibles,
+        agregados_extra = agregados_extra
       )
       if (identical(numero, 1L) && is.null(agregados$contador_estabilidad_antes) &&
           !is.null(resultado_lote$contador_estabilidad_antes)) {
@@ -16757,8 +16858,11 @@
         if ("basicos" %in% metricas_consulta &&
             !is.null(resultado$basicos) && !isTRUE(resultado$basicos$ok) &&
             isTRUE(resultado$consolidada)) {
+          extras_ausencia <- .extras_ausencia_consulta_dbi(
+            agregados_extra[[campo]], alias
+          )
           basicos_reintento <- .basicos_columna_dbi(
-            conexion, tabla_sql, columna_operacion_de(campo), alias, incluir_valores,
+            conexion, tabla_sql, columna_magnitud_de(campo), alias, incluir_valores,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             float8_seguro = campo %in% columnas_float8_numeric,
             infinitos_como_numeric = isTRUE(infinitos_como_numeric) &&
@@ -16766,9 +16870,14 @@
               .es_lectura_double_exacta_dbi(nombres_sql[[campo]]),
             tipo = if (is.null(tipos_por_nombre)) NA_character_ else
               tipos_por_nombre[[campo]] %||% NA_character_,
-            faltantes_expresiones = character()
+            faltantes_expresiones = extras_ausencia$expresiones
           )
           resultado$basicos <- basicos_reintento
+          extras_reintento <- .extras_ausencia_resultado_dbi(
+            basicos_reintento, extras_ausencia$aliases,
+            .metadatos_lote_dbi(numero, campo)
+          )
+          if (length(extras_reintento)) resultado$extras <- extras_reintento
           if (!is.null(extras_faltantes)) {
             resultado$faltantes <-
               .resultado_faltantes_desde_resultado_dbi(
@@ -16784,8 +16893,10 @@
         }
         mysql <- .es_mysql_dbi(senas) && .es_conexion_mysql_dbi(conexion)
         n_val_plano <- .n_validos_resultado_plano_dbi(
-          resultado, campo, n_total = n_total,
-          columnas_not_null_skip = columnas_not_null_skip
+          resultado_medible(resultado, campo), campo, n_total = n_total,
+          columnas_not_null_skip = if (is.null(columnas_medibles[[campo]])) {
+            columnas_not_null_skip
+          } else character()
         )
         desvio_sin_muestra <- length(n_val_plano) == 1L &&
           is.finite(n_val_plano) && n_val_plano < 2
@@ -16813,7 +16924,7 @@
             denominador_lote <- NULL
           }
           resultado$desvio <- .desvio_columna_dbi(
-            conexion, tabla_sql, columna_operacion_de(campo), alias, forma,
+            conexion, tabla_sql, columna_magnitud_de(campo), alias, forma,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             numeric_exact = isTRUE(infinitos_como_numeric) &&
               campo %in% columnas_float8_numeric ||
@@ -16860,6 +16971,9 @@
         }
         if (!is.null(resultado$faltantes)) {
           agregados$faltantes[[campo]] <- resultado$faltantes
+        }
+        if (length(resultado$extras)) {
+          agregados$extras[[campo]] <- resultado$extras
         }
         if ("desvio" %in% metricas_planas && !is.null(resultado$desvio)) {
           agregados$desvio[[campo]] <- resultado$desvio
@@ -16916,7 +17030,8 @@
             tipos_declarados = tipos_por_nombre,
             columnas_nan = columnas_nan,
             columnas_sql_originales = nombres_sql_originales,
-            columnas_double_originales = dobles_originales
+            columnas_double_originales = dobles_originales,
+            columnas_medibles = columnas_medibles
           )$resultados
           for (campo in columnas_desvio) {
             resultado <- resultado_desvio[[campo]]
@@ -16930,13 +17045,16 @@
           if (!is.null(agregados$desvio[[campo]]) &&
               isTRUE(agregados$desvio[[campo]]$ok)) next
           n_val_sep <- .n_validos_resultado_plano_dbi(
-            resultado_lote[[campo]], campo, n_total = n_total,
-            columnas_not_null_skip = columnas_not_null_skip
+            resultado_medible(resultado_lote[[campo]], campo), campo,
+            n_total = n_total,
+            columnas_not_null_skip = if (is.null(columnas_medibles[[campo]])) {
+              columnas_not_null_skip
+            } else character()
           )
           if (length(n_val_sep) == 1L && is.finite(n_val_sep) &&
               n_val_sep < 2) next
           resultado <- .desvio_columna_dbi(
-            conexion, tabla_sql, columna_operacion_de(campo), alias, forma,
+            conexion, tabla_sql, columna_magnitud_de(campo), alias, forma,
             presupuesto, .metadatos_lote_dbi(numero, campo),
             centro = centros[[campo]],
             numeric_exact = campo %in% columnas_desvio_exactas ||
@@ -18639,7 +18757,8 @@
       ]
       return(list(
         fila = fila, sql = rbind(previos, finitas$sql),
-        literales = c(literales, finitas$literales), cuenta_no_decide = TRUE
+        literales = c(literales, finitas$literales), cuenta_no_decide = TRUE,
+        n_finitos = finitas$n_finitos
       ))
     }
   }
@@ -19439,7 +19558,8 @@
                                 columnas_not_null_texto = character(),
                                 plan_duplicados = NULL,
                                 contador_estabilidad = NULL,
-                                bloque_muestra = NULL) {
+                                bloque_muestra = NULL,
+                                aplicabilidad_sql = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -19447,6 +19567,11 @@
       .citar_identificador_dbi(conexion, campo)
     }, character(1L), USE.NAMES = FALSE)
   }
+  # Una regla de `aplicabilidad` que llego traducida entra en la expresion de
+  # su columna, y de ahi a todas las consultas del resumen sin cambiar ninguna.
+  campos_sql_consolidados <- .columnas_con_regla_dbi(
+    campos_consolidados, campos_sql_consolidados, aplicabilidad_sql
+  )
   if (is.null(es_numerico_consolidados)) {
     es_numerico_consolidados <- vapply(seq_along(campos_consolidados), function(i) {
       .es_numerico_dbi(
@@ -19544,6 +19669,22 @@
       aplicabilidad = aplicabilidad
     )
   } else list()
+  # La politica de ausencia declarada, resuelta para este resumen (ver
+  # `.politica_ausencia_resumen_dbi()`). Sin declaracion queda vacia y nada de
+  # lo que sigue cambia.
+  es_numerico_resumen <- function(campo) {
+    indice <- .indice_nombre(campo, campos_consolidados)
+    !is.na(indice) && indice <= length(es_numerico_consolidados) &&
+      isTRUE(unname(es_numerico_consolidados[[indice]]))
+  }
+  ausencia <- .politica_ausencia_resumen_dbi(
+    conexion, campos, prototipo, tipos_declarados, tipos_motor,
+    es_numerico_faltantes, sentinelas_numericos, cadenas_ausencia,
+    columnas_opcionales, aplicabilidad,
+    es_numerico_resumen = es_numerico_resumen, sql_de = sql_de,
+    columna_operacion_de = columna_operacion_de,
+    aplicabilidad_sql = aplicabilidad_sql
+  )
   agregados <- .agregados_consolidados_dbi(
     conexion, tabla_metricas_sql, campos_consolidados,
     campos_sql_consolidados, es_numerico_consolidados, metricas_ejecucion,
@@ -19560,7 +19701,9 @@
     columnas_double_originales = columnas_double_originales,
     columnas_not_null_skip = columnas_not_null_skip,
     columnas_not_null_texto = columnas_not_null_texto,
-    contador_estabilidad = contador_estabilidad
+    contador_estabilidad = contador_estabilidad,
+    columnas_medibles = ausencia$columnas_medibles,
+    agregados_extra = ausencia$agregados_extra
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -19592,6 +19735,7 @@
   agregados <- .incorporar_validos_estructurales_dbi(
     agregados, columnas_not_null_skip, n_total, universo
   )
+  agregados <- .validos_con_regla_dbi(agregados, ausencia)
   agregados <- .incorporar_distintos_estructurales_dbi(
     agregados, fuentes_cardinalidad_costo, n_total, universo,
     unicidad_estructural = unicidad_estructural
@@ -19817,6 +19961,11 @@
       basicos <- agregados$basicos[[campo]]
       conteo <- agregados$conteos[[campo]]
       validos <- if (is.list(conteo)) conteo$validos else NULL
+      # Con centinelas declarados, los valores que promedia la mediana son los
+      # medibles.
+      if (!is.null(ausencia$columnas_medibles[[campo]])) {
+        validos <- agregados$extras[[campo]][["n_medibles"]]
+      }
       if (!is.list(basicos) || !isTRUE(basicos$ok) ||
           !is.list(validos) || !isTRUE(validos$ok) ||
           !is.data.frame(basicos$datos) || !nrow(basicos$datos)) {
@@ -19839,7 +19988,10 @@
       !is.null(mediana_consolidada) && !tabla_sin_filas) {
     expresiones_medianas <- vapply(seq_along(campos_consolidados), function(i) {
       .expresion_mediana_motor_dbi(
-        conexion, columna_operacion_de(campos_consolidados[[i]]),
+        conexion, .columna_medible_dbi(
+          columna_operacion_de(campos_consolidados[[i]]),
+          ausencia$columnas_medibles[[campos_consolidados[[i]]]]
+        ),
         tipo_motor_de(campos_consolidados[[i]])
       )
     }, character(1L))
@@ -19864,7 +20016,7 @@
   }
   resultados <- lapply(seq_along(campos), function(i) {
     campo <- campos[[i]]
-    .resumen_columna_dbi(
+    resumir <- function(metricas, agregados, columna_sql) .resumen_columna_dbi(
       conexion, tabla_metricas_sql, campo,
       .atributo_columna_dbi(prototipo, campo, i) %||% NA,
       n_total, dialecto = dialecto, metricas = metricas,
@@ -19892,8 +20044,14 @@
                              .senas_conexion_dbi(conexion), useBytes = TRUE) &&
         campo %in% columnas_float8_numeric ||
         .es_lectura_double_exacta_dbi(sql_de(campo)),
-      columna_sql = sql_de(campo),
+      columna_sql = columna_sql,
       nan_presente = .nan_presente_agregados_dbi(agregados, campo)
+    )
+    # Con centinelas declarados las magnitudes se resumen sobre la columna
+    # medible: ver `.resumen_columna_con_ausencia_dbi()`.
+    .resumen_columna_con_ausencia_dbi(
+      resumir, campo, metricas, agregados, sql_de(campo),
+      ausencia$columnas_medibles[[campo]]
     )
   })
   if (identical(universo, "tabla_completa") ||
@@ -19959,6 +20117,9 @@
     )
     names(columnas$n_faltantes_disfrazados) <- names(faltantes_disfrazados)
   }
+  columnas <- .columnas_ausencia_resumen_dbi(
+    columnas, resultados, agregados, ausencia, es_numerico_resumen
+  )
   numericas <- intersect(
     c("prop_faltantes", "tasa_distintos", "minimo", "maximo", "media",
       "mediana", "desvio"), names(columnas)
@@ -20174,6 +20335,10 @@
   }
   meta$catalogo <- catalogo_garantias
   meta$duplicados_exactos <- duplicados_exactos
+  # Solo con una politica declarada: que aplico el resumen y que no.
+  if (isTRUE(ausencia$activa)) {
+    meta$politica_ausencia <- .meta_politica_ausencia_dbi(ausencia)
+  }
   list(
     columnas = columnas,
     sql = sql,
@@ -21995,7 +22160,10 @@
         columnas_not_null_skip = preparacion$columnas_not_null_skip,
         columnas_not_null_texto = preparacion$columnas_not_null_texto,
         plan_duplicados = preparacion$plan_duplicados,
-        bloque_muestra = preparacion$bloque_muestra
+        bloque_muestra = preparacion$bloque_muestra,
+        aplicabilidad_sql = .aplicabilidad_sql_resumen_dbi(
+          conexion, preparacion, aplicabilidad
+        )
       ),
       error = function(e) {
         # Una interrupcion o una conexion inutilizable no son sentencias que no
@@ -22996,13 +23164,24 @@ plan_perfilado_dbi <- function(conexion, tabla,
     umbral_cardinalidad = umbral_cardinalidad,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion,
-    clave = clave
+    clave = clave,
+    reglas_aplicabilidad = aplicabilidad
   )
   ausencias <- .argumento_dbi(.resolver_ausencias_dbi(
     sentinelas_numericos, cadenas_ausencia, preparacion$campos
   ))
   sentinelas_numericos <- ausencias$sentinelas
   cadenas_ausencia <- ausencias$cadenas
+  # El plan rechaza la declaracion que la corrida rechaza.
+  .argumento_dbi(.validar_universo_declarado(
+    preparacion$campos, columnas_opcionales, aplicabilidad,
+    prototipo = .prototipo_tabla_dbi(preparacion)
+  ))
+  # Y cuenta la politica como la corrida: sin la regla que por el tipo de las
+  # columnas no da un valor logico, que no se aplica.
+  aplicabilidad_resumen <- .aplicabilidad_por_tipo_dbi(
+    preparacion, aplicabilidad
+  )$aplicabilidad
   filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
@@ -23022,7 +23201,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
       conexion, preparacion$campos, preparacion$prototipo,
       preparacion$tipos, preparacion$esquema$tipos_motor, es_numerico,
       sentinelas_numericos, cadenas_ausencia, columnas_opcionales,
-      aplicabilidad
+      aplicabilidad_resumen
     )
   } else list()
   consultas_faltantes <- if (length(politicas_faltantes)) {
@@ -23331,7 +23510,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
   if (isTRUE(compilar)) {
     compilacion <- .compilar_plan_perfilado_dbi(
       conexion, preparacion, incluir_valores, sentinelas_numericos,
-      cadenas_ausencia, columnas_opcionales, aplicabilidad, bloque_filas
+      cadenas_ausencia, columnas_opcionales, aplicabilidad_resumen,
+      bloque_filas
     )
     attr(plan, "compilacion") <- .completar_compilacion_dbi(
       compilacion, sum(plan$n_consultas_max),
@@ -25316,10 +25496,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
   list(datos = datos, cobertura = cobertura)
 }
 
-.tipo_real_dbi <- function(tipo) {
+.tipo_real_dbi <- function(tipo, senas = NULL) {
   if (length(tipo) != 1L || is.na(tipo)) return(FALSE)
   limpio <- gsub("[[:space:]]+", "", .minusculas_ascii(as.character(tipo)))
-  limpio %in% c("7", "real", "float4") || identical(limpio, "float(24)")
+  if (limpio %in% c("7", "real", "float4") || identical(limpio, "float(24)")) {
+    return(TRUE)
+  }
+  # DuckDB informa `FLOAT` a su tipo de 4 bytes, tambien cuando la columna se
+  # creo como `REAL` o `FLOAT4`, y en MySQL y MariaDB `float` es el de 4 bytes
+  # (`FLOAT(p)` con `p` mayor que 24 lo informan `double`). Solo ahi: en otros
+  # motores `float` es el doble (`float(53)` de SQL Server, `float8` de
+  # PostgreSQL).
+  identical(limpio, "float") && length(senas) == 1L && !is.na(senas) &&
+    (grepl("duckdb", senas, fixed = TRUE, useBytes = TRUE) ||
+       .es_mysql_dbi(senas))
 }
 
 .real_dbi_a_doble <- function(valor) {
@@ -25353,7 +25543,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # encuentra. Se alinean solo los valores iguales a la representacion float32 de
 # un centinela declarado; los demas `real` quedan como los entrego el driver.
 .ajustar_sentinelas_real_dbi <- function(
-    datos, campos, tipos, sentinelas, tipos_motor = NULL) {
+    datos, campos, tipos, sentinelas, tipos_motor = NULL, senas = NULL) {
   if (!is.data.frame(datos) || !length(campos) || !length(sentinelas) ||
       is.null(tipos)) return(datos)
   finitos <- function(x) {
@@ -25371,11 +25561,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
     tipo <- .atributo_columna_dbi(tipos_motor, campos[[i]], i) %||%
       .atributo_columna_dbi(tipos, campos[[i]], i) %||% NA_character_
-    if (!.tipo_real_dbi(tipo)) next
+    if (!.tipo_real_dbi(tipo, senas)) next
     posicion <- match(campos[[i]], names(datos))
     if (is.na(posicion) || !is.numeric(datos[[posicion]])) next
     for (declarado in declarados) {
       representado <- .real_dbi_a_doble(declarado)
+      # Un centinela fuera del rango de 4 bytes no es ningun valor guardado: su
+      # conversion da infinito, y un infinito de la columna no es el centinela.
+      if (!is.finite(representado)) next
       representado_corto <- .real_dbi_lectura_corta(representado)
       iguales <- !is.na(datos[[posicion]]) & (
         datos[[posicion]] == representado |
@@ -26314,7 +26507,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   datos_crudos_muestra <- consulta$datos
   datos_muestra <- .ajustar_sentinelas_real_dbi(
     consulta$datos, campos, tipos_declarados,
-    argumentos[["sentinelas_numericos"]], tipos_motor = tipos_motor
+    argumentos[["sentinelas_numericos"]], tipos_motor = tipos_motor,
+    senas = .senas_conexion_dbi(conexion)
   )
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
     datos_muestra, columnas_castadas, tipos_declarados
@@ -26401,7 +26595,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       ),
       sql_muestra
     ))
-    return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
+    return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta,
+                aplicabilidad_no_logica = resuelto$reglas))
   }
   perfil <- .ajustar_longitudes_binarias_dbi(
     perfil, datos_muestra, proyeccion_muestra$columnas_binarias,
@@ -26542,7 +26737,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   list(perfil = perfil, cobertura = cobertura, muestreo = muestreo_meta,
        valores_protegidos = valores_protegidos,
        columnas_de_fechas = columnas_de_fechas,
-       rellenos = rellenos, rellenos_detalle = rellenos_detalle)
+       rellenos = rellenos, rellenos_detalle = rellenos_detalle,
+       aplicabilidad_no_logica = resuelto$reglas)
 }
 
 # Que candidatos a relleno de la muestra lo son en la TABLA ENTERA, con la regla
@@ -27310,7 +27506,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           sondar_muestreo = TRUE,
                           max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
                           max_bytes_materializacion = .MAX_BYTES_MUESTRA,
-                          clave = NULL) {
+                          clave = NULL, reglas_aplicabilidad = NULL) {
   .requerir_dbi()
   max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
     max_bytes_procesamiento, "max_bytes_procesamiento"
@@ -27992,6 +28188,21 @@ print.plan_perfilado_dbi <- function(x, ...) {
   columnas_not_null_skip <- if (identical(universo, "tabla_completa")) {
     setdiff(columnas_not_null_garantizadas, columnas_nan_prep)
   } else character()
+  # Una columna con regla de `aplicabilidad` cuenta sus validos sobre las filas
+  # donde la regla se cumple: que sea `NOT NULL` no dice cuantas son. Sale de
+  # la lista aca, para que el plan y la corrida cuenten lo mismo. La regla que
+  # por el tipo de las columnas no da un valor logico no se aplica
+  # (`.aplicabilidad_por_tipo_dbi()`): su columna conserva la garantia.
+  columnas_con_regla <- if (is.list(reglas_aplicabilidad)) {
+    names(.aplicabilidad_por_tipo_dbi(
+      list(prototipo = prototipo), reglas_aplicabilidad
+    )$aplicabilidad)
+  }
+  if (length(columnas_con_regla) && length(columnas_not_null_skip)) {
+    columnas_not_null_skip <- columnas_not_null_skip[is.na(.indice_nombre(
+      columnas_not_null_skip, as.character(columnas_con_regla)
+    ))]
+  }
   columnas_not_null_texto <- if (identical(universo, "tabla_completa") &&
                                  length(columnas_not_null_garantizadas)) {
     norm_sop <- !is.null(.normalizador_texto_faltantes_dbi(conexion, "x"))
@@ -29146,12 +29357,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   calculan con la misma semántica. No compara lo que una declaración o una
 #'   guarda hacen distinto a propósito, porque esa diferencia no es del motor,
 #'   del controlador ni de un snapshot: la `media`, la `mediana` y el `desvio`
-#'   de una columna de `columnas_codigo`, que no se calculan; `n_faltantes` de
-#'   una columna de `columnas_opcionales` o de `aplicabilidad`, que la muestra
-#'   cuenta sobre su universo —y todas las métricas de la columna con
-#'   `aplicabilidad` si la muestra dejó afuera valores presentes—; las métricas
-#'   de magnitud de una columna de la que la muestra excluyó los
-#'   `sentinelas_numericos` declarados; las de un entero ancho desde
+#'   de una columna de `columnas_codigo`, que no se calculan; lo que el
+#'   resumen no pudo aplicar de la política de ausencia declarada —`n_faltantes`
+#'   de una columna con `aplicabilidad`, y todas sus métricas si la muestra dejó
+#'   afuera valores presentes; lo que sí aplicó mide lo mismo que la muestra y
+#'   se compara—; las de un entero ancho desde
 #'   2^53, que el resumen no publica; y el `desvio` de un decimal que la
 #'   muestra leyó como doble y no publicó (causa `decimal_doble`, ver
 #'   `perfil_muestra$meta$desvio_decimal_doble`). Tampoco lo que un bloque no calculó: una
@@ -29176,6 +29386,57 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `1e-4`. En valores menores que `1e-10` —p-valores, concentraciones en
 #'   unidades del sistema internacional— la corroboración tampoco distingue
 #'   dos lecturas.
+#'
+#' @section Política de ausencia declarada:
+#' `sentinelas_numericos`, `columnas_opcionales` y `aplicabilidad` dicen qué
+#' valores y qué filas no cuentan. El resumen de tabla completa las aplica con
+#' la regla de [perfilar()], campo por campo, o dice por columna que no pudo:
+#'
+#' * **Centinelas declarados.** Salen de `minimo`, `maximo`, `media`,
+#'   `mediana`, `desvio`, `n_ceros` y `n_negativos`; siguen en `n_validos`,
+#'   `n_faltantes`, `n_distintos` y la moda. Una columna que es toda centinela
+#'   queda sin magnitudes. `n_valores_excluidos_resumen` cuenta las celdas
+#'   presentes que quedaron fuera de las magnitudes: los centinelas, los `NaN`
+#'   y los infinitos. La lista por omisión y `sentinelas_naniar` no se
+#'   excluyen: sólo se usan para señalar faltantes disfrazados.
+#' * **Columnas opcionales.** Sus `NULL` no son faltantes: `n_faltantes` y
+#'   `prop_faltantes` valen 0 y `n_aplicables` es la cantidad de celdas con
+#'   valor.
+#' * **Aplicabilidad.** Todas las cifras de la columna son de las filas donde
+#'   la regla se cumple; `n_no_aplica` cuenta las filas donde no se cumple y
+#'   `n_aplicabilidad_indeterminada` aquellas donde no se sabe, porque la
+#'   columna que discrimina falta. Con `bloque_filas` o
+#'   `universo = "muestra_motor"` el resumen evalúa la regla en R sobre las
+#'   filas que lee. Las consultas agregadas la traducen al SQL del motor con la
+#'   semántica de `NA` de R, sin consultas nuevas; hoy en SQLite y DuckDB. La
+#'   regla que no se puede traducir —una función, aritmética sobre columnas, el
+#'   orden de un texto, una comparación entre tipos que R convierte y el motor
+#'   no— no se aplica a medias: esa columna cuenta todas las filas y lo dice.
+#'   La regla que no da un valor lógico (ver `aplicabilidad`) no se aplica por
+#'   ningún camino y no figura en `meta$politica_ausencia`: tiene una sola fila
+#'   en `resumen_tabla$cobertura`, la de su columna en el bloque
+#'   `perfil_muestra`. Si con `bloque_filas` eso se supo después de haber leído
+#'   filas —una columna sin tipo declarado cuyas primeras filas son todas
+#'   `NULL`—, las cifras por bloques de esa columna no se publican.
+#'
+#' Las columnas `n_valores_excluidos_resumen`, `n_aplicables`, `n_no_aplica` y
+#' `n_aplicabilidad_indeterminada` aparecen en `resumen_tabla$columnas` sólo si
+#' se declaró la política que las llena. Son conteos: se calculan cuando
+#' `metricas` incluye `"validos"` —y `n_valores_excluidos_resumen`, además, las
+#' magnitudes— y quedan en `NA` si no. Una columna `NOT NULL` con una regla de
+#' `aplicabilidad` cuenta sus válidos en lugar de tomarlos del catálogo.
+#' `resumen_tabla$meta$politica_ausencia`
+#' dice a qué columnas se aplicó cada una y, en `sin_aplicar`, a cuáles no y por
+#' qué; cada una de esas tiene su fila `degradado` en `resumen_tabla$cobertura`,
+#' con `elemento = "<columna>::<política>"`. Sin política declarada el resumen
+#' es el de siempre. La política no agrega consultas: la exclusión viaja dentro
+#' de los mismos agregados.
+#'
+#' Entre un objeto guardado por una versión que calculaba el resumen sin la
+#' política y uno que la aplica, [comparar_perfiles()] y
+#' [comparar_equivalencia()] no comparan las cifras que la política cambia: las
+#' dejan `no_comparable` con el motivo
+#' `politica_ausencia:sin_aplicar_vs_aplicada`.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
@@ -29842,32 +30103,50 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   el estado `no_solicitado` y `meta$bloques$filas_vistas = 0`. La segunda
 #'   opción no cambia el alcance de esos agregados: eso lo decide `universo`.
 #' @param columnas_opcionales Nombres de columnas que sólo son aplicables a
-#'   parte de las filas. Esta política se aplica al `perfil_muestra`; el
-#'   resumen SQL no la traduce y lo declara en `resumen_tabla$cobertura`. Los
-#'   dos bloques cuentan `n_faltantes` sobre universos distintos, así que la
-#'   corroboración no lo compara: ver «Lo que el motor guarda distinto que R».
+#'   parte de las filas. La política se aplica al `perfil_muestra` y al
+#'   resumen de tabla completa, que no cuenta sus `NULL` como faltantes
+#'   (`n_faltantes = 0`) y publica `n_aplicables`, `n_no_aplica` y
+#'   `n_aplicabilidad_indeterminada`: ver «Política de ausencia declarada».
+#'   Un nombre que la tabla no tiene se rechaza, como en [perfilar()].
 #' @param aplicabilidad Lista nombrada de fórmulas de un solo lado, con una
-#'   regla por columna. Se reenvía al `perfil_muestra`; el resumen SQL no la
-#'   traduce y lo declara en `resumen_tabla$cobertura`, y la corroboración no
-#'   compara lo que la regla cambia. Una regla que no da un valor lógico —una
-#'   columna sola que el motor guarda como 0 y 1, como hace SQLite con una
-#'   lógica: `~ activo`— no se aplica: se avisa, se declara para su columna en
+#'   regla por columna. Se aplica al `perfil_muestra` y al resumen de tabla
+#'   completa: todas las cifras de la columna son de las filas donde la regla
+#'   se cumple, y el resumen publica `n_aplicables`, `n_no_aplica` y
+#'   `n_aplicabilidad_indeterminada`. Cuando el resumen lee las filas
+#'   —`bloque_filas` o `universo = "muestra_motor"`— evalúa la regla en R. Las
+#'   consultas agregadas la traducen al SQL del motor si está hecha de
+#'   comparaciones, `%in%`, `is.na()`, `&`, `|` y `!` sobre columnas y valores
+#'   —un valor puede ser un objeto de donde se escribió la regla, como
+#'   `~ edad > tope`—; una regla con funciones, aritmética sobre columnas u
+#'   orden de textos no se traduce: el resumen lo declara para esa columna en
+#'   `resumen_tabla$cobertura` (`<columna>::aplicabilidad`) y la corroboración
+#'   no compara lo que la regla cambia. Ver «Política de ausencia declarada».
+#'   Una regla que no da un valor lógico —una columna sola que el motor guarda
+#'   como 0 y 1, como hace SQLite con una lógica: `~ activo`— no se aplica ni
+#'   en la muestra ni en el resumen: se avisa, se declara para su columna en
 #'   `resumen_tabla$cobertura` con cómo escribirla (`~ activo == 1`), y el resto
 #'   del perfil sale igual. Se decide con el tipo de las columnas y, si el motor
 #'   no lo declara, con las filas leídas. Un periodo sobre esa columna queda
 #'   `no_disponible` con ese motivo.
+#'   Una regla sobre una columna que la tabla no tiene, o que nombra algo que
+#'   no es una columna ni un objeto de donde se escribió, se rechaza; también
+#'   declarar la misma columna aquí y en `columnas_opcionales`.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
 #'   declaran como faltantes en el `perfil_muestra`, o la lista por columna de
 #'   [perfilar()] —también para `cadenas_ausencia`, que viaja por `...`—: se
 #'   valida contra las columnas de la tabla y la reciben igual el resumen SQL,
 #'   la muestra y la corroboración. Se normaliza como un
 #'   conjunto numérico, por lo que el orden, el tipo entero o doble y los
-#'   duplicados no cambian el resultado. El resumen SQL no los excluye de sus
-#'   agregados y lo declara en `resumen_tabla$cobertura`; la corroboración no
-#'   compara las métricas de magnitud de una columna de la que la muestra
-#'   excluyó alguno. En una columna `real`, una representacion float32 del
-#'   centinela fraccionario se alinea antes de perfilar la muestra; la
-#'   corroboración reconoce esa representacion como el mismo centinela.
+#'   duplicados no cambian el resultado. Un valor declarado —una lista que no
+#'   es la de omisión ni `sentinelas_naniar`— sale también de las magnitudes
+#'   del resumen de tabla completa (`minimo`, `maximo`, `media`, `mediana`,
+#'   `desvio`, `n_ceros` y `n_negativos`) y sigue contando en `n_validos`,
+#'   `n_distintos` y la moda, como en [perfilar()]; el resumen publica cuántos
+#'   sacó en `n_valores_excluidos_resumen`: ver «Política de ausencia
+#'   declarada». En una columna de 4 bytes —`real`, y `FLOAT` en DuckDB, MySQL
+#'   y MariaDB—, una representación float32 del centinela fraccionario se
+#'   alinea antes de perfilar la muestra, y el resumen compara la columna con
+#'   esa representación; la corroboración la reconoce como el mismo centinela.
 #'
 #'   Rige la misma reserva que en [perfilar()]: un valor de la lista **por
 #'   omisión** que aparece una sola vez y dentro del rango de los demás no se
@@ -30209,7 +30488,8 @@ perfilar_dbi <- function(conexion, tabla,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion,
     clave = argumentos_muestra[["clave"]],
-    sondar_muestreo = FALSE
+    sondar_muestreo = FALSE,
+    reglas_aplicabilidad = aplicabilidad
   )
   # La preparacion que alimenta al plan no puede decidir que metricas existen
   # despues de una sonda de muestreo pasajera. Se conserva antes de sondear y
@@ -30268,6 +30548,15 @@ perfilar_dbi <- function(conexion, tabla,
   if (.es_ausencias_por_columna(argumentos_muestra[["cadenas_ausencia"]])) {
     argumentos_muestra$cadenas_ausencia <- ausencias$cadenas
   }
+  # Y el universo declarado: `columnas_opcionales` y `aplicabilidad` se validan
+  # ACA con la regla de `perfilar()`. Las rechazaba solo el perfil de la
+  # muestra, cuyo error no detiene la corrida: una columna declarada de las
+  # dos formas, o un nombre que la tabla no tiene, dejaban el resumen calculado
+  # y la muestra sin perfil.
+  .argumento_dbi(.validar_universo_declarado(
+    preparacion$campos, columnas_opcionales, aplicabilidad,
+    prototipo = .prototipo_tabla_dbi(preparacion)
+  ))
   # Lo mismo para los periodos: sin muestra, un nombre mal escrito pasaba.
   .argumento_dbi(.normalizar_periodos(argumentos_muestra[["periodos"]], preparacion$campos))
   # Una regla de `aplicabilidad` que no da un valor logico -`~ activo` con
@@ -30934,7 +31223,10 @@ perfilar_dbi <- function(conexion, tabla,
       columnas_not_null_texto = preparacion$columnas_not_null_texto,
       plan_duplicados = preparacion$plan_duplicados,
       contador_estabilidad = contador_est_spec,
-      bloque_muestra = preparacion$bloque_muestra
+      bloque_muestra = preparacion$bloque_muestra,
+      aplicabilidad_sql = .aplicabilidad_sql_resumen_dbi(
+        conexion, preparacion, aplicabilidad
+      )
     )
   }
   resumen <- ejecutar_resumen(tabla_metricas_sql, fuente_muestreada,
@@ -31936,6 +32228,9 @@ perfilar_dbi <- function(conexion, tabla,
     ))
   }
 
+  resumen <- .politica_sin_reglas_no_logicas_dbi(
+    resumen, bloque$aplicabilidad_no_logica
+  )
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
   estructura <- .declarar_afirmados_sin_valor_dbi(estructura, preparacion)
   estructura <- .declarar_enmascaradas_dbi(estructura, preparacion)

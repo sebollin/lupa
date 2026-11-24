@@ -205,8 +205,17 @@ test_that("el repliegue de bloques reusa los argumentos de la llamada, una sola 
       identical(x$avisar_costo_moda, FALSE) &&
       identical(x$max_bytes_procesamiento, 4321)
   }, logical(1L))))
+  # El testigo de que la declaracion llego a la segunda llamada, una vez: el
+  # resumen que la reemplaza aplico `columnas_opcionales` a `x`. Antes el
+  # testigo era la fila `degradado` de ese argumento, que el resumen ya no
+  # escribe porque ahora lo aplica.
+  politica <- r$resumen_tabla$meta$politica_ausencia
+  expect_identical(politica$columnas_opcionales, "x")
+  expect_identical(nrow(politica$sin_aplicar), 0L)
   cobertura <- r$resumen_tabla$cobertura
-  expect_length(cobertura$elemento[cobertura$elemento == "columnas_opcionales"], 1L)
+  expect_false(any(
+    cobertura$bloque == "resumen_tabla" & cobertura$estado == "degradado"
+  ))
 })
 
 # Comprueba que una llamada indirecta no pierda los argumentos declarados.

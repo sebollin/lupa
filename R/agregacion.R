@@ -556,6 +556,8 @@ transiciones_granularidad <- function() {
     #                            sobrevivio: la tabla puede aportar igual.
     #   permisos_columnas     -> NO. Se perfilo; el catalogo no dijo que columnas
     #                            no se leen o llegan enmascaradas.
+    #   declaracion_no_aplicada -> NO. Se perfilo completa; una declaracion de
+    #                            la coleccion nombra una columna que no tiene.
     explican_la_tabla <- c("tabla", "tabla_vacia", "medicion_incompleta")
     con_motivo <- if (is.null(faltantes$alcance)) {
       faltantes

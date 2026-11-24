@@ -216,16 +216,25 @@ como una tabla unica; los perfiles completos siguen disponibles por tabla
 cuando se pidio conservarlos.
 
 \strong{Limitación conocida: las declaraciones por columna valen para todas las
-tablas.} \code{columnas_codigo}, \code{columnas_opcionales}, \code{columnas_personales} y
-las demás llegan por \code{...} iguales a cada \code{\link[=perfilar_dbi]{perfilar_dbi()}}, y \code{\link[=coleccion]{coleccion()}} no
-tiene declaraciones por tabla. Una tabla que no tiene una columna declarada
-en \code{columnas_codigo} no se perfila —sale de \code{resumen_coleccion} y
-\code{cobertura_coleccion} nombra la causa, «\code{columnas_codigo} nombra columnas
-inexistentes», aunque \code{como_resolverlo} hable de permisos—; con
-\code{columnas_opcionales} o \code{columnas_personales} la tabla conserva su resumen y
-pierde la muestra. \code{columnas_sin_ceros} y \code{columnas_no_negativas} no la
-afectan. Para declarar columnas que no están en todas las tablas, perfilar
-esas tablas por separado o partir la colección.
+tablas.} \code{columnas_codigo}, \code{columnas_personales} y las demás llegan por
+\code{...} iguales a cada \code{\link[=perfilar_dbi]{perfilar_dbi()}}, y \code{\link[=coleccion]{coleccion()}} no tiene declaraciones
+por tabla. Una tabla que no tiene una columna declarada en \code{columnas_codigo}
+no se perfila —sale de \code{resumen_coleccion} y \code{cobertura_coleccion} nombra la
+causa, «\code{columnas_codigo} nombra columnas inexistentes», aunque
+\code{como_resolverlo} hable de permisos—; con \code{columnas_personales} la tabla
+conserva su resumen y pierde la muestra. \code{columnas_sin_ceros} y
+\code{columnas_no_negativas} no la afectan. Para declarar columnas que no están
+en todas las tablas, perfilar esas tablas por separado o partir la colección.
+
+\strong{\code{columnas_opcionales} y \code{aplicabilidad} se reparten por tabla.} Cada tabla
+recibe las que nombran columnas suyas. Donde una no corresponde —la tabla no
+tiene la columna declarada, o alguna de las que su regla nombra— no se
+aplica: la tabla se perfila completa, con resumen y con muestra,
+\code{cobertura_coleccion} lo dice con el alcance \code{declaracion_no_aplicada} y la
+colección avisa una vez por declaración. Una columna que no está en ninguna
+tabla es un nombre mal escrito y se rechaza antes de leer. Para saberlo, la
+colección pregunta las columnas de cada tabla por metadatos, sólo cuando se
+usa alguno de esos dos argumentos.
 
 \strong{La declaración de ausencias, por tabla.} \code{sentinelas_numericos} y
 \code{cadenas_ausencia} aceptan, además del vector que vale para todas las tablas,

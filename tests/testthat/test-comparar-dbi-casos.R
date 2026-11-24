@@ -97,16 +97,27 @@ test_that("con aplicabilidad, los NULL del motor no se suman a la muestra", {
     "(%d,'%s',%s,%d)", 1:3000, ifelse(1:3000 <= 100, "A", "B"),
     ifelse(1:3000 <= 100, as.character(1:100), "NULL"), orden
   ))
-  regla <- list(v = ~ grupo == "A")
-  por_orden <- .cdc_dbi(con, "ap", .cdc_enero, muestra = 100L, orden_muestra = "orden",
-                        metricas = .cdc_metricas, aplicabilidad = regla)
-  por_id <- .cdc_dbi(con, "ap", .cdc_febrero, muestra = 100L, orden_muestra = "id",
-                     metricas = .cdc_metricas, aplicabilidad = regla)
-  # La premisa: los NULL del motor son de filas fuera de la regla.
-  expect_equal(por_id$resumen_tabla$columnas$prop_faltantes[[3L]], 2900 / 3000)
-  deriva <- .cdc_comparar(por_orden, por_id)
-  expect_false(any(deriva$aspecto == "faltantes"))
-  expect_false(any(c(deriva$universo_anterior, deriva$universo_actual) %in% "mixto"))
+  # Dos reglas que dicen lo mismo. La primera el resumen la aplica en el motor
+  # y ya no cuenta los `NULL` de las filas donde no vale: su premisa paso de
+  # 2900/3000 a 0. La segunda lleva una funcion, el resumen no la aplica y
+  # sigue contando esos `NULL`: es el caso que esta prueba protegia.
+  casos <- list(
+    list(regla = ~ grupo == "A", prop = 0),
+    list(regla = ~ toupper(grupo) == "A", prop = 2900 / 3000)
+  )
+  expect_identical(length(casos), 2L)
+  for (caso in casos) {
+    regla <- list(v = caso$regla)
+    por_orden <- .cdc_dbi(con, "ap", .cdc_enero, muestra = 100L, orden_muestra = "orden",
+                          metricas = .cdc_metricas, aplicabilidad = regla)
+    por_id <- .cdc_dbi(con, "ap", .cdc_febrero, muestra = 100L, orden_muestra = "id",
+                       metricas = .cdc_metricas, aplicabilidad = regla)
+    # La premisa: que cuenta el motor como faltante de `v`.
+    expect_equal(por_id$resumen_tabla$columnas$prop_faltantes[[3L]], caso$prop)
+    deriva <- .cdc_comparar(por_orden, por_id)
+    expect_false(any(deriva$aspecto == "faltantes"))
+    expect_false(any(c(deriva$universo_anterior, deriva$universo_actual) %in% "mixto"))
+  }
 })
 
 test_that("el rango no se compara entre tipos distintos, y la fila de tipo lo dice", {

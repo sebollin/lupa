@@ -939,16 +939,25 @@ print.coleccion_lupa <- function(x, ...) {
 #' cuando se pidio conservarlos.
 #'
 #' **Limitación conocida: las declaraciones por columna valen para todas las
-#' tablas.** `columnas_codigo`, `columnas_opcionales`, `columnas_personales` y
-#' las demás llegan por `...` iguales a cada [perfilar_dbi()], y [coleccion()] no
-#' tiene declaraciones por tabla. Una tabla que no tiene una columna declarada
-#' en `columnas_codigo` no se perfila —sale de `resumen_coleccion` y
-#' `cobertura_coleccion` nombra la causa, «`columnas_codigo` nombra columnas
-#' inexistentes», aunque `como_resolverlo` hable de permisos—; con
-#' `columnas_opcionales` o `columnas_personales` la tabla conserva su resumen y
-#' pierde la muestra. `columnas_sin_ceros` y `columnas_no_negativas` no la
-#' afectan. Para declarar columnas que no están en todas las tablas, perfilar
-#' esas tablas por separado o partir la colección.
+#' tablas.** `columnas_codigo`, `columnas_personales` y las demás llegan por
+#' `...` iguales a cada [perfilar_dbi()], y [coleccion()] no tiene declaraciones
+#' por tabla. Una tabla que no tiene una columna declarada en `columnas_codigo`
+#' no se perfila —sale de `resumen_coleccion` y `cobertura_coleccion` nombra la
+#' causa, «`columnas_codigo` nombra columnas inexistentes», aunque
+#' `como_resolverlo` hable de permisos—; con `columnas_personales` la tabla
+#' conserva su resumen y pierde la muestra. `columnas_sin_ceros` y
+#' `columnas_no_negativas` no la afectan. Para declarar columnas que no están
+#' en todas las tablas, perfilar esas tablas por separado o partir la colección.
+#'
+#' **`columnas_opcionales` y `aplicabilidad` se reparten por tabla.** Cada tabla
+#' recibe las que nombran columnas suyas. Donde una no corresponde —la tabla no
+#' tiene la columna declarada, o alguna de las que su regla nombra— no se
+#' aplica: la tabla se perfila completa, con resumen y con muestra,
+#' `cobertura_coleccion` lo dice con el alcance `declaracion_no_aplicada` y la
+#' colección avisa una vez por declaración. Una columna que no está en ninguna
+#' tabla es un nombre mal escrito y se rechaza antes de leer. Para saberlo, la
+#' colección pregunta las columnas de cada tabla por metadatos, sólo cuando se
+#' usa alguno de esos dos argumentos.
 #'
 #' **La declaración de ausencias, por tabla.** `sentinelas_numericos` y
 #' `cadenas_ausencia` aceptan, además del vector que vale para todas las tablas,
@@ -1203,7 +1212,27 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # de tabla, como `columnas_candidatas` de `relaciones_coleccion()`. Cada tabla
   # recibe su elemento -un vector o una lista por columna- y las que la lista
   # no nombra, el valor por omision de `perfilar()`.
-  ausencias_por_tabla <- .ausencias_por_tabla_coleccion(extras, coleccion)
+  ausencias_de_lista <- .ausencias_por_tabla_coleccion(extras, coleccion)
+  # `columnas_opcionales` y `aplicabilidad` nombran columnas que no todas las
+  # tablas tienen: cada tabla recibe lo que le corresponde, y donde no se
+  # aplican se declara (ver `.universo_por_tabla_coleccion()`).
+  universo_por_tabla <- .universo_por_tabla_coleccion(extras, coleccion)
+  # Los argumentos de una tabla, a partir de los que la coleccion le pasaria a
+  # todas (`base`): los de `...` o los de la reanudacion. Una sola funcion para
+  # los dos caminos, que es lo que faltaba: la reanudacion no repartia nada.
+  argumentos_de_tabla <- function(identificador, base) {
+    if (!is.null(ausencias_de_lista)) {
+      base <- ausencias_de_lista(identificador, base)
+    }
+    if (!is.null(universo_por_tabla)) {
+      base <- universo_por_tabla$argumentos(identificador, base)
+    }
+    base
+  }
+  ausencias_por_tabla <- if (is.null(ausencias_de_lista) &&
+                             is.null(universo_por_tabla)) NULL else {
+    function(identificador) argumentos_de_tabla(identificador, extras)
+  }
   proteger <- .protege_argumentos(argumentos_perfil)
   # `incluir_valores` viaja en `...` hasta cada `perfilar_dbi()`, con el nombre
   # que R le completa: se lee igual, porque tambien decide el mensaje del motor
@@ -1343,6 +1372,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # Ahora pasan por el mismo piso tambien al salir, con los valores que se
   # conocian. Si el piso falla, el texto del aviso no se publica.
   avisos_tablas <- list()
+  if (!is.null(universo_por_tabla)) avisos_tablas <- universo_por_tabla$avisos
   avisos_emitidos <- FALSE
   on.exit(if (!avisos_emitidos && length(avisos_tablas)) {
     .emitir_avisos_coleccion(avisos_tablas, tryCatch(
@@ -1450,7 +1480,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
                 conexion, referencia, muestra = muestra,
                 bloque_muestra = bloque_muestra, ...
               )
-            }, reanudacion$argumentos)
+            }, argumentos_de_tabla(identificador, reanudacion$argumentos))
           },
           warning = function(w) {
             avisos_tablas[[length(avisos_tablas) + 1L]] <<- w
@@ -1668,6 +1698,22 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           as.character(cobertura_muestra$como_resolverlo[[indice_estado]])
         )
       }
+    }
+
+    # Una declaracion de la coleccion que esta tabla no puede recibir -la
+    # columna no esta- no se le aplico, y se dice.
+    declaracion_omitida <- if (is.null(universo_por_tabla)) NULL else
+      universo_por_tabla$omitidas(identificador)
+    if (is.data.frame(declaracion_omitida) && nrow(declaracion_omitida)) {
+      cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
+        fila, "declaracion_no_aplicada",
+        .motivo_declaracion_no_aplicada(declaracion_omitida),
+        paste(
+          "Nada, si la columna no corresponde a esta tabla. Para declarar",
+          "distinto en cada tabla, perfilarlas por separado o partir la",
+          "colecci\u00f3n."
+        )
+      )
     }
 
     # Una tabla vacia no es un caso exotico: es rutina institucional -tabla

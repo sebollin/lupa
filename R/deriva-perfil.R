@@ -1595,7 +1595,101 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   cifra$estado <- as.character(sql$estado[[fila]])
   if ("alcance" %in% names(sql)) cifra$alcance <- as.character(sql$alcance[[fila]])
   if ("motivo" %in% names(sql)) cifra$motivo <- as.character(sql$motivo[[fila]])
+  cifra$politica_ausencia <- .politica_ausencia_cifra_dbi(
+    resumen, columna, metrica
+  )
   cifra
+}
+
+# Las cifras de las que un centinela declarado sale, y las que cambia el
+# universo declarado de una columna (`columnas_opcionales`, `aplicabilidad`).
+.CIFRAS_SIN_CENTINELAS_DBI <- c(
+  "minimo", "maximo", "media", "mediana", "desvio", "n_ceros", "n_negativos"
+)
+.CIFRAS_UNIVERSO_OPCIONAL_DBI <- c("n_faltantes", "prop_faltantes")
+.CIFRAS_UNIVERSO_APLICABLE_DBI <- c(
+  "n_validos", "n_faltantes", "prop_faltantes", "n_distintos",
+  "tasa_distintos", "moda", "frecuencia_moda", .CIFRAS_SIN_CENTINELAS_DBI
+)
+
+# Que dice un resumen de tabla sobre la politica de ausencia declarada y una
+# cifra suya. `"sin_aplicar"`: la politica se declaro y la cifra se calculo sin
+# ella. `"aplicada"`: se calculo con ella, y la politica saco algo de la cuenta.
+# `NA`: la politica no toca esa cifra.
+#
+# Un resumen que aplica la politica lo dice por columna en
+# `meta$politica_ausencia`. Uno que no la aplicaba lo decia para la tabla
+# entera, con una fila `degradado` por argumento en su cobertura; esa fila es
+# lo que se lee de un objeto guardado, sin saber de versiones. Bajo
+# `muestra_motor` la fila tambien estaba y no era cierta -ese resumen salia de
+# `perfilar()` sobre la muestra, que si aplica la politica-: ahi no se lee.
+.politica_ausencia_cifra_dbi <- function(resumen, columna, metrica) {
+  if (!is.list(resumen)) return(NA_character_)
+  meta <- if (is.list(resumen$meta)) resumen$meta else list()
+  clave <- .nombres_para_operar(columna)
+  politica <- meta[["politica_ausencia", exact = TRUE]]
+  if (is.list(politica)) {
+    de <- function(nombre) {
+      .nombres_para_operar(as.character(politica[[nombre]]))
+    }
+    sin_aplicar <- politica[["sin_aplicar"]]
+    pendiente <- function(nombre) {
+      is.data.frame(sin_aplicar) && nrow(sin_aplicar) > 0L && any(
+        as.character(sin_aplicar$politica) == nombre &
+          .nombres_para_operar(as.character(sin_aplicar$columna)) %in% clave
+      )
+    }
+    numero <- function(campo) {
+      if (!is.data.frame(resumen$columnas) ||
+          !campo %in% names(resumen$columnas)) return(NA_real_)
+      indice <- match(
+        clave, .nombres_para_operar(as.character(resumen$columnas$columna))
+      )
+      if (is.na(indice)) return(NA_real_)
+      suppressWarnings(as.numeric(resumen$columnas[[campo]][[indice]]))
+    }
+    if (metrica %in% .CIFRAS_SIN_CENTINELAS_DBI) {
+      if (pendiente("sentinelas_numericos")) return("sin_aplicar")
+      if (clave %in% de("sentinelas_numericos") &&
+          isTRUE(numero("n_valores_excluidos_resumen") > 0)) {
+        return("aplicada")
+      }
+    }
+    if (metrica %in% .CIFRAS_UNIVERSO_OPCIONAL_DBI) {
+      if (pendiente("columnas_opcionales")) return("sin_aplicar")
+      if (clave %in% de("columnas_opcionales") &&
+          isTRUE(numero("n_aplicables") < numero("n"))) {
+        return("aplicada")
+      }
+    }
+    if (metrica %in% .CIFRAS_UNIVERSO_APLICABLE_DBI) {
+      if (pendiente("aplicabilidad")) return("sin_aplicar")
+      if (clave %in% de("aplicabilidad") &&
+          isTRUE(numero("n_aplicables") < numero("n"))) {
+        return("aplicada")
+      }
+    }
+    return(NA_character_)
+  }
+  cobertura <- resumen$cobertura
+  if (!is.data.frame(cobertura) ||
+      !all(c("bloque", "elemento", "estado") %in% names(cobertura)) ||
+      identical(as.character(meta$universo), "muestra_motor")) {
+    return(NA_character_)
+  }
+  declaradas <- as.character(cobertura$elemento[
+    as.character(cobertura$bloque) == "resumen_tabla" &
+      as.character(cobertura$estado) == "degradado"
+  ])
+  if (("sentinelas_numericos" %in% declaradas &&
+       metrica %in% .CIFRAS_SIN_CENTINELAS_DBI) ||
+      ("columnas_opcionales" %in% declaradas &&
+       metrica %in% .CIFRAS_UNIVERSO_OPCIONAL_DBI) ||
+      ("aplicabilidad" %in% declaradas &&
+       metrica %in% .CIFRAS_UNIVERSO_APLICABLE_DBI)) {
+    return("sin_aplicar")
+  }
+  NA_character_
 }
 
 # La regla, en un solo lugar, de cuando dos cifras SQL se pueden comparar. La
@@ -1608,6 +1702,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # entera: la deriva afirma cambios de la tabla, y dos estimaciones -dos muestras
 # del motor, dos HyperLogLog- no la describen. `comparar_equivalencia()` no lo
 # exige: compara datos, y dos cifras medidas igual se comparan.
+# `politica_ausencia:<anterior>_vs_<actual>` cuando un lado calculo la cifra
+# sin la politica de ausencia declarada y el otro con ella (ver
+# `.politica_ausencia_cifra_dbi()`): la tabla puede ser la misma, y la
+# diferencia es de como se midio.
 .motivo_cifras_sql_no_comparables <- function(anterior, actual,
                                               exigir_tabla = TRUE) {
   etiqueta <- function(x) if (length(x) != 1L || is.na(x)) "sin_estado" else x
@@ -1641,6 +1739,16 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
         is.na(identidad_a) || !identical(identidad_a, identidad_b)) {
       return("universo_distinto:muestras_independientes")
     }
+  }
+  politicas <- c(
+    anterior[["politica_ausencia", exact = TRUE]] %||% NA_character_,
+    actual[["politica_ausencia", exact = TRUE]] %||% NA_character_
+  )
+  if (length(politicas) == 2L && !anyNA(politicas) &&
+      !identical(politicas[[1L]], politicas[[2L]])) {
+    return(paste0(
+      "politica_ausencia:", politicas[[1L]], "_vs_", politicas[[2L]]
+    ))
   }
   if (!identical(estado_a, estado_b)) return(motivo_estado)
   if (exigir_tabla && !(identical(estado_a, "calculado") &&

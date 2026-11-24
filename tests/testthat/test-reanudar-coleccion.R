@@ -692,21 +692,39 @@ test_that("abrir y cerrar la base entre el corte y la reanudacion no es un cambi
   expect_true(any(B$x$meta$reanudacion$tablas$origen == "reusada"))
 })
 
+# La opcion que degrada sin fallar es una regla de `aplicabilidad` con
+# aritmetica, que el resumen de tabla completa no traduce al motor: lo declara
+# con una fila `degradado` para su columna. Antes era `columnas_opcionales =
+# "fecha_nacimiento"`, que el resumen ahora aplica -ya no degrada- y que, en las
+# tablas que no tienen esa columna, tampoco degradaba: las dejaba sin perfil de
+# muestra. Las cuatro tablas de esta prueba tienen las dos columnas de la
+# regla.
 test_that("una opcion que declara degradado sin fallar no hace rehacer las tablas", {
   base <- .rc_base("sqlite")
   on.exit(unlink(base$carpeta, recursive = TRUE), add = TRUE)
   con <- .rc_conectar(base)
   on.exit(.rc_desconectar(con), add = TRUE, after = FALSE)
-  col <- coleccion(con, .rc_declaradas("sqlite")[1:4, ])
+  col <- coleccion(con, .rc_declaradas("sqlite")[c(1L, 2L, 6L, 7L), ])
   directorio <- file.path(base$carpeta, "reanudacion")
-  A <- .rc_correr(col, columnas_opcionales = "fecha_nacimiento")
-  invisible(.rc_correr(col, columnas_opcionales = "fecha_nacimiento",
+  # La formula se arma con el entorno base: la reanudacion comprueba lo que
+  # la regla puede leer, y el entorno de la prueba tiene la conexion.
+  regla <- list(monto = stats::as.formula("~ activo + 0 == 1", env = baseenv()))
+  # Con los perfiles conservados, para poder afirmar la premisa sobre ellos.
+  A <- .rc_correr(col, aplicabilidad = regla, conservar_perfiles = TRUE)
+  invisible(.rc_correr(col, aplicabilidad = regla, conservar_perfiles = TRUE,
                        directorio_reanudacion = directorio))
   .rc_cortar_manifiesto(.rc_corrida(directorio), 3L)
-  B <- .rc_correr(col, columnas_opcionales = "fecha_nacimiento",
+  B <- .rc_correr(col, aplicabilidad = regla, conservar_perfiles = TRUE,
                   directorio_reanudacion = directorio, reanudar = TRUE)
   .rc_esperar_igual(B, A)
-  expect_gt(length(A$avisos), 0L)
+  # La premisa: cada tabla quedo degradada por la regla, y ninguna fallo.
+  expect_identical(length(A$x$perfiles), 4L)
+  degradadas <- vapply(A$x$perfiles, function(p) {
+    cobertura <- p$resumen_tabla$cobertura
+    any(cobertura$bloque == "resumen_tabla" & cobertura$estado == "degradado" &
+          cobertura$elemento == "monto::aplicabilidad")
+  }, logical(1L))
+  expect_identical(unname(degradadas), rep(TRUE, 4L))
   expect_identical(sum(B$x$meta$reanudacion$tablas$origen == "reusada"), 3L)
 })
 
@@ -772,4 +790,112 @@ test_that("la forma canonica distingue lo que cambia el resultado", {
   environment(propio$recursiva) <- propio
   expect_type(canonica(propio$recursiva, "r"), "list")
   expect_error(canonica(new.env(), "e"), class = "lupa_error_reanudacion")
+})
+
+# La declaracion de ausencias por tabla -una lista nombrada por tabla- y las
+# dos declaraciones del universo, que la coleccion reparte por tabla: con
+# `directorio_reanudacion` cada tabla recibe lo suyo, igual que sin el. La
+# reanudacion le pasaba la lista entera a cada tabla, que la leia como una lista
+# por columna y la rechazaba: no se perfilaba ninguna.
+test_that("la declaracion por tabla llega a cada tabla con directorio de reanudacion y al reanudar", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  carpeta <- tempfile("rc-por-tabla-")
+  dir.create(carpeta)
+  on.exit(unlink(carpeta, recursive = TRUE), add = TRUE)
+  con <- DBI::dbConnect(RSQLite::SQLite(), file.path(carpeta, "col.sqlite"))
+  on.exit(.rc_desconectar(con), add = TRUE, after = FALSE)
+  DBI::dbWriteTable(con, "lupa_ta", data.frame(
+    x = c(-9, 1, 2, 3), g = c("a", "sd", "b", NA), stringsAsFactors = FALSE
+  ))
+  DBI::dbWriteTable(con, "lupa_tb", data.frame(y = c(-99, 5, 6, 7)))
+  col <- coleccion(con, c("lupa_ta", "lupa_tb"))
+  correr <- function(...) {
+    suppressWarnings(suppressMessages(perfilar_coleccion(
+      col, fecha = .rc_fecha, conservar_perfiles = TRUE, ...
+    )))
+  }
+  de <- function(r, tabla, bloque, columna, campo) {
+    columnas <- r$perfiles[[tabla]][[bloque]]$columnas
+    columnas[[campo]][columnas$columna == columna]
+  }
+  minimos <- function(r) {
+    c(de(r, "lupa_ta", "resumen_tabla", "x", "minimo"),
+      de(r, "lupa_tb", "resumen_tabla", "y", "minimo"))
+  }
+  directorio <- function(nombre) file.path(carpeta, nombre)
+  # A mano: sin su centinela, el minimo de `x` es 1 y el de `y` es 5.
+  declaracion <- list(lupa_ta = -9, lupa_tb = -99)
+  sin_directorio <- correr(sentinelas_numericos = declaracion)
+  expect_identical(nrow(sin_directorio$resumen_coleccion), 2L)
+  expect_equal(minimos(sin_directorio), c(1, 5))
+  con_directorio <- correr(sentinelas_numericos = declaracion,
+                           directorio_reanudacion = directorio("centinelas"))
+  expect_identical(nrow(con_directorio$resumen_coleccion), 2L)
+  expect_identical(nrow(con_directorio$cobertura_coleccion), 0L)
+  expect_equal(minimos(con_directorio), c(1, 5))
+  # La corrida cortada despues de la primera tabla: la segunda se perfila al
+  # reanudar, con su centinela.
+  .rc_cortar_manifiesto(.rc_corrida(directorio("centinelas")), 1L)
+  reanudada <- correr(sentinelas_numericos = declaracion,
+                      directorio_reanudacion = directorio("centinelas"),
+                      reanudar = TRUE)
+  expect_identical(nrow(reanudada$resumen_coleccion), 2L)
+  expect_equal(minimos(reanudada), c(1, 5))
+  expect_identical(
+    sum(reanudada$meta$reanudacion$tablas$origen == "reusada"), 1L
+  )
+  # Otra declaracion por tabla es otra corrida: la guardada con la declaracion
+  # anterior no se reanuda, y el error nombra el argumento que difiere. Vale
+  # cuando cambia lo de la tabla ya guardada y cuando cambia lo de la otra.
+  no_reanuda <- function(argumento, nombre, ...) {
+    .rc_cortar_manifiesto(.rc_corrida(directorio(nombre)), 1L)
+    error <- tryCatch(
+      correr(..., directorio_reanudacion = directorio(nombre), reanudar = TRUE),
+      lupa_error_reanudacion = function(e) e
+    )
+    expect_s3_class(error, "lupa_error_reanudacion")
+    expect_identical(error$motivo, "sin_corrida")
+    expect_true(grepl(paste0("`", argumento, "`"), conditionMessage(error),
+                      fixed = TRUE, useBytes = TRUE))
+    expect_identical(length(.rc_corrida(directorio(nombre))), 1L)
+  }
+  no_reanuda("sentinelas_numericos", "centinelas",
+             sentinelas_numericos = list(lupa_ta = 3, lupa_tb = -99))
+  no_reanuda("sentinelas_numericos", "centinelas",
+             sentinelas_numericos = list(lupa_ta = -9, lupa_tb = 7))
+
+  # Las cadenas de ausencia por tabla y las dos declaraciones del universo.
+  r <- correr(cadenas_ausencia = list(lupa_ta = "sd"),
+              directorio_reanudacion = directorio("cadenas"))
+  expect_identical(nrow(r$resumen_coleccion), 2L)
+  expect_equal(
+    de(r, "lupa_ta", "perfil_muestra", "g", "n_faltantes_disfrazados"), 1
+  )
+  no_reanuda("cadenas_ausencia", "cadenas",
+             cadenas_ausencia = list(lupa_ta = "b"))
+  r <- correr(columnas_opcionales = "g",
+              directorio_reanudacion = directorio("opcionales"))
+  expect_identical(nrow(r$resumen_coleccion), 2L)
+  expect_equal(de(r, "lupa_ta", "resumen_tabla", "g", "n_faltantes"), 0)
+  expect_identical(
+    r$cobertura_coleccion$tabla[
+      r$cobertura_coleccion$alcance == "declaracion_no_aplicada"
+    ], "lupa_tb"
+  )
+  no_reanuda("columnas_opcionales", "opcionales", columnas_opcionales = "x")
+  regla <- list(x = stats::as.formula("~ g == 'a'", env = baseenv()))
+  r <- correr(aplicabilidad = regla,
+              directorio_reanudacion = directorio("regla"))
+  expect_identical(nrow(r$resumen_coleccion), 2L)
+  expect_equal(de(r, "lupa_ta", "resumen_tabla", "x", "n_aplicables"), 1)
+  .rc_cortar_manifiesto(.rc_corrida(directorio("regla")), 1L)
+  r <- correr(aplicabilidad = regla,
+              directorio_reanudacion = directorio("regla"), reanudar = TRUE)
+  expect_identical(nrow(r$resumen_coleccion), 2L)
+  expect_equal(de(r, "lupa_ta", "resumen_tabla", "x", "n_aplicables"), 1)
+  no_reanuda(
+    "aplicabilidad", "regla",
+    aplicabilidad = list(x = stats::as.formula("~ g == 'b'", env = baseenv()))
+  )
 })

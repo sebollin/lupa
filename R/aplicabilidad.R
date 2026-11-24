@@ -114,6 +114,123 @@
   list(entorno = entorno, expresion = reemplazar(expr))
 }
 
+# Los simbolos que una regla toma de afuera: los que no liga ella misma. El
+# argumento de una funcion escrita en la regla (`function(v) v == 1`), una
+# variable que la regla asigna o recorre, el paquete de `pkg::f()` y el campo de
+# `x$campo` no se buscan afuera. Lo que va dentro de `quote()` o de otra
+# formula no se evalua.
+.simbolos_libres_regla <- function(expr) {
+  libres <- character()
+  asignados <- character()
+  partes <- function(x) {
+    hijos <- as.list(x)
+    hijos[!vapply(hijos, function(h) identical(h, quote(expr = )), logical(1L))]
+  }
+  recorrer <- function(x, ligados) {
+    if (is.symbol(x)) {
+      nombre <- as.character(x)
+      if (nzchar(nombre) && !nombre %in% ligados) libres <<- c(libres, nombre)
+      return(invisible(NULL))
+    }
+    if (is.pairlist(x)) {
+      for (hijo in partes(x)) recorrer(hijo, ligados)
+      return(invisible(NULL))
+    }
+    if (!is.call(x)) return(invisible(NULL))
+    cabeza <- x[[1L]]
+    nombre <- if (is.symbol(cabeza)) as.character(cabeza) else ""
+    if (nombre %in% c("::", ":::", "quote", "~")) return(invisible(NULL))
+    if (nombre %in% c("$", "@") && length(x) >= 2L) {
+      recorrer(x[[2L]], ligados)
+      return(invisible(NULL))
+    }
+    if (identical(nombre, "function") && length(x) >= 3L) {
+      propios <- c(ligados, names(x[[2L]]))
+      recorrer(x[[2L]], propios)
+      recorrer(x[[3L]], propios)
+      return(invisible(NULL))
+    }
+    if (nombre %in% c("<-", "<<-", "=", "for") && length(x) >= 3L &&
+        is.symbol(x[[2L]])) {
+      asignados <<- c(asignados, as.character(x[[2L]]))
+      for (hijo in partes(x)[-(1:2)]) recorrer(hijo, ligados)
+      return(invisible(NULL))
+    }
+    hijos <- partes(x)
+    if (is.symbol(cabeza)) hijos <- hijos[-1L]
+    for (hijo in hijos) recorrer(hijo, ligados)
+    invisible(NULL)
+  }
+  recorrer(expr, character())
+  unique(setdiff(libres, asignados))
+}
+
+# La declaracion del universo contra los nombres de una tabla que todavia no
+# se leyo, con lo que `perfilar()` rechazaria sobre cualquier dato: un nombre
+# que la tabla no tiene, las dos declaraciones sobre la misma columna
+# (`.validar_aplicabilidad()`), una regla que no es por fila y una regla que
+# nombra algo que no es ni una columna ni un objeto de donde se escribio.
+# `prototipo`, si se tiene, es la tabla sin filas con el tipo de cada columna.
+#
+# No rechaza lo que `perfilar()` acepta: un nombre solo cuenta como de afuera si
+# la regla no lo liga (`.simbolos_libres_regla()`), y solo se rechaza si,
+# ademas de no existir donde se escribio la regla, la regla no se puede evaluar
+# sobre la tabla sin filas -una funcion que evalua sus argumentos a su manera
+# puede nombrar algo que no es un objeto-.
+.validar_universo_declarado <- function(nombres, columnas_opcionales,
+                                        aplicabilidad, prototipo = NULL) {
+  .validar_aplicabilidad(
+    nombres, if (is.null(columnas_opcionales)) character() else
+      columnas_opcionales, aplicabilidad
+  )
+  sin_filas <- structure(
+    stats::setNames(rep(list(logical()), length(nombres)), nombres),
+    class = "data.frame", row.names = integer()
+  )
+  if (is.data.frame(prototipo) &&
+      !anyNA(.indice_nombre(nombres, names(prototipo)))) {
+    sin_filas <- prototipo[0L, .indice_nombre(nombres, names(prototipo)),
+                           drop = FALSE]
+    names(sin_filas) <- nombres
+  }
+  for (columna in names(aplicabilidad)) {
+    f <- aplicabilidad[[columna]]
+    # Una regla que calcula un estadistico de toda la columna no es una
+    # condicion por fila. La rechaza, con su texto, quien evalua la regla, y
+    # lo hace antes de mirar ningun dato: por eso alcanza la tabla sin filas.
+    if (!.aplicabilidad_es_predicado_fila(f[[2L]])) {
+      .valor_predicado_aplicabilidad(sin_filas, columna, f)
+    }
+    simbolos <- tryCatch(
+      .simbolos_libres_regla(f[[2L]]), error = function(e) character()
+    )
+    ajenos <- simbolos[is.na(.indice_nombre(simbolos, nombres))]
+    entorno <- environment(f)
+    if (!is.environment(entorno)) entorno <- baseenv()
+    se_evalua <- NULL
+    for (simbolo in ajenos) {
+      # El mismo error, con el mismo texto, que da evaluar la regla.
+      falla <- tryCatch({
+        eval(as.name(simbolo), envir = entorno)
+        NULL
+      }, error = function(e) e)
+      if (!is.null(falla) && is.null(se_evalua)) {
+        se_evalua <- !inherits(tryCatch(
+          suppressWarnings(.valor_predicado_aplicabilidad(sin_filas, columna, f)),
+          error = function(e) e
+        ), "error")
+      }
+      if (!is.null(falla) && !isTRUE(se_evalua)) {
+        .detener(
+          "No se pudo evaluar la regla de aplicabilidad de `", columna, "`: ",
+          conditionMessage(falla), call. = FALSE
+        )
+      }
+    }
+  }
+  invisible(NULL)
+}
+
 # El valor de la regla sobre la tabla, tal como lo da la expresion: todavia sin
 # exigirle que sea logico. Lo usan `.evaluar_predicado_aplicabilidad()`, que lo
 # exige, y la via DBI, que pregunta si la regla da un valor logico antes de
