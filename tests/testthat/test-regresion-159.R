@@ -335,14 +335,21 @@ test_that("la decision de visibilidad distingue ceros y errores", {
   # deducirla del mensaje seria inferencia: los textos cambian por motor, por
   # version y por idioma del servidor. Cuando haya un codigo comprobado por
   # adaptador -SQLSTATE o el del motor- se podra afirmar; hasta entonces, NA.
-  permiso <- .r159_clave_simulada(
-    maria, NULL, ok = FALSE, motivo = "SHOW command denied"
-  )$resultado
-  expect_identical(permiso$garantia, "desconocida")
-  expect_true(is.na(permiso$estado$visible))
-  # La pista de texto no se pierde: pasa al motivo, que es donde ayuda sin
-  # afirmar de mas.
-  expect_match(permiso$motivo, "permisos")
+  # Los textos son los que dan MariaDB 11 y MySQL 8 (por RMariaDB y RMySQL)
+  # cuando una credencial sin permiso sobre la tabla pide `SHOW INDEX`.
+  for (texto in c(
+    "SELECT command denied to user 'u'@'h' for table `b`.`t` [1142]",
+    "could not run statement: SELECT command denied to user 'u'@'h' for table 't'"
+  )) {
+    permiso <- .r159_clave_simulada(
+      maria, NULL, ok = FALSE, motivo = texto
+    )$resultado
+    expect_identical(permiso$garantia, "desconocida", info = texto)
+    expect_true(is.na(permiso$estado$visible), info = texto)
+    # La pista de texto no se pierde: pasa al motivo, que es donde ayuda sin
+    # afirmar de mas.
+    expect_match(permiso$motivo, "permisos", info = texto)
+  }
 
   otro_error <- .r159_clave_simulada(
     maria, NULL, ok = FALSE, motivo = "table does not exist"

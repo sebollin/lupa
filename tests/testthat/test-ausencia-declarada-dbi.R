@@ -434,7 +434,10 @@ test_that("una regla que el motor no evalua como R se declara para su columna y 
 test_that("una regla que no da un valor logico no se aplica por ningun camino y se declara una vez", {
   for (motor in .aud_casos(c("sqlite", "duckdb"))) {
     con <- if (identical(motor, "sqlite")) .aud_sqlite() else .aud_duckdb()
-    on.exit(.aud_desconectar(con), add = TRUE)
+    # Dentro del bucle se registra la conexion de esta iteracion: `on.exit(...(con))`
+    # cerraria al salir solo la ultima, tantas veces como iteraciones.
+    do.call(on.exit, list(bquote(.aud_desconectar(.(con))), add = TRUE),
+            envir = environment())
     DBI::dbExecute(con, paste0(
       "CREATE TABLE lupa_aud (id INTEGER, g ",
       if (identical(motor, "sqlite")) "TEXT" else "VARCHAR",
@@ -476,7 +479,10 @@ test_that("declarar solo una regla que no da un valor logico deja el resumen y e
   regla <- list(firme = ~ activo)
   for (motor in .aud_casos(c("sqlite", "duckdb"))) {
     con <- if (identical(motor, "sqlite")) .aud_sqlite() else .aud_duckdb()
-    on.exit(.aud_desconectar(con), add = TRUE)
+    # Dentro del bucle se registra la conexion de esta iteracion: `on.exit(...(con))`
+    # cerraria al salir solo la ultima, tantas veces como iteraciones.
+    do.call(on.exit, list(bquote(.aud_desconectar(.(con))), add = TRUE),
+            envir = environment())
     DBI::dbExecute(con, paste0(
       "CREATE TABLE lupa_aud (id INTEGER, g ",
       if (identical(motor, "sqlite")) "TEXT" else "VARCHAR",
@@ -610,7 +616,10 @@ test_that("una columna que se mide con su propia consulta dice cuantos centinela
   # que nombre a `lupa_rara`. A mano, sin los dos -9 quedan 0, -3, 4 y 10.
   for (motor in .aud_casos(c("sqlite", "duckdb"))) {
     con <- if (identical(motor, "sqlite")) .aud_sqlite() else .aud_duckdb()
-    on.exit(.aud_desconectar(con), add = TRUE)
+    # Dentro del bucle se registra la conexion de esta iteracion: `on.exit(...(con))`
+    # cerraria al salir solo la ultima, tantas veces como iteraciones.
+    do.call(on.exit, list(bquote(.aud_desconectar(.(con))), add = TRUE),
+            envir = environment())
     DBI::dbExecute(con, "CREATE TABLE lupa_aud (id INTEGER, lupa_rara DOUBLE, y DOUBLE)")
     DBI::dbExecute(con, paste(
       "INSERT INTO lupa_aud VALUES (1, -9, 1), (2, -9, 2), (3, 0, -9), (4, -3, 4),",
