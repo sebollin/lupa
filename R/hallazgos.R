@@ -4782,71 +4782,9 @@
   "fecha", "fecha-hora", "integer64", "matriz", "identificador", "desconocido"
 )
 
-.hallazgos_columnas <- function(resultados, columnas,
-                                umbral_alta_cardinalidad,
-                                umbral_faltantes_sospechoso,
-                                umbral_faltantes_error,
-                                umbral_patron_raro,
-                                umbral_patron_dominante,
-                                columnas_sin_ceros,
-                                columnas_no_negativas,
-                                datos = NULL,
-                                clave_declarada = NULL,
-                                distinguir_mayusculas = TRUE,
-                                expandir = FALSE) {
-  hallazgos <- list()
-  cobertura <- list()
-  k <- 0L
-  agregar <- function(x) {
-    conteo <- .conteo_hallazgo_columna(
-      as.character(x$tipo_hallazgo[[1L]]), fila, resultado, n_validos
-    )
-    # El contador central deriva los conteos del resumen de la columna, y para
-    # un tipo que no conoce devuelve NA. Cuando no sabe, se respeta lo que el
-    # hallazgo ya trae: hay diagnosticos que cuentan sobre la columna entera
-    # -no sobre el resumen- y perdian su conteo al pasar por aca.
-    #
-    # No cambia ningun conteo existente: de las 23 llamadas a
-    # `.nuevo_hallazgo()` de esta funcion, ninguna otra pasa conteos, asi que
-    # para todas ellas el valor propio ya era NA.
-    preferir <- function(central, propio) {
-      if (length(central) && !is.na(central)) central else propio
-    }
-    x$n_evaluados <- preferir(conteo$n_evaluados, x$n_evaluados)
-    x$n_afectados <- preferir(conteo$n_afectados, x$n_afectados)
-    x$unidad_conteo <- preferir(conteo$unidad_conteo, x$unidad_conteo)
-    # La posicion de la columna viaja con el hallazgo hasta su traza: el nombre
-    # no la identifica cuando la tabla lo repite. Ver
-    # `.indice_columna_hallazgo()`.
-    if (is.list(x$trazabilidad[[1L]])) {
-      x$trazabilidad[[1L]]$posicion_columna <- i
-    }
-    k <<- k + 1L
-    hallazgos[[k]] <<- x
-  }
-  agregar_cobertura <- function(diagnostico, columna, motivo,
-                               como_resolverlo, dependencia = NA_character_) {
-    cobertura[[length(cobertura) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
-      diagnostico, columna, motivo, como_resolverlo, dependencia
-    )
-  }
-
-  for (i in seq_along(resultados)) {
-    resultado <- resultados[[i]]
-    fila <- resultado$fila
-    nombre <- columnas[[i]]
-    # `n_distintos`, la moda y la constante describen la representacion
-    # almacenada, que tambien puede comparar bytes invalidos. La exclusion de
-    # esos valores pertenece al analisis textual y ya se declara aparte.
-    n_validos <- fila$n_aplicables - fila$n_faltantes
-
-    geometria <- resultado$geometria
-    estado_outliers <- resultado$cuantitativo$estado_outliers
-    # Declarada en `columnas_codigo`. La marca del resumen -`codigo_declarado`-
-    # solo existe cuando hubo un resumen numerico que omitir: un codigo de texto
-    # como `"10,5"` o `"$10"` no lo tiene, y la declaracion vale igual.
-    codigo_declarado <- isTRUE(resultado$codigo) ||
-      identical(estado_outliers, "codigo_declarado")
+.hallazgos_geometria_compuestos <- function(
+    resultado, fila, nombre, geometria, estado_outliers,
+    agregar, agregar_cobertura) {
     if (identical(estado_outliers, "codigo_declarado")) {
       agregar_cobertura(
         "outliers", nombre, resultado$cuantitativo$motivo_outliers,
@@ -5118,7 +5056,12 @@
         )
       }
     }
+}
 
+.hallazgos_faltantes_identificadores <- function(
+    resultado, fila, nombre, n_validos, datos, i,
+    clave_declarada, umbral_alta_cardinalidad,
+    agregar, agregar_cobertura) {
     # Cruce con los faltantes disfrazados. `n_distintos` y `n_validos` cuentan
     # los valores tal como estan guardados, y no descuentan los que dicen
     # ausencia sin ser `NA`. Una columna entera de `"N/A"` daba `n_distintos`
@@ -5520,7 +5463,14 @@
         "Revisar la regla de aplicabilidad o el proceso que carga la columna."
       ))
     }
+    decision_identificador
+}
 
+.hallazgos_faltantes_fechas_tipo <- function(
+    resultado, fila, nombre, codigo_declarado,
+    decision_identificador, datos, i,
+    umbral_faltantes_sospechoso, umbral_faltantes_error,
+    agregar, agregar_cobertura) {
     if (is.finite(fila$prop_faltantes_totales) &&
         fila$prop_faltantes_totales > umbral_faltantes_sospechoso) {
       severidad <- if (fila$prop_faltantes_totales > umbral_faltantes_error) {
@@ -5922,7 +5872,12 @@
         }
       ))
     }
+}
 
+.hallazgos_patrones_texto <- function(
+    resultado, fila, nombre, datos, i,
+    umbral_patron_raro, umbral_patron_dominante,
+    agregar, agregar_cobertura) {
     patrones <- attr(resultado$patrones, "resumen_patrones")
     raros <- .desvios_patron_raro_presentacion(resultado$patrones)
     proporcion_dominante <- if (!is.null(patrones) && nrow(patrones)) {
@@ -6369,6 +6324,12 @@
         estado_reparacion = fila$estado_codificacion_reparacion[[1L]]
       ))
     }
+}
+
+.hallazgos_numeros_restricciones <- function(
+    resultado, fila, nombre, datos, i, codigo_declarado,
+    columnas_sin_ceros, columnas_no_negativas,
+    distinguir_mayusculas, expandir, agregar, agregar_cobertura) {
     # Un codigo declarado no es un numero escrito como texto: `numero_como_texto`
     # pedia "convertir de forma explicita", y el plan lo hacia -
     # `convertir_numero_regional`, `lista`, `aplicar = TRUE`-, asi que `aplicar()`
@@ -6672,7 +6633,7 @@
 
     if (!is.na(fila$n_outliers) && fila$n_outliers > 0L) {
       if (.parece_identificador_numerico(fila)) {
-        cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+        agregar_cobertura(
           "outliers", nombre,
           paste0(
             "No se evaluaron los l\u00edmites de Tukey: la columna es de enteros y ",
@@ -6742,6 +6703,96 @@
         agregar(hallazgo_exactitud)
       }
     }
+}
+
+.hallazgos_columnas <- function(resultados, columnas,
+                                umbral_alta_cardinalidad,
+                                umbral_faltantes_sospechoso,
+                                umbral_faltantes_error,
+                                umbral_patron_raro,
+                                umbral_patron_dominante,
+                                columnas_sin_ceros,
+                                columnas_no_negativas,
+                                datos = NULL,
+                                clave_declarada = NULL,
+                                distinguir_mayusculas = TRUE,
+                                expandir = FALSE) {
+  hallazgos <- list()
+  cobertura <- list()
+  k <- 0L
+  agregar <- function(x) {
+    conteo <- .conteo_hallazgo_columna(
+      as.character(x$tipo_hallazgo[[1L]]), fila, resultado, n_validos
+    )
+    # El contador central deriva los conteos del resumen de la columna, y para
+    # un tipo que no conoce devuelve NA. Cuando no sabe, se respeta lo que el
+    # hallazgo ya trae: hay diagnosticos que cuentan sobre la columna entera
+    # -no sobre el resumen- y perdian su conteo al pasar por aca.
+    #
+    # No cambia ningun conteo existente: de las 23 llamadas a
+    # `.nuevo_hallazgo()` de esta funcion, ninguna otra pasa conteos, asi que
+    # para todas ellas el valor propio ya era NA.
+    preferir <- function(central, propio) {
+      if (length(central) && !is.na(central)) central else propio
+    }
+    x$n_evaluados <- preferir(conteo$n_evaluados, x$n_evaluados)
+    x$n_afectados <- preferir(conteo$n_afectados, x$n_afectados)
+    x$unidad_conteo <- preferir(conteo$unidad_conteo, x$unidad_conteo)
+    # La posicion de la columna viaja con el hallazgo hasta su traza: el nombre
+    # no la identifica cuando la tabla lo repite. Ver
+    # `.indice_columna_hallazgo()`.
+    if (is.list(x$trazabilidad[[1L]])) {
+      x$trazabilidad[[1L]]$posicion_columna <- i
+    }
+    k <<- k + 1L
+    hallazgos[[k]] <<- x
+  }
+  agregar_cobertura <- function(diagnostico, columna, motivo,
+                               como_resolverlo, dependencia = NA_character_) {
+    cobertura[[length(cobertura) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+      diagnostico, columna, motivo, como_resolverlo, dependencia
+    )
+  }
+
+  for (i in seq_along(resultados)) {
+    resultado <- resultados[[i]]
+    fila <- resultado$fila
+    nombre <- columnas[[i]]
+    # `n_distintos`, la moda y la constante describen la representacion
+    # almacenada, que tambien puede comparar bytes invalidos. La exclusion de
+    # esos valores pertenece al analisis textual y ya se declara aparte.
+    n_validos <- fila$n_aplicables - fila$n_faltantes
+
+    geometria <- resultado$geometria
+    estado_outliers <- resultado$cuantitativo$estado_outliers
+    # Declarada en `columnas_codigo`. La marca del resumen -`codigo_declarado`-
+    # solo existe cuando hubo un resumen numerico que omitir: un codigo de texto
+    # como `"10,5"` o `"$10"` no lo tiene, y la declaracion vale igual.
+    codigo_declarado <- isTRUE(resultado$codigo) ||
+      identical(estado_outliers, "codigo_declarado")
+    .hallazgos_geometria_compuestos(
+      resultado, fila, nombre, geometria, estado_outliers, agregar,
+      agregar_cobertura
+    )
+    decision_identificador <- .hallazgos_faltantes_identificadores(
+      resultado, fila, nombre, n_validos, datos, i, clave_declarada,
+      umbral_alta_cardinalidad, agregar, agregar_cobertura
+    )
+    .hallazgos_faltantes_fechas_tipo(
+      resultado, fila, nombre, codigo_declarado, decision_identificador,
+      datos, i, umbral_faltantes_sospechoso, umbral_faltantes_error,
+      agregar, agregar_cobertura
+    )
+    .hallazgos_patrones_texto(
+      resultado, fila, nombre, datos, i,
+      umbral_patron_raro, umbral_patron_dominante,
+      agregar, agregar_cobertura
+    )
+    .hallazgos_numeros_restricciones(
+      resultado, fila, nombre, datos, i, codigo_declarado,
+      columnas_sin_ceros, columnas_no_negativas, distinguir_mayusculas,
+      expandir, agregar, agregar_cobertura
+    )
   }
   salida <- hallazgos
   attr(salida, "cobertura_diagnosticos") <- if (length(cobertura)) {
