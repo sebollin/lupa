@@ -387,6 +387,10 @@ test_that("una conexion cortada no se vuelve a usar, y una nueva y sana nunca se
   skip_if_not_installed("RSQLite")
   local_mocked_bindings(.controlador_dbi = function(conexion) "odbc")
   archivo <- tempfile(fileext = ".sqlite")
+  # El archivo existe antes de la primera conexion: RSQLite publica la ruta
+  # resuelta de un archivo que existe y la pedida de uno que no, y si la
+  # carpeta temporal es un enlace (macOS) la primera y la segunda diferirian.
+  file.create(archivo)
   on.exit(unlink(archivo), add = TRUE)
   con <- .cpd_abrir_archivo(archivo)
   otra <- .cpd_abrir_archivo(archivo)
