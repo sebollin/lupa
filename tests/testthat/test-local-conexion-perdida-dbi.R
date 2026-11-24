@@ -338,3 +338,132 @@ test_that("MariaDB y MySQL: un error del servidor con el texto de un corte y su 
     DBI::dbDisconnect(adm)
   }
 })
+
+test_that("MariaDB y MySQL: la cuenta concilia sea cual sea la forma de las columnas", {
+  # Una muestra de la grilla de `test-consultas-conciliacion-formas.R`: la
+  # mediana de una columna numerica sin valores no se manda, y el plan la
+  # contaba, tambien en una tabla con datos.
+  formas <- list(
+    una_numerica_nula = list(
+      columnas = "id INTEGER, x DOUBLE, s VARCHAR(20)",
+      filas = paste0("(", 1:12, ", NULL, 'v", 1:12 %% 3L, "')"), menos = 1
+    ),
+    todas_nulas_menos_texto = list(
+      columnas = "a DOUBLE, b BIGINT, d DATE, s VARCHAR(20)",
+      filas = paste0("(NULL, NULL, NULL, 'v", 1:12 %% 2L, "')"), menos = NA
+    ),
+    comun = list(
+      columnas = "id INTEGER, s VARCHAR(20), x DOUBLE, d DATE, m DECIMAL(12,2)",
+      filas = paste0(
+        "(", 1:12, ", 'v", 1:12 %% 2L, "', ", c("1.5", rep("NULL", 11L)),
+        ", '2024-01-02', NULL)"
+      ), menos = NA
+    )
+  )
+  for (maria in c(TRUE, FALSE)) {
+    motor <- if (maria) "MariaDB" else "MySQL"
+    con <- .lcp_conectar(maria)
+    quitar <- function() {
+      suppressWarnings(try(
+        DBI::dbExecute(con, "DROP TABLE lupa_cp_forma"), silent = TRUE
+      ))
+    }
+    for (nombre in names(formas)) {
+      quitar()
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE lupa_cp_forma (", formas[[nombre]]$columnas, ")"
+      ))
+      DBI::dbExecute(con, paste0(
+        "INSERT INTO lupa_cp_forma VALUES ",
+        paste(formas[[nombre]]$filas, collapse = ", ")
+      ))
+      for (bloque in c("con_muestra", "solo_agregados")) {
+        rotulo <- paste(motor, nombre, bloque)
+        perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+          con, "lupa_cp_forma", bloque_muestra = bloque, fecha = .CP_FECHA
+        )))
+        consultas <- perfil$resumen_tabla$meta$consultas
+        expect_identical(consultas$conciliacion$estado, "conciliado", info = rotulo)
+        expect_equal(as.numeric(consultas$conciliacion$anunciadas),
+                     as.numeric(consultas$emitidas), info = rotulo)
+        previo <- consultas$conciliacion$plan_previo
+        expect_identical(previo$estado, "desfasado", info = rotulo)
+        cambios <- previo$detalle[previo$detalle$diferencia != 0, , drop = FALSE]
+        expect_true(all(grepl("^mediana \\(", cambios$clase_consulta)), info = rotulo)
+        expect_false(any(grepl("fall", cambios$motivo)), info = rotulo)
+        if (!is.na(formas[[nombre]]$menos)) {
+          expect_equal(sum(cambios$diferencia), -formas[[nombre]]$menos, info = rotulo)
+        }
+      }
+    }
+    quitar()
+    DBI::dbDisconnect(con)
+  }
+})
+
+test_that("MariaDB y MySQL: la cuenta concilia con cualquier seleccion de metricas", {
+  # Sin `validos` la corrida no cuenta los valores de cada columna, y los
+  # mismos datos deciden otras cosas: el desvio y la mediana de una columna
+  # sin valores no se mandan, y la mediana de un entero que pasa de 2^53 no
+  # se paga. Tambien sobre la tabla vacia.
+  ancho <- sprintf("%.0f", 9007199254740992 + 2 * 1:12)
+  formas <- list(
+    vacia = list(
+      columnas = "id INTEGER, x DOUBLE, d DATE, s VARCHAR(20)",
+      filas = character()
+    ),
+    una_numerica_nula = list(
+      columnas = "id INTEGER, x DOUBLE, s VARCHAR(20)",
+      filas = paste0("(", 1:12, ", NULL, 'v", 1:12 %% 3L, "')")
+    ),
+    todas_nulas_menos_texto = list(
+      columnas = "a DOUBLE, b BIGINT, d DATE, s VARCHAR(20)",
+      filas = paste0("(NULL, NULL, NULL, 'v", 1:12 %% 2L, "')")
+    ),
+    entero_ancho = list(
+      columnas = "c1 BIGINT", filas = paste0("(", ancho, ")")
+    )
+  )
+  selecciones <- list(
+    "basicos", "desvio", "mediana", c("basicos", "mediana"),
+    c("basicos", "desvio"), c("validos", "distintos", "moda"),
+    c("validos", "basicos", "desvio")
+  )
+  for (maria in c(TRUE, FALSE)) {
+    motor <- if (maria) "MariaDB" else "MySQL"
+    con <- .lcp_conectar(maria)
+    quitar <- function() {
+      suppressWarnings(try(
+        DBI::dbExecute(con, "DROP TABLE lupa_cp_metrica"), silent = TRUE
+      ))
+    }
+    desfasadas <- character()
+    for (nombre in names(formas)) {
+      quitar()
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE lupa_cp_metrica (", formas[[nombre]]$columnas, ")"
+      ))
+      if (length(formas[[nombre]]$filas)) {
+        DBI::dbExecute(con, paste0(
+          "INSERT INTO lupa_cp_metrica VALUES ",
+          paste(formas[[nombre]]$filas, collapse = ", ")
+        ))
+      }
+      for (seleccion in selecciones) {
+        consultas <- suppressWarnings(suppressMessages(perfilar_dbi(
+          con, "lupa_cp_metrica", metricas = seleccion, fecha = .CP_FECHA
+        )))$resumen_tabla$meta$consultas
+        if (!identical(consultas$conciliacion$estado, "conciliado") ||
+            !isTRUE(as.numeric(consultas$conciliacion$anunciadas) ==
+                      as.numeric(consultas$emitidas))) {
+          desfasadas <- c(desfasadas, paste(
+            motor, nombre, paste(seleccion, collapse = "+")
+          ))
+        }
+      }
+    }
+    quitar()
+    DBI::dbDisconnect(con)
+    expect_identical(desfasadas, character())
+  }
+})

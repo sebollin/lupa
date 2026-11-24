@@ -472,7 +472,7 @@ test_that("una interrupcion al comprobar la tabla sale como interrupcion", {
 
 test_that("una tabla vacia se concilia con el plan de la corrida, tambien en DuckDB", {
   skip_if_not_installed("duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- suppressMessages(DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:"))
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE lupa_vacia (id INTEGER, x DOUBLE, s VARCHAR)")
   perfil <- suppressWarnings(suppressMessages(

@@ -616,11 +616,23 @@ corrida emitió una clase que el plan no tenía. Cada detalle dice la clase,
 ambas cantidades y el motivo de la diferencia; la falla original permanece
 en \code{fallas} o \code{sondas_fallidas}. \code{plan_corrida} conserva la misma estructura
 para la comparación contra el plan que la corrida publicó en \code{meta$plan};
-permite distinguirla de los campos históricos de la conciliación. En una
-tabla vacía o sin ningún valor no nulo, las consultas que no hacen falta no
-se mandan y la cuenta se concilia con el plan que publica la corrida;
-\code{plan_previo} conserva el total que se anunció antes de conocer ese estado,
-con su diferencia, la clase que no corrió y el motivo.
+permite distinguirla de los campos históricos de la conciliación. Hay
+consultas cuya cuenta deciden los datos: la mediana y el desvío de una
+columna numérica sin ningún valor no nulo no hacen falta y no se mandan
+—también en una tabla vacía o toda nula—, y los valores cuya magnitud o
+rango obliga a calcular aparte el desvío o la mediana —un entero que no cabe
+exacto en un número de doble precisión— activan una consulta más. Las
+magnitudes de una columna que guarda infinitos o \code{NaN} se piden de nuevo
+sobre sus valores finitos. Pasa con
+cualquier selección de \code{metricas}: sin \code{"validos"} la corrida no cuenta los
+valores de cada columna, y entonces un promedio nulo la hace preguntar si
+la columna guarda infinitos, y la mediana de una columna con valores de al
+menos 2^53 no se paga. En SQLite, una columna numérica que guarda texto
+—una fecha ISO en una columna \code{DATE}— se mide con una consulta más y su
+mediana no se manda. En esos casos la
+cuenta se concilia con el plan que publica la corrida, y \code{plan_previo}
+conserva lo que se anunció antes de leer los datos, con su diferencia, la
+clase y el motivo.
 
 Cuando el catálogo estima al menos \code{1e8} filas y se pidió
 \code{universo = "tabla_completa"}, la función avisa antes de los agregados con

@@ -91,7 +91,7 @@ test_that("vacia o toda nula, con o sin el bloque de muestra, la cuenta concilia
     sqlite = function() DBI::dbConnect(RSQLite::SQLite(), ":memory:"),
     duckdb = function() {
       skip_if_not_installed("duckdb")
-      DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+      suppressMessages(DBI::dbConnect(.duckdb_prueba(), dbdir = ":memory:"))
     }
   )
   for (motor in names(abrir)) {

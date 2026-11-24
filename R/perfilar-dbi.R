@@ -5548,6 +5548,36 @@
   conciliacion
 }
 
+# Cuantas columnas no tienen ningun valor no nulo, segun lo que la corrida ya
+# sabe: las que contaron cero validos y, con `registros` (el registro por
+# metrica del resumen), las que alguna metrica dejo en estado `sin_valores`.
+# Sin la metrica `validos` no hay conteo, pero los basicos o la prueba de
+# magnitud dicen lo mismo y la corrida deja de mandar las mismas consultas.
+# Con `solo`, entre esas columnas: el plan le cuenta una mediana y un desvio a
+# las numericas, y una columna de texto toda nula no explica una mediana que
+# falta.
+.columnas_sin_valores_dbi <- function(columnas, solo = NULL, registros = NULL) {
+  sin_valores <- character()
+  if (is.data.frame(columnas) && nrow(columnas) &&
+      all(c("columna", "n_validos") %in% names(columnas))) {
+    validos <- suppressWarnings(as.numeric(columnas$n_validos))
+    sin_valores <- as.character(columnas$columna)[
+      is.finite(validos) & validos == 0
+    ]
+  }
+  if (is.data.frame(registros) && nrow(registros) &&
+      all(c("columna", "estado") %in% names(registros))) {
+    sin_valores <- c(sin_valores, as.character(registros$columna)[
+      as.character(registros$estado) %in% "sin_valores"
+    ])
+  }
+  sin_valores <- unique(sin_valores[!is.na(sin_valores)])
+  if (!is.null(solo)) {
+    sin_valores <- sin_valores[sin_valores %in% as.character(solo)]
+  }
+  length(sin_valores)
+}
+
 .tabla_sin_valores_dbi <- function(columnas) {
   if (!is.data.frame(columnas) || !nrow(columnas) ||
       !"n_validos" %in% names(columnas)) {
@@ -5617,7 +5647,8 @@
                                           consultas_antes_resumen = 0L,
                                           tabla_vacia = FALSE,
                                           muestra_no_disponible = FALSE,
-                                          sin_valores = FALSE) {
+                                          sin_valores = FALSE,
+                                          columnas_sin_valores = 0) {
   if (!is.data.frame(plan) || !nrow(plan)) return(plan)
   clases <- as.character(plan$clase_consulta)
   bruto <- plan
@@ -5687,31 +5718,169 @@
       )
     }
   }
+  # Lo que la tabla vacia deja sin mandar, para que el plan de la corrida se
+  # rehaga tambien cuando no se pidio contar los validos.
+  ajustes_tabla_vacia <- numeric()
   if (isTRUE(tabla_vacia)) {
     clase_mediana <- .clase_consulta_por_etapa_dbi("mediana", clases)
     if (!is.na(clase_mediana)) {
       posicion_mediana <- match(clase_mediana, clases)
+      previsto_mediana <- ejecutado$n_consultas[[posicion_mediana]]
+      if (is.finite(previsto_mediana) && previsto_mediana > 0 &&
+          bruto$n_consultas[[posicion_mediana]] == 0) {
+        ajustes_tabla_vacia[[clase_mediana]] <- -previsto_mediana
+      }
       ejecutado$n_consultas[[posicion_mediana]] <- 0
     }
   }
-  # Sin ningun valor no nulo hay dos sentencias que no hacen falta y no se
-  # mandan: el desvio que el motor calcula aparte (PostgreSQL y SQL Server; los
-  # demas lo traen en la de los agregados) y las medianas -todas, o todas menos
-  # la consolidada, segun el motor-. Las dos corren antes de este punto: su
-  # clase queda en lo que se mando, si se mando menos. Antes el plan rehecho
-  # las seguia contando salvo en la tabla vacia con el bloque de muestra
-  # pedido: una tabla toda nula, o la vacia con `solo_agregados`, quedaban
-  # desfasadas en una o dos consultas, atribuidas a los portones.
-  if (isTRUE(sin_valores)) {
-    for (etapa_omitida in c("desvio", "mediana")) {
-      clase_omitida <- .clase_consulta_por_etapa_dbi(etapa_omitida, clases)
-      if (is.na(clase_omitida)) next
-      posicion_omitida <- match(clase_omitida, clases)
-      if (is.finite(ejecutado$n_consultas[[posicion_omitida]]) &&
-          bruto$n_consultas[[posicion_omitida]] <
-            ejecutado$n_consultas[[posicion_omitida]]) {
-        ejecutado$n_consultas[[posicion_omitida]] <-
-          bruto$n_consultas[[posicion_omitida]]
+  # Hay dos clases cuya cuenta la deciden los datos, y las dos corren antes de
+  # este punto: los agregados planos -el desvio que el motor calcula aparte- y
+  # las medianas. Su cuenta en el plan de la corrida es lo que se mando cuando
+  # la diferencia la explica lo que la corrida ya sabe:
+  #
+  # * de menos, porque hay columnas sin ningun valor no nulo y su mediana o su
+  #   desvio no hacen falta. No se descuenta mas que la cantidad de columnas
+  #   sin valores -en una tabla sin ningun valor, todo-: una consulta que falta
+  #   por otra cosa sigue siendo una diferencia.
+  # * de mas, sin que haya fallado nada en la clase, porque la magnitud o el
+  #   rango de los valores obligo a calcular aparte una estadistica que el plan
+  #   no cuenta en el caso esperado -la mediana exacta de un entero que no cabe
+  #   en un doble, el desvio escalado de una fecha y hora-. Solo se cuenta lo
+  #   que se mando con la etapa de esa estadistica: otra consulta de mas en la
+  #   misma clase -un sondeo que el plan no anuncia- sigue siendo una
+  #   diferencia, y no se la explica con un motivo que no es el suyo. En los
+  #   agregados planos entra tambien la pregunta por los infinitos: cuando el
+  #   promedio de una columna viene nulo o no numerico y ninguna otra
+  #   respuesta dice por que -no se pidio contar los validos-, la corrida
+  #   pregunta si la columna guarda infinitos.
+  #
+  # En los agregados planos solo se descuenta si la clase mando algo: con una
+  # seleccion de metricas sin `basicos`, la sentencia de los conteos se cobra
+  # con otra etapa y cae en otra clase, y ahi "no mando nada" no dice nada.
+  #
+  # Antes el plan rehecho solo conocia la tabla vacia con el bloque de muestra
+  # pedido: una columna toda nula en una tabla con datos quedaba desfasada, y
+  # la diferencia, sin clase, se atribuia a los portones con un motivo ajeno.
+  sin_valores_n <- suppressWarnings(as.numeric(columnas_sin_valores))
+  if (length(sin_valores_n) != 1L || !is.finite(sin_valores_n) ||
+      sin_valores_n < 0) {
+    sin_valores_n <- 0
+  }
+  # En SQLite una columna de afinidad numerica puede guardar texto -una fecha
+  # ISO en una columna `DATE`-. La corrida lo mide con `typeof()`, una consulta
+  # por columna que el plan no cuenta, y no manda la mediana de esa columna,
+  # que el plan si contaba. Las dos se cuentan por datos: la medicion en la
+  # clase donde se cobra, y la mediana entra en el tope del descuento.
+  con_texto_n <- sum(eventos == "tipos_guardados")
+  # Y en cualquier motor, una columna con valores de al menos 2^53 de la que
+  # no se conoce la cantidad de valores: su mediana no se publicaria, y la
+  # corrida no paga la consulta. Se anota donde se decide.
+  sin_pagar_n <- if (is.null(presupuesto)) 0 else {
+    suppressWarnings(as.numeric(presupuesto$medianas_sin_pagar %||% 0))
+  }
+  if (length(sin_pagar_n) != 1L || !is.finite(sin_pagar_n) || sin_pagar_n < 0) {
+    sin_pagar_n <- 0
+  }
+  # Y una columna que guarda infinitos o NaN: sus magnitudes se vuelven a
+  # pedir sobre los valores finitos. Esas consultas se anotan donde se mandan,
+  # por su posicion entre las emitidas, y aca se cuentan en su clase.
+  posiciones_no_finitos <- if (is.null(presupuesto)) integer() else {
+    suppressWarnings(as.integer(presupuesto$emitidas_por_no_finitos))
+  }
+  posiciones_no_finitos <- unique(posiciones_no_finitos[
+    !is.na(posiciones_no_finitos) & posiciones_no_finitos > antes &
+      posiciones_no_finitos <= length(eventos)
+  ])
+  por_no_finitos <- numeric()
+  for (posicion_no_finita in posiciones_no_finitos) {
+    clase_no_finita <- .clase_consulta_por_etapa_dbi(
+      eventos[[posicion_no_finita]], clases
+    )
+    # Sin clase en este plan, se cobra donde se cobra todo evento sin clase.
+    if (is.na(clase_no_finita)) clase_no_finita <- porton
+    if (is.na(clase_no_finita)) next
+    por_no_finitos[[clase_no_finita]] <- 1 + if (
+      clase_no_finita %in% names(por_no_finitos)
+    ) por_no_finitos[[clase_no_finita]] else 0
+  }
+  eventos_restantes <- eventos[
+    !seq_along(eventos) %in% posiciones_no_finitos
+  ]
+  fallas_de_clase <- function(clase) {
+    fallas <- if (is.null(presupuesto)) list() else presupuesto$fallas_consultas
+    length(fallas) && any(vapply(fallas, function(falla) {
+      identical(.clase_consulta_por_etapa_dbi(
+        as.character(falla$etapa %||% "consulta"), clases
+      ), clase)
+    }, logical(1L)))
+  }
+  etapas_de_magnitud <- list(
+    desvio = c("desvio", "media_desvio", "media_escalada", "basicos_escalados"),
+    mediana = "mediana"
+  )
+  ajustes_por_datos <- numeric()
+  causas_de_mas <- list()
+  causas_de_menos <- list()
+  for (etapa_de_datos in c("desvio", "mediana")) {
+    clase_de_datos <- .clase_consulta_por_etapa_dbi(etapa_de_datos, clases)
+    if (is.na(clase_de_datos) || clase_de_datos %in% names(ajustes_por_datos)) {
+      next
+    }
+    posicion_de_datos <- match(clase_de_datos, clases)
+    previsto <- ejecutado$n_consultas[[posicion_de_datos]]
+    mandado <- bruto$n_consultas[[posicion_de_datos]]
+    if (!is.finite(previsto) || !is.finite(mandado)) next
+    if (mandado < previsto &&
+        (identical(etapa_de_datos, "mediana") || mandado >= 1)) {
+      causas_posibles <- c(
+        # Una columna que solo guarda infinitos no tiene valores finitos, y
+        # eso es lo que su registro dice: se nombra asi.
+        if (length(posiciones_no_finitos)) {
+          c(sin_valores_finitos = sin_valores_n)
+        } else c(sin_valores = sin_valores_n),
+        if (identical(etapa_de_datos, "mediana")) {
+          c(texto = con_texto_n, ancho = sin_pagar_n)
+        }
+      )
+      descuento <- min(
+        previsto - mandado,
+        if (isTRUE(sin_valores)) Inf else sum(causas_posibles)
+      )
+      if (descuento > 0) {
+        ejecutado$n_consultas[[posicion_de_datos]] <- previsto - descuento
+        ajustes_por_datos[[clase_de_datos]] <- -descuento
+        causas_de_menos[[clase_de_datos]] <- causas_posibles[
+          causas_posibles > 0
+        ]
+      }
+    } else if (mandado > previsto && !fallas_de_clase(clase_de_datos)) {
+      de_magnitud <- sum(
+        eventos_restantes %in% etapas_de_magnitud[[etapa_de_datos]]
+      )
+      por_infinitos <- if (identical(etapa_de_datos, "desvio")) {
+        sum(eventos_restantes == "sonda_infinitos")
+      } else 0
+      de_no_finitos <- if (clase_de_datos %in% names(por_no_finitos)) {
+        por_no_finitos[[clase_de_datos]]
+      } else 0
+      de_mas <- min(
+        mandado - previsto, de_no_finitos + por_infinitos + de_magnitud
+      )
+      if (de_mas > 0) {
+        # Lo anotado se cuenta primero: de lo demas solo se sabe un tope.
+        resto <- de_mas - min(de_mas, de_no_finitos)
+        causas_de_mas[[clase_de_datos]] <- c(
+          if (de_no_finitos > 0) "no_finitos",
+          if (resto > 0 && por_infinitos > 0) "infinitos",
+          if (resto > por_infinitos && de_magnitud > 0) "magnitud"
+        )
+        contado <- previsto + de_mas
+        ejecutado$n_consultas[[posicion_de_datos]] <- contado
+        maximo <- ejecutado$n_consultas_max[[posicion_de_datos]]
+        if (is.finite(maximo) && maximo < contado) {
+          ejecutado$n_consultas_max[[posicion_de_datos]] <- contado
+        }
+        ajustes_por_datos[[clase_de_datos]] <- de_mas
       }
     }
   }
@@ -5754,6 +5923,81 @@
     ejecutado$n_consultas[[posicion]] <- bruto$n_consultas[[posicion]]
     ejecutado$n_consultas_max[[posicion]] <- bruto$n_consultas_max[[posicion]]
   }
+  # Una clase que ademas tuvo una falla se cuenta por la falla, no por datos.
+  for (clase_vacia in setdiff(names(ajustes_tabla_vacia),
+                              names(ajustes_por_datos))) {
+    ajustes_por_datos[[clase_vacia]] <- ajustes_tabla_vacia[[clase_vacia]]
+  }
+  # Lo que se volvio a pedir sobre los valores finitos en las demas clases
+  # -el conteo de validos, la prueba de magnitud-: no mas de lo que la clase
+  # mando de mas. En los portones lo mandado junta lo de antes del resumen y
+  # no sirve de tope: ahi se cuenta lo anotado, que es exacto.
+  for (clase_no_finita in setdiff(
+    names(por_no_finitos), c(names(ajustes_por_datos), clases_afectadas)
+  )) {
+    posicion_no_finita <- match(clase_no_finita, clases)
+    if (!is.finite(ejecutado$n_consultas[[posicion_no_finita]]) ||
+        !is.finite(bruto$n_consultas[[posicion_no_finita]])) {
+      next
+    }
+    de_no_finitos <- if (identical(clase_no_finita, porton)) {
+      por_no_finitos[[clase_no_finita]]
+    } else min(
+      por_no_finitos[[clase_no_finita]],
+      bruto$n_consultas[[posicion_no_finita]] -
+        ejecutado$n_consultas[[posicion_no_finita]]
+    )
+    if (de_no_finitos > 0) {
+      ejecutado$n_consultas[[posicion_no_finita]] <-
+        ejecutado$n_consultas[[posicion_no_finita]] + de_no_finitos
+      maximo_no_finito <- ejecutado$n_consultas_max[[posicion_no_finita]]
+      if (is.finite(maximo_no_finito) &&
+          maximo_no_finito < ejecutado$n_consultas[[posicion_no_finita]]) {
+        ejecutado$n_consultas_max[[posicion_no_finita]] <-
+          ejecutado$n_consultas[[posicion_no_finita]]
+      }
+      ajustes_por_datos[[clase_no_finita]] <- de_no_finitos
+      causas_de_mas[[clase_no_finita]] <- "no_finitos"
+    }
+  }
+  if (con_texto_n > 0) {
+    clase_texto <- .clase_consulta_por_etapa_dbi("tipos_guardados", clases)
+    posicion_texto <- match(clase_texto, clases)
+    # No mas de lo que la clase mando de mas, ni sobre una clase que ya se
+    # conto por una falla.
+    ya_contado <- if (isTRUE(clase_texto %in% names(ajustes_por_datos))) {
+      ajustes_por_datos[[clase_texto]]
+    } else 0
+    de_texto <- if (!is.na(clase_texto) && ya_contado >= 0 &&
+                    !clase_texto %in% clases_afectadas &&
+                    is.finite(ejecutado$n_consultas[[posicion_texto]]) &&
+                    is.finite(bruto$n_consultas[[posicion_texto]])) {
+      min(con_texto_n, bruto$n_consultas[[posicion_texto]] -
+            ejecutado$n_consultas[[posicion_texto]])
+    } else 0
+    if (de_texto > 0) {
+      ejecutado$n_consultas[[posicion_texto]] <-
+        ejecutado$n_consultas[[posicion_texto]] + de_texto
+      maximo_texto <- ejecutado$n_consultas_max[[posicion_texto]]
+      if (is.finite(maximo_texto) &&
+          maximo_texto < ejecutado$n_consultas[[posicion_texto]]) {
+        ejecutado$n_consultas_max[[posicion_texto]] <-
+          ejecutado$n_consultas[[posicion_texto]]
+      }
+      ajustes_por_datos[[clase_texto]] <- ya_contado + de_texto
+      causas_de_mas[[clase_texto]] <- c(causas_de_mas[[clase_texto]], "texto")
+    }
+  }
+  ajustes_por_datos <- ajustes_por_datos[
+    !names(ajustes_por_datos) %in% clases_afectadas
+  ]
+  attr(ajustes_por_datos, "causas") <- causas_de_mas[
+    intersect(names(causas_de_mas), names(ajustes_por_datos))
+  ]
+  attr(ajustes_por_datos, "causas_de_menos") <- causas_de_menos[
+    intersect(names(causas_de_menos), names(ajustes_por_datos))
+  ]
+  attr(ejecutado, "ajustes_por_datos") <- ajustes_por_datos
   ejecutado
 }
 
@@ -5777,7 +6021,10 @@
       clase_falla <- .clase_consulta_por_etapa_dbi(etapa, clases)
       identical(clase_falla, clase)
     }, logical(1L))
-    if (any(relevantes)) salida <- salida[relevantes]
+    # Una falla que no es de la clase no explica su diferencia: antes, sin
+    # ninguna de la clase, se citaban todas, y el motivo mandaba a mirar el
+    # rechazo esperado de un sondeo de capacidad.
+    salida <- salida[relevantes]
   }
   unique(salida)
 }
@@ -5961,6 +6208,78 @@
       " no hacen falta."
     ))
   }
+  ajuste <- if (is.list(preparacion) && length(clase) == 1L &&
+                isTRUE(clase %in% names(preparacion$ajustes_por_datos))) {
+    preparacion$ajustes_por_datos[[clase]]
+  } else 0
+  if (identical(direccion, "no_emitida") && ajuste < 0) {
+    causas <- attr(
+      preparacion$ajustes_por_datos, "causas_de_menos", exact = TRUE
+    )[[clase]]
+    cuantas <- function(causa) {
+      if (isTRUE(causa %in% names(causas))) causas[[causa]] else 0
+    }
+    partes <- c(
+      if (cuantas("sin_valores") > 0) {
+        paste0("sin valores no nulos (", cuantas("sin_valores"), ")")
+      },
+      if (cuantas("sin_valores_finitos") > 0) {
+        paste0(
+          "sin valores no nulos o sin valores finitos (",
+          cuantas("sin_valores_finitos"), ")"
+        )
+      },
+      if (cuantas("texto") > 0) {
+        paste0("que guardan texto (", cuantas("texto"), ")")
+      },
+      if (cuantas("ancho") > 0) {
+        paste0(
+          "con valores de al menos 2^53 y sin la cantidad de valores contada,",
+          " cuya mediana no se publicar\u00eda (", cuantas("ancho"), ")"
+        )
+      }
+    )
+    if (!length(partes)) partes <- "sin valores no nulos"
+    return(paste0(
+      "La clase `", clase, "` emitio menos consultas que las anunciadas",
+      " porque hay columnas num\u00e9ricas ", paste(partes, collapse = " o "),
+      "; sus consultas no hacen falta."
+    ))
+  }
+  if (identical(direccion, "no_anunciada") && ajuste > 0) {
+    causas <- attr(preparacion$ajustes_por_datos, "causas", exact = TRUE)[[clase]]
+    razones <- c(
+      if ("texto" %in% causas) {
+        paste0(
+          "una columna num\u00e9rica guarda valores de texto y la corrida lo",
+          " midio con `typeof()`"
+        )
+      },
+      if ("no_finitos" %in% causas) {
+        paste0(
+          "una columna guarda infinitos o valores no numericos (NaN) y sus",
+          " magnitudes se volvieron a pedir sobre los valores finitos"
+        )
+      },
+      if ("infinitos" %in% causas) {
+        paste0(
+          "el promedio de una columna vino nulo o no numerico y la corrida",
+          " pregunto si la columna guarda infinitos"
+        )
+      },
+      if ("magnitud" %in% causas || !length(causas)) {
+        paste0(
+          "la magnitud o el rango de los valores obligo a calcular una",
+          " estadistica en una consulta aparte -el desvio escalado o la",
+          " mediana exacta-, que el plan no cuenta en el caso esperado"
+        )
+      }
+    )
+    return(paste0(
+      "La clase `", clase, "` emitio mas consultas que las anunciadas porque ",
+      paste(razones, collapse = "; y porque "), "."
+    ))
+  }
   fallas <- .fallas_conciliacion_consultas_dbi(
     presupuesto, clases, clase
   )
@@ -5984,8 +6303,9 @@
     ))
   }
   paste0(
-    "La clase `", clase, "` no corrio por una decision de la preparacion;",
-    " revisar `resumen_tabla$meta$consultas$sondas_fallidas`."
+    "La corrida emitio menos consultas que las anunciadas y ninguna falla lo",
+    " explica; la diferencia no se pudo atribuir a una clase y se anota en `",
+    clase, "`."
   )
 }
 
@@ -18279,12 +18599,26 @@
   # el infinito, o la lectura es una muestra del motor, quedan retenidas con
   # `.motivo_infinito_dbi()` -abajo, como cualquier magnitud desmentida-.
   if ((infinitos_motor || nan_motor) && !isTRUE(solo_finitos)) {
+    emitidas_antes <- if (is.null(presupuesto)) 0L else {
+      length(presupuesto$consultas_emitidas)
+    }
     finitas <- .magnitudes_finitas_dbi(
       conexion, tabla_sql, columna, columna_sql, prototipo, n_total, dialecto,
       pedidas_numericas, presupuesto, incluir_valores, tipo_declarado,
       motivo_ilegible, universo, decisiones_costo,
       como_numeric = infinitos_columna_como_numeric
     )
+    # La cuenta de consultas anota cuales se mandaron aca: el plan no las
+    # cuenta, porque que una columna guarde infinitos lo dicen los datos.
+    if (!is.null(presupuesto)) {
+      emitidas_despues <- length(presupuesto$consultas_emitidas)
+      if (emitidas_despues > emitidas_antes) {
+        presupuesto$emitidas_por_no_finitos <- c(
+          presupuesto$emitidas_por_no_finitos,
+          seq.int(emitidas_antes + 1L, emitidas_despues)
+        )
+      }
+    }
     if (!is.null(finitas)) {
       for (campo in names(finitas$fila)) fila[[campo]] <- finitas$fila[[campo]]
       previos <- do.call(rbind, registros)
@@ -18324,6 +18658,11 @@
                ), "par") && !centrales_por_debajo()) {
       # Con una cantidad par -o sin saber cual- la mediana de una columna que
       # pasa de 2^53 no se publica valga lo que valga: no se paga su consulta.
+      # La cuenta de consultas lo anota: el plan contaba esa mediana.
+      if (!is.null(presupuesto)) {
+        presupuesto$medianas_sin_pagar <-
+          (presupuesto$medianas_sin_pagar %||% 0) + 1
+      }
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible",
         .motivo_mediana_inexacta_dbi(
@@ -27906,11 +28245,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' ambas cantidades y el motivo de la diferencia; la falla original permanece
 #' en `fallas` o `sondas_fallidas`. `plan_corrida` conserva la misma estructura
 #' para la comparación contra el plan que la corrida publicó en `meta$plan`;
-#' permite distinguirla de los campos históricos de la conciliación. En una
-#' tabla vacía o sin ningún valor no nulo, las consultas que no hacen falta no
-#' se mandan y la cuenta se concilia con el plan que publica la corrida;
-#' `plan_previo` conserva el total que se anunció antes de conocer ese estado,
-#' con su diferencia, la clase que no corrió y el motivo.
+#' permite distinguirla de los campos históricos de la conciliación. Hay
+#' consultas cuya cuenta deciden los datos: la mediana y el desvío de una
+#' columna numérica sin ningún valor no nulo no hacen falta y no se mandan
+#' —también en una tabla vacía o toda nula—, y los valores cuya magnitud o
+#' rango obliga a calcular aparte el desvío o la mediana —un entero que no cabe
+#' exacto en un número de doble precisión— activan una consulta más. Las
+#' magnitudes de una columna que guarda infinitos o `NaN` se piden de nuevo
+#' sobre sus valores finitos. Pasa con
+#' cualquier selección de `metricas`: sin `"validos"` la corrida no cuenta los
+#' valores de cada columna, y entonces un promedio nulo la hace preguntar si
+#' la columna guarda infinitos, y la mediana de una columna con valores de al
+#' menos 2^53 no se paga. En SQLite, una columna numérica que guarda texto
+#' —una fecha ISO en una columna `DATE`— se mide con una consulta más y su
+#' mediana no se manda. En esos casos la
+#' cuenta se concilia con el plan que publica la corrida, y `plan_previo`
+#' conserva lo que se anunció antes de leer los datos, con su diferencia, la
+#' clase y el motivo.
 #'
 #' Cuando el catálogo estima al menos `1e8` filas y se pidió
 #' `universo = "tabla_completa"`, la función avisa antes de los agregados con
@@ -30845,8 +31196,21 @@ perfilar_dbi <- function(conexion, tabla,
     muestra_no_disponible = identical(preparacion$universo, "muestra_motor") &&
       is.list(preparacion$muestreo) &&
       !isTRUE(preparacion$muestreo$disponible),
-    sin_valores = isTRUE(preparacion$tabla_sin_valores)
+    sin_valores = isTRUE(preparacion$tabla_sin_valores),
+    columnas_sin_valores = .columnas_sin_valores_dbi(
+      resumen$columnas, preparacion$campos[es_numerico], resumen$sql
+    )
   )
+  preparacion$columnas_sin_valores <- .columnas_sin_valores_dbi(
+    resumen$columnas, preparacion$campos[es_numerico], resumen$sql
+  )
+  preparacion$ajustes_por_datos <- attr(
+    plan_ejecutado, "ajustes_por_datos", exact = TRUE
+  ) %||% numeric()
+  # El plan de la corrida se rehace cuando los datos cambiaron la cuenta: la
+  # tabla sin valores, o una clase cuya cuenta deciden los datos.
+  preparacion$plan_rehecho <- isTRUE(preparacion$tabla_sin_valores) ||
+    length(preparacion$ajustes_por_datos) > 0L
   if (identical(preparacion$universo, "muestra_motor")) {
     if (!is.null(fuente_muestreada)) {
       fuente_muestreada$filas_solicitadas <- min(
@@ -31013,8 +31377,17 @@ perfilar_dbi <- function(conexion, tabla,
       !isTRUE(preparacion$muestreo$disponible)) {
     actualizar <- actualizar | plan$alcance == "lee una muestra del motor"
   }
+  por_datos <- as.character(plan$clase_consulta) %in%
+    names(preparacion$ajustes_por_datos)
+  actualizar <- actualizar | por_datos
   plan_publicado$n_consultas[actualizar] <-
     plan_ejecutado$n_consultas[actualizar]
+  # El maximo del plan de la corrida no queda por debajo de lo que publica.
+  sube_maximo <- por_datos & is.finite(plan_publicado$n_consultas) &
+    is.finite(plan_publicado$n_consultas_max) &
+    plan_publicado$n_consultas_max < plan_publicado$n_consultas
+  plan_publicado$n_consultas_max[sube_maximo] <-
+    plan_publicado$n_consultas[sube_maximo]
   attr(plan_publicado, "total") <- sum(
     as.numeric(plan_publicado$n_consultas), na.rm = TRUE
   )
@@ -31367,7 +31740,7 @@ perfilar_dbi <- function(conexion, tabla,
     is.list(preparacion$muestreo) && !isTRUE(preparacion$muestreo$disponible)
   condicional_desconocida <- is.data.frame(plan) && nrow(plan) > 0L &&
     anyNA(plan$n_consultas)
-  plan_conciliacion_historico <- if (isTRUE(preparacion$tabla_sin_valores) ||
+  plan_conciliacion_historico <- if (isTRUE(preparacion$plan_rehecho) ||
                                       muestra_no_disponible_corrida) {
     plan
   } else {
@@ -31377,7 +31750,7 @@ perfilar_dbi <- function(conexion, tabla,
     plan_conciliacion_historico, plan_ejecutado, presupuesto$usadas,
     preparacion, presupuesto
   )
-  plan_conciliacion <- if (isTRUE(preparacion$tabla_sin_valores)) {
+  plan_conciliacion <- if (isTRUE(preparacion$plan_rehecho)) {
     plan_publicado
   } else if (muestra_no_disponible_corrida || condicional_desconocida) {
     plan
@@ -31399,9 +31772,9 @@ perfilar_dbi <- function(conexion, tabla,
   # DuckDB, y lo anunciado antes queda en `plan_previo` con su diferencia y su
   # motivo: SQLite quedaba `desfasado` 20 contra 18 sobre una tabla sana.
   conciliacion_previa <- conciliacion
-  if (isTRUE(preparacion$tabla_sin_valores)) conciliacion <- conciliacion_corrida
+  if (isTRUE(preparacion$plan_rehecho)) conciliacion <- conciliacion_corrida
   plan_previo <- NULL
-  if (isTRUE(preparacion$tabla_sin_valores)) {
+  if (isTRUE(preparacion$plan_rehecho)) {
     totales_previos <- .totales_plan_consultas_dbi(plan)
     motivo_plan_previo <- if (isTRUE(
       is.finite(preparacion$n_total) && preparacion$n_total == 0
@@ -31410,10 +31783,18 @@ perfilar_dbi <- function(conexion, tabla,
         "El plan previo se anunci\u00f3 antes de comprobar que la tabla estaba",
         "vac\u00eda. La conciliaci\u00f3n usa el plan publicado por la corrida."
       )
-    } else {
+    } else if (isTRUE(preparacion$tabla_sin_valores)) {
       paste(
         "El plan previo se anunci\u00f3 antes de comprobar que no hab\u00eda valores",
         "no nulos. La conciliaci\u00f3n usa el plan publicado por la corrida."
+      )
+    } else {
+      paste(
+        "El plan previo se anunci\u00f3 antes de leer los datos, que cambiaron la",
+        "cuenta de las clases que dependen de ellos: consultas que no hicieron",
+        "falta -columnas sin valores no nulos, o cuya mediana no se",
+        "publicar\u00eda- o que los valores activaron. El detalle dice la clase y",
+        "la causa. La conciliaci\u00f3n usa el plan publicado por la corrida."
       )
     }
     plan_previo <- list(
