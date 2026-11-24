@@ -336,3 +336,20 @@ test_that("una consulta de fechas que fallo si desfasa la consulta de fechas de 
   expect_gt(resumen$emitidas, resumen$seguras)
   expect_identical(resumen$direccion, "no_anunciada")
 })
+
+test_that("una falla de fechas o de periodos es de su clase, no de los portones", {
+  clases <- c(
+    "portones (esquema y sondas)", "agregados planos",
+    .fpc_clases[["resumen"]], .fpc_clases[["periodos"]]
+  )
+  expect_identical(.clase_consulta_por_etapa_dbi("fechas", clases),
+                   .fpc_clases[["resumen"]])
+  expect_identical(.clase_consulta_por_etapa_dbi("periodos", clases),
+                   .fpc_clases[["periodos"]])
+  # Sin su clase en el plan, se cobra donde se cobra todo lo que no tiene clase.
+  sin_fechas <- clases[1:2]
+  expect_identical(.clase_consulta_por_etapa_dbi("fechas", sin_fechas),
+                   "portones (esquema y sondas)")
+  expect_identical(.clase_consulta_por_etapa_dbi("periodos", sin_fechas),
+                   "portones (esquema y sondas)")
+})

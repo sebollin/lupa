@@ -5629,6 +5629,17 @@
   if (etapa %in% c("verificacion_orden")) {
     return(buscar("verificacion de unicidad"))
   }
+  # Las consultas de fechas se cobran en sus dos clases: una falla suya es de
+  # su clase y no de los portones, donde no impedia leer como condicional lo
+  # que la propia clase emitio de mas.
+  if (identical(etapa, "fechas")) {
+    if (.CLASE_PLAN_RESUMEN_FECHAS_DBI %in% clases) {
+      return(.CLASE_PLAN_RESUMEN_FECHAS_DBI)
+    }
+  }
+  if (identical(etapa, "periodos")) {
+    if (.CLASE_PLAN_PERIODOS_DBI %in% clases) return(.CLASE_PLAN_PERIODOS_DBI)
+  }
   if (etapa %in% c(
     "lectura_muestra", "materializacion_muestra", "lectura_spool_muestra",
     "sonda_lectura_muestra", "sonda_bytes_muestra", "faltantes_disfrazados"
