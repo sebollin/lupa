@@ -2811,38 +2811,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   no_comparables_tabla <- list(
     cardinalidad = character(), rango = character(), vocabulario = character()
   )
-  cambios <- list()
-  k <- 0L
-  agregar <- function(columna, aspecto, cambio, severidad, valor_anterior,
-                      valor_actual, delta = NA_real_, cambio_relativo = NA_real_,
-                      significativo = TRUE, descripcion, evidencia = "",
-                      universo = NULL) {
-    k <<- k + 1L
-    if (is.null(universo)) {
-      clave <- if (length(columna) && !is.na(columna)) columna else NA_character_
-      universo <- c(
-        .universo_fila_deriva(aspecto, lado_a, mapa_a$indice[match(clave, mapa_a$clave)]),
-        .universo_fila_deriva(aspecto, lado_b, mapa_b$indice[match(clave, mapa_b$clave)])
-      )
-    }
-    original <- if (length(columna) && !is.na(columna)) {
-      indice <- match(columna, c(mapa_a$clave, mapa_b$clave))
-      if (!is.na(indice)) {
-        fuente <- c(mapa_a$original, mapa_b$original)
-        fuente[[indice]]
-      } else columna
-    } else columna
-    cambios[[k]] <<- data.frame(
-      columna = original, aspecto = aspecto, cambio = cambio,
-      severidad = severidad, valor_anterior = .texto_deriva(valor_anterior),
-      valor_actual = .texto_deriva(valor_actual), delta = delta,
-      cambio_relativo = cambio_relativo, significativo = significativo,
-      fecha_anterior = fecha_anterior, fecha_actual = fecha_actual,
-      descripcion = descripcion, evidencia = evidencia,
-      universo_anterior = universo[[1L]], universo_actual = universo[[2L]],
-      stringsAsFactors = FALSE
-    )
-  }
+  acumulador <- .nuevo_acumulador_deriva(
+    fecha_anterior, fecha_actual, lado_a, lado_b, mapa_a, mapa_b
+  )
+  agregar <- acumulador$agregar
 
   if (muestra_no_comparable) {
     agregar(
@@ -2904,6 +2876,133 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  estructura <- .comparar_estructura_deriva(
+    anterior, actual, mapa_a, mapa_b, agregar
+  )
+  aparecidas <- estructura$aparecidas
+  desaparecidas <- estructura$desaparecidas
+  comunes <- estructura$comunes
+  marcas_a <- estructura$marcas_a
+  marcas_b <- estructura$marcas_b
+  proteccion_a <- estructura$proteccion_a
+  proteccion_b <- estructura$proteccion_b
+  politica_proteccion_cambiada <- estructura$politica_proteccion_cambiada
+  campos_protegidos <- estructura$campos_protegidos
+
+  metricas <- .comparar_metricas_deriva(
+    anterior, actual, lado_a, lado_b, mapa_a, mapa_b, campos, comunes,
+    capa_tabla, muestra_no_comparable, umbral_cambio, umbral_error,
+    politica_proteccion_cambiada, campos_protegidos, no_comparables_tabla,
+    agregar
+  )
+  campos_protegidos <- metricas$campos_protegidos
+  no_comparables_tabla <- metricas$no_comparables_tabla
+
+  vocabulario <- .comparar_vocabulario_deriva(
+    anterior, actual, mapa_a, mapa_b, campos, comunes, capa_tabla,
+    muestra_no_comparable, umbral_cambio, umbral_error, campos_protegidos,
+    no_comparables_tabla, agregar
+  )
+  campos_protegidos <- vocabulario$campos_protegidos
+  no_comparables_tabla <- vocabulario$no_comparables_tabla
+
+  .comparar_patrones_deriva(
+    anterior, actual, lado_a, lado_b, mapa_a, mapa_b, comunes, umbral_cambio,
+    umbral_error, agregar
+  )
+
+  ausencias <- .comparar_ausencias_deriva(anterior, actual, agregar)
+  sentinelas_a <- ausencias$sentinelas_a
+  sentinelas_b <- ausencias$sentinelas_b
+  sentinelas_comparables <- ausencias$sentinelas_comparables
+
+  .comparar_filas_proteccion_duplicados_deriva(
+    anterior, actual, lado_a, lado_b, muestra_a, muestra_b, proteccion_a,
+    proteccion_b, politica_proteccion_cambiada, agregar
+  )
+
+  configuraciones <- .comparar_configuraciones_deriva(anterior, actual, agregar)
+  aplicabilidad_a <- configuraciones$aplicabilidad_a
+  aplicabilidad_b <- configuraciones$aplicabilidad_b
+  opcionales_a <- configuraciones$opcionales_a
+  opcionales_b <- configuraciones$opcionales_b
+
+  # Las filas ya publicadas, con las de configuracion incluidas, deciden que
+  # columnas quedan fuera de la deriva de distribucion.
+  cambios <- acumulador$obtener()
+  distribucion <- .comparar_distribucion_deriva(
+    anterior, actual, mapa_a, mapa_b, campos, cambios, muestra_no_comparable,
+    aplicabilidad_a, aplicabilidad_b, opcionales_a, opcionales_b,
+    sentinelas_a, sentinelas_b, sentinelas_comparables, umbral_cambio,
+    agregar
+  )
+  sin_deriva_global <- distribucion$sin_deriva_global
+  columnas_tocadas <- distribucion$columnas_tocadas
+  columnas_resolucion_distinta <- distribucion$columnas_resolucion_distinta
+  columnas_faltantes_distintos <- distribucion$columnas_faltantes_distintos
+
+  .comparar_hallazgos_deriva(
+    anterior, actual, mapa_a, mapa_b, aparecidas, desaparecidas,
+    fecha_anterior, fecha_actual, columnas_tocadas,
+    columnas_resolucion_distinta, columnas_faltantes_distintos,
+    sin_deriva_global, umbral_cambio, umbral_error, agregar
+  )
+  cambios <- acumulador$obtener()
+  .comparar_final_deriva(
+    anterior, actual, mapa_a, mapa_b, capa_tabla, muestra_no_comparable,
+    marcas_a, marcas_b, campos_protegidos, cambios
+  )
+}
+
+# Las partes de `comparar_perfiles()`. Cada una recibe por argumento lo que lee,
+# agrega sus filas con `agregar()` en el mismo orden en que la comparacion las
+# publica y devuelve, en una lista con nombres, lo que usan las partes
+# siguientes.
+
+# Acumulador de las filas de la deriva: `agregar()` arma cada fila -con el
+# universo de cada lado y el nombre original de la columna- y la guarda en
+# orden; `obtener()` devuelve las filas guardadas hasta ese momento.
+.nuevo_acumulador_deriva <- function(fecha_anterior, fecha_actual,
+                                     lado_a, lado_b, mapa_a, mapa_b) {
+  cambios <- list()
+  k <- 0L
+  agregar <- function(columna, aspecto, cambio, severidad, valor_anterior,
+                      valor_actual, delta = NA_real_, cambio_relativo = NA_real_,
+                      significativo = TRUE, descripcion, evidencia = "",
+                      universo = NULL) {
+    k <<- k + 1L
+    if (is.null(universo)) {
+      clave <- if (length(columna) && !is.na(columna)) columna else NA_character_
+      universo <- c(
+        .universo_fila_deriva(aspecto, lado_a, mapa_a$indice[match(clave, mapa_a$clave)]),
+        .universo_fila_deriva(aspecto, lado_b, mapa_b$indice[match(clave, mapa_b$clave)])
+      )
+    }
+    original <- if (length(columna) && !is.na(columna)) {
+      indice <- match(columna, c(mapa_a$clave, mapa_b$clave))
+      if (!is.na(indice)) {
+        fuente <- c(mapa_a$original, mapa_b$original)
+        fuente[[indice]]
+      } else columna
+    } else columna
+    cambios[[k]] <<- data.frame(
+      columna = original, aspecto = aspecto, cambio = cambio,
+      severidad = severidad, valor_anterior = .texto_deriva(valor_anterior),
+      valor_actual = .texto_deriva(valor_actual), delta = delta,
+      cambio_relativo = cambio_relativo, significativo = significativo,
+      fecha_anterior = fecha_anterior, fecha_actual = fecha_actual,
+      descripcion = descripcion, evidencia = evidencia,
+      universo_anterior = universo[[1L]], universo_actual = universo[[2L]],
+      stringsAsFactors = FALSE
+    )
+  }
+  list(agregar = agregar, obtener = function() cambios)
+}
+
+# Columnas que desaparecen o aparecen -las marcas de limpieza, con severidad
+# `ok`- y la politica de proteccion de cada lado.
+.comparar_estructura_deriva <- function(anterior, actual, mapa_a, mapa_b,
+                                        agregar) {
   desaparecidas <- setdiff(mapa_a$clave, mapa_b$clave)
   aparecidas <- setdiff(mapa_b$clave, mapa_a$clave)
   # Las marcas que agrega `aplicar()` -`.fila_duplicada`, `.grupo_duplicado`,
@@ -2962,6 +3061,27 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   politica_proteccion_cambiada <- !is.na(proteccion_a) && !is.na(proteccion_b) &&
     !identical(proteccion_a, proteccion_b)
   campos_protegidos <- .campos_protegidos_equivalencia_vacios()
+  list(
+    aparecidas = aparecidas,
+    desaparecidas = desaparecidas,
+    comunes = comunes,
+    marcas_a = marcas_a,
+    marcas_b = marcas_b,
+    proteccion_a = proteccion_a,
+    proteccion_b = proteccion_b,
+    politica_proteccion_cambiada = politica_proteccion_cambiada,
+    campos_protegidos = campos_protegidos
+  )
+}
+
+# Por columna comun: tipos y unidad, faltantes, cardinalidad, alcance del
+# resumen, proteccion por columna y rango. Amplia los campos protegidos y lo que
+# la capa SQL no puede comparar.
+.comparar_metricas_deriva <- function(
+    anterior, actual, lado_a, lado_b, mapa_a, mapa_b, campos, comunes,
+    capa_tabla, muestra_no_comparable, umbral_cambio, umbral_error,
+    politica_proteccion_cambiada, campos_protegidos, no_comparables_tabla,
+    agregar) {
   for (columna in comunes) {
     indice_a <- mapa_a$indice[match(columna, mapa_a$clave)]
     indice_b <- mapa_b$indice[match(columna, mapa_b$clave)]
@@ -3301,6 +3421,18 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       }
     }
   }
+  list(
+    campos_protegidos = campos_protegidos,
+    no_comparables_tabla = no_comparables_tabla
+  )
+}
+
+# Vocabulario de las columnas categoricas y una fila por cada aspecto que la
+# capa SQL no puede comparar.
+.comparar_vocabulario_deriva <- function(
+    anterior, actual, mapa_a, mapa_b, campos, comunes, capa_tabla,
+    muestra_no_comparable, umbral_cambio, umbral_error, campos_protegidos,
+    no_comparables_tabla, agregar) {
   # El vocabulario de las columnas categoricas. Va despues de las columnas
   # porque su hueco en la capa SQL se declara con los de rango y cardinalidad.
   if ("vocabulario" %in% campos$comparables) {
@@ -3386,7 +3518,17 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       universo = c(NA_character_, NA_character_)
     )
   }
+  list(
+    campos_protegidos = campos_protegidos,
+    no_comparables_tabla = no_comparables_tabla
+  )
+}
 
+# Configuracion de los patrones de formato, y patrones que aparecen,
+# desaparecen o cambian de proporcion.
+.comparar_patrones_deriva <- function(
+    anterior, actual, lado_a, lado_b, mapa_a, mapa_b, comunes, umbral_cambio,
+    umbral_error, agregar) {
   config_a <- .configuracion_patrones_perfil(anterior)
   config_b <- .configuracion_patrones_perfil(actual)
   # La `muestra` declarada no es lo que se midio: con 400 filas, `1e5` -la de
@@ -3645,7 +3787,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       }
     }
   }
+  invisible(NULL)
+}
 
+# Politicas de ausencia: centinelas numericos y cadenas de ausencia, de la
+# corrida y por columna.
+.comparar_ausencias_deriva <- function(anterior, actual, agregar) {
   sentinelas_a <- .configuracion_sentinelas_perfil(anterior)
   sentinelas_b <- .configuracion_sentinelas_perfil(actual)
   # Una lista enteramente ausente no es una politica distinta: es una politica
@@ -3803,6 +3950,18 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       }
     }
   }
+  list(
+    sentinelas_a = sentinelas_a,
+    sentinelas_b = sentinelas_b,
+    sentinelas_comparables = sentinelas_comparables
+  )
+}
+
+# Centinelas de fecha, filas de la fuente, politica de proteccion y
+# configuracion de duplicados aproximados.
+.comparar_filas_proteccion_duplicados_deriva <- function(
+    anterior, actual, lado_a, lado_b, muestra_a, muestra_b, proteccion_a,
+    proteccion_b, politica_proteccion_cambiada, agregar) {
   # `centinelas_fecha` es la gemela de fechas: lo declarado se acusa como
   # `error` desde una aparicion. Con los mismos datos y la lista en una sola
   # corrida, los hallazgos `fecha_centinela` aparecerian o se resolverian sin
@@ -3942,7 +4101,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       )
     }
   }
+  invisible(NULL)
+}
 
+# Umbrales, normalizacion, dominios, aplicabilidad y columnas opcionales.
+.comparar_configuraciones_deriva <- function(anterior, actual, agregar) {
   umbrales_a <- .configuracion_umbrales_perfil(anterior)
   umbrales_b <- .configuracion_umbrales_perfil(actual)
   # Solo las varas que los dos perfiles registran: un perfil de otra version
@@ -4078,7 +4241,22 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       )
     )
   }
+  list(
+    aplicabilidad_a = aplicabilidad_a,
+    aplicabilidad_b = aplicabilidad_b,
+    opcionales_a = opcionales_a,
+    opcionales_b = opcionales_b
+  )
+}
 
+# Deriva de la distribucion numerica y categorica de las columnas comunes.
+# Devuelve tambien las columnas que los hallazgos necesitan para decidir su
+# conteo.
+.comparar_distribucion_deriva <- function(
+    anterior, actual, mapa_a, mapa_b, campos, cambios, muestra_no_comparable,
+    aplicabilidad_a, aplicabilidad_b, opcionales_a, opcionales_b,
+    sentinelas_a, sentinelas_b, sentinelas_comparables, umbral_cambio,
+    agregar) {
   # La forma de la distribucion. Con una muestra de algun lado no hay deriva de
   # la tabla que afirmar (la fila `muestra` lo declara). Tampoco si la
   # comparacion no puede decidir que las dos cifras miden lo mismo: un perfil que
@@ -4209,7 +4387,20 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       )
     }
   }
+  list(
+    sin_deriva_global = sin_deriva_global,
+    columnas_tocadas = columnas_tocadas,
+    columnas_resolucion_distinta = columnas_resolucion_distinta,
+    columnas_faltantes_distintos = columnas_faltantes_distintos
+  )
+}
 
+# Hallazgos que aparecen, se resuelven, cambian de severidad o de conteo.
+.comparar_hallazgos_deriva <- function(
+    anterior, actual, mapa_a, mapa_b, aparecidas, desaparecidas,
+    fecha_anterior, fecha_actual, columnas_tocadas,
+    columnas_resolucion_distinta, columnas_faltantes_distintos,
+    sin_deriva_global, umbral_cambio, umbral_error, agregar) {
   hallazgos_a <- .resumir_hallazgos_deriva(anterior)
   hallazgos_b <- .resumir_hallazgos_deriva(actual)
   nuevos <- setdiff(hallazgos_b$clave, hallazgos_a$clave)
@@ -4475,7 +4666,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       }
     }
   }
+  invisible(NULL)
+}
 
+# Severidad `ok` para los hallazgos sobre marcas, poda de lo que la muestra no
+# puede afirmar y armado del objeto `deriva_perfil`.
+.comparar_final_deriva <- function(
+    anterior, actual, mapa_a, mapa_b, capa_tabla, muestra_no_comparable,
+    marcas_a, marcas_b, campos_protegidos, cambios) {
   # Un hallazgo sobre una marca del plan no describe los datos: el `NA` de
   # `.grupo_duplicado` es "la fila no esta en ningun grupo", y despues de
   # `aplicar()` la deriva publicaba sus "faltantes" como hallazgo aparecido con
