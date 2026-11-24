@@ -184,7 +184,7 @@ for (i in seq_len(nrow(faltan))) {
 #> devoluciones: La tabla tiene cero filas: se leyó su estructura pero no hay nada que
 #> medir. Las proporciones quedan en NA, no en cero.
 #> pagos: No se pudo perfilar la tabla: La tabla solicitada no existe en la conexión DBI,
-#> o la credencial no tiene permiso para verla. El motor no distinguio entre las dos, y
+#> o la credencial no tiene permiso para verla. El motor no distinguió entre las dos, y
 #> `dbExistsTable()` tampoco. no such table: pagos
 ```
 
@@ -452,7 +452,7 @@ fallida y las que no se pudieron perfilar.
 seguida <- perfilar_coleccion(
   base_archivo, directorio_reanudacion = directorio, reanudar = TRUE
 )
-#> ℹ Se reanuda la corrida corrida-20261123-141905-2cc820e3927a, empezada el 2026-11-23 14:19:05 UTC: se reusan 4 tablas y se vuelven a perfilar 1.
+#> ℹ Se reanuda la corrida corrida-20261124-100308-2cbe528d153e, empezada el 2026-11-24 10:03:08 UTC: se reusan 4 tablas y se vuelven a perfilar 1.
 seguida$meta$reanudacion[c("intento", "reanudada")]
 #> $intento
 #> [1] 2
@@ -498,12 +498,12 @@ rechazo$motivo
 # La carpeta temporal se abrevia para que el mensaje se lea.
 mensaje <- gsub(dirname(archivo), "...", conditionMessage(rechazo), fixed = TRUE)
 writeLines(strwrap(mensaje, 88))
-#> No se reanuda la corrida corrida-20261123-141905-2cc820e3927a: desde su intento
-#> anterior (2026-11-23T14:19:06+0000) cambió la base: en `.../file2cc8def5dd1.sqlite`, el
-#> tamaño, de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-23 14:19:05.388
-#> UTC a 2026-11-23 14:19:06.370 UTC. Las tablas guardadas la describen como era y las que
-#> faltan la describirían como es ahora: el resultado no sería el de ninguna corrida. Una
-#> corrida nueva, con `reanudar = FALSE`, la mide entera como está.
+#> No se reanuda la corrida corrida-20261124-100308-2cbe528d153e: desde su intento
+#> anterior (2026-11-24T10:03:09+0000) cambió la base: en `.../file2cbe54f01bfa.sqlite`,
+#> el tamaño, de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-24
+#> 10:03:08.226 UTC a 2026-11-24 10:03:09.349 UTC. Las tablas guardadas la describen como
+#> era y las que faltan la describirían como es ahora: el resultado no sería el de ninguna
+#> corrida. Una corrida nueva, con `reanudar = FALSE`, la mide entera como está.
 ```
 
 La base se reconoce por su archivo, con su tamaño y su fecha de

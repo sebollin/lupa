@@ -693,10 +693,10 @@ c(
   perfil_muestra = media_edad(columnas(declarado$perfil_muestra))
 )
 #>    resumen_sql perfil_muestra 
-#>       34.63182       50.53385
+#>       50.53385       50.53385
 cobertura(declarado)[, c("bloque", "elemento", "estado")]
-#>          bloque             elemento    estado
-#> 1 resumen_tabla sentinelas_numericos degradado
+#> [1] bloque   elemento estado  
+#> <0 rows> (or 0-length row.names)
 ```
 
 On a `perfil_dbi`,
@@ -713,11 +713,8 @@ semantics. What a declaration changes on purpose stays in
 ``` r
 
 head(declarado$resumen_tabla$meta$corroboracion_bloques$no_comparadas, 4)
-#>   columna metrica                causa
-#> 1    edad   media sentinelas_numericos
-#> 2    edad mediana sentinelas_numericos
-#> 3    edad  minimo sentinelas_numericos
-#> 4    edad  maximo sentinelas_numericos
+#> [1] columna metrica causa  
+#> <0 rows> (or 0-length row.names)
 ```
 
 If 2 comparable values differ beyond the tolerance, the coverage
@@ -1092,13 +1089,14 @@ accepting it.
 
 The plan counts what `max_consultas` and `meta$consultas$emitidas`
 count: every statement the profile sends to the engine, except the
-transaction guard and the `pg_stat_statements` reads of `instrumentar`.
-With `bloque_filas` it counts the preparation, the scan and the queries
-that follow; those the data ask for —the median of a decimal whose
-central values are distinct doubles, its centred standard deviation, the
-retry of a short `TABLESAMPLE`— go to `total_maximo`. With
-`max_consultas = attr(plan, "total_maximo")` no metric is left out by
-the budget.
+transaction guard and the `pg_stat_statements` reads of `instrumentar`;
+in DuckDB it also counts the two statements with which the call finds
+out whether a transaction is open. With `bloque_filas` it counts the
+preparation, the scan and the queries that follow; those the data ask
+for —the median of a decimal whose central values are distinct doubles,
+its centred standard deviation, the retry of a short `TABLESAMPLE`— go
+to `total_maximo`. With `max_consultas = attr(plan, "total_maximo")` no
+metric is left out by the budget.
 
 The count follows the composition of the table, not the number of
 columns. With the wide table of the previous section and one of 158
@@ -1534,7 +1532,7 @@ transaction, it does not add statements of that kind. The same holds for
 | PostgreSQL | an error aborts the transaction, so each statement goes between its own `SAVEPOINT` and its `RELEASE`, with `ROLLBACK TO SAVEPOINT` if it fails |
 | SQL Server | it can roll back the transaction on an error; the path measures `@@TRANCOUNT` and `XACT_STATE()` before and after each send and read, and if they change it raises `lupa_error_transaccion_dbi` |
 | MySQL, MariaDB, SQLite | the error of a query does not abort the transaction |
-| DuckDB | an error while preparing aborts it and there is no `SAVEPOINT`: a view that fails leaves the transaction aborted, and it has to be closed with `ROLLBACK` |
+| DuckDB | an error while preparing aborts it and there is no `SAVEPOINT`, so with an open transaction the package’s functions refuse with `lupa_error_transaccion_dbi` before reading anything; to find out they send two `txid_current()` statements, which the plan counts |
 
 ## Dialects and probes
 
@@ -2187,6 +2185,17 @@ inherit from `lupa_error_dbi`:
 - `lupa_error_codificacion_dbi`;
 - `lupa_error_argumento_dbi`;
 - `lupa_error_transaccion_dbi`.
+
+If the connection is lost while it is being read, the call stops with
+`lupa_error_conexion_dbi` and publishes nothing half done: a collection
+does not go on with the tables left. That connection is not used again:
+the next call fails without sending it anything, also with the drivers
+that reopen the session on their own (RPostgres, and RMariaDB with
+`reconnect = TRUE`), because the new session no longer has the
+transaction, the schema or the parameters of the old one. Close it with
+[`DBI::dbDisconnect()`](https://dbi.r-dbi.org/reference/dbDisconnect.html)
+and open another. An error the server reports is not taken for a lost
+connection even if its text looks like one.
 
 ``` r
 

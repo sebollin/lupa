@@ -670,10 +670,10 @@ c(
   perfil_muestra = media_edad(columnas(declarado$perfil_muestra))
 )
 #>    resumen_sql perfil_muestra 
-#>       34.63182       50.53385
+#>       50.53385       50.53385
 cobertura(declarado)[, c("bloque", "elemento", "estado")]
-#>          bloque             elemento    estado
-#> 1 resumen_tabla sentinelas_numericos degradado
+#> [1] bloque   elemento estado  
+#> <0 rows> (or 0-length row.names)
 ```
 
 Sobre un `perfil_dbi`,
@@ -690,11 +690,8 @@ que una declaración cambia a propósito queda en
 ``` r
 
 head(declarado$resumen_tabla$meta$corroboracion_bloques$no_comparadas, 4)
-#>   columna metrica                causa
-#> 1    edad   media sentinelas_numericos
-#> 2    edad mediana sentinelas_numericos
-#> 3    edad  minimo sentinelas_numericos
-#> 4    edad  maximo sentinelas_numericos
+#> [1] columna metrica causa  
+#> <0 rows> (or 0-length row.names)
 ```
 
 Si 2 valores comparables difieren más allá de la tolerancia, la
@@ -1059,12 +1056,14 @@ queda condicionado a que la sonda de la corrida la acepte.
 El plan cuenta lo mismo que `max_consultas` y que
 `meta$consultas$emitidas`: toda sentencia que el perfilado manda al
 motor, salvo la guarda de transacción y las lecturas de
-`pg_stat_statements` de `instrumentar`. Por `bloque_filas` cuenta la
-preparación, el recorrido y las consultas que siguen; las que piden los
-datos —la mediana de un decimal cuyas centrales son dobles distintos, su
-desvío centrado, el reintento de un `TABLESAMPLE` corto— van a
-`total_maximo`. Con `max_consultas = attr(plan, "total_maximo")` ninguna
-métrica queda afuera por el presupuesto.
+`pg_stat_statements` de `instrumentar`; en DuckDB cuenta además las dos
+sentencias con que la llamada averigua si hay una transacción abierta.
+Por `bloque_filas` cuenta la preparación, el recorrido y las consultas
+que siguen; las que piden los datos —la mediana de un decimal cuyas
+centrales son dobles distintos, su desvío centrado, el reintento de un
+`TABLESAMPLE` corto— van a `total_maximo`. Con
+`max_consultas = attr(plan, "total_maximo")` ninguna métrica queda
+afuera por el presupuesto.
 
 La cuenta sigue a la composición de la tabla, no a la cantidad de
 columnas. Con la tabla ancha de la sección anterior y una de 158
@@ -1496,7 +1495,7 @@ y
 | PostgreSQL | un error aborta la transacción, así que cada sentencia va entre un `SAVEPOINT` propio y su `RELEASE`, con `ROLLBACK TO SAVEPOINT` si falla |
 | SQL Server | puede deshacer la transacción ante un error; la vía mide `@@TRANCOUNT` y `XACT_STATE()` antes y después de cada envío y lectura, y si cambian levanta `lupa_error_transaccion_dbi` |
 | MySQL, MariaDB, SQLite | el error de una consulta no aborta la transacción |
-| DuckDB | un error al preparar la aborta y no hay `SAVEPOINT`: una vista que falla deja la transacción abortada, y hay que cerrarla con `ROLLBACK` |
+| DuckDB | un error al preparar la aborta y no hay `SAVEPOINT`, así que con una transacción abierta las funciones del paquete se niegan con `lupa_error_transaccion_dbi` antes de leer nada; para saberlo mandan dos sentencias `txid_current()`, que el plan cuenta |
 
 ## Dialectos y sondas
 
@@ -2135,6 +2134,17 @@ Los errores de la vía llevan clase propia, para rescatarlos con
 - `lupa_error_codificacion_dbi`;
 - `lupa_error_argumento_dbi`;
 - `lupa_error_transaccion_dbi`.
+
+Si la conexión se pierde mientras se la lee, la llamada se corta con
+`lupa_error_conexion_dbi` y no publica nada a medias: una colección no
+sigue con las tablas que faltan. Esa conexión no se vuelve a usar: la
+llamada siguiente falla sin mandarle nada, también con los controladores
+que reabren la sesión por su cuenta (RPostgres, y RMariaDB con
+`reconnect = TRUE`), porque la sesión nueva ya no tiene la transacción,
+el esquema ni los parámetros de la anterior. Hay que cerrarla con
+[`DBI::dbDisconnect()`](https://dbi.r-dbi.org/reference/dbDisconnect.html)
+y abrir otra. Un error que informa el servidor no se toma por un corte
+aunque su texto lo parezca.
 
 ``` r
 

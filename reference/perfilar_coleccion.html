@@ -297,16 +297,24 @@ identidad, aunque <code>conservar_perfiles = FALSE</code>. <code><a href="acceso
 como una tabla unica; los perfiles completos siguen disponibles por tabla
 cuando se pidio conservarlos.</p>
 <p><strong>Limitación conocida: las declaraciones por columna valen para todas las
-tablas.</strong> <code>columnas_codigo</code>, <code>columnas_opcionales</code>, <code>columnas_personales</code> y
-las demás llegan por <code>...</code> iguales a cada <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, y <code><a href="coleccion.html">coleccion()</a></code> no
-tiene declaraciones por tabla. Una tabla que no tiene una columna declarada
-en <code>columnas_codigo</code> no se perfila —sale de <code>resumen_coleccion</code> y
-<code>cobertura_coleccion</code> nombra la causa, «<code>columnas_codigo</code> nombra columnas
-inexistentes», aunque <code>como_resolverlo</code> hable de permisos—; con
-<code>columnas_opcionales</code> o <code>columnas_personales</code> la tabla conserva su resumen y
-pierde la muestra. <code>columnas_sin_ceros</code> y <code>columnas_no_negativas</code> no la
-afectan. Para declarar columnas que no están en todas las tablas, perfilar
-esas tablas por separado o partir la colección.</p>
+tablas.</strong> <code>columnas_codigo</code>, <code>columnas_personales</code> y las demás llegan por
+<code>...</code> iguales a cada <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, y <code><a href="coleccion.html">coleccion()</a></code> no tiene declaraciones
+por tabla. Una tabla que no tiene una columna declarada en <code>columnas_codigo</code>
+no se perfila —sale de <code>resumen_coleccion</code> y <code>cobertura_coleccion</code> nombra la
+causa, «<code>columnas_codigo</code> nombra columnas inexistentes», aunque
+<code>como_resolverlo</code> hable de permisos—; con <code>columnas_personales</code> la tabla
+conserva su resumen y pierde la muestra. <code>columnas_sin_ceros</code> y
+<code>columnas_no_negativas</code> no la afectan. Para declarar columnas que no están
+en todas las tablas, perfilar esas tablas por separado o partir la colección.</p>
+<p><strong><code>columnas_opcionales</code> y <code>aplicabilidad</code> se reparten por tabla.</strong> Cada tabla
+recibe las que nombran columnas suyas. Donde una no corresponde —la tabla no
+tiene la columna declarada, o alguna de las que su regla nombra— no se
+aplica: la tabla se perfila completa, con resumen y con muestra,
+<code>cobertura_coleccion</code> lo dice con el alcance <code>declaracion_no_aplicada</code> y la
+colección avisa una vez por declaración. Una columna que no está en ninguna
+tabla es un nombre mal escrito y se rechaza antes de leer. Para saberlo, la
+colección pregunta las columnas de cada tabla por metadatos, sólo cuando se
+usa alguno de esos dos argumentos.</p>
 <p><strong>La declaración de ausencias, por tabla.</strong> <code>sentinelas_numericos</code> y
 <code>cadenas_ausencia</code> aceptan, además del vector que vale para todas las tablas,
 una lista nombrada por identificador de tabla —como <code>columnas_candidatas</code> de
@@ -323,13 +331,14 @@ no es tabla de la colección es un error antes de leer
 <p>Una colección grande puede tardar horas. Con <code>directorio_reanudacion</code>, cada
 tabla que se perfila sin consultas fallidas se guarda en ese directorio en
 cuanto termina —un subdirectorio por corrida—, y si la corrida se corta —el
-proceso muere, se cae la máquina, se la interrumpe, o la conexión se cae y
-las tablas que siguen fallan— la misma llamada con <code>reanudar = TRUE</code> sigue
+proceso muere, se cae la máquina, se la interrumpe, o la conexión se pierde,
+que corta la llamada con <code>lupa_error_conexion_dbi</code>— la misma llamada con
+<code>reanudar = TRUE</code> y una conexión nueva sigue
 desde ahí: las tablas guardadas no vuelven a consultar la base, y se vuelven
 a perfilar las que faltan, las que tuvieron alguna consulta fallida y las que
-no se pudieron perfilar. No hace falta saber si la conexión se cayó: una
-tabla que la perdió a mitad termina con consultas fallidas o sin perfil, y se
-rehace. El objeto que se devuelve es el mismo que el de una corrida sin
+no se pudieron perfilar. La tabla que se estaba leyendo cuando la conexión
+se perdió no se guarda, y se rehace. El objeto que se devuelve es el mismo
+que el de una corrida sin
 cortes, salvo lo que describe la ejecución: <code>meta$inicio</code>, <code>meta$fin</code>, la
 duración de cada consulta en <code>meta$lecturas</code> y <code>resumen_coleccion$momento</code>,
 que para una tabla reusada es el de su medición original. <code>meta$reanudacion</code>

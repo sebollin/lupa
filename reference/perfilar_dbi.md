@@ -271,8 +271,10 @@ perfilar_dbi(
   [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
   [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html):
   duckdb 1.1 pregunta su versión y manda `SELECT 1`, una o dos veces por
-  corrida. La preparación y el recorrido por bloques se cuentan pero no
-  se omiten: sin ellos no hay perfil. Con
+  corrida. En DuckDB sí cuentan las dos sentencias con que la llamada
+  averigua si hay una transacción abierta (ver la sección Dentro de una
+  transacción). La preparación y el recorrido por bloques se cuentan
+  pero no se omiten: sin ellos no hay perfil. Con
   `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda
   afuera por el presupuesto.
 
@@ -490,18 +492,40 @@ perfilar_dbi(
 
 - columnas_opcionales:
 
-  Nombres de columnas que sólo son aplicables a parte de las filas. Esta
-  política se aplica al `perfil_muestra`; el resumen SQL no la traduce y
-  lo declara en `resumen_tabla$cobertura`. Los dos bloques cuentan
-  `n_faltantes` sobre universos distintos, así que la corroboración no
-  lo compara: ver «Lo que el motor guarda distinto que R».
+  Nombres de columnas que sólo son aplicables a parte de las filas. La
+  política se aplica al `perfil_muestra` y al resumen de tabla completa,
+  que no cuenta sus `NULL` como faltantes (`n_faltantes = 0`) y publica
+  `n_aplicables`, `n_no_aplica` y `n_aplicabilidad_indeterminada`: ver
+  «Política de ausencia declarada». Un nombre que la tabla no tiene se
+  rechaza, como en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
 - aplicabilidad:
 
   Lista nombrada de fórmulas de un solo lado, con una regla por columna.
-  Se reenvía al `perfil_muestra`; el resumen SQL no la traduce y lo
-  declara en `resumen_tabla$cobertura`, y la corroboración no compara lo
-  que la regla cambia.
+  Se aplica al `perfil_muestra` y al resumen de tabla completa: todas
+  las cifras de la columna son de las filas donde la regla se cumple, y
+  el resumen publica `n_aplicables`, `n_no_aplica` y
+  `n_aplicabilidad_indeterminada`. Cuando el resumen lee las filas
+  —`bloque_filas` o `universo = "muestra_motor"`— evalúa la regla en R.
+  Las consultas agregadas la traducen al SQL del motor si está hecha de
+  comparaciones, `%in%`, [`is.na()`](https://rdrr.io/r/base/NA.html),
+  `&`, `|` y `!` sobre columnas y valores —un valor puede ser un objeto
+  de donde se escribió la regla, como `~ edad > tope`—; una regla con
+  funciones, aritmética sobre columnas u orden de textos no se traduce:
+  el resumen lo declara para esa columna en `resumen_tabla$cobertura`
+  (`<columna>::aplicabilidad`) y la corroboración no compara lo que la
+  regla cambia. Ver «Política de ausencia declarada». Una regla que no
+  da un valor lógico —una columna sola que el motor guarda como 0 y 1,
+  como hace SQLite con una lógica: `~ activo`— no se aplica ni en la
+  muestra ni en el resumen: se avisa, se declara para su columna en
+  `resumen_tabla$cobertura` con cómo escribirla (`~ activo == 1`), y el
+  resto del perfil sale igual. Se decide con el tipo de las columnas y,
+  si el motor no lo declara, con las filas leídas. Un periodo sobre esa
+  columna queda `no_disponible` con ese motivo. Una regla sobre una
+  columna que la tabla no tiene, o que nombra algo que no es una columna
+  ni un objeto de donde se escribió, se rechaza; también declarar la
+  misma columna aquí y en `columnas_opcionales`.
 
 - sentinelas_numericos:
 
@@ -512,12 +536,18 @@ perfilar_dbi(
   contra las columnas de la tabla y la reciben igual el resumen SQL, la
   muestra y la corroboración. Se normaliza como un conjunto numérico,
   por lo que el orden, el tipo entero o doble y los duplicados no
-  cambian el resultado. El resumen SQL no los excluye de sus agregados y
-  lo declara en `resumen_tabla$cobertura`; la corroboración no compara
-  las métricas de magnitud de una columna de la que la muestra excluyó
-  alguno. En una columna `real`, una representacion float32 del
-  centinela fraccionario se alinea antes de perfilar la muestra; la
-  corroboración reconoce esa representacion como el mismo centinela.
+  cambian el resultado. Un valor declarado —una lista que no es la de
+  omisión ni `sentinelas_naniar`— sale también de las magnitudes del
+  resumen de tabla completa (`minimo`, `maximo`, `media`, `mediana`,
+  `desvio`, `n_ceros` y `n_negativos`) y sigue contando en `n_validos`,
+  `n_distintos` y la moda, como en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
+  el resumen publica cuántos sacó en `n_valores_excluidos_resumen`: ver
+  «Política de ausencia declarada». En una columna de 4 bytes —`real`, y
+  `FLOAT` en DuckDB, MySQL y MariaDB—, una representación float32 del
+  centinela fraccionario se alinea antes de perfilar la muestra, y el
+  resumen compara la columna con esa representación; la corroboración la
+  reconoce como el mismo centinela.
 
   Rige la misma reserva que en
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
@@ -537,7 +567,27 @@ perfilar_dbi(
   menos de un segundo de una fecha centinela lejana con resolución de
   microsegundos (R los lee como esa fecha) y una columna de texto que la
   muestra lee como fecha, cuyos formatos se deciden entonces con la
-  columna entera. Mismo nombre y valores que en
+  columna entera. Rige igual para un `TIMESTAMP` de MariaDB (se lee en
+  el huso de la sesión), para los motores donde la cuenta contra
+  literales no está medida (fuera de SQLite, DuckDB y MariaDB: toda
+  columna de fecha), para una conexión de DuckDB abierta con
+  `tz_out_convert = "force"` y un huso distinto de UTC (R recibe
+  instantes que no son los que guarda el motor) y para `periodos`:
+  columnas que el motor guarda como texto, fechas guardadas como texto
+  en SQLite, una columna que no corresponde a todas las filas
+  (`aplicabilidad` o `columnas_opcionales`), que la consulta del motor
+  no traduce, o, en DuckDB, un `infinity` en un periodo cuyas dos
+  columnas son de tipos distintos (R lee el infinito de cada tipo como
+  una fecha lejana distinta; con las dos del mismo tipo el motor lo
+  cuenta como R lo lee). Un periodo contado en R lo cuenta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre las columnas leídas enteras, con las mismas declaraciones: da lo
+  que da la memoria o no se publica. Si
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  no lee las dos columnas como fechas, o la tabla pasa de cinco millones
+  de filas —ahí se deja de leer—, el periodo queda `no_disponible` con
+  su motivo. Leer por bloques es lo que R lee en cualquier motor. Mismo
+  nombre y valores que en
   [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md).
 
 - ...:
@@ -573,12 +623,12 @@ perfilar_dbi(
   `resumen_tabla$meta$actualidad` la misma tabla de actualidad; con
   `periodos`, `resumen_tabla$meta$periodos` la misma partición. El motor
   compara contra literales y decide con la misma regla que la memoria;
-  sólo en SQLite y DuckDB, donde esa equivalencia está medida (en los
-  demás motores y con `universo = "muestra_motor"` se declara y se lee
-  de `perfil_muestra`). Con `resumen_fechas` y sin `fecha`, la fecha se
-  congela una vez al entrar (al segundo) para el resumen y la muestra, y
-  las dos dicen `fecha_declarada = FALSE`. Sin estos argumentos el
-  objeto es el de siempre.
+  sólo en SQLite, DuckDB y MariaDB, donde esa equivalencia está medida
+  (en los demás motores y con `universo = "muestra_motor"` se declara y
+  se lee de `perfil_muestra`). Con `resumen_fechas` y sin `fecha`, la
+  fecha se congela una vez al entrar (al segundo) para el resumen y la
+  muestra, y las dos dicen `fecha_declarada = FALSE`. Sin estos
+  argumentos el objeto es el de siempre.
 
 ## Value
 
@@ -670,11 +720,16 @@ segundo intento conserva la primera muestra válida.
 
 Las fallas de consultas solicitadas se conservan en
 `resumen_tabla$meta$consultas$fallas`, con `etapa`, `consulta_id`,
-`sqlstate`, `tipo` y `motivo`. Un `SQLSTATE` `57014` se publica como
-`cancelada`; los rechazos tienen `tipo = "rechazada"`. Las etapas
-internas `clave_primaria`, `proteccion_coleccion`,
-`sonda_collation_dbi`, `sonda_fuente_bloques`, `sonda_desvio`,
-`estimacion_derrame`, `explain_moda`, `sonda_muestreo`,
+`sqlstate`, `tipo` y `motivo`. Una consulta que el motor canceló —por un
+tope de tiempo o a pedido— se publica como `cancelada`; los rechazos
+tienen `tipo = "rechazada"`. La cancelación se reconoce en el error
+mismo, donde el controlador la escribe: el estado `SQLSTATE` (`57014`,
+`HYT00`) o el código del motor si la condición lo trae, y si no el
+encabezado de su mensaje, con el SQL y los literales entre comillas
+quitados antes. Un nombre de columna o un dato que diga «timeout» o
+`57014` no decide nada. Las etapas internas `clave_primaria`,
+`proteccion_coleccion`, `sonda_collation_dbi`, `sonda_fuente_bloques`,
+`sonda_desvio`, `estimacion_derrame`, `explain_moda`, `sonda_muestreo`,
 `sonda_mediana_escalar`, `sonda_mediana_cte_ventana`,
 `sonda_mediana_cte_ventana_control_negativo`, `sonda_moda_guardian`,
 `sonda_mediana_consolidada`, `sonda_aproximacion`, `sonda_dialecto`,
@@ -683,8 +738,18 @@ internas `clave_primaria`, `proteccion_coleccion`,
 `sonda_bytes_muestra`, `proteccion_fuera_de_muestra`, `porton_tabla` y
 `catalogo_bytes_muestra` se conservan aparte en
 `resumen_tabla$meta$consultas$sondas_fallidas` y no disparan el aviso de
-degradacion. El aviso que informa que la muestra no esta disponible
-conserva ademas la clase historica `lupa_muestra_dbi_no_disponible`.
+degradacion. Una forma candidata que el motor rechaza porque no tiene
+esa capacidad es su respuesta, y queda ahí sin más. Si en cambio una
+prueba de capacidad falla por otra causa —la consulta se canceló, la
+credencial no tiene permiso, un interbloqueo, la transacción estaba
+abortada—, la corrida sigue como si el motor no la tuviera y lo deja
+escrito: una fila en
+`resumen_tabla$meta$consultas$sondas_fallidas_detalle`, con la `causa` y
+la `estrategia_elegida`, y una fila `capacidad::<etapa>::<consulta>` de
+estado `advertido` en `resumen_tabla$cobertura`. No se reintenta, para
+conservar la cuenta del plan. El aviso que informa que la muestra no
+esta disponible conserva ademas la clase historica
+`lupa_muestra_dbi_no_disponible`.
 `resumen_tabla$meta$consultas$conciliacion` conserva además el estado de
 la cuenta (`"conciliado"` o `"desfasado"`), los totales anunciados y
 emitidos y un `detalle` por clase de consulta cuando una clase anunciada
@@ -693,9 +758,22 @@ detalle dice la clase, ambas cantidades y el motivo de la diferencia; la
 falla original permanece en `fallas` o `sondas_fallidas`. `plan_corrida`
 conserva la misma estructura para la comparación contra el plan que la
 corrida publicó en `meta$plan`; permite distinguirla de los campos
-históricos de la conciliación. En una tabla vacía, `plan_previo`
-conserva el total que se anunció antes de conocer ese estado y explica
-por qué `plan_corrida` usa el plan publicado por la corrida.
+históricos de la conciliación. Hay consultas cuya cuenta deciden los
+datos: la mediana y el desvío de una columna numérica sin ningún valor
+no nulo no hacen falta y no se mandan —también en una tabla vacía o toda
+nula—, y los valores cuya magnitud o rango obliga a calcular aparte el
+desvío o la mediana —un entero que no cabe exacto en un número de doble
+precisión— activan una consulta más. Las magnitudes de una columna que
+guarda infinitos o `NaN` se piden de nuevo sobre sus valores finitos.
+Pasa con cualquier selección de `metricas`: sin `"validos"` la corrida
+no cuenta los valores de cada columna, y entonces un promedio nulo la
+hace preguntar si la columna guarda infinitos, y la mediana de una
+columna con valores de al menos 2^53 no se paga. En SQLite, una columna
+numérica que guarda texto —una fecha ISO en una columna `DATE`— se mide
+con una consulta más y su mediana no se manda. En esos casos la cuenta
+se concilia con el plan que publica la corrida, y `plan_previo` conserva
+lo que se anunció antes de leer los datos, con su diferencia, la clase y
+el motivo.
 
 Cuando el catálogo estima al menos `1e8` filas y se pidió
 `universo = "tabla_completa"`, la función avisa antes de los agregados
@@ -935,6 +1013,87 @@ iguala entre sí todos los valores negativos. Sin bloques, los agregados
 que calcula el motor se devuelven y la muestra no, con un aviso que dice
 por qué. Alcanza `bit64` 4.0.5 o posterior.
 
+## Conexión perdida
+
+Si la conexión se pierde mientras se la lee —el servidor termina la
+sesión, se corta la red, alguien la cierra—, la llamada se corta con
+`lupa_error_conexion_dbi` y no devuelve un perfil parcial. Vale para
+toda función que recibe una conexión:
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md),
+[`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md),
+[`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md),
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+—que no saltea la tabla y sigue—,
+[`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md),
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+y
+[`detectar_tablas_codigos()`](https://sebollin.github.io/lupa/reference/detectar_tablas_codigos.md).
+Después del corte no se manda ninguna sentencia más por esa conexión,
+tampoco las de limpieza: con odbc y FreeTDS la sentencia siguiente a un
+corte hace caer a R. El mensaje trae lo que dijo el motor en el primer
+error.
+
+La pérdida se reconoce sin mandar nada de más: en el error del
+controlador —su código o el encabezado de su mensaje, no el SQL ni los
+datos—, en
+[`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html)
+cuando deja de ser cierto a mitad de la llamada, y en el identificador
+de sesión que el controlador guarda del lado del cliente. Esto último
+cubre a los controladores que reabren la sesión sin avisar —RPostgres
+siempre, RMariaDB con `reconnect = TRUE`—: lo leído después se leería en
+otra sesión, sin las tablas temporales ni los ajustes de la primera. El
+identificador se compara en cada error que no se reconoce, al cerrar un
+resultado, entre una tabla y la siguiente de una colección y al terminar
+la llamada; si cambió, la llamada se corta igual.
+
+El paquete no vuelve a usar una conexión en la que reconoció un corte:
+una llamada posterior sobre esa misma conexión falla con
+`lupa_error_conexion_dbi` sin mandarle ni preguntarle nada al
+controlador, también después de cerrada. Vale aunque el controlador la
+reabra —RPostgres, RMariaDB con `reconnect = TRUE`—: la sesión nueva ya
+no tiene la transacción abierta, las tablas temporales, el esquema o la
+base elegidos, el rol ni los parámetros de sesión de la que se cortó, y
+un perfil leído ahí saldría de otro lugar sin avisar. Hay que cerrarla
+con
+[`DBI::dbDisconnect()`](https://dbi.r-dbi.org/reference/dbDisconnect.html)
+y abrir otra. La marca va en la conexión misma: la ven todos los nombres
+de esa conexión y ninguna otra, no impide que se la recolecte, y una
+conexión nueva nunca se toma por perdida.
+
+Un error que el servidor informa no es un corte, diga lo que diga su
+texto: si pudo informarlo, la sesión sigue. Importa porque reconocer un
+corte cuesta la conexión entera. Con RPostgres deciden la gravedad —sólo
+`FATAL` y `PANIC` terminan la sesión— y las frases que escribe el
+cliente, que no traen gravedad: una función que levanta un error con el
+texto de un corte, o una tabla foránea cuyo servidor remoto se cae a
+mitad de la consulta, dan un `ERROR` común y la conexión sigue
+sirviendo. Con RSQLite y duckdb el texto se confirma con
+[`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html),
+que ahí contesta sin mandar nada.
+
+Límites conocidos. Con RMariaDB y RMySQL decide el número del error, y
+con odbc y FreeTDS sólo hay texto: esos controladores no dicen, sin
+mandar una sentencia, si la conexión sigue abierta. Una rutina que
+levanta a propósito el número de un error del cliente
+(`SIGNAL ... MYSQL_ERRNO = 2013`), o un lote con
+`RAISERROR('Communication link failure', ...)`, se toman por un corte;
+las sentencias que manda el paquete a SQL Server no pueden recibir ese
+texto, porque ahí una vista o una función no pueden levantar un error
+propio. RMySQL no deja reconocer la misma conexión entre una llamada y
+otra: ahí no se recuerda nada, y la llamada siguiente vuelve a cortarse
+por el error del controlador, que no reabre la sesión. RPostgres no
+entrega el estado `SQLSTATE` y el texto del servidor sale en su idioma:
+con mensajes que no estén en inglés o en castellano, una cancelación se
+publica como `rechazada` y una sesión terminada por el servidor puede no
+reconocerse en el error, aunque sí por el identificador de sesión.
+FreeTDS entrega siempre el estado `00000`: con SQL Server todo se
+reconoce por el texto, en inglés o en castellano. No se midió un
+intermediario de conexiones en modo transacción, el controlador ODBC de
+Microsoft, psqlODBC, Oracle ni JDBC: ahí sólo vale el estado `SQLSTATE`
+cuando la condición lo trae.
+
 ## Dentro de una transacción
 
 La vía se puede correr dentro de una transacción abierta por el usuario
@@ -960,11 +1119,18 @@ y
 en PostgreSQL sin transacción del usuario: cada sentencia se compila en
 una transacción propia que se revierte (ver la sección Compilación de
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)).
-SQL Server puede deshacer la transacción completa ante un error de
-ejecución, incluso con `XACT_ABORT` apagado: antes y después de cada
-envío y lectura la vía mide `@TRANCOUNT` y `XACT_STATE()`. Si cambian,
-levanta `lupa_error_transaccion_dbi` y no continúa leyendo en autocommit
-como si la instantánea siguiera viva. Si la sesión tiene
+Si la transacción ya estaba abortada al llamar —en PostgreSQL un error
+anterior la deja rechazando toda sentencia hasta que termine—, la
+llamada falla con `lupa_error_transaccion_dbi` y lo dice, en lugar de
+informar que la tabla no existe: hay que deshacerla con
+[`DBI::dbRollback()`](https://dbi.r-dbi.org/reference/transactions.html)
+y volver a llamar. La conexión sigue sirviendo. Vale para toda función
+que recibe una conexión o una colección. SQL Server puede deshacer la
+transacción completa ante un error de ejecución, incluso con
+`XACT_ABORT` apagado: antes y después de cada envío y lectura la vía
+mide `@TRANCOUNT` y `XACT_STATE()`. Si cambian, levanta
+`lupa_error_transaccion_dbi` y no continúa leyendo en autocommit como si
+la instantánea siguiera viva. Si la sesión tiene
 `IMPLICIT_TRANSACTIONS ON`, el motivo lo declara como una transacción
 implícita de la sesión, no como una transacción abierta por el usuario.
 `SAVE TRANSACTION` no evita los errores del motor que deshacen la
@@ -975,11 +1141,24 @@ reconocido; así se evita que `XACT_ABORT ON` aborte la transacción por
 una sentencia que no corresponde a ese motor. Un desbordamiento de datos
 que el motor no puede aislar puede abortarla igualmente y queda
 documentado en `lupa_error_transaccion_dbi`. MySQL, MariaDB y SQLite no
-abortan la transacción por el error de una consulta. duckdb sí la aborta
-por un error al preparar, como el de una sonda de dialecto— y no tiene
-`SAVEPOINT`: dentro de una transacción de duckdb, un objeto que falla al
-leerse —una vista que convierte un texto sucio— la deja abortada, y hay
-que cerrarla con `ROLLBACK`.
+abortan la transacción por el error de una consulta. DuckDB sí la
+aborta, por cualquier error del motor —también el de una forma candidata
+que el motor no tiene, que es la respuesta esperada de una prueba de
+capacidad—, sin avisar: el
+[`DBI::dbCommit()`](https://dbi.r-dbi.org/reference/transactions.html)
+siguiente devuelve `TRUE` y pierde lo hecho en ella, y DuckDB no tiene
+`SAVEPOINT` para aislarlo. Por eso, con una transacción abierta en
+DuckDB la llamada se niega con `lupa_error_transaccion_dbi` antes de
+leer nada, y también si no puede saberlo (una transacción ya abortada).
+Lo averigua con dos sentencias `SELECT CAST(txid_current() AS VARCHAR)`,
+que no tocan la transacción ni dependen de cómo la conexión entrega las
+fechas o los enteros: son las únicas que la vía manda de más, sólo en
+DuckDB, y el plan las cuenta con la clase
+`guarda de transaccion abierta (DuckDB)`. Se mandan una vez por llamada:
+en una colección, una vez para todas las tablas, y no entran en la
+cuenta de ninguna. Lo mismo vale para las demás funciones que reciben
+una conexión. Fuera de una transacción, un objeto que falla al leerse
+—una vista que convierte un texto sucio— no deja nada abortado.
 
 ## Muestra y aproximaciones
 
@@ -1560,14 +1739,13 @@ eso no es lo mismo que la tabla en R:
   declaración o una guarda hacen distinto a propósito, porque esa
   diferencia no es del motor, del controlador ni de un snapshot: la
   `media`, la `mediana` y el `desvio` de una columna de
-  `columnas_codigo`, que no se calculan; `n_faltantes` de una columna de
-  `columnas_opcionales` o de `aplicabilidad`, que la muestra cuenta
-  sobre su universo —y todas las métricas de la columna con
-  `aplicabilidad` si la muestra dejó afuera valores presentes—; las
-  métricas de magnitud de una columna de la que la muestra excluyó los
-  `sentinelas_numericos` declarados; las de un entero ancho desde 2^53,
-  que el resumen no publica; y el `desvio` de un decimal que la muestra
-  leyó como doble y no publicó (causa `decimal_doble`, ver
+  `columnas_codigo`, que no se calculan; lo que el resumen no pudo
+  aplicar de la política de ausencia declarada —`n_faltantes` de una
+  columna con `aplicabilidad`, y todas sus métricas si la muestra dejó
+  afuera valores presentes; lo que sí aplicó mide lo mismo que la
+  muestra y se compara—; las de un entero ancho desde 2^53, que el
+  resumen no publica; y el `desvio` de un decimal que la muestra leyó
+  como doble y no publicó (causa `decimal_doble`, ver
   `perfil_muestra$meta$desvio_decimal_doble`). Tampoco lo que un bloque
   no calculó: una métrica que `resumen_tabla$sql` declara
   `no_disponible` —el motor rechazó la consulta sobre el tipo (`json`,
@@ -1592,6 +1770,67 @@ eso no es lo mismo que la tabla en R:
   pequeños pero cuyo desvio es menor que `1e-4`. En valores menores que
   `1e-10` —p-valores, concentraciones en unidades del sistema
   internacional— la corroboración tampoco distingue dos lecturas.
+
+## Política de ausencia declarada
+
+`sentinelas_numericos`, `columnas_opcionales` y `aplicabilidad` dicen
+qué valores y qué filas no cuentan. El resumen de tabla completa las
+aplica con la regla de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+campo por campo, o dice por columna que no pudo:
+
+- **Centinelas declarados.** Salen de `minimo`, `maximo`, `media`,
+  `mediana`, `desvio`, `n_ceros` y `n_negativos`; siguen en `n_validos`,
+  `n_faltantes`, `n_distintos` y la moda. Una columna que es toda
+  centinela queda sin magnitudes. `n_valores_excluidos_resumen` cuenta
+  las celdas presentes que quedaron fuera de las magnitudes: los
+  centinelas, los `NaN` y los infinitos. La lista por omisión y
+  `sentinelas_naniar` no se excluyen: sólo se usan para señalar
+  faltantes disfrazados.
+
+- **Columnas opcionales.** Sus `NULL` no son faltantes: `n_faltantes` y
+  `prop_faltantes` valen 0 y `n_aplicables` es la cantidad de celdas con
+  valor.
+
+- **Aplicabilidad.** Todas las cifras de la columna son de las filas
+  donde la regla se cumple; `n_no_aplica` cuenta las filas donde no se
+  cumple y `n_aplicabilidad_indeterminada` aquellas donde no se sabe,
+  porque la columna que discrimina falta. Con `bloque_filas` o
+  `universo = "muestra_motor"` el resumen evalúa la regla en R sobre las
+  filas que lee. Las consultas agregadas la traducen al SQL del motor
+  con la semántica de `NA` de R, sin consultas nuevas; hoy en SQLite y
+  DuckDB. La regla que no se puede traducir —una función, aritmética
+  sobre columnas, el orden de un texto, una comparación entre tipos que
+  R convierte y el motor no— no se aplica a medias: esa columna cuenta
+  todas las filas y lo dice. La regla que no da un valor lógico (ver
+  `aplicabilidad`) no se aplica por ningún camino y no figura en
+  `meta$politica_ausencia`: tiene una sola fila en
+  `resumen_tabla$cobertura`, la de su columna en el bloque
+  `perfil_muestra`. Si con `bloque_filas` eso se supo después de haber
+  leído filas —una columna sin tipo declarado cuyas primeras filas son
+  todas `NULL`—, las cifras por bloques de esa columna no se publican.
+
+Las columnas `n_valores_excluidos_resumen`, `n_aplicables`,
+`n_no_aplica` y `n_aplicabilidad_indeterminada` aparecen en
+`resumen_tabla$columnas` sólo si se declaró la política que las llena.
+Son conteos: se calculan cuando `metricas` incluye `"validos"` —y
+`n_valores_excluidos_resumen`, además, las magnitudes— y quedan en `NA`
+si no. Una columna `NOT NULL` con una regla de `aplicabilidad` cuenta
+sus válidos en lugar de tomarlos del catálogo.
+`resumen_tabla$meta$politica_ausencia` dice a qué columnas se aplicó
+cada una y, en `sin_aplicar`, a cuáles no y por qué; cada una de esas
+tiene su fila `degradado` en `resumen_tabla$cobertura`, con
+`elemento = "<columna>::<política>"`. Sin política declarada el resumen
+es el de siempre. La política no agrega consultas: la exclusión viaja
+dentro de los mismos agregados.
+
+Entre un objeto guardado por una versión que calculaba el resumen sin la
+política y uno que la aplica,
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+y
+[`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+no comparan las cifras que la política cambia: las dejan `no_comparable`
+con el motivo `politica_ausencia:sin_aplicar_vs_aplicada`.
 
 ## Costo
 

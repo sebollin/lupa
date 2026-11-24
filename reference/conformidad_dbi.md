@@ -101,9 +101,15 @@ atributos `identidad`, `configuracion` y `reglas` son huellas de la
 conexión, de la configuración y de la definición de cada regla, sin
 datos personales;
 [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
-los usa para no aplicar una batería ajena. El atributo `intercalacion`
-es la que el motor usa por omisión (`NA` con su motivo en
-`intercalacion_motivo` si no se pudo leer).
+los usa para no aplicar una batería ajena. La huella de la conexión
+identifica el servidor y la base por lo que el motor dice de sí mismo,
+no por cómo se abrió la conexión: el archivo que SQLite o DuckDB tienen
+abierto, con la ruta normalizada; en PostgreSQL el identificador del
+sistema y la base; en MySQL y MariaDB `@hostname`, `@port` y la base; en
+SQL Server `@SERVERNAME`, la máquina y la base. Se pregunta con una
+sentencia, una vez por llamada. Dos bases en memoria no se distinguen.
+El atributo `intercalacion` es la que el motor usa por omisión (`NA` con
+su motivo en `intercalacion_motivo` si no se pudo leer).
 
 ## Details
 

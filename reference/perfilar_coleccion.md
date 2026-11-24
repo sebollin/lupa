@@ -259,8 +259,8 @@ lo devuelve como una tabla unica; los perfiles completos siguen
 disponibles por tabla cuando se pidio conservarlos.
 
 **Limitación conocida: las declaraciones por columna valen para todas
-las tablas.** `columnas_codigo`, `columnas_opcionales`,
-`columnas_personales` y las demás llegan por `...` iguales a cada
+las tablas.** `columnas_codigo`, `columnas_personales` y las demás
+llegan por `...` iguales a cada
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
 y
 [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
@@ -268,11 +268,22 @@ no tiene declaraciones por tabla. Una tabla que no tiene una columna
 declarada en `columnas_codigo` no se perfila —sale de
 `resumen_coleccion` y `cobertura_coleccion` nombra la causa,
 «`columnas_codigo` nombra columnas inexistentes», aunque
-`como_resolverlo` hable de permisos—; con `columnas_opcionales` o
-`columnas_personales` la tabla conserva su resumen y pierde la muestra.
-`columnas_sin_ceros` y `columnas_no_negativas` no la afectan. Para
-declarar columnas que no están en todas las tablas, perfilar esas tablas
-por separado o partir la colección.
+`como_resolverlo` hable de permisos—; con `columnas_personales` la tabla
+conserva su resumen y pierde la muestra. `columnas_sin_ceros` y
+`columnas_no_negativas` no la afectan. Para declarar columnas que no
+están en todas las tablas, perfilar esas tablas por separado o partir la
+colección.
+
+**`columnas_opcionales` y `aplicabilidad` se reparten por tabla.** Cada
+tabla recibe las que nombran columnas suyas. Donde una no corresponde
+—la tabla no tiene la columna declarada, o alguna de las que su regla
+nombra— no se aplica: la tabla se perfila completa, con resumen y con
+muestra, `cobertura_coleccion` lo dice con el alcance
+`declaracion_no_aplicada` y la colección avisa una vez por declaración.
+Una columna que no está en ninguna tabla es un nombre mal escrito y se
+rechaza antes de leer. Para saberlo, la colección pregunta las columnas
+de cada tabla por metadatos, sólo cuando se usa alguno de esos dos
+argumentos.
 
 **La declaración de ausencias, por tabla.** `sentinelas_numericos` y
 `cadenas_ausencia` aceptan, además del vector que vale para todas las
@@ -294,17 +305,18 @@ Una colección grande puede tardar horas. Con `directorio_reanudacion`,
 cada tabla que se perfila sin consultas fallidas se guarda en ese
 directorio en cuanto termina —un subdirectorio por corrida—, y si la
 corrida se corta —el proceso muere, se cae la máquina, se la interrumpe,
-o la conexión se cae y las tablas que siguen fallan— la misma llamada
-con `reanudar = TRUE` sigue desde ahí: las tablas guardadas no vuelven a
+o la conexión se pierde, que corta la llamada con
+`lupa_error_conexion_dbi`— la misma llamada con `reanudar = TRUE` y una
+conexión nueva sigue desde ahí: las tablas guardadas no vuelven a
 consultar la base, y se vuelven a perfilar las que faltan, las que
-tuvieron alguna consulta fallida y las que no se pudieron perfilar. No
-hace falta saber si la conexión se cayó: una tabla que la perdió a mitad
-termina con consultas fallidas o sin perfil, y se rehace. El objeto que
-se devuelve es el mismo que el de una corrida sin cortes, salvo lo que
-describe la ejecución: `meta$inicio`, `meta$fin`, la duración de cada
-consulta en `meta$lecturas` y `resumen_coleccion$momento`, que para una
-tabla reusada es el de su medición original. `meta$reanudacion` dice qué
-corrida se siguió y, por tabla, si se reusó o se perfiló y por qué.
+tuvieron alguna consulta fallida y las que no se pudieron perfilar. La
+tabla que se estaba leyendo cuando la conexión se perdió no se guarda, y
+se rehace. El objeto que se devuelve es el mismo que el de una corrida
+sin cortes, salvo lo que describe la ejecución: `meta$inicio`,
+`meta$fin`, la duración de cada consulta en `meta$lecturas` y
+`resumen_coleccion$momento`, que para una tabla reusada es el de su
+medición original. `meta$reanudacion` dice qué corrida se siguió y, por
+tabla, si se reusó o se perfiló y por qué.
 
 - `reanudar = FALSE` (por omisión) empieza siempre una corrida nueva,
   aunque el directorio tenga otras. `reanudar = TRUE` sigue la corrida

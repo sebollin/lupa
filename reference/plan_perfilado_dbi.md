@@ -293,8 +293,10 @@ plan_perfilado_dbi(
   [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
   [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html):
   duckdb 1.1 pregunta su versión y manda `SELECT 1`, una o dos veces por
-  corrida. La preparación y el recorrido por bloques se cuentan pero no
-  se omiten: sin ellos no hay perfil. Con
+  corrida. En DuckDB sí cuentan las dos sentencias con que la llamada
+  averigua si hay una transacción abierta (ver la sección Dentro de una
+  transacción). La preparación y el recorrido por bloques se cuentan
+  pero no se omiten: sin ellos no hay perfil. Con
   `max_consultas = attr(plan, "total_maximo")` ninguna métrica queda
   afuera por el presupuesto.
 
@@ -460,13 +462,20 @@ plan_perfilado_dbi(
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   por `...` (ver
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)).
-  Con `resumen_fechas = TRUE` el plan cuenta la consulta de cuentas de
-  fechas y, en el extremo superior, la de la reserva de las centinelas
-  incorporadas, una de la grilla por columna de fecha y, con
-  `estrategia_no_sql = "bloques"`, una lectura por columna que se cuente
-  en R; con `periodos`, una consulta más. Sólo en SQLite y DuckDB y
-  sobre la tabla completa: en lo demás el resumen se declara y no
-  consulta.
+  Con `resumen_fechas = TRUE` o con `periodos` el plan cuenta las
+  consultas de fechas que la corrida emite, también con `bloque_filas`.
+  En el total va lo que no depende de los datos: la consulta de cuentas
+  de fechas, la de periodos y, con `estrategia_no_sql = "bloques"`, una
+  lectura por cada columna y por cada periodo que el motor no cuenta
+  como R. En el extremo superior, lo que los datos pueden activar: la
+  reserva de las centinelas incorporadas, la grilla de cada columna con
+  fechas futuras y, con `"bloques"`, la lectura de cada texto que la
+  muestra lea como fecha y la de cada columna o periodo que la consulta
+  mande a R. Una columna con `aplicabilidad` se declara y no consulta.
+  La corrida concilia estas consultas con las demás en
+  `resumen_tabla$meta$consultas`. Fuera de SQLite, DuckDB y MariaDB sólo
+  consulta la lectura por bloques, si se pide; con
+  `universo = "muestra_motor"`, nada.
 
 - estrategia_no_sql:
 
@@ -480,7 +489,27 @@ plan_perfilado_dbi(
   menos de un segundo de una fecha centinela lejana con resolución de
   microsegundos (R los lee como esa fecha) y una columna de texto que la
   muestra lee como fecha, cuyos formatos se deciden entonces con la
-  columna entera. Mismo nombre y valores que en
+  columna entera. Rige igual para un `TIMESTAMP` de MariaDB (se lee en
+  el huso de la sesión), para los motores donde la cuenta contra
+  literales no está medida (fuera de SQLite, DuckDB y MariaDB: toda
+  columna de fecha), para una conexión de DuckDB abierta con
+  `tz_out_convert = "force"` y un huso distinto de UTC (R recibe
+  instantes que no son los que guarda el motor) y para `periodos`:
+  columnas que el motor guarda como texto, fechas guardadas como texto
+  en SQLite, una columna que no corresponde a todas las filas
+  (`aplicabilidad` o `columnas_opcionales`), que la consulta del motor
+  no traduce, o, en DuckDB, un `infinity` en un periodo cuyas dos
+  columnas son de tipos distintos (R lee el infinito de cada tipo como
+  una fecha lejana distinta; con las dos del mismo tipo el motor lo
+  cuenta como R lo lee). Un periodo contado en R lo cuenta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre las columnas leídas enteras, con las mismas declaraciones: da lo
+  que da la memoria o no se publica. Si
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  no lee las dos columnas como fechas, o la tabla pasa de cinco millones
+  de filas —ahí se deja de leer—, el periodo queda `no_disponible` con
+  su motivo. Leer por bloques es lo que R lee en cualquier motor. Mismo
+  nombre y valores que en
   [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md).
 
 ## Value
@@ -550,9 +579,12 @@ transacción, las lecturas de `pg_stat_statements` de `instrumentar` y
 las que algunos controladores mandan para contestar
 [`DBI::dbGetInfo()`](https://dbi.r-dbi.org/reference/dbGetInfo.html) o
 [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html)
-(duckdb 1.1, una o dos por corrida). Con `max_consultas` igual a
-`total_maximo` ninguna métrica queda afuera por el presupuesto; con
-`total`, sólo las consultas que piden los datos pueden quedar afuera.
+(duckdb 1.1, una o dos por corrida). En DuckDB el plan cuenta además,
+con la clase `guarda de transaccion abierta (DuckDB)`, las dos
+sentencias con que la llamada averigua si hay una transacción abierta.
+Con `max_consultas` igual a `total_maximo` ninguna métrica queda afuera
+por el presupuesto; con `total`, sólo las consultas que piden los datos
+pueden quedar afuera.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

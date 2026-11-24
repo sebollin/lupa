@@ -1123,10 +1123,10 @@ sobre las mismas filas:</p>
 <span>  perfil_muestra <span class="op">=</span> <span class="fu">media_edad</span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;    resumen_sql perfil_muestra </span></span>
-<span><span class="co">#&gt;       34.63182       50.53385</span></span>
+<span><span class="co">#&gt;       50.53385       50.53385</span></span>
 <span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bloque"</span>, <span class="st">"elemento"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;          bloque             elemento    estado</span></span>
-<span><span class="co">#&gt; 1 resumen_tabla sentinelas_numericos degradado</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] bloque   elemento estado  </span></span>
+<span><span class="co">#&gt; &lt;0 rows&gt; (or 0-length row.names)</span></span></code></pre></div>
 <p>Sobre un <code>perfil_dbi</code>, <code><a href="../reference/accesores_perfil.html">columnas()</a></code> devuelve
 las del resumen SQL. Las del perfil de muestra se piden sobre
 <code>perfil_muestra</code>.</p>
@@ -1136,11 +1136,8 @@ declaración cambia a propósito queda en
 <code>meta$corroboracion_bloques$no_comparadas</code>, con su causa:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">corroboracion_bloques</span><span class="op">$</span><span class="va">no_comparadas</span>, <span class="fl">4</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   columna metrica                causa</span></span>
-<span><span class="co">#&gt; 1    edad   media sentinelas_numericos</span></span>
-<span><span class="co">#&gt; 2    edad mediana sentinelas_numericos</span></span>
-<span><span class="co">#&gt; 3    edad  minimo sentinelas_numericos</span></span>
-<span><span class="co">#&gt; 4    edad  maximo sentinelas_numericos</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] columna metrica causa  </span></span>
+<span><span class="co">#&gt; &lt;0 rows&gt; (or 0-length row.names)</span></span></code></pre></div>
 <p>Si 2 valores comparables difieren más allá de la tolerancia, la
 cobertura recibe una fila <code>divergencia</code> con los 2 valores. No
 se elige un ganador. Si la muestra cubre sólo parte de la tabla, una
@@ -1631,13 +1628,15 @@ de la corrida la acepte.</p>
 <p>El plan cuenta lo mismo que <code>max_consultas</code> y que
 <code>meta$consultas$emitidas</code>: toda sentencia que el perfilado
 manda al motor, salvo la guarda de transacción y las lecturas de
-<code>pg_stat_statements</code> de <code>instrumentar</code>. Por
-<code>bloque_filas</code> cuenta la preparación, el recorrido y las
-consultas que siguen; las que piden los datos —la mediana de un decimal
-cuyas centrales son dobles distintos, su desvío centrado, el reintento
-de un <code>TABLESAMPLE</code> corto— van a <code>total_maximo</code>.
-Con <code>max_consultas = attr(plan, "total_maximo")</code> ninguna
-métrica queda afuera por el presupuesto.</p>
+<code>pg_stat_statements</code> de <code>instrumentar</code>; en DuckDB
+cuenta además las dos sentencias con que la llamada averigua si hay una
+transacción abierta. Por <code>bloque_filas</code> cuenta la
+preparación, el recorrido y las consultas que siguen; las que piden los
+datos —la mediana de un decimal cuyas centrales son dobles distintos, su
+desvío centrado, el reintento de un <code>TABLESAMPLE</code> corto— van
+a <code>total_maximo</code>. Con
+<code>max_consultas = attr(plan, "total_maximo")</code> ninguna métrica
+queda afuera por el presupuesto.</p>
 <p>La cuenta sigue a la composición de la tabla, no a la cantidad de
 columnas. Con la tabla ancha de la sección anterior y una de 158
 columnas, todas de texto:</p>
@@ -2148,10 +2147,11 @@ cada envío y lectura, y si cambian levanta
 </tr>
 <tr class="even">
 <td>DuckDB</td>
-<td>un error al preparar la aborta y no hay <code>SAVEPOINT</code>: una
-vista que falla deja la transacción abortada, y hay que cerrarla con
-<code>ROLLBACK</code>
-</td>
+<td>un error al preparar la aborta y no hay <code>SAVEPOINT</code>, así
+que con una transacción abierta las funciones del paquete se niegan con
+<code>lupa_error_transaccion_dbi</code> antes de leer nada; para saberlo
+mandan dos sentencias <code>txid_current()</code>, que el plan
+cuenta</td>
 </tr>
 </tbody>
 </table>
@@ -3168,6 +3168,16 @@ y locales</a>.</li>
 <li>
 <code>lupa_error_transaccion_dbi</code>.</li>
 </ul>
+<p>Si la conexión se pierde mientras se la lee, la llamada se corta con
+<code>lupa_error_conexion_dbi</code> y no publica nada a medias: una
+colección no sigue con las tablas que faltan. Esa conexión no se vuelve
+a usar: la llamada siguiente falla sin mandarle nada, también con los
+controladores que reabren la sesión por su cuenta (RPostgres, y RMariaDB
+con <code>reconnect = TRUE</code>), porque la sesión nueva ya no tiene
+la transacción, el esquema ni los parámetros de la anterior. Hay que
+cerrarla con <code><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">DBI::dbDisconnect()</a></code> y abrir otra. Un error que
+informa el servidor no se toma por un corte aunque su texto lo
+parezca.</p>
 <div class="sourceCode" id="cb47"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">error</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"no_existe"</span><span class="op">)</span>, error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="va">e</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">error</span><span class="op">)</span></span>

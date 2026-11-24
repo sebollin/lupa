@@ -156,7 +156,13 @@ las columnas: <code>"tabla"</code> (el catálogo), <code>"supuesto"</code> (los 
 regla) o <code>"parcial"</code>. Los atributos <code>identidad</code>, <code>configuracion</code> y <code>reglas</code>
 son huellas de la conexión, de la configuración y de la definición de cada
 regla, sin datos personales; <code><a href="medir_dbi.html">medir_dbi()</a></code> los usa para no aplicar una
-batería ajena. El atributo <code>intercalacion</code> es la que el motor usa por
+batería ajena. La huella de la conexión identifica el servidor y la base
+por lo que el motor dice de sí mismo, no por cómo se abrió la conexión: el
+archivo que SQLite o DuckDB tienen abierto, con la ruta normalizada; en
+PostgreSQL el identificador del sistema y la base; en MySQL y MariaDB
+<code>@hostname</code>, <code>@port</code> y la base; en SQL Server <code>@SERVERNAME</code>, la máquina
+y la base. Se pregunta con una sentencia, una vez por llamada. Dos bases
+en memoria no se distinguen. El atributo <code>intercalacion</code> es la que el motor usa por
 omisión (<code>NA</code> con su motivo en <code>intercalacion_motivo</code> si no se pudo leer).</p>
     </div>
     <div class="section level2">

@@ -424,11 +424,90 @@
   sondeo de capacidad que prueba sus formas candidatas, una consulta que
   depende del dato, una tabla vacía o sin valores, una falla y su vía de
   respaldo, o el presupuesto agotado, que nunca queda conciliado), en
-  las tres vías de lectura.
+  las tres vías de lectura. La corrida rehace el plan con lo que los
+  datos deciden —columnas sin valores o que sólo guardan infinitos,
+  texto que la muestra lee como fecha, el reintento de una muestra del
+  motor que salió corta— y concilia contra él; lo anunciado antes de
+  leer queda en `plan_previo`, con la clase y la causa de cada
+  diferencia. Una falla sólo explica la diferencia de su propia clase:
+  el rechazo esperado de un sondeo de capacidad no deja sin conciliar a
+  las demás. Una tabla sana concilia por omisión en los siete motores,
+  con cualquier selección de `metricas`.
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
-  cuenta exactamente lo que se emite: las consultas que dependen del
-  dato se publican con su mínimo y su máximo, y
+  publica las consultas que dependen del dato con un mínimo y un máximo
+  estimados antes de leer la tabla, y
   [`print()`](https://rdrr.io/r/base/print.html) lo dice.
+
+- La capa que trata las fallas de consulta se rehízo. Toda llamada al
+  controlador pasa por un solo lugar, y lo que se hace ante una falla
+  depende de lo que el motor dijo, no de la función que la recibió:
+
+  - **Conexión perdida.** Si la conexión se pierde mientras se la lee,
+    toda función que recibe una conexión se corta con
+    `lupa_error_conexion_dbi`, en lugar de devolver un perfil parcial
+    con consultas rechazadas
+    ([`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+    [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md))
+    o saltear la tabla y seguir
+    ([`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)),
+    y no se manda nada más por esa conexión. Una conexión en la que el
+    paquete reconoció un corte no se vuelve a usar: la llamada siguiente
+    falla sin mandarle nada, hasta que se la cierre y se abra otra. Vale
+    también con los controladores que reabren la sesión dentro del mismo
+    objeto (RPostgres, y RMariaDB con `reconnect = TRUE`): la sesión
+    reabierta ya no tiene la transacción abierta, las tablas temporales,
+    el esquema elegido, el rol ni los parámetros de sesión, y una
+    colección que seguía después del corte perfilaba ahí otras tablas.
+    Con SQL Server por FreeTDS, la llamada siguiente a un corte hacía
+    caer a R. Con RMySQL no hay cómo reconocer la conexión de una
+    llamada a otra: la siguiente vuelve a cortarse por el error del
+    controlador.
+  - **Lo que no es un corte.** Un error que el servidor informa no se
+    toma por una conexión perdida aunque su texto lo parezca (una
+    función que levanta «server closed the connection», una tabla
+    foránea cuyo servidor remoto se cae): con RPostgres decide la
+    gravedad del mensaje; con RSQLite y duckdb, el texto se confirma con
+    [`DBI::dbIsValid()`](https://dbi.r-dbi.org/reference/dbIsValid.html).
+    Con RMariaDB decide el número del error, y con odbc por FreeTDS, el
+    texto: un error levantado a propósito con el número o el texto de un
+    corte sigue cortando.
+  - **Transacción.** Dentro de una transacción que ya estaba abortada,
+    las funciones que reciben una conexión fallan con
+    `lupa_error_transaccion_dbi` y dicen cómo seguir
+    ([`DBI::dbRollback()`](https://dbi.r-dbi.org/reference/transactions.html)),
+    en lugar de informar que la tabla no existe. Con DuckDB se niegan,
+    con la misma clase, si la conexión tiene una transacción abierta: un
+    error cualquiera del motor la abortaba sin aviso y el `dbCommit()`
+    siguiente perdía lo hecho. Para saberlo se mandan dos sentencias
+    `txid_current()` por llamada, que
+    [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+    [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
+    y `max_consultas` cuentan: el total del plan sube en 2.
+  - **Cancelada o rechazada.** Una falla es `cancelada` sólo si el motor
+    lo dijo en su código o en el encabezado de su mensaje; un nombre de
+    columna o un dato con «timeout», «cancel» o `57014` ya no la vuelve
+    `cancelada`. Si una prueba de capacidad falla por una causa que no
+    es la falta de esa capacidad —un permiso, un interbloqueo, una
+    cancelación—, `resumen_tabla$meta$consultas$sondas_fallidas_detalle`
+    y una fila `capacidad::…` de `resumen_tabla$cobertura` dicen la
+    causa y la estrategia que la corrida usó.
+  - **Huella del lugar (cambia).** La identidad del servidor en
+    `attr(conformidad_dbi(), "identidad")$servidor` y en el sello de un
+    referencial del motor la dice ahora el motor: cambia para toda base
+    de PostgreSQL, MySQL, MariaDB y SQL Server, y para un archivo de
+    SQLite abierto por una ruta relativa. Una batería de conformidad
+    guardada antes no se reconoce como de la misma base en esos motores:
+    hay que volver a correr
+    [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md).
+    Cuesta una sentencia por llamada.
+  - **Otros.** Un permiso negado de MySQL o MariaDB, también sobre una
+    columna o una rutina, y el de un servidor en castellano se reconocen
+    como permiso; un inicio de sesión fallido y `ORA-00942` ya no. Una
+    interrupción mientras se comprueba la tabla sale como interrupción.
+    Una columna `money` de PostgreSQL conserva su tipo. Una conexión que
+    se suelta sin cerrar se recolecta después de usarla con el paquete:
+    el manejador del último error que guardan los controladores la
+    retenía.
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   gana tres argumentos para las fechas. `centinelas_fecha` declara
@@ -453,13 +532,83 @@
   lo lee R —fechas guardadas como texto en SQLite, instantes a
   microsegundos de una centinela lejana, texto que la muestra lee como
   fecha— se declara, o se cuenta en R por bloques con el argumento nuevo
-  `estrategia_no_sql = "bloques"`.
+  `estrategia_no_sql = "bloques"`. Por bloques, un periodo lo cuenta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre las columnas leídas: no depende del orden de las filas ni del
+  tamaño del bloque, y si
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  no lee las dos columnas como fechas queda `no_disponible` con su
+  motivo. Un periodo sobre una columna con `aplicabilidad` o
+  `columnas_opcionales` se declara en lugar de contarse sobre la tabla
+  entera, y por bloques se cuenta sobre el mismo universo que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Una regla de `aplicabilidad` que no da un valor lógico —una columna
+  que el motor guarda como 0 y 1— no se aplica: se avisa, se declara con
+  cómo escribirla (`~ activo == 1`) y el resto del perfil sale igual. En
+  DuckDB `infinity` cuenta como lo lee R; un periodo entre dos columnas
+  de tipos distintos con infinitos se declara, o se cuenta en R por
+  bloques. Las lecturas por bloques cortan en su tope.
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
-  recibe los mismos argumentos y cuenta esas consultas.
+  recibe los mismos argumentos y cuenta esas consultas en todas las
+  vías, también con `bloque_filas`.
   [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
   compara los campos del resumen de fechas; los que dependen de la fecha
   de la corrida, sólo entre corridas con la misma fecha
   (`fecha_de_corrida_distinta`).
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  aplica en el resumen de la tabla completa la política de ausencia
+  declarada, con la regla de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  (cambia una cifra publicada). Los `sentinelas_numericos` declarados
+  salen de `minimo`, `maximo`, `media`, `mediana`, `desvio`, `n_ceros` y
+  `n_negativos`, y siguen contando en `n_validos`, `n_distintos` y la
+  moda: sobre `c(-9, 1, 2, NULL)` con `-9` declarado el resumen daba
+  mínimo -9 y media -2, y ahora da 1 y 1,5. Los `NULL` de una columna de
+  `columnas_opcionales` no son faltantes. Vale para las consultas
+  agregadas, para `bloque_filas` y para `universo = "muestra_motor"`, en
+  los siete motores. Una regla de `aplicabilidad` restringe todas las
+  cifras de su columna a las filas donde se cumple: los bloques y la
+  muestra del motor la evalúan en R, y las consultas agregadas de SQLite
+  y DuckDB la traducen al SQL del motor si está hecha de comparaciones,
+  `%in%`, [`is.na()`](https://rdrr.io/r/base/NA.html), `&`, `|` y `!`
+  sobre columnas y valores. La que no se puede traducir, y toda regla en
+  los motores de servidor, no se aplica a medias en las agregadas: se
+  declara para esa columna. La lista por omisión y `sentinelas_naniar`
+  se siguen señalando sin excluir: sin declaración nada cambia.
+  `resumen_tabla$columnas` gana `n_valores_excluidos_resumen` y, con
+  universo declarado, `n_aplicables`, `n_no_aplica` y
+  `n_aplicabilidad_indeterminada`;
+  `resumen_tabla$meta$politica_ausencia` dice a qué columnas se aplicó
+  cada política y a cuáles no. La fila `degradado` de la cobertura es
+  ahora por columna (`<columna>::<política>`) y sólo de lo que no se
+  aplicó, y la corroboración vuelve a comparar el resto con la muestra.
+  La política no agrega sentencias de otra clase.
+
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  y
+  [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  no informan como cambio las cifras de un resumen calculado sin la
+  política contra uno calculado con ella: quedan `no_comparable`, con el
+  motivo `politica_ausencia:sin_aplicar_vs_aplicada`.
+
+- [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  reparte `columnas_opcionales` y `aplicabilidad` por tabla: cada tabla
+  recibe las que nombran columnas suyas. Donde una no corresponde, la
+  tabla se perfila completa —antes conservaba el resumen y perdía la
+  muestra—, `cobertura_coleccion` lo dice con el alcance
+  `declaracion_no_aplicada` y la colección avisa. Una columna que no
+  está en ninguna tabla se rechaza antes de leer.
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  rechaza, como
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  un nombre de `columnas_opcionales` o de `aplicabilidad` que la tabla
+  no tiene, la misma columna declarada de las dos formas y una regla que
+  nombra una columna inexistente. Antes el resumen se devolvía calculado
+  y la muestra sin perfil.
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  rechaza lo mismo.
 
 - `sentinelas_numericos` y `cadenas_ausencia` aceptan una lista por
   columna, `list(edad = 99)`, en
@@ -873,6 +1022,40 @@
   la matriz por dimensión y lo no medido.
 
 ### Correcciones
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  anunciaba un máximo que la corrida podía pasar: con
+  `metricas = "mediana"`, una columna entera ancha o con un infinito
+  mandaba hasta tres sentencias más que `total_maximo`, y quien lo
+  pasaba como `max_consultas` se quedaba sin presupuesto en esas
+  columnas. Ahora el máximo incluye lo que los datos pueden activar y el
+  mínimo descuenta lo que una tabla sin valores no manda; la cuenta
+  esperada y las sentencias no cambian.
+
+- [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  con `directorio_reanudacion` y `sentinelas_numericos` o
+  `cadenas_ausencia` declarados por tabla no perfilaba ninguna tabla
+  («nombra columnas inexistentes»): la lista por tabla le llegaba entera
+  a cada una. Ahora cada tabla recibe lo suyo, con directorio y al
+  reanudar.
+
+- En DuckDB, MySQL, MariaDB y SQL Server, un centinela con fracción
+  declarado sobre una columna de punto flotante de 4 bytes (`FLOAT`,
+  `REAL`) no se reconocía: tres `-9.9` con `-9.9` declarado daban 0
+  faltantes disfrazados y el mínimo seguía en -9,9. Se compara en el
+  tipo de la columna.
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  contaba de más los faltantes disfrazados de una columna entera de 64
+  bits con el centinela en el borde: con `2^53` declarado,
+  `9007199254740993` contaba como centinela. La comparación es ahora
+  entre enteros, también en MySQL y MariaDB.
+
+- En PostgreSQL anterior a la 12, el resumen con centinelas declarados
+  calcula una vez por fila la lectura exacta de cada columna doble, en
+  lugar de una vez por mención: sobre 200.000 filas por 20 columnas la
+  corrida con la política pasó de 2,4 a 0,5 veces el tiempo de la
+  corrida sin ella.
 
 - `ReglaIntegridadInterEntidad` cuenta un `NaN` de la clave foránea como
   vacío y no como huérfano, igual que
