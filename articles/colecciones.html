@@ -496,7 +496,7 @@ perfilar.</p>
 <code class="sourceCode R"><span><span class="va">seguida</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_coleccion.html">perfilar_coleccion</a></span><span class="op">(</span></span>
 <span>  <span class="va">base_archivo</span>, directorio_reanudacion <span class="op">=</span> <span class="va">directorio</span>, reanudar <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Se reanuda la corrida corrida-20261124-121800-2d2481eff56, empezada el 2026-11-24 12:18:00 UTC: se reusan 4 tablas y se vuelven a perfilar 1.</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Se reanuda la corrida corrida-20261124-150657-2dc419593967, empezada el 2026-11-24 15:06:57 UTC: se reusan 4 tablas y se vuelven a perfilar 1.</span></span>
 <span><span class="va">seguida</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">reanudacion</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"intento"</span>, <span class="st">"reanudada"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $intento</span></span>
 <span><span class="co">#&gt; [1] 2</span></span>
@@ -538,12 +538,12 @@ como es: el resultado no sería el de ninguna corrida. Si alguien crea
 <span><span class="co"># La carpeta temporal se abrevia para que el mensaje se lea.</span></span>
 <span><span class="va">mensaje</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">dirname</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span>, <span class="st">"..."</span>, <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">rechazo</span><span class="op">)</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">mensaje</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; No se reanuda la corrida corrida-20261124-121800-2d2481eff56: desde su intento anterior</span></span>
-<span><span class="co">#&gt; (2026-11-24T12:18:01+0000) cambió la base: en `.../file2d245f9db4fd.sqlite`, el tamaño,</span></span>
-<span><span class="co">#&gt; de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-24 12:18:00.223 UTC a</span></span>
-<span><span class="co">#&gt; 2026-11-24 12:18:01.287 UTC. Las tablas guardadas la describen como era y las que</span></span>
-<span><span class="co">#&gt; faltan la describirían como es ahora: el resultado no sería el de ninguna corrida. Una</span></span>
-<span><span class="co">#&gt; corrida nueva, con `reanudar = FALSE`, la mide entera como está.</span></span></code></pre></div>
+<span><span class="co">#&gt; No se reanuda la corrida corrida-20261124-150657-2dc419593967: desde su intento</span></span>
+<span><span class="co">#&gt; anterior (2026-11-24T15:06:58+0000) cambió la base: en `.../file2dc46fa0ff60.sqlite`,</span></span>
+<span><span class="co">#&gt; el tamaño, de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-24</span></span>
+<span><span class="co">#&gt; 15:06:57.689 UTC a 2026-11-24 15:06:59.090 UTC. Las tablas guardadas la describen como</span></span>
+<span><span class="co">#&gt; era y las que faltan la describirían como es ahora: el resultado no sería el de ninguna</span></span>
+<span><span class="co">#&gt; corrida. Una corrida nueva, con `reanudar = FALSE`, la mide entera como está.</span></span></code></pre></div>
 <p>La base se reconoce por su archivo, con su tamaño y su fecha de
 modificación. Abrir, leer y perfilar la base no cuentan como cambio.
 <code>reanudar = FALSE</code>, el valor por omisión, empieza siempre una
