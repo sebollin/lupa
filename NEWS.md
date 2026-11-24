@@ -740,6 +740,12 @@
 
 ## Correcciones
 
+- `plan_perfilado_dbi()` anunciaba un máximo que la corrida podía pasar: con
+  `metricas = "mediana"`, una columna entera ancha o con un infinito mandaba
+  hasta tres sentencias más que `total_maximo`, y quien lo pasaba como
+  `max_consultas` se quedaba sin presupuesto en esas columnas. Ahora el máximo
+  incluye lo que los datos pueden activar y el mínimo descuenta lo que una
+  tabla sin valores no manda; la cuenta esperada y las sentencias no cambian.
 - `perfilar_coleccion()` con `directorio_reanudacion` y `sentinelas_numericos`
   o `cadenas_ausencia` declarados por tabla no perfilaba ninguna tabla («nombra
   columnas inexistentes»): la lista por tabla le llegaba entera a cada una.
