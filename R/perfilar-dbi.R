@@ -17576,6 +17576,473 @@
     mediana_escalar <- NULL
     mediana_cte_ventana <- NULL
   }
+  metadatos <- .metadatos_resumen_columna_dbi(
+    es_muestreado, metricas, muestreo, fraccion_muestra, n_total,
+    tamano_muestra, estrategia_distintos
+  )
+  if (es_muestreado && !is.null(muestreo) &&
+      !isTRUE(muestreo$disponible)) {
+    # La incapacidad de construir o gobernar la fuente afecta a todas las
+    # metricas de este alcance. El total `n` se registra fuera de esta funcion;
+    # aqui no se permite que la ruta de respaldo lea `tabla_sql` completa.
+    motivo_muestreo <- if (length(muestreo$motivo) == 1L &&
+                           !is.na(muestreo$motivo)) {
+      as.character(muestreo$motivo)
+    } else {
+      "capacidad_no_aceptada:sonda_muestreo"
+    }
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, metricas, "no_disponible", motivo_muestreo,
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+  registro_metricas <- .nuevo_registro_resumen_dbi(
+    columna, metadatos, es_muestreado, muestreo, fraccion_muestra
+  )
+  registrar <- registro_metricas$registrar
+  omitir <- registro_metricas$omitir
+  if (!is.na(motivo_ilegible)) {
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, .METRICAS_DBI, "no_disponible", motivo_ilegible,
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+  if (es_muestreado && (is.null(muestreo) || !isTRUE(muestreo$disponible))) {
+    motivo <- if (is.null(muestreo)) {
+      "No se resolvi\u00f3 una capacidad de muestreo del motor."
+    } else {
+      muestreo$motivo
+    }
+    registros <- omitir(list(), .METRICAS_DBI, "no_disponible", motivo)
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+  columna_sql <- if (length(columna_sql) == 1L && !is.na(columna_sql) &&
+                     nzchar(columna_sql)) {
+    as.character(columna_sql)
+  } else {
+    .citar_identificador_dbi(conexion, columna)
+  }
+  alias <- function(nombre) {
+    .citar_identificador_dbi(conexion, nombre)
+  }
+  if (isTRUE(nan_presente) &&
+      .tipo_puede_nan_dbi(tipo_operacion, prototipo, conexion)) {
+    columna_sql <- .excluir_nan_sql_dbi(
+      conexion, columna_sql,
+      como_numeric = .tipo_decimal_exacto_dbi(tipo_operacion) ||
+        .es_lectura_double_exacta_dbi(columna_sql) ||
+        isTRUE(infinitos_como_numeric)
+    )
+  }
+  registros <- list()
+  motivo_no_pedida <- paste(
+    "La m\u00e9trica no se pidi\u00f3 en esta corrida; ver `metricas`."
+  )
+  motivo_privacidad <- paste(
+    "El valor no se informa por `incluir_valores = FALSE`;",
+    "la consulta no se emitio."
+  )
+  filas_mediana <- if (es_muestreado) .numero_dbi(tamano_muestra) else
+    .numero_dbi(n_total)
+
+  conteos_columna <- .conteos_resumen_columna_dbi(
+    conexion, tabla_sql, columna, columna_sql, alias, presupuesto, agregados,
+    metricas, estrategia_distintos, aproximacion_distintos
+  )
+  conteos <- conteos_columna$conteos
+  n_total_consulta <- conteos_columna$n_total_consulta
+  # Un agregado sobre una muestra vacia devuelve ceros y una fila valida para
+  # SQL, pero eso no significa que se hayan observado cero valores: no se
+  # observo ninguna fila. `n_validos` y `n_distintos` no alcanzan para hacer la
+  # distincion, porque una muestra no vacia puede tener todos sus valores nulos.
+  # Cuando el denominador local esta disponible y vale cero, ninguna metrica de
+  # alcance muestral tiene base para publicarse. `n` queda intacto porque sale
+  # del conteo de la tabla completa.
+  muestra_vacia <- es_muestreado && isTRUE(n_total_consulta == 0)
+  if (muestra_vacia) {
+    metodo_vacio <- if (is.null(muestreo$metodo) ||
+                        is.na(muestreo$metodo) || !nzchar(muestreo$metodo)) {
+      "muestreo_sin_metodo"
+    } else as.character(muestreo$metodo)
+    motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, metricas, "no_disponible", motivo,
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+  tamano_pedido_muestra <- if (is.null(muestreo)) NA_real_ else {
+    .numero_dbi(muestreo$tamano_muestra)
+  }
+  muestra_insuficiente <- es_muestreado &&
+    !is.null(muestreo) &&
+    identical(muestreo$metodo, "tablesample_system") &&
+    length(tamano_pedido_muestra) == 1L &&
+    is.finite(tamano_pedido_muestra) && tamano_pedido_muestra > 0 &&
+    is.finite(n_total_consulta) &&
+    n_total_consulta < tamano_pedido_muestra / 2
+  if (muestra_insuficiente) {
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, metricas, "no_disponible",
+      "muestra_inestable:tablesample_system_tamano_insuficiente",
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+
+  sin_valores_validos_muestra <- FALSE
+
+  if ("validos" %in% metricas) {
+    validos <- conteos$validos
+    registros <- registrar(registros, .CAMPOS_METRICA_DBI$validos, validos)
+    if (validos$ok) {
+      validos_observados <- .conteo_dbi(validos$valor)
+      fila$n_validos <- validos_observados
+      sin_valores_validos_muestra <- es_muestreado &&
+        !is.na(validos_observados) && .numero_dbi(validos_observados) == 0
+      if (!is.na(fila$n_validos) && !is.na(n_total_consulta)) {
+        fila$n_faltantes <- n_total_consulta - validos_observados
+        if (es_muestreado) {
+          muestra_numero <- n_total_consulta
+          fila$prop_faltantes <- if (is.finite(muestra_numero) &&
+                                     muestra_numero > 0) {
+            (muestra_numero - .numero_dbi(validos_observados)) / muestra_numero
+          } else if (.numero_dbi(n_total) == 0) {
+            NA_real_
+          } else {
+            NA_real_
+          }
+        } else {
+          fila$prop_faltantes <- if (.numero_dbi(n_total_consulta) > 0) {
+            .numero_dbi(fila$n_faltantes) / .numero_dbi(n_total_consulta)
+          } else {
+            NA_real_
+          }
+        }
+      }
+    }
+  } else {
+    registros <- omitir(registros, "validos", "no_solicitado", motivo_no_pedida)
+  }
+
+  distintos_columna <- .distintos_resumen_columna_dbi(
+    columna, metricas, estrategia_distintos, publica_distintos, conteos,
+    sin_valores_validos_muestra, fila, metadatos, registros, registrar, omitir,
+    motivo_no_pedida
+  )
+  fila <- distintos_columna$fila
+  registros <- distintos_columna$registros
+
+  moda_columna <- .moda_resumen_columna_dbi(
+    conexion, tabla_sql, columna_sql, dialecto, presupuesto, metricas,
+    incluir_valores, es_muestreado, tipo_operacion, tipo_sin_agregados,
+    motivo_tipo_sin_agregados, decisiones_costo, moda_entero_doble,
+    moda_guardian, moda_precalculada, fila, registros, registrar, omitir,
+    motivo_no_pedida, motivo_privacidad
+  )
+  fila <- moda_columna$fila
+  registros <- moda_columna$registros
+
+  metricas_numericas <- unlist(
+    .CAMPOS_METRICA_DBI[.METRICAS_NUMERICAS_DBI], use.names = FALSE
+  )
+  pedidas_numericas <- intersect(metricas, .METRICAS_NUMERICAS_DBI)
+  no_pedidas_numericas <- setdiff(.METRICAS_NUMERICAS_DBI, metricas)
+  if (length(no_pedidas_numericas)) {
+    registros <- omitir(
+      registros, no_pedidas_numericas, "no_solicitado", motivo_no_pedida
+    )
+  }
+  if (!length(pedidas_numericas)) {
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+  campos_pedidos <- unlist(
+    .CAMPOS_METRICA_DBI[pedidas_numericas], use.names = FALSE
+  )
+
+  if (!.es_numerico_dbi(prototipo, tipo_declarado)) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, campos_pedidos, "no_aplica",
+      paste0(
+        "DBI expuso la columna como `", paste(class(prototipo), collapse = "/"),
+        "`", if (length(tipo_declarado) == 1L && !is.na(tipo_declarado)) {
+          paste0(" y el controlador inform\u00f3 el tipo del motor como `",
+                 tipo_declarado, "`")
+        } else "",
+        "; no se aplicaron agregados cuantitativos."
+      ),
+      NA_character_, metadatos = metadatos
+    )))
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+
+  # `n_validos` solo condiciona a las metricas que lo necesitan de verdad. Que
+  # no se haya podido contar no es motivo para no calcular un minimo.
+  sin_conteo <- is.na(fila$n_validos)
+  if (!sin_conteo && .numero_dbi(fila$n_validos) == 0) {
+    if (es_muestreado) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, campos_pedidos, "no_disponible",
+        if (isTRUE(nan_presente)) .motivo_nan_dbi("la columna") else
+          "muestra_inestable:sin_valores_validos", NA_character_,
+        metadatos = metadatos
+      )))
+      return(list(
+        fila = fila, sql = do.call(rbind, registros), literales = literales
+      ))
+    }
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, campos_pedidos, "sin_valores",
+      if (isTRUE(nan_presente)) {
+        paste(
+          "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+          "se calculan s\u00f3lo con valores finitos."
+        )
+      } else "La columna no contiene valores no nulos.", NA_character_,
+      metadatos = metadatos
+    )))
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+
+  # Cuando el lote de basicos se cae porque el motor devolvio un valor que no se
+  # puede leer como numero, lo que queda desmentido no es una metrica suelta: es
+  # que la columna sea de la magnitud que TODAS estas metricas suponen. Si no se
+  # pidieron basicos, la misma conclusion se prueba con la sonda de magnitud de
+  # abajo. La mediana y el desvio miden esa magnitud en consultas aparte, y su
+  # guardia solo mira si el resultado es un numero finito. En SQLite -tipado
+  # dinamico: una columna declarada INTEGER puede contener texto- el motor no
+  # rechaza, coacciona el texto a 0 y devuelve 0. La fila publicaba
+  # `minimo = NA` con motivo "No se publica como calculada" al lado de
+  # `mediana = 0` en estado `calculado`, indistinguible de una mediana real de
+  # ceros, y el perfil de la muestra del MISMO objeto clasificaba la columna
+  # como texto. Un cero fabricado por coaccion no es una medicion.
+  magnitud_desmentida <- FALSE
+  motivo_magnitud <- NA_character_
+  magnitud_sondeada <- TRUE
+  # La columna tiene un valor de al menos 2^53 que el doble no representa, y es
+  # la unica causa por la que sus magnitudes no se publican. La mediana no
+  # depende de todos los valores sino de sus centrales: se calcula igual y se
+  # juzga por su valor (`.causa_mediana_inexacta_dbi()`). Vale si el motivo de
+  # la magnitud sigue siendo el del ancho: otra causa leida despues lo pisa.
+  motivo_ancho <- NA_character_
+  # Ver `.centrales_por_debajo_dbi()`: se pregunta una vez, y solo si hace falta.
+  centrales_por_debajo <- .memo_centrales_por_debajo_dbi(
+    es_muestreado, conexion, tabla_sql, columna_sql, alias, presupuesto
+  )
+  # El motor respondio un infinito en una metrica de magnitud: ver
+  # `.es_infinito_motor_dbi()`. Las magnitudes se vuelven a pedir sobre los
+  # valores finitos despues de los basicos.
+  infinitos_motor <- FALSE
+  nan_motor <- FALSE
+  n_validos_sondeado <- NA_real_
+  max_abs_sondeado <- NA_real_
+  minimo_sondeado <- NA_real_
+  maximo_sondeado <- NA_real_
+  max_abs_basicos <- NA_real_
+  minimo_basicos <- NA_real_
+  maximo_basicos <- NA_real_
+  # Sin `basicos` entre las metricas no hay resultado de esa consulta: la
+  # guarda del entero ancho lo recibe como NULL.
+  basicos <- NULL
+
+  mediana_conservada <- is.null(decisiones_costo) ||
+    isTRUE(decisiones_costo$mediana)
+  necesita_sonda_magnitud <- .necesita_sonda_magnitud_dbi(
+    pedidas_numericas, tipo_operacion, tipo_declarado, incluir_valores,
+    mediana_conservada
+  )
+
+  if (necesita_sonda_magnitud) {
+    sonda_columna <- .sonda_magnitud_resumen_dbi(
+      conexion, tabla_sql, columna, columna_sql, alias, presupuesto, agregados,
+      es_muestreado, incluir_valores, tipo_declarado, nan_motor,
+      infinitos_motor, motivo_ancho, motivo_magnitud, metadatos, registros
+    )
+    nan_motor <- sonda_columna$nan_motor
+    infinitos_motor <- sonda_columna$infinitos_motor
+    motivo_ancho <- sonda_columna$motivo_ancho
+    n_validos_sondeado <- sonda_columna$n_validos_sondeado
+    max_abs_sondeado <- sonda_columna$max_abs_sondeado
+    minimo_sondeado <- sonda_columna$minimo_sondeado
+    maximo_sondeado <- sonda_columna$maximo_sondeado
+    magnitud_sondeada <- sonda_columna$magnitud_sondeada
+    motivo_magnitud <- sonda_columna$motivo_magnitud
+    registros <- sonda_columna$registros
+  }
+
+  if ("basicos" %in% pedidas_numericas) {
+    basicos_columna <- .basicos_resumen_columna_dbi(
+      conexion, tabla_sql, columna, columna_sql, alias, presupuesto, agregados,
+      es_muestreado, incluir_valores, tipo_declarado, tipo_operacion,
+      numeric_exact, infinitos_como_numeric, infinitos_columna_como_numeric,
+      motor_sqlserver, solo_finitos, magnitud_desmentida, motivo_magnitud,
+      motivo_ancho, infinitos_motor, nan_motor, minimo_basicos, maximo_basicos,
+      max_abs_basicos, fila, metadatos, registros, registrar, motivo_privacidad
+    )
+    basicos <- basicos_columna$basicos
+    magnitud_desmentida <- basicos_columna$magnitud_desmentida
+    motivo_magnitud <- basicos_columna$motivo_magnitud
+    motivo_ancho <- basicos_columna$motivo_ancho
+    infinitos_motor <- basicos_columna$infinitos_motor
+    nan_motor <- basicos_columna$nan_motor
+    minimo_basicos <- basicos_columna$minimo_basicos
+    maximo_basicos <- basicos_columna$maximo_basicos
+    max_abs_basicos <- basicos_columna$max_abs_basicos
+    fila <- basicos_columna$fila
+    registros <- basicos_columna$registros
+  }
+
+  # Una columna con infinitos: todas sus magnitudes -las de los basicos, la
+  # mediana y el desvio- se piden de nuevo sobre los valores finitos, que es la
+  # regla de `perfilar()` y de la via por bloques. Si el motor no sabe escribir
+  # el infinito, o la lectura es una muestra del motor, quedan retenidas con
+  # `.motivo_infinito_dbi()` -abajo, como cualquier magnitud desmentida-.
+  if ((infinitos_motor || nan_motor) && !isTRUE(solo_finitos)) {
+    emitidas_antes <- if (is.null(presupuesto)) 0L else {
+      length(presupuesto$consultas_emitidas)
+    }
+    finitas <- .magnitudes_finitas_dbi(
+      conexion, tabla_sql, columna, columna_sql, prototipo, n_total, dialecto,
+      pedidas_numericas, presupuesto, incluir_valores, tipo_declarado,
+      motivo_ilegible, universo, decisiones_costo,
+      como_numeric = infinitos_columna_como_numeric
+    )
+    # La cuenta de consultas anota cuales se mandaron aca: el plan no las
+    # cuenta, porque que una columna guarde infinitos lo dicen los datos.
+    if (!is.null(presupuesto)) {
+      emitidas_despues <- length(presupuesto$consultas_emitidas)
+      if (emitidas_despues > emitidas_antes) {
+        presupuesto$emitidas_por_no_finitos <- c(
+          presupuesto$emitidas_por_no_finitos,
+          seq.int(emitidas_antes + 1L, emitidas_despues)
+        )
+      }
+    }
+    if (!is.null(finitas)) {
+      for (campo in names(finitas$fila)) fila[[campo]] <- finitas$fila[[campo]]
+      previos <- do.call(rbind, registros)
+      previos <- previos[
+        !as.character(previos$metrica) %in% c(campos_pedidos, "sonda_magnitud"),
+        , drop = FALSE
+      ]
+      return(list(
+        fila = fila, sql = rbind(previos, finitas$sql),
+        literales = c(literales, finitas$literales), cuenta_no_decide = TRUE,
+        n_finitos = finitas$n_finitos
+      ))
+    }
+  }
+
+  if ("mediana" %in% pedidas_numericas) {
+    # Se pregunta aca, en el marco donde se define `validos_observados` y con
+    # herencia: la mediana lo lee solo si existe, y nada entre este punto y
+    # esa lectura lo define.
+    validos_existen <- exists("validos_observados")
+    mediana_columna <- .mediana_resumen_columna_dbi(
+      conexion, tabla_sql, columna, columna_sql, alias, dialecto, presupuesto,
+      agregados, n_total, filas_mediana, es_muestreado, muestreo,
+      incluir_valores, tipo_declarado, numeric_exact,
+      infinitos_columna_como_numeric, decisiones_costo, aproximacion_mediana,
+      mediana_consolidada, mediana_escalar, mediana_cte_ventana,
+      mediana_cte_ventana_motivo, magnitud_sondeada, magnitud_desmentida,
+      motivo_magnitud, motivo_ancho, sin_conteo, validos_existen,
+      validos_observados, n_validos_sondeado, minimo_sondeado, maximo_sondeado,
+      minimo_basicos, maximo_basicos, centrales_por_debajo, fila, metadatos,
+      registros, registrar, omitir, motivo_privacidad
+    )
+    n_validos_sondeado <- mediana_columna$n_validos_sondeado
+    fila <- mediana_columna$fila
+    registros <- mediana_columna$registros
+  }
+
+  desvio_columna <- .desvio_resumen_columna_dbi(
+    conexion, tabla_sql, columna, columna_sql, alias, presupuesto, agregados,
+    es_muestreado, pedidas_numericas, tipo_declarado, tipo_motor,
+    numeric_exact, infinitos_como_numeric, nan_presente, magnitud_sondeada,
+    magnitud_desmentida, motivo_magnitud, infinitos_motor, n_validos_sondeado,
+    minimo_sondeado, maximo_sondeado, max_abs_sondeado, minimo_basicos,
+    maximo_basicos, max_abs_basicos, fila, metadatos, registros, registrar
+  )
+  fila <- desvio_columna$fila
+  registros <- desvio_columna$registros
+
+  entero_ancho_columna <- .mediana_entero_ancho_resumen_dbi(
+    conexion, prototipo, tipo_declarado, basicos, motivo_magnitud,
+    motivo_ancho, n_validos_sondeado, minimo_sondeado, maximo_sondeado,
+    minimo_basicos, maximo_basicos, centrales_por_debajo, fila, registros
+  )
+  fila <- entero_ancho_columna$fila
+  registros <- entero_ancho_columna$registros
+
+  sobrantes <- setdiff(
+    metricas_numericas,
+    unlist(lapply(registros, function(x) x$metrica), use.names = FALSE)
+  )
+  sobrantes <- intersect(sobrantes, campos_pedidos)
+  if (length(sobrantes)) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, sobrantes, "no_disponible",
+      "La m\u00e9trica no se pudo calcular en esta corrida.", NA_character_,
+      metadatos = metadatos
+    )))
+  }
+
+  # La cuenta de los no nulos del lote solo dice cuantos valores usa la metrica
+  # si la magnitud de la columna quedo establecida y es finita. Con `NaN` o
+  # infinitos las magnitudes se decidieron sobre los finitos (o se retuvieron
+  # bajo la muestra); si la sonda fallo o la magnitud quedo desmentida, ya estan
+  # declaradas con su motivo. En esos casos la cuenta no decide
+  # (`.valores_ausentes_por_cuenta_dbi()`): en PostgreSQL 9.3 un `real` con
+  # `Infinity` hace fallar la sonda, y `COUNT(x) = 1` publicaba `no_aplica`.
+  sql_final <- do.call(rbind, registros)
+  if (isTRUE(nan_presente) && is.data.frame(sql_final) && nrow(sql_final)) {
+    reemplazar <- sql_final$estado == "sin_valores"
+    sql_final$motivo[reemplazar] <- paste(
+      "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
+      "se calculan s\u00f3lo con valores finitos."
+    )
+    if (es_muestreado) {
+      no_calculado <- sql_final$estado %in% c(
+        "sin_valores", "no_aplica", "no_disponible", "estimado",
+        "calculado"
+      )
+      if (any(no_calculado)) {
+        sql_final$estado[no_calculado] <- "no_disponible"
+        sql_final$motivo[no_calculado] <- .motivo_nan_dbi("la consulta")
+      }
+    }
+  }
+  list(fila = fila, sql = sql_final, literales = literales,
+       cuenta_no_decide = isTRUE(infinitos_motor) || isTRUE(nan_motor) ||
+         (isTRUE(nan_presente) && es_muestreado) ||
+         !isTRUE(magnitud_sondeada) || isTRUE(magnitud_desmentida))
+}
+
+# Metadatos de alcance que acompanan cada registro SQL de la columna: tabla
+# completa o muestra del motor, con su error esperado y la estrategia de
+# distintos.
+.metadatos_resumen_columna_dbi <- function(es_muestreado, metricas, muestreo,
+                                           fraccion_muestra, n_total,
+                                           tamano_muestra,
+                                           estrategia_distintos) {
   metricas_de_error <- unlist(
     .CAMPOS_METRICA_DBI[metricas], use.names = FALSE
   )
@@ -17613,25 +18080,14 @@
   metadatos <- .agregar_metadatos_estrategia_distintos_dbi(
     metadatos, estrategia_distintos
   )
-  if (es_muestreado && !is.null(muestreo) &&
-      !isTRUE(muestreo$disponible)) {
-    # La incapacidad de construir o gobernar la fuente afecta a todas las
-    # metricas de este alcance. El total `n` se registra fuera de esta funcion;
-    # aqui no se permite que la ruta de respaldo lea `tabla_sql` completa.
-    motivo_muestreo <- if (length(muestreo$motivo) == 1L &&
-                           !is.na(muestreo$motivo)) {
-      as.character(muestreo$motivo)
-    } else {
-      "capacidad_no_aceptada:sonda_muestreo"
-    }
-    registros <- .metricas_omitidas_dbi(
-      list(), columna, metricas, "no_disponible", motivo_muestreo,
-      metadatos = metadatos
-    )
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
+  metadatos
+}
+
+# `registrar()` y `omitir()` de una columna: anotan cada metrica en `registros`
+# con los metadatos del alcance y, bajo la muestra del motor, con la
+# clasificacion del muestreo.
+.nuevo_registro_resumen_dbi <- function(columna, metadatos, es_muestreado,
+                                        muestreo, fraccion_muestra) {
   registrar <- function(registros, metrica, resultado, motivo_exito = NA_character_) {
     metricas_registro <- as.character(metrica)
     metadatos_registro <- metadatos
@@ -17693,54 +18149,782 @@
       registros, columna, metrica, estado, motivo, metadatos = metadatos
     )
   }
-  if (!is.na(motivo_ilegible)) {
-    registros <- .metricas_omitidas_dbi(
-      list(), columna, .METRICAS_DBI, "no_disponible", motivo_ilegible,
-      metadatos = metadatos
-    )
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-  if (es_muestreado && (is.null(muestreo) || !isTRUE(muestreo$disponible))) {
-    motivo <- if (is.null(muestreo)) {
-      "No se resolvi\u00f3 una capacidad de muestreo del motor."
-    } else {
-      muestreo$motivo
-    }
-    registros <- omitir(list(), .METRICAS_DBI, "no_disponible", motivo)
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-  columna_sql <- if (length(columna_sql) == 1L && !is.na(columna_sql) &&
-                     nzchar(columna_sql)) {
-    as.character(columna_sql)
+  list(registrar = registrar, omitir = omitir)
+}
+
+# Conteos de validos y distintos de la columna (del lote compartido o de su
+# consulta) y el denominador local que informan sus metadatos.
+.conteos_resumen_columna_dbi <- function(conexion, tabla_sql, columna,
+                                         columna_sql, alias, presupuesto,
+                                         agregados, metricas,
+                                         estrategia_distintos,
+                                         aproximacion_distintos) {
+  conteos <- if (!is.null(agregados) &&
+                 !is.null(agregados$conteos[[columna]])) {
+    agregados$conteos[[columna]]
   } else {
-    .citar_identificador_dbi(conexion, columna)
-  }
-  alias <- function(nombre) {
-    .citar_identificador_dbi(conexion, nombre)
-  }
-  if (isTRUE(nan_presente) &&
-      .tipo_puede_nan_dbi(tipo_operacion, prototipo, conexion)) {
-    columna_sql <- .excluir_nan_sql_dbi(
-      conexion, columna_sql,
-      como_numeric = .tipo_decimal_exacto_dbi(tipo_operacion) ||
-        .es_lectura_double_exacta_dbi(columna_sql) ||
-        isTRUE(infinitos_como_numeric)
+    pide_distintos <- "distintos" %in% metricas &&
+      isTRUE(estrategia_distintos$disponible) &&
+      !identical(estrategia_distintos$estado, "estimado_catalogo")
+    .conteos_columna_dbi(
+      conexion, tabla_sql, columna_sql, alias,
+      "validos" %in% metricas, pide_distintos, presupuesto,
+      aproximacion_distintos = aproximacion_distintos
     )
   }
-  registros <- list()
-  motivo_no_pedida <- paste(
-    "La m\u00e9trica no se pidi\u00f3 en esta corrida; ver `metricas`."
+
+  fuentes_denominador <- Filter(Negate(is.null), list(
+    conteos$validos, conteos$basicos, conteos$desvio,
+    conteos$distintos
+  ))
+  if (!is.null(agregados)) {
+    fuentes_denominador <- c(
+      fuentes_denominador,
+      Filter(Negate(is.null), list(
+        agregados$basicos[[columna]], agregados$desvio[[columna]]
+      ))
+    )
+  }
+  n_total_consulta <- if (length(fuentes_denominador)) {
+    candidatos <- vapply(fuentes_denominador, function(resultado) {
+      if (is.null(resultado$metadatos)) return(NA_real_)
+      .numero_dbi(resultado$metadatos$n_total_consulta)
+    }, numeric(1L))
+    candidatos <- candidatos[is.finite(candidatos)]
+    if (length(candidatos)) candidatos[[1L]] else NA_real_
+  } else {
+    NA_real_
+  }
+  list(conteos = conteos, n_total_consulta = n_total_consulta)
+}
+
+# Distintos de la columna: la estrategia resuelta, la cota contra los validos
+# y su registro.
+.distintos_resumen_columna_dbi <- function(columna, metricas,
+                                           estrategia_distintos,
+                                           publica_distintos, conteos,
+                                           sin_valores_validos_muestra, fila,
+                                           metadatos, registros, registrar,
+                                           omitir, motivo_no_pedida) {
+  if ("distintos" %in% metricas) {
+    if (!isTRUE(estrategia_distintos$disponible)) {
+      estado <- if (identical(estrategia_distintos$estado, "omitida")) {
+        "omitida"
+      } else {
+        "no_disponible"
+      }
+      registros <- .metricas_omitidas_dbi(
+        registros, columna, "distintos", estado,
+        estrategia_distintos$motivo, metadatos = metadatos
+      )
+    } else {
+      distintos <- if (identical(
+        estrategia_distintos$estado, "estimado_catalogo"
+      )) {
+        estimacion <- estrategia_distintos$estimaciones[[columna]]
+        if (is.null(estimacion) || !isTRUE(estimacion$disponible)) {
+          list(
+            ok = FALSE, valor = NULL,
+            motivo = if (is.null(estimacion)) paste0(
+              "No se obtuvo una estimaci\u00f3n de `pg_stats.n_distinct` para `",
+              columna, "`."
+            ) else estimacion$motivo,
+            sql = NA_character_, estado = NULL,
+            metadatos = list(fuente = "pg_stats.n_distinct")
+          )
+        } else {
+          list(
+            ok = TRUE, valor = estimacion$n_distintos,
+            motivo = estimacion$motivo, sql = NA_character_,
+            estado = "estimado_catalogo",
+            metadatos = list(
+              fuente = "pg_stats.n_distinct",
+              n_distintos_catalogo = estimacion$n_distintos_catalogo,
+              n_filas_catalogo = estimacion$n_filas,
+              inherited_catalogo = estimacion$inherited
+            )
+          )
+        }
+      } else {
+        conteos$distintos
+      }
+      if (is.null(distintos)) {
+        distintos <- list(
+          ok = FALSE, valor = NULL,
+          motivo = "La estrategia resolvi\u00f3 una medici\u00f3n pero no se obtuvo su resultado.",
+          sql = NA_character_
+        )
+      }
+      motivo_cota <- NA_character_
+      if (isTRUE(distintos$ok) && isTRUE(sin_valores_validos_muestra)) {
+        distintos$ok <- FALSE
+        distintos$estado <- NULL
+        distintos$motivo <- "muestra_inestable:sin_valores_validos"
+      }
+      if (isTRUE(distintos$ok)) {
+        distintos$metadatos <- .mezclar_metadatos_dbi(
+          distintos$metadatos, list(
+            metodo = estrategia_distintos$estrategia_resuelta,
+            error_esperado = estrategia_distintos$error_esperado
+          )
+        )
+        if (!identical(distintos$estado, "garantizado")) {
+          if (identical(estrategia_distintos$estado, "estimado_motor")) {
+            distintos$estado <- "estimado_motor"
+          } else if (identical(
+            estrategia_distintos$estado, "estimado_catalogo"
+          )) {
+            distintos$estado <- "estimado_catalogo"
+          }
+        }
+        candidato <- .conteo_dbi(distintos$valor)
+        guardian <- .guardian_distintos_dbi(distintos)
+        motivo_cota <- if (!guardian$comprobable &&
+                           is.null(distintos$metadatos$fuente)) {
+          .motivo_cota_distintos_no_comprobable_dbi()
+        } else {
+          NA_character_
+        }
+        if (guardian$comprobable && !is.na(candidato) &&
+            .numero_dbi(candidato) > guardian$valor) {
+          distintos$ok <- FALSE
+          distintos$estado <- NULL
+          distintos$motivo <- paste0(
+            "Se comprob\u00f3 en la consulta que el motor inform\u00f3 ", candidato,
+            if (candidato == 1L) " valor distinto sobre " else " valores distintos sobre ", guardian$valor,
+            if (guardian$valor == 1L) " v\u00e1lido, que es imposible; la m\u00e9trica no se publica." else
+              " v\u00e1lidos, que es imposible; la m\u00e9trica no se publica."
+          )
+          motivo_cota <- NA_character_
+        } else if (isTRUE(publica_distintos)) {
+          fila$n_distintos <- candidato
+          denominador <- if (guardian$comprobable) guardian$valor else {
+            .numero_dbi(fila$n_validos)
+          }
+          if (!is.na(fila$n_distintos) && is.finite(denominador) &&
+              denominador > 0) {
+            fila$tasa_distintos <- .numero_dbi(fila$n_distintos) / denominador
+          }
+        }
+      }
+      if (isTRUE(publica_distintos)) {
+        registros <- registrar(
+          registros, .CAMPOS_METRICA_DBI$distintos, distintos,
+          motivo_exito = motivo_cota
+        )
+      }
+    }
+  } else {
+    registros <- omitir(registros, "distintos", "no_solicitado", motivo_no_pedida)
+  }
+  list(fila = fila, registros = registros)
+}
+
+# Moda y frecuencia de la columna, o el motivo por el que no se piden.
+.moda_resumen_columna_dbi <- function(conexion, tabla_sql, columna_sql,
+                                      dialecto, presupuesto, metricas,
+                                      incluir_valores, es_muestreado,
+                                      tipo_operacion, tipo_sin_agregados,
+                                      motivo_tipo_sin_agregados,
+                                      decisiones_costo, moda_entero_doble,
+                                      moda_guardian, moda_precalculada, fila,
+                                      registros, registrar, omitir,
+                                      motivo_no_pedida, motivo_privacidad) {
+  if (!("moda" %in% metricas)) {
+    registros <- omitir(registros, "moda", "no_solicitado", motivo_no_pedida)
+  } else if (!incluir_valores) {
+    registros <- omitir(registros, "moda", "omitido_por_privacidad", motivo_privacidad)
+  } else if (tipo_sin_agregados && !(
+    "moda" %in% metricas &&
+      .es_tipo_binario_muestra_dbi(tipo_operacion,
+                                   .senas_conexion_dbi(conexion))
+  )) {
+    registros <- omitir(
+      registros, "moda", "no_disponible", motivo_tipo_sin_agregados
+    )
+  } else if (!is.null(decisiones_costo) &&
+             identical(decisiones_costo$moda, FALSE)) {
+    registros <- omitir(
+      registros, "moda", "omitido_por_costo",
+      .motivo_decision_costo_dbi(decisiones_costo, "moda")
+    )
+  } else {
+    columna_moda_sql <- .expresion_binaria_moda_dbi(
+      conexion, columna_sql, tipo_operacion
+    )
+    valor_moda_sql <- .expresion_decimal_moda_dbi(
+      conexion, columna_moda_sql, tipo_operacion,
+      entero_doble = moda_entero_doble
+    )
+    orden_moda_sql <- .orden_moda_dbi(
+      conexion, valor_moda_sql, tipo_operacion,
+      orden_numerico_sql = if (isTRUE(moda_entero_doble)) {
+        columna_moda_sql
+      } else NULL
+    )
+    guardian_moda <- moda_guardian
+    moda <- if (isTRUE(is.na(valor_moda_sql))) {
+      list(
+        ok = FALSE, datos = NULL,
+        motivo = paste(
+          "No se pudo pedir la moda exacta como texto en este motor;",
+          "no se publica la moda del doble redondeado."
+        ), sql = NA_character_
+      )
+    } else if (is.null(moda_precalculada)) {
+      .moda_columna_dbi(
+        conexion, tabla_sql, columna_moda_sql, dialecto, presupuesto,
+        moda_guardian = guardian_moda, valor_sql = valor_moda_sql,
+        orden_sql = orden_moda_sql
+      )
+    } else {
+      moda_precalculada
+    }
+    if (moda$ok && nrow(moda$datos)) {
+      # La moda no pasaba por la verificacion de nombre: un motor que plegara
+      # el alias devolvia `NULL[[1L]]`, o sea NA, con estado `calculado`. Un
+      # registro que declara exito sobre una metrica que no se obtuvo es peor
+      # que un `no_disponible`.
+      celda <- .valor_campo_dbi(moda$datos, "valor")
+      frecuencia <- .valor_campo_dbi(moda$datos, "frecuencia")
+      if (!celda$ok) {
+        moda$ok <- FALSE
+        moda$motivo <- celda$motivo
+      } else if (!frecuencia$ok) {
+        moda$ok <- FALSE
+        moda$motivo <- frecuencia$motivo
+      } else {
+        valor_moda <- tryCatch(.texto_moda(celda$valor), error = function(e) e)
+        if (inherits(valor_moda, "error")) {
+          moda$ok <- FALSE
+          moda$motivo <- .mensaje_motor(valor_moda)
+        } else {
+          candidato <- .conteo_dbi(frecuencia$valor)
+          guardian <- .guardian_moda_dbi(moda)
+          motivo_cota <- if (guardian$comprobable) {
+            .motivo_cota_moda_comprobable_dbi()
+          } else {
+            .motivo_cota_moda_no_comprobable_dbi()
+          }
+          cota_invalida <- guardian$comprobable && !is.na(candidato) &&
+            .numero_dbi(candidato) > guardian$valor
+          if (cota_invalida) {
+            moda$ok <- FALSE
+            moda$motivo <- paste0(
+              "Se comprob\u00f3 en la consulta que la frecuencia de la moda (",
+              candidato, ") supera los ", guardian$valor,
+              if (guardian$valor == 1L) " valor v\u00e1lido; la m\u00e9trica no se publica." else
+                " valores v\u00e1lidos; la m\u00e9trica no se publica."
+            )
+            motivo_cota <- NA_character_
+          } else {
+            fila$moda <- valor_moda
+            fila$frecuencia_moda <- candidato
+            if (!is.na(candidato)) moda$motivo <- motivo_cota
+          }
+        }
+      }
+    } else if (moda$ok) {
+      if (es_muestreado) {
+        moda$ok <- FALSE
+        moda$motivo <- "muestra_inestable:sin_valores_validos"
+      } else {
+        moda$motivo <- "La columna no contiene valores no nulos."
+        moda$estado <- "sin_valores"
+      }
+      # `frecuencia_moda` quedaba en NA, y NA dice "no se midio". Aca si se
+      # midio: el motor conto los valores no nulos y no hay ninguno. Es la
+      # distincion que el paquete sostiene en todas partes -cero es medido y
+      # ninguno-, y `perfilar()` ya devolvia cero para esta misma columna. Las
+      # dos puertas daban numeros distintos sobre el mismo dato.
+      #
+      # Solo cuando la lectura fue sobre la tabla entera. Si se midio sobre una
+      # muestra, que la muestra no traiga valores no prueba que la columna este
+      # vacia, y ahi NA con su motivo es lo correcto.
+      if (!es_muestreado) fila$frecuencia_moda <- 0
+    }
+    if (es_muestreado) {
+      registros <- registrar(
+        registros, "moda", moda, motivo_exito = moda$motivo
+      )
+      registros <- registrar(
+        registros, "frecuencia_moda", moda
+      )
+    } else {
+      registros <- registrar(
+        registros, .CAMPOS_METRICA_DBI$moda, moda, motivo_exito = moda$motivo
+      )
+    }
+  }
+  list(fila = fila, registros = registros)
+}
+
+# Prueba de magnitud de la columna: si el motor devuelve un numero legible,
+# finito y que el doble representa; deja sus extremos y su conteo para la
+# mediana y el desvio.
+.sonda_magnitud_resumen_dbi <- function(conexion, tabla_sql, columna,
+                                        columna_sql, alias, presupuesto,
+                                        agregados, es_muestreado,
+                                        incluir_valores, tipo_declarado,
+                                        nan_motor, infinitos_motor,
+                                        motivo_ancho, motivo_magnitud,
+                                        metadatos, registros) {
+  # Bajo la muestra del motor, la del lote de agregados: la misma sentencia
+  # que el desvio, la misma muestra. Una sonda propia sorteaba otra.
+  sondeo <- if (es_muestreado && !is.null(agregados) &&
+                !is.null(agregados$magnitudes[[columna]])) {
+    agregados$magnitudes[[columna]]
+  } else {
+    .sonda_magnitud_columna_dbi(
+      conexion, tabla_sql, columna_sql, alias, presupuesto
+    )
+  }
+  if (isTRUE(sondeo$ok)) {
+    convertido <- .escalar_finito_dbi(sondeo$valor)
+    sonda_nan <- any(vapply(
+      list(sondeo$valor, sondeo$minimo, sondeo$maximo_abs,
+           sondeo$minimo_abs),
+      function(valor) is.numeric(valor) && length(valor) &&
+        isTRUE(is.nan(valor[[1L]])), logical(1L)
+    ))
+    sonda_inf <- .es_infinito_motor_dbi(sondeo$valor) ||
+      .es_infinito_motor_dbi(sondeo$minimo) ||
+      .es_infinito_motor_dbi(sondeo$maximo_abs) ||
+      .es_infinito_motor_dbi(sondeo$minimo_abs)
+    if (sonda_nan) {
+      sondeo$ok <- FALSE
+      sondeo$motivo <- .motivo_nan_dbi("la sonda de magnitud")
+      nan_motor <- TRUE
+    }
+    if (sonda_inf) {
+      sondeo$ok <- FALSE
+      if (!sonda_nan) sondeo$motivo <-
+        .motivo_infinito_dbi("la sonda de magnitud")
+      infinitos_motor <- TRUE
+    }
+    if (!sonda_nan && !sonda_inf &&
+        .valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
+      valor <- if (isTRUE(incluir_valores)) paste0(
+        " (\"", utils::head(as.character(sondeo$valor[[1L]]), 1L), "\")"
+      ) else ""
+      sondeo$ok <- FALSE
+      sondeo$motivo <- paste0(
+        .motivo_no_numero_dbi("la sonda de magnitud", valor),
+        .texto_guardado_medido_dbi(
+          conexion, tabla_sql, columna_sql, alias, presupuesto
+        )
+      )
+    } else if (!sonda_nan && !sonda_inf &&
+               .entero_perdido_en_conversion_dbi(
+      sondeo$valor, tipo_declarado
+    )) {
+      sondeo$ok <- FALSE
+      sondeo$motivo <- .motivo_entero_doble_dbi(
+        valor = sondeo$valor, conexion = conexion, tipo = tipo_declarado,
+        mediana_por_valor = TRUE
+      )
+      motivo_ancho <- sondeo$motivo
+    }
+  }
+  n_validos_sondeado <- .numero_dbi(sondeo$n_validos)
+  max_abs_sondeado <- .escalar_finito_dbi(sondeo$maximo_abs)
+  minimo_sondeado <- .escalar_finito_dbi(sondeo$minimo)
+  maximo_sondeado <- .escalar_finito_dbi(sondeo$valor)
+  magnitud_sondeada <- isTRUE(sondeo$ok)
+  if (!magnitud_sondeada) motivo_magnitud <- sondeo$motivo
+  registros <- .registrar_resultado_dbi(
+    registros, columna, "sonda_magnitud", sondeo, metadatos = metadatos
   )
-  motivo_privacidad <- paste(
-    "El valor no se informa por `incluir_valores = FALSE`;",
-    "la consulta no se emitio."
+  list(
+    nan_motor = nan_motor, infinitos_motor = infinitos_motor,
+    motivo_ancho = motivo_ancho, n_validos_sondeado = n_validos_sondeado,
+    max_abs_sondeado = max_abs_sondeado, minimo_sondeado = minimo_sondeado,
+    maximo_sondeado = maximo_sondeado, magnitud_sondeada = magnitud_sondeada,
+    motivo_magnitud = motivo_magnitud, registros = registros
   )
-  filas_mediana <- if (es_muestreado) .numero_dbi(tamano_muestra) else
-    .numero_dbi(n_total)
+}
+
+# Minimo, maximo, media, ceros y negativos de la columna, con las guardas de
+# magnitud que deciden si se publican.
+.basicos_resumen_columna_dbi <- function(conexion, tabla_sql, columna,
+                                         columna_sql, alias, presupuesto,
+                                         agregados, es_muestreado,
+                                         incluir_valores, tipo_declarado,
+                                         tipo_operacion, numeric_exact,
+                                         infinitos_como_numeric,
+                                         infinitos_columna_como_numeric,
+                                         motor_sqlserver, solo_finitos,
+                                         magnitud_desmentida, motivo_magnitud,
+                                         motivo_ancho, infinitos_motor,
+                                         nan_motor, minimo_basicos,
+                                         maximo_basicos, max_abs_basicos, fila,
+                                         metadatos, registros, registrar,
+                                         motivo_privacidad) {
+  # `AVG(columna)` sin castear trunca en los motores con semantica entera.
+  # Multiplicar por 1.0 promueve el tipo sin depender de un nombre de tipo
+  # que cambia con el motor.
+  basicos <- if (!is.null(agregados) &&
+                 !is.null(agregados$basicos[[columna]])) {
+    agregados$basicos[[columna]]
+  } else {
+    .basicos_columna_dbi(
+      conexion, tabla_sql, columna_sql, alias, incluir_valores, presupuesto,
+      float8_seguro = numeric_exact || (
+        grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+              useBytes = TRUE) &&
+          .tipo_declarado_float8_dbi(tipo_declarado, conexion) &&
+          !.es_lectura_double_exacta_dbi(columna_sql)
+      ),
+      infinitos_como_numeric = infinitos_como_numeric,
+      tipo = tipo_operacion
+    )
+  }
+  calculados <- c("media", "n_ceros", "n_negativos")
+  if (incluir_valores) calculados <- c("minimo", "maximo", calculados)
+  media_escalada <- NULL
+  if (basicos$ok && nrow(basicos$datos)) {
+    aux_numero <- function(campo) {
+      celda <- .valor_campo_dbi(basicos$datos, campo)
+      if (!isTRUE(celda$ok)) return(NA_real_)
+      crudo <- celda$valor
+      if (is.numeric(crudo) && length(crudo) &&
+          isTRUE(is.nan(crudo[[1L]]))) {
+        nan_motor <<- TRUE
+        return(NA_real_)
+      }
+      .escalar_finito_dbi(crudo)
+    }
+    minimo_basicos <- aux_numero("minimo")
+    maximo_basicos <- aux_numero("maximo")
+    max_abs_basicos <- aux_numero("maximo_abs")
+    if (!is.finite(max_abs_basicos)) {
+      extremos <- abs(c(minimo_basicos, maximo_basicos))
+      extremos <- extremos[is.finite(extremos)]
+      max_abs_basicos <- if (length(extremos)) max(extremos) else NA_real_
+    }
+    if (!is.finite(minimo_basicos) && isTRUE(incluir_valores)) {
+      minimo_basicos <- aux_numero("minimo")
+    }
+    if (!is.finite(maximo_basicos) && isTRUE(incluir_valores)) {
+      maximo_basicos <- aux_numero("maximo")
+    }
+    # `AVG` puede desbordar antes de que el resto de los basicos se lea
+    # (MariaDB devuelve `Inf` en la misma fila). En ese caso no hay que
+    # descartar minimo, maximo ni los conteos: los extremos ya llegaron y
+    # permiten elegir el mismo repliegue, sin una sonda adicional.
+    max_abs_previo <- max_abs_basicos
+    if ((isTRUE(.es_mysql_dbi(.senas_conexion_dbi(conexion))) ||
+         (motor_sqlserver && !is.finite(fila$media))) &&
+        is.finite(max_abs_previo)) {
+      escala_media <- .escala_desvio_dbi(max_abs_previo)
+      if (!is.null(escala_media) && es_muestreado) {
+        # El repliegue es otra sentencia, que bajo la muestra del motor
+        # sortearia otra muestra (como el desvio escalado).
+        media_escalada <- list(
+          ok = FALSE, valor = NULL,
+          motivo = .MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI
+        )
+        basicos$datos[["media"]][[1L]] <- NA
+      } else if (!is.null(escala_media)) {
+        media_escalada <- .media_columna_escalada_dbi(
+          conexion, tabla_sql, columna_sql, alias, escala_media, presupuesto
+        )
+        media_previa <- .escalar_finito_dbi(media_escalada$valor)
+        if (isTRUE(media_escalada$ok) && is.finite(media_previa)) {
+          basicos$datos[["media"]][[1L]] <- media_previa
+        }
+      }
+    }
+    # Se leen todos los campos antes de tocar la fila: media a medias, con la
+    # auditoria diciendo `no_disponible`, seria un tercer estado que no
+    # existe en el vocabulario del paquete.
+    leidos <- list()
+    ancho_en_basicos <- FALSE
+    # El promedio desbordo y los basicos llegaron sin el: ver
+    # `.basicos_columna_dbi()`. La media se registra aparte.
+    media_ausente <- is.list(basicos$media_desbordada) && is.null(media_escalada)
+    for (metrica in calculados) {
+      nombre_motivo <- metrica
+      if (identical(metrica, "media") && media_ausente) {
+        # Sin el promedio, que la columna pase de 2^53 lo dicen sus extremos,
+        # que esa consulta trae tambien con `incluir_valores = FALSE`: se
+        # juzga el que lo muestra, con la misma regla. Si ninguno, la media
+        # sigue sola, con su motivo.
+        ancho_extremo <- NULL
+        for (extremo in c("maximo", "minimo")) {
+          celda_extremo <- .valor_campo_dbi(basicos$datos, extremo)
+          if (isTRUE(celda_extremo$ok) && .entero_perdido_en_conversion_dbi(
+            celda_extremo$valor, tipo_declarado
+          )) {
+            ancho_extremo <- extremo
+            break
+          }
+        }
+        if (is.null(ancho_extremo) || isTRUE(ancho_en_basicos)) next
+        celda <- celda_extremo
+        nombre_motivo <- ancho_extremo
+      } else {
+        celda <- .valor_campo_dbi(basicos$datos, metrica)
+      }
+      if (!celda$ok) {
+        basicos$ok <- FALSE
+        basicos$motivo <- celda$motivo
+        leidos <- list()
+        break
+      }
+      leidos[[metrica]] <- if (metrica %in% c("n_ceros", "n_negativos")) {
+        .conteo_dbi(celda$valor)
+      } else {
+        convertido <- .escalar_finito_dbi(celda$valor)
+        crudo_nan <- is.numeric(celda$valor[[1L]]) &&
+          isTRUE(is.nan(celda$valor[[1L]]))
+        # Sin `MIN` ni `MAX` -`incluir_valores = FALSE`-, un `Inf` y un `-Inf`
+        # en la misma columna solo se ven en `AVG`: duckdb y PostgreSQL
+        # responden `NaN` y SQLite, que no guarda `NaN`, `NULL`. Medido:
+        # SQLite publicaba `media = NA` como `calculado` y
+        # `n_negativos = 2` -contando el `-Inf`- donde los finitos dan 1, y
+        # duckdb culpaba a un `NaN` que la columna no tenia. Antes de leerlo
+        # como `NaN` o como nulo, se cuentan los infinitos.
+        if (identical(metrica, "media") && !isTRUE(solo_finitos) &&
+            (crudo_nan || is.na(convertido)) &&
+            .hay_infinitos_dbi(
+              conexion, tabla_sql, columna_sql, alias, presupuesto,
+              como_numeric = infinitos_columna_como_numeric
+            )) {
+          basicos$ok <- FALSE
+          basicos$motivo <- .motivo_infinito_dbi(metrica)
+          magnitud_desmentida <- TRUE
+          motivo_magnitud <- basicos$motivo
+          infinitos_motor <- TRUE
+          leidos <- list()
+          break
+        }
+        if (crudo_nan) {
+          # Un `NaN` del motor no dice que la columna sea de otra magnitud: es
+          # numerica y guarda `NaN` como un valor -duckdb lo hace-, y el motor
+          # lo incluye en `MAX`, `AVG` y en el orden de la mediana -la ubica al
+          # final-, mientras R lo cuenta como ausente. El motivo generico de
+          # abajo culpaba a la magnitud. Se retienen igual TODAS las metricas
+          # de magnitud de la columna -medido: sin retenerla, la mediana del
+          # motor salia 3 contra 2,5 en R-, pero con el motivo verdadero.
+          basicos$ok <- FALSE
+          basicos$motivo <- .motivo_nan_dbi(metrica)
+          magnitud_desmentida <- TRUE
+          motivo_magnitud <- basicos$motivo
+          leidos <- list()
+          break
+        }
+        # Un infinito no es un valor ilegible: es la columna que guarda
+        # infinitos. Se retienen las magnitudes con ese motivo y, donde el
+        # motor sabe escribir el infinito, se vuelven a pedir abajo sobre los
+        # finitos.
+        if (.es_infinito_motor_dbi(celda$valor)) {
+          basicos$ok <- FALSE
+          basicos$motivo <- .motivo_infinito_dbi(metrica)
+          magnitud_desmentida <- TRUE
+          motivo_magnitud <- basicos$motivo
+          infinitos_motor <- TRUE
+          leidos <- list()
+          break
+        }
+        if (.valor_perdido_en_conversion_dbi(celda$valor, convertido)) {
+          basicos$ok <- FALSE
+          # El valor, solo si se pidieron valores y entre comillas, como la
+          # sonda de magnitud: escrito entre parentesis era el MAXIMO de una
+          # columna personal en claro -la prosa del paquete solo se revisa en
+          # lo citado-. Medido.
+          basicos$motivo <- paste0(
+            .motivo_no_numero_dbi(
+              paste0("`", metrica, "`"),
+              if (isTRUE(incluir_valores)) paste0(
+                " (\"", utils::head(as.character(celda$valor[[1L]]), 1L), "\")"
+              ) else ""
+            ),
+            .texto_guardado_medido_dbi(
+              conexion, tabla_sql, columna_sql, alias, presupuesto
+            )
+          )
+          magnitud_desmentida <- TRUE
+          motivo_magnitud <- basicos$motivo
+          leidos <- list()
+          break
+        }
+        if (.entero_perdido_en_conversion_dbi(
+          celda$valor, tipo_declarado
+        )) {
+          # La condicion de la columna se anota con la primera metrica que la
+          # muestra, y se siguen leyendo las demas: si otra trae un valor que
+          # no es numero -SQLite guarda texto en una columna INTEGER-, manda
+          # esa causa, y la mediana ya no se puede juzgar por su valor.
+          basicos$ok <- FALSE
+          if (isTRUE(ancho_en_basicos)) next
+          basicos$motivo <- .motivo_entero_doble_dbi(
+            nombre_motivo, valor = celda$valor, conexion = conexion,
+            tipo = tipo_declarado, mediana_por_valor = TRUE
+          )
+          # La condicion es de la COLUMNA, no de la metrica: si un valor de al
+          # menos 2^53 llego como doble, TODAS las metricas de magnitud de esa
+          # columna perdieron exactitud, no solo las cinco que este bucle
+          # recorre. `mediana` y `desvio` se calculan en otras consultas y
+          # salian `calculado` en la misma corrida donde `minimo`, `maximo`,
+          # `media`, `n_ceros` y `n_negativos` salian `no_disponible`. Medido
+          # con `UBIGINT`: los cuatro valores redondean al mismo doble y se
+          # publicaba `mediana = 2^64` -que no esta en la columna- y
+          # `desvio = 0` sobre una columna cuyo desvio real es 1,29, mientras
+          # el motor contaba `n_distintos = 4`.
+          #
+          # Se usa el mismo mecanismo que la rama de arriba, y de paso queda
+          # dicho lo que significa: `magnitud_desmentida` no es "la magnitud es
+          # otra" sino "las metricas de magnitud de esta columna no se publican
+          # como calculadas", y ahora tiene dos causas.
+          #
+          # Salvo la mediana, que no depende de toda la columna sino de sus
+          # centrales: se calcula igual y la juzga su valor
+          # (`.causa_mediana_inexacta_dbi()`). La de 2^64 del `UBIGINT` sigue
+          # sin publicarse.
+          magnitud_desmentida <- TRUE
+          motivo_magnitud <- .motivo_entero_doble_dbi(
+            valor = celda$valor, conexion = conexion, tipo = tipo_declarado,
+            mediana_por_valor = TRUE
+          )
+          motivo_ancho <- motivo_magnitud
+          ancho_en_basicos <- TRUE
+          next
+        }
+        convertido
+      }
+    }
+    if (isTRUE(ancho_en_basicos)) leidos <- list()
+    # Un maximo menor que el minimo es imposible, y aparece de verdad: un
+    # `BIGINT UNSIGNED` cerca del tope vuelve del driver como `integer64`
+    # negativo, asi que el motor informa `min = 1` y `max = -1` sin mentir
+    # -miente la representacion-. Se declara no disponible en vez de
+    # publicarse, igual que se hace cuando hay mas distintos que validos.
+    rango <- c(leidos[["minimo"]], leidos[["maximo"]])
+    if (length(rango) == 2L && all(is.finite(rango)) &&
+        rango[[2L]] < rango[[1L]]) {
+      basicos$ok <- FALSE
+      basicos$motivo <- paste0(
+        "El motor inform\u00f3 un m\u00e1ximo (", rango[[2L]], ") menor que el m\u00ednimo (",
+        rango[[1L]], "), que es imposible: probablemente el tipo no entra en ",
+        "la representaci\u00f3n del controlador. Las m\u00e9tricas no se publican."
+      )
+      leidos <- list()
+    }
+    for (metrica in names(leidos)) fila[[metrica]] <- leidos[[metrica]]
+    # Aunque `incluir_valores = FALSE` no publica minimo ni maximo, la
+    # guarda de un decimal debe conocer la magnitud que el controlador
+    # entrego como doble. La sonda anterior hace esa comprobacion; si falla,
+    # no se deja que la media de `AVG` quede calculada con un motivo de
+    # privacidad que no corresponde.
+    if (isTRUE(magnitud_desmentida) &&
+        .tipo_declarado_decimal_dbi(tipo_declarado)) {
+      basicos$ok <- FALSE
+      basicos$motivo <- motivo_magnitud
+    }
+    max_abs_basicos <- suppressWarnings(as.numeric(c(
+      fila$minimo, fila$maximo
+    )))
+    max_abs_basicos <- abs(max_abs_basicos[is.finite(max_abs_basicos)])
+    max_abs_basicos <- if (length(max_abs_basicos)) {
+      max(max_abs_basicos)
+    } else NA_real_
+    motor_mysql <- .es_mysql_dbi(.senas_conexion_dbi(conexion))
+    if (is.null(media_escalada) &&
+        (isTRUE(motor_mysql) || (motor_sqlserver && !is.finite(fila$media))) &&
+        is.finite(max_abs_basicos)) {
+      escala_media <- .escala_desvio_dbi(
+        max_abs_basicos, forzar = !is.finite(fila$media)
+      )
+      if (!is.null(escala_media) && es_muestreado) {
+        media_escalada <- list(
+          ok = FALSE, valor = NULL,
+          motivo = .MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI
+        )
+        fila$media <- NA_real_
+      } else if (!is.null(escala_media)) {
+        media_escalada <- .media_columna_escalada_dbi(
+          conexion, tabla_sql, columna_sql, alias, escala_media, presupuesto
+        )
+        if (isTRUE(media_escalada$ok)) {
+          fila$media <- .escalar_finito_dbi(media_escalada$valor)
+        } else {
+          fila$media <- NA_real_
+        }
+      }
+    }
+  } else if (basicos$ok) {
+    basicos$ok <- FALSE
+    basicos$motivo <- "La consulta de agregados no devolvi\u00f3 ninguna fila."
+  }
+  if (is.null(basicos$sql)) basicos$sql <- NA_character_
+  calculados_basicos <- if (is.null(media_escalada)) {
+    calculados
+  } else {
+    setdiff(calculados, "media")
+  }
+  media_desbordada <- if (is.null(media_escalada)) basicos$media_desbordada
+  if (is.list(media_desbordada)) {
+    calculados_basicos <- setdiff(calculados_basicos, "media")
+    registros <- registrar(registros, "media", media_desbordada)
+  }
+  if (es_muestreado && isTRUE(basicos$ok)) {
+    for (metrica in calculados_basicos) {
+      resultado_metrica <- basicos
+      registros <- registrar(registros, metrica, resultado_metrica)
+    }
+  } else {
+    if (length(calculados_basicos)) {
+      registros <- registrar(registros, calculados_basicos, basicos)
+    }
+  }
+  if (!is.null(media_escalada)) {
+    registros <- registrar(registros, "media", media_escalada)
+  }
+  if (!incluir_valores) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, c("minimo", "maximo"), "omitido_por_privacidad",
+      motivo_privacidad, NA_character_, metadatos = metadatos
+    )))
+  }
+  list(
+    basicos = basicos, magnitud_desmentida = magnitud_desmentida,
+    motivo_magnitud = motivo_magnitud, motivo_ancho = motivo_ancho,
+    infinitos_motor = infinitos_motor, nan_motor = nan_motor,
+    minimo_basicos = minimo_basicos, maximo_basicos = maximo_basicos,
+    max_abs_basicos = max_abs_basicos, fila = fila, registros = registros
+  )
+}
+
+# Mediana de la columna: la forma que corresponde al alcance y al motor (la
+# consolidada, una aproximacion, la CTE de ventanas, la escalar o la de dos
+# consultas), con el aviso de costo y su registro. Devuelve tambien el conteo
+# de validos, que la via de dos consultas puede haber pedido.
+.mediana_resumen_columna_dbi <- function(conexion, tabla_sql, columna,
+                                         columna_sql, alias, dialecto,
+                                         presupuesto, agregados, n_total,
+                                         filas_mediana, es_muestreado,
+                                         muestreo, incluir_valores,
+                                         tipo_declarado, numeric_exact,
+                                         infinitos_columna_como_numeric,
+                                         decisiones_costo,
+                                         aproximacion_mediana,
+                                         mediana_consolidada, mediana_escalar,
+                                         mediana_cte_ventana,
+                                         mediana_cte_ventana_motivo,
+                                         magnitud_sondeada,
+                                         magnitud_desmentida, motivo_magnitud,
+                                         motivo_ancho, sin_conteo,
+                                         validos_existen, validos_observados,
+                                         n_validos_sondeado, minimo_sondeado,
+                                         maximo_sondeado, minimo_basicos,
+                                         maximo_basicos, centrales_por_debajo,
+                                         fila, metadatos, registros, registrar,
+                                         omitir, motivo_privacidad) {
+  # La guardia lee el estado de esta funcion en el momento de cada llamada.
+  guardia_mediana <- function() .guardia_mediana_resumen_dbi(
+    fila, n_validos_sondeado, minimo_sondeado, maximo_sondeado, conexion
+  )
   preparar_aviso_mediana <- function() {
     if (is.null(presupuesto)) return(invisible(NULL))
     pendientes <- .numero_dbi(presupuesto$medianas_pendientes)
@@ -17922,1208 +19106,274 @@
     FALSE
   }
 
-  guardia_mediana <- function() {
-    n <- if (exists("validos_observados", inherits = FALSE)) {
-      validos_observados
-    } else if (is.finite(n_validos_sondeado)) {
-      n_validos_sondeado
-    } else {
-      fila$n_validos
-    }
-    fila_mediana <- fila
-    if (!is.finite(fila_mediana$minimo) && is.finite(minimo_sondeado)) {
-      fila_mediana$minimo <- minimo_sondeado
-    }
-    if (!is.finite(fila_mediana$maximo) && is.finite(maximo_sondeado)) {
-      fila_mediana$maximo <- maximo_sondeado
-    }
-    extremos <- suppressWarnings(as.numeric(c(
-      fila_mediana$minimo, fila_mediana$maximo
-    )))
-    extremos <- extremos[is.finite(extremos)]
-    rango <- if (length(extremos) >= 2L) {
-      max(extremos) - min(extremos)
-    } else NA_real_
-    escala <- if (length(extremos)) {
-      maximo <- max(abs(extremos), na.rm = TRUE)
-      forzar_mysql <- .es_mysql_dbi(.senas_conexion_dbi(conexion)) &&
-        maximo > 1e65
-      .escala_desvio_dbi(
-        maximo, forzar = forzar_mysql, rango = rango
-      )
-    } else NULL
-    list(
-      fila = fila_mediana, n = n, escala = escala,
-      requiere = !is.null(escala) &&
-        .requiere_mediana_escalada_dbi(fila_mediana, n, conexion = conexion)
-    )
-  }
-
-  conteos <- if (!is.null(agregados) &&
-                 !is.null(agregados$conteos[[columna]])) {
-    agregados$conteos[[columna]]
-  } else {
-    pide_distintos <- "distintos" %in% metricas &&
-      isTRUE(estrategia_distintos$disponible) &&
-      !identical(estrategia_distintos$estado, "estimado_catalogo")
-    .conteos_columna_dbi(
-      conexion, tabla_sql, columna_sql, alias,
-      "validos" %in% metricas, pide_distintos, presupuesto,
-      aproximacion_distintos = aproximacion_distintos
-    )
-  }
-
-  fuentes_denominador <- Filter(Negate(is.null), list(
-    conteos$validos, conteos$basicos, conteos$desvio,
-    conteos$distintos
-  ))
-  if (!is.null(agregados)) {
-    fuentes_denominador <- c(
-      fuentes_denominador,
-      Filter(Negate(is.null), list(
-        agregados$basicos[[columna]], agregados$desvio[[columna]]
-      ))
-    )
-  }
-  n_total_consulta <- if (length(fuentes_denominador)) {
-    candidatos <- vapply(fuentes_denominador, function(resultado) {
-      if (is.null(resultado$metadatos)) return(NA_real_)
-      .numero_dbi(resultado$metadatos$n_total_consulta)
-    }, numeric(1L))
-    candidatos <- candidatos[is.finite(candidatos)]
-    if (length(candidatos)) candidatos[[1L]] else NA_real_
-  } else {
-    NA_real_
-  }
-  # Un agregado sobre una muestra vacia devuelve ceros y una fila valida para
-  # SQL, pero eso no significa que se hayan observado cero valores: no se
-  # observo ninguna fila. `n_validos` y `n_distintos` no alcanzan para hacer la
-  # distincion, porque una muestra no vacia puede tener todos sus valores nulos.
-  # Cuando el denominador local esta disponible y vale cero, ninguna metrica de
-  # alcance muestral tiene base para publicarse. `n` queda intacto porque sale
-  # del conteo de la tabla completa.
-  muestra_vacia <- es_muestreado && isTRUE(n_total_consulta == 0)
-  if (muestra_vacia) {
-    metodo_vacio <- if (is.null(muestreo$metodo) ||
-                        is.na(muestreo$metodo) || !nzchar(muestreo$metodo)) {
-      "muestreo_sin_metodo"
-    } else as.character(muestreo$metodo)
-    motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
-    registros <- .metricas_omitidas_dbi(
-      list(), columna, metricas, "no_disponible", motivo,
-      metadatos = metadatos
-    )
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-  tamano_pedido_muestra <- if (is.null(muestreo)) NA_real_ else {
-    .numero_dbi(muestreo$tamano_muestra)
-  }
-  muestra_insuficiente <- es_muestreado &&
-    !is.null(muestreo) &&
-    identical(muestreo$metodo, "tablesample_system") &&
-    length(tamano_pedido_muestra) == 1L &&
-    is.finite(tamano_pedido_muestra) && tamano_pedido_muestra > 0 &&
-    is.finite(n_total_consulta) &&
-    n_total_consulta < tamano_pedido_muestra / 2
-  if (muestra_insuficiente) {
-    registros <- .metricas_omitidas_dbi(
-      list(), columna, metricas, "no_disponible",
-      "muestra_inestable:tablesample_system_tamano_insuficiente",
-      metadatos = metadatos
-    )
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-
-  sin_valores_validos_muestra <- FALSE
-
-  if ("validos" %in% metricas) {
-    validos <- conteos$validos
-    registros <- registrar(registros, .CAMPOS_METRICA_DBI$validos, validos)
-    if (validos$ok) {
-      validos_observados <- .conteo_dbi(validos$valor)
-      fila$n_validos <- validos_observados
-      sin_valores_validos_muestra <- es_muestreado &&
-        !is.na(validos_observados) && .numero_dbi(validos_observados) == 0
-      if (!is.na(fila$n_validos) && !is.na(n_total_consulta)) {
-        fila$n_faltantes <- n_total_consulta - validos_observados
-        if (es_muestreado) {
-          muestra_numero <- n_total_consulta
-          fila$prop_faltantes <- if (is.finite(muestra_numero) &&
-                                     muestra_numero > 0) {
-            (muestra_numero - .numero_dbi(validos_observados)) / muestra_numero
-          } else if (.numero_dbi(n_total) == 0) {
-            NA_real_
-          } else {
-            NA_real_
-          }
-        } else {
-          fila$prop_faltantes <- if (.numero_dbi(n_total_consulta) > 0) {
-            .numero_dbi(fila$n_faltantes) / .numero_dbi(n_total_consulta)
-          } else {
-            NA_real_
-          }
-        }
-      }
-    }
-  } else {
-    registros <- omitir(registros, "validos", "no_solicitado", motivo_no_pedida)
-  }
-
-  if ("distintos" %in% metricas) {
-    if (!isTRUE(estrategia_distintos$disponible)) {
-      estado <- if (identical(estrategia_distintos$estado, "omitida")) {
-        "omitida"
-      } else {
-        "no_disponible"
-      }
-      registros <- .metricas_omitidas_dbi(
-        registros, columna, "distintos", estado,
-        estrategia_distintos$motivo, metadatos = metadatos
-      )
-    } else {
-      distintos <- if (identical(
-        estrategia_distintos$estado, "estimado_catalogo"
-      )) {
-        estimacion <- estrategia_distintos$estimaciones[[columna]]
-        if (is.null(estimacion) || !isTRUE(estimacion$disponible)) {
-          list(
-            ok = FALSE, valor = NULL,
-            motivo = if (is.null(estimacion)) paste0(
-              "No se obtuvo una estimaci\u00f3n de `pg_stats.n_distinct` para `",
-              columna, "`."
-            ) else estimacion$motivo,
-            sql = NA_character_, estado = NULL,
-            metadatos = list(fuente = "pg_stats.n_distinct")
-          )
-        } else {
-          list(
-            ok = TRUE, valor = estimacion$n_distintos,
-            motivo = estimacion$motivo, sql = NA_character_,
-            estado = "estimado_catalogo",
-            metadatos = list(
-              fuente = "pg_stats.n_distinct",
-              n_distintos_catalogo = estimacion$n_distintos_catalogo,
-              n_filas_catalogo = estimacion$n_filas,
-              inherited_catalogo = estimacion$inherited
-            )
-          )
-        }
-      } else {
-        conteos$distintos
-      }
-      if (is.null(distintos)) {
-        distintos <- list(
-          ok = FALSE, valor = NULL,
-          motivo = "La estrategia resolvi\u00f3 una medici\u00f3n pero no se obtuvo su resultado.",
-          sql = NA_character_
-        )
-      }
-      motivo_cota <- NA_character_
-      if (isTRUE(distintos$ok) && isTRUE(sin_valores_validos_muestra)) {
-        distintos$ok <- FALSE
-        distintos$estado <- NULL
-        distintos$motivo <- "muestra_inestable:sin_valores_validos"
-      }
-      if (isTRUE(distintos$ok)) {
-        distintos$metadatos <- .mezclar_metadatos_dbi(
-          distintos$metadatos, list(
-            metodo = estrategia_distintos$estrategia_resuelta,
-            error_esperado = estrategia_distintos$error_esperado
-          )
-        )
-        if (!identical(distintos$estado, "garantizado")) {
-          if (identical(estrategia_distintos$estado, "estimado_motor")) {
-            distintos$estado <- "estimado_motor"
-          } else if (identical(
-            estrategia_distintos$estado, "estimado_catalogo"
-          )) {
-            distintos$estado <- "estimado_catalogo"
-          }
-        }
-        candidato <- .conteo_dbi(distintos$valor)
-        guardian <- .guardian_distintos_dbi(distintos)
-        motivo_cota <- if (!guardian$comprobable &&
-                           is.null(distintos$metadatos$fuente)) {
-          .motivo_cota_distintos_no_comprobable_dbi()
-        } else {
-          NA_character_
-        }
-        if (guardian$comprobable && !is.na(candidato) &&
-            .numero_dbi(candidato) > guardian$valor) {
-          distintos$ok <- FALSE
-          distintos$estado <- NULL
-          distintos$motivo <- paste0(
-            "Se comprob\u00f3 en la consulta que el motor inform\u00f3 ", candidato,
-            if (candidato == 1L) " valor distinto sobre " else " valores distintos sobre ", guardian$valor,
-            if (guardian$valor == 1L) " v\u00e1lido, que es imposible; la m\u00e9trica no se publica." else
-              " v\u00e1lidos, que es imposible; la m\u00e9trica no se publica."
-          )
-          motivo_cota <- NA_character_
-        } else if (isTRUE(publica_distintos)) {
-          fila$n_distintos <- candidato
-          denominador <- if (guardian$comprobable) guardian$valor else {
-            .numero_dbi(fila$n_validos)
-          }
-          if (!is.na(fila$n_distintos) && is.finite(denominador) &&
-              denominador > 0) {
-            fila$tasa_distintos <- .numero_dbi(fila$n_distintos) / denominador
-          }
-        }
-      }
-      if (isTRUE(publica_distintos)) {
-        registros <- registrar(
-          registros, .CAMPOS_METRICA_DBI$distintos, distintos,
-          motivo_exito = motivo_cota
-        )
-      }
-    }
-  } else {
-    registros <- omitir(registros, "distintos", "no_solicitado", motivo_no_pedida)
-  }
-
-  if (!("moda" %in% metricas)) {
-    registros <- omitir(registros, "moda", "no_solicitado", motivo_no_pedida)
-  } else if (!incluir_valores) {
-    registros <- omitir(registros, "moda", "omitido_por_privacidad", motivo_privacidad)
-  } else if (tipo_sin_agregados && !(
-    "moda" %in% metricas &&
-      .es_tipo_binario_muestra_dbi(tipo_operacion,
-                                   .senas_conexion_dbi(conexion))
-  )) {
-    registros <- omitir(
-      registros, "moda", "no_disponible", motivo_tipo_sin_agregados
-    )
-  } else if (!is.null(decisiones_costo) &&
-             identical(decisiones_costo$moda, FALSE)) {
-    registros <- omitir(
-      registros, "moda", "omitido_por_costo",
-      .motivo_decision_costo_dbi(decisiones_costo, "moda")
-    )
-  } else {
-    columna_moda_sql <- .expresion_binaria_moda_dbi(
-      conexion, columna_sql, tipo_operacion
-    )
-    valor_moda_sql <- .expresion_decimal_moda_dbi(
-      conexion, columna_moda_sql, tipo_operacion,
-      entero_doble = moda_entero_doble
-    )
-    orden_moda_sql <- .orden_moda_dbi(
-      conexion, valor_moda_sql, tipo_operacion,
-      orden_numerico_sql = if (isTRUE(moda_entero_doble)) {
-        columna_moda_sql
-      } else NULL
-    )
-    guardian_moda <- moda_guardian
-    moda <- if (isTRUE(is.na(valor_moda_sql))) {
-      list(
-        ok = FALSE, datos = NULL,
-        motivo = paste(
-          "No se pudo pedir la moda exacta como texto en este motor;",
-          "no se publica la moda del doble redondeado."
-        ), sql = NA_character_
-      )
-    } else if (is.null(moda_precalculada)) {
-      .moda_columna_dbi(
-        conexion, tabla_sql, columna_moda_sql, dialecto, presupuesto,
-        moda_guardian = guardian_moda, valor_sql = valor_moda_sql,
-        orden_sql = orden_moda_sql
-      )
-    } else {
-      moda_precalculada
-    }
-    if (moda$ok && nrow(moda$datos)) {
-      # La moda no pasaba por la verificacion de nombre: un motor que plegara
-      # el alias devolvia `NULL[[1L]]`, o sea NA, con estado `calculado`. Un
-      # registro que declara exito sobre una metrica que no se obtuvo es peor
-      # que un `no_disponible`.
-      celda <- .valor_campo_dbi(moda$datos, "valor")
-      frecuencia <- .valor_campo_dbi(moda$datos, "frecuencia")
-      if (!celda$ok) {
-        moda$ok <- FALSE
-        moda$motivo <- celda$motivo
-      } else if (!frecuencia$ok) {
-        moda$ok <- FALSE
-        moda$motivo <- frecuencia$motivo
-      } else {
-        valor_moda <- tryCatch(.texto_moda(celda$valor), error = function(e) e)
-        if (inherits(valor_moda, "error")) {
-          moda$ok <- FALSE
-          moda$motivo <- .mensaje_motor(valor_moda)
-        } else {
-          candidato <- .conteo_dbi(frecuencia$valor)
-          guardian <- .guardian_moda_dbi(moda)
-          motivo_cota <- if (guardian$comprobable) {
-            .motivo_cota_moda_comprobable_dbi()
-          } else {
-            .motivo_cota_moda_no_comprobable_dbi()
-          }
-          cota_invalida <- guardian$comprobable && !is.na(candidato) &&
-            .numero_dbi(candidato) > guardian$valor
-          if (cota_invalida) {
-            moda$ok <- FALSE
-            moda$motivo <- paste0(
-              "Se comprob\u00f3 en la consulta que la frecuencia de la moda (",
-              candidato, ") supera los ", guardian$valor,
-              if (guardian$valor == 1L) " valor v\u00e1lido; la m\u00e9trica no se publica." else
-                " valores v\u00e1lidos; la m\u00e9trica no se publica."
-            )
-            motivo_cota <- NA_character_
-          } else {
-            fila$moda <- valor_moda
-            fila$frecuencia_moda <- candidato
-            if (!is.na(candidato)) moda$motivo <- motivo_cota
-          }
-        }
-      }
-    } else if (moda$ok) {
-      if (es_muestreado) {
-        moda$ok <- FALSE
-        moda$motivo <- "muestra_inestable:sin_valores_validos"
-      } else {
-        moda$motivo <- "La columna no contiene valores no nulos."
-        moda$estado <- "sin_valores"
-      }
-      # `frecuencia_moda` quedaba en NA, y NA dice "no se midio". Aca si se
-      # midio: el motor conto los valores no nulos y no hay ninguno. Es la
-      # distincion que el paquete sostiene en todas partes -cero es medido y
-      # ninguno-, y `perfilar()` ya devolvia cero para esta misma columna. Las
-      # dos puertas daban numeros distintos sobre el mismo dato.
-      #
-      # Solo cuando la lectura fue sobre la tabla entera. Si se midio sobre una
-      # muestra, que la muestra no traiga valores no prueba que la columna este
-      # vacia, y ahi NA con su motivo es lo correcto.
-      if (!es_muestreado) fila$frecuencia_moda <- 0
-    }
-    if (es_muestreado) {
-      registros <- registrar(
-        registros, "moda", moda, motivo_exito = moda$motivo
-      )
-      registros <- registrar(
-        registros, "frecuencia_moda", moda
-      )
-    } else {
-      registros <- registrar(
-        registros, .CAMPOS_METRICA_DBI$moda, moda, motivo_exito = moda$motivo
-      )
-    }
-  }
-
-  metricas_numericas <- unlist(
-    .CAMPOS_METRICA_DBI[.METRICAS_NUMERICAS_DBI], use.names = FALSE
-  )
-  pedidas_numericas <- intersect(metricas, .METRICAS_NUMERICAS_DBI)
-  no_pedidas_numericas <- setdiff(.METRICAS_NUMERICAS_DBI, metricas)
-  if (length(no_pedidas_numericas)) {
-    registros <- omitir(
-      registros, no_pedidas_numericas, "no_solicitado", motivo_no_pedida
-    )
-  }
-  if (!length(pedidas_numericas)) {
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-  campos_pedidos <- unlist(
-    .CAMPOS_METRICA_DBI[pedidas_numericas], use.names = FALSE
-  )
-
-  if (!.es_numerico_dbi(prototipo, tipo_declarado)) {
+  n_total_numero <- .numero_dbi(n_total)
+  if (!es_muestreado && length(n_total_numero) == 1L &&
+      is.finite(n_total_numero) && n_total_numero == 0) {
     registros <- c(registros, list(.registro_sql_dbi(
-      columna, campos_pedidos, "no_aplica",
-      paste0(
-        "DBI expuso la columna como `", paste(class(prototipo), collapse = "/"),
-        "`", if (length(tipo_declarado) == 1L && !is.na(tipo_declarado)) {
-          paste0(" y el controlador inform\u00f3 el tipo del motor como `",
-                 tipo_declarado, "`")
-        } else "",
-        "; no se aplicaron agregados cuantitativos."
+      columna, "mediana", "sin_valores",
+      "La tabla no contiene filas.", NA_character_, metadatos = metadatos
+    )))
+  } else if (!incluir_valores) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
+      NA_character_, metadatos = metadatos
+    )))
+  } else if ((!magnitud_sondeada || magnitud_desmentida) &&
+             !(.magnitud_ancha_resumen_dbi(motivo_ancho, motivo_magnitud) &&
+               is.null(aproximacion_mediana))) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, "mediana", "no_disponible", motivo_magnitud, NA_character_,
+      metadatos = metadatos
+    )))
+  } else if ((!magnitud_sondeada || magnitud_desmentida) &&
+             identical(.causa_mediana_inexacta_dbi(
+               0, n = guardia_mediana()$n, columna_ancha = TRUE
+             ), "par") && !centrales_por_debajo(guardia_mediana()$n)) {
+    # Con una cantidad par -o sin saber cual- la mediana de una columna que
+    # pasa de 2^53 no se publica valga lo que valga: no se paga su consulta.
+    # La cuenta de consultas lo anota: el plan contaba esa mediana.
+    if (!is.null(presupuesto)) {
+      presupuesto$medianas_sin_pagar <-
+        (presupuesto$medianas_sin_pagar %||% 0) + 1
+    }
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, "mediana", "no_disponible",
+      .motivo_mediana_inexacta_dbi(
+        "par", tipo = tipo_declarado, n = guardia_mediana()$n
       ),
       NA_character_, metadatos = metadatos
     )))
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-
-  # `n_validos` solo condiciona a las metricas que lo necesitan de verdad. Que
-  # no se haya podido contar no es motivo para no calcular un minimo.
-  sin_conteo <- is.na(fila$n_validos)
-  if (!sin_conteo && .numero_dbi(fila$n_validos) == 0) {
-    if (es_muestreado) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, campos_pedidos, "no_disponible",
-        if (isTRUE(nan_presente)) .motivo_nan_dbi("la columna") else
-          "muestra_inestable:sin_valores_validos", NA_character_,
-        metadatos = metadatos
-      )))
-      return(list(
-        fila = fila, sql = do.call(rbind, registros), literales = literales
-      ))
-    }
+  } else if (!is.null(decisiones_costo) &&
+             identical(decisiones_costo$mediana, FALSE)) {
+    registros <- omitir(
+      registros, "mediana", "omitido_por_costo",
+      .motivo_decision_costo_dbi(decisiones_costo, "mediana")
+    )
+  } else if (es_muestreado && !is.null(presupuesto) &&
+             is.list(presupuesto$guardia_newid) &&
+             !isTRUE(presupuesto$guardia_newid$aceptado)) {
     registros <- c(registros, list(.registro_sql_dbi(
-      columna, campos_pedidos, "sin_valores",
-      if (isTRUE(nan_presente)) {
-        paste(
-          "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
-          "se calculan s\u00f3lo con valores finitos."
-        )
-      } else "La columna no contiene valores no nulos.", NA_character_,
-      metadatos = metadatos
+      columna, "mediana", "no_disponible",
+      presupuesto$guardia_newid$motivo, NA_character_,
+      metadatos = .mezclar_metadatos_dbi(
+        metadatos, list(metodo = NA_character_)
+      )
     )))
-    return(list(
-      fila = fila, sql = do.call(rbind, registros), literales = literales
-    ))
-  }
-
-  # Cuando el lote de basicos se cae porque el motor devolvio un valor que no se
-  # puede leer como numero, lo que queda desmentido no es una metrica suelta: es
-  # que la columna sea de la magnitud que TODAS estas metricas suponen. Si no se
-  # pidieron basicos, la misma conclusion se prueba con la sonda de magnitud de
-  # abajo. La mediana y el desvio miden esa magnitud en consultas aparte, y su
-  # guardia solo mira si el resultado es un numero finito. En SQLite -tipado
-  # dinamico: una columna declarada INTEGER puede contener texto- el motor no
-  # rechaza, coacciona el texto a 0 y devuelve 0. La fila publicaba
-  # `minimo = NA` con motivo "No se publica como calculada" al lado de
-  # `mediana = 0` en estado `calculado`, indistinguible de una mediana real de
-  # ceros, y el perfil de la muestra del MISMO objeto clasificaba la columna
-  # como texto. Un cero fabricado por coaccion no es una medicion.
-  magnitud_desmentida <- FALSE
-  motivo_magnitud <- NA_character_
-  magnitud_sondeada <- TRUE
-  # La columna tiene un valor de al menos 2^53 que el doble no representa, y es
-  # la unica causa por la que sus magnitudes no se publican. La mediana no
-  # depende de todos los valores sino de sus centrales: se calcula igual y se
-  # juzga por su valor (`.causa_mediana_inexacta_dbi()`). Vale si el motivo de
-  # la magnitud sigue siendo el del ancho: otra causa leida despues lo pisa.
-  motivo_ancho <- NA_character_
-  magnitud_ancha <- function() {
-    !is.na(motivo_ancho) && identical(motivo_magnitud, motivo_ancho)
-  }
-  # Ver `.centrales_por_debajo_dbi()`: se pregunta una vez, y solo si hace falta.
-  centrales_verificadas <- NA
-  centrales_por_debajo <- function() {
-    if (is.na(centrales_verificadas)) {
-      centrales_verificadas <<- !es_muestreado && .centrales_por_debajo_dbi(
-        conexion, tabla_sql, columna_sql, alias, guardia_mediana()$n,
-        presupuesto
-      )
-    }
-    centrales_verificadas
-  }
-  # El motor respondio un infinito en una metrica de magnitud: ver
-  # `.es_infinito_motor_dbi()`. Las magnitudes se vuelven a pedir sobre los
-  # valores finitos despues de los basicos.
-  infinitos_motor <- FALSE
-  nan_motor <- FALSE
-  n_validos_sondeado <- NA_real_
-  max_abs_sondeado <- NA_real_
-  minimo_sondeado <- NA_real_
-  maximo_sondeado <- NA_real_
-  max_abs_basicos <- NA_real_
-  minimo_basicos <- NA_real_
-  maximo_basicos <- NA_real_
-
-  mediana_conservada <- is.null(decisiones_costo) ||
-    isTRUE(decisiones_costo$mediana)
-  necesita_sonda_magnitud <- .necesita_sonda_magnitud_dbi(
-    pedidas_numericas, tipo_operacion, tipo_declarado, incluir_valores,
-    mediana_conservada
-  )
-
-  if (necesita_sonda_magnitud) {
-    # Bajo la muestra del motor, la del lote de agregados: la misma sentencia
-    # que el desvio, la misma muestra. Una sonda propia sorteaba otra.
-    sondeo <- if (es_muestreado && !is.null(agregados) &&
-                  !is.null(agregados$magnitudes[[columna]])) {
-      agregados$magnitudes[[columna]]
-    } else {
-      .sonda_magnitud_columna_dbi(
-        conexion, tabla_sql, columna_sql, alias, presupuesto
-      )
-    }
-    if (isTRUE(sondeo$ok)) {
-      convertido <- .escalar_finito_dbi(sondeo$valor)
-      sonda_nan <- any(vapply(
-        list(sondeo$valor, sondeo$minimo, sondeo$maximo_abs,
-             sondeo$minimo_abs),
-        function(valor) is.numeric(valor) && length(valor) &&
-          isTRUE(is.nan(valor[[1L]])), logical(1L)
-      ))
-      sonda_inf <- .es_infinito_motor_dbi(sondeo$valor) ||
-        .es_infinito_motor_dbi(sondeo$minimo) ||
-        .es_infinito_motor_dbi(sondeo$maximo_abs) ||
-        .es_infinito_motor_dbi(sondeo$minimo_abs)
-      if (sonda_nan) {
-        sondeo$ok <- FALSE
-        sondeo$motivo <- .motivo_nan_dbi("la sonda de magnitud")
-        nan_motor <- TRUE
-      }
-      if (sonda_inf) {
-        sondeo$ok <- FALSE
-        if (!sonda_nan) sondeo$motivo <-
-          .motivo_infinito_dbi("la sonda de magnitud")
-        infinitos_motor <- TRUE
-      }
-      if (!sonda_nan && !sonda_inf &&
-          .valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
-        valor <- if (isTRUE(incluir_valores)) paste0(
-          " (\"", utils::head(as.character(sondeo$valor[[1L]]), 1L), "\")"
-        ) else ""
-        sondeo$ok <- FALSE
-        sondeo$motivo <- paste0(
-          .motivo_no_numero_dbi("la sonda de magnitud", valor),
-          .texto_guardado_medido_dbi(
-            conexion, tabla_sql, columna_sql, alias, presupuesto
-          )
-        )
-      } else if (!sonda_nan && !sonda_inf &&
-                 .entero_perdido_en_conversion_dbi(
-        sondeo$valor, tipo_declarado
-      )) {
-        sondeo$ok <- FALSE
-        sondeo$motivo <- .motivo_entero_doble_dbi(
-          valor = sondeo$valor, conexion = conexion, tipo = tipo_declarado,
-          mediana_por_valor = TRUE
-        )
-        motivo_ancho <- sondeo$motivo
-      }
-    }
-    n_validos_sondeado <- .numero_dbi(sondeo$n_validos)
-    max_abs_sondeado <- .escalar_finito_dbi(sondeo$maximo_abs)
-    minimo_sondeado <- .escalar_finito_dbi(sondeo$minimo)
-    maximo_sondeado <- .escalar_finito_dbi(sondeo$valor)
-    magnitud_sondeada <- isTRUE(sondeo$ok)
-    if (!magnitud_sondeada) motivo_magnitud <- sondeo$motivo
-    registros <- .registrar_resultado_dbi(
-      registros, columna, "sonda_magnitud", sondeo, metadatos = metadatos
+  } else if (!is.null(mediana_consolidada) && !isTRUE(numeric_exact) &&
+             !isTRUE(guardia_mediana()$requiere)) {
+    mediana <- mediana_consolidada
+    if (isTRUE(mediana$ok)) fila$mediana <- .escalar_finito_dbi(mediana$valor)
+    registros <- registrar(registros, "mediana", mediana)
+  } else if (!is.null(aproximacion_mediana)) {
+    sql_mediana <- aproximacion_mediana$construir(
+      .expresion_mediana_motor_dbi(conexion, columna_sql, tipo_declarado),
+      tabla_sql, alias("mediana")
     )
-  }
-
-  if ("basicos" %in% pedidas_numericas) {
-    # `AVG(columna)` sin castear trunca en los motores con semantica entera.
-    # Multiplicar por 1.0 promueve el tipo sin depender de un nombre de tipo
-    # que cambia con el motor.
-    basicos <- if (!is.null(agregados) &&
-                   !is.null(agregados$basicos[[columna]])) {
-      agregados$basicos[[columna]]
-    } else {
-      .basicos_columna_dbi(
-        conexion, tabla_sql, columna_sql, alias, incluir_valores, presupuesto,
-        float8_seguro = numeric_exact || (
-          grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
-                useBytes = TRUE) &&
-            .tipo_declarado_float8_dbi(tipo_declarado, conexion) &&
-            !.es_lectura_double_exacta_dbi(columna_sql)
-        ),
-        infinitos_como_numeric = infinitos_como_numeric,
-        tipo = tipo_operacion
+    preparar_aviso_mediana()
+    mediana <- ejecutar_mediana(sql_mediana)
+    finalizar_mediana(mediana)
+    if (is.null(mediana$sql)) mediana$sql <- sql_mediana
+    if (isTRUE(mediana$ok)) {
+      mediana$estado <- "estimado"
+      mediana$metadatos <- list(
+        metodo = aproximacion_mediana$nombre,
+        error_esperado = aproximacion_mediana$error_esperado
       )
+      fila$mediana <- .escalar_finito_dbi(mediana$valor)
     }
-    calculados <- c("media", "n_ceros", "n_negativos")
-    if (incluir_valores) calculados <- c("minimo", "maximo", calculados)
-    media_escalada <- NULL
-    if (basicos$ok && nrow(basicos$datos)) {
-      aux_numero <- function(campo) {
-        celda <- .valor_campo_dbi(basicos$datos, campo)
-        if (!isTRUE(celda$ok)) return(NA_real_)
-        crudo <- celda$valor
-        if (is.numeric(crudo) && length(crudo) &&
-            isTRUE(is.nan(crudo[[1L]]))) {
-          nan_motor <<- TRUE
-          return(NA_real_)
-        }
-        .escalar_finito_dbi(crudo)
-      }
-      minimo_basicos <- aux_numero("minimo")
-      maximo_basicos <- aux_numero("maximo")
-      max_abs_basicos <- aux_numero("maximo_abs")
-      if (!is.finite(max_abs_basicos)) {
-        extremos <- abs(c(minimo_basicos, maximo_basicos))
-        extremos <- extremos[is.finite(extremos)]
-        max_abs_basicos <- if (length(extremos)) max(extremos) else NA_real_
-      }
-      if (!is.finite(minimo_basicos) && isTRUE(incluir_valores)) {
-        minimo_basicos <- aux_numero("minimo")
-      }
-      if (!is.finite(maximo_basicos) && isTRUE(incluir_valores)) {
-        maximo_basicos <- aux_numero("maximo")
-      }
-      # `AVG` puede desbordar antes de que el resto de los basicos se lea
-      # (MariaDB devuelve `Inf` en la misma fila). En ese caso no hay que
-      # descartar minimo, maximo ni los conteos: los extremos ya llegaron y
-      # permiten elegir el mismo repliegue, sin una sonda adicional.
-      max_abs_previo <- max_abs_basicos
-      if ((isTRUE(.es_mysql_dbi(.senas_conexion_dbi(conexion))) ||
-           (motor_sqlserver && !is.finite(fila$media))) &&
-          is.finite(max_abs_previo)) {
-        escala_media <- .escala_desvio_dbi(max_abs_previo)
-        if (!is.null(escala_media) && es_muestreado) {
-          # El repliegue es otra sentencia, que bajo la muestra del motor
-          # sortearia otra muestra (como el desvio escalado).
-          media_escalada <- list(
-            ok = FALSE, valor = NULL,
-            motivo = .MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI
-          )
-          basicos$datos[["media"]][[1L]] <- NA
-        } else if (!is.null(escala_media)) {
-          media_escalada <- .media_columna_escalada_dbi(
-            conexion, tabla_sql, columna_sql, alias, escala_media, presupuesto
-          )
-          media_previa <- .escalar_finito_dbi(media_escalada$valor)
-          if (isTRUE(media_escalada$ok) && is.finite(media_previa)) {
-            basicos$datos[["media"]][[1L]] <- media_previa
-          }
-        }
-      }
-      # Se leen todos los campos antes de tocar la fila: media a medias, con la
-      # auditoria diciendo `no_disponible`, seria un tercer estado que no
-      # existe en el vocabulario del paquete.
-      leidos <- list()
-      ancho_en_basicos <- FALSE
-      # El promedio desbordo y los basicos llegaron sin el: ver
-      # `.basicos_columna_dbi()`. La media se registra aparte.
-      media_ausente <- is.list(basicos$media_desbordada) && is.null(media_escalada)
-      for (metrica in calculados) {
-        nombre_motivo <- metrica
-        if (identical(metrica, "media") && media_ausente) {
-          # Sin el promedio, que la columna pase de 2^53 lo dicen sus extremos,
-          # que esa consulta trae tambien con `incluir_valores = FALSE`: se
-          # juzga el que lo muestra, con la misma regla. Si ninguno, la media
-          # sigue sola, con su motivo.
-          ancho_extremo <- NULL
-          for (extremo in c("maximo", "minimo")) {
-            celda_extremo <- .valor_campo_dbi(basicos$datos, extremo)
-            if (isTRUE(celda_extremo$ok) && .entero_perdido_en_conversion_dbi(
-              celda_extremo$valor, tipo_declarado
-            )) {
-              ancho_extremo <- extremo
-              break
-            }
-          }
-          if (is.null(ancho_extremo) || isTRUE(ancho_en_basicos)) next
-          celda <- celda_extremo
-          nombre_motivo <- ancho_extremo
-        } else {
-          celda <- .valor_campo_dbi(basicos$datos, metrica)
-        }
-        if (!celda$ok) {
-          basicos$ok <- FALSE
-          basicos$motivo <- celda$motivo
-          leidos <- list()
-          break
-        }
-        leidos[[metrica]] <- if (metrica %in% c("n_ceros", "n_negativos")) {
-          .conteo_dbi(celda$valor)
-        } else {
-          convertido <- .escalar_finito_dbi(celda$valor)
-          crudo_nan <- is.numeric(celda$valor[[1L]]) &&
-            isTRUE(is.nan(celda$valor[[1L]]))
-          # Sin `MIN` ni `MAX` -`incluir_valores = FALSE`-, un `Inf` y un `-Inf`
-          # en la misma columna solo se ven en `AVG`: duckdb y PostgreSQL
-          # responden `NaN` y SQLite, que no guarda `NaN`, `NULL`. Medido:
-          # SQLite publicaba `media = NA` como `calculado` y
-          # `n_negativos = 2` -contando el `-Inf`- donde los finitos dan 1, y
-          # duckdb culpaba a un `NaN` que la columna no tenia. Antes de leerlo
-          # como `NaN` o como nulo, se cuentan los infinitos.
-          if (identical(metrica, "media") && !isTRUE(solo_finitos) &&
-              (crudo_nan || is.na(convertido)) &&
-              .hay_infinitos_dbi(
-                conexion, tabla_sql, columna_sql, alias, presupuesto,
-                como_numeric = infinitos_columna_como_numeric
-              )) {
-            basicos$ok <- FALSE
-            basicos$motivo <- .motivo_infinito_dbi(metrica)
-            magnitud_desmentida <- TRUE
-            motivo_magnitud <- basicos$motivo
-            infinitos_motor <- TRUE
-            leidos <- list()
-            break
-          }
-          if (crudo_nan) {
-            # Un `NaN` del motor no dice que la columna sea de otra magnitud: es
-            # numerica y guarda `NaN` como un valor -duckdb lo hace-, y el motor
-            # lo incluye en `MAX`, `AVG` y en el orden de la mediana -la ubica al
-            # final-, mientras R lo cuenta como ausente. El motivo generico de
-            # abajo culpaba a la magnitud. Se retienen igual TODAS las metricas
-            # de magnitud de la columna -medido: sin retenerla, la mediana del
-            # motor salia 3 contra 2,5 en R-, pero con el motivo verdadero.
-            basicos$ok <- FALSE
-            basicos$motivo <- .motivo_nan_dbi(metrica)
-            magnitud_desmentida <- TRUE
-            motivo_magnitud <- basicos$motivo
-            leidos <- list()
-            break
-          }
-          # Un infinito no es un valor ilegible: es la columna que guarda
-          # infinitos. Se retienen las magnitudes con ese motivo y, donde el
-          # motor sabe escribir el infinito, se vuelven a pedir abajo sobre los
-          # finitos.
-          if (.es_infinito_motor_dbi(celda$valor)) {
-            basicos$ok <- FALSE
-            basicos$motivo <- .motivo_infinito_dbi(metrica)
-            magnitud_desmentida <- TRUE
-            motivo_magnitud <- basicos$motivo
-            infinitos_motor <- TRUE
-            leidos <- list()
-            break
-          }
-          if (.valor_perdido_en_conversion_dbi(celda$valor, convertido)) {
-            basicos$ok <- FALSE
-            # El valor, solo si se pidieron valores y entre comillas, como la
-            # sonda de magnitud: escrito entre parentesis era el MAXIMO de una
-            # columna personal en claro -la prosa del paquete solo se revisa en
-            # lo citado-. Medido.
-            basicos$motivo <- paste0(
-              .motivo_no_numero_dbi(
-                paste0("`", metrica, "`"),
-                if (isTRUE(incluir_valores)) paste0(
-                  " (\"", utils::head(as.character(celda$valor[[1L]]), 1L), "\")"
-                ) else ""
-              ),
-              .texto_guardado_medido_dbi(
-                conexion, tabla_sql, columna_sql, alias, presupuesto
-              )
-            )
-            magnitud_desmentida <- TRUE
-            motivo_magnitud <- basicos$motivo
-            leidos <- list()
-            break
-          }
-          if (.entero_perdido_en_conversion_dbi(
-            celda$valor, tipo_declarado
-          )) {
-            # La condicion de la columna se anota con la primera metrica que la
-            # muestra, y se siguen leyendo las demas: si otra trae un valor que
-            # no es numero -SQLite guarda texto en una columna INTEGER-, manda
-            # esa causa, y la mediana ya no se puede juzgar por su valor.
-            basicos$ok <- FALSE
-            if (isTRUE(ancho_en_basicos)) next
-            basicos$motivo <- .motivo_entero_doble_dbi(
-              nombre_motivo, valor = celda$valor, conexion = conexion,
-              tipo = tipo_declarado, mediana_por_valor = TRUE
-            )
-            # La condicion es de la COLUMNA, no de la metrica: si un valor de al
-            # menos 2^53 llego como doble, TODAS las metricas de magnitud de esa
-            # columna perdieron exactitud, no solo las cinco que este bucle
-            # recorre. `mediana` y `desvio` se calculan en otras consultas y
-            # salian `calculado` en la misma corrida donde `minimo`, `maximo`,
-            # `media`, `n_ceros` y `n_negativos` salian `no_disponible`. Medido
-            # con `UBIGINT`: los cuatro valores redondean al mismo doble y se
-            # publicaba `mediana = 2^64` -que no esta en la columna- y
-            # `desvio = 0` sobre una columna cuyo desvio real es 1,29, mientras
-            # el motor contaba `n_distintos = 4`.
-            #
-            # Se usa el mismo mecanismo que la rama de arriba, y de paso queda
-            # dicho lo que significa: `magnitud_desmentida` no es "la magnitud es
-            # otra" sino "las metricas de magnitud de esta columna no se publican
-            # como calculadas", y ahora tiene dos causas.
-            #
-            # Salvo la mediana, que no depende de toda la columna sino de sus
-            # centrales: se calcula igual y la juzga su valor
-            # (`.causa_mediana_inexacta_dbi()`). La de 2^64 del `UBIGINT` sigue
-            # sin publicarse.
-            magnitud_desmentida <- TRUE
-            motivo_magnitud <- .motivo_entero_doble_dbi(
-              valor = celda$valor, conexion = conexion, tipo = tipo_declarado,
-              mediana_por_valor = TRUE
-            )
-            motivo_ancho <- motivo_magnitud
-            ancho_en_basicos <- TRUE
-            next
-          }
-          convertido
-        }
-      }
-      if (isTRUE(ancho_en_basicos)) leidos <- list()
-      # Un maximo menor que el minimo es imposible, y aparece de verdad: un
-      # `BIGINT UNSIGNED` cerca del tope vuelve del driver como `integer64`
-      # negativo, asi que el motor informa `min = 1` y `max = -1` sin mentir
-      # -miente la representacion-. Se declara no disponible en vez de
-      # publicarse, igual que se hace cuando hay mas distintos que validos.
-      rango <- c(leidos[["minimo"]], leidos[["maximo"]])
-      if (length(rango) == 2L && all(is.finite(rango)) &&
-          rango[[2L]] < rango[[1L]]) {
-        basicos$ok <- FALSE
-        basicos$motivo <- paste0(
-          "El motor inform\u00f3 un m\u00e1ximo (", rango[[2L]], ") menor que el m\u00ednimo (",
-          rango[[1L]], "), que es imposible: probablemente el tipo no entra en ",
-          "la representaci\u00f3n del controlador. Las m\u00e9tricas no se publican."
-        )
-        leidos <- list()
-      }
-      for (metrica in names(leidos)) fila[[metrica]] <- leidos[[metrica]]
-      # Aunque `incluir_valores = FALSE` no publica minimo ni maximo, la
-      # guarda de un decimal debe conocer la magnitud que el controlador
-      # entrego como doble. La sonda anterior hace esa comprobacion; si falla,
-      # no se deja que la media de `AVG` quede calculada con un motivo de
-      # privacidad que no corresponde.
-      if (isTRUE(magnitud_desmentida) &&
-          .tipo_declarado_decimal_dbi(tipo_declarado)) {
-        basicos$ok <- FALSE
-        basicos$motivo <- motivo_magnitud
-      }
-      max_abs_basicos <- suppressWarnings(as.numeric(c(
-        fila$minimo, fila$maximo
-      )))
-      max_abs_basicos <- abs(max_abs_basicos[is.finite(max_abs_basicos)])
-      max_abs_basicos <- if (length(max_abs_basicos)) {
-        max(max_abs_basicos)
-      } else NA_real_
-      motor_mysql <- .es_mysql_dbi(.senas_conexion_dbi(conexion))
-      if (is.null(media_escalada) &&
-          (isTRUE(motor_mysql) || (motor_sqlserver && !is.finite(fila$media))) &&
-          is.finite(max_abs_basicos)) {
-        escala_media <- .escala_desvio_dbi(
-          max_abs_basicos, forzar = !is.finite(fila$media)
-        )
-        if (!is.null(escala_media) && es_muestreado) {
-          media_escalada <- list(
-            ok = FALSE, valor = NULL,
-            motivo = .MOTIVO_MEDIA_ESCALADA_MUESTRA_DBI
-          )
-          fila$media <- NA_real_
-        } else if (!is.null(escala_media)) {
-          media_escalada <- .media_columna_escalada_dbi(
-            conexion, tabla_sql, columna_sql, alias, escala_media, presupuesto
-          )
-          if (isTRUE(media_escalada$ok)) {
-            fila$media <- .escalar_finito_dbi(media_escalada$valor)
-          } else {
-            fila$media <- NA_real_
-          }
-        }
-      }
-    } else if (basicos$ok) {
-      basicos$ok <- FALSE
-      basicos$motivo <- "La consulta de agregados no devolvi\u00f3 ninguna fila."
-    }
-    if (is.null(basicos$sql)) basicos$sql <- NA_character_
-    calculados_basicos <- if (is.null(media_escalada)) {
-      calculados
-    } else {
-      setdiff(calculados, "media")
-    }
-    media_desbordada <- if (is.null(media_escalada)) basicos$media_desbordada
-    if (is.list(media_desbordada)) {
-      calculados_basicos <- setdiff(calculados_basicos, "media")
-      registros <- registrar(registros, "media", media_desbordada)
-    }
-    if (es_muestreado && isTRUE(basicos$ok)) {
-      for (metrica in calculados_basicos) {
-        resultado_metrica <- basicos
-        registros <- registrar(registros, metrica, resultado_metrica)
-      }
-    } else {
-      if (length(calculados_basicos)) {
-        registros <- registrar(registros, calculados_basicos, basicos)
-      }
-    }
-    if (!is.null(media_escalada)) {
-      registros <- registrar(registros, "media", media_escalada)
-    }
-    if (!incluir_valores) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, c("minimo", "maximo"), "omitido_por_privacidad",
-        motivo_privacidad, NA_character_, metadatos = metadatos
-      )))
-    }
-  }
-
-  # Una columna con infinitos: todas sus magnitudes -las de los basicos, la
-  # mediana y el desvio- se piden de nuevo sobre los valores finitos, que es la
-  # regla de `perfilar()` y de la via por bloques. Si el motor no sabe escribir
-  # el infinito, o la lectura es una muestra del motor, quedan retenidas con
-  # `.motivo_infinito_dbi()` -abajo, como cualquier magnitud desmentida-.
-  if ((infinitos_motor || nan_motor) && !isTRUE(solo_finitos)) {
-    emitidas_antes <- if (is.null(presupuesto)) 0L else {
-      length(presupuesto$consultas_emitidas)
-    }
-    finitas <- .magnitudes_finitas_dbi(
-      conexion, tabla_sql, columna, columna_sql, prototipo, n_total, dialecto,
-      pedidas_numericas, presupuesto, incluir_valores, tipo_declarado,
-      motivo_ilegible, universo, decisiones_costo,
-      como_numeric = infinitos_columna_como_numeric
+    registros <- registrar(registros, "mediana", mediana)
+  } else if (!is.null(mediana_cte_ventana)) {
+    mediana <- mediana_por_cte_ventana(mediana_cte_ventana)
+    if (isTRUE(mediana$ok)) fila$mediana <- mediana$valor
+    registros <- registrar(registros, "mediana", mediana)
+  } else if (!is.null(mediana_escalar)) {
+    sql_mediana <- mediana_escalar$construir(
+      columna_sql, tabla_sql, alias("mediana"),
+      materializar = es_muestreado,
+      doble_exacto = infinitos_columna_como_numeric
     )
-    # La cuenta de consultas anota cuales se mandaron aca: el plan no las
-    # cuenta, porque que una columna guarde infinitos lo dicen los datos.
-    if (!is.null(presupuesto)) {
-      emitidas_despues <- length(presupuesto$consultas_emitidas)
-      if (emitidas_despues > emitidas_antes) {
-        presupuesto$emitidas_por_no_finitos <- c(
-          presupuesto$emitidas_por_no_finitos,
-          seq.int(emitidas_antes + 1L, emitidas_despues)
-        )
+    preparar_aviso_mediana()
+    mediana <- ejecutar_mediana(sql_mediana)
+    finalizar_mediana(mediana)
+    if (is.null(mediana$sql)) mediana$sql <- sql_mediana
+    mediana$metadatos <- list(metodo = mediana_escalar$nombre)
+    if (isTRUE(mediana$ok)) {
+      valor <- .escalar_finito_dbi(mediana$valor)
+      if (is.na(valor)) {
+        mediana$estado <- "sin_valores"
+        mediana$motivo <- "La columna no contiene valores no nulos."
+      } else {
+        fila$mediana <- valor
       }
     }
-    if (!is.null(finitas)) {
-      for (campo in names(finitas$fila)) fila[[campo]] <- finitas$fila[[campo]]
-      previos <- do.call(rbind, registros)
-      previos <- previos[
-        !as.character(previos$metrica) %in% c(campos_pedidos, "sonda_magnitud"),
-        , drop = FALSE
-      ]
-      return(list(
-        fila = fila, sql = rbind(previos, finitas$sql),
-        literales = c(literales, finitas$literales), cuenta_no_decide = TRUE,
-        n_finitos = finitas$n_finitos
-      ))
+    registros <- registrar(registros, "mediana", mediana)
+  } else if (es_muestreado) {
+    # La preparacion solo prueba la CTE cuando no hay mediana consolidada ni
+    # escalar. Una columna que no puede usar la consolidada -un `float8` de
+    # PostgreSQL, que la deja por `numeric_exact`, o una con extremos, que la
+    # deja por `guardia_mediana()`- llegaba aca sin forma de una sola
+    # sentencia y publicaba `no_disponible` con el motivo de una prueba que
+    # no habia corrido. La muestra no puede caer a dos consultas, que leerian
+    # dos muestras distintas: la CTE se prueba ahora, una vez por corrida
+    # (la resolucion queda en el presupuesto).
+    cte <- if (length(mediana_cte_ventana_motivo) == 1L &&
+               !is.na(mediana_cte_ventana_motivo)) {
+      list(disponible = FALSE, motivo = mediana_cte_ventana_motivo)
+    } else {
+      .sondar_mediana_cte_ventana_dbi(conexion, presupuesto)
     }
-  }
-
-  if ("mediana" %in% pedidas_numericas) {
-    n_total_numero <- .numero_dbi(n_total)
-    if (!es_muestreado && length(n_total_numero) == 1L &&
-        is.finite(n_total_numero) && n_total_numero == 0) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "sin_valores",
-        "La tabla no contiene filas.", NA_character_, metadatos = metadatos
-      )))
-    } else if (!incluir_valores) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
-        NA_character_, metadatos = metadatos
-      )))
-    } else if ((!magnitud_sondeada || magnitud_desmentida) &&
-               !(magnitud_ancha() && is.null(aproximacion_mediana))) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "no_disponible", motivo_magnitud, NA_character_,
-        metadatos = metadatos
-      )))
-    } else if ((!magnitud_sondeada || magnitud_desmentida) &&
-               identical(.causa_mediana_inexacta_dbi(
-                 0, n = guardia_mediana()$n, columna_ancha = TRUE
-               ), "par") && !centrales_por_debajo()) {
-      # Con una cantidad par -o sin saber cual- la mediana de una columna que
-      # pasa de 2^53 no se publica valga lo que valga: no se paga su consulta.
-      # La cuenta de consultas lo anota: el plan contaba esa mediana.
-      if (!is.null(presupuesto)) {
-        presupuesto$medianas_sin_pagar <-
-          (presupuesto$medianas_sin_pagar %||% 0) + 1
-      }
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "no_disponible",
-        .motivo_mediana_inexacta_dbi(
-          "par", tipo = tipo_declarado, n = guardia_mediana()$n
-        ),
-        NA_character_, metadatos = metadatos
-      )))
-    } else if (!is.null(decisiones_costo) &&
-               identical(decisiones_costo$mediana, FALSE)) {
-      registros <- omitir(
-        registros, "mediana", "omitido_por_costo",
-        .motivo_decision_costo_dbi(decisiones_costo, "mediana")
-      )
-    } else if (es_muestreado && !is.null(presupuesto) &&
-               is.list(presupuesto$guardia_newid) &&
-               !isTRUE(presupuesto$guardia_newid$aceptado)) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "no_disponible",
-        presupuesto$guardia_newid$motivo, NA_character_,
-        metadatos = .mezclar_metadatos_dbi(
-          metadatos, list(metodo = NA_character_)
-        )
-      )))
-    } else if (!is.null(mediana_consolidada) && !isTRUE(numeric_exact) &&
-               !isTRUE(guardia_mediana()$requiere)) {
-      mediana <- mediana_consolidada
-      if (isTRUE(mediana$ok)) fila$mediana <- .escalar_finito_dbi(mediana$valor)
-      registros <- registrar(registros, "mediana", mediana)
-    } else if (!is.null(aproximacion_mediana)) {
-      sql_mediana <- aproximacion_mediana$construir(
-        .expresion_mediana_motor_dbi(conexion, columna_sql, tipo_declarado),
-        tabla_sql, alias("mediana")
-      )
-      preparar_aviso_mediana()
-      mediana <- ejecutar_mediana(sql_mediana)
-      finalizar_mediana(mediana)
-      if (is.null(mediana$sql)) mediana$sql <- sql_mediana
-      if (isTRUE(mediana$ok)) {
-        mediana$estado <- "estimado"
-        mediana$metadatos <- list(
-          metodo = aproximacion_mediana$nombre,
-          error_esperado = aproximacion_mediana$error_esperado
-        )
-        fila$mediana <- .escalar_finito_dbi(mediana$valor)
-      }
-      registros <- registrar(registros, "mediana", mediana)
-    } else if (!is.null(mediana_cte_ventana)) {
-      mediana <- mediana_por_cte_ventana(mediana_cte_ventana)
+    if (isTRUE(cte$disponible)) {
+      candidato <- cte$candidato
+      candidato$nombre <- .nombre_mediana_cte_muestra_dbi(muestreo)
+      mediana <- mediana_por_cte_ventana(candidato)
       if (isTRUE(mediana$ok)) fila$mediana <- mediana$valor
       registros <- registrar(registros, "mediana", mediana)
-    } else if (!is.null(mediana_escalar)) {
-      sql_mediana <- mediana_escalar$construir(
-        columna_sql, tabla_sql, alias("mediana"),
-        materializar = es_muestreado,
-        doble_exacto = infinitos_columna_como_numeric
+    } else {
+      motivo <- if (length(cte$motivo) == 1L && !is.na(cte$motivo)) {
+        cte$motivo
+      } else {
+        "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+      }
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "no_disponible", motivo, NA_character_,
+        metadatos = metadatos
+      )))
+    }
+  } else if (conteo_mediana_pendiente() ||
+             (es_muestreado && !validos_existen)) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, "mediana", "no_disponible",
+      paste(
+        "La mediana exacta necesita la cantidad de valores no nulos,",
+        "que no se pudo conocer."
+      ),
+      NA_character_, metadatos = metadatos
+    )))
+  } else if (isTRUE(conteo_mediana_propio) &&
+             isTRUE(n_validos_sondeado == 0)) {
+    registros <- c(registros, list(.registro_sql_dbi(
+      columna, "mediana", "sin_valores",
+      "La columna no contiene valores no nulos.", NA_character_,
+      metadatos = metadatos
+    )))
+  } else {
+    n_validos_numero <- if (es_muestreado) {
+      .numero_dbi(validos_observados)
+    } else if (is.finite(n_validos_sondeado)) {
+      n_validos_sondeado
+    } else {
+      .numero_dbi(fila$n_validos)
+    }
+    limite <- if (n_validos_numero %% 2 == 0) 2 else 1
+    desplazamiento <- floor((n_validos_numero - 1) / 2)
+    interna <- paste0(
+      "SELECT ", columna_sql, " AS ", alias("valor"), " FROM ", tabla_sql,
+      " WHERE ", columna_sql, " IS NOT NULL ORDER BY ", columna_sql
+    )
+    acotada <- dialecto$limitar(interna, limite, desplazamiento)
+    # Un dialecto sin salto -`portable`, que no supone ninguna clausula, o
+    # `rownum`- no puede escribir la via de dos consultas. La CTE de ventanas
+    # no necesita salto ni conteo: es SQL estandar (`WITH`, `ROW_NUMBER()`),
+    # no garantizado, y por eso se prueba antes de usarla, una vez por corrida.
+    cte_sin_salto <- if (is.null(acotada)) {
+      .sondar_mediana_cte_ventana_dbi(conexion, presupuesto)
+    }
+    if (is.null(acotada) && isTRUE(cte_sin_salto$disponible)) {
+      candidato <- cte_sin_salto$candidato
+      candidato$nombre <- .nombre_mediana_cte_muestra_dbi(NULL)
+      mediana <- mediana_por_cte_ventana(candidato)
+      sin_valores <- identical(mediana$estado, "sin_valores")
+      if (isTRUE(mediana$ok) && !sin_valores) fila$mediana <- mediana$valor
+      registros <- registrar(
+        registros, "mediana", mediana,
+        motivo_exito = if (sin_valores) mediana$motivo else NA_character_
       )
-      preparar_aviso_mediana()
-      mediana <- ejecutar_mediana(sql_mediana)
-      finalizar_mediana(mediana)
-      if (is.null(mediana$sql)) mediana$sql <- sql_mediana
-      mediana$metadatos <- list(metodo = mediana_escalar$nombre)
-      if (isTRUE(mediana$ok)) {
-        valor <- .escalar_finito_dbi(mediana$valor)
-        if (is.na(valor)) {
-          mediana$estado <- "sin_valores"
-          mediana$motivo <- "La columna no contiene valores no nulos."
-        } else {
-          fila$mediana <- valor
-        }
-      }
-      registros <- registrar(registros, "mediana", mediana)
-    } else if (es_muestreado) {
-      # La preparacion solo prueba la CTE cuando no hay mediana consolidada ni
-      # escalar. Una columna que no puede usar la consolidada -un `float8` de
-      # PostgreSQL, que la deja por `numeric_exact`, o una con extremos, que la
-      # deja por `guardia_mediana()`- llegaba aca sin forma de una sola
-      # sentencia y publicaba `no_disponible` con el motivo de una prueba que
-      # no habia corrido. La muestra no puede caer a dos consultas, que leerian
-      # dos muestras distintas: la CTE se prueba ahora, una vez por corrida
-      # (la resolucion queda en el presupuesto).
-      cte <- if (length(mediana_cte_ventana_motivo) == 1L &&
-                 !is.na(mediana_cte_ventana_motivo)) {
-        list(disponible = FALSE, motivo = mediana_cte_ventana_motivo)
-      } else {
-        .sondar_mediana_cte_ventana_dbi(conexion, presupuesto)
-      }
-      if (isTRUE(cte$disponible)) {
-        candidato <- cte$candidato
-        candidato$nombre <- .nombre_mediana_cte_muestra_dbi(muestreo)
-        mediana <- mediana_por_cte_ventana(candidato)
-        if (isTRUE(mediana$ok)) fila$mediana <- mediana$valor
-        registros <- registrar(registros, "mediana", mediana)
-      } else {
-        motivo <- if (length(cte$motivo) == 1L && !is.na(cte$motivo)) {
-          cte$motivo
-        } else {
-          "capacidad_no_aceptada:sonda_mediana_cte_ventana"
-        }
-        registros <- c(registros, list(.registro_sql_dbi(
-          columna, "mediana", "no_disponible", motivo, NA_character_,
-          metadatos = metadatos
-        )))
-      }
-    } else if (conteo_mediana_pendiente() ||
-               (es_muestreado && !exists("validos_observados"))) {
+    } else if (is.null(acotada)) {
+      bloqueada <- !is.null(presupuesto) &&
+        length(cte_sin_salto$motivo) == 1L &&
+        identical(cte_sin_salto$motivo, .motivo_presupuesto_dbi(presupuesto))
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible",
-        paste(
-          "La mediana exacta necesita la cantidad de valores no nulos,",
-          "que no se pudo conocer."
+        if (bloqueada) cte_sin_salto$motivo else paste0(
+          "El dialecto `", dialecto$nombre, "` no expresa un salto de filas ",
+          "(`LIMIT ... OFFSET` ni `OFFSET ... FETCH`) y el motor no acept\u00f3 ",
+          "la CTE de ventanas, que no lo necesita; la mediana exacta exigir\u00eda ",
+          "traer ", .entero_sql_dbi(desplazamiento + limite),
+          if (desplazamiento + limite == 1L) " fila a memoria." else " filas a memoria."
         ),
         NA_character_, metadatos = metadatos
       )))
-    } else if (isTRUE(conteo_mediana_propio) &&
-               isTRUE(n_validos_sondeado == 0)) {
-      registros <- c(registros, list(.registro_sql_dbi(
-        columna, "mediana", "sin_valores",
-        "La columna no contiene valores no nulos.", NA_character_,
-        metadatos = metadatos
-      )))
     } else {
-      n_validos_numero <- if (es_muestreado) {
-        .numero_dbi(validos_observados)
-      } else if (is.finite(n_validos_sondeado)) {
-        n_validos_sondeado
-      } else {
-        .numero_dbi(fila$n_validos)
-      }
-      limite <- if (n_validos_numero %% 2 == 0) 2 else 1
-      desplazamiento <- floor((n_validos_numero - 1) / 2)
-      interna <- paste0(
-        "SELECT ", columna_sql, " AS ", alias("valor"), " FROM ", tabla_sql,
-        " WHERE ", columna_sql, " IS NOT NULL ORDER BY ", columna_sql
+      fuente_mediana <- paste0(
+        "(", acotada, ")", dialecto$alias_tabla("lupa_mediana_valores")
       )
-      acotada <- dialecto$limitar(interna, limite, desplazamiento)
-      # Un dialecto sin salto -`portable`, que no supone ninguna clausula, o
-      # `rownum`- no puede escribir la via de dos consultas. La CTE de ventanas
-      # no necesita salto ni conteo: es SQL estandar (`WITH`, `ROW_NUMBER()`),
-      # no garantizado, y por eso se prueba antes de usarla, una vez por corrida.
-      cte_sin_salto <- if (is.null(acotada)) {
-        .sondar_mediana_cte_ventana_dbi(conexion, presupuesto)
-      }
-      if (is.null(acotada) && isTRUE(cte_sin_salto$disponible)) {
-        candidato <- cte_sin_salto$candidato
-        candidato$nombre <- .nombre_mediana_cte_muestra_dbi(NULL)
-        mediana <- mediana_por_cte_ventana(candidato)
-        sin_valores <- identical(mediana$estado, "sin_valores")
-        if (isTRUE(mediana$ok) && !sin_valores) fila$mediana <- mediana$valor
-        registros <- registrar(
-          registros, "mediana", mediana,
-          motivo_exito = if (sin_valores) mediana$motivo else NA_character_
+      max_abs_mediana <- suppressWarnings(max(abs(as.numeric(c(
+        fila$minimo, fila$maximo, minimo_basicos, maximo_basicos
+      ))), na.rm = TRUE))
+      escala_mediana <- if (
+        .es_mysql_dbi(.senas_conexion_dbi(conexion)) &&
+        is.finite(max_abs_mediana)
+      ) .escala_desvio_dbi(max_abs_mediana) else NULL
+      sql_mediana <- if (!is.null(escala_mediana)) {
+        escala_sql <- .literal_escala_desvio_dbi(escala_mediana)
+        paste0(
+          "SELECT AVG(", alias("valor"), " * 1e0 / NULLIF(", escala_sql,
+          ", 0)) * ", escala_sql, " AS ", alias("mediana"),
+          " FROM ", fuente_mediana
         )
-      } else if (is.null(acotada)) {
-        bloqueada <- !is.null(presupuesto) &&
-          length(cte_sin_salto$motivo) == 1L &&
-          identical(cte_sin_salto$motivo, .motivo_presupuesto_dbi(presupuesto))
-        registros <- c(registros, list(.registro_sql_dbi(
-          columna, "mediana", "no_disponible",
-          if (bloqueada) cte_sin_salto$motivo else paste0(
-            "El dialecto `", dialecto$nombre, "` no expresa un salto de filas ",
-            "(`LIMIT ... OFFSET` ni `OFFSET ... FETCH`) y el motor no acept\u00f3 ",
-            "la CTE de ventanas, que no lo necesita; la mediana exacta exigir\u00eda ",
-            "traer ", .entero_sql_dbi(desplazamiento + limite),
-            if (desplazamiento + limite == 1L) " fila a memoria." else " filas a memoria."
-          ),
-          NA_character_, metadatos = metadatos
-        )))
+      } else if (isTRUE(numeric_exact) &&
+                         grepl("postgres|pqconnection",
+                               .senas_conexion_dbi(conexion),
+                               useBytes = TRUE)) {
+        # La lectura reconstruida ya es NUMERIC exacto. Devolver el promedio
+        # como NUMERIC evita que `extra_float_digits = 0` redondee el doble al
+        # viajar desde PostgreSQL 9.3, y la suma numerica tampoco desborda
+        # cuando los dos valores centrales son DBL_MAX.
+        valor <- alias("valor")
+        paste0(
+          "SELECT ", .promedio_centrales_float8_exacto_sql_dbi(valor),
+          " AS ", alias("mediana"),
+          " FROM (SELECT ", valor, " FROM ", fuente_mediana, ")",
+          dialecto$alias_tabla("lupa_mediana")
+        )
       } else {
-        fuente_mediana <- paste0(
-          "(", acotada, ")", dialecto$alias_tabla("lupa_mediana_valores")
+        paste0(
+          "SELECT ", .promedio_mediana_sql_dbi(
+            conexion, alias("valor"), tipo_declarado
+          ),
+          " AS ", alias("mediana"),
+          " FROM ", fuente_mediana
         )
-        max_abs_mediana <- suppressWarnings(max(abs(as.numeric(c(
-          fila$minimo, fila$maximo, minimo_basicos, maximo_basicos
-        ))), na.rm = TRUE))
-        escala_mediana <- if (
-          .es_mysql_dbi(.senas_conexion_dbi(conexion)) &&
-          is.finite(max_abs_mediana)
-        ) .escala_desvio_dbi(max_abs_mediana) else NULL
-        sql_mediana <- if (!is.null(escala_mediana)) {
-          escala_sql <- .literal_escala_desvio_dbi(escala_mediana)
-          paste0(
-            "SELECT AVG(", alias("valor"), " * 1e0 / NULLIF(", escala_sql,
-            ", 0)) * ", escala_sql, " AS ", alias("mediana"),
-            " FROM ", fuente_mediana
-          )
-        } else if (isTRUE(numeric_exact) &&
-                           grepl("postgres|pqconnection",
-                                 .senas_conexion_dbi(conexion),
-                                 useBytes = TRUE)) {
-          # La lectura reconstruida ya es NUMERIC exacto. Devolver el promedio
-          # como NUMERIC evita que `extra_float_digits = 0` redondee el doble al
-          # viajar desde PostgreSQL 9.3, y la suma numerica tampoco desborda
-          # cuando los dos valores centrales son DBL_MAX.
-          valor <- alias("valor")
-          paste0(
-            "SELECT ", .promedio_centrales_float8_exacto_sql_dbi(valor),
-            " AS ", alias("mediana"),
-            " FROM (SELECT ", valor, " FROM ", fuente_mediana, ")",
-            dialecto$alias_tabla("lupa_mediana")
-          )
-        } else {
-          paste0(
-            "SELECT ", .promedio_mediana_sql_dbi(
-              conexion, alias("valor"), tipo_declarado
-            ),
-            " AS ", alias("mediana"),
-            " FROM ", fuente_mediana
-          )
-        }
-        preparar_aviso_mediana()
-        mediana <- ejecutar_mediana(sql_mediana)
-        finalizar_mediana(mediana)
-        if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
-        if (is.null(mediana$sql)) mediana$sql <- sql_mediana
-        mediana$metadatos <- list(metodo = "dos_consultas")
-        registros <- registrar(registros, "mediana", mediana)
       }
+      preparar_aviso_mediana()
+      mediana <- ejecutar_mediana(sql_mediana)
+      finalizar_mediana(mediana)
+      if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
+      if (is.null(mediana$sql)) mediana$sql <- sql_mediana
+      mediana$metadatos <- list(metodo = "dos_consultas")
+      registros <- registrar(registros, "mediana", mediana)
     }
   }
+  list(
+    n_validos_sondeado = n_validos_sondeado, fila = fila, registros = registros
+  )
+}
 
+# Desvio de la columna, con sus repliegues por magnitud y la guarda de un
+# decimal centrado en doble bajo la muestra del motor.
+.desvio_resumen_columna_dbi <- function(conexion, tabla_sql, columna,
+                                        columna_sql, alias, presupuesto,
+                                        agregados, es_muestreado,
+                                        pedidas_numericas, tipo_declarado,
+                                        tipo_motor, numeric_exact,
+                                        infinitos_como_numeric, nan_presente,
+                                        magnitud_sondeada, magnitud_desmentida,
+                                        motivo_magnitud, infinitos_motor,
+                                        n_validos_sondeado, minimo_sondeado,
+                                        maximo_sondeado, max_abs_sondeado,
+                                        minimo_basicos, maximo_basicos,
+                                        max_abs_basicos, fila, metadatos,
+                                        registros, registrar) {
   n_validos_desvio <- .numero_dbi(fila$n_validos)
   if ((!length(n_validos_desvio) || is.na(n_validos_desvio)) &&
       is.finite(n_validos_sondeado)) {
@@ -19405,7 +19655,23 @@
     }
     fila$desvio <- NA_real_
   }
+  list(fila = fila, registros = registros)
+}
 
+# Guarda de la mediana de una columna entera o decimal: no se publica si su
+# valor no es exacto (ver `.causa_mediana_inexacta_dbi()`).
+.mediana_entero_ancho_resumen_dbi <- function(conexion, prototipo,
+                                              tipo_declarado, basicos,
+                                              motivo_magnitud, motivo_ancho,
+                                              n_validos_sondeado,
+                                              minimo_sondeado, maximo_sondeado,
+                                              minimo_basicos, maximo_basicos,
+                                              centrales_por_debajo, fila,
+                                              registros) {
+  # La guardia lee el estado de esta funcion en el momento de cada llamada.
+  guardia_mediana <- function() .guardia_mediana_resumen_dbi(
+    fila, n_validos_sondeado, minimo_sondeado, maximo_sondeado, conexion
+  )
   # La guarda del entero ancho lee el minimo y el maximo de la consulta de
   # basicos. Si esa consulta no llego -en DuckDB, `HUGEINT * 1.0` desborda
   # cerca del tope del tipo-, la mediana sale de otra consulta y se publicaba
@@ -19422,8 +19688,7 @@
     inherits(prototipo, "integer64")
   if (entera_o_decimal && length(mediana_publicada) == 1L &&
       is.finite(mediana_publicada)) {
-    desborde_basicos <- exists("basicos", inherits = FALSE) &&
-      is.list(basicos) && !isTRUE(basicos$ok) &&
+    desborde_basicos <- is.list(basicos) && !isTRUE(basicos$ok) &&
       .es_desborde_motor_dbi(basicos$motivo)
     metodos_mediana <- unlist(lapply(registros, function(r) {
       if (!"metodo" %in% names(r)) return(character())
@@ -19442,17 +19707,23 @@
         interpola_restando = interpola
       )
     }
-    causa <- causa_con(magnitud_ancha() || desborde_basicos, interpola_restando)
+    causa <- causa_con(
+      .magnitud_ancha_resumen_dbi(motivo_ancho, motivo_magnitud) ||
+        desborde_basicos,
+      interpola_restando
+    )
     # Con las dos centrales en (-2^52, 2^52) el promedio es exacto, se forme
     # como se forme: ni la columna ni la interpolacion importan.
-    if (identical(causa, "par") && centrales_por_debajo()) {
+    if (identical(causa, "par") && centrales_por_debajo(guardia_mediana()$n)) {
       causa <- causa_con(FALSE, FALSE)
     }
     if (!is.na(causa)) {
       # Lo que la columna ya declaraba se conserva palabra por palabra cuando
       # alcanza: una mediana de al menos 2^53 en una columna que pasa de 2^53.
       motivo_mediana_ancha <- if (identical(causa, "valor") &&
-                                  magnitud_ancha()) {
+                                  .magnitud_ancha_resumen_dbi(
+                                    motivo_ancho, motivo_magnitud
+                                  )) {
         motivo_magnitud
       } else if (identical(causa, "valor")) {
         .motivo_entero_doble_dbi(
@@ -19477,49 +19748,70 @@
       fila$mediana <- NA_real_
     }
   }
+  list(fila = fila, registros = registros)
+}
 
-  sobrantes <- setdiff(
-    metricas_numericas,
-    unlist(lapply(registros, function(x) x$metrica), use.names = FALSE)
-  )
-  sobrantes <- intersect(sobrantes, campos_pedidos)
-  if (length(sobrantes)) {
-    registros <- c(registros, list(.registro_sql_dbi(
-      columna, sobrantes, "no_disponible",
-      "La m\u00e9trica no se pudo calcular en esta corrida.", NA_character_,
-      metadatos = metadatos
-    )))
+# Conteo y escala que decide la forma de la mediana: la cantidad de validos
+# (la de la prueba de magnitud o la de la fila) y si los extremos piden la
+# forma escalada.
+.guardia_mediana_resumen_dbi <- function(fila, n_validos_sondeado,
+                                         minimo_sondeado, maximo_sondeado,
+                                         conexion) {
+  n <- if (is.finite(n_validos_sondeado)) {
+    n_validos_sondeado
+  } else {
+    fila$n_validos
   }
-
-  # La cuenta de los no nulos del lote solo dice cuantos valores usa la metrica
-  # si la magnitud de la columna quedo establecida y es finita. Con `NaN` o
-  # infinitos las magnitudes se decidieron sobre los finitos (o se retuvieron
-  # bajo la muestra); si la sonda fallo o la magnitud quedo desmentida, ya estan
-  # declaradas con su motivo. En esos casos la cuenta no decide
-  # (`.valores_ausentes_por_cuenta_dbi()`): en PostgreSQL 9.3 un `real` con
-  # `Infinity` hace fallar la sonda, y `COUNT(x) = 1` publicaba `no_aplica`.
-  sql_final <- do.call(rbind, registros)
-  if (isTRUE(nan_presente) && is.data.frame(sql_final) && nrow(sql_final)) {
-    reemplazar <- sql_final$estado == "sin_valores"
-    sql_final$motivo[reemplazar] <- paste(
-      "La columna no contiene valores finitos: los estad\u00edsticos de magnitud",
-      "se calculan s\u00f3lo con valores finitos."
+  fila_mediana <- fila
+  if (!is.finite(fila_mediana$minimo) && is.finite(minimo_sondeado)) {
+    fila_mediana$minimo <- minimo_sondeado
+  }
+  if (!is.finite(fila_mediana$maximo) && is.finite(maximo_sondeado)) {
+    fila_mediana$maximo <- maximo_sondeado
+  }
+  extremos <- suppressWarnings(as.numeric(c(
+    fila_mediana$minimo, fila_mediana$maximo
+  )))
+  extremos <- extremos[is.finite(extremos)]
+  rango <- if (length(extremos) >= 2L) {
+    max(extremos) - min(extremos)
+  } else NA_real_
+  escala <- if (length(extremos)) {
+    maximo <- max(abs(extremos), na.rm = TRUE)
+    forzar_mysql <- .es_mysql_dbi(.senas_conexion_dbi(conexion)) &&
+      maximo > 1e65
+    .escala_desvio_dbi(
+      maximo, forzar = forzar_mysql, rango = rango
     )
-    if (es_muestreado) {
-      no_calculado <- sql_final$estado %in% c(
-        "sin_valores", "no_aplica", "no_disponible", "estimado",
-        "calculado"
+  } else NULL
+  list(
+    fila = fila_mediana, n = n, escala = escala,
+    requiere = !is.null(escala) &&
+      .requiere_mediana_escalada_dbi(fila_mediana, n, conexion = conexion)
+  )
+}
+
+# Ver `.centrales_por_debajo_dbi()`: la pregunta se hace una sola vez por
+# columna, la primera vez que la mediana o su guarda la necesitan, y la
+# respuesta queda guardada aca. `n` se evalua solo si se pregunta.
+.memo_centrales_por_debajo_dbi <- function(es_muestreado, conexion, tabla_sql,
+                                           columna_sql, alias, presupuesto) {
+  centrales_verificadas <- NA
+  function(n) {
+    if (is.na(centrales_verificadas)) {
+      centrales_verificadas <<- !es_muestreado && .centrales_por_debajo_dbi(
+        conexion, tabla_sql, columna_sql, alias, n, presupuesto
       )
-      if (any(no_calculado)) {
-        sql_final$estado[no_calculado] <- "no_disponible"
-        sql_final$motivo[no_calculado] <- .motivo_nan_dbi("la consulta")
-      }
     }
+    centrales_verificadas
   }
-  list(fila = fila, sql = sql_final, literales = literales,
-       cuenta_no_decide = isTRUE(infinitos_motor) || isTRUE(nan_motor) ||
-         (isTRUE(nan_presente) && es_muestreado) ||
-         !isTRUE(magnitud_sondeada) || isTRUE(magnitud_desmentida))
+}
+
+# El ancho de 2^53 es la unica causa por la que la columna no publica sus
+# magnitudes si el motivo de la magnitud sigue siendo el del ancho: otra causa
+# leida despues lo pisa.
+.magnitud_ancha_resumen_dbi <- function(motivo_ancho, motivo_magnitud) {
+  !is.na(motivo_ancho) && identical(motivo_magnitud, motivo_ancho)
 }
 
 .columnas_dbi_vacias <- function() {
