@@ -1151,7 +1151,9 @@ cobertura, con \code{dependencia = "texto_largo_no_evaluado"}.}
 comun de los diagnosticos que muestrean filas. Por defecto es \code{1000000};
 se calcula como filas efectivas por columnas de la tabla. Si reduce la
 muestra, \code{cobertura_diagnosticos} informa las filas y celdas solicitadas,
-el umbral y el nuevo alcance. \code{Inf} desactiva este tope.}
+el umbral y el nuevo alcance. \code{Inf} desactiva este tope. Uno que no deja
+ni una fila de una tabla con filas es un error que dice el mínimo: una
+celda por columna.}
 
 \item{max_bytes_muestra}{Maximo de bytes de la muestra materializada que
 alimenta los diagnosticos que muestrean filas. Por defecto es \verb{512 MiB}.

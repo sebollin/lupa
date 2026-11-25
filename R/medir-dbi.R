@@ -4088,6 +4088,10 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     .detener("`instrumentar` debe ser TRUE o FALSE.", call. = FALSE)
   }
   validadores_personales <- .normalizar_validadores_personales(validadores_personales)
+  # La forma de `columnas_personales` no depende de las tablas: se valida antes
+  # de la primera consulta. Salia despues de planificar la medicion; abajo, con
+  # los campos ya leidos, se mira que existan.
+  .normalizar_columnas_personales(columnas_personales, NULL)
   if (is.null(id_medicion)) {
     id_medicion <- .nuevo_id_medicion(fecha)
   }

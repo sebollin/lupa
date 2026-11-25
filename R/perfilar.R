@@ -161,6 +161,18 @@
   .seleccionar_columnas(datos, seq_len(ncol(datos)), filas = indices)
 }
 
+# Un tope de celdas que no deja una fila: el mensaje dice el minimo que admite
+# la tabla -una fila son tantas celdas como columnas lee la muestra-, para que
+# quien llama no tenga que contarlas. Uno solo para `perfilar()` y la via DBI.
+.motivo_celdas_muestra <- function(n_columnas) {
+  n <- as.character(as.integer(n_columnas))
+  paste0(
+    "`max_celdas_muestra` debe permitir al menos una fila para todas las ",
+    "columnas: con ", n, if (identical(n, "1")) " columna" else " columnas",
+    ", el m\u00ednimo es ", n, "."
+  )
+}
+
 .resolver_muestra_perfilado <- function(datos, muestra,
                                         max_celdas_muestra,
                                         max_bytes_muestra,
@@ -228,10 +240,7 @@
     floor(as.numeric(max_celdas_muestra) / columnas_totales)
   }
   if (filas_totales > 0 && filas_por_celdas < 1) {
-    .detener(
-      "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
-      call. = FALSE
-    )
+    .detener(.motivo_celdas_muestra(columnas_totales), call. = FALSE)
   }
   filas_candidatas <- min(filas_solicitadas, filas_por_celdas)
 
@@ -2254,7 +2263,9 @@
 #'   comun de los diagnosticos que muestrean filas. Por defecto es `1000000`;
 #'   se calcula como filas efectivas por columnas de la tabla. Si reduce la
 #'   muestra, `cobertura_diagnosticos` informa las filas y celdas solicitadas,
-#'   el umbral y el nuevo alcance. `Inf` desactiva este tope.
+#'   el umbral y el nuevo alcance. `Inf` desactiva este tope. Uno que no deja
+#'   ni una fila de una tabla con filas es un error que dice el mínimo: una
+#'   celda por columna.
 #' @param max_bytes_muestra Maximo de bytes de la muestra materializada que
 #'   alimenta los diagnosticos que muestrean filas. Por defecto es `512 MiB`.
 #'   Si la tabla no supera `muestra` y cabe entera, se lee entera. Si no, la

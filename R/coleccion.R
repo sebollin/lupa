@@ -966,7 +966,8 @@ print.coleccion_lupa <- function(x, ...) {
 #' vector o una lista por columna, `list(personas = list(edad = 99))`. Las
 #' tablas que la lista no nombra reciben el valor por omisión, y un nombre que
 #' no es tabla de la colección es un error antes de leer
-#' (`lupa_error_argumento_dbi`). [ausencias_desde_propuesta()] arma esta lista.
+#' (`lupa_error_argumento_dbi`), como un valor que [perfilar()] rechaza, en el
+#' vector o en la lista. [ausencias_desde_propuesta()] arma esta lista.
 #'
 #' @section Reanudar una corrida cortada:
 #' Una colección grande puede tardar horas. Con `directorio_reanudacion`, cada
@@ -1140,7 +1141,9 @@ print.coleccion_lupa <- function(x, ...) {
 #'   motor se publica entero —el literal que hizo fallar la lectura y el SQL—
 #'   también en `cobertura_coleccion`, `cobertura_metricas`, `meta$lecturas` y
 #'   los avisos; ver la sección «Datos personales» de [perfilar_dbi()].
-#'   Lo que va a [perfilar()] se valida al entrar, una vez. Los argumentos
+#'   Lo que va a [perfilar()] se valida al entrar, una vez; también la forma
+#'   de `columnas_codigo` y `columnas_personales` (`lupa_error_argumento_dbi`).
+#'   Los argumentos
 #'   propios de [perfilar_dbi()] —`estrategia_distintos`, `max_consultas`,
 #'   `umbral_cardinalidad` y los demás— los valida `perfilar_dbi()` en cada
 #'   tabla: uno mal escrito deja cada tabla en `cobertura_coleccion` con ese
@@ -1208,6 +1211,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   .validar_argumentos_para_perfilar(
     argumentos_perfil, propios = .ARGUMENTOS_PROPIOS_DBI
   )
+  # Y la forma de las columnas declaradas, que vale igual para todas las tablas
+  # (ver `.validar_columnas_declaradas_dbi()`); las ausencias, abajo.
+  .validar_columnas_declaradas_dbi(argumentos_perfil)
   # La declaracion de ausencias por tabla: una lista nombrada por identificador
   # de tabla, como `columnas_candidatas` de `relaciones_coleccion()`. Cada tabla
   # recibe su elemento -un vector o una lista por columna- y las que la lista

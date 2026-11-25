@@ -135,7 +135,9 @@ vale para toda la colección: sin protección, el mensaje de un error del
 motor se publica entero —el literal que hizo fallar la lectura y el SQL—
 también en \code{cobertura_coleccion}, \code{cobertura_metricas}, \code{meta$lecturas} y
 los avisos; ver la sección «Datos personales» de \code{\link[=perfilar_dbi]{perfilar_dbi()}}.
-Lo que va a \code{\link[=perfilar]{perfilar()}} se valida al entrar, una vez. Los argumentos
+Lo que va a \code{\link[=perfilar]{perfilar()}} se valida al entrar, una vez; también la forma
+de \code{columnas_codigo} y \code{columnas_personales} (\code{lupa_error_argumento_dbi}).
+Los argumentos
 propios de \code{\link[=perfilar_dbi]{perfilar_dbi()}} —\code{estrategia_distintos}, \code{max_consultas},
 \code{umbral_cardinalidad} y los demás— los valida \code{perfilar_dbi()} en cada
 tabla: uno mal escrito deja cada tabla en \code{cobertura_coleccion} con ese
@@ -243,7 +245,8 @@ una lista nombrada por identificador de tabla —como \code{columnas_candidatas}
 vector o una lista por columna, \code{list(personas = list(edad = 99))}. Las
 tablas que la lista no nombra reciben el valor por omisión, y un nombre que
 no es tabla de la colección es un error antes de leer
-(\code{lupa_error_argumento_dbi}). \code{\link[=ausencias_desde_propuesta]{ausencias_desde_propuesta()}} arma esta lista.
+(\code{lupa_error_argumento_dbi}), como un valor que \code{\link[=perfilar]{perfilar()}} rechaza, en el
+vector o en la lista. \code{\link[=ausencias_desde_propuesta]{ausencias_desde_propuesta()}} arma esta lista.
 }
 \section{Reanudar una corrida cortada}{
 

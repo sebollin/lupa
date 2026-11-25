@@ -342,7 +342,11 @@ valor no cambia la estimación ni la medición posterior del derrame.}
 filas por columnas del esquema. Si reduce la muestra,
 \code{perfil_muestra$cobertura_diagnosticos} usa la misma declaración que
 \code{perfilar()}, con las celdas solicitadas, el umbral y el tope que mandó.
-\code{Inf} desactiva este tope. No modifica los agregados SQL.}
+\code{Inf} desactiva este tope. No modifica los agregados SQL. Un tope que no
+deja ni una fila para las columnas del esquema es un error de argumento
+(\code{lupa_error_argumento_dbi}) que sale al leer el esquema, antes del
+resumen SQL, aunque la tabla esté vacía, y dice el mínimo que admite la
+tabla: una celda por columna leída. Con \code{bloque_muestra = "solo_agregados"} no se usa y no se mira.}
 
 \item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
 alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. En
@@ -431,7 +435,9 @@ declarar la misma columna aquí y en \code{columnas_opcionales}.}
 declaran como faltantes en el \code{perfil_muestra}, o la lista por columna de
 \code{\link[=perfilar]{perfilar()}} —también para \code{cadenas_ausencia}, que viaja por \code{...}—: se
 valida contra las columnas de la tabla y la reciben igual el resumen SQL,
-la muestra y la corroboración. Se normaliza como un
+la muestra y la corroboración. Los valores de las dos, en vector o en
+lista, se validan al entrar con la regla de \code{\link[=perfilar]{perfilar()}}, antes de la
+primera consulta y también sin muestra. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. Un valor declarado —una lista que no
 es la de omisión ni \code{sentinelas_naniar}— sale también de las magnitudes
@@ -484,7 +490,13 @@ abreviado vale lo mismo que el entero, como lo completa R al llamar a
 \code{\link[=perfilar]{perfilar()}}: \code{proteger = FALSE} es \code{proteger_datos_personales = FALSE}
 también para \code{resumen_tabla}. La bandera, \code{fecha} y los nombres se validan
 al entrar, también con \code{bloque_muestra = "solo_agregados"}: un nombre que
-\code{\link[=perfilar]{perfilar()}} no tiene es un error, no un fallo parcial. Los demás valores
+\code{\link[=perfilar]{perfilar()}} no tiene es un error, no un fallo parcial. También la forma
+de \code{columnas_codigo}, \code{columnas_personales} y \code{cadenas_ausencia}, antes de
+la primera consulta, con la regla de \code{\link[=perfilar]{perfilar()}} y la clase
+\code{lupa_error_argumento_dbi}: \code{columnas_personales = 5} ya no se paga con el
+resumen SQL para perder la muestra. Que las columnas de
+\code{columnas_personales} existan lo sigue mirando \code{\link[=perfilar]{perfilar()}} en la muestra.
+Los demás valores
 los valida \code{\link[=perfilar]{perfilar()}} al perfilar la muestra —sin muestra no se
 validan—, y uno inválido deja \code{perfil_muestra = NULL} con el error de
 \code{\link[=perfilar]{perfilar()}} como motivo, legible también con la protección: un error que

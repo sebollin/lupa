@@ -1347,6 +1347,10 @@
          call. = FALSE)
   }
   if (!length(columnas_codigo)) return(character())
+  # `nombres = NULL`: se valida la forma y no la existencia, como en
+  # `.normalizar_columnas_personales()`. La via DBI la valida al entrar, antes
+  # de conocer las columnas de la tabla, y la existencia despues del esquema.
+  if (is.null(nombres)) return(columnas_codigo)
   indices <- .indice_nombre(columnas_codigo, nombres)
   if (anyNA(indices)) {
     .detener("`columnas_codigo` nombra columnas inexistentes: ",

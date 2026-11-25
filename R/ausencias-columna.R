@@ -230,19 +230,29 @@
   )) > 0L
 }
 
-# Las vias del motor validan y resuelven la lista contra los campos de la
-# tabla. Los vectores pasan como llegaron: su validacion es la de `perfilar()`
-# sobre la muestra, como antes.
+# Las dos declaraciones con la regla de `perfilar()`, en sus dos formas. La
+# forma no depende de la tabla: las vias del motor la validan al entrar, antes
+# de la primera consulta. Los vectores pasaban como llegaron y los validaba
+# `perfilar()` sobre la muestra: con `sentinelas_numericos = "a"` se pagaba el
+# resumen SQL entero para perder la muestra, y sin muestra -`bloque_muestra =
+# "solo_agregados"`- pasaban en silencio.
+.validar_ausencias_dbi <- function(sentinelas_numericos, cadenas_ausencia) {
+  .validar_sentinelas_numericos(sentinelas_numericos)
+  .validar_cadenas_ausencia(cadenas_ausencia)
+  invisible(NULL)
+}
+
+# Las vias del motor validan las dos declaraciones y resuelven la lista contra
+# los campos de la tabla.
 .resolver_ausencias_dbi <- function(sentinelas_numericos, cadenas_ausencia,
                                     campos) {
+  .validar_ausencias_dbi(sentinelas_numericos, cadenas_ausencia)
   if (.es_ausencias_por_columna(sentinelas_numericos)) {
-    .validar_sentinelas_numericos(sentinelas_numericos)
     sentinelas_numericos <- .resolver_ausencias_columnas(
       sentinelas_numericos, campos, "sentinelas_numericos"
     )
   }
   if (.es_ausencias_por_columna(cadenas_ausencia)) {
-    .validar_cadenas_ausencia(cadenas_ausencia)
     cadenas_ausencia <- .resolver_ausencias_columnas(
       cadenas_ausencia, campos, "cadenas_ausencia"
     )
@@ -259,8 +269,18 @@
   if (!length(extras) || is.null(names(extras))) return(NULL)
   formales <- c("sentinelas_numericos", "cadenas_ausencia")
   completos <- formales[pmatch(names(extras), formales, duplicates.ok = FALSE)]
-  posiciones <- which(!is.na(completos) &
-    vapply(extras, .es_ausencias_por_columna, logical(1L)))
+  es_lista <- vapply(extras, .es_ausencias_por_columna, logical(1L))
+  # Un vector vale igual para todas las tablas y se valida aca, una vez, con la
+  # regla de `perfilar()`: tabla por tabla, cada una pagaba su resumen SQL para
+  # perder la muestra.
+  for (j in which(!is.na(completos) & !es_lista)) {
+    .argumento_dbi(if (identical(completos[[j]], "sentinelas_numericos")) {
+      .validar_sentinelas_numericos(extras[[j]])
+    } else {
+      .validar_cadenas_ausencia(extras[[j]])
+    })
+  }
+  posiciones <- which(!is.na(completos) & es_lista)
   if (!length(posiciones)) return(NULL)
   declaradas <- coleccion$tablas$identificador
   for (j in posiciones) {

@@ -12281,6 +12281,45 @@
   as.numeric(muestra)
 }
 
+# Las filas que caben en `max_celdas_muestra` con `n_columnas` columnas: una sola
+# cuenta para el tope de la lectura, el del plan y la comprobacion al conocer el
+# esquema.
+.filas_por_celdas_dbi <- function(max_celdas_muestra, n_columnas) {
+  if (n_columnas > 0 && is.finite(max_celdas_muestra)) {
+    floor(as.numeric(max_celdas_muestra) / n_columnas)
+  } else {
+    Inf
+  }
+}
+
+# `?perfilar_dbi` promete que el tope de celdas se calcula antes de leer, con las
+# columnas del esquema: un tope que no deja una fila para esas columnas es un
+# argumento malo, y se sabe apenas se conoce el esquema. Salia de
+# `.tope_muestra_dbi()` al leer la muestra, sin la clase de la via y despues del
+# resumen SQL entero (44 sentencias en SQLite sobre cinco columnas), que se
+# perdia. Se cuentan las columnas que cuenta la lectura que va a correr, asi que
+# no rechaza un tope que esa lectura aceptaria y el minimo que dice el mensaje es
+# el que la lectura admite: la muestra del motor (`.perfil_muestra_spool_dbi()`)
+# materializa tambien las enmascaradas y las saca despues; las demas lecturas
+# (`.bloque_muestra_dbi()`) las sacan antes de leer. Sin muestra el tope no se usa
+# y no se mira. Decide sin filas: una tabla vacia con un tope asi tambien se
+# rechaza, porque lo que esta mal es el argumento para ese esquema.
+.exigir_celdas_muestra_dbi <- function(preparacion, max_celdas_muestra) {
+  if (!.solicita_muestra_dbi(preparacion$bloque_muestra)) {
+    return(invisible(NULL))
+  }
+  campos <- preparacion$campos
+  leidas <- if (identical(preparacion$universo, "muestra_motor")) {
+    length(campos)
+  } else {
+    sum(!.nombres_presentes(campos, preparacion$enmascaradas))
+  }
+  if (.filas_por_celdas_dbi(max_celdas_muestra, leidas) < 1) {
+    .detener_dbi("lupa_error_argumento_dbi", .motivo_celdas_muestra(leidas))
+  }
+  invisible(NULL)
+}
+
 # Los topes de la muestra tienen que decidirse antes de la lectura que se
 # entrega a `perfilar()`. Las celdas se pueden resolver con el esquema y el
 # conteo que ya acompana a la corrida; los bytes quedan abiertos hasta la
@@ -12298,23 +12337,16 @@
   total_conocido <- length(total) == 1L && !is.na(total) &&
     is.finite(total) && total >= 0
   solicitado <- if (total_conocido) min(total, muestra) else muestra
-  por_celdas <- if (n_columnas > 0 && is.finite(max_celdas_muestra)) {
-    floor(as.numeric(max_celdas_muestra) / n_columnas)
-  } else {
-    Inf
-  }
+  por_celdas <- .filas_por_celdas_dbi(max_celdas_muestra, n_columnas)
+  # La corrida ya lo rechazo al conocer el esquema
+  # (`.exigir_celdas_muestra_dbi()`); queda para quien llegue aca con otras
+  # columnas, con la misma clase.
   if (total_conocido && total > 0 && por_celdas < 1) {
-    .detener(
-      "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
-      call. = FALSE
-    )
+    .detener_dbi("lupa_error_argumento_dbi", .motivo_celdas_muestra(n_columnas))
   }
   filas <- min(solicitado, por_celdas)
   if (total_conocido && total > 0 && filas < 1) {
-    .detener(
-      "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
-      call. = FALSE
-    )
+    .detener_dbi("lupa_error_argumento_dbi", .motivo_celdas_muestra(n_columnas))
   }
   list(
     filas_solicitadas = solicitado,
@@ -12339,11 +12371,7 @@
   max_bytes_muestra <- .validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
   )
-  por_celdas <- if (n_columnas > 0 && is.finite(max_celdas_muestra)) {
-    floor(as.numeric(max_celdas_muestra) / n_columnas)
-  } else {
-    Inf
-  }
+  por_celdas <- .filas_por_celdas_dbi(max_celdas_muestra, n_columnas)
   filas_maximas <- min(as.numeric(muestra), por_celdas)
   list(
     filas_solicitadas = as.numeric(muestra),
@@ -22133,10 +22161,21 @@
       preparacion$fuentes_cardinalidad_costo,
       function(x) identical(x$nombre, "desconocida"), logical(1L)
     )
+    # La decision de cada columna de la tabla, por nombre, como la busca el
+    # resumen al elegir sus modas. Las del resumen cubren solo las columnas que
+    # leyo: con una columna aislada de la muestra del motor, la lista era mas
+    # corta que la de la tabla, y por posicion R reciclaba la corta -dos avisos
+    # que llegaban a quien llama- y una columna recibia la decision de otra. Una
+    # columna sin decision no pide la metrica.
+    decide <- function(metrica) {
+      vapply(preparacion$campos, function(campo) {
+        indice <- .indice_nombre(campo, names(decisiones_costo))
+        !is.na(indice) && isTRUE(decisiones_costo[[indice]][[metrica]])
+      }, logical(1L), USE.NAMES = FALSE)
+    }
     if ("moda" %in% preparacion$metricas) {
       columnas_moda_plan <- preparacion$campos[
-        vapply(decisiones_costo, function(x) isTRUE(x$moda), logical(1L)) &
-          (decisiones_resueltas | !desconocidas)
+        decide("moda") & (decisiones_resueltas | !desconocidas)
       ]
       columnas_moda_max <- unique(c(
         columnas_moda_plan,
@@ -22150,8 +22189,7 @@
     }
     if ("mediana" %in% preparacion$metricas) {
       columnas_mediana_plan <- preparacion$campos[
-        vapply(decisiones_costo, function(x) isTRUE(x$mediana), logical(1L)) &
-          (decisiones_resueltas | !desconocidas)
+        decide("mediana") & (decisiones_resueltas | !desconocidas)
       ]
       columnas_mediana_plan <- intersect(
         columnas_mediana_plan, preparacion$campos[preparacion$es_numerico]
@@ -23231,10 +23269,13 @@
 #'   se excluyen de la predicción de consultas exactas de faltantes.
 #' @param sentinelas_numericos Valores numéricos que se consideran faltantes al
 #'   anticipar las consultas de la métrica nueva. Acepta la lista por columna
-#'   de [perfilar()], resuelta contra las columnas de la tabla.
+#'   de [perfilar()], resuelta contra las columnas de la tabla. Se valida al
+#'   entrar como en [perfilar_dbi()]: un valor que [perfilar()] rechaza es un
+#'   error, antes de la primera consulta.
 #' @param cadenas_ausencia Cadenas adicionales que se consideran ausencia
 #'   textual al anticipar las consultas de la métrica nueva. Acepta la lista
-#'   por columna de [perfilar()].
+#'   por columna de [perfilar()]. Se valida al entrar, como
+#'   `sentinelas_numericos`.
 #' @param clave Vector opcional con nombres de columnas clave para el muestreo
 #'   reproducible por huella en el motor cuando no se especifica `orden_muestra`.
 #'   Si el catálogo ya garantiza su unicidad no agrega consultas; si no, el plan
@@ -23521,6 +23562,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
   ))
   .normalizar_centinelas_fecha(centinelas_fecha)
   if (!is.null(fecha)) .fecha_argumento_utc(fecha)
+  # Las ausencias declaradas, con la regla de la corrida y antes de la primera
+  # consulta: el plan aceptaba `sentinelas_numericos = "a"`.
+  .argumento_dbi(.validar_ausencias_dbi(sentinelas_numericos, cadenas_ausencia))
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .con_corrida_dbi(conexion, "planificar un perfil", {
   # El plan no recibe `proteger_datos_personales` y hereda la proteccion de
@@ -23570,6 +23614,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
     clave = clave,
     reglas_aplicabilidad = aplicabilidad
   )
+  # El plan rechaza el tope que la corrida rechaza, en el mismo punto.
+  .exigir_celdas_muestra_dbi(preparacion, max_celdas_muestra)
   ausencias <- .argumento_dbi(.resolver_ausencias_dbi(
     sentinelas_numericos, cadenas_ausencia, preparacion$campos
   ))
@@ -30225,7 +30271,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   filas por columnas del esquema. Si reduce la muestra,
 #'   `perfil_muestra$cobertura_diagnosticos` usa la misma declaración que
 #'   `perfilar()`, con las celdas solicitadas, el umbral y el tope que mandó.
-#'   `Inf` desactiva este tope. No modifica los agregados SQL.
+#'   `Inf` desactiva este tope. No modifica los agregados SQL. Un tope que no
+#'   deja ni una fila para las columnas del esquema es un error de argumento
+#'   (`lupa_error_argumento_dbi`) que sale al leer el esquema, antes del
+#'   resumen SQL, aunque la tabla esté vacía, y dice el mínimo que admite la
+#'   tabla: una celda por columna leída. Con `bloque_muestra =
+#'   "solo_agregados"` no se usa y no se mira.
 #' @param max_bytes_muestra Máximo de bytes de la muestra materializada que
 #'   alimenta `perfil_muestra`. Por defecto es `512 MiB`. En
 #'   `muestra_motor`, el límite se cruza con el presupuesto de materialización
@@ -30545,7 +30596,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   declaran como faltantes en el `perfil_muestra`, o la lista por columna de
 #'   [perfilar()] —también para `cadenas_ausencia`, que viaja por `...`—: se
 #'   valida contra las columnas de la tabla y la reciben igual el resumen SQL,
-#'   la muestra y la corroboración. Se normaliza como un
+#'   la muestra y la corroboración. Los valores de las dos, en vector o en
+#'   lista, se validan al entrar con la regla de [perfilar()], antes de la
+#'   primera consulta y también sin muestra. Se normaliza como un
 #'   conjunto numérico, por lo que el orden, el tipo entero o doble y los
 #'   duplicados no cambian el resultado. Un valor declarado —una lista que no
 #'   es la de omisión ni `sentinelas_naniar`— sale también de las magnitudes
@@ -30616,7 +30669,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   [perfilar()]: `proteger = FALSE` es `proteger_datos_personales = FALSE`
 #'   también para `resumen_tabla`. La bandera, `fecha` y los nombres se validan
 #'   al entrar, también con `bloque_muestra = "solo_agregados"`: un nombre que
-#'   [perfilar()] no tiene es un error, no un fallo parcial. Los demás valores
+#'   [perfilar()] no tiene es un error, no un fallo parcial. También la forma
+#'   de `columnas_codigo`, `columnas_personales` y `cadenas_ausencia`, antes de
+#'   la primera consulta, con la regla de [perfilar()] y la clase
+#'   `lupa_error_argumento_dbi`: `columnas_personales = 5` ya no se paga con el
+#'   resumen SQL para perder la muestra. Que las columnas de
+#'   `columnas_personales` existan lo sigue mirando [perfilar()] en la muestra.
+#'   Los demás valores
 #'   los valida [perfilar()] al perfilar la muestra —sin muestra no se
 #'   validan—, y uno inválido deja `perfil_muestra = NULL` con el error de
 #'   [perfilar()] como motivo, legible también con la protección: un error que
@@ -30740,6 +30799,14 @@ perfilar_dbi <- function(conexion, tabla,
   )
   argumentos_originales <- captura_argumentos$argumentos
   argumentos_declarados <- captura_argumentos$declarados
+  argumentos_muestra <- .argumentos_para_perfilar(captura_argumentos$puntos)
+  # La forma de las declaraciones no depende de la tabla: se valida antes de
+  # abrir la corrida, sin mandar nada al motor (ver
+  # `.validar_columnas_declaradas_dbi()`).
+  .argumento_dbi(.validar_ausencias_dbi(
+    sentinelas_numericos, argumentos_muestra[["cadenas_ausencia"]]
+  ))
+  .validar_columnas_declaradas_dbi(argumentos_muestra)
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .con_corrida_dbi(conexion, "perfilar una tabla", {
   # Lo que el controlador entrego en latin1 ANTES de esta tabla -otra tabla de
@@ -30749,7 +30816,6 @@ perfilar_dbi <- function(conexion, tabla,
   # El nombre normalizado es el que viaja a todo lo que sigue, no solo a la
   # comprobacion de existencia (ver `.nombre_para_conexion_dbi()`).
   tabla <- .nombre_para_conexion_dbi(tabla)
-  argumentos_muestra <- .argumentos_para_perfilar(captura_argumentos$puntos)
   .argumento_dbi(.validar_argumentos_para_perfilar(
     argumentos_muestra, propios = .ARGUMENTOS_PROPIOS_DBI
   ))
@@ -30901,6 +30967,7 @@ perfilar_dbi <- function(conexion, tabla,
     sondar_muestreo = FALSE,
     reglas_aplicabilidad = aplicabilidad
   )
+  .exigir_celdas_muestra_dbi(preparacion, max_celdas_muestra)
   # Lo que devuelve cada auxiliar se desempaqueta enseguida y la lista se suelta:
   # guardada hasta el final retiene versiones viejas de lo que la corrida va
   # cambiando, y la recoleccion de basura trabaja de mas (medido en DuckDB con
@@ -31362,6 +31429,25 @@ perfilar_dbi <- function(conexion, tabla,
   list(preparacion = preparacion, preparacion_plan = preparacion_plan)
 }
 
+# Lo que `perfilar()` valida por su forma, sin mirar la tabla, se valida al
+# entrar en la via, antes de la primera consulta: las columnas de codigo y las
+# de datos personales (las ausencias declaradas, con `.validar_ausencias_dbi()`).
+# Lo validaba `perfilar()` sobre la muestra: `columnas_personales = 5` pagaba el
+# resumen SQL entero para perder la muestra, y sin muestra -`bloque_muestra =
+# "solo_agregados"`- pasaba en silencio; `columnas_codigo = 5` salia despues de
+# leer el esquema, como `simpleError`. `perfilar_coleccion()` valida lo mismo
+# una vez para todas sus tablas. Que las columnas existan se mira despues del
+# esquema: las de codigo en `.columnas_declaradas_perfilar_dbi()`; las
+# personales las mira `perfilar()` en la muestra, y en una coleccion la tabla
+# que no las tiene conserva su resumen.
+.validar_columnas_declaradas_dbi <- function(argumentos) {
+  .argumento_dbi({
+    .normalizar_columnas_codigo(argumentos[["columnas_codigo"]], NULL)
+    .normalizar_columnas_personales(argumentos[["columnas_personales"]], NULL)
+  })
+  invisible(NULL)
+}
+
 # Las columnas que declara la llamada, validadas y resueltas contra las de la
 # tabla: las de codigo, las ausencias por columna, el universo declarado, los
 # periodos y las reglas de `aplicabilidad` que no dan un valor logico.
@@ -31372,9 +31458,11 @@ perfilar_dbi <- function(conexion, tabla,
   # `columnas_codigo` viaja en `...` a `perfilar()` del `perfil_muestra`, y
   # se valida ACA contra las columnas de la tabla: con `bloque_muestra =
   # "solo_agregados"` no hay muestra, y un nombre mal escrito pasaba sin error.
-  columnas_codigo <- .normalizar_columnas_codigo(
+  # Con la clase de la via, como las demas declaraciones de esta funcion: salia
+  # como `simpleError`.
+  columnas_codigo <- .argumento_dbi(.normalizar_columnas_codigo(
     argumentos_muestra[["columnas_codigo"]], preparacion$campos
-  )
+  ))
   # La declaracion de ausencias por columna, igual: se valida y se resuelve
   # contra las columnas de la tabla, y el resumen SQL, la muestra y la
   # corroboracion reciben la misma lista con los nombres de la tabla.

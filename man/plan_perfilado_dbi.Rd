@@ -278,7 +278,11 @@ Para pedir todas las métricas use \code{politica_costo = "todas"}.}
 filas por columnas del esquema. Si reduce la muestra,
 \code{perfil_muestra$cobertura_diagnosticos} usa la misma declaración que
 \code{perfilar()}, con las celdas solicitadas, el umbral y el tope que mandó.
-\code{Inf} desactiva este tope. No modifica los agregados SQL.}
+\code{Inf} desactiva este tope. No modifica los agregados SQL. Un tope que no
+deja ni una fila para las columnas del esquema es un error de argumento
+(\code{lupa_error_argumento_dbi}) que sale al leer el esquema, antes del
+resumen SQL, aunque la tabla esté vacía, y dice el mínimo que admite la
+tabla: una celda por columna leída. Con \code{bloque_muestra = "solo_agregados"} no se usa y no se mira.}
 
 \item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
 alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. En
@@ -330,11 +334,14 @@ se excluyen de la predicción de consultas exactas de faltantes.}
 
 \item{sentinelas_numericos}{Valores numéricos que se consideran faltantes al
 anticipar las consultas de la métrica nueva. Acepta la lista por columna
-de \code{\link[=perfilar]{perfilar()}}, resuelta contra las columnas de la tabla.}
+de \code{\link[=perfilar]{perfilar()}}, resuelta contra las columnas de la tabla. Se valida al
+entrar como en \code{\link[=perfilar_dbi]{perfilar_dbi()}}: un valor que \code{\link[=perfilar]{perfilar()}} rechaza es un
+error, antes de la primera consulta.}
 
 \item{cadenas_ausencia}{Cadenas adicionales que se consideran ausencia
 textual al anticipar las consultas de la métrica nueva. Acepta la lista
-por columna de \code{\link[=perfilar]{perfilar()}}.}
+por columna de \code{\link[=perfilar]{perfilar()}}. Se valida al entrar, como
+\code{sentinelas_numericos}.}
 
 \item{clave}{Vector opcional con nombres de columnas clave para el muestreo
 reproducible por huella en el motor cuando no se especifica \code{orden_muestra}.
