@@ -452,7 +452,7 @@ fallida y las que no se pudieron perfilar.
 seguida <- perfilar_coleccion(
   base_archivo, directorio_reanudacion = directorio, reanudar = TRUE
 )
-#> ℹ Se reanuda la corrida corrida-20261125-013851-2d516108a16c, empezada el 2026-11-25 01:38:51 UTC: se reusan 4 tablas y se vuelven a perfilar 1.
+#> ℹ Se reanuda la corrida corrida-20261125-180725-2d6e1878b3f5, empezada el 2026-11-25 18:07:25 UTC: se reusan 4 tablas y se vuelven a perfilar 1.
 seguida$meta$reanudacion[c("intento", "reanudada")]
 #> $intento
 #> [1] 2
@@ -498,10 +498,10 @@ rechazo$motivo
 # La carpeta temporal se abrevia para que el mensaje se lea.
 mensaje <- gsub(dirname(archivo), "...", conditionMessage(rechazo), fixed = TRUE)
 writeLines(strwrap(mensaje, 88))
-#> No se reanuda la corrida corrida-20261125-013851-2d516108a16c: desde su intento
-#> anterior (2026-11-25T01:38:52+0000) cambió la base: en `.../file2d515e49623b.sqlite`,
+#> No se reanuda la corrida corrida-20261125-180725-2d6e1878b3f5: desde su intento
+#> anterior (2026-11-25T18:07:26+0000) cambió la base: en `.../file2d6e34b51595.sqlite`,
 #> el tamaño, de 20480 a 24576 bytes y la fecha de modificación, de 2026-11-25
-#> 01:38:51.330 UTC a 2026-11-25 01:38:52.342 UTC. Las tablas guardadas la describen como
+#> 18:07:25.378 UTC a 2026-11-25 18:07:26.303 UTC. Las tablas guardadas la describen como
 #> era y las que faltan la describirían como es ahora: el resultado no sería el de ninguna
 #> corrida. Una corrida nueva, con `reanudar = FALSE`, la mide entera como está.
 ```

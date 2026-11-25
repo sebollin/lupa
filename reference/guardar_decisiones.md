@@ -83,7 +83,7 @@ leer_decisiones(archivo)
 #>   tipo_hallazgo       decision                 motivo           quien
 #> 1     faltantes falso_positivo Revisado en la fuente. equipo de datos
 #>                  fecha  severidad n_afectados
-#> 1 2026-11-25T01:38:22Z sospechoso           2
+#> 1 2026-11-25T18:06:58Z sospechoso           2
 #>                                             evidencia huella_valores
 #> 1 0 ausentes reales y 2 disfrazados (0.154 del total)           <NA>
 #>   huella_filas                                                    detalle
