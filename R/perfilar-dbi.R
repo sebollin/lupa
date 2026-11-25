@@ -30901,91 +30901,27 @@ perfilar_dbi <- function(conexion, tabla,
     sondar_muestreo = FALSE,
     reglas_aplicabilidad = aplicabilidad
   )
-  # La preparacion que alimenta al plan no puede decidir que metricas existen
-  # despues de una sonda de muestreo pasajera. Se conserva antes de sondear y
-  # la corrida prueba la forma justo despues, antes de leer la muestra.
-  preparacion_plan <- preparacion
-  preparacion_plan$consultas_antes_agregados <- preparacion$presupuesto$usadas
-  if (identical(preparacion$universo, "muestra_motor") &&
-      isTRUE(preparacion$muestreo$forma_construible) &&
-      !is.null(preparacion$muestreo$candidato)) {
-    muestreo <- .sondar_muestreo_dbi(
-      conexion, preparacion$tabla_sql, preparacion$dialecto,
-      preparacion$presupuesto, tipo_objeto = preparacion$tipo_objeto
-    )
-    muestreo$sondas_previstas <- length(muestreo$sondas)
-    estado_forma <- .estado_forma_muestreo_dbi(
-      muestreo$candidato, preparacion$tabla_sql,
-      preparacion$esquema$campos_sql, preparacion$muestra_motor,
-      preparacion$dialecto
-    )
-    muestreo$forma_construible <- estado_forma$forma_construible
-    if (!isTRUE(estado_forma$forma_construible)) {
-      muestreo$disponible <- FALSE
-      # Si la sonda no acepto ninguna candidata, `candidato = NULL` tambien
-      # puede significar que el presupuesto bloqueo las sondas o que el motor
-      # rechazo la forma (`sonda_muestreo`). El estado estructural no debe
-      # reemplazar esos motivos por `sin_forma_muestreo`.
-      motivo_sondeo <- muestreo$motivo
-      motivo_valido <- length(motivo_sondeo) == 1L &&
-        !is.na(motivo_sondeo) && nzchar(as.character(motivo_sondeo))
-      if (!motivo_valido || !is.null(muestreo$candidato)) {
-        muestreo$motivo <- estado_forma$motivo
-      }
-    }
-    preparacion$muestreo <- muestreo
-    if (!isTRUE(muestreo$disponible)) {
-      preparacion$metricas_ejecucion <- character()
-    }
-  }
-  # `columnas_codigo` viaja en `...` a `perfilar()` del `perfil_muestra`, y
-  # se valida ACA contra las columnas de la tabla: con `bloque_muestra =
-  # "solo_agregados"` no hay muestra, y un nombre mal escrito pasaba sin error.
-  columnas_codigo <- .normalizar_columnas_codigo(
-    argumentos_muestra[["columnas_codigo"]], preparacion$campos
+  # Lo que devuelve cada auxiliar se desempaqueta enseguida y la lista se suelta:
+  # guardada hasta el final retiene versiones viejas de lo que la corrida va
+  # cambiando, y la recoleccion de basura trabaja de mas (medido en DuckDB con
+  # 500.000 filas: 0,3 s por llamada).
+  forma_perfil <- .forma_muestreo_perfilar_dbi(
+    conexion = conexion, preparacion = preparacion
   )
-  # La declaracion de ausencias por columna, igual: se valida y se resuelve
-  # contra las columnas de la tabla, y el resumen SQL, la muestra y la
-  # corroboracion reciben la misma lista con los nombres de la tabla.
-  ausencias <- .argumento_dbi(.resolver_ausencias_dbi(
-    sentinelas_numericos, argumentos_muestra[["cadenas_ausencia"]],
-    preparacion$campos
-  ))
-  if (.es_ausencias_por_columna(sentinelas_numericos)) {
-    sentinelas_numericos <- ausencias$sentinelas
-    argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
-  }
-  if (.es_ausencias_por_columna(argumentos_muestra[["cadenas_ausencia"]])) {
-    argumentos_muestra$cadenas_ausencia <- ausencias$cadenas
-  }
-  # Y el universo declarado: `columnas_opcionales` y `aplicabilidad` se validan
-  # ACA con la regla de `perfilar()`. Las rechazaba solo el perfil de la
-  # muestra, cuyo error no detiene la corrida: una columna declarada de las
-  # dos formas, o un nombre que la tabla no tiene, dejaban el resumen calculado
-  # y la muestra sin perfil.
-  .argumento_dbi(.validar_universo_declarado(
-    preparacion$campos, columnas_opcionales, aplicabilidad,
-    prototipo = .prototipo_tabla_dbi(preparacion)
-  ))
-  # Lo mismo para los periodos: sin muestra, un nombre mal escrito pasaba.
-  .argumento_dbi(.normalizar_periodos(argumentos_muestra[["periodos"]], preparacion$campos))
-  # Una regla de `aplicabilidad` que no da un valor logico -`~ activo` con
-  # `activo` guardada como 0 y 1, que en SQLite no es logica- no se aplica: se
-  # declara para su columna, con como escribirla, y el resto del perfil sale
-  # igual. `perfilar()` la rechaza entera, y aca eso dejaba a la tabla sin
-  # `perfil_muestra`. Aca se decide con el tipo de las columnas que entrega el
-  # controlador, sin filas: lo que queda es lo que reciben la muestra, la
-  # corroboracion y las fechas. Si el motor no declara el tipo de una columna,
-  # lo decide quien la lee (`.aplicabilidad_sobre_datos_dbi()`).
-  aplicabilidad_por_tipo <- .aplicabilidad_por_tipo_dbi(preparacion, aplicabilidad)
-  aplicabilidad_no_logica <- aplicabilidad_por_tipo$no_logicas
-  if (nrow(aplicabilidad_no_logica)) {
-    aplicabilidad <- aplicabilidad_por_tipo$aplicabilidad
-    argumentos_muestra["aplicabilidad"] <- list(aplicabilidad)
-    .avisar_muestra_motor_dbi(.aviso_aplicabilidad_no_logica_dbi(
-      aplicabilidad_no_logica
-    ))
-  }
+  preparacion <- forma_perfil$preparacion
+  preparacion_plan <- forma_perfil$preparacion_plan
+  forma_perfil <- NULL
+  declaradas_perfil <- .columnas_declaradas_perfilar_dbi(
+    argumentos_muestra = argumentos_muestra, preparacion = preparacion,
+    sentinelas_numericos = sentinelas_numericos,
+    columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad
+  )
+  columnas_codigo <- declaradas_perfil$columnas_codigo
+  sentinelas_numericos <- declaradas_perfil$sentinelas_numericos
+  argumentos_muestra <- declaradas_perfil$argumentos_muestra
+  aplicabilidad <- declaradas_perfil$aplicabilidad
+  aplicabilidad_no_logica <- declaradas_perfil$aplicabilidad_no_logica
+  declaradas_perfil <- NULL
   # Los nombres de la tabla y de sus columnas son lo unico de la consulta que
   # el mensaje de un error del motor puede citar en claro: ver
   # `.sin_literales_motor()`.
@@ -31050,69 +30986,13 @@ perfilar_dbi <- function(conexion, tabla,
       cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]],
       clave = argumentos_muestra[["clave"]]
     )
-    resultado$resumen_tabla$meta$plan <- plan_corrida
-    # Armar ese plan vuelve a preparar la tabla, y esas consultas viajan al
-    # motor: se cuentan con las demas y el plan las anuncia
-    # (ver `.plan_spool_dbi()`).
-    # Menos las dos de la guarda de DuckDB, que ese plan anuncia y esta misma
-    # llamada ya mando y conto al abrir.
-    .contar_dbi(
-      preparacion$presupuesto,
-      max(0, (attr(plan_corrida, "consultas_emitidas", exact = TRUE) %||% 0) -
-            .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI))
-    )
-    if (is.list(resultado$resumen_tabla$meta$consultas) &&
-        !is.null(preparacion$presupuesto)) {
-      resultado$resumen_tabla$meta$consultas$emitidas <-
-        preparacion$presupuesto$usadas
-      resultado$resumen_tabla$meta$consultas$conciliacion <-
-        .conciliar_consultas_dbi(
-          plan_corrida,
-          .plan_ejecutado_spool_dbi(plan_corrida, preparacion$presupuesto),
-          preparacion$presupuesto$usadas, preparacion,
-          preparacion$presupuesto
-        )
-    }
-    resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
-    # El spool ya materializo los datos y aplica estas guardas antes de la
-    # corroboracion; se repite aqui para cubrir un adaptador que devuelva un
-    # resultado armado por una via de respaldo.
-    resultado <- .aplicar_guardas_salida_muestra_dbi(
-      resultado, incluir_valores = incluir_valores
-    )
-    resultado <- .declarar_enmascaradas_dbi(resultado, preparacion)
-    resultado <- .agregar_cobertura_corroboracion_dbi(
-      resultado, columnas_codigo = columnas_codigo,
+    resultado <- .cerrar_spool_perfilar_dbi(
+      resultado = resultado, plan_corrida = plan_corrida, conexion = conexion,
+      tabla = tabla, preparacion = preparacion,
+      incluir_valores = incluir_valores, columnas_codigo = columnas_codigo,
       columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
-      sentinelas_numericos = sentinelas_numericos
+      sentinelas_numericos = sentinelas_numericos, texto_previo = texto_previo
     )
-    resultado <- .agregar_cobertura_politicas_muestra_dbi(
-      resultado, aplicabilidad = aplicabilidad,
-      columnas_opcionales = columnas_opcionales,
-      sentinelas_numericos = sentinelas_numericos,
-      columnas_codigo = columnas_codigo,
-      lectura_convertida = preparacion$lectura_convertida,
-      cobertura_texto = .cobertura_texto_controlador_dbi(
-        conexion, tabla, preparacion$campos, preparacion$tipos,
-        .texto_anotado_desde_dbi(conexion, texto_previo)
-      )
-    )
-    resultado <- .aplicar_guardas_salida_muestra_dbi(
-      resultado, incluir_valores = incluir_valores
-    )
-    if (!is.null(resultado$resumen_tabla)) {
-      orden_publico <- .orden_muestra_publica_dbi(
-        preparacion$orden_muestra,
-        resultado$resumen_tabla$meta$muestreo
-      )
-      resultado$resumen_tabla$meta$orden_muestra <- orden_publico
-      if (!is.null(resultado$resumen_tabla$meta$muestreo)) {
-        resultado$resumen_tabla$meta$muestreo$orden_muestra_aplicado <-
-          orden_publico$aplicado
-        resultado$resumen_tabla$meta$muestreo$motivo_orden_muestra <-
-          orden_publico$motivo
-      }
-    }
     return(con_fecha(resultado))
   }
   preparacion$presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
@@ -31131,69 +31011,14 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_procesamiento = max_bytes_procesamiento,
       metricas_publicas = preparacion$metricas
     )
-    if (is.list(resultado$resumen_tabla$meta$consultas)) {
-      plan_bloques <- resultado$resumen_tabla$meta$plan
-      conciliacion_bloques <- if (is.data.frame(plan_bloques)) {
-        .conciliar_consultas_dbi(
-          plan_bloques, plan_bloques,
-          resultado$resumen_tabla$meta$consultas$emitidas,
-          preparacion, preparacion$presupuesto
-        )
-      } else {
-        .conciliacion_consultas_sin_plan_dbi(
-          resultado$resumen_tabla$meta$consultas, preparacion$presupuesto
-        )
-      }
-      if (is.data.frame(plan_bloques)) {
-        conciliacion_bloques <- .atributos_conciliacion_dbi(
-          conciliacion_bloques, plan_bloques
-        )
-      }
-      resultado$resumen_tabla$meta$consultas$conciliacion <-
-        conciliacion_bloques
-      resultado$resumen_tabla$meta$consultas$conciliacion$plan_corrida <-
-        conciliacion_bloques
-    }
-    if (isTRUE(attr(resultado, "epilogo_aplicado_dbi", exact = TRUE))) {
-      attr(resultado, "epilogo_aplicado_dbi") <- NULL
-      return(con_fecha(resultado))
-    }
-    # Un controlador sin lectura incremental demostrada -DuckDB, o uno que no
-    # esta en la matriz- deja todas las metricas `no_disponible`, a proposito:
-    # no se cae en `dbGetQuery()`. Pero el motivo quedaba solo en la cobertura y
-    # en `meta$fuente_bloques`, y el perfil vacio llegaba sin una condicion.
-    resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
-    fuente_bloques <- resultado$resumen_tabla$meta$fuente_bloques
-    if (is.list(fuente_bloques) && isFALSE(fuente_bloques$disponible)) {
-      .avisar_muestra_motor_dbi(
-        paste0(
-          "La lectura por bloques no est\u00e1 disponible con este controlador (",
-          fuente_bloques$motivo, "): las m\u00e9tricas quedan `no_disponible`. ",
-          "Sin `bloque_filas`, el resumen se calcula en el motor con agregados."
-        ),
-        datos = list(motivo = fuente_bloques$motivo)
-      )
-    }
-    resultado <- .aplicar_guardas_salida_muestra_dbi(
-      resultado, incluir_valores = incluir_valores
-    )
-    resultado <- .declarar_enmascaradas_dbi(resultado, preparacion)
-    resultado <- .agregar_cobertura_corroboracion_dbi(
-      resultado, columnas_codigo = columnas_codigo,
-      columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
-      sentinelas_numericos = sentinelas_numericos
-    )
-    return(con_fecha(.agregar_cobertura_politicas_muestra_dbi(
-      resultado, aplicabilidad = aplicabilidad,
-      columnas_opcionales = columnas_opcionales,
-      sentinelas_numericos = sentinelas_numericos,
+    resultado <- .cerrar_bloques_perfilar_dbi(
+      resultado = resultado, conexion = conexion, tabla = tabla,
+      preparacion = preparacion, incluir_valores = incluir_valores,
       columnas_codigo = columnas_codigo,
-      lectura_convertida = preparacion$lectura_convertida,
-      cobertura_texto = .cobertura_texto_controlador_dbi(
-        conexion, tabla, preparacion$campos, preparacion$tipos,
-        .texto_anotado_desde_dbi(conexion, texto_previo)
-      )
-    )))
+      columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
+      sentinelas_numericos = sentinelas_numericos, texto_previo = texto_previo
+    )
+    return(con_fecha(resultado))
   }
   presupuesto <- preparacion$presupuesto
   presupuesto$avisar_costo_distintos <- avisar_costo_distintos
@@ -31206,6 +31031,555 @@ perfilar_dbi <- function(conexion, tabla,
   presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
   presupuesto$umbral_bytes_aviso_derrame_estimado <-
     umbral_bytes_aviso_derrame_estimado
+  plan_perfil <- .plan_corrida_perfilar_dbi(
+    conexion = conexion, tabla = tabla, preparacion = preparacion,
+    preparacion_plan = preparacion_plan, presupuesto = presupuesto,
+    incluir_valores = incluir_valores, max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra,
+    sentinelas_numericos = sentinelas_numericos,
+    argumentos_muestra = argumentos_muestra,
+    columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad
+  )
+  info_conexion <- plan_perfil$info_conexion
+  es_numerico <- plan_perfil$es_numerico
+  tope_muestra <- plan_perfil$tope_muestra
+  aviso_catalogo <- plan_perfil$aviso_catalogo
+  capacidades_adicionales_anunciado <-
+    plan_perfil$capacidades_adicionales_anunciado
+  consultas_faltantes_plan <- plan_perfil$consultas_faltantes_plan
+  consultas_guardas_faltantes_plan <-
+    plan_perfil$consultas_guardas_faltantes_plan
+  campos_faltantes_planos <- plan_perfil$campos_faltantes_planos
+  plan <- plan_perfil$plan
+  plan_perfil <- NULL
+  # El plan ya dice cuantas consultas se van a emitir, asi que la barra avanza
+  # contra un total conocido y no contra una estimacion. Se abre en el marco de
+  # esta funcion para que viva lo que dure el perfilado y se cierre sola.
+    .abrir_progreso_dbi(
+    presupuesto, sum(plan$n_consultas_max), environment()
+  )
+
+  fuente_perfil <- .fuente_muestreada_perfilar_dbi(
+    conexion = conexion, preparacion = preparacion, presupuesto = presupuesto,
+    incluir_valores = incluir_valores,
+    avisar_costo_mediana = avisar_costo_mediana
+  )
+  fuente_muestreada <- fuente_perfil$fuente_muestreada
+  muestreo_meta <- fuente_perfil$muestreo_meta
+  metodo_inicial_sql <- fuente_perfil$metodo_inicial_sql
+  motivo_filas_obtenidas_muestreo_sql <-
+    fuente_perfil$motivo_filas_obtenidas_muestreo_sql
+  motivo_fuente_muestreada_sql <- fuente_perfil$motivo_fuente_muestreada_sql
+  muestreo_publico <- fuente_perfil$muestreo_publico
+  preparacion <- fuente_perfil$preparacion
+  fuente_lectura <- fuente_perfil$fuente_lectura
+  dobles_originales <- fuente_perfil$dobles_originales
+  proyeccion_faltantes_de <- fuente_perfil$proyeccion_faltantes_de
+  columnas_sql_originales_de <- fuente_perfil$columnas_sql_originales_de
+  tabla_metricas_sql <- fuente_perfil$tabla_metricas_sql
+  fuente_perfil <- NULL
+
+  aislamiento_perfil <- .aislar_muestra_perfilar_dbi(
+    conexion = conexion, preparacion = preparacion,
+    fuente_lectura = fuente_lectura, fuente_muestreada = fuente_muestreada,
+    proyeccion_faltantes_de = proyeccion_faltantes_de,
+    motivo_fuente_muestreada_sql = motivo_fuente_muestreada_sql,
+    tabla_metricas_sql = tabla_metricas_sql
+  )
+  campos_consolidados <- aislamiento_perfil$campos_consolidados
+  campos_sql_consolidados <- aislamiento_perfil$campos_sql_consolidados
+  es_numerico_consolidados <- aislamiento_perfil$es_numerico_consolidados
+  motivos_resumen <- aislamiento_perfil$motivos_resumen
+  cobertura_aislamiento_muestra <-
+    aislamiento_perfil$cobertura_aislamiento_muestra
+  motivo_fuente_muestreada_sql <-
+    aislamiento_perfil$motivo_fuente_muestreada_sql
+  tabla_metricas_sql <- aislamiento_perfil$tabla_metricas_sql
+  aislamiento_perfil <- NULL
+
+  campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
+  contador_est_spec <- if (identical(preparacion$universo, "tabla_completa") &&
+                           as.integer(attr(plan, "verificar_estabilidad_max", exact = TRUE) %||% 0L) > 0L) {
+    .especificacion_contador_estabilidad_dbi(
+      conexion, tabla, preparacion$tabla_sql,
+      tipo_objeto = preparacion$tipo_objeto,
+      tipos_motor = preparacion$esquema$tipos_motor,
+      campos = preparacion$campos,
+      campos_sql = stats::setNames(preparacion$campos_sql, preparacion$campos)
+    )
+  } else NULL
+  consultas_antes_resumen <- presupuesto$usadas
+  resumen <- .ejecutar_resumen_perfilar_dbi(
+    tabla_metricas_sql = tabla_metricas_sql,
+    fuente_muestreada = fuente_muestreada, muestreo_publico = muestreo_publico,
+    conexion = conexion, tabla = tabla, preparacion = preparacion,
+    campos_todos = campos_todos, info_conexion = info_conexion,
+    presupuesto = presupuesto, incluir_valores = incluir_valores,
+    motivos_resumen = motivos_resumen,
+    campos_consolidados = campos_consolidados,
+    campos_sql_consolidados = campos_sql_consolidados,
+    columnas_sql_originales_de = columnas_sql_originales_de,
+    dobles_originales = dobles_originales,
+    es_numerico_consolidados = es_numerico_consolidados,
+    sentinelas_numericos = sentinelas_numericos,
+    argumentos_muestra = argumentos_muestra,
+    columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
+    contador_est_spec = contador_est_spec
+  )
+
+  # La primera consulta de agregados lleva `COUNT(*) AS n_total_consulta`.
+  # Usar ese denominador evita contar una segunda evaluacion de TABLESAMPLE.
+  # Si esa misma consulta revela una muestra corta, se decide el reintento
+  # ahora y se vuelve a ejecutar el resumen completo sobre la fuente elegida.
+  reintento_perfil <- .reintento_muestreo_perfilar_dbi(
+    conexion = conexion, preparacion = preparacion, resumen = resumen,
+    fuente_muestreada = fuente_muestreada,
+    proyeccion_faltantes_de = proyeccion_faltantes_de,
+    tabla_metricas_sql = tabla_metricas_sql,
+    muestreo_publico = muestreo_publico, muestreo_meta = muestreo_meta,
+    motivo_filas_obtenidas_muestreo_sql = motivo_filas_obtenidas_muestreo_sql
+  )
+  reintentos_muestreo_sql <- reintento_perfil$reintentos_muestreo_sql
+  metodo_reintento_sql <- reintento_perfil$metodo_reintento_sql
+  filas_obtenidas_muestreo_sql <- reintento_perfil$filas_obtenidas_muestreo_sql
+  motivo_filas_obtenidas_muestreo_sql <-
+    reintento_perfil$motivo_filas_obtenidas_muestreo_sql
+  motivo_reintento_sql <- reintento_perfil$motivo_reintento_sql
+  muestra_corta_sql <- reintento_perfil$muestra_corta_sql
+  fuente_muestreada <- reintento_perfil$fuente_muestreada
+  tabla_metricas_sql <- reintento_perfil$tabla_metricas_sql
+  muestreo_publico <- reintento_perfil$muestreo_publico
+  muestreo_meta <- reintento_perfil$muestreo_meta
+  pedido_muestreo <- reintento_perfil$pedido_muestreo
+  rehacer_resumen <- reintento_perfil$rehacer_resumen
+  reintento_perfil <- NULL
+  if (rehacer_resumen) {
+    resumen <- .ejecutar_resumen_perfilar_dbi(
+      tabla_metricas_sql = tabla_metricas_sql,
+      fuente_muestreada = fuente_muestreada,
+      muestreo_publico = muestreo_publico, conexion = conexion, tabla = tabla,
+      preparacion = preparacion, campos_todos = campos_todos,
+      info_conexion = info_conexion, presupuesto = presupuesto,
+      incluir_valores = incluir_valores, motivos_resumen = motivos_resumen,
+      campos_consolidados = campos_consolidados,
+      campos_sql_consolidados = campos_sql_consolidados,
+      columnas_sql_originales_de = columnas_sql_originales_de,
+      dobles_originales = dobles_originales,
+      es_numerico_consolidados = es_numerico_consolidados,
+      sentinelas_numericos = sentinelas_numericos,
+      argumentos_muestra = argumentos_muestra,
+      columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
+      contador_est_spec = contador_est_spec
+    )
+    filas_obtenidas_muestreo_sql <- .filas_obtenidas_resumen_dbi(
+      resumen = resumen
+    )
+    motivo_filas_obtenidas_muestreo_sql <- if (
+      is.finite(filas_obtenidas_muestreo_sql)
+    ) NA_character_ else "No se pudo contar la muestra en el agregado."
+    muestra_corta_sql <- pedido_muestreo > 0 &&
+      is.finite(filas_obtenidas_muestreo_sql) &&
+      filas_obtenidas_muestreo_sql < pedido_muestreo / 2
+  }
+  muestreo_perfil <- .publicar_muestreo_perfilar_dbi(
+    preparacion = preparacion, fuente_muestreada = fuente_muestreada,
+    muestreo_publico = muestreo_publico,
+    filas_obtenidas_muestreo_sql = filas_obtenidas_muestreo_sql,
+    motivo_filas_obtenidas_muestreo_sql = motivo_filas_obtenidas_muestreo_sql,
+    motivo_fuente_muestreada_sql = motivo_fuente_muestreada_sql,
+    motivo_reintento_sql = motivo_reintento_sql,
+    reintentos_muestreo_sql = reintentos_muestreo_sql,
+    metodo_inicial_sql = metodo_inicial_sql,
+    metodo_reintento_sql = metodo_reintento_sql
+  )
+  motivo_filas_obtenidas_muestreo_sql <-
+    muestreo_perfil$motivo_filas_obtenidas_muestreo_sql
+  motivo_reintento_sql <- muestreo_perfil$motivo_reintento_sql
+  muestreo_publico <- muestreo_perfil$muestreo_publico
+  muestreo_perfil <- NULL
+  derrame_perfil <- .derrame_perfilar_dbi(
+    resumen = resumen,
+    cobertura_aislamiento_muestra = cobertura_aislamiento_muestra,
+    presupuesto = presupuesto
+  )
+  resumen <- derrame_perfil$resumen
+  derrame <- derrame_perfil$derrame
+  derrame_perfil <- NULL
+  replan_perfil <- .plan_tras_resumen_perfilar_dbi(
+    conexion = conexion, preparacion = preparacion, presupuesto = presupuesto,
+    resumen = resumen, plan = plan, es_numerico = es_numerico,
+    incluir_valores = incluir_valores, tope_muestra = tope_muestra,
+    consultas_antes_resumen = consultas_antes_resumen,
+    aviso_catalogo = aviso_catalogo,
+    consultas_faltantes_plan = consultas_faltantes_plan,
+    consultas_guardas_faltantes_plan = consultas_guardas_faltantes_plan,
+    campos_faltantes_planos = campos_faltantes_planos,
+    capacidades_adicionales_anunciado = capacidades_adicionales_anunciado
+  )
+  plan <- replan_perfil$plan
+  plan_ejecutado <- replan_perfil$plan_ejecutado
+  preparacion <- replan_perfil$preparacion
+  replan_perfil <- NULL
+  final_perfil <- .muestreo_final_perfilar_dbi(
+    preparacion = preparacion, fuente_muestreada = fuente_muestreada,
+    muestreo_meta = muestreo_meta, muestreo_publico = muestreo_publico,
+    reintentos_muestreo_sql = reintentos_muestreo_sql,
+    metodo_inicial_sql = metodo_inicial_sql,
+    metodo_reintento_sql = metodo_reintento_sql,
+    motivo_reintento_sql = motivo_reintento_sql,
+    filas_obtenidas_muestreo_sql = filas_obtenidas_muestreo_sql,
+    motivo_filas_obtenidas_muestreo_sql = motivo_filas_obtenidas_muestreo_sql
+  )
+  fuente_muestreada <- final_perfil$fuente_muestreada
+  muestreo_meta <- final_perfil$muestreo_meta
+  muestreo_publico <- final_perfil$muestreo_publico
+  final_perfil <- NULL
+  metadatos_perfil <- .metadatos_perfilar_dbi(
+    resumen = resumen, preparacion = preparacion, presupuesto = presupuesto,
+    plan = plan, plan_ejecutado = plan_ejecutado,
+    incluir_valores = incluir_valores, max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra
+  )
+  resumen <- metadatos_perfil$resumen
+  plan <- metadatos_perfil$plan
+  plan_publicado <- metadatos_perfil$plan_publicado
+  metadatos_perfil <- NULL
+  cobertura_perfil <- .cobertura_resumen_perfilar_dbi(
+    resumen = resumen, tabla = tabla, preparacion = preparacion,
+    presupuesto = presupuesto,
+    cobertura_aislamiento_muestra = cobertura_aislamiento_muestra,
+    fuente_muestreada = fuente_muestreada, muestreo_publico = muestreo_publico,
+    motivo_fuente_muestreada_sql = motivo_fuente_muestreada_sql,
+    reintentos_muestreo_sql = reintentos_muestreo_sql,
+    muestra_corta_sql = muestra_corta_sql,
+    filas_obtenidas_muestreo_sql = filas_obtenidas_muestreo_sql
+  )
+  cobertura <- cobertura_perfil$cobertura
+  muestreo_publico <- cobertura_perfil$muestreo_publico
+  resumen <- cobertura_perfil$resumen
+  cobertura_perfil <- NULL
+
+  lectura_perfil <- .leer_muestra_perfilar_dbi(
+    conexion = conexion, tabla = tabla, preparacion = preparacion,
+    presupuesto = presupuesto, resumen = resumen,
+    incluir_valores = incluir_valores, contador_est_spec = contador_est_spec,
+    info_conexion = info_conexion, argumentos_muestra = argumentos_muestra,
+    muestreo_meta = muestreo_meta, trazador = trazador,
+    max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra
+  )
+  antes_estabilidad <- lectura_perfil$antes_estabilidad
+  resumen <- lectura_perfil$resumen
+  bloque <- lectura_perfil$bloque
+  lectura_perfil <- NULL
+  cierre_perfil <- .cierre_lectura_perfilar_dbi(
+    conexion = conexion, tabla = tabla, preparacion = preparacion,
+    presupuesto = presupuesto, resumen = resumen, plan = plan, bloque = bloque,
+    cobertura = cobertura, antes_estabilidad = antes_estabilidad,
+    trazador = trazador, fuente_muestreada = fuente_muestreada,
+    muestreo_publico = muestreo_publico,
+    motivo_fuente_muestreada_sql = motivo_fuente_muestreada_sql
+  )
+  bloque <- cierre_perfil$bloque
+  muestreo_publico <- cierre_perfil$muestreo_publico
+  resumen <- cierre_perfil$resumen
+  cobertura <- cierre_perfil$cobertura
+  cierre_perfil <- NULL
+  conciliacion_perfil <- .conciliacion_perfilar_dbi(
+    resumen = resumen, tabla = tabla, preparacion = preparacion,
+    presupuesto = presupuesto, plan = plan, plan_publicado = plan_publicado,
+    plan_ejecutado = plan_ejecutado, cobertura = cobertura
+  )
+  resumen <- conciliacion_perfil$resumen
+  fallas_consultas <- conciliacion_perfil$fallas_consultas
+  conciliacion_perfil <- NULL
+
+  proteccion_perfil <- .proteger_y_avisar_perfilar_dbi(
+    resumen = resumen, bloque = bloque, conexion = conexion,
+    preparacion = preparacion, presupuesto = presupuesto,
+    argumentos_muestra = argumentos_muestra,
+    fallas_consultas = fallas_consultas, derrame = derrame,
+    muestreo_publico = muestreo_publico,
+    reintentos_muestreo_sql = reintentos_muestreo_sql,
+    muestra_corta_sql = muestra_corta_sql,
+    filas_obtenidas_muestreo_sql = filas_obtenidas_muestreo_sql
+  )
+  resumen <- proteccion_perfil$resumen
+  bloque <- proteccion_perfil$bloque
+  proteccion_perfil <- NULL
+
+  estructura <- .estructura_perfilar_dbi(
+    resumen = resumen, bloque = bloque, conexion = conexion, tabla = tabla,
+    preparacion = preparacion, incluir_valores = incluir_valores,
+    columnas_codigo = columnas_codigo,
+    columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
+    sentinelas_numericos = sentinelas_numericos, texto_previo = texto_previo
+  )
+  con_fecha(estructura)
+  })
+}
+
+# La forma de la muestra del motor, probada despues de preparar la tabla y
+# antes de leer nada; la preparacion que alimenta al plan se guarda antes.
+.forma_muestreo_perfilar_dbi <- function(conexion, preparacion) {
+  # La preparacion que alimenta al plan no puede decidir que metricas existen
+  # despues de una sonda de muestreo pasajera. Se conserva antes de sondear y
+  # la corrida prueba la forma justo despues, antes de leer la muestra.
+  preparacion_plan <- preparacion
+  preparacion_plan$consultas_antes_agregados <- preparacion$presupuesto$usadas
+  if (identical(preparacion$universo, "muestra_motor") &&
+      isTRUE(preparacion$muestreo$forma_construible) &&
+      !is.null(preparacion$muestreo$candidato)) {
+    muestreo <- .sondar_muestreo_dbi(
+      conexion, preparacion$tabla_sql, preparacion$dialecto,
+      preparacion$presupuesto, tipo_objeto = preparacion$tipo_objeto
+    )
+    muestreo$sondas_previstas <- length(muestreo$sondas)
+    estado_forma <- .estado_forma_muestreo_dbi(
+      muestreo$candidato, preparacion$tabla_sql,
+      preparacion$esquema$campos_sql, preparacion$muestra_motor,
+      preparacion$dialecto
+    )
+    muestreo$forma_construible <- estado_forma$forma_construible
+    if (!isTRUE(estado_forma$forma_construible)) {
+      muestreo$disponible <- FALSE
+      # Si la sonda no acepto ninguna candidata, `candidato = NULL` tambien
+      # puede significar que el presupuesto bloqueo las sondas o que el motor
+      # rechazo la forma (`sonda_muestreo`). El estado estructural no debe
+      # reemplazar esos motivos por `sin_forma_muestreo`.
+      motivo_sondeo <- muestreo$motivo
+      motivo_valido <- length(motivo_sondeo) == 1L &&
+        !is.na(motivo_sondeo) && nzchar(as.character(motivo_sondeo))
+      if (!motivo_valido || !is.null(muestreo$candidato)) {
+        muestreo$motivo <- estado_forma$motivo
+      }
+    }
+    preparacion$muestreo <- muestreo
+    if (!isTRUE(muestreo$disponible)) {
+      preparacion$metricas_ejecucion <- character()
+    }
+  }
+  list(preparacion = preparacion, preparacion_plan = preparacion_plan)
+}
+
+# Las columnas que declara la llamada, validadas y resueltas contra las de la
+# tabla: las de codigo, las ausencias por columna, el universo declarado, los
+# periodos y las reglas de `aplicabilidad` que no dan un valor logico.
+.columnas_declaradas_perfilar_dbi <- function(argumentos_muestra, preparacion,
+                                              sentinelas_numericos,
+                                              columnas_opcionales,
+                                              aplicabilidad) {
+  # `columnas_codigo` viaja en `...` a `perfilar()` del `perfil_muestra`, y
+  # se valida ACA contra las columnas de la tabla: con `bloque_muestra =
+  # "solo_agregados"` no hay muestra, y un nombre mal escrito pasaba sin error.
+  columnas_codigo <- .normalizar_columnas_codigo(
+    argumentos_muestra[["columnas_codigo"]], preparacion$campos
+  )
+  # La declaracion de ausencias por columna, igual: se valida y se resuelve
+  # contra las columnas de la tabla, y el resumen SQL, la muestra y la
+  # corroboracion reciben la misma lista con los nombres de la tabla.
+  ausencias <- .argumento_dbi(.resolver_ausencias_dbi(
+    sentinelas_numericos, argumentos_muestra[["cadenas_ausencia"]],
+    preparacion$campos
+  ))
+  if (.es_ausencias_por_columna(sentinelas_numericos)) {
+    sentinelas_numericos <- ausencias$sentinelas
+    argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
+  }
+  if (.es_ausencias_por_columna(argumentos_muestra[["cadenas_ausencia"]])) {
+    argumentos_muestra$cadenas_ausencia <- ausencias$cadenas
+  }
+  # Y el universo declarado: `columnas_opcionales` y `aplicabilidad` se validan
+  # ACA con la regla de `perfilar()`. Las rechazaba solo el perfil de la
+  # muestra, cuyo error no detiene la corrida: una columna declarada de las
+  # dos formas, o un nombre que la tabla no tiene, dejaban el resumen calculado
+  # y la muestra sin perfil.
+  .argumento_dbi(.validar_universo_declarado(
+    preparacion$campos, columnas_opcionales, aplicabilidad,
+    prototipo = .prototipo_tabla_dbi(preparacion)
+  ))
+  # Lo mismo para los periodos: sin muestra, un nombre mal escrito pasaba.
+  .argumento_dbi(.normalizar_periodos(argumentos_muestra[["periodos"]], preparacion$campos))
+  # Una regla de `aplicabilidad` que no da un valor logico -`~ activo` con
+  # `activo` guardada como 0 y 1, que en SQLite no es logica- no se aplica: se
+  # declara para su columna, con como escribirla, y el resto del perfil sale
+  # igual. `perfilar()` la rechaza entera, y aca eso dejaba a la tabla sin
+  # `perfil_muestra`. Aca se decide con el tipo de las columnas que entrega el
+  # controlador, sin filas: lo que queda es lo que reciben la muestra, la
+  # corroboracion y las fechas. Si el motor no declara el tipo de una columna,
+  # lo decide quien la lee (`.aplicabilidad_sobre_datos_dbi()`).
+  aplicabilidad_por_tipo <- .aplicabilidad_por_tipo_dbi(preparacion, aplicabilidad)
+  aplicabilidad_no_logica <- aplicabilidad_por_tipo$no_logicas
+  if (nrow(aplicabilidad_no_logica)) {
+    aplicabilidad <- aplicabilidad_por_tipo$aplicabilidad
+    argumentos_muestra["aplicabilidad"] <- list(aplicabilidad)
+    .avisar_muestra_motor_dbi(.aviso_aplicabilidad_no_logica_dbi(
+      aplicabilidad_no_logica
+    ))
+  }
+  list(
+    columnas_codigo = columnas_codigo,
+    sentinelas_numericos = sentinelas_numericos,
+    argumentos_muestra = argumentos_muestra, aplicabilidad = aplicabilidad,
+    aplicabilidad_no_logica = aplicabilidad_no_logica
+  )
+}
+
+# Lo que sigue a la via del spool: el plan que la corrida publica, la cuenta
+# de sus consultas, la conciliacion y las guardas y coberturas de la salida.
+.cerrar_spool_perfilar_dbi <- function(resultado, plan_corrida, conexion,
+                                       tabla, preparacion, incluir_valores,
+                                       columnas_codigo, columnas_opcionales,
+                                       aplicabilidad, sentinelas_numericos,
+                                       texto_previo) {
+  resultado$resumen_tabla$meta$plan <- plan_corrida
+  # Armar ese plan vuelve a preparar la tabla, y esas consultas viajan al
+  # motor: se cuentan con las demas y el plan las anuncia
+  # (ver `.plan_spool_dbi()`).
+  # Menos las dos de la guarda de DuckDB, que ese plan anuncia y esta misma
+  # llamada ya mando y conto al abrir.
+  .contar_dbi(
+    preparacion$presupuesto,
+    max(0, (attr(plan_corrida, "consultas_emitidas", exact = TRUE) %||% 0) -
+          .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI))
+  )
+  if (is.list(resultado$resumen_tabla$meta$consultas) &&
+      !is.null(preparacion$presupuesto)) {
+    resultado$resumen_tabla$meta$consultas$emitidas <-
+      preparacion$presupuesto$usadas
+    resultado$resumen_tabla$meta$consultas$conciliacion <-
+      .conciliar_consultas_dbi(
+        plan_corrida,
+        .plan_ejecutado_spool_dbi(plan_corrida, preparacion$presupuesto),
+        preparacion$presupuesto$usadas, preparacion,
+        preparacion$presupuesto
+      )
+  }
+  resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
+  # El spool ya materializo los datos y aplica estas guardas antes de la
+  # corroboracion; se repite aqui para cubrir un adaptador que devuelva un
+  # resultado armado por una via de respaldo.
+  resultado <- .aplicar_guardas_salida_muestra_dbi(
+    resultado, incluir_valores = incluir_valores
+  )
+  resultado <- .declarar_enmascaradas_dbi(resultado, preparacion)
+  resultado <- .agregar_cobertura_corroboracion_dbi(
+    resultado, columnas_codigo = columnas_codigo,
+    columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
+    sentinelas_numericos = sentinelas_numericos
+  )
+  resultado <- .agregar_cobertura_politicas_muestra_dbi(
+    resultado, aplicabilidad = aplicabilidad,
+    columnas_opcionales = columnas_opcionales,
+    sentinelas_numericos = sentinelas_numericos,
+    columnas_codigo = columnas_codigo,
+    lectura_convertida = preparacion$lectura_convertida,
+    cobertura_texto = .cobertura_texto_controlador_dbi(
+      conexion, tabla, preparacion$campos, preparacion$tipos,
+      .texto_anotado_desde_dbi(conexion, texto_previo)
+    )
+  )
+  resultado <- .aplicar_guardas_salida_muestra_dbi(
+    resultado, incluir_valores = incluir_valores
+  )
+  if (!is.null(resultado$resumen_tabla)) {
+    orden_publico <- .orden_muestra_publica_dbi(
+      preparacion$orden_muestra,
+      resultado$resumen_tabla$meta$muestreo
+    )
+    resultado$resumen_tabla$meta$orden_muestra <- orden_publico
+    if (!is.null(resultado$resumen_tabla$meta$muestreo)) {
+      resultado$resumen_tabla$meta$muestreo$orden_muestra_aplicado <-
+        orden_publico$aplicado
+      resultado$resumen_tabla$meta$muestreo$motivo_orden_muestra <-
+        orden_publico$motivo
+    }
+  }
+  resultado
+}
+
+# Lo que sigue a la via por bloques: la conciliacion de sus consultas y, si
+# la via no lo aplico, el epilogo de la salida. La fecha y el resumen de
+# fechas se los agrega despues la principal (`con_fecha()`).
+.cerrar_bloques_perfilar_dbi <- function(resultado, conexion, tabla,
+                                         preparacion, incluir_valores,
+                                         columnas_codigo, columnas_opcionales,
+                                         aplicabilidad, sentinelas_numericos,
+                                         texto_previo) {
+  if (is.list(resultado$resumen_tabla$meta$consultas)) {
+    plan_bloques <- resultado$resumen_tabla$meta$plan
+    conciliacion_bloques <- if (is.data.frame(plan_bloques)) {
+      .conciliar_consultas_dbi(
+        plan_bloques, plan_bloques,
+        resultado$resumen_tabla$meta$consultas$emitidas,
+        preparacion, preparacion$presupuesto
+      )
+    } else {
+      .conciliacion_consultas_sin_plan_dbi(
+        resultado$resumen_tabla$meta$consultas, preparacion$presupuesto
+      )
+    }
+    if (is.data.frame(plan_bloques)) {
+      conciliacion_bloques <- .atributos_conciliacion_dbi(
+        conciliacion_bloques, plan_bloques
+      )
+    }
+    resultado$resumen_tabla$meta$consultas$conciliacion <-
+      conciliacion_bloques
+    resultado$resumen_tabla$meta$consultas$conciliacion$plan_corrida <-
+      conciliacion_bloques
+  }
+  if (isTRUE(attr(resultado, "epilogo_aplicado_dbi", exact = TRUE))) {
+    attr(resultado, "epilogo_aplicado_dbi") <- NULL
+    return(resultado)
+  }
+  # Un controlador sin lectura incremental demostrada -DuckDB, o uno que no
+  # esta en la matriz- deja todas las metricas `no_disponible`, a proposito:
+  # no se cae en `dbGetQuery()`. Pero el motivo quedaba solo en la cobertura y
+  # en `meta$fuente_bloques`, y el perfil vacio llegaba sin una condicion.
+  resultado <- .declarar_afirmados_sin_valor_dbi(resultado, preparacion)
+  fuente_bloques <- resultado$resumen_tabla$meta$fuente_bloques
+  if (is.list(fuente_bloques) && isFALSE(fuente_bloques$disponible)) {
+    .avisar_muestra_motor_dbi(
+      paste0(
+        "La lectura por bloques no est\u00e1 disponible con este controlador (",
+        fuente_bloques$motivo, "): las m\u00e9tricas quedan `no_disponible`. ",
+        "Sin `bloque_filas`, el resumen se calcula en el motor con agregados."
+      ),
+      datos = list(motivo = fuente_bloques$motivo)
+    )
+  }
+  resultado <- .aplicar_guardas_salida_muestra_dbi(
+    resultado, incluir_valores = incluir_valores
+  )
+  resultado <- .declarar_enmascaradas_dbi(resultado, preparacion)
+  resultado <- .agregar_cobertura_corroboracion_dbi(
+    resultado, columnas_codigo = columnas_codigo,
+    columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
+    sentinelas_numericos = sentinelas_numericos
+  )
+  .agregar_cobertura_politicas_muestra_dbi(
+    resultado, aplicabilidad = aplicabilidad,
+    columnas_opcionales = columnas_opcionales,
+    sentinelas_numericos = sentinelas_numericos,
+    columnas_codigo = columnas_codigo,
+    lectura_convertida = preparacion$lectura_convertida,
+    cobertura_texto = .cobertura_texto_controlador_dbi(
+      conexion, tabla, preparacion$campos, preparacion$tipos,
+      .texto_anotado_desde_dbi(conexion, texto_previo)
+    )
+  )
+}
+
+# El plan de la corrida y el anunciado, con las consultas que la corrida ya
+# pago, las pruebas de capacidad y las politicas de faltantes que cuentan, y
+# la reserva de la muestra en el presupuesto.
+.plan_corrida_perfilar_dbi <- function(conexion, tabla, preparacion,
+                                       preparacion_plan, presupuesto,
+                                       incluir_valores, max_celdas_muestra,
+                                       max_bytes_muestra, sentinelas_numericos,
+                                       argumentos_muestra, columnas_opcionales,
+                                       aplicabilidad) {
   info_conexion <- .info_conexion_dbi(conexion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
@@ -31339,22 +31713,27 @@ perfilar_dbi <- function(conexion, tabla,
   } else {
     0
   }
-  # El plan ya dice cuantas consultas se van a emitir, asi que la barra avanza
-  # contra un total conocido y no contra una estimacion. Se abre en el marco de
-  # esta funcion para que viva lo que dure el perfilado y se cierre sola.
-    .abrir_progreso_dbi(
-    presupuesto, sum(plan$n_consultas_max), environment()
+  list(
+    info_conexion = info_conexion, es_numerico = es_numerico,
+    tope_muestra = tope_muestra, aviso_catalogo = aviso_catalogo,
+    capacidades_adicionales_anunciado = capacidades_adicionales_anunciado,
+    consultas_faltantes_plan = consultas_faltantes_plan,
+    consultas_guardas_faltantes_plan = consultas_guardas_faltantes_plan,
+    campos_faltantes_planos = campos_faltantes_planos, plan = plan
   )
+}
 
+# La fuente de los agregados y, con `universo = "muestra_motor"`, la fuente
+# muestreada que la reemplaza (o la relacion vacia si no se pudo armar), con
+# la politica de `NEWID()` y el muestreo que se publica.
+.fuente_muestreada_perfilar_dbi <- function(conexion, preparacion, presupuesto,
+                                            incluir_valores,
+                                            avisar_costo_mediana) {
   fuente_muestreada <- NULL
   muestreo_meta <- preparacion$muestreo
-  reintentos_muestreo_sql <- 0L
   metodo_inicial_sql <- NA_character_
-  metodo_reintento_sql <- NA_character_
-  filas_obtenidas_muestreo_sql <- NA_real_
   motivo_filas_obtenidas_muestreo_sql <- NA_character_
   motivo_fuente_muestreada_sql <- NA_character_
-  motivo_reintento_sql <- NA_character_
   muestreo_publico <- if (is.null(preparacion$muestreo)) {
     NULL
   } else {
@@ -31459,7 +31838,6 @@ perfilar_dbi <- function(conexion, tabla,
   # la medicion que decide si hace falta reintentar y que se publica; el
   # reintento, si corresponde, se arma despues de esa medicion y vuelve a
   # ejecutar el agregado sobre su propia fuente.
-  muestra_corta_sql <- FALSE
   if (identical(preparacion$universo, "muestra_motor") &&
       !is.null(preparacion$muestreo) &&
       !isTRUE(preparacion$muestreo$disponible)) {
@@ -31472,7 +31850,27 @@ perfilar_dbi <- function(conexion, tabla,
       preparacion$dialecto$alias_tabla("lupa_muestra")
     )
   }
+  list(
+    fuente_muestreada = fuente_muestreada, muestreo_meta = muestreo_meta,
+    metodo_inicial_sql = metodo_inicial_sql,
+    motivo_filas_obtenidas_muestreo_sql = motivo_filas_obtenidas_muestreo_sql,
+    motivo_fuente_muestreada_sql = motivo_fuente_muestreada_sql,
+    muestreo_publico = muestreo_publico, preparacion = preparacion,
+    fuente_lectura = fuente_lectura, dobles_originales = dobles_originales,
+    proyeccion_faltantes_de = proyeccion_faltantes_de,
+    columnas_sql_originales_de = columnas_sql_originales_de,
+    tabla_metricas_sql = tabla_metricas_sql
+  )
+}
 
+# Las columnas que entran a los agregados. Si la lectura de la muestra del
+# motor falla, se aisla por descarte la columna que la hace fallar y los
+# agregados siguen sobre las demas.
+.aislar_muestra_perfilar_dbi <- function(conexion, preparacion, fuente_lectura,
+                                         fuente_muestreada,
+                                         proyeccion_faltantes_de,
+                                         motivo_fuente_muestreada_sql,
+                                         tabla_metricas_sql) {
   campos_consolidados <- preparacion$campos
   # `tabla_metricas_sql` ya contiene la proyeccion convertida cuando hubo una
   # lectura especial. Sus columnas conservan los nombres originales; volver a
@@ -31568,93 +31966,113 @@ perfilar_dbi <- function(conexion, tabla,
       }
     }
   }
+  list(
+    campos_consolidados = campos_consolidados,
+    campos_sql_consolidados = campos_sql_consolidados,
+    es_numerico_consolidados = es_numerico_consolidados,
+    motivos_resumen = motivos_resumen,
+    cobertura_aislamiento_muestra = cobertura_aislamiento_muestra,
+    motivo_fuente_muestreada_sql = motivo_fuente_muestreada_sql,
+    tabla_metricas_sql = tabla_metricas_sql
+  )
+}
 
-  campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
-  contador_est_spec <- if (identical(preparacion$universo, "tabla_completa") &&
-                           as.integer(attr(plan, "verificar_estabilidad_max", exact = TRUE) %||% 0L) > 0L) {
-    .especificacion_contador_estabilidad_dbi(
-      conexion, tabla, preparacion$tabla_sql,
-      tipo_objeto = preparacion$tipo_objeto,
-      tipos_motor = preparacion$esquema$tipos_motor,
-      campos = preparacion$campos,
-      campos_sql = stats::setNames(preparacion$campos_sql, preparacion$campos)
+# El resumen de la tabla en el motor sobre la fuente dada (la tabla, la
+# muestra del motor o la del reintento) y las columnas que quedaron legibles.
+.ejecutar_resumen_perfilar_dbi <- function(tabla_metricas_sql,
+                                           fuente_muestreada, muestreo_publico,
+                                           conexion, tabla, preparacion,
+                                           campos_todos, info_conexion,
+                                           presupuesto, incluir_valores,
+                                           motivos_resumen,
+                                           campos_consolidados,
+                                           campos_sql_consolidados,
+                                           columnas_sql_originales_de,
+                                           dobles_originales,
+                                           es_numerico_consolidados,
+                                           sentinelas_numericos,
+                                           argumentos_muestra,
+                                           columnas_opcionales, aplicabilidad,
+                                           contador_est_spec) {
+  .resumen_tabla_dbi(
+    conexion, tabla, preparacion$tabla_sql, campos_todos,
+    preparacion$prototipo, preparacion$n_total, preparacion$sql_conteo,
+    info_conexion, dialecto = preparacion$dialecto,
+    metricas = preparacion$metricas, presupuesto = presupuesto,
+    metricas_ejecucion = preparacion$metricas_ejecucion,
+    incluir_valores = incluir_valores, tipos_declarados = preparacion$tipos,
+    tipos_motor = preparacion$esquema$tipos_motor,
+    motivos_ilegibles = motivos_resumen,
+    universo = preparacion$universo,
+    estrategia_mediana = preparacion$estrategia_mediana,
+    tabla_metricas_sql = tabla_metricas_sql,
+    muestreo = muestreo_publico, aproximaciones = preparacion$aproximaciones,
+    tamano_muestra = if (is.null(fuente_muestreada)) NA_real_ else
+      fuente_muestreada$filas_solicitadas,
+    fraccion_muestra = if (is.null(fuente_muestreada)) NA_real_ else
+      fuente_muestreada$fraccion,
+    campos_consolidados = campos_consolidados,
+    campos_sql_consolidados = campos_sql_consolidados,
+    columnas_sql_originales_consolidados = columnas_sql_originales_de(
+      campos_consolidados
+    ),
+    columnas_double_originales = intersect(
+      dobles_originales, campos_consolidados
+    ),
+    es_numerico_consolidados = es_numerico_consolidados,
+    infinitos_como_numeric = preparacion$infinitos_como_numeric,
+    columnas_float8_numeric = preparacion$columnas_float8_numeric,
+    tamano_lote_planos = preparacion$tamano_lote_planos,
+    tamano_lote_distintos = preparacion$tamano_lote_distintos,
+    conteo = preparacion$conteo,
+    moda_guardian = preparacion$moda_guardian,
+    mediana_consolidada = preparacion$mediana_consolidada,
+    mediana_escalar = preparacion$mediana_escalar,
+    mediana_cte_ventana = preparacion$mediana_cte_ventana,
+    mediana_cte_ventana_motivo = preparacion$mediana_cte_ventana_motivo,
+    fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
+    estrategia_distintos = preparacion$estrategia_distintos,
+    politica_costo = preparacion$politica_costo,
+    sentinelas_numericos = sentinelas_numericos,
+    cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]],
+    columnas_opcionales = columnas_opcionales,
+    aplicabilidad = aplicabilidad,
+    contar_faltantes = identical(preparacion$universo, "muestra_motor") ||
+      is.finite(preparacion$muestra),
+    catalogo_garantias = preparacion$catalogo_garantias,
+    unicidad_estructural = preparacion$unicidad_estructural,
+    columnas_not_null_skip = preparacion$columnas_not_null_skip,
+    columnas_not_null_texto = preparacion$columnas_not_null_texto,
+    plan_duplicados = preparacion$plan_duplicados,
+    contador_estabilidad = contador_est_spec,
+    bloque_muestra = preparacion$bloque_muestra,
+    aplicabilidad_sql = .aplicabilidad_sql_resumen_dbi(
+      conexion, preparacion, aplicabilidad
     )
-  } else NULL
-  consultas_antes_resumen <- presupuesto$usadas
-  ejecutar_resumen <- function(fuente_sql, fuente, muestreo) {
-    .resumen_tabla_dbi(
-      conexion, tabla, preparacion$tabla_sql, campos_todos,
-      preparacion$prototipo, preparacion$n_total, preparacion$sql_conteo,
-      info_conexion, dialecto = preparacion$dialecto,
-      metricas = preparacion$metricas, presupuesto = presupuesto,
-      metricas_ejecucion = preparacion$metricas_ejecucion,
-      incluir_valores = incluir_valores, tipos_declarados = preparacion$tipos,
-      tipos_motor = preparacion$esquema$tipos_motor,
-      motivos_ilegibles = motivos_resumen,
-      universo = preparacion$universo,
-      estrategia_mediana = preparacion$estrategia_mediana,
-      tabla_metricas_sql = fuente_sql,
-      muestreo = muestreo, aproximaciones = preparacion$aproximaciones,
-      tamano_muestra = if (is.null(fuente)) NA_real_ else
-        fuente$filas_solicitadas,
-      fraccion_muestra = if (is.null(fuente)) NA_real_ else
-        fuente$fraccion,
-      campos_consolidados = campos_consolidados,
-      campos_sql_consolidados = campos_sql_consolidados,
-      columnas_sql_originales_consolidados = columnas_sql_originales_de(
-        campos_consolidados
-      ),
-      columnas_double_originales = intersect(
-        dobles_originales, campos_consolidados
-      ),
-      es_numerico_consolidados = es_numerico_consolidados,
-      infinitos_como_numeric = preparacion$infinitos_como_numeric,
-      columnas_float8_numeric = preparacion$columnas_float8_numeric,
-      tamano_lote_planos = preparacion$tamano_lote_planos,
-      tamano_lote_distintos = preparacion$tamano_lote_distintos,
-      conteo = preparacion$conteo,
-      moda_guardian = preparacion$moda_guardian,
-      mediana_consolidada = preparacion$mediana_consolidada,
-      mediana_escalar = preparacion$mediana_escalar,
-      mediana_cte_ventana = preparacion$mediana_cte_ventana,
-      mediana_cte_ventana_motivo = preparacion$mediana_cte_ventana_motivo,
-      fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
-      estrategia_distintos = preparacion$estrategia_distintos,
-      politica_costo = preparacion$politica_costo,
-      sentinelas_numericos = sentinelas_numericos,
-      cadenas_ausencia = argumentos_muestra[["cadenas_ausencia"]],
-      columnas_opcionales = columnas_opcionales,
-      aplicabilidad = aplicabilidad,
-      contar_faltantes = identical(preparacion$universo, "muestra_motor") ||
-        is.finite(preparacion$muestra),
-      catalogo_garantias = preparacion$catalogo_garantias,
-      unicidad_estructural = preparacion$unicidad_estructural,
-      columnas_not_null_skip = preparacion$columnas_not_null_skip,
-      columnas_not_null_texto = preparacion$columnas_not_null_texto,
-      plan_duplicados = preparacion$plan_duplicados,
-      contador_estabilidad = contador_est_spec,
-      bloque_muestra = preparacion$bloque_muestra,
-      aplicabilidad_sql = .aplicabilidad_sql_resumen_dbi(
-        conexion, preparacion, aplicabilidad
-      )
-    )
-  }
-  resumen <- ejecutar_resumen(tabla_metricas_sql, fuente_muestreada,
-                              muestreo_publico)
+  )
+}
 
-  # La primera consulta de agregados lleva `COUNT(*) AS n_total_consulta`.
-  # Usar ese denominador evita contar una segunda evaluacion de TABLESAMPLE.
-  # Si esa misma consulta revela una muestra corta, se decide el reintento
-  # ahora y se vuelve a ejecutar el resumen completo sobre la fuente elegida.
+# Con `bloque_muestra = "solo_agregados"` el primer agregado cuenta la muestra
+# del motor; si salio corta y era un `TABLESAMPLE`, se arma la fuente del
+# reintento con otra forma de muestreo.
+.reintento_muestreo_perfilar_dbi <- function(conexion, preparacion, resumen,
+                                             fuente_muestreada,
+                                             proyeccion_faltantes_de,
+                                             tabla_metricas_sql,
+                                             muestreo_publico, muestreo_meta,
+                                             motivo_filas_obtenidas_muestreo_sql) {
+  reintentos_muestreo_sql <- 0L
+  metodo_reintento_sql <- NA_character_
+  filas_obtenidas_muestreo_sql <- NA_real_
+  motivo_reintento_sql <- NA_character_
+  muestra_corta_sql <- FALSE
+  # Si se arma una fuente de reintento, la principal vuelve a ejecutar el
+  # resumen sobre ella y mide la muestra contra lo pedido.
+  rehacer_resumen <- FALSE
+  pedido_muestreo <- NA_real_
   if (identical(preparacion$universo, "muestra_motor") &&
       identical(preparacion$bloque_muestra, "solo_agregados") &&
       !is.null(fuente_muestreada)) {
-    filas_del_resumen <- function(objeto) {
-      valor <- suppressWarnings(as.numeric(
-        objeto$meta$filas_obtenidas_muestra
-      ))
-      if (length(valor) == 1L && is.finite(valor)) valor else NA_real_
-    }
     # Lo efectivo es lo pedido acotado por el total de la tabla. Las formas de
     # cantidad fija -`RESERVOIR (n ROWS)` de DuckDB, el orden pseudoaleatorio
     # con limite- no cuentan la tabla antes, porque no lo necesitan para
@@ -31674,7 +32092,9 @@ perfilar_dbi <- function(conexion, tabla,
       if (is.finite(total_muestreo)) total_muestreo else
         as.numeric(preparacion$muestra_motor)
     )
-    filas_obtenidas_muestreo_sql <- filas_del_resumen(resumen)
+    filas_obtenidas_muestreo_sql <- .filas_obtenidas_resumen_dbi(
+      resumen = resumen
+    )
     motivo_filas_obtenidas_muestreo_sql <- if (
       is.finite(filas_obtenidas_muestreo_sql)
     ) NA_character_ else "No se pudo contar la muestra en el agregado."
@@ -31754,20 +32174,45 @@ perfilar_dbi <- function(conexion, tabla,
               sql = fuente_reintento$sql
             )
           )
-          resumen <- ejecutar_resumen(
-            tabla_metricas_sql, fuente_muestreada, muestreo_publico
-          )
-          filas_obtenidas_muestreo_sql <- filas_del_resumen(resumen)
-          motivo_filas_obtenidas_muestreo_sql <- if (
-            is.finite(filas_obtenidas_muestreo_sql)
-          ) NA_character_ else "No se pudo contar la muestra en el agregado."
-          muestra_corta_sql <- pedido_muestreo > 0 &&
-            is.finite(filas_obtenidas_muestreo_sql) &&
-            filas_obtenidas_muestreo_sql < pedido_muestreo / 2
+          rehacer_resumen <- TRUE
         }
       }
     }
   }
+  list(
+    reintentos_muestreo_sql = reintentos_muestreo_sql,
+    metodo_reintento_sql = metodo_reintento_sql,
+    filas_obtenidas_muestreo_sql = filas_obtenidas_muestreo_sql,
+    motivo_filas_obtenidas_muestreo_sql = motivo_filas_obtenidas_muestreo_sql,
+    motivo_reintento_sql = motivo_reintento_sql,
+    muestra_corta_sql = muestra_corta_sql,
+    fuente_muestreada = fuente_muestreada,
+    tabla_metricas_sql = tabla_metricas_sql,
+    muestreo_publico = muestreo_publico, muestreo_meta = muestreo_meta,
+    pedido_muestreo = pedido_muestreo, rehacer_resumen = rehacer_resumen
+  )
+}
+
+# Las filas de la muestra que conto el agregado, o NA si no las conto.
+.filas_obtenidas_resumen_dbi <- function(resumen) {
+  valor <- suppressWarnings(as.numeric(
+    resumen$meta$filas_obtenidas_muestra
+  ))
+  if (length(valor) == 1L && is.finite(valor)) valor else NA_real_
+}
+
+# El estado del muestreo que se publica despues del resumen: los motivos de
+# filas y de reintento y, con `bloque_muestra = "solo_agregados"`, los
+# intentos y las fracciones.
+.publicar_muestreo_perfilar_dbi <- function(preparacion, fuente_muestreada,
+                                            muestreo_publico,
+                                            filas_obtenidas_muestreo_sql,
+                                            motivo_filas_obtenidas_muestreo_sql,
+                                            motivo_fuente_muestreada_sql,
+                                            motivo_reintento_sql,
+                                            reintentos_muestreo_sql,
+                                            metodo_inicial_sql,
+                                            metodo_reintento_sql) {
   if (identical(preparacion$universo, "muestra_motor") &&
       is.null(fuente_muestreada) && !is.null(muestreo_publico) &&
       !is.finite(filas_obtenidas_muestreo_sql) &&
@@ -31817,6 +32262,17 @@ perfilar_dbi <- function(conexion, tabla,
       filas_obtenidas_muestreo_sql, preparacion$n_total
     )
   }
+  list(
+    motivo_filas_obtenidas_muestreo_sql = motivo_filas_obtenidas_muestreo_sql,
+    motivo_reintento_sql = motivo_reintento_sql,
+    muestreo_publico = muestreo_publico
+  )
+}
+
+# La cobertura del aislamiento de la muestra, el derrame observado y las
+# proyecciones de costo, en el resumen.
+.derrame_perfilar_dbi <- function(resumen, cobertura_aislamiento_muestra,
+                                  presupuesto) {
   if (nrow(cobertura_aislamiento_muestra)) {
     resumen$cobertura <- rbind(
       resumen$cobertura, cobertura_aislamiento_muestra
@@ -31833,6 +32289,21 @@ perfilar_dbi <- function(conexion, tabla,
   resumen$meta$costo_distintos <- presupuesto$proyeccion_distintos
   resumen$meta$costo_moda <- presupuesto$proyeccion_moda
   resumen$meta$costo_mediana <- presupuesto$proyeccion_mediana
+  list(resumen = resumen, derrame = derrame)
+}
+
+# El plan despues del resumen: el rehecho con las decisiones de costo de
+# `politica_costo = "por_cardinalidad"`, sus atributos, el total que gobierna
+# desde aca y el plan ejecutado con los ajustes que decidieron los datos.
+.plan_tras_resumen_perfilar_dbi <- function(conexion, preparacion, presupuesto,
+                                            resumen, plan, es_numerico,
+                                            incluir_valores, tope_muestra,
+                                            consultas_antes_resumen,
+                                            aviso_catalogo,
+                                            consultas_faltantes_plan,
+                                            consultas_guardas_faltantes_plan,
+                                            campos_faltantes_planos,
+                                            capacidades_adicionales_anunciado) {
   nmax_plan_anunciado <- plan$n_consultas_max
   clases_plan_anunciado <- plan$clase_consulta
   plan_anunciado <- plan
@@ -31924,6 +32395,19 @@ perfilar_dbi <- function(conexion, tabla,
   # tabla sin valores, o una clase cuya cuenta deciden los datos.
   preparacion$plan_rehecho <- isTRUE(preparacion$tabla_sin_valores) ||
     length(preparacion$ajustes_por_datos) > 0L
+  list(plan = plan, plan_ejecutado = plan_ejecutado, preparacion = preparacion)
+}
+
+# La fuente muestreada y su muestreo publicado, acotados al total que conto
+# la corrida.
+.muestreo_final_perfilar_dbi <- function(preparacion, fuente_muestreada,
+                                         muestreo_meta, muestreo_publico,
+                                         reintentos_muestreo_sql,
+                                         metodo_inicial_sql,
+                                         metodo_reintento_sql,
+                                         motivo_reintento_sql,
+                                         filas_obtenidas_muestreo_sql,
+                                         motivo_filas_obtenidas_muestreo_sql) {
   if (identical(preparacion$universo, "muestra_motor")) {
     if (!is.null(fuente_muestreada)) {
       fuente_muestreada$filas_solicitadas <- min(
@@ -32008,6 +32492,17 @@ perfilar_dbi <- function(conexion, tabla,
       }
     }
   }
+  list(
+    fuente_muestreada = fuente_muestreada, muestreo_meta = muestreo_meta,
+    muestreo_publico = muestreo_publico
+  )
+}
+
+# Los metadatos del resumen y el plan que se publica, con las cuentas que
+# cambiaron los datos.
+.metadatos_perfilar_dbi <- function(resumen, preparacion, presupuesto, plan,
+                                    plan_ejecutado, incluir_valores,
+                                    max_celdas_muestra, max_bytes_muestra) {
   resumen$meta$sql_esquema <- preparacion$esquema$sql
   resumen$meta$universo <- preparacion$universo
   resumen$meta$estrategia_mediana <- .publicar_estrategia_mediana_dbi(
@@ -32140,6 +32635,21 @@ perfilar_dbi <- function(conexion, tabla,
       preparacion$aproximaciones_resolucion, .publicar_aproximacion_dbi
     )
   }
+  list(resumen = resumen, plan = plan, plan_publicado = plan_publicado)
+}
+
+# La cobertura del resumen (cambios entre consultas, faltantes, blancos bajo
+# NOT NULL, duplicados, muestreo) y, con la muestra del motor, el muestreo
+# que publica el resumen.
+.cobertura_resumen_perfilar_dbi <- function(resumen, tabla, preparacion,
+                                            presupuesto,
+                                            cobertura_aislamiento_muestra,
+                                            fuente_muestreada,
+                                            muestreo_publico,
+                                            motivo_fuente_muestreada_sql,
+                                            reintentos_muestreo_sql,
+                                            muestra_corta_sql,
+                                            filas_obtenidas_muestreo_sql) {
   cobertura <- .cobertura_dbi_vacia()
   cobertura <- rbind(
     cobertura,
@@ -32263,7 +32773,20 @@ perfilar_dbi <- function(conexion, tabla,
       NA_character_
     ))
   }
+  list(
+    cobertura = cobertura, muestreo_publico = muestreo_publico,
+    resumen = resumen
+  )
+}
 
+# La estabilidad antes de leer la muestra y la lectura de la muestra en R, o
+# su registro de no solicitada.
+.leer_muestra_perfilar_dbi <- function(conexion, tabla, preparacion,
+                                       presupuesto, resumen, incluir_valores,
+                                       contador_est_spec, info_conexion,
+                                       argumentos_muestra, muestreo_meta,
+                                       trazador, max_celdas_muestra,
+                                       max_bytes_muestra) {
   antes_estabilidad <- if (identical(preparacion$universo, "tabla_completa")) {
     .capturar_antes_estabilidad_dbi(
       conexion, preparacion, preparacion$n_total,
@@ -32325,6 +32848,20 @@ perfilar_dbi <- function(conexion, tabla,
       muestreo = NULL
     )
   }
+  list(
+    antes_estabilidad = antes_estabilidad, resumen = resumen, bloque = bloque
+  )
+}
+
+# Lo que sigue a la lectura de la muestra: el muestreo que publica, su
+# cobertura, la verificacion de estabilidad al cierre, los tiempos y el
+# presupuesto agotado.
+.cierre_lectura_perfilar_dbi <- function(conexion, tabla, preparacion,
+                                         presupuesto, resumen, plan, bloque,
+                                         cobertura, antes_estabilidad,
+                                         trazador, fuente_muestreada,
+                                         muestreo_publico,
+                                         motivo_fuente_muestreada_sql) {
   if (!is.null(muestreo_publico) && !is.null(bloque$muestreo)) {
     if (is.null(fuente_muestreada) &&
         length(motivo_fuente_muestreada_sql) == 1L &&
@@ -32449,6 +32986,17 @@ perfilar_dbi <- function(conexion, tabla,
     ))
   }
   rownames(cobertura) <- NULL
+  list(
+    bloque = bloque, muestreo_publico = muestreo_publico, resumen = resumen,
+    cobertura = cobertura
+  )
+}
+
+# La conciliacion de las consultas contra el plan publicado y el de la
+# corrida, las fallas de capacidad y de consultas, y la cobertura final.
+.conciliacion_perfilar_dbi <- function(resumen, tabla, preparacion,
+                                       presupuesto, plan, plan_publicado,
+                                       plan_ejecutado, cobertura) {
   muestra_no_disponible_corrida <- identical(preparacion$universo, "muestra_motor") &&
     is.list(preparacion$muestreo) && !isTRUE(preparacion$muestreo$disponible)
   condicional_desconocida <- is.data.frame(plan) && nrow(plan) > 0L &&
@@ -32560,7 +33108,19 @@ perfilar_dbi <- function(conexion, tabla,
   rownames(cobertura) <- NULL
   resumen$cobertura <- cobertura
   resumen$faltantes_disfrazados <- NULL
+  list(resumen = resumen, fallas_consultas = fallas_consultas)
+}
 
+# La proteccion de la salida y los avisos de la muestra, de las consultas
+# fallidas, de la muestra degradada y del derrame.
+.proteger_y_avisar_perfilar_dbi <- function(resumen, bloque, conexion,
+                                            preparacion, presupuesto,
+                                            argumentos_muestra,
+                                            fallas_consultas, derrame,
+                                            muestreo_publico,
+                                            reintentos_muestreo_sql,
+                                            muestra_corta_sql,
+                                            filas_obtenidas_muestreo_sql) {
   argumentos <- argumentos_muestra
   proteger <- .protege_argumentos(argumentos)
   if (proteger) {
@@ -32637,7 +33197,17 @@ perfilar_dbi <- function(conexion, tabla,
       "`. El detalle queda en `resumen_tabla$sql`."
     ))
   }
+  list(resumen = resumen, bloque = bloque)
+}
 
+# El resultado armado, con sus declaraciones, coberturas, guardas y sello.
+# La fecha y el resumen de fechas se los agrega despues la principal
+# (`con_fecha()`).
+.estructura_perfilar_dbi <- function(resumen, bloque, conexion, tabla,
+                                     preparacion, incluir_valores,
+                                     columnas_codigo, columnas_opcionales,
+                                     aplicabilidad, sentinelas_numericos,
+                                     texto_previo) {
   resumen <- .politica_sin_reglas_no_logicas_dbi(
     resumen, bloque$aplicabilidad_no_logica
   )
@@ -32664,8 +33234,7 @@ perfilar_dbi <- function(conexion, tabla,
       estructura, incluir_valores = incluir_valores
     )
   estructura <- .sellar_perfil_dbi(estructura)
-  con_fecha(estructura)
-  })
+  estructura
 }
 
 .texto_clave_dbi <- function(clave, catalogo = NULL) {
