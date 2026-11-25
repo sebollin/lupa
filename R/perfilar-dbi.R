@@ -12795,9 +12795,10 @@
 
 .tipo_puede_nan_dbi <- function(tipo, prototipo = NULL, conexion = NULL) {
   texto <- if (length(tipo) == 1L && !is.na(tipo)) as.character(tipo) else ""
-  # El tipo declarado manda cuando esta disponible. Algunos controladores
-  # devuelven un prototipo vacio con una clase doble aunque la columna sea
-  # entera; no se debe enviarle el predicado de `NaN` a esa columna.
+  # El tipo manda sobre el prototipo cuando esta disponible (el del motor, o
+  # si no el declarado: ver `.columnas_candidatas_nan_dbi()`). Algunos
+  # controladores devuelven un prototipo vacio con una clase doble aunque la
+  # columna sea entera; no se debe enviarle el predicado de `NaN` a esa columna.
   if (nzchar(texto)) {
     if (.tipo_decimal_exacto_dbi(texto) && !is.null(conexion) &&
         grepl("duckdb", .senas_conexion_dbi(conexion), fixed = TRUE,
@@ -12814,19 +12815,38 @@
   }
   if (grepl(.regex_sin_caja("double|float|real|numeric|decimal"), texto,
             perl = TRUE, useBytes = TRUE)) return(TRUE)
+  # Un `integer64` se guarda en un doble y `is.double()` dice que si, pero es un
+  # entero: no guarda `NaN`.
   is.double(prototipo) &&
-    !inherits(prototipo, c("Date", "POSIXct", "POSIXlt"))
+    !inherits(prototipo, c("Date", "POSIXct", "POSIXlt", "integer64"))
 }
 
+# Unico lugar que decide que columnas reciben la exclusion de `NaN` y su
+# conteo: las consultas que la arman solo preguntan si la columna esta en esta
+# lista. Una columna que no puede guardar `NaN` no recibe ninguna envoltura,
+# porque `NULLIF(x, CAST('NaN' AS DOUBLE PRECISION))` tiene el tipo comun de los
+# dos argumentos: sobre un `BIGINT`, PostgreSQL lo resuelve como doble.
+#
+# Decide el tipo del motor cuando el controlador lo da, y si no el declarado,
+# como `.resumen_columna_dbi()`. En PostgreSQL el tipo declarado es la clase de
+# R que publica RPostgres: `double` para `float4`, `float8`, `numeric`, `money`
+# y tambien `int8`, con cualquier valor de `bigint`; y el prototipo de un `int8`
+# es un `integer64`. Con el declarado, un `BIGINT` entraba en la lista: cuatro
+# enteros distintos desde 2^53 se contaban como uno, y el minimo volvia
+# redondeado (en 9.3, con quince cifras), los dos publicados como `calculado`.
 .columnas_candidatas_nan_dbi <- function(
     conexion, campos, es_numerico, tipos_declarados = NULL,
-    prototipo = NULL) {
+    prototipo = NULL, tipos_motor = NULL) {
   if (is.null(.literal_nan_dbi(conexion)) || !length(campos)) {
     return(character())
   }
   candidatas <- vapply(seq_along(campos), function(i) {
-    tipo <- .atributo_columna_dbi(tipos_declarados, campos[[i]], i) %||%
+    tipo <- .atributo_columna_dbi(tipos_motor, campos[[i]], i) %||%
       NA_character_
+    if (length(tipo) != 1L || is.na(tipo) || !nzchar(as.character(tipo))) {
+      tipo <- .atributo_columna_dbi(tipos_declarados, campos[[i]], i) %||%
+        NA_character_
+    }
     isTRUE(es_numerico[[i]]) && .tipo_puede_nan_dbi(
       tipo, .atributo_columna_dbi(prototipo, campos[[i]], i), conexion
     )
@@ -15507,8 +15527,8 @@
     campo <- lote[[i]]
     columna <- nombres_sql[[campo]]
     tipo <- tipo_declarado_de(campo)
-    if (!isTRUE(es_numerico[[i]]) || !campo %in% columnas_nan ||
-        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) {
+    # Quien recibe la exclusion lo decide `.columnas_candidatas_nan_dbi()`.
+    if (!isTRUE(es_numerico[[i]]) || !campo %in% columnas_nan) {
       return(columna)
     }
     .excluir_nan_sql_dbi(
@@ -15534,9 +15554,7 @@
   names(alias_por_columna) <- lote
   for (i in seq_along(lote)) {
     campo <- lote[[i]]
-    tipo <- tipo_declarado_de(campo)
-    candidata_nan <- campo %in% columnas_nan &&
-      .tipo_puede_nan_dbi(tipo, conexion = conexion)
+    candidata_nan <- campo %in% columnas_nan
     alias_por_columna[[i]] <- list(
       total = if (isTRUE(incluir_total)) alias("n_total_consulta"),
       nan = if (isTRUE(candidata_nan)) {
@@ -16414,10 +16432,8 @@
   columna_operacion_de <- function(campo) {
     columna <- nombres_sql[[campo]]
     tipo <- .atributo_columna_dbi(tipos_declarados, campo) %||% NA_character_
-    if (!campo %in% columnas_nan ||
-        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) {
-      return(columna)
-    }
+    # Ver `.columnas_candidatas_nan_dbi()`.
+    if (!campo %in% columnas_nan) return(columna)
     .excluir_nan_sql_dbi(
       conexion, columna,
       como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
@@ -16430,10 +16446,7 @@
     .alias_agregado_dbi(alias, numero, i, "n_distintos")
   }, character(1L), USE.NAMES = FALSE)
   nan_por_columna <- vapply(seq_along(lote), function(i) {
-    campo <- lote[[i]]
-    tipo <- .atributo_columna_dbi(tipos_declarados, campo, i) %||% NA_character_
-    if (!campo %in% columnas_nan ||
-        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) return(NA_character_)
+    if (!lote[[i]] %in% columnas_nan) return(NA_character_)
     .alias_agregado_dbi(alias, numero, i, "n_nan")
   }, character(1L), USE.NAMES = FALSE)
   guardian_por_columna <- vapply(seq_along(lote), function(i) {
@@ -16797,9 +16810,9 @@
     columna <- nombres_sql[[campo]]
     tipo <- tipos_por_nombre[[campo]] %||% NA_character_
     i <- .indice_nombre(campo, columnas)
+    # Ver `.columnas_candidatas_nan_dbi()`.
     if (is.na(i) || !isTRUE(es_numerico[[i]]) ||
-        !campo %in% columnas_nan ||
-        !.tipo_puede_nan_dbi(tipo, conexion = conexion)) return(columna)
+        !campo %in% columnas_nan) return(columna)
     .excluir_nan_sql_dbi(
       conexion, columna,
       como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
@@ -17661,8 +17674,9 @@
   alias <- function(nombre) {
     .citar_identificador_dbi(conexion, nombre)
   }
-  if (isTRUE(nan_presente) &&
-      .tipo_puede_nan_dbi(tipo_operacion, prototipo, conexion)) {
+  # `nan_presente` sale del conteo de `NaN`, que solo lleva una columna de
+  # `.columnas_candidatas_nan_dbi()`.
+  if (isTRUE(nan_presente)) {
     columna_sql <- .excluir_nan_sql_dbi(
       conexion, columna_sql,
       como_numeric = .tipo_decimal_exacto_dbi(tipo_operacion) ||
@@ -20041,12 +20055,8 @@
   }
   columna_operacion_de <- function(campo) {
     columna <- sql_de(campo)
-    prototipo_campo <- .atributo_columna_dbi(prototipo, campo)
     tipo <- tipo_motor_de(campo)
-    if (is.na(columna) || !campo %in% columnas_nan ||
-        !.tipo_puede_nan_dbi(tipo, prototipo_campo, conexion)) {
-      return(columna)
-    }
+    if (is.na(columna) || !campo %in% columnas_nan) return(columna)
     .excluir_nan_sql_dbi(
       conexion, columna,
       como_numeric = .tipo_decimal_exacto_dbi(tipo) ||
@@ -20057,7 +20067,7 @@
   }
   columnas_nan <- .columnas_candidatas_nan_dbi(
     conexion, campos_consolidados, es_numerico_consolidados,
-    tipos_declarados, prototipo
+    tipos_declarados, prototipo, tipos_motor
   )
   exacto_derrame <- (
     "distintos" %in% metricas_ejecucion &&
@@ -28636,7 +28646,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
   )
   columnas_nan_prep <- .columnas_candidatas_nan_dbi(
-    conexion, campos, es_numerico, tipos_declarados, prototipo
+    conexion, campos, es_numerico, tipos_declarados, prototipo, tipos_motor
   )
   columnas_not_null_garantizadas <- .columnas_not_null_garantizadas_dbi(
     catalogo_garantias, campos

@@ -207,9 +207,12 @@ test_that("PostgreSQL: la cuenta concilia sea cual sea la forma de las columnas"
 test_that("PostgreSQL 9.3: la cuenta concilia sea cual sea la forma de las columnas", {
   con <- .ctv_conectar_pg(55493L)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
+  # El entero ancho no deja plan previo en 9.3: sus magnitudes no se calculan
+  # en el motor (un doble no representa los valores) y lo anunciado coincide
+  # con lo emitido desde el principio.
   .ctv_comprobar_formas(
     con, "DOUBLE PRECISION",
-    c("una_numerica_nula", "todas_nulas_menos_texto", "entero_ancho", "comun")
+    c("una_numerica_nula", "todas_nulas_menos_texto", "comun")
   )
 })
 
