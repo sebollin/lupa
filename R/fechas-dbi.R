@@ -673,10 +673,25 @@
   # ---- texto que la muestra lee como fecha ----
   for (i in textos) {
     if (!identical(estrategia_no_sql, "bloques")) {
+      # Una columna de fecha que el controlador no sabe leer llega como texto
+      # (MySQL con `TIMESTAMP`, `DATETIME` o `DATE`): decir que es texto en el
+      # motor describe mal el tipo, que es de fecha.
+      tipo_motor <- preparacion$esquema$tipos_motor[campos[[i]]]
+      descripcion <- if (length(tipo_motor) == 1L && !is.na(tipo_motor) &&
+                         grepl("^(date|smalldatetime|timestamp)",
+                               .minusculas_ascii(as.character(tipo_motor)),
+                               useBytes = TRUE)) {
+        paste0(
+          "es de tipo `", tipo_motor, "` en el motor, pero el controlador ",
+          "la entrega como texto, y la muestra la lee como fecha"
+        )
+      } else {
+        "es texto en el motor y la muestra la lee como fecha"
+      }
       filas[[i]] <- declarar(i, paste0(
-        "La columna `", campos[[i]], "` es texto en el motor y la muestra la lee ",
-        "como fecha: sus formatos los decide la columna entera. Con ",
-        "`estrategia_no_sql = \"bloques\"` se cuenta en R."
+        "La columna `", campos[[i]], "` ", descripcion, ": sus formatos los ",
+        "decide la columna entera. Con `estrategia_no_sql = \"bloques\"` se ",
+        "cuenta en R."
       ))
       next
     }

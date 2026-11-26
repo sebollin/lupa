@@ -15805,12 +15805,27 @@
   # anterior a la 12 se evaluaba 17 veces por fila y columna en lugar de 7, y el
   # lote tardaba 2,9 veces mas (medido en 9.3 sobre 50.000 filas y 20
   # columnas). `OFFSET 0` deja la lectura sin fundir: cada columna se convierte
-  # una vez por fila. Sin politica la consulta es la de siempre.
-  if (length(columnas_medibles) && any(lote %in% names(columnas_medibles)) &&
-      grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
-      startsWith(trimws(tabla_sql), "(")) {
+  # una vez por fila. Sin politica la consulta es la de siempre, salvo en un
+  # servidor anterior a la 12: ahi la CTE se materializa pero la subconsulta de
+  # lectura se funde igual, y la reconstruccion exacta del doble se evaluaba en
+  # cada mencion (ver `.barrera_lectura_postgresql_dbi()`).
+  con_politica_medible <- length(columnas_medibles) > 0L &&
+    any(lote %in% names(columnas_medibles))
+  if (.barrera_lectura_postgresql_dbi(
+    conexion, senas, tabla_sql, con_politica_medible
+  )) {
+    # La barrera proyecta lo que el lote usa: con `*`, una tabla de muchas
+    # columnas convertiria todas en cada lote. Con una politica o un agregado
+    # extra los agregados nombran otras columnas de la lectura: se proyecta todo.
+    nombres_lote <- unique(unname(nombres_sql[lote]))
+    solo_lote <- !con_politica_medible &&
+      identical(tabla_agregados_sql, tabla_sql) &&
+      !length(unlist(agregados_extra[lote], use.names = FALSE)) &&
+      all(vapply(alias_por_columna, function(x) is.null(x$faltantes), logical(1L))) &&
+      all(grepl("^\"([^\"]|\"\")+\"$", nombres_lote, useBytes = TRUE))
     tabla_agregados_sql <- paste0(
-      "(SELECT * FROM ", tabla_agregados_sql, " OFFSET 0) AS ",
+      "(SELECT ", if (solo_lote) paste(nombres_lote, collapse = ", ") else "*",
+      " FROM ", tabla_agregados_sql, " OFFSET 0) AS ",
       alias(paste0("lupa_lectura_l", numero))
     )
   }
@@ -21378,6 +21393,25 @@
   menor <- if (length(numeros) >= 2L) numeros[[2L]] else 0L
   revision <- if (length(numeros) >= 3L) numeros[[3L]] else 0L
   as.integer(numeros[[1L]] * 10000L + menor * 100L + revision)
+}
+
+# Si los agregados de un lote van sobre una subconsulta de lectura de
+# PostgreSQL, se la deja sin fundir con `OFFSET 0`: cada columna se convierte
+# una vez por fila y no una por mencion. Es la unica regla que decide esa
+# barrera. Con una politica de ausencia declarada vale en toda version, porque
+# la condicion nombra la columna dos veces. Sin politica solo hace falta en un
+# servidor anterior a la 12 (o de version desconocida), donde se lee el doble
+# exacto con `float8send()`; desde la 12 la lectura no convierte y el texto de
+# la consulta no cambia.
+.barrera_lectura_postgresql_dbi <- function(conexion, senas, tabla_sql,
+                                            con_politica) {
+  if (!grepl("postgres|pqconnection", senas, useBytes = TRUE) ||
+      !startsWith(trimws(tabla_sql), "(")) {
+    return(FALSE)
+  }
+  if (isTRUE(con_politica)) return(TRUE)
+  version <- .version_servidor_postgresql_dbi(conexion)
+  is.na(version) || version < 120000L
 }
 
 .extra_float_digits_postgresql_dbi <- function(conexion, presupuesto = NULL) {

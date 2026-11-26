@@ -800,10 +800,15 @@
   entera de 64 bits con el centinela en el borde: con `2^53` declarado,
   `9007199254740993` contaba como centinela. La comparación es ahora entre
   enteros, también en MySQL y MariaDB.
-- En PostgreSQL anterior a la 12, el resumen con centinelas declarados calcula
-  una vez por fila la lectura exacta de cada columna doble, en lugar de una vez
-  por mención: sobre 200.000 filas por 20 columnas la corrida con la política
-  pasó de 2,4 a 0,5 veces el tiempo de la corrida sin ella.
+- En PostgreSQL anterior a la 12, el resumen calcula una vez por fila la lectura
+  exacta de cada columna doble, en lugar de una vez por mención, con centinelas
+  declarados o sin ellos: sobre 200.000 filas por 20 columnas la corrida con la
+  política pasó de 2,4 a 0,5 veces el tiempo de la corrida sin ella, y sobre
+  50.000 filas por 20 columnas la corrida sin política pasó de 207 a 100
+  segundos en 9.3. Desde la 12 la consulta no cambia.
+- El motivo del resumen de fechas de `perfilar_dbi()` para una columna
+  `TIMESTAMP`, `DATETIME` o `DATE` de MySQL que el controlador entrega como
+  texto nombra su tipo en el motor; antes decía que era texto en el motor.
 - `ReglaIntegridadInterEntidad` cuenta un `NaN` de la clave foránea como vacío
   y no como huérfano, igual que `is.na()`, `NoNulo` y los rangos. Cambia la
   cobertura publicada: en una columna de 10 filas con 2 `NA`, un `NaN` y 4
