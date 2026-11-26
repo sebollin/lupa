@@ -1023,6 +1023,16 @@
 
 ### Correcciones
 
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  la guarda de numeración de los faltantes disfrazados usa los mismos
+  umbrales que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  (20 distintos y densidad 0,8). Antes, con una densidad entre 0,5 y
+  0,8, el motor callaba centinelas repetidos que la memoria contaba: en
+  `c(1:1000, 999, 999, 999, -999)` publicaba 1 faltante disfrazado donde
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  publica 5.
+
 - [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
   y
   [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
