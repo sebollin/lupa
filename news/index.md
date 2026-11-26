@@ -1023,6 +1023,16 @@
 
 ### Correcciones
 
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  y
+  [`plan_medicion_dbi()`](https://sebollin.github.io/lupa/reference/plan_medicion_dbi.md)
+  rechazan una `aplicabilidad` sin nombres con el mismo error que
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), antes
+  de consultar; antes medían la tabla entera sin avisar. En las
+  dependencias, un centinela redondo declarado (`100000`, `1e6`) sobre
+  una columna `integer64` se enmascara como sobre un doble: antes se
+  comparaba con su escritura `1e+05` y no se reconocía.
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   y
