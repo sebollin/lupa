@@ -655,9 +655,10 @@
   `.outlier_<columna>`): comparar antes y después de limpiar ya no las publica
   como columnas nuevas con severidad `error`, y `perfilar()` ya no informa como
   `posible_ausencia_estructural` la ausencia de una columna explicada por su
-  propia marca. Las reconoce por el atributo `marcas_limpieza` que deja
-  `aplicar()` (y que `perfilar()` guarda en `general$marcas_limpieza`), no por
-  el nombre: una columna del usuario llamada `.fila_duplicada` sigue siendo del
+  propia marca, ni la de la marca misma (`.grupo_duplicado` está vacía por
+  diseño en las filas sin duplicado). Las reconoce por el atributo
+  `marcas_limpieza` que deja `aplicar()` (y que `perfilar()` guarda en
+  `general$marcas_limpieza`), no por el nombre: una columna del usuario llamada `.fila_duplicada` sigue siendo del
   usuario. El atributo se pierde si la tabla pasa por un CSV o por un `merge()`,
   y entonces las marcas vuelven a contarse como columnas.
 - Con `proteger_datos_personales = TRUE`, el vocabulario de una columna que no

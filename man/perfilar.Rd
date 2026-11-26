@@ -1324,8 +1324,9 @@ Es lo que \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara como voc
 \code{general$marcas_limpieza} está cuando los datos traen el atributo
 \code{marcas_limpieza} que deja \code{\link[=aplicar]{aplicar()}}: las marcas que agregó el plan, con
 la columna que marca. Una marca así no explica la ausencia de su propia
-columna en \code{posible_ausencia_estructural}; una columna del usuario con el
-mismo nombre, sí. Cuando el camino
+columna en \code{posible_ausencia_estructural}, y la marca misma tampoco es
+objetivo de ese diagnóstico (\code{.grupo_duplicado} está vacía por diseño en
+las filas sin duplicado); una columna del usuario con el mismo nombre, sí. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por

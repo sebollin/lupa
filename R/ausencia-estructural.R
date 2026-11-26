@@ -711,7 +711,12 @@
   declaradas <- aplicabilidad_resuelta$reglas$columna
   nombres_operativos <- .nombres_para_operar(nombres)
   declaradas_operativas <- .nombres_para_operar(declaradas)
-  excluidas_operativas <- .nombres_para_operar(excluidas)
+  # Una marca de `aplicar()` no es un objetivo: su vacio es de diseno
+  # (`.grupo_duplicado` es `NA` en las filas sin duplicado) y "predecirla" con
+  # otra columna no es una estructura del dato.
+  excluidas_operativas <- .nombres_para_operar(c(
+    excluidas, if (is.data.frame(marcas) && nrow(marcas)) marcas$marca
+  ))
   ausentes <- vector("list", length(nombres))
   no_atomicas <- character()
   for (i in seq_along(nombres)) {
