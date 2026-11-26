@@ -1248,8 +1248,8 @@
       stats$distintos / n_posiciones
     } else NA_real_
     densa <- is.finite(densidad) &&
-      stats$distintos >= .MIN_DISTINTOS_NUMERACION &&
-      densidad >= .MIN_DENSIDAD_NUMERACION &&
+      stats$distintos >= .MIN_DISTINTOS_SECUENCIA_ENTERA &&
+      densidad >= .UMBRAL_DENSIDAD_SECUENCIA_ENTERA &&
       .numeracion_sin_repetir_conteos(
         stats$distintos, stats$validos, stats$frecuencia_moda
       )

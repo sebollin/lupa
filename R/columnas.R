@@ -577,9 +577,16 @@
 # reales del banco no pasan de 0,067 y los casos a informar arrancan en 0,409.
 .PROPORCION_SALTO_ESCALA <- 0.25
 
+# Umbrales con que se decide que una columna entera es una numeracion densa. Los
+# usan la memoria (`.resumen_secuencia_entera()`) y la guarda de las consultas
+# agregadas (`.faltantes_dbi_mapa()`): una sola definicion, para que el mismo
+# dato reciba el mismo veredicto venga de un data.frame o de una base.
+.UMBRAL_DENSIDAD_SECUENCIA_ENTERA <- 0.8
+.MIN_DISTINTOS_SECUENCIA_ENTERA <- 20L
+
 .resumen_secuencia_entera <- function(x, inferencia, formatos,
-                                      umbral_densidad = 0.8,
-                                      min_distintos = 20L,
+                                      umbral_densidad = .UMBRAL_DENSIDAD_SECUENCIA_ENTERA,
+                                      min_distintos = .MIN_DISTINTOS_SECUENCIA_ENTERA,
                                       cuantitativos = NULL) {
   vacio <- list(
     densa = FALSE, densidad = NA_real_, n_posiciones = NA_real_,

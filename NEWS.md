@@ -740,6 +740,11 @@
 
 ## Correcciones
 
+- `perfilar_dbi()`: la guarda de numeración de los faltantes disfrazados usa los
+  mismos umbrales que `perfilar()` (20 distintos y densidad 0,8). Antes, con una
+  densidad entre 0,5 y 0,8, el motor callaba centinelas repetidos que la memoria
+  contaba: en `c(1:1000, 999, 999, 999, -999)` publicaba 1 faltante disfrazado
+  donde `perfilar()` publica 5.
 - `medir_dbi()` y `plan_medicion_dbi()` rechazan una `aplicabilidad` sin nombres
   con el mismo error que `medir()`, antes de consultar; antes medían la tabla
   entera sin avisar. En las dependencias, un centinela redondo declarado
