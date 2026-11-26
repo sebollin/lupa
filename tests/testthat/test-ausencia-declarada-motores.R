@@ -116,11 +116,19 @@ test_that("PostgreSQL anterior a la 12: con politica, la lectura exacta de un do
   sin_politica <- consulta_de_la_media()
   expect_identical(length(sin_politica$sql), 1L)
   expect_equal(sin_politica$media, (-999 * 2 + 1.5 + 2.5 + 4) / 5)
-  # Con politica cada agregado nombra la columna dos veces. Si la subconsulta
-  # se fundiera con los agregados, la reconstruccion se calcularia en cada
-  # mencion y la consulta costaria mas que sin politica (medido: 2,9 veces).
-  # Como se calcula una vez por fila, cuesta menos.
-  costos <- c(costo_de(con_politica$sql), costo_de(sin_politica$sql))
+  # La barrera deja la subconsulta sin fundir: la reconstruccion se calcula una
+  # vez por fila y no en cada mencion, y la consulta cuesta menos que sin ella.
+  sin_barrera_de <- function(sql) {
+    sin <- gsub(" OFFSET 0", "", sql, fixed = TRUE)
+    expect_true(grepl(" OFFSET 0", sql, fixed = TRUE))
+    expect_false(identical(sin, sql))
+    sin
+  }
+  costos <- c(
+    costo_de(con_politica$sql), costo_de(sin_barrera_de(con_politica$sql)),
+    costo_de(sin_politica$sql), costo_de(sin_barrera_de(sin_politica$sql))
+  )
   expect_true(all(is.finite(costos)))
   expect_lt(costos[[1L]], costos[[2L]])
+  expect_lt(costos[[3L]], costos[[4L]])
 })
