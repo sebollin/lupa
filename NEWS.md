@@ -541,7 +541,14 @@
   `medir_dbi(..., conformidad = )` recibe ese resultado: lo que no conformó queda
   no medible en el motor, o se mide por bloques en R con
   `estrategia_no_sql = "bloques"`; una batería de otra conexión, otro modelo u
-  otra configuración se rechaza con aviso. Verificada en SQLite y DuckDB.
+  otra configuración se rechaza con aviso. Corre en SQLite, DuckDB, PostgreSQL
+  (también 9.3), MySQL, MariaDB y SQL Server: cada valor inventado se escribe
+  con `CAST` al tipo de la columna real y con su intercalación, y una columna
+  que la tabla no tiene es la que el servidor crearía, con la intercalación de
+  la base; un tipo al que el motor no convierte un literal (`YEAR` en MariaDB)
+  queda `no_evaluada` con el motivo. En MySQL y MariaDB encuentra que
+  `medir_dbi()` cuenta `TRUE` sobre una columna `BOOLEAN` distinto que R, y con
+  la batería esa regla deja de contarse en el motor.
 - `plan_medicion_dbi(..., compilar = TRUE)`, como `plan_perfilado_dbi()`,
   compila las consultas del plan sin ejecutarlas.
 

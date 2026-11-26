@@ -50,8 +50,8 @@ valor.
 traductor o por una guarda; \code{motivo} dice cuál. No quita la regla.
 \item \code{no_evaluada}: la batería no pudo construir o contar el caso; la regla se
 mide como siempre, con un aviso.
-\item \code{no_verificado}: el motor no está verificado en la batería (PostgreSQL,
-MySQL, MariaDB y SQL Server); la regla se mide como siempre, con un aviso.
+\item \code{no_verificado}: el motor no es ninguno de los verificados en la batería
+(los seis de arriba); la regla se mide como siempre, con un aviso.
 }
 
 \code{condicion} es \code{"con_nulos"} en un caso que con los \code{NULL} inventados no
@@ -72,7 +72,12 @@ PostgreSQL el identificador del sistema y la base; en MySQL y MariaDB
 \verb{@hostname}, \verb{@port} y la base; en SQL Server \verb{@SERVERNAME}, la máquina
 y la base. Se pregunta con una sentencia, una vez por llamada. Dos bases
 en memoria no se distinguen. El atributo \code{intercalacion} es la que el motor usa por
-omisión (\code{NA} con su motivo en \code{intercalacion_motivo} si no se pudo leer).
+omisión (\code{NA} con su motivo en \code{intercalacion_motivo} si no se pudo leer):
+\code{BINARY} en SQLite, \code{default_collation} en DuckDB, la de la base en
+PostgreSQL (\code{datcollate}) y en SQL Server, y \verb{@collation_database} en
+MySQL y MariaDB. \code{version} es la que el motor informa. Si la batería es de
+otro servidor, \code{medir_dbi()} dice que difiere el servidor; una versión o una
+intercalación distinta en el mismo servidor, que cambió desde que se armó.
 }
 \description{
 Ejecuta, regla por regla, una batería de valores límite inventados en
@@ -83,6 +88,15 @@ tipo y la intercalación de cada columna real. Si la tabla no existe, usa los
 tipos que se desprenden de los valores declarados en la regla.
 }
 \details{
+Corre en SQLite, DuckDB, PostgreSQL (también 9.3), MySQL, MariaDB y SQL
+Server. En un servidor cada valor inventado se escribe con \code{CAST} al tipo de
+la columna —en MySQL y MariaDB, al destino de \code{CAST()} que corresponde a ese
+tipo, con el juego de caracteres de su intercalación— y con su cláusula
+\code{COLLATE}; una columna que la tabla no tiene es la que el servidor crearía
+para esa clase, con la intercalación de la base. Si el motor no tiene cómo
+escribir un literal con el tipo de la columna (\code{YEAR} en MariaDB,
+\code{VARBINARY} en SQL Server), el caso queda \code{no_evaluada} con ese motivo.
+
 La batería responde una sola pregunta: si el motor, cuando cuenta, da lo
 mismo que R. No conformar es eso y nada más. Que \code{medir_dbi()} se abstenga
 por una guarda propia con los valores inventados (texto no ASCII en SQLite,

@@ -43,7 +43,92 @@
 # Senas del motor y procedencia de la bateria
 # ---------------------------------------------------------------------------
 
+# Los servidores en los que corre la bateria, ademas de SQLite y DuckDB. En
+# ellos la relacion de literales se escribe con el tipo de cada columna en la
+# sintaxis del motor (`.escritura_columna_conformidad()`) y se nombra como una
+# expresion de tabla comun: sin alias, una tabla derivada no vale en
+# PostgreSQL 9.3, MySQL, MariaDB ni SQL Server.
+.SERVIDORES_CONFORMIDAD_DBI <- c("postgresql", "mysql", "mariadb", "sqlserver")
+.MOTORES_VERIFICADOS_CONFORMIDAD_DBI <- c(
+  "sqlite", "duckdb", .SERVIDORES_CONFORMIDAD_DBI
+)
+
+# Version e intercalacion por omision de un servidor, en una sentencia. La
+# intercalacion es la que toma una columna de texto creada sin cotejamiento
+# propio: la de la base.
+.SQL_SENAS_SERVIDOR_CONFORMIDAD_DBI <- list(
+  postgresql = paste(
+    "SELECT current_setting('server_version') AS version,",
+    "d.datcollate AS intercalacion FROM pg_catalog.pg_database d",
+    "WHERE d.datname = current_database()"
+  ),
+  mysql = "SELECT VERSION() AS version, @@collation_database AS intercalacion",
+  sqlserver = paste(
+    "SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)) AS version,",
+    "CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS NVARCHAR(128))",
+    "AS intercalacion"
+  )
+)
+
+.senas_servidor_conformidad_dbi <- function(conexion, motor) {
+  sql <- .SQL_SENAS_SERVIDOR_CONFORMIDAD_DBI[[
+    if (identical(motor, "mariadb")) "mysql" else motor
+  ]]
+  leido <- tryCatch(.traer_consulta_dbi(conexion, sql), error = function(e) {
+    .repropagar_transaccion_dbi(e)
+    if (.es_interrupcion_dbi(e)) .detener(e)
+    e
+  })
+  valor <- function(campo) {
+    if (!is.data.frame(leido) || !nrow(leido) || !campo %in% names(leido)) {
+      return(NA_character_)
+    }
+    x <- as.character(leido[[campo]][[1L]])
+    if (!length(x) || is.na(x) || !nzchar(trimws(x))) NA_character_ else trimws(x)
+  }
+  version <- valor("version")
+  intercalacion <- valor("intercalacion")
+  motivo <- if (!is.na(intercalacion)) {
+    NA_character_
+  } else if (inherits(leido, "error")) {
+    paste0("no se pudo leer la intercalaci\u00f3n por omisi\u00f3n del motor: ",
+           .mensaje_motor(leido))
+  } else {
+    "el motor no inform\u00f3 su intercalaci\u00f3n por omisi\u00f3n"
+  }
+  list(version = version, intercalacion = intercalacion,
+       intercalacion_motivo = motivo)
+}
+
+# Si la intercalacion por omision de MySQL o MariaDB es NO PAD, con el mismo
+# criterio que el catalogo de una columna (`.esquema_medicion_dbi()`): MySQL lo
+# publica en `information_schema.COLLATIONS`; MariaDB, en el nombre.
+.no_pad_por_omision_conformidad_dbi <- function(conexion, motor, senas) {
+  if (!motor %in% c("mysql", "mariadb")) return(NA)
+  cot <- senas$intercalacion %||% NA_character_
+  if (is.na(cot)) return(NA)
+  cot_l <- .minusculas_ascii(cot)
+  version <- .minusculas_ascii(senas$version %||% "")
+  if (grepl("mariadb", version, fixed = TRUE, useBytes = TRUE)) {
+    return(grepl("_nopad_", cot_l, fixed = TRUE, useBytes = TRUE) ||
+             identical(cot_l, "binary"))
+  }
+  leido <- tryCatch(.traer_consulta_dbi(conexion, paste0(
+    "SELECT PAD_ATTRIBUTE AS pad FROM information_schema.COLLATIONS ",
+    "WHERE COLLATION_NAME = ", as.character(DBI::dbQuoteString(conexion, cot))
+  )), error = function(e) {
+    .repropagar_transaccion_dbi(e)
+    if (.es_interrupcion_dbi(e)) .detener(e)
+    NULL
+  })
+  if (!is.data.frame(leido) || !nrow(leido)) return(NA)
+  identical(.mayusculas_ascii(trimws(as.character(leido[[1L]][[1L]]))), "NO PAD")
+}
+
 .version_conformidad_dbi <- function(conexion, motor) {
+  if (motor %in% .SERVIDORES_CONFORMIDAD_DBI) {
+    return(.senas_servidor_conformidad_dbi(conexion, motor))
+  }
   sql <- switch(
     motor,
     sqlite = "SELECT sqlite_version() AS version",
@@ -321,11 +406,19 @@
 
 # El esquema real sale del catalogo (`SELECT * ... WHERE 1 = 0` y las vistas
 # del motor): ninguna fila del usuario se lee.
-.esquemas_reales_conformidad_dbi <- function(con, fisicas, motor) {
-  sesion <- tryCatch(
+.sesion_conformidad_dbi <- function(con, motor) {
+  tryCatch(
     .verificar_sesion_medicion_dbi(con, motor),
-    error = function(e) list(ok = FALSE, motor = motor, n_consultas = 0L)
+    error = function(e) {
+      .repropagar_transaccion_dbi(e)
+      if (.es_interrupcion_dbi(e)) .detener(e)
+      list(ok = FALSE, motor = motor, n_consultas = 0L)
+    }
   )
+}
+
+.esquemas_reales_conformidad_dbi <- function(con, fisicas, motor,
+                                             sesion = .sesion_conformidad_dbi(con, motor)) {
   lapply(fisicas, function(f) {
     existe <- tryCatch(isTRUE(.existe_tabla_dbi(con, f)),
                        error = function(e) FALSE)
@@ -773,7 +866,87 @@
 # Relacion de literales con los tipos de la columna
 # ---------------------------------------------------------------------------
 
+# En un servidor, la columna supuesta es la que el motor crearia para esa
+# clase sin mas indicaciones: su tipo (y el nombre de base que da el catalogo,
+# que es lo que lee el traductor), y para el texto la intercalacion de la base.
+# No es binaria en ninguno de los servidores por omision, y suponerla binaria
+# -como en SQLite- hacia que el traductor contara con un cotejamiento que una
+# columna nueva no tiene.
+.TIPOS_SUPUESTOS_SERVIDOR_CONFORMIDAD_DBI <- list(
+  postgresql = list(
+    texto = c("TEXT", "text"), entero = c("INTEGER", "int4"),
+    doble = c("DOUBLE PRECISION", "float8"), fecha = c("DATE", "date"),
+    instante = c("TIMESTAMP WITHOUT TIME ZONE", "timestamp"),
+    logico = c("BOOLEAN", "bool"), entero64 = c("BIGINT", "int8")
+  ),
+  mysql = list(
+    texto = c("VARCHAR(255)", "varchar"), entero = c("INT", "int"),
+    doble = c("DOUBLE", "double"), fecha = c("DATE", "date"),
+    instante = c("DATETIME", "datetime"), logico = c("TINYINT(1)", "tinyint"),
+    entero64 = c("BIGINT", "bigint")
+  ),
+  sqlserver = list(
+    texto = c("NVARCHAR", "nvarchar"), entero = c("INT", "int"),
+    doble = c("FLOAT", "float"), fecha = c("DATE", "date"),
+    instante = c("DATETIME2", "datetime2"), logico = c("BIT", "bit"),
+    entero64 = c("BIGINT", "bigint")
+  )
+)
+
+.esquema_supuesto_servidor_conformidad <- function(motor, clases, senas) {
+  campos <- names(clases)
+  tabla <- .TIPOS_SUPUESTOS_SERVIDOR_CONFORMIDAD_DBI[[
+    if (identical(motor, "mariadb")) "mysql" else motor
+  ]]
+  tipo_de <- function(clase, k) {
+    t <- tabla[[clase]]
+    if (is.null(t)) tabla$texto[[k]] else t[[k]]
+  }
+  texto <- unname(clases == "texto")
+  todos <- function(valor) stats::setNames(rep(valor, length(campos)), campos)
+  cot_texto <- if (identical(motor, "postgresql")) {
+    "default"
+  } else if (is.na(senas$intercalacion %||% NA_character_)) {
+    "desconocido"
+  } else {
+    senas$intercalacion
+  }
+  cotejamientos <- stats::setNames(
+    ifelse(texto, cot_texto, "desconocido"), campos
+  )
+  cot_l <- .minusculas_ascii(cot_texto)
+  por_texto <- function(valor) stats::setNames(ifelse(texto, valor, NA), campos)
+  list(
+    referencia = NA_character_, nombre = NA_character_,
+    sql = NULL, campos = campos, clases = clases,
+    tipos = stats::setNames(vapply(clases, tipo_de, character(1L), k = 1L), campos),
+    tipos_base = stats::setNames(vapply(clases, tipo_de, character(1L), k = 2L), campos),
+    cotejamientos = cotejamientos,
+    # PostgreSQL no admite una intercalacion no determinista como la de la
+    # base: la columna supuesta compara por bytes al buscar igualdad.
+    colacion_determinista = if (identical(motor, "postgresql")) {
+      stats::setNames(texto, campos)
+    } else todos(NA),
+    colacion_binaria = if (motor %in% c("mysql", "mariadb")) {
+      por_texto(grepl("(_bin|binary)$", cot_l, perl = TRUE, useBytes = TRUE))
+    } else todos(NA),
+    colacion_no_pad = if (motor %in% c("mysql", "mariadb")) {
+      por_texto(isTRUE(senas$intercalacion_no_pad))
+    } else todos(NA),
+    colacion_bin2 = if (identical(motor, "sqlserver")) {
+      por_texto(grepl("_bin2(_utf8)?$", cot_l, perl = TRUE, useBytes = TRUE))
+    } else todos(NA),
+    sesion = senas$sesion %||% list(ok = FALSE, motor = motor),
+    n_campos = length(campos),
+    prototipo = NULL, n_consultas_esquema = 0L,
+    supuesto = todos(TRUE)
+  )
+}
+
 .esquema_supuesto_conformidad <- function(motor, clases, senas) {
+  if (motor %in% .SERVIDORES_CONFORMIDAD_DBI) {
+    return(.esquema_supuesto_servidor_conformidad(motor, clases, senas))
+  }
   campos <- names(clases)
   tipos <- stats::setNames(vapply(clases, function(clase) switch(
     clase,
@@ -834,14 +1007,127 @@
   esq
 }
 
-.literal_relacion_conformidad <- function(conexion, valor, clase, motor, esq,
-                                          columna) {
+# El tipo al que MySQL y MariaDB convierten un literal para escribirlo como lo
+# guardaria la columna: `CAST()` solo admite unos pocos destinos, y no el tipo
+# declarado (`VARCHAR(20)`, `INT`). El texto lleva el juego de caracteres de su
+# intercalacion, que es el prefijo de su nombre: sin el, `COLLATE` rechaza la
+# intercalacion de una columna `latin1` sobre un literal de la conexion.
+.cast_mysql_conformidad <- function(base, completo, cotejamiento) {
+  precision <- regmatches(completo, regexpr("\\([0-9]+\\)", completo, useBytes = TRUE))
+  precision <- if (length(precision)) precision else ""
+  juego <- if (!is.na(cotejamiento) &&
+               grepl("^[a-z0-9]+_", cotejamiento, useBytes = TRUE)) {
+    sub("_.*$", "", cotejamiento, useBytes = TRUE)
+  } else NA_character_
+  switch(
+    base,
+    char = , varchar = , tinytext = , text = , mediumtext = , longtext = ,
+    enum = , set = if (is.na(juego)) "CHAR" else paste0("CHAR CHARACTER SET ", juego),
+    tinyint = , smallint = , mediumint = , int = , integer = , bigint = {
+      if (grepl("UNSIGNED", completo, fixed = TRUE, useBytes = TRUE)) {
+        "UNSIGNED"
+      } else "SIGNED"
+    },
+    decimal = , numeric = trimws(gsub(
+      "(UNSIGNED|ZEROFILL)", "", completo, useBytes = TRUE
+    )),
+    float = "FLOAT",
+    double = , real = "DOUBLE",
+    date = "DATE",
+    datetime = , timestamp = paste0("DATETIME", precision),
+    time = paste0("TIME", precision),
+    NA_character_
+  )
+}
+
+# Con que se escribe cada valor de una columna de la relacion: el tipo del
+# `CAST` y la clausula `COLLATE`, o el motivo por el que el motor no puede
+# escribirlo con el tipo de la columna. En SQLite y DuckDB, una columna
+# supuesta va sin tipo y sin intercalacion, y la real con lo que dice su
+# catalogo. En un servidor toda columna lleva su tipo y su intercalacion, la
+# real y la supuesta: un literal sin ellas no es lo que guardaria la columna
+# (MySQL le da la intercalacion de la conexion, no la de la base).
+.escritura_columna_conformidad <- function(conexion, motor, esq, columna) {
   supuesto <- isTRUE(esq$supuesto[[columna]])
-  tipo <- if (supuesto) NA_character_ else esq$tipos[[columna]]
+  servidor <- motor %in% .SERVIDORES_CONFORMIDAD_DBI
+  tipo <- if (supuesto && !servidor) NA_character_ else esq$tipos[[columna]]
+  cotejamiento <- if (supuesto && !servidor) {
+    NA_character_
+  } else esq$cotejamientos[[columna]]
+  if (is.null(tipo) || length(tipo) != 1L) tipo <- NA_character_
+  if (is.null(cotejamiento) || length(cotejamiento) != 1L) {
+    cotejamiento <- NA_character_
+  }
+  sin_cotejamiento <- is.na(cotejamiento) || .minusculas_ascii(cotejamiento) %in%
+    c("binary", "predeterminado", "desconocido")
+  if (!servidor) {
+    collate <- if (!sin_cotejamiento &&
+                   grepl("^[A-Za-z0-9_.]+$", cotejamiento, useBytes = TRUE)) {
+      paste0(" COLLATE ", cotejamiento)
+    } else ""
+    return(list(tipo = if (!is.na(tipo) && nzchar(tipo)) tipo else NA_character_,
+                collate = collate))
+  }
+  base <- .minusculas_ascii(as.character(esq$tipos_base[[columna]] %||% NA_character_))
+  if (is.na(base)) base <- ""
+  no_admite <- function(que) list(motivo = paste0(
+    "la columna `", columna, "` es `", tipo, "` y ", motor, " no ", que
+  ))
+  if (is.na(tipo) || !nzchar(tipo)) {
+    return(list(motivo = paste0(
+      "el cat\u00e1logo de ", motor, " no dice el tipo de la columna `", columna, "`"
+    )))
+  }
+  tipo_cast <- switch(
+    motor,
+    postgresql = tipo,
+    mysql = , mariadb = .cast_mysql_conformidad(
+      base, .mayusculas_ascii(tipo), .minusculas_ascii(cotejamiento)
+    ),
+    # Sin largo, `VARCHAR` es `VARCHAR(30)` y recortaria el valor.
+    sqlserver = switch(
+      base,
+      varchar = "VARCHAR(MAX)", nvarchar = "NVARCHAR(MAX)",
+      binary = , varbinary = , image = , xml = , sql_variant = , geography = ,
+      geometry = , hierarchyid = , timestamp = , rowversion = NA_character_,
+      tipo
+    )
+  )
+  if (is.na(tipo_cast)) {
+    return(no_admite("tiene una conversi\u00f3n (`CAST`) a ese tipo"))
+  }
+  collate <- ""
+  if (!sin_cotejamiento && !(identical(motor, "postgresql") &&
+                             identical(cotejamiento, "default"))) {
+    collate <- if (identical(motor, "postgresql")) {
+      paste0(" COLLATE ", as.character(DBI::dbQuoteIdentifier(conexion, cotejamiento)))
+    } else if (grepl("^[A-Za-z0-9_]+$", cotejamiento, useBytes = TRUE)) {
+      paste0(" COLLATE ", cotejamiento)
+    } else {
+      return(list(motivo = paste0(
+        "la intercalaci\u00f3n `", cotejamiento, "` de la columna `", columna,
+        "` no se puede escribir en una cl\u00e1usula COLLATE"
+      )))
+    }
+  }
+  list(tipo = tipo_cast, collate = collate)
+}
+
+.literal_relacion_conformidad <- function(conexion, valor, clase, motor, esq,
+                                          columna,
+                                          escritura = .escritura_columna_conformidad(
+                                            conexion, motor, esq, columna
+                                          )) {
+  if (!is.null(escritura$motivo)) .detener(structure(
+    class = c("lupa_conformidad_sin_tipo", "error", "condition"),
+    list(message = escritura$motivo, call = NULL)
+  ))
+  tipo <- escritura$tipo
   lit <- if (is.na(valor)) {
     "NULL"
   } else if (identical(clase, "logico")) {
-    if (identical(motor, "sqlite")) {
+    # SQL Server no tiene `TRUE` ni `FALSE`: un `BIT` se escribe 1 o 0.
+    if (motor %in% c("sqlite", "sqlserver")) {
       if (valor) "1" else "0"
     } else {
       if (valor) "TRUE" else "FALSE"
@@ -849,24 +1135,18 @@
   } else {
     .literal_sql_medicion(conexion, valor, clase, motor)
   }
-  if (!is.null(tipo) && length(tipo) == 1L && !is.na(tipo) && nzchar(tipo)) {
+  if (!is.na(tipo) && nzchar(tipo)) {
     lit <- paste0("CAST(", lit, " AS ", tipo, ")")
   }
-  cotejamiento <- if (supuesto) NA_character_ else esq$cotejamientos[[columna]]
-  if (!is.null(cotejamiento) && length(cotejamiento) == 1L &&
-      !is.na(cotejamiento) &&
-      grepl("^[A-Za-z0-9_.]+$", cotejamiento, useBytes = TRUE) &&
-      !.minusculas_ascii(cotejamiento) %in%
-        c("binary", "predeterminado", "desconocido")) {
-    lit <- paste0(lit, " COLLATE ", cotejamiento)
-  }
-  lit
+  paste0(lit, escritura$collate)
 }
 
 .literales_columna_conformidad <- function(conexion, motor, x, esq, columna) {
   clase <- esq$clases[[columna]]
+  escritura <- .escritura_columna_conformidad(conexion, motor, esq, columna)
   vapply(seq_along(x), function(i) {
-    .literal_relacion_conformidad(conexion, x[i], clase, motor, esq, columna)
+    .literal_relacion_conformidad(conexion, x[i], clase, motor, esq, columna,
+                                  escritura = escritura)
   }, character(1L))
 }
 
@@ -906,11 +1186,17 @@
       z
     },
     doble = suppressWarnings(as.numeric(x)),
-    fecha = if (inherits(x, "Date")) x else {
+    # RMySQL entrega `DATE` y `DATETIME` como texto `AAAA-MM-DD`; se lee con el
+    # lector comun de texto con formato.
+    fecha = if (inherits(x, "Date")) x else if (is.character(x)) {
+      as.Date(.strptime_utc(x, "%Y-%m-%d"))
+    } else {
       structure(suppressWarnings(as.numeric(x)), class = "Date")
     },
     instante = if (inherits(x, "POSIXct")) {
       as.POSIXct(x, tz = "UTC")
+    } else if (is.character(x)) {
+      as.POSIXct(.strptime_utc(x, "%Y-%m-%d %H:%M:%OS"), tz = "UTC")
     } else {
       as.POSIXct(suppressWarnings(as.numeric(x)), origin = "1970-01-01",
                  tz = "UTC")
@@ -926,8 +1212,10 @@
 # leer la relacion y cada valor se reemplaza por el leido. Lo que el motor no
 # guarda (NULL donde habia valor) sale con su fila.
 .ajustar_a_lo_guardado_conformidad <- function(conexion, motor, tabla, esq) {
+  # En un servidor la columna supuesta tambien lleva tipo e intercalacion: se
+  # relee como la real.
   reales <- names(tabla)[!vapply(names(tabla), function(c) {
-    isTRUE(esq$supuesto[[c]])
+    isTRUE(esq$supuesto[[c]]) && !motor %in% .SERVIDORES_CONFORMIDAD_DBI
   }, logical(1L))]
   if (!length(reales) || !nrow(tabla)) return(list(tabla = tabla))
   sql <- paste0(
@@ -997,7 +1285,9 @@
 }
 
 .contar_caso_conformidad <- function(conexion, motor, spec, instancia, esquemas,
-                                     aplicabilidad, max_valores_in) {
+                                     aplicabilidad, max_valores_in,
+                                     relaciones = list()) {
+  con_relaciones <- function(sql) .con_relaciones_conformidad(sql, relaciones)
   compilado <- .compilar_caso_conformidad(
     conexion, motor, spec, instancia, esquemas, aplicabilidad, max_valores_in
   )
@@ -1010,8 +1300,10 @@
   contador$tope <- Inf
   contador$sql <- character()
   if (identical(comp$via, "sql_dedicado_referencial")) {
-    q <- tryCatch(.consultar_medicion_dbi(conexion, comp$consulta, contador),
-                  error = function(e) e)
+    q <- tryCatch(
+      .consultar_medicion_dbi(conexion, con_relaciones(comp$consulta), contador),
+      error = function(e) e
+    )
     if (inherits(q, "error")) return(list(error = .mensaje_motor(q)))
     if (!is.null(q$guarda) && isTRUE(as.numeric(q$guarda) > 0)) {
       return(list(abstencion = list(
@@ -1027,12 +1319,33 @@
     c(list(j = 1L, instancia = instancia, spec = spec, entidad = entidad), comp),
     esq, compilado$universos[[entidad]](instancia), conexion, motor
   )
-  r <- .consolidada_medicion_dbi(conexion, esq, list(item), contador, motor)
+  # La consulta dedicada se manda con la relacion nombrada; la consolidada
+  # termina en `FROM <relacion>`, y ahi la relacion va como tabla derivada con
+  # el mismo nombre de alias.
+  if (!is.null(item$consulta)) item$consulta <- con_relaciones(item$consulta)
+  esq_consolidada <- esq
+  if (length(relaciones) && esq$sql %in% names(relaciones)) {
+    esq_consolidada$sql <- paste0(relaciones[[esq$sql]], " ", esq$sql)
+  }
+  r <- .consolidada_medicion_dbi(conexion, esq_consolidada, list(item), contador,
+                                 motor)
   res <- .conteos_item_medicion_dbi(r, item, conexion, contador)
   if (!is.null(res$error)) return(list(error = res$error))
   abstencion <- .abstencion_conteos_medicion_dbi(item, res, motor)
   if (!is.null(abstencion)) return(list(abstencion = abstencion))
   list(num = res$num, den = res$den)
+}
+
+# Una relacion nombrada vale con alias y sin el, que es como la usa el
+# traductor (`FROM t` y `FROM t lupa_r` en la misma sentencia): en un servidor
+# cada relacion de literales es una expresion de tabla comun, y la sentencia
+# que la usa la lleva delante.
+.con_relaciones_conformidad <- function(sql, relaciones) {
+  if (!length(relaciones)) return(sql)
+  paste0(
+    "WITH ", paste0(names(relaciones), " AS ", unlist(relaciones), collapse = ", "),
+    " ", sql
+  )
 }
 
 .esperado_caso_conformidad <- function(spec, instancia, datos, aplicabilidad) {
@@ -1089,6 +1402,14 @@
     )
   }
   for (e in names(datos)) {
+    for (columna in names(datos[[e]])) {
+      escritura <- .escritura_columna_conformidad(
+        conexion, motor, esquemas_base[[e]], columna
+      )
+      if (!is.null(escritura$motivo)) return(sin_valores(escritura$motivo))
+    }
+  }
+  for (e in names(datos)) {
     ajuste <- .ajustar_a_lo_guardado_conformidad(
       conexion, motor, datos[[e]], esquemas_base[[e]]
     )
@@ -1109,13 +1430,23 @@
   conteo <- NULL
   for (intento in 1:2) {
     esquemas <- esquemas_base
-    for (e in names(datos)) {
-      esquemas[[e]]$sql <- .relacion_literal_conformidad(
+    relaciones <- list()
+    for (i in seq_along(names(datos))) {
+      e <- names(datos)[[i]]
+      relacion <- .relacion_literal_conformidad(
         conexion, motor, datos[[e]], esquemas[[e]]
       )
+      if (motor %in% .SERVIDORES_CONFORMIDAD_DBI) {
+        nombre <- paste0("lupa_conf_", i)
+        relaciones[[nombre]] <- relacion
+        esquemas[[e]]$sql <- nombre
+      } else {
+        esquemas[[e]]$sql <- relacion
+      }
     }
     conteo <- .contar_caso_conformidad(
-      conexion, motor, spec, instancia, esquemas, aplicabilidad, max_valores_in
+      conexion, motor, spec, instancia, esquemas, aplicabilidad, max_valores_in,
+      relaciones = relaciones
     )
     if (is.null(conteo$error) || intento == 2L) break
     depuracion <- .depurar_datos_conformidad(conexion, motor, datos, esquemas_base)
@@ -1484,6 +1815,12 @@
       distinto <- c(distinto, campo)
     }
   }
+  # Otro servidor tiene su propia version e intercalacion: lo que difiere es el
+  # servidor. En el mismo servidor, una version o una intercalacion distinta
+  # dice que cambio desde que se armo la bateria.
+  if ("servidor" %in% distinto) {
+    distinto <- setdiff(distinto, c("version", "intercalacion"))
+  }
   if (!identical(attr(conformidad, "configuracion", exact = TRUE),
                  actual$configuracion)) {
     distinto <- c(distinto, "configuraci\u00f3n")
@@ -1587,6 +1924,15 @@
 #' tipo y la intercalación de cada columna real. Si la tabla no existe, usa los
 #' tipos que se desprenden de los valores declarados en la regla.
 #'
+#' Corre en SQLite, DuckDB, PostgreSQL (también 9.3), MySQL, MariaDB y SQL
+#' Server. En un servidor cada valor inventado se escribe con `CAST` al tipo de
+#' la columna —en MySQL y MariaDB, al destino de `CAST()` que corresponde a ese
+#' tipo, con el juego de caracteres de su intercalación— y con su cláusula
+#' `COLLATE`; una columna que la tabla no tiene es la que el servidor crearía
+#' para esa clase, con la intercalación de la base. Si el motor no tiene cómo
+#' escribir un literal con el tipo de la columna (`YEAR` en MariaDB,
+#' `VARBINARY` en SQL Server), el caso queda `no_evaluada` con ese motivo.
+#'
 #' La batería responde una sola pregunta: si el motor, cuando cuenta, da lo
 #' mismo que R. No conformar es eso y nada más. Que `medir_dbi()` se abstenga
 #' por una guarda propia con los valores inventados (texto no ASCII en SQLite,
@@ -1622,8 +1968,8 @@
 #'     traductor o por una guarda; `motivo` dice cuál. No quita la regla.
 #'   * `no_evaluada`: la batería no pudo construir o contar el caso; la regla se
 #'     mide como siempre, con un aviso.
-#'   * `no_verificado`: el motor no está verificado en la batería (PostgreSQL,
-#'     MySQL, MariaDB y SQL Server); la regla se mide como siempre, con un aviso.
+#'   * `no_verificado`: el motor no es ninguno de los verificados en la batería
+#'     (los seis de arriba); la regla se mide como siempre, con un aviso.
 #'
 #'   `condicion` es `"con_nulos"` en un caso que con los `NULL` inventados no
 #'   conformó o se abstuvo: el mismo caso sin `NULL` va en la fila
@@ -1643,7 +1989,12 @@
 #'   `@@hostname`, `@@port` y la base; en SQL Server `@@SERVERNAME`, la máquina
 #'   y la base. Se pregunta con una sentencia, una vez por llamada. Dos bases
 #'   en memoria no se distinguen. El atributo `intercalacion` es la que el motor usa por
-#'   omisión (`NA` con su motivo en `intercalacion_motivo` si no se pudo leer).
+#'   omisión (`NA` con su motivo en `intercalacion_motivo` si no se pudo leer):
+#'   `BINARY` en SQLite, `default_collation` en DuckDB, la de la base en
+#'   PostgreSQL (`datcollate`) y en SQL Server, y `@@collation_database` en
+#'   MySQL y MariaDB. `version` es la que el motor informa. Si la batería es de
+#'   otro servidor, `medir_dbi()` dice que difiere el servidor; una versión o una
+#'   intercalación distinta en el mismo servidor, que cambió desde que se armó.
 #' @export
 #' @seealso [medir_dbi()], [plan_medicion_dbi()]
 conformidad_dbi <- function(conexion, modelo, tablas = NULL,
@@ -1660,7 +2011,7 @@ conformidad_dbi <- function(conexion, modelo, tablas = NULL,
     conexion, modelo, tablas, aplicabilidad, max_valores_in, motor
   )
   senas <- procedencia$senas
-  if (!motor %in% c("sqlite", "duckdb")) {
+  if (!motor %in% .MOTORES_VERIFICADOS_CONFORMIDAD_DBI) {
     filas <- lapply(modelo$metricas, function(instancia) {
       spec <- .especificacion_metrica(instancia)
       r <- list(
@@ -1674,8 +2025,17 @@ conformidad_dbi <- function(conexion, modelo, tablas = NULL,
     })
     salida <- if (length(filas)) do.call(rbind, filas) else NULL
   } else {
+    sesion <- .sesion_conformidad_dbi(procedencia$con, motor)
+    if (motor %in% .SERVIDORES_CONFORMIDAD_DBI) {
+      # La columna supuesta de un servidor se traduce con la sesion real y con
+      # el relleno de la intercalacion de la base.
+      senas$sesion <- sesion
+      senas$intercalacion_no_pad <- .no_pad_por_omision_conformidad_dbi(
+        procedencia$con, motor, senas
+      )
+    }
     reales <- .esquemas_reales_conformidad_dbi(
-      procedencia$con, procedencia$fisicas, motor
+      procedencia$con, procedencia$fisicas, motor, sesion
     )
     salida <- .casos_conformidad_dbi(
       procedencia$con, modelo, motor, senas, reales, aplicabilidad,
@@ -1690,7 +2050,7 @@ conformidad_dbi <- function(conexion, modelo, tablas = NULL,
   attr(salida, "intercalacion") <- senas$intercalacion
   attr(salida, "intercalacion_motivo") <- senas$intercalacion_motivo
   attr(salida, "motores_no_verificados") <- setdiff(
-    .MOTORES_MEDICION_DBI, c("sqlite", "duckdb")
+    .MOTORES_MEDICION_DBI, .MOTORES_VERIFICADOS_CONFORMIDAD_DBI
   )
   attr(salida, "identidad") <- procedencia$identidad
   attr(salida, "configuracion") <- procedencia$configuracion
