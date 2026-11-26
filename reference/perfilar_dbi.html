@@ -487,7 +487,11 @@ valor no cambia la estimación ni la medición posterior del derrame.</p></dd>
 filas por columnas del esquema. Si reduce la muestra,
 <code>perfil_muestra$cobertura_diagnosticos</code> usa la misma declaración que
 <code><a href="perfilar.html">perfilar()</a></code>, con las celdas solicitadas, el umbral y el tope que mandó.
-<code>Inf</code> desactiva este tope. No modifica los agregados SQL.</p></dd>
+<code>Inf</code> desactiva este tope. No modifica los agregados SQL. Un tope que no
+deja ni una fila para las columnas del esquema es un error de argumento
+(<code>lupa_error_argumento_dbi</code>) que sale al leer el esquema, antes del
+resumen SQL, aunque la tabla esté vacía, y dice el mínimo que admite la
+tabla: una celda por columna leída. Con <code>bloque_muestra = "solo_agregados"</code> no se usa y no se mira.</p></dd>
 
 
 <dt id="arg-max-bytes-muestra">max_bytes_muestra<a class="anchor" aria-label="anchor" href="#arg-max-bytes-muestra"></a></dt>
@@ -590,7 +594,9 @@ declarar la misma columna aquí y en <code>columnas_opcionales</code>.</p></dd>
 declaran como faltantes en el <code>perfil_muestra</code>, o la lista por columna de
 <code><a href="perfilar.html">perfilar()</a></code> —también para <code>cadenas_ausencia</code>, que viaja por <code>...</code>—: se
 valida contra las columnas de la tabla y la reciben igual el resumen SQL,
-la muestra y la corroboración. Se normaliza como un
+la muestra y la corroboración. Los valores de las dos, en vector o en
+lista, se validan al entrar con la regla de <code><a href="perfilar.html">perfilar()</a></code>, antes de la
+primera consulta y también sin muestra. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. Un valor declarado —una lista que no
 es la de omisión ni <code>sentinelas_naniar</code>— sale también de las magnitudes
@@ -646,7 +652,13 @@ abreviado vale lo mismo que el entero, como lo completa R al llamar a
 <code><a href="perfilar.html">perfilar()</a></code>: <code>proteger = FALSE</code> es <code>proteger_datos_personales = FALSE</code>
 también para <code>resumen_tabla</code>. La bandera, <code>fecha</code> y los nombres se validan
 al entrar, también con <code>bloque_muestra = "solo_agregados"</code>: un nombre que
-<code><a href="perfilar.html">perfilar()</a></code> no tiene es un error, no un fallo parcial. Los demás valores
+<code><a href="perfilar.html">perfilar()</a></code> no tiene es un error, no un fallo parcial. También la forma
+de <code>columnas_codigo</code>, <code>columnas_personales</code> y <code>cadenas_ausencia</code>, antes de
+la primera consulta, con la regla de <code><a href="perfilar.html">perfilar()</a></code> y la clase
+<code>lupa_error_argumento_dbi</code>: <code>columnas_personales = 5</code> ya no se paga con el
+resumen SQL para perder la muestra. Que las columnas de
+<code>columnas_personales</code> existan lo sigue mirando <code><a href="perfilar.html">perfilar()</a></code> en la muestra.
+Los demás valores
 los valida <code><a href="perfilar.html">perfilar()</a></code> al perfilar la muestra —sin muestra no se
 validan—, y uno inválido deja <code>perfil_muestra = NULL</code> con el error de
 <code><a href="perfilar.html">perfilar()</a></code> como motivo, legible también con la protección: un error que

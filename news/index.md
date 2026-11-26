@@ -1023,6 +1023,48 @@
 
 ### Correcciones
 
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  validan al entrar, antes de la primera consulta y también con
+  `bloque_muestra = "solo_agregados"`, la forma de
+  `sentinelas_numericos`, `cadenas_ausencia`, `columnas_codigo` y
+  `columnas_personales`, con la regla y el mensaje de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y la clase `lupa_error_argumento_dbi`: antes
+  `sentinelas_numericos = "a"` o `columnas_personales = 5` pagaban el
+  resumen SQL entero para perder la muestra, y sin muestra pasaban en
+  silencio.
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  mira la forma de `columnas_personales` antes de planificar. Un
+  `columnas_codigo` que la tabla no tiene sale con esa clase al leer el
+  esquema; en una colección con `proteger_datos_personales = TRUE`, el
+  motivo de la tabla que no la tiene ya no tacha las palabras del
+  mensaje y dice qué argumento falló.
+
+- **Cambia lo que devuelven dos llamadas.** Un `max_celdas_muestra` que
+  no deja una fila para las columnas que lee la muestra es un error de
+  argumento (`lupa_error_argumento_dbi`) al leer el esquema, antes del
+  resumen SQL, en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y en
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  que antes devolvía el plan. Sobre una tabla vacía
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  daba un perfil, y con `bloque_filas` en DuckDB (sin lectura por
+  bloques) `perfil_muestra = NULL` sin decir por qué: ahora las dos dan
+  ese error. El mensaje dice el mínimo que admite la tabla, una celda
+  por columna leída (también en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)).
+  Con `bloque_muestra = "solo_agregados"` el tope no se mira.
+
+- Con una columna aislada de la muestra del motor y
+  `politica_costo = "por_cardinalidad"`, el plan rehecho anunciaba la
+  moda de esa columna —le tocaba la decisión de otra, por un reciclado
+  que además dejaba dos avisos de R— y la conciliación salía
+  `desfasado`: ahora cuenta las modas que corren y concilia.
+
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
   con una tabla cuyo nombre no se puede escribir en la consulta (bytes
   que no son UTF-8 válido y no declaran su codificación) mandaba al

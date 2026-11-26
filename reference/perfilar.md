@@ -1334,7 +1334,9 @@ perfilar(
   diagnosticos que muestrean filas. Por defecto es `1000000`; se calcula
   como filas efectivas por columnas de la tabla. Si reduce la muestra,
   `cobertura_diagnosticos` informa las filas y celdas solicitadas, el
-  umbral y el nuevo alcance. `Inf` desactiva este tope.
+  umbral y el nuevo alcance. `Inf` desactiva este tope. Uno que no deja
+  ni una fila de una tabla con filas es un error que dice el mínimo: una
+  celda por columna.
 
 - max_bytes_muestra:
 

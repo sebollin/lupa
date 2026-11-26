@@ -221,7 +221,9 @@ vale para toda la colección: sin protección, el mensaje de un error del
 motor se publica entero —el literal que hizo fallar la lectura y el SQL—
 también en <code>cobertura_coleccion</code>, <code>cobertura_metricas</code>, <code>meta$lecturas</code> y
 los avisos; ver la sección «Datos personales» de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.
-Lo que va a <code><a href="perfilar.html">perfilar()</a></code> se valida al entrar, una vez. Los argumentos
+Lo que va a <code><a href="perfilar.html">perfilar()</a></code> se valida al entrar, una vez; también la forma
+de <code>columnas_codigo</code> y <code>columnas_personales</code> (<code>lupa_error_argumento_dbi</code>).
+Los argumentos
 propios de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> —<code>estrategia_distintos</code>, <code>max_consultas</code>,
 <code>umbral_cardinalidad</code> y los demás— los valida <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> en cada
 tabla: uno mal escrito deja cada tabla en <code>cobertura_coleccion</code> con ese
@@ -322,7 +324,8 @@ una lista nombrada por identificador de tabla —como <code>columnas_candidatas<
 vector o una lista por columna, <code>list(personas = list(edad = 99))</code>. Las
 tablas que la lista no nombra reciben el valor por omisión, y un nombre que
 no es tabla de la colección es un error antes de leer
-(<code>lupa_error_argumento_dbi</code>). <code><a href="ausencias_desde_propuesta.html">ausencias_desde_propuesta()</a></code> arma esta lista.</p>
+(<code>lupa_error_argumento_dbi</code>), como un valor que <code><a href="perfilar.html">perfilar()</a></code> rechaza, en el
+vector o en la lista. <code><a href="ausencias_desde_propuesta.html">ausencias_desde_propuesta()</a></code> arma esta lista.</p>
     </div>
     <div class="section level2">
     <h2 id="reanudar-una-corrida-cortada">Reanudar una corrida cortada<a class="anchor" aria-label="anchor" href="#reanudar-una-corrida-cortada"></a></h2>

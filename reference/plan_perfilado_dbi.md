@@ -368,7 +368,12 @@ plan_perfilado_dbi(
   `perfil_muestra$cobertura_diagnosticos` usa la misma declaración que
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
   con las celdas solicitadas, el umbral y el tope que mandó. `Inf`
-  desactiva este tope. No modifica los agregados SQL.
+  desactiva este tope. No modifica los agregados SQL. Un tope que no
+  deja ni una fila para las columnas del esquema es un error de
+  argumento (`lupa_error_argumento_dbi`) que sale al leer el esquema,
+  antes del resumen SQL, aunque la tabla esté vacía, y dice el mínimo
+  que admite la tabla: una celda por columna leída. Con
+  `bloque_muestra = "solo_agregados"` no se usa y no se mira.
 
 - max_bytes_muestra:
 
@@ -434,13 +439,18 @@ plan_perfilado_dbi(
   Valores numéricos que se consideran faltantes al anticipar las
   consultas de la métrica nueva. Acepta la lista por columna de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
-  resuelta contra las columnas de la tabla.
+  resuelta contra las columnas de la tabla. Se valida al entrar como en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  un valor que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  rechaza es un error, antes de la primera consulta.
 
 - cadenas_ausencia:
 
   Cadenas adicionales que se consideran ausencia textual al anticipar
   las consultas de la métrica nueva. Acepta la lista por columna de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Se valida al entrar, como `sentinelas_numericos`.
 
 - clave:
 

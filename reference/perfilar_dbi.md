@@ -427,7 +427,12 @@ perfilar_dbi(
   `perfil_muestra$cobertura_diagnosticos` usa la misma declaración que
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
   con las celdas solicitadas, el umbral y el tope que mandó. `Inf`
-  desactiva este tope. No modifica los agregados SQL.
+  desactiva este tope. No modifica los agregados SQL. Un tope que no
+  deja ni una fila para las columnas del esquema es un error de
+  argumento (`lupa_error_argumento_dbi`) que sale al leer el esquema,
+  antes del resumen SQL, aunque la tabla esté vacía, y dice el mínimo
+  que admite la tabla: una celda por columna leída. Con
+  `bloque_muestra = "solo_agregados"` no se usa y no se mira.
 
 - max_bytes_muestra:
 
@@ -534,13 +539,16 @@ perfilar_dbi(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   —también para `cadenas_ausencia`, que viaja por `...`—: se valida
   contra las columnas de la tabla y la reciben igual el resumen SQL, la
-  muestra y la corroboración. Se normaliza como un conjunto numérico,
-  por lo que el orden, el tipo entero o doble y los duplicados no
-  cambian el resultado. Un valor declarado —una lista que no es la de
-  omisión ni `sentinelas_naniar`— sale también de las magnitudes del
-  resumen de tabla completa (`minimo`, `maximo`, `media`, `mediana`,
-  `desvio`, `n_ceros` y `n_negativos`) y sigue contando en `n_validos`,
-  `n_distintos` y la moda, como en
+  muestra y la corroboración. Los valores de las dos, en vector o en
+  lista, se validan al entrar con la regla de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  antes de la primera consulta y también sin muestra. Se normaliza como
+  un conjunto numérico, por lo que el orden, el tipo entero o doble y
+  los duplicados no cambian el resultado. Un valor declarado —una lista
+  que no es la de omisión ni `sentinelas_naniar`— sale también de las
+  magnitudes del resumen de tabla completa (`minimo`, `maximo`, `media`,
+  `mediana`, `desvio`, `n_ceros` y `n_negativos`) y sigue contando en
+  `n_validos`, `n_distintos` y la moda, como en
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
   el resumen publica cuántos sacó en `n_valores_excluidos_resumen`: ver
   «Política de ausencia declarada». En una columna de 4 bytes —`real`, y
@@ -605,8 +613,15 @@ perfilar_dbi(
   `resumen_tabla`. La bandera, `fecha` y los nombres se validan al
   entrar, también con `bloque_muestra = "solo_agregados"`: un nombre que
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  no tiene es un error, no un fallo parcial. Los demás valores los
-  valida
+  no tiene es un error, no un fallo parcial. También la forma de
+  `columnas_codigo`, `columnas_personales` y `cadenas_ausencia`, antes
+  de la primera consulta, con la regla de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y la clase `lupa_error_argumento_dbi`: `columnas_personales = 5` ya no
+  se paga con el resumen SQL para perder la muestra. Que las columnas de
+  `columnas_personales` existan lo sigue mirando
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  en la muestra. Los demás valores los valida
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   al perfilar la muestra —sin muestra no se validan—, y uno inválido
   deja `perfil_muestra = NULL` con el error de

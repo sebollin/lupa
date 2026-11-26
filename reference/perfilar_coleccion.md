@@ -171,7 +171,9 @@ perfilar_coleccion(
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
   Lo que va a
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  se valida al entrar, una vez. Los argumentos propios de
+  se valida al entrar, una vez; también la forma de `columnas_codigo` y
+  `columnas_personales` (`lupa_error_argumento_dbi`). Los argumentos
+  propios de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   —`estrategia_distintos`, `max_consultas`, `umbral_cardinalidad` y los
   demás— los valida
@@ -295,7 +297,9 @@ cuyos elementos son lo que acepta
 un vector o una lista por columna, `list(personas = list(edad = 99))`.
 Las tablas que la lista no nombra reciben el valor por omisión, y un
 nombre que no es tabla de la colección es un error antes de leer
-(`lupa_error_argumento_dbi`).
+(`lupa_error_argumento_dbi`), como un valor que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+rechaza, en el vector o en la lista.
 [`ausencias_desde_propuesta()`](https://sebollin.github.io/lupa/reference/ausencias_desde_propuesta.md)
 arma esta lista.
 

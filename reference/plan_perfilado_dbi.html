@@ -479,7 +479,11 @@ Para pedir todas las métricas use <code>politica_costo = "todas"</code>.</p></d
 filas por columnas del esquema. Si reduce la muestra,
 <code>perfil_muestra$cobertura_diagnosticos</code> usa la misma declaración que
 <code><a href="perfilar.html">perfilar()</a></code>, con las celdas solicitadas, el umbral y el tope que mandó.
-<code>Inf</code> desactiva este tope. No modifica los agregados SQL.</p></dd>
+<code>Inf</code> desactiva este tope. No modifica los agregados SQL. Un tope que no
+deja ni una fila para las columnas del esquema es un error de argumento
+(<code>lupa_error_argumento_dbi</code>) que sale al leer el esquema, antes del
+resumen SQL, aunque la tabla esté vacía, y dice el mínimo que admite la
+tabla: una celda por columna leída. Con <code>bloque_muestra = "solo_agregados"</code> no se usa y no se mira.</p></dd>
 
 
 <dt id="arg-max-bytes-muestra">max_bytes_muestra<a class="anchor" aria-label="anchor" href="#arg-max-bytes-muestra"></a></dt>
@@ -545,13 +549,16 @@ se excluyen de la predicción de consultas exactas de faltantes.</p></dd>
 <dt id="arg-sentinelas-numericos">sentinelas_numericos<a class="anchor" aria-label="anchor" href="#arg-sentinelas-numericos"></a></dt>
 <dd><p>Valores numéricos que se consideran faltantes al
 anticipar las consultas de la métrica nueva. Acepta la lista por columna
-de <code><a href="perfilar.html">perfilar()</a></code>, resuelta contra las columnas de la tabla.</p></dd>
+de <code><a href="perfilar.html">perfilar()</a></code>, resuelta contra las columnas de la tabla. Se valida al
+entrar como en <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>: un valor que <code><a href="perfilar.html">perfilar()</a></code> rechaza es un
+error, antes de la primera consulta.</p></dd>
 
 
 <dt id="arg-cadenas-ausencia">cadenas_ausencia<a class="anchor" aria-label="anchor" href="#arg-cadenas-ausencia"></a></dt>
 <dd><p>Cadenas adicionales que se consideran ausencia
 textual al anticipar las consultas de la métrica nueva. Acepta la lista
-por columna de <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
+por columna de <code><a href="perfilar.html">perfilar()</a></code>. Se valida al entrar, como
+<code>sentinelas_numericos</code>.</p></dd>
 
 
 <dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
