@@ -693,6 +693,8 @@
     }
   }
   n_filas <- 0
+  fecha_cero_spool <- character()
+  fecha_cero_texto <- character()
   repeat {
     if (is.null(resultado)) break
     restantes <- if (is.finite(max_filas)) max_filas - n_filas else Inf
@@ -765,9 +767,24 @@
     }
     if (n_pedir < 1) break
     datos <- tryCatch(
-      .marcar_utf8_tabla(.traer_filas_dbi(
-        resultado, n = as.integer(n_pedir), conexion
-      )),
+      {
+        leido <- .vigilar_fecha_cero_dbi(
+          .marcar_utf8_tabla(.traer_filas_dbi(
+            resultado, n = as.integer(n_pedir), conexion
+          )),
+          conexion
+        )
+        # RMariaDB lee la fecha cero como una fecha del ano -1 (ver
+        # `.columnas_fecha_cero_dbi()`), y la tanda ya leida no se puede
+        # releer como texto sobre este result set: la materializacion se
+        # declara fallida y la muestra se lee de nuevo con la lectura que si
+        # lo hace, como con cualquier otro error de lectura.
+        if (length(leido$fecha_cero)) {
+          fecha_cero_spool <- leido$fecha_cero
+          error_lectura <- .motivo_lectura_dbi(leido, "tanda de filas")
+          NULL
+        } else leido$valor
+      },
       error = function(e) {
         .repropagar_transaccion_dbi(e)
         error_lectura <<- .mensaje_motor(e)
@@ -778,6 +795,9 @@
     fetches <- fetches + 1L
     if (!is.null(error_lectura)) break
     if (is.null(datos) || !nrow(datos)) break
+    fecha_cero_texto <- unique(c(
+      fecha_cero_texto, .columnas_fecha_cero_texto_dbi(conexion, datos)
+    ))
     bytes_bloque_r <- as.numeric(utils::object.size(datos))
     bytes_traidos_r <- bytes_traidos_r + bytes_bloque_r
     escritor <- .escribir_chunk_spool_muestra_dbi(escritor, datos)
@@ -822,7 +842,7 @@
       n_filas = NA_real_, bytes = NA_real_, checksum = NA_character_,
       fetches = fetches, bytes_bloques = cerrado$bytes_bloques,
       motivo = if (!is.null(escritor$motivo)) escritor$motivo else cerrado$motivo,
-      reconocido = error_reconocido,
+      reconocido = error_reconocido, fecha_cero = fecha_cero_spool,
       eventos = cerrado$eventos, max_filas = max_filas,
       truncada = isTRUE(cerrado$truncada)
     ))
@@ -847,7 +867,7 @@
     fetches = fetches, bytes_bloques = cerrado$bytes_bloques,
     eventos = cerrado$eventos, header = verificada$header,
     trailer = verificada$trailer, max_filas = max_filas,
-    truncada = isTRUE(cerrado$truncada),
+    truncada = isTRUE(cerrado$truncada), fecha_cero_texto = fecha_cero_texto,
     bytes_por_fila_max = bytes_por_fila_max,
     bytes_por_fila_medido = bytes_por_fila_medido
   )
@@ -867,7 +887,8 @@
   proyeccion_muestra <- .campos_sql_muestra_dbi(
     conexion, preparacion$campos, preparacion$campos_sql_proyeccion,
     preparacion$prototipo, preparacion$tipos, preparacion$dialecto,
-    tipos_motor = preparacion$esquema$tipos_motor
+    tipos_motor = preparacion$esquema$tipos_motor,
+    tipo_mixto = preparacion$tipo_mixto
   )
   fuente <- if (!is.null(candidato)) {
     captura <- .capturar_fuente_muestreada_dbi(
@@ -988,6 +1009,25 @@
   retenida
 }
 
+# Lo que la muestra materializada publica de su fuente: el metodo de muestreo y
+# la identidad de esta materializacion.
+.publicar_fuente_spool_dbi <- function(preparacion, fuente, n_total,
+                                       id_consulta_n, muestra_id, snapshot_id,
+                                       orden_id) {
+  publico <- .publicar_muestreo_dbi(preparacion$muestreo, fuente, n_total)
+  publico$id_consulta_n <- id_consulta_n
+  publico$muestra_id <- muestra_id
+  publico$snapshot_id <- snapshot_id
+  publico$orden_id <- orden_id
+  publico$reproducible <- FALSE
+  publico$motivo_reproducibilidad <- paste(
+    "El orden interno del result set no fue demostrado como \u00fanico y",
+    "reproducible entre corridas; el ordinal del spool s\u00f3lo identifica esta",
+    "materializacion."
+  )
+  publico
+}
+
 .perfil_muestra_spool_dbi <- function(conexion, tabla, preparacion,
                                       incluir_valores, bloque_filas,
                                       max_bytes_procesamiento,
@@ -1012,7 +1052,8 @@
     version_sqlserver = estimacion_bytes$version_sqlserver,
     max_largo_valor_vocabulario = argumentos[[
       "max_largo_valor_vocabulario"
-    ]] %||% .MAX_LARGO_VALOR_CASI_DUPLICADOS
+    ]] %||% .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+    tipo_mixto = preparacion$tipo_mixto
   )
   estimacion_bytes$bytes_por_fila_max <- proyeccion_muestra$bytes_por_fila_max
   estimacion_bytes$columnas_texto_largo <- proyeccion_muestra$columnas_texto_largo
@@ -1091,18 +1132,9 @@
         motivo <- "capacidad_no_aceptada:fuente_muestreada"
       }
     } else {
-      publico <- .publicar_muestreo_dbi(
-        preparacion$muestreo, fuente, n_total
-      )
-      publico$id_consulta_n <- id_consulta_n
-      publico$muestra_id <- muestra_id
-      publico$snapshot_id <- snapshot_id
-      publico$orden_id <- orden_id
-      publico$reproducible <- FALSE
-      publico$motivo_reproducibilidad <- paste(
-        "El orden interno del result set no fue demostrado como \u00fanico y",
-        "reproducible entre corridas; el ordinal del spool s\u00f3lo identifica esta",
-        "materializacion."
+      publico <- .publicar_fuente_spool_dbi(
+        preparacion, fuente, n_total, id_consulta_n, muestra_id, snapshot_id,
+        orden_id
       )
     }
   }
@@ -1148,6 +1180,50 @@
       cpu_fin = .ahora_cpu_dbi(), estado = if (isTRUE(spool$ok)) NULL else
         "no_disponible"
     )
+    # RMariaDB lee la fecha cero como una fecha del ano -1 (ver
+    # `.columnas_fecha_cero_dbi()`). Se vuelve a materializar con esas columnas
+    # leidas como texto, que conserva cada valor.
+    if (!isTRUE(spool$ok) && length(spool$fecha_cero) && !is.null(fuente)) {
+      texto_spool <- .releer_fecha_cero_dbi(
+        conexion, campos, preparacion$campos_sql_proyeccion,
+        proyeccion_muestra$campos_sql, spool$fecha_cero
+      )
+      captura_texto <- if (length(texto_spool$leidas)) {
+        .capturar_fuente_muestreada_dbi(
+          preparacion$tabla_sql, texto_spool$campos_sql_muestra,
+          filas_pedidas_motor, n_total, preparacion$dialecto,
+          preparacion$muestreo
+        )
+      } else list(fuente = NULL)
+      if (!is.null(captura_texto$fuente)) {
+        try(unlink(spool$path, force = TRUE), silent = TRUE)
+        proyeccion_muestra$campos_sql <- texto_spool$campos_sql_muestra
+        fuente <- captura_texto$fuente
+        publico <- .publicar_fuente_spool_dbi(
+          preparacion, fuente, n_total, id_consulta_n, muestra_id,
+          snapshot_id, orden_id
+        )
+        sql_muestra <- fuente$sql
+        inicio_materializacion <- if (!is.null(trazador) &&
+                                      isTRUE(trazador$activo)) .ahora_dbi() else NULL
+        cpu_materializacion <- if (!is.null(trazador) &&
+                                   isTRUE(trazador$activo)) .ahora_cpu_dbi() else NULL
+        spool <- .materializar_muestra_spool_dbi(
+          conexion, sql_muestra, campos, muestra_id, snapshot_id, orden_id,
+          presupuesto, bloque_filas = bloque_filas,
+          max_bytes = max_bytes_lectura, backend = backend,
+          max_filas = filas_efectivas,
+          bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max,
+          medir_bytes = medir_bytes
+        )
+        .registrar_etapa_dbi(
+          trazador, "materializacion_muestra", inicio_materializacion,
+          .ahora_dbi(), cpu_inicio = cpu_materializacion,
+          cpu_fin = .ahora_cpu_dbi(), estado = if (isTRUE(spool$ok)) NULL else
+            "no_disponible"
+        )
+      }
+    }
     if (!isTRUE(spool$ok)) {
       motivo <- spool$motivo
       presupuesto$fallas_consultas[[length(presupuesto$fallas_consultas) + 1L]] <-
@@ -1198,7 +1274,8 @@
           prototipo = preparacion$prototipo, tipos_declarados = preparacion$tipos,
           tipos_motor = preparacion$esquema$tipos_motor,
           max_celdas_muestra = Inf, max_bytes_muestra = Inf,
-          enmascaradas = preparacion$enmascaradas
+          enmascaradas = preparacion$enmascaradas,
+          tipo_mixto = preparacion$tipo_mixto
         ),
         error = function(e) {
           .repropagar_transaccion_dbi(e)
@@ -1570,6 +1647,11 @@
     NA_real_
   } else publico$fraccion
   cobertura <- cobertura_aislada
+  if (isTRUE(spool$ok) && length(spool$fecha_cero_texto)) {
+    cobertura <- rbind(cobertura, .cobertura_fecha_cero_dbi(
+      tabla, spool$fecha_cero_texto, sql_muestra
+    ))
+  }
   if (reintentos_muestreo > 0L || muestreo_corto) {
     estado_muestreo <- if (muestreo_corto) "degradado" else "medido"
     motivo_muestreo <- if (muestreo_corto) {

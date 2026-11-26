@@ -3227,6 +3227,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           "La columna `", .comillas_sin_locale(columna), "`: ",
           .motivo_columna_enmascarada_dbi()
         ),
+        tipo_mixto = paste0(
+          "La columna `", .comillas_sin_locale(columna), "`: ",
+          .motivo_poda_tipo_mixto_dbi()
+        ),
         .motivo_no_representable_dbi(
           paste0("La columna `", .comillas_sin_locale(columna), "`"),
           texto = columna
@@ -3241,16 +3245,19 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 # mascara, dichas en el motivo de la lectura. `NA` si no dejo ninguna.
 .nota_columnas_fuera_coleccion <- function(fuera, orden_fuera = character()) {
   partes <- character()
-  for (codigo in c("columna_sin_permiso", "columna_enmascarada")) {
+  for (codigo in c("columna_sin_permiso", "columna_enmascarada", "tipo_mixto")) {
     columnas <- names(fuera)[unname(fuera) == codigo]
     if (!length(columnas)) next
     partes <- c(partes, paste0(
       if (length(columnas) == 1L) "No se comparo la columna " else
         "No se compararon las columnas ",
       paste0("`", .comillas_sin_locale(columnas), "`", collapse = ", "), ": ",
-      if (identical(codigo, "columna_sin_permiso")) {
-        .motivo_columna_sin_permiso_dbi()
-      } else .motivo_columna_enmascarada_dbi()
+      switch(
+        codigo,
+        columna_sin_permiso = .motivo_columna_sin_permiso_dbi(),
+        columna_enmascarada = .motivo_columna_enmascarada_dbi(),
+        .motivo_poda_tipo_mixto_dbi()
+      )
     ))
   }
   if (length(orden_fuera)) {
@@ -3387,6 +3394,47 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   todo_texto_relleno <- identical(
     .motor_permisos_columnas_dbi(conexion), "sqlserver"
   )
+  # La mezcla de tipos de las columnas de SQLite de cada tabla, medida una vez
+  # por tabla con una sentencia (`.detectar_tipo_mixto_sqlite_dbi()`), para
+  # todas las columnas que la comparacion lee, tengan tipo declarado o no: se
+  # leen de una sola forma, y la comparacion poda solo la de entero ancho.
+  cache_mixto <- new.env(parent = emptyenv())
+  tipo_mixto_de <- function(identificador, tabla_sql, columnas) {
+    if (!.es_sqlite_tipo_mixto_dbi(conexion)) return(NULL)
+    nombres <- if (length(columnas)) as.character(columnas) else {
+      campos_de(identificador)
+    }
+    if (!length(nombres)) return(NULL)
+    cache_key <- .clave_cache_coleccion(identificador)
+    previo <- if (exists(cache_key, envir = cache_mixto, inherits = FALSE)) {
+      get(cache_key, envir = cache_mixto, inherits = FALSE)
+    } else NULL
+    medidas <- if (is.null(previo)) character() else attr(previo, "medidas")
+    faltan <- nombres[!.nombres_presentes(nombres, medidas)]
+    if (length(faltan)) {
+      nuevo <- .detectar_tipo_mixto_sqlite_dbi(
+        conexion, tabla_sql, faltan,
+        vapply(faltan, function(x) .citar_identificador_dbi(conexion, x),
+               character(1L), USE.NAMES = FALSE),
+        medir = rep(TRUE, length(faltan)),
+        consultar = function(sql) {
+          respuesta <- .consultar_dbi(
+            conexion, sql, NULL, etapa = "tipos_mezclados"
+          )
+          if (isTRUE(respuesta$ok)) respuesta$datos else NULL
+        }
+      )
+      previo <- if (is.null(previo)) nuevo else rbind(previo, nuevo)
+      # Los nombres de las auxiliares, para todas las medidas de la tabla y
+      # contra todas sus columnas: ninguna coincide con una del usuario.
+      previo <- .auxiliares_tipo_mixto_dbi(
+        previo, unique(c(campos_de(identificador), nombres))
+      )
+      attr(previo, "medidas") <- c(medidas, faltan)
+      assign(cache_key, previo, envir = cache_mixto)
+    }
+    previo[.nombres_presentes(previo$columna, nombres), , drop = FALSE]
+  }
   lectura_de <- function(identificador, tabla_sql, columnas) {
     citar <- function(x) {
       .citar_identificador_dbi(conexion, as.character(x))
@@ -3422,6 +3470,24 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       } else character()
       assign(cache_key, unique(c(previos, actuales)), envir = cache_relleno)
       salida
+    }
+    # SQLite: las columnas que guardan tipos distintos se leen de una sola
+    # forma (ver `.detectar_tipo_mixto_sqlite_dbi()`), con la expresion de sus
+    # extremos (`NA` donde no hay rango numerico) y las que la comparacion poda
+    # (`podar`): las decide `R/tipo-mixto-sqlite-dbi.R`.
+    mixtas <- if (!is.na(tabla_sql)) {
+      tipo_mixto_de(identificador, tabla_sql, columnas)
+    } else NULL
+    if (NROW(mixtas)) {
+      nombres <- if (length(columnas)) columnas else campos_de(identificador)
+      seleccion <- .proyeccion_tipo_mixto_dbi(
+        conexion, nombres, citar(nombres), mixtas, comparar = TRUE
+      )
+      return(guardar(list(
+        seleccion_sql = paste(seleccion, collapse = ", "),
+        expresiones = .expresion_rango_tipo_mixto_dbi(mixtas),
+        podar = .podar_tipo_mixto_dbi(mixtas), tipo_mixto = mixtas
+      )))
     }
     if (is.na(tabla_sql) || !.lectura_puede_convertir_dbi(conexion)) {
       return(guardar(sin_conversion))
@@ -3545,11 +3611,28 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       }
     }
     if (length(medibles)) {
+      # La columna cuya lectura no tiene extremo numerico -una de SQLite que
+      # guarda texto o BLOB con numeros, ver `.expresion_rango_tipo_mixto_dbi()`-
+      # no entra a la sentencia: su `MAX` seria un texto.
+      expresiones_rango <- vapply(seq_along(medibles), function(k) {
+        as.character(expresion_de(
+          identificador, nombres[[medibles[[k]]]], citas[[k]]
+        ))
+      }, character(1L))
+      sin_rango <- is.na(expresiones_rango)
+      for (k in which(sin_rango)) {
+        salida[[nombres[[medibles[[k]]]]]] <- sin_evidencia(
+          "no_disponible", .MOTIVO_RANGO_TIPO_MIXTO_DBI
+        )
+      }
+      expresiones_rango <- expresiones_rango[!sin_rango]
+      medibles <- medibles[!sin_rango]
+    }
+    if (length(medibles)) {
       alias_minimos <- paste0("lupa_rango_", seq_along(medibles), "_min")
       alias_maximos <- paste0("lupa_rango_", seq_along(medibles), "_max")
       expresiones <- unlist(lapply(seq_along(medibles), function(k) {
-        nombre <- nombres[[medibles[[k]]]]
-        columna_sql <- expresion_de(identificador, nombre, citas[[k]])
+        columna_sql <- expresiones_rango[[k]]
         c(
           paste0("MIN(", columna_sql, ") AS ", alias_minimos[[k]]),
           paste0("MAX(", columna_sql, ") AS ", alias_maximos[[k]])
@@ -3797,6 +3880,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # `LIMIT`, la que ya terminaba leyendo.
     ejecutar_lectura <- function(columnas, aplicar_orden = TRUE) {
       lectura_local <- lectura_de(identificador, tabla_sql, columnas)
+      # Las auxiliares de las columnas mezcladas de esta tabla se juntan al
+      # leer, con la clase de almacenamiento donde hay BLOB (ver
+      # `.armar_tipo_mixto_sqlite_dbi()`).
+      lectura_mixta_previa <- .fijar_lectura_tipo_mixto_dbi(
+        lectura_local$tipo_mixto, comparar = TRUE
+      )
+      on.exit(.restaurar_lectura_tipo_mixto_dbi(lectura_mixta_previa), add = TRUE)
       seleccion_local <- lectura_local$seleccion_sql
       orden_local <- if (length(columnas_orden) && isTRUE(aplicar_orden)) {
         paste0(
@@ -3815,10 +3905,11 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           )$type),
           error = function(e) NULL
         )
+        leido <- .traer_filas_dbi(consulta, n = tope_lectura, conexion)
         list(
           datos = .marcar_utf8_tabla(
-            .traer_filas_dbi(consulta, n = tope_lectura, conexion)
-          ),
+            .fecha_cero_del_controlador_dbi(conexion, leido)
+          ), mixtas = lectura_local$podar,
           sql = sql, via = "fetch_acotado", tipos = tipos,
           orden_aplicado = length(columnas_orden) > 0L && isTRUE(aplicar_orden)
         )
@@ -3830,12 +3921,16 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           " LIMIT ", format(tope_lectura, scientific = FALSE)
         )
         limitado <- tryCatch(
-          list(ok = TRUE, valor = list(
-            datos = .marcar_utf8_tabla(
-              .traer_consulta_dbi(conexion, sql_limite)
-            ), sql = sql_limite, via = "limit",
-            orden_aplicado = length(columnas_orden) > 0L && isTRUE(aplicar_orden)
-          )),
+          {
+            leido <- .traer_consulta_dbi(conexion, sql_limite)
+            list(ok = TRUE, valor = list(
+              datos = .marcar_utf8_tabla(leido),
+              mixtas = lectura_local$podar,
+              sql = sql_limite, via = "limit",
+              orden_aplicado = length(columnas_orden) > 0L &&
+                isTRUE(aplicar_orden)
+            ))
+          },
           error = function(e) {
             .repropagar_transaccion_dbi(e)
             list(ok = FALSE, error = e, motivo = e)
@@ -4001,6 +4096,30 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         if (length(columnas_lectura)) columnas_lectura else campos_de(identificador)
       }
     )
+    # SQLite: una columna de enteros y reales con un entero que un doble no
+    # representa (ver `.podar_tipo_mixto_dbi()`) no se compara: leida como
+    # doble, dos enteros distintos pueden quedar como uno. Queda en
+    # `cobertura_podas` con su motivo. Las demas columnas mezcladas se comparan
+    # sobre su lectura unica.
+    if (length(resultado$mixtas)) {
+      sale <- .nombres_presentes(
+        names(resultado$datos), names(resultado$mixtas)
+      )
+      if (any(sale)) {
+        fuera <- c(fuera, stats::setNames(
+          rep("tipo_mixto", sum(sale)), names(resultado$datos)[sale]
+        ))
+        fuera <- fuera[!duplicated(names(fuera))]
+        assign(.clave_cache_coleccion(identificador), fuera, envir = cache_fuera)
+        resultado$datos <- resultado$datos[!sale]
+        nota_mixta <- .nota_columnas_fuera_coleccion(
+          fuera[unname(fuera) == "tipo_mixto"]
+        )
+        nota_lectura <- if (is.na(nota_lectura)) nota_mixta else {
+          paste(nota_lectura, nota_mixta)
+        }
+      }
+    }
     nota_texto <- .nota_texto_controlador_dbi(
       conexion, names(resultado$datos), resultado$tipos,
       .texto_anotado_desde_dbi(conexion, texto_antes)
@@ -4051,6 +4170,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     tipos = tipos_de,
     todo_texto = todo_texto_relleno,
     rangos_universo = rangos_universo,
+    # Las columnas mezcladas de una tabla que se compararon (ver
+    # `.detectar_tipo_mixto_sqlite_dbi()`), y entre ellas las que se leen con
+    # la clase de almacenamiento: las de BLOB.
+    tipo_mixto = function(identificador) {
+      cache_key <- .clave_cache_coleccion(identificador)
+      mixtas <- if (exists(cache_key, envir = cache_mixto, inherits = FALSE)) {
+        get(cache_key, envir = cache_mixto, inherits = FALSE)
+      } else NULL
+      if (!NROW(mixtas)) return(.lectura_tipo_mixto_vacia_dbi())
+      mixtas[!(mixtas$ancho %in% TRUE), , drop = FALSE]
+    },
     bitacora = function() {
       if (length(bitacora)) {
         salida <- do.call(rbind, bitacora)
@@ -4161,7 +4291,23 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #'
 #' Si una lectura conjunta falla en una fila, la colección aísla por descarte
 #' las columnas culpables y deja sus nombres en `cobertura_podas` con motivo
-#' `columna_lectura_fallida`; las columnas sanas conservan sus relaciones. Si
+#' `columna_lectura_fallida`; las columnas sanas conservan sus relaciones. En
+#' SQLite, la mezcla de tipos de cada columna leída se mide en el motor —una
+#' sentencia por tabla, con `typeof()`, tenga tipo declarado o no— y la columna
+#' se compara con la misma lectura única de [perfilar_dbi()]: la de solo
+#' números, como doble; la de números y texto, como texto —ningún texto se lee
+#' como `0`, que es lo que hacía RSQLite según la primera fila que llegaba—; y
+#' en un par con una columna que guarda algún `BLOB`, los dos lados se comparan
+#' con su clase de almacenamiento: un `BLOB` solo aparea con un `BLOB` de los
+#' mismos bytes. Fuera de eso se compara por valor, como entre columnas con
+#' tipo declarado: el real `2.0` y el texto `'2'` son el mismo valor, aunque el
+#' motor, en una columna sin tipo declarado, no iguala un REAL con un TEXT; el
+#' par lo dice en una fila de `cobertura_pares` (y no cuenta en
+#' `meta$pares_faltantes`). Sus extremos no entran en la poda por `rangos_disjuntos`: el
+#' `MAX` de una columna que guarda texto con números es un texto. Una columna
+#' de enteros y reales con algún entero de valor absoluto de al menos 2^53, que
+#' un doble no representa, queda en `cobertura_podas` con motivo `tipo_mixto` y
+#' no se compara. Si
 #' se declaró `orden`, el aislamiento repite las sondas sin `ORDER BY` sólo
 #' cuando la propia columna de orden es la culpable, y `meta$estable` se calcula
 #' desde las lecturas que realmente llevaron ese orden.
@@ -4366,6 +4512,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   pares_parciales <- 0L
   pares_presupuesto <- 0L
   pares_sin_conclusion <- 0L
+  # Los pares que se compararon y llevan una fila en `cobertura_pares` solo
+  # para declarar la comparacion de columnas mezcladas: no faltan.
+  pares_lectura_unica <- 0L
   for (i in seq_len(nrow(pares))) {
     t1 <- pares$tabla_1[[i]]
     t2 <- pares$tabla_2[[i]]
@@ -4465,6 +4614,14 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
                           omitidas_2), fuera_2)
       )
     }
+    # Las columnas mezcladas de SQLite que el par compara (las de entero
+    # ancho ya quedaron podadas): ver `.detectar_tipo_mixto_sqlite_dbi()`.
+    mixtas_1 <- lector$tipo_mixto(t1)
+    mixtas_1 <- mixtas_1[.nombres_presentes(mixtas_1$columna, candidatas_1), ,
+                         drop = FALSE]
+    mixtas_2 <- lector$tipo_mixto(t2)
+    mixtas_2 <- mixtas_2[.nombres_presentes(mixtas_2$columna, candidatas_2), ,
+                         drop = FALSE]
     rangos <- list(
       tabla1 = .marcar_enteros_inexactos_coleccion(
         lector$rangos_universo(t1, d1), d1, conexion
@@ -4505,7 +4662,14 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         # Los conteos de huerfanos llegan; la traza por fila no se calcula. Sus
         # indices serian posiciones en esta lectura, que no sirven para buscar
         # la fila en el motor, y ubicarlas cuesta una pasada por columna.
-        .trazar_huerfanas = FALSE
+        .trazar_huerfanas = FALSE,
+        # Las columnas mezcladas de SQLite con BLOB llegan escritas con su
+        # clase de almacenamiento; en sus pares la otra columna se escribe
+        # igual (ver `.clave_almacenamiento_dbi()`).
+        .claves_almacenamiento = list(
+          tabla1 = with(mixtas_1, columna[clase == "blob"]),
+          tabla2 = with(mixtas_2, columna[clase == "blob"])
+        )
       ), error = function(e) e
     )
     if (inherits(relacion, "condition")) {
@@ -4521,6 +4685,14 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         stringsAsFactors = FALSE
       )
       next
+    }
+    # El par se comparo; si compara columnas mezcladas, lo dice: por valor,
+    # que no es la regla del motor para una columna sin tipo declarado.
+    if (nrow(mixtas_1) || nrow(mixtas_2)) {
+      sin_comparar[[length(sin_comparar) + 1L]] <- .fila_par_tipo_mixto_dbi(
+        t1, t2, mixtas_1$columna, mixtas_2$columna
+      )
+      pares_lectura_unica <- pares_lectura_unica + 1L
     }
     podas_relacion <- attr(relacion, "podas", exact = TRUE)
     if (nrow(podas_relacion)) {
@@ -4728,8 +4900,8 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       # Un par sin conclusion SE COMPARO -con la referencia truncada- y esta en
       # `cobertura_pares` porque su respuesta falta; no se resta dos veces.
       pares_comparados = nrow(pares) - nrow(cobertura_pares) +
-        pares_sin_conclusion,
-      pares_faltantes = nrow(cobertura_pares),
+        pares_sin_conclusion + pares_lectura_unica,
+      pares_faltantes = nrow(cobertura_pares) - pares_lectura_unica,
       pares_sin_conclusion = pares_sin_conclusion,
       pares_parciales = pares_parciales,
       pares_sin_comparar_por_presupuesto = pares_presupuesto,

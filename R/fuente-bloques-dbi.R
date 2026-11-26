@@ -1729,7 +1729,10 @@
   ordinal <- 0
   repeat {
     bloque <- tryCatch(
-      .traer_filas_dbi(resultado, n = as.integer(bloque_filas), conexion),
+      .vigilar_fecha_cero_dbi(
+        .traer_filas_dbi(resultado, n = as.integer(bloque_filas), conexion),
+        conexion
+      ),
       error = function(e) {
         .repropagar_transaccion_dbi(e)
         e
@@ -1746,6 +1749,27 @@
                   locators = locators,
                   error = paste0("no_disponible:dbFetch:", .mensaje_motor(bloque))))
     }
+    # RMariaDB lee la fecha cero como una fecha del ano -1 (ver
+    # `.columnas_fecha_cero_dbi()`), en los bloques que la traen. El bloque ya
+    # leido no se puede releer -el resultado avanzo-, asi que la fuente por
+    # bloques se declara no disponible y la tabla se resume por SQL, que ve los
+    # valores guardados. (Una columna de SQLite que guarda tipos distintos llega
+    # igual en todos los bloques: la lee la proyeccion de la fuente, ver
+    # `.proyeccion_tipo_mixto_dbi()`.)
+    if (length(bloque$fecha_cero)) {
+      return(list(acumuladores = acumuladores, sobres = list(),
+                  bloques = bloques,
+                  bytes = list(max_bloque = bytes_max, entrada = bytes_entrada,
+                                texto = 0,
+                                retenidos = sum(vapply(acumuladores, .bytes_retenidos, numeric(1L)),
+                                                na.rm = TRUE), rss_maximo = NA_real_),
+                  locators = locators,
+                  error = paste0(
+                    "no_disponible:lectura_deformada:",
+                    .motivo_lectura_dbi(bloque, "bloque")
+                  )))
+    }
+    bloque <- bloque$valor
     if (!inherits(bloque, "data.frame")) bloque <- as.data.frame(bloque)
     # La fuente por bloques calcula el resumen de la tabla completa. Un
     # centinela fraccionario declarado para `real` solo se alinea al perfilar la
@@ -2608,7 +2632,8 @@
       enmascaradas = preparacion$enmascaradas,
       clave_muestra_motor = if (!length(fuente$orden_expresiones)) {
         preparacion$clave_muestra_motor
-      } else NULL
+      } else NULL,
+      tipo_mixto = preparacion$tipo_mixto
     )
     perfil_muestra <- bloque_muestra$perfil
     if (!is.null(perfil_muestra) && nrow(resumen$cobertura)) {

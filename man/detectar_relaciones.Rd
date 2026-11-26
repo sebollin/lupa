@@ -15,7 +15,8 @@ detectar_relaciones(
   max_filas_huerfanas = 1000L,
   .rangos = NULL,
   .rellenos_finales = NULL,
-  .trazar_huerfanas = TRUE
+  .trazar_huerfanas = TRUE,
+  .claves_almacenamiento = NULL
 )
 }
 \arguments{
@@ -61,6 +62,12 @@ comparacion del motor sin convertir todas las columnas de texto.}
 \item{.trazar_huerfanas}{Uso interno. \code{FALSE} omite las columnas
 \code{huerfanas_tabla1} y \code{huerfanas_tabla2}, y la pasada por columna que
 cuestan; los cuatro conteos se calculan siempre.}
+
+\item{.claves_almacenamiento}{Uso interno de \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. Lista
+nombrada por \code{tabla1} y \code{tabla2} con las columnas que llegan escritas con
+su clase de almacenamiento (una columna de SQLite que mezcla BLOB con otros
+tipos). En cada par que tiene una, la otra columna se escribe igual, y un
+BLOB solo aparea con un BLOB de los mismos bytes.}
 }
 \value{
 Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}

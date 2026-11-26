@@ -3158,6 +3158,10 @@
             columnas, function(x) .citar_col_dbi(conexion, x), character(1L)
           )
           agregar(
+            .sql_tipo_mixto_medicion_dbi(conexion, esq, columnas, columnas_sql),
+            "bloques"
+          )
+          agregar(
             paste0("SELECT ", paste(columnas_sql, collapse = ", "),
                    " FROM ", esq$sql),
             "bloques"
@@ -3168,6 +3172,19 @@
     invisible(estado)
   }
   .with_compilador_dbi(conexion, motor, ejecutar())$compilacion
+}
+
+# La sentencia que mide la mezcla de tipos de las columnas de SQLite que la
+# lectura por bloques va a leer (ver `.detectar_tipo_mixto_sqlite_dbi()`), o
+# `NA` si no hay columna que medir: la misma que manda la corrida, para que el
+# plan la cuente.
+.sql_tipo_mixto_medicion_dbi <- function(conexion, esq, columnas,
+                                         columnas_sql) {
+  medir <- .columnas_sin_afinidad_sqlite_dbi(esq$tipos, columnas, esq$prototipo)
+  if (!.es_sqlite_tipo_mixto_dbi(conexion) || !any(medir)) {
+    return(NA_character_)
+  }
+  .sql_deteccion_tipo_mixto_dbi(esq$sql, columnas_sql[medir])
 }
 
 .consultar_medicion_dbi <- function(conexion, sql, contador,
@@ -3582,6 +3599,21 @@
     }))
   }
   cols_sql <- vapply(cols, function(c) .citar_col_dbi(conexion, c), character(1L))
+  # Una columna de SQLite sin tipo declarado que guarda tipos distintos se lee
+  # de una sola forma, la de `perfilar_dbi()`: la mide una sentencia, que el
+  # plan cuenta (ver `.sql_tipo_mixto_medicion_dbi()`).
+  tipo_mixto <- .detectar_tipo_mixto_sqlite_dbi(
+    conexion, esq$sql, cols, cols_sql,
+    medir = .columnas_sin_afinidad_sqlite_dbi(esq$tipos, cols, esq$prototipo),
+    consultar = function(sql) tryCatch(
+      .consultar_medicion_dbi(conexion, sql, contador),
+      error = function(e) NULL
+    ),
+    nombres_tabla = esq$campos
+  )
+  cols_sql <- .proyeccion_tipo_mixto_dbi(conexion, cols, cols_sql, tipo_mixto)
+  lectura_mixta_previa <- .fijar_lectura_tipo_mixto_dbi(tipo_mixto)
+  on.exit(.restaurar_lectura_tipo_mixto_dbi(lectura_mixta_previa), add = TRUE)
   sql_base <- paste0("SELECT ", paste(cols_sql, collapse = ", "), " FROM ", esq$sql)
   ent_nombre <- items[[1L]]$entidad
   acum <- lapply(items, function(it) {
@@ -3609,13 +3641,23 @@
     on.exit(.limpiar_consulta_dbi(rs, conexion), add = TRUE)
     repeat {
       bloque <- tryCatch(
-        .traer_filas_dbi(rs, n = as.integer(bloque_filas), conexion),
+        .vigilar_fecha_cero_dbi(
+          .traer_filas_dbi(rs, n = as.integer(bloque_filas), conexion),
+          conexion
+        ),
         error = function(e) e
       )
       if (inherits(bloque, "condition")) {
         mot <- .mensaje_motor(bloque)
         return(lapply(items, function(it) list(ok = FALSE, item = it, error_base = mot)))
       }
+      # RMariaDB lee la fecha cero como una fecha del ano -1: las reglas que se
+      # evaluan en R no describirian lo guardado, y se declaran no medibles.
+      if (length(bloque$fecha_cero)) {
+        mot <- .motivo_lectura_dbi(bloque, "bloque")
+        return(lapply(items, function(it) list(ok = FALSE, item = it, error_base = mot)))
+      }
+      bloque <- bloque$valor
       if (!is.data.frame(bloque) || !nrow(bloque)) break
       acum <- .absorber_bloque_medicion_dbi(
         bloque, acum, ent_nombre, aplicabilidad, id_medicion, fecha,

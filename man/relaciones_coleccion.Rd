@@ -147,7 +147,23 @@ sigue la igualdad del motor, no una igualdad de cadenas recortadas.
 
 Si una lectura conjunta falla en una fila, la colección aísla por descarte
 las columnas culpables y deja sus nombres en \code{cobertura_podas} con motivo
-\code{columna_lectura_fallida}; las columnas sanas conservan sus relaciones. Si
+\code{columna_lectura_fallida}; las columnas sanas conservan sus relaciones. En
+SQLite, la mezcla de tipos de cada columna leída se mide en el motor —una
+sentencia por tabla, con \code{typeof()}, tenga tipo declarado o no— y la columna
+se compara con la misma lectura única de \code{\link[=perfilar_dbi]{perfilar_dbi()}}: la de solo
+números, como doble; la de números y texto, como texto —ningún texto se lee
+como \code{0}, que es lo que hacía RSQLite según la primera fila que llegaba—; y
+en un par con una columna que guarda algún \code{BLOB}, los dos lados se comparan
+con su clase de almacenamiento: un \code{BLOB} solo aparea con un \code{BLOB} de los
+mismos bytes. Fuera de eso se compara por valor, como entre columnas con
+tipo declarado: el real \code{2.0} y el texto \code{'2'} son el mismo valor, aunque el
+motor, en una columna sin tipo declarado, no iguala un REAL con un TEXT; el
+par lo dice en una fila de \code{cobertura_pares} (y no cuenta en
+\code{meta$pares_faltantes}). Sus extremos no entran en la poda por \code{rangos_disjuntos}: el
+\code{MAX} de una columna que guarda texto con números es un texto. Una columna
+de enteros y reales con algún entero de valor absoluto de al menos 2^53, que
+un doble no representa, queda en \code{cobertura_podas} con motivo \code{tipo_mixto} y
+no se compara. Si
 se declaró \code{orden}, el aislamiento repite las sondas sin \verb{ORDER BY} sólo
 cuando la propia columna de orden es la culpable, y \code{meta$estable} se calcula
 desde las lecturas que realmente llevaron ese orden.

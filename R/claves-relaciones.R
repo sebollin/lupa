@@ -1280,6 +1280,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #'   las columnas cuyo controlador compara ignorando espacios finales. Se aplica
 #'   solo al par que tiene una columna declarada, para conservar la semantica de
 #'   comparacion del motor sin convertir todas las columnas de texto.
+#' @param .claves_almacenamiento Uso interno de [relaciones_coleccion()]. Lista
+#'   nombrada por `tabla1` y `tabla2` con las columnas que llegan escritas con
+#'   su clase de almacenamiento (una columna de SQLite que mezcla BLOB con otros
+#'   tipos). En cada par que tiene una, la otra columna se escribe igual, y un
+#'   BLOB solo aparea con un BLOB de los mismos bytes.
 #' @param .trazar_huerfanas Uso interno. `FALSE` omite las columnas
 #'   `huerfanas_tabla1` y `huerfanas_tabla2`, y la pasada por columna que
 #'   cuestan; los cuatro conteos se calculan siempre.
@@ -1318,7 +1323,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
                                 tope_memoria_mb = Inf,
                                 max_filas_huerfanas = 1000L, .rangos = NULL,
                                 .rellenos_finales = NULL,
-                                .trazar_huerfanas = TRUE) {
+                                .trazar_huerfanas = TRUE,
+                                .claves_almacenamiento = NULL) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     .detener("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
@@ -1370,6 +1376,12 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       return(isTRUE(marcadas[[nombre]]))
     }
     nombre %in% as.character(marcadas)
+  }
+  # Las columnas que la lectura escribio con su clase de almacenamiento: ver
+  # `.clave_almacenamiento_dbi()`.
+  clave_de <- function(lado, nombre) {
+    marcadas <- .claves_almacenamiento[[lado]]
+    length(marcadas) > 0L && any(.nombres_presentes(nombre, marcadas))
   }
   todo_texto <- isTRUE(.rellenos_finales$todo_texto)
   motor_relleno <- if (!is.null(.rellenos_finales$motor)) {
@@ -1540,6 +1552,21 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           )
           sin_relleno_2 <- TRUE
         }
+      }
+      # Si un lado llega escrito con su clase de almacenamiento, el otro se
+      # escribe igual, solo para este par: un BLOB no aparea con un texto que
+      # se escribe como su clave.
+      clave_1 <- clave_de("tabla1", nombre_1)
+      clave_2 <- clave_de("tabla2", nombre_2)
+      if (clave_1 && !clave_2) {
+        y <- .resumir_columna_relacion(
+          .clave_almacenamiento_dbi(tabla2[[indices_2[[j]]]])
+        )
+      }
+      if (clave_2 && !clave_1) {
+        x <- .resumir_columna_relacion(
+          .clave_almacenamiento_dbi(tabla1[[indices_1[[i]]]])
+        )
       }
       # Dos pares que no se pueden comparar, con `podar` o sin el, porque la
       # respuesta de la comparacion seria falsa y no solo cara:

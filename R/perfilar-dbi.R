@@ -1007,7 +1007,11 @@
         )
       }
     )
-    return(.texto_del_controlador_dbi(conexion, valor))
+    return(.fecha_cero_del_controlador_dbi(
+      conexion, .texto_del_controlador_dbi(
+        conexion, .armar_tipo_mixto_sqlite_dbi(conexion, valor)
+      )
+    ))
   }
   resultado <- .enviar_consulta_dbi(conexion, sql)
   on.exit(.limpiar_consulta_dbi(resultado, conexion), add = TRUE)
@@ -1040,6 +1044,139 @@
     .detener_dbi("lupa_error_fetch_dbi", texto)
   }
   invisible(FALSE)
+}
+
+# RMariaDB lee la fecha cero de MySQL y MariaDB -`0000-00-00`, que el
+# `sql_mode` por omision de MariaDB admite y las bases heredadas tienen- como la
+# fecha `-1-11-30`, y `0000-00-00 00:00:00` como el instante `-1-11-30 00:00:00`:
+# una fecha valida mas, que se contaba como dato, se publicaba como moda y
+# callaba los faltantes que RMySQL, que entrega el texto, deja ver. Ninguna
+# fecha real de esos motores es anterior al ano 1, asi que todo valor anterior es
+# una fecha cero.
+.DIA_ANO_UNO_DBI <- -719162
+.SEGUNDO_ANO_UNO_DBI <- -62135596800
+
+.columnas_fecha_cero_dbi <- function(conexion, datos) {
+  if (!inherits(conexion, "MariaDBConnection") || !is.data.frame(datos) ||
+      !nrow(datos) || !ncol(datos)) {
+    return(character())
+  }
+  hay <- vapply(datos, function(x) {
+    if (inherits(x, "Date")) {
+      any(unclass(x) < .DIA_ANO_UNO_DBI, na.rm = TRUE)
+    } else if (inherits(x, "POSIXct")) {
+      any(unclass(x) < .SEGUNDO_ANO_UNO_DBI, na.rm = TRUE)
+    } else FALSE
+  }, logical(1L))
+  names(datos)[hay]
+}
+
+# Las columnas con fecha cero, como texto: `0000-00-00` donde estaba la fecha
+# cero y la forma ISO en el resto, que es lo que lee `perfilar()` de una columna
+# de fechas escritas.
+.fecha_cero_a_texto_dbi <- function(datos, columnas) {
+  for (columna in columnas) {
+    x <- datos[[columna]]
+    if (inherits(x, "Date")) {
+      cero <- !is.na(x) & unclass(x) < .DIA_ANO_UNO_DBI
+      texto <- format(x, "%Y-%m-%d")
+      texto[cero] <- "0000-00-00"
+    } else {
+      cero <- !is.na(x) & unclass(x) < .SEGUNDO_ANO_UNO_DBI
+      segundos <- unclass(x)[!cero & !is.na(x)]
+      fraccion <- length(segundos) && any(segundos != floor(segundos))
+      texto <- format(
+        x, if (fraccion) "%Y-%m-%d %H:%M:%OS6" else "%Y-%m-%d %H:%M:%S"
+      )
+      texto[cero] <- "0000-00-00 00:00:00"
+    }
+    texto[is.na(x)] <- NA_character_
+    datos[[columna]] <- texto
+  }
+  datos
+}
+
+# Las columnas que llegaron como texto con la fecha cero escrita, en MySQL
+# (RMySQL la entrega asi) y en MariaDB (ya convertida por
+# `.fecha_cero_del_controlador_dbi()`).
+.columnas_fecha_cero_texto_dbi <- function(conexion, datos) {
+  if (!inherits(conexion, c("MariaDBConnection", "MySQLConnection")) ||
+      !is.data.frame(datos) || !nrow(datos) || !ncol(datos)) {
+    return(character())
+  }
+  hay <- vapply(datos, function(x) {
+    is.character(x) && any(
+      x %in% c("0000-00-00", "0000-00-00 00:00:00"), na.rm = TRUE
+    )
+  }, logical(1L))
+  names(datos)[hay]
+}
+
+.cobertura_fecha_cero_dbi <- function(tabla, columnas, sql) {
+  .registro_cobertura_dbi(
+    "perfil_muestra", .texto_tabla_dbi(tabla), "degradado",
+    paste0(
+      "La fecha cero (`0000-00-00`) de ",
+      paste0("`", columnas, "`", collapse = ", "),
+      " llega como texto, porque ning\u00fan controlador de MySQL o MariaDB la ",
+      "representa como fecha (RMariaDB la lee como una fecha del a\u00f1o -1): ",
+      "`perfil_muestra` la cuenta como fecha centinela y la columna se perfila ",
+      "como fechas escritas, no como `Date`."
+    ),
+    paste(
+      "Para perfilarla con su tipo, reemplazar la fecha cero por `NULL` en el",
+      "origen o leerla desde una vista."
+    ),
+    sql
+  )
+}
+
+.fecha_cero_del_controlador_dbi <- function(conexion, datos) {
+  columnas <- .columnas_fecha_cero_dbi(conexion, datos)
+  if (!length(columnas)) return(datos)
+  .fecha_cero_a_texto_dbi(datos, columnas)
+}
+
+# La proyeccion de la muestra con las columnas de fecha cero leidas como texto
+# (`CAST(columna AS CHAR)`, que conserva cada valor tal como esta guardado), con
+# el nombre de la columna. Una columna cuya lectura no es el identificador
+# pelado -una conversion previa, un alias- no se recompone.
+.releer_fecha_cero_dbi <- function(conexion, campos, campos_sql,
+                                   campos_sql_muestra, columnas) {
+  indices <- which(.nombres_para_operar(as.character(campos)) %in%
+                     .nombres_para_operar(as.character(columnas)))
+  sencillas <- vapply(indices, function(i) {
+    identical(as.character(campos_sql_muestra[[i]]), as.character(campos_sql[[i]]))
+  }, logical(1L))
+  for (i in indices[sencillas]) {
+    campos_sql_muestra[[i]] <- paste0(
+      "CAST(", campos_sql_muestra[[i]], " AS CHAR) AS ",
+      .citar_identificador_dbi(conexion, campos[[i]])
+    )
+  }
+  list(
+    campos_sql_muestra = campos_sql_muestra,
+    leidas = as.character(campos[indices[sencillas]])
+  )
+}
+
+# El motivo con que una lectura por tandas declara que no puede describir lo
+# guardado: la fecha cero de MariaDB, que el controlador lee como una fecha del
+# ano -1 (ver `.columnas_fecha_cero_dbi()`).
+.motivo_lectura_dbi <- function(lectura, unidad) {
+  paste0(
+    "MariaDB guarda fechas cero (`0000-00-00`) en ",
+    paste0("`", lectura$fecha_cero, "`", collapse = ", "),
+    " y su controlador las lee como una fecha del a\u00f1o -1, que cada ", unidad,
+    " contar\u00eda como v\u00e1lida: la lectura no describir\u00eda lo guardado"
+  )
+}
+
+# Evalua `expr` -una lectura de filas- y mira si lo leido trae fechas cero de
+# MariaDB (ver `.columnas_fecha_cero_dbi()`). Devuelve el valor y esas columnas.
+.vigilar_fecha_cero_dbi <- function(expr, conexion) {
+  valor <- expr
+  list(valor = valor, fecha_cero = .columnas_fecha_cero_dbi(conexion, valor))
 }
 
 # Las filas de un resultado abierto con `.enviar_consulta_dbi()`. Todo valor
@@ -1078,7 +1215,11 @@
     )
   }
   attr(datos, "lupa_tipos_odbc") <- tipos
-  .texto_del_controlador_dbi(conexion, datos)
+  # La columna de SQLite que se lee en dos partes -ver
+  # `.proyeccion_tipo_mixto_dbi()`- vuelve a ser una antes de salir de aca.
+  .texto_del_controlador_dbi(
+    conexion, .armar_tipo_mixto_sqlite_dbi(conexion, datos)
+  )
 }
 
 # ---- El texto que entrega el controlador ---------------------------------
@@ -5132,7 +5273,7 @@
   "sonda_dialecto", "cardinalidad_catalogo", "tipos_guardados",
   "sonda_infinitos", "sonda_magnitud", "esquema", "sonda_lectura_muestra",
   "sonda_bytes_muestra", "proteccion_fuera_de_muestra", "porton_tabla",
-  "catalogo_bytes_muestra"
+  "catalogo_bytes_muestra", "tipos_mezclados"
 )
 
 .consulta_publica_dbi <- function(etapa) {
@@ -9215,8 +9356,10 @@
   )
   salida <- tryCatch({
     resultado <- .enviar_consulta_dbi(conexion, sql)
-    datos_leidos <- .marcar_utf8_tabla(
-      .traer_filas_dbi(resultado, n = filas, conexion)
+    datos_leidos <- .fecha_cero_del_controlador_dbi(
+      conexion, .marcar_utf8_tabla(
+        .traer_filas_dbi(resultado, n = filas, conexion)
+      )
     )
     resultado_cerrar <- resultado
     resultado <- NULL
@@ -10419,7 +10562,7 @@
     resultado, aplicabilidad = NULL, columnas_opcionales = character(),
     sentinelas_numericos = c(-9, -99, -999, -9999, 999),
     columnas_codigo = character(), lectura_convertida = NULL,
-    cobertura_texto = NULL) {
+    cobertura_texto = NULL, tipo_mixto = NULL, resumen_leido = FALSE) {
   if (!is.list(resultado) || !is.list(resultado$resumen_tabla)) {
     return(resultado)
   }
@@ -10427,6 +10570,23 @@
   # `.lectura_convertida_dbi()`. Solo cuando hubo alguna.
   if (NROW(lectura_convertida)) {
     resultado$resumen_tabla$meta$lectura_convertida <- lectura_convertida
+  }
+  # Las columnas de SQLite que guardan tipos distintos y se leyeron con la
+  # forma que decidio la medicion en el motor (ver
+  # `.detectar_tipo_mixto_sqlite_dbi()`): se publica la lectura y se declara,
+  # si se leyeron filas -la muestra, o el resumen de la muestra del motor y de
+  # la lectura por bloques, `resumen_leido`-.
+  cobertura_mixta <- NULL
+  if (NROW(tipo_mixto) && (isTRUE(resumen_leido) ||
+                           !is.null(resultado$perfil_muestra))) {
+    resultado$resumen_tabla$meta$lectura_tipo_mixto <- tipo_mixto
+    resultado <- .tapar_entero_ancho_tipo_mixto_dbi(
+      resultado, tipo_mixto, resumen_leido = resumen_leido
+    )
+    cobertura_mixta <- .cobertura_tipo_mixto_dbi(
+      tipo_mixto, sql = attr(tipo_mixto, "sql", exact = TRUE) %||%
+        NA_character_, resumen_leido = resumen_leido
+    )
   }
   # Los tres caminos de `perfilar_dbi()` terminan aca, asi que la declaracion
   # de codigos se aplica en un solo lugar para los tres.
@@ -10442,6 +10602,7 @@
   # El texto que el controlador entrega en latin1 -bajo una sesion que no es
   # UTF-8, o configurado asi-: ver `.texto_del_controlador_dbi()`.
   if (NROW(cobertura_texto)) nuevas <- rbind(nuevas, cobertura_texto)
+  if (NROW(cobertura_mixta)) nuevas <- rbind(nuevas, cobertura_mixta)
   if (!nrow(nuevas)) return(resultado)
   cobertura <- resultado$resumen_tabla$cobertura
   resultado$resumen_tabla$cobertura <- if (is.null(cobertura) || !nrow(cobertura)) {
@@ -25457,7 +25618,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 .campos_sql_muestra_dbi <- function(
     conexion, campos, campos_sql, prototipo, tipos_declarados, dialecto,
     tipos_motor = NULL, version_sqlserver = NA_real_,
-    max_largo_valor_vocabulario = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
+    max_largo_valor_vocabulario = .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+    tipo_mixto = NULL) {
+  # Una columna de SQLite que guarda tipos distintos se lee por la forma que
+  # decidio la medicion en el motor (`.detectar_tipo_mixto_sqlite_dbi()`).
+  campos_sql <- .proyeccion_tipo_mixto_dbi(
+    conexion, campos, campos_sql, tipo_mixto
+  )
   vacia <- list(
     campos_sql = campos_sql, columnas_castadas = character(),
     columnas_binarias = character(), columnas_binarias_prefijo = character(),
@@ -26095,7 +26262,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
                                 sql_tabla = NULL,
                                 tipos_pragma = NULL,
                                 duplicados_sql = NULL,
-                                clave_muestra_motor = NULL) {
+                                clave_muestra_motor = NULL,
+                                tipo_mixto = NULL) {
   cobertura <- .cobertura_dbi_vacia()
   # Una columna enmascarada (DDM de SQL Server) no entra en la muestra: sus
   # valores son la mascara -`xxxx`, `1900-01-01`, `0`- y la muestra publicaba
@@ -26243,7 +26411,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   proyeccion_muestra <- .campos_sql_muestra_dbi(
     conexion, campos, campos_sql, prototipo, tipos_declarados, dialecto,
     tipos_motor = tipos_motor,
-    version_sqlserver = .version_servidor_sqlserver_dbi(conexion)
+    version_sqlserver = .version_servidor_sqlserver_dbi(conexion),
+    tipo_mixto = tipo_mixto
   )
   campos_sql_muestra <- proyeccion_muestra$campos_sql
   columnas_castadas <- proyeccion_muestra$columnas_castadas
@@ -27003,6 +27172,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
       sql_muestra
     ))
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
+  }
+  fecha_cero_muestra <- .columnas_fecha_cero_texto_dbi(conexion, consulta$datos)
+  if (length(fecha_cero_muestra)) {
+    cobertura <- rbind(cobertura, .cobertura_fecha_cero_dbi(
+      tabla, fecha_cero_muestra, sql_muestra
+    ))
   }
   datos_crudos_muestra <- consulta$datos
   datos_muestra <- .ajustar_sentinelas_real_dbi(
@@ -28792,11 +28967,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
     tipos = esquema$tipos, presupuesto = presupuesto
   )
   if (!is.null(esquema$tipos_motor)) names(esquema$tipos_motor) <- campos
+  # SQLite: las columnas sin tipo declarado que guardan valores de tipos
+  # distintos, medidas en el motor con una sentencia -ver
+  # `.detectar_tipo_mixto_sqlite_dbi()`-, y la forma de leer cada una. La usan
+  # la muestra, la muestra del motor y la lectura por bloques; los agregados
+  # SQL siguen sobre lo guardado.
+  tipo_mixto <- .lectura_tipo_mixto_perfil_dbi(
+    conexion, tabla_sql, campos, lectura$proyeccion_sql, tipos_pragma,
+    presupuesto = presupuesto, prototipo = prototipo
+  )
   proyeccion_binaria <- .proyeccion_binaria_muestra_dbi(
     conexion, campos, lectura$proyeccion_sql,
     tipos_declarados = tipos_declarados,
     tipos_motor = esquema$tipos_motor,
     version_sqlserver = .version_servidor_sqlserver_dbi(conexion)
+  )
+  proyeccion_binaria$campos_sql <- .proyeccion_tipo_mixto_dbi(
+    conexion, campos, proyeccion_binaria$campos_sql, tipo_mixto
   )
   sql_tabla_dup <- esquema$sql_tabla %||% attr(catalogo_cardinalidad, "sql_tabla", exact = TRUE)
   tipos_pragma_dup <- tipos_pragma
@@ -28824,6 +29011,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     campos = campos, campos_sql = lectura$campos_sql,
     campos_sql_proyeccion = lectura$proyeccion_sql,
     campos_sql_bloques = proyeccion_binaria$campos_sql,
+    tipo_mixto = tipo_mixto,
     columnas_binarias_bloques = proyeccion_binaria$columnas_binarias,
     columnas_binarias_bloques_prefijo =
       proyeccion_binaria$columnas_binarias_prefijo,
@@ -29578,6 +29766,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)` la columna
 #'   se declara temporal y `perfilar_dbi()` no le aplica agregados
 #'   cuantitativos, y lo dice.
+#' * **Fecha cero en MariaDB.** El `sql_mode` por omisión de MariaDB admite
+#'   `0000-00-00` en una columna `DATE` (y `0000-00-00 00:00:00` en `DATETIME`),
+#'   y RMariaDB la lee como la fecha `-1-11-30`. `perfilar_dbi()` la entrega
+#'   como texto, `0000-00-00`, que es lo que lee RMySQL: se cuenta como fecha
+#'   centinela en `perfil_muestra` —igual que sobre texto en `perfilar()`— y se
+#'   publica como moda tal como está guardada; `resumen_tabla$cobertura` dice
+#'   qué columnas llegaron como texto por eso (`degradado`). Con `bloque_filas` y con
+#'   `medir_dbi(estrategia_no_sql = "bloques")` la fuente por bloques queda
+#'   `no_disponible` (la regla, no medible) con ese motivo. **Limitación
+#'   conocida:** una fecha con el mes o el día en cero (`2024-00-15`) llega como
+#'   otra fecha real y no se distingue; para verla, leer la columna como texto
+#'   (`CAST(columna AS CHAR)` en una vista).
 #' * **`NaN` en duckdb y PostgreSQL.** Ambos motores pueden conservar `NaN`,
 #'   pero `perfilar_dbi()` lo lleva a la misma regla que `perfilar()`: cuenta
 #'   como faltante, no cuenta como válido, distinto ni moda, y queda fuera de
@@ -29837,13 +30037,31 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   leer la columna como texto con el desplazamiento o normalizarla en el
 #'   origen antes de perfilar.
 #' * **Una columna que mezcla tipos de almacenamiento.** SQLite admite texto en
-#'   una columna de afinidad numérica, y RSQLite la lee como número: convierte
-#'   ese texto en `0` y lo avisa ("mixed type"). El resumen SQL ve los valores
-#'   guardados —la moda puede ser el texto, y las métricas de magnitud quedan
-#'   `no_disponible` porque el motor devolvió algo que no se lee como número—,
-#'   y `perfil_muestra` ve lo que entregó el controlador: `minimo = 0`, una moda
-#'   `0` que nadie escribió. `perfilar_dbi()` no relee la columna como texto:
-#'   cuenta con `typeof()` los valores guardados como texto o blob y declara
+#'   cualquier columna, y RSQLite decide la clase de lo que lee por el primer
+#'   valor que llega: un texto que llega después de un número se lee como `0`
+#'   (y lo avisa, "mixed type"), y el mismo texto que llega primero hace que se
+#'   lea todo como texto. El resumen SQL ve los valores guardados —la moda puede
+#'   ser el texto, y las métricas de magnitud quedan `no_disponible` porque el
+#'   motor devolvió algo que no se lee como número—.
+#'   Una columna **sin tipo declarado** (o `BLOB`) que guarda valores de tipos
+#'   distintos se detecta en el motor —una sentencia por tabla cuenta con
+#'   `typeof()` los tipos de cada columna, y el plan la cuenta— y se lee de una
+#'   sola forma, la misma en cualquier orden y con `universo = "muestra_motor"`,
+#'   `bloque_filas` y `medir_dbi(estrategia_no_sql = "bloques")`: si solo
+#'   guarda números, como doble (si algún entero pasa de 2^53, que un doble no
+#'   representa, sus cifras de magnitud no se publican, como en un entero
+#'   ancho); si guarda números y texto, como texto —cada entero con sus
+#'   dígitos, cada real escrito por R (`1`, `1.0` y `1e15` real valen lo mismo
+#'   que el entero) y cada texto tal cual; un texto que se escribe igual que un
+#'   número, `'2'` o `'Inf'`, cuenta como ese valor, y `'2.0'` no es `2`—, y
+#'   se perfila como texto; si guarda algún `BLOB`, como BLOB, sin cortar
+#'   bytes. `resumen_tabla$cobertura` declara cada columna, su forma de lectura
+#'   y de dónde salen sus cifras, y `resumen_tabla$meta$lectura_tipo_mixto` la
+#'   publica. El resumen SQL sigue sobre los valores guardados.
+#'   En una columna **con tipo declarado** de afinidad numérica, `perfil_muestra`
+#'   ve lo que entregó el controlador: `minimo = 0`, una moda `0` que nadie
+#'   escribió. `perfilar_dbi()` no relee esa columna como texto: cuenta con
+#'   `typeof()` los valores guardados como texto o blob y declara
 #'   cada divergencia con esa causa medida en `resumen_tabla$cobertura`,
 #'   y dice que las cifras de magnitud de `perfil_muestra` para esa columna no
 #'   describen lo guardado. Para perfilar los valores guardados, leer la columna
@@ -31040,6 +31258,11 @@ perfilar_dbi <- function(conexion, tabla,
     .texto_tabla_dbi(tabla), preparacion$campos
   ))
   on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
+  # Las auxiliares de la lectura de las columnas mezcladas de SQLite que se
+  # juntan al leer: las de esta tabla, mientras dura la corrida (ver
+  # `.armar_tipo_mixto_sqlite_dbi()`).
+  lectura_mixta_previa <- .fijar_lectura_tipo_mixto_dbi(preparacion$tipo_mixto)
+  on.exit(.restaurar_lectura_tipo_mixto_dbi(lectura_mixta_previa), add = TRUE)
   centros_previos <- .activar_centros_motor()
   on.exit(.fijar_centros_motor(centros_previos), add = TRUE)
   trazador <- .trazador_tiempos_dbi(preparacion$instrumentar)
@@ -31606,6 +31829,7 @@ perfilar_dbi <- function(conexion, tabla,
     sentinelas_numericos = sentinelas_numericos,
     columnas_codigo = columnas_codigo,
     lectura_convertida = preparacion$lectura_convertida,
+    tipo_mixto = preparacion$tipo_mixto, resumen_leido = TRUE,
     cobertura_texto = .cobertura_texto_controlador_dbi(
       conexion, tabla, preparacion$campos, preparacion$tipos,
       .texto_anotado_desde_dbi(conexion, texto_previo)
@@ -31696,6 +31920,7 @@ perfilar_dbi <- function(conexion, tabla,
     sentinelas_numericos = sentinelas_numericos,
     columnas_codigo = columnas_codigo,
     lectura_convertida = preparacion$lectura_convertida,
+    tipo_mixto = preparacion$tipo_mixto, resumen_leido = TRUE,
     cobertura_texto = .cobertura_texto_controlador_dbi(
       conexion, tabla, preparacion$campos, preparacion$tipos,
       .texto_anotado_desde_dbi(conexion, texto_previo)
@@ -32955,7 +33180,8 @@ perfilar_dbi <- function(conexion, tabla,
       duplicados_sql = resumen$meta$duplicados_exactos,
       clave_muestra_motor = if (identical(preparacion$universo, "tabla_completa")) {
         preparacion$clave_muestra_motor
-      } else NULL
+      } else NULL,
+      tipo_mixto = preparacion$tipo_mixto
     )
   } else {
     .registrar_etapa_dbi(
@@ -33357,6 +33583,7 @@ perfilar_dbi <- function(conexion, tabla,
     sentinelas_numericos = sentinelas_numericos,
     columnas_codigo = columnas_codigo,
     lectura_convertida = preparacion$lectura_convertida,
+    tipo_mixto = preparacion$tipo_mixto, resumen_leido = FALSE,
     cobertura_texto = .cobertura_texto_controlador_dbi(
       conexion, tabla, preparacion$campos, preparacion$tipos,
       .texto_anotado_desde_dbi(conexion, texto_previo)
