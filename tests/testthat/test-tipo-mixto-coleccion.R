@@ -28,7 +28,7 @@ testthat::skip_if_not_installed("RSQLite")
   ))$p
 }
 
-.tmc_relaciones <- function(con, t1, t2) {
+.tmc_relaciones <- function(con, t1, t2, sin_avisos = TRUE) {
   avisos <- character()
   r <- withCallingHandlers(
     relaciones_coleccion(
@@ -41,7 +41,7 @@ testthat::skip_if_not_installed("RSQLite")
       invokeRestart("muffleWarning")
     }
   )
-  expect_false(any(grepl("mixed type", avisos, fixed = TRUE)))
+  if (sin_avisos) expect_false(any(grepl("mixed type", avisos, fixed = TRUE)))
   r
 }
 
@@ -157,4 +157,48 @@ test_that("un texto que se escribe como la clave de un BLOB no aparea con el BLO
     expect_true(!nrow(rel) || all(rel$n_valores_comunes == 0))
     DBI::dbDisconnect(con)
   }
+})
+
+test_that("una columna con tipo declarado se compara como siempre aunque guarde otro tipo", {
+  # Lo que mide la coleccion es lo que mide `perfilar_dbi()`: las columnas sin
+  # tipo declarado (o `BLOB`). `b BOOLEAN` con 'si' se lee como siempre, sin
+  # medicion de la mezcla, sin fila de par y con la lectura de siempre (y el
+  # aviso de RSQLite de siempre).
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con))
+  for (tabla in c("t", "u")) {
+    DBI::dbExecute(con, paste0(
+      "CREATE TABLE ", tabla, " (n NUMERIC, i INTEGER, b BOOLEAN, id INTEGER)"
+    ))
+  }
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO t VALUES (1, 1, 0, 1), (2.5, 2.5, 'si', 2), (3, 3, 1, 3), ",
+    "(4, 4, 0, 4)"
+  ))
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO u VALUES (1, 1, 0, 1), (2.5, 2.5, 'si', 2), (3, 3, 1, 3)"
+  ))
+  r <- .tmc_relaciones(con, "t", "u", sin_avisos = FALSE)
+  rel <- r$relaciones
+  bb <- rel[rel$columna_tabla1 == "b" & rel$columna_tabla2 == "b", , drop = FALSE]
+  expect_identical(nrow(bb), 1L)
+  expect_equal(bb$n_valores_comunes, 2)
+  ii <- rel[rel$columna_tabla1 == "i" & rel$columna_tabla2 == "i", , drop = FALSE]
+  expect_equal(ii$cobertura_tabla1_en_tabla2, 0.75)
+  expect_identical(nrow(r$cobertura_pares), 0L)
+  expect_identical(r$meta$pares_faltantes, 0L)
+  expect_identical(
+    r$meta$lecturas$sql, c("SELECT * FROM `t` LIMIT 101", "SELECT * FROM `u` LIMIT 101")
+  )
+  # Y una columna sin tipo que mezcla se sigue comparando con la lectura unica:
+  # contra `u.i`, que no guarda texto, 'si' y 'x' no son el 0 de nadie (dos de
+  # cuatro, lo que cuenta el motor).
+  DBI::dbExecute(con, "CREATE TABLE m (b)")
+  DBI::dbExecute(con, "INSERT INTO m VALUES (1), ('si'), (3), ('x')")
+  r2 <- .tmc_relaciones(con, "m", "u", sin_avisos = FALSE)
+  mb <- r2$relaciones
+  mb <- mb[mb$columna_tabla1 == "b" & mb$columna_tabla2 == "i", , drop = FALSE]
+  expect_equal(mb$cobertura_tabla1_en_tabla2, 0.5)
+  expect_identical(nrow(r2$cobertura_pares), 1L)
+  expect_true(grepl("`b` (de `m`)", r2$cobertura_pares$motivo, fixed = TRUE))
 })

@@ -1550,7 +1550,9 @@ ser el texto, y las métricas de magnitud quedan \code{no_disponible} porque el
 motor devolvió algo que no se lee como número—.
 Una columna \strong{sin tipo declarado} (o \code{BLOB}) que guarda valores de tipos
 distintos se detecta en el motor —una sentencia por tabla cuenta con
-\code{typeof()} los tipos de cada columna, y el plan la cuenta— y se lee de una
+\code{typeof()} los tipos de cada columna, y el plan la cuenta; corre siempre
+que la tabla tenga una columna sin tipo declarado o \code{BLOB} (también una
+generada sin tipo), mezcle o no— y se lee de una
 sola forma, la misma en cualquier orden y con \code{universo = "muestra_motor"},
 \code{bloque_filas} y \code{medir_dbi(estrategia_no_sql = "bloques")}: si solo
 guarda números, como doble (si algún entero pasa de 2^53, que un doble no

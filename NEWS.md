@@ -763,8 +763,9 @@
   `resumen_tabla$meta$lectura_tipo_mixto` la publica. Las columnas con tipo
   declarado se leen como antes; las generadas, que el catálogo no lista, también
   se miden.
-- `relaciones_coleccion()`: en SQLite, una columna que guarda valores de tipos
-  distintos se compara con la misma lectura única: ningún texto se lee como `0`
+- `relaciones_coleccion()`: en SQLite, una columna sin tipo declarado (o `BLOB`)
+  que guarda valores de tipos distintos se compara con la misma lectura única
+  que `perfilar_dbi()`: ningún texto se lee como `0`
   (un `'ND'` coincidía con el `0` de otra tabla según la primera fila que
   llegara) y un `BLOB` solo aparea con un `BLOB` de los mismos bytes. Se compara
   por valor, como entre columnas con tipo (`2.0` y `'2'` son el mismo valor), y

@@ -92,7 +92,12 @@
 # 100.000 filas y cinco columnas:
 # 29 ms, contra 97 ms de contar los tipos distintos con tres banderas aparte y
 # 59 ms de leer la tabla (`SELECT *`).
-.sql_deteccion_tipo_mixto_dbi <- function(tabla_sql, columnas_sql) {
+#
+# Con `tipo_declarado_sql` -una expresion por columna que da su tipo declarado,
+# ver `.sql_tipo_declarado_sqlite_dbi()`- la misma sentencia trae tambien el
+# tipo de cada columna, para quien no lo conoce antes de medir.
+.sql_deteccion_tipo_mixto_dbi <- function(tabla_sql, columnas_sql,
+                                          tipo_declarado_sql = NULL) {
   limite <- .SQL_ENTERO_EXACTO_SQLITE_DBI
   partes <- vapply(seq_along(columnas_sql), function(i) {
     x <- columnas_sql[[i]]
@@ -100,10 +105,40 @@
       "SUM(DISTINCT CASE typeof(", x, ") WHEN 'integer' THEN CASE WHEN ", x,
       " >= ", limite, " OR ", x, " <= -", limite, " THEN 16 ELSE 1 END ",
       "WHEN 'real' THEN 2 WHEN 'text' THEN 4 WHEN 'blob' THEN 8 END) AS ",
-      "lupa_tm_tipos_", i
+      "lupa_tm_tipos_", i,
+      if (length(tipo_declarado_sql) == length(columnas_sql)) {
+        paste0(", ", tipo_declarado_sql[[i]], " AS lupa_tm_decl_", i)
+      } else ""
     )
   }, character(1L))
   paste0("SELECT ", paste(partes, collapse = ", "), " FROM ", tabla_sql)
+}
+
+# El tipo declarado de cada una de `columnas` de la tabla `referencia`, como
+# una subconsulta escalar sobre `pragma_table_xinfo()` -que lista tambien las
+# columnas generadas-, para ir dentro de la sentencia que mide la mezcla: quien
+# no tiene el catalogo de la tabla -`relaciones_coleccion()`- lo lee sin una
+# sentencia mas. `NULL` si el nombre de la tabla no se puede escribir.
+.sql_tipo_declarado_sqlite_dbi <- function(conexion, referencia, columnas) {
+  piezas <- tryCatch(
+    .piezas_tabla_cardinalidad_dbi(referencia), error = function(e) NULL
+  )
+  if (is.null(piezas) || length(piezas$tabla) != 1L || is.na(piezas$tabla)) {
+    return(NULL)
+  }
+  literal <- function(x) as.character(DBI::dbQuoteString(conexion, x))
+  argumentos <- paste0(
+    literal(piezas$tabla),
+    if (length(piezas$esquema) == 1L && !is.na(piezas$esquema)) {
+      paste0(", ", literal(piezas$esquema))
+    } else ""
+  )
+  vapply(columnas, function(columna) {
+    paste0(
+      "(SELECT type FROM pragma_table_xinfo(", argumentos, ") WHERE name = ",
+      literal(columna), " COLLATE NOCASE)"
+    )
+  }, character(1L), USE.NAMES = FALSE)
 }
 
 .lectura_tipo_mixto_vacia_dbi <- function() {
@@ -161,7 +196,8 @@
 # `attr(, "ok")` es `FALSE`.
 .detectar_tipo_mixto_sqlite_dbi <- function(conexion, tabla_sql, campos,
                                             campos_sql, medir, consultar,
-                                            nombres_tabla = campos) {
+                                            nombres_tabla = campos,
+                                            tipo_declarado_sql = NULL) {
   salida <- .lectura_tipo_mixto_vacia_dbi()
   attr(salida, "ok") <- TRUE
   medir <- as.logical(medir)
@@ -171,7 +207,12 @@
     return(salida)
   }
   indices <- which(medir %in% TRUE)
-  sql <- .sql_deteccion_tipo_mixto_dbi(tabla_sql, campos_sql[indices])
+  declarado_sql <- if (length(tipo_declarado_sql) == length(campos)) {
+    tipo_declarado_sql[indices]
+  } else NULL
+  sql <- .sql_deteccion_tipo_mixto_dbi(
+    tabla_sql, campos_sql[indices], declarado_sql
+  )
   attr(salida, "sql") <- sql
   fila <- consultar(sql)
   if (!is.data.frame(fila) || nrow(fila) != 1L) {
@@ -184,6 +225,20 @@
       suppressWarnings(as.integer(as.character(celda[[1L]])))
     }
     if (is.na(mascara)) next
+    # Con el tipo declarado en la misma sentencia, solo cuenta la columna sin
+    # afinidad -sin tipo declarado o `BLOB`-, como en `perfilar_dbi()`: una
+    # columna con tipo declarado que guarda otro tipo sigue su lectura de
+    # siempre. Sin tipo legible, tampoco cuenta.
+    if (!is.null(declarado_sql)) {
+      declarado <- fila[[paste0("lupa_tm_decl_", k)]]
+      declarado <- if (is.null(declarado) || !length(declarado) ||
+                       is.na(declarado[[1L]])) NA_character_ else {
+        as.character(declarado[[1L]])
+      }
+      if (!.columnas_sin_afinidad_sqlite_dbi(
+        stats::setNames(declarado, campos[[indices[[k]]]]), campos[[indices[[k]]]]
+      ) %in% TRUE) next
+    }
     tiene <- function(bit) bitwAnd(mascara, bit) > 0L
     entero <- tiene(1L) || tiene(16L)
     if (entero + tiene(2L) + tiene(4L) + tiene(8L) < 2L) next

@@ -148,10 +148,11 @@ sigue la igualdad del motor, no una igualdad de cadenas recortadas.
 Si una lectura conjunta falla en una fila, la colección aísla por descarte
 las columnas culpables y deja sus nombres en \code{cobertura_podas} con motivo
 \code{columna_lectura_fallida}; las columnas sanas conservan sus relaciones. En
-SQLite, la mezcla de tipos de cada columna leída se mide en el motor —una
-sentencia por tabla, con \code{typeof()}, tenga tipo declarado o no— y la columna
-se compara con la misma lectura única de \code{\link[=perfilar_dbi]{perfilar_dbi()}}: la de solo
-números, como doble; la de números y texto, como texto —ningún texto se lee
+SQLite, la mezcla de tipos de cada columna leída sin tipo declarado (o
+\code{BLOB}, como en \code{\link[=perfilar_dbi]{perfilar_dbi()}}) se mide en el motor —una sentencia por
+tabla, con \code{typeof()}; una columna con tipo declarado se lee como siempre— y
+la columna se compara con la misma lectura única de \code{\link[=perfilar_dbi]{perfilar_dbi()}}: la de
+solo números, como doble; la de números y texto, como texto —ningún texto se lee
 como \code{0}, que es lo que hacía RSQLite según la primera fila que llegaba—; y
 en un par con una columna que guarda algún \code{BLOB}, los dos lados se comparan
 con su clase de almacenamiento: un \code{BLOB} solo aparea con un \code{BLOB} de los

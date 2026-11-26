@@ -3395,8 +3395,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     .motor_permisos_columnas_dbi(conexion), "sqlserver"
   )
   # La mezcla de tipos de las columnas de SQLite de cada tabla, medida una vez
-  # por tabla con una sentencia (`.detectar_tipo_mixto_sqlite_dbi()`), para
-  # todas las columnas que la comparacion lee, tengan tipo declarado o no: se
+  # por tabla con una sentencia (`.detectar_tipo_mixto_sqlite_dbi()`), en las
+  # columnas sin afinidad -sin tipo declarado o `BLOB`, como en
+  # `perfilar_dbi()`-, con el tipo declarado leido en la misma sentencia: se
   # leen de una sola forma, y la comparacion poda solo la de entero ancho.
   cache_mixto <- new.env(parent = emptyenv())
   tipo_mixto_de <- function(identificador, tabla_sql, columnas) {
@@ -3412,18 +3413,26 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     medidas <- if (is.null(previo)) character() else attr(previo, "medidas")
     faltan <- nombres[!.nombres_presentes(nombres, medidas)]
     if (length(faltan)) {
-      nuevo <- .detectar_tipo_mixto_sqlite_dbi(
-        conexion, tabla_sql, faltan,
-        vapply(faltan, function(x) .citar_identificador_dbi(conexion, x),
-               character(1L), USE.NAMES = FALSE),
-        medir = rep(TRUE, length(faltan)),
-        consultar = function(sql) {
-          respuesta <- .consultar_dbi(
-            conexion, sql, NULL, etapa = "tipos_mezclados"
-          )
-          if (isTRUE(respuesta$ok)) respuesta$datos else NULL
-        }
+      # El tipo declarado viene en la misma sentencia: se miden solo las
+      # columnas sin afinidad, las que mide `perfilar_dbi()`.
+      declarados <- .sql_tipo_declarado_sqlite_dbi(
+        conexion, referencia_de(identificador), faltan
       )
+      nuevo <- if (is.null(declarados)) .lectura_tipo_mixto_vacia_dbi() else {
+        .detectar_tipo_mixto_sqlite_dbi(
+          conexion, tabla_sql, faltan,
+          vapply(faltan, function(x) .citar_identificador_dbi(conexion, x),
+                 character(1L), USE.NAMES = FALSE),
+          medir = rep(TRUE, length(faltan)),
+          consultar = function(sql) {
+            respuesta <- .consultar_dbi(
+              conexion, sql, NULL, etapa = "tipos_mezclados"
+            )
+            if (isTRUE(respuesta$ok)) respuesta$datos else NULL
+          },
+          tipo_declarado_sql = declarados
+        )
+      }
       previo <- if (is.null(previo)) nuevo else rbind(previo, nuevo)
       # Los nombres de las auxiliares, para todas las medidas de la tabla y
       # contra todas sus columnas: ninguna coincide con una del usuario.
@@ -4292,10 +4301,11 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' Si una lectura conjunta falla en una fila, la colección aísla por descarte
 #' las columnas culpables y deja sus nombres en `cobertura_podas` con motivo
 #' `columna_lectura_fallida`; las columnas sanas conservan sus relaciones. En
-#' SQLite, la mezcla de tipos de cada columna leída se mide en el motor —una
-#' sentencia por tabla, con `typeof()`, tenga tipo declarado o no— y la columna
-#' se compara con la misma lectura única de [perfilar_dbi()]: la de solo
-#' números, como doble; la de números y texto, como texto —ningún texto se lee
+#' SQLite, la mezcla de tipos de cada columna leída sin tipo declarado (o
+#' `BLOB`, como en [perfilar_dbi()]) se mide en el motor —una sentencia por
+#' tabla, con `typeof()`; una columna con tipo declarado se lee como siempre— y
+#' la columna se compara con la misma lectura única de [perfilar_dbi()]: la de
+#' solo números, como doble; la de números y texto, como texto —ningún texto se lee
 #' como `0`, que es lo que hacía RSQLite según la primera fila que llegaba—; y
 #' en un par con una columna que guarda algún `BLOB`, los dos lados se comparan
 #' con su clase de almacenamiento: un `BLOB` solo aparea con un `BLOB` de los
