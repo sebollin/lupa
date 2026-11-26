@@ -1445,6 +1445,22 @@ eso no es lo mismo que la tabla en R:
   columna se declara temporal y `perfilar_dbi()` no le aplica agregados
   cuantitativos, y lo dice.
 
+- **Fecha cero en MariaDB.** El `sql_mode` por omisión de MariaDB admite
+  `0000-00-00` en una columna `DATE` (y `0000-00-00 00:00:00` en
+  `DATETIME`), y RMariaDB la lee como la fecha `-1-11-30`.
+  `perfilar_dbi()` la entrega como texto, `0000-00-00`, que es lo que
+  lee RMySQL: se cuenta como fecha centinela en `perfil_muestra` —igual
+  que sobre texto en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)—
+  y se publica como moda tal como está guardada;
+  `resumen_tabla$cobertura` dice qué columnas llegaron como texto por
+  eso (`degradado`). Con `bloque_filas` y con
+  `medir_dbi(estrategia_no_sql = "bloques")` la fuente por bloques queda
+  `no_disponible` (la regla, no medible) con ese motivo. **Limitación
+  conocida:** una fecha con el mes o el día en cero (`2024-00-15`) llega
+  como otra fecha real y no se distingue; para verla, leer la columna
+  como texto (`CAST(columna AS CHAR)` en una vista).
+
 - **`NaN` en duckdb y PostgreSQL.** Ambos motores pueden conservar
   `NaN`, pero `perfilar_dbi()` lo lleva a la misma regla que
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
@@ -1730,13 +1746,34 @@ eso no es lo mismo que la tabla en R:
   desplazamiento o normalizarla en el origen antes de perfilar.
 
 - **Una columna que mezcla tipos de almacenamiento.** SQLite admite
-  texto en una columna de afinidad numérica, y RSQLite la lee como
-  número: convierte ese texto en `0` y lo avisa ("mixed type"). El
-  resumen SQL ve los valores guardados —la moda puede ser el texto, y
-  las métricas de magnitud quedan `no_disponible` porque el motor
-  devolvió algo que no se lee como número—, y `perfil_muestra` ve lo que
-  entregó el controlador: `minimo = 0`, una moda `0` que nadie escribió.
-  `perfilar_dbi()` no relee la columna como texto: cuenta con
+  texto en cualquier columna, y RSQLite decide la clase de lo que lee
+  por el primer valor que llega: un texto que llega después de un número
+  se lee como `0` (y lo avisa, "mixed type"), y el mismo texto que llega
+  primero hace que se lea todo como texto. El resumen SQL ve los valores
+  guardados —la moda puede ser el texto, y las métricas de magnitud
+  quedan `no_disponible` porque el motor devolvió algo que no se lee
+  como número—. Una columna **sin tipo declarado** (o `BLOB`) que guarda
+  valores de tipos distintos se detecta en el motor —una sentencia por
+  tabla cuenta con [`typeof()`](https://rdrr.io/r/base/typeof.html) los
+  tipos de cada columna, y el plan la cuenta; corre siempre que la tabla
+  tenga una columna sin tipo declarado o `BLOB` (también una generada
+  sin tipo), mezcle o no— y se lee de una sola forma, la misma en
+  cualquier orden y con `universo = "muestra_motor"`, `bloque_filas` y
+  `medir_dbi(estrategia_no_sql = "bloques")`: si solo guarda números,
+  como doble (si algún entero pasa de 2^53, que un doble no representa,
+  sus cifras de magnitud no se publican, como en un entero ancho); si
+  guarda números y texto, como texto —cada entero con sus dígitos, cada
+  real escrito por R (`1`, `1.0` y `1e15` real valen lo mismo que el
+  entero) y cada texto tal cual; un texto que se escribe igual que un
+  número, `'2'` o `'Inf'`, cuenta como ese valor, y `'2.0'` no es `2`—,
+  y se perfila como texto; si guarda algún `BLOB`, como BLOB, sin cortar
+  bytes. `resumen_tabla$cobertura` declara cada columna, su forma de
+  lectura y de dónde salen sus cifras, y
+  `resumen_tabla$meta$lectura_tipo_mixto` la publica. El resumen SQL
+  sigue sobre los valores guardados. En una columna **con tipo
+  declarado** de afinidad numérica, `perfil_muestra` ve lo que entregó
+  el controlador: `minimo = 0`, una moda `0` que nadie escribió.
+  `perfilar_dbi()` no relee esa columna como texto: cuenta con
   [`typeof()`](https://rdrr.io/r/base/typeof.html) los valores guardados
   como texto o blob y declara cada divergencia con esa causa medida en
   `resumen_tabla$cobertura`, y dice que las cifras de magnitud de

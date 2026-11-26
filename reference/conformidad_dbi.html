@@ -143,8 +143,8 @@ valor.</p></li>
 traductor o por una guarda; <code>motivo</code> dice cuál. No quita la regla.</p></li>
 <li><p><code>no_evaluada</code>: la batería no pudo construir o contar el caso; la regla se
 mide como siempre, con un aviso.</p></li>
-<li><p><code>no_verificado</code>: el motor no está verificado en la batería (PostgreSQL,
-MySQL, MariaDB y SQL Server); la regla se mide como siempre, con un aviso.</p></li>
+<li><p><code>no_verificado</code>: el motor no es ninguno de los verificados en la batería
+(los seis de arriba); la regla se mide como siempre, con un aviso.</p></li>
 </ul><p><code>condicion</code> es <code>"con_nulos"</code> en un caso que con los <code>NULL</code> inventados no
 conformó o se abstuvo: el mismo caso sin <code>NULL</code> va en la fila
 <code>*_sin_nulos</code>, y <code><a href="medir_dbi.html">medir_dbi()</a></code> aplica una no conformidad con <code>NULL</code> sólo si
@@ -163,11 +163,24 @@ PostgreSQL el identificador del sistema y la base; en MySQL y MariaDB
 <code>@hostname</code>, <code>@port</code> y la base; en SQL Server <code>@SERVERNAME</code>, la máquina
 y la base. Se pregunta con una sentencia, una vez por llamada. Dos bases
 en memoria no se distinguen. El atributo <code>intercalacion</code> es la que el motor usa por
-omisión (<code>NA</code> con su motivo en <code>intercalacion_motivo</code> si no se pudo leer).</p>
+omisión (<code>NA</code> con su motivo en <code>intercalacion_motivo</code> si no se pudo leer):
+<code>BINARY</code> en SQLite, <code>default_collation</code> en DuckDB, la de la base en
+PostgreSQL (<code>datcollate</code>) y en SQL Server, y <code>@collation_database</code> en
+MySQL y MariaDB. <code>version</code> es la que el motor informa. Si la batería es de
+otro servidor, <code><a href="medir_dbi.html">medir_dbi()</a></code> dice que difiere el servidor; una versión o una
+intercalación distinta en el mismo servidor, que cambió desde que se armó.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>La batería responde una sola pregunta: si el motor, cuando cuenta, da lo
+    <p>Corre en SQLite, DuckDB, PostgreSQL (también 9.3), MySQL, MariaDB y SQL
+Server. En un servidor cada valor inventado se escribe con <code>CAST</code> al tipo de
+la columna —en MySQL y MariaDB, al destino de <code>CAST()</code> que corresponde a ese
+tipo, con el juego de caracteres de su intercalación— y con su cláusula
+<code>COLLATE</code>; una columna que la tabla no tiene es la que el servidor crearía
+para esa clase, con la intercalación de la base. Si el motor no tiene cómo
+escribir un literal con el tipo de la columna (<code>YEAR</code> en MariaDB,
+<code>VARBINARY</code> en SQL Server), el caso queda <code>no_evaluada</code> con ese motivo.</p>
+<p>La batería responde una sola pregunta: si el motor, cuando cuenta, da lo
 mismo que R. No conformar es eso y nada más. Que <code><a href="medir_dbi.html">medir_dbi()</a></code> se abstenga
 por una guarda propia con los valores inventados (texto no ASCII en SQLite,
 una regla que da <code>NULL</code>, un cotejamiento que no es binario) queda registrado

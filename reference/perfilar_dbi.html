@@ -1419,6 +1419,18 @@ información el motor los describe como números —<code>minimo = 17956</code>�
 <code>DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)</code> la columna
 se declara temporal y <code>perfilar_dbi()</code> no le aplica agregados
 cuantitativos, y lo dice.</p></li>
+<li><p><strong>Fecha cero en MariaDB.</strong> El <code>sql_mode</code> por omisión de MariaDB admite
+<code>0000-00-00</code> en una columna <code>DATE</code> (y <code>0000-00-00 00:00:00</code> en <code>DATETIME</code>),
+y RMariaDB la lee como la fecha <code>-1-11-30</code>. <code>perfilar_dbi()</code> la entrega
+como texto, <code>0000-00-00</code>, que es lo que lee RMySQL: se cuenta como fecha
+centinela en <code>perfil_muestra</code> —igual que sobre texto en <code><a href="perfilar.html">perfilar()</a></code>— y se
+publica como moda tal como está guardada; <code>resumen_tabla$cobertura</code> dice
+qué columnas llegaron como texto por eso (<code>degradado</code>). Con <code>bloque_filas</code> y con
+<code>medir_dbi(estrategia_no_sql = "bloques")</code> la fuente por bloques queda
+<code>no_disponible</code> (la regla, no medible) con ese motivo. <strong>Limitación
+conocida:</strong> una fecha con el mes o el día en cero (<code>2024-00-15</code>) llega como
+otra fecha real y no se distingue; para verla, leer la columna como texto
+(<code>CAST(columna AS CHAR)</code> en una vista).</p></li>
 <li><p><strong><code>NaN</code> en duckdb y PostgreSQL.</strong> Ambos motores pueden conservar <code>NaN</code>,
 pero <code>perfilar_dbi()</code> lo lleva a la misma regla que <code><a href="perfilar.html">perfilar()</a></code>: cuenta
 como faltante, no cuenta como válido, distinto ni moda, y queda fuera de
@@ -1677,13 +1689,33 @@ divergencia publicada. Para conservar el instante y el desplazamiento,
 leer la columna como texto con el desplazamiento o normalizarla en el
 origen antes de perfilar.</p></li>
 <li><p><strong>Una columna que mezcla tipos de almacenamiento.</strong> SQLite admite texto en
-una columna de afinidad numérica, y RSQLite la lee como número: convierte
-ese texto en <code>0</code> y lo avisa ("mixed type"). El resumen SQL ve los valores
-guardados —la moda puede ser el texto, y las métricas de magnitud quedan
-<code>no_disponible</code> porque el motor devolvió algo que no se lee como número—,
-y <code>perfil_muestra</code> ve lo que entregó el controlador: <code>minimo = 0</code>, una moda
-<code>0</code> que nadie escribió. <code>perfilar_dbi()</code> no relee la columna como texto:
-cuenta con <code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los valores guardados como texto o blob y declara
+cualquier columna, y RSQLite decide la clase de lo que lee por el primer
+valor que llega: un texto que llega después de un número se lee como <code>0</code>
+(y lo avisa, "mixed type"), y el mismo texto que llega primero hace que se
+lea todo como texto. El resumen SQL ve los valores guardados —la moda puede
+ser el texto, y las métricas de magnitud quedan <code>no_disponible</code> porque el
+motor devolvió algo que no se lee como número—.
+Una columna <strong>sin tipo declarado</strong> (o <code>BLOB</code>) que guarda valores de tipos
+distintos se detecta en el motor —una sentencia por tabla cuenta con
+<code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los tipos de cada columna, y el plan la cuenta; corre siempre
+que la tabla tenga una columna sin tipo declarado o <code>BLOB</code> (también una
+generada sin tipo), mezcle o no— y se lee de una
+sola forma, la misma en cualquier orden y con <code>universo = "muestra_motor"</code>,
+<code>bloque_filas</code> y <code>medir_dbi(estrategia_no_sql = "bloques")</code>: si solo
+guarda números, como doble (si algún entero pasa de 2^53, que un doble no
+representa, sus cifras de magnitud no se publican, como en un entero
+ancho); si guarda números y texto, como texto —cada entero con sus
+dígitos, cada real escrito por R (<code>1</code>, <code>1.0</code> y <code>1e15</code> real valen lo mismo
+que el entero) y cada texto tal cual; un texto que se escribe igual que un
+número, <code>'2'</code> o <code>'Inf'</code>, cuenta como ese valor, y <code>'2.0'</code> no es <code>2</code>—, y
+se perfila como texto; si guarda algún <code>BLOB</code>, como BLOB, sin cortar
+bytes. <code>resumen_tabla$cobertura</code> declara cada columna, su forma de lectura
+y de dónde salen sus cifras, y <code>resumen_tabla$meta$lectura_tipo_mixto</code> la
+publica. El resumen SQL sigue sobre los valores guardados.
+En una columna <strong>con tipo declarado</strong> de afinidad numérica, <code>perfil_muestra</code>
+ve lo que entregó el controlador: <code>minimo = 0</code>, una moda <code>0</code> que nadie
+escribió. <code>perfilar_dbi()</code> no relee esa columna como texto: cuenta con
+<code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los valores guardados como texto o blob y declara
 cada divergencia con esa causa medida en <code>resumen_tabla$cobertura</code>,
 y dice que las cifras de magnitud de <code>perfil_muestra</code> para esa columna no
 describen lo guardado. Para perfilar los valores guardados, leer la columna

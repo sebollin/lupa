@@ -21,7 +21,8 @@ detectar_relaciones(
   max_filas_huerfanas = 1000L,
   .rangos = NULL,
   .rellenos_finales = NULL,
-  .trazar_huerfanas = TRUE
+  .trazar_huerfanas = TRUE,
+  .claves_almacenamiento = NULL
 )
 ```
 
@@ -94,6 +95,16 @@ detectar_relaciones(
   Uso interno. `FALSE` omite las columnas `huerfanas_tabla1` y
   `huerfanas_tabla2`, y la pasada por columna que cuestan; los cuatro
   conteos se calculan siempre.
+
+- .claves_almacenamiento:
+
+  Uso interno de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+  Lista nombrada por `tabla1` y `tabla2` con las columnas que llegan
+  escritas con su clase de almacenamiento (una columna de SQLite que
+  mezcla BLOB con otros tipos). En cada par que tiene una, la otra
+  columna se escribe igual, y un BLOB solo aparea con un BLOB de los
+  mismos bytes.
 
 ## Value
 

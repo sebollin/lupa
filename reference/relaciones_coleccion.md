@@ -189,8 +189,29 @@ de cadenas recortadas.
 Si una lectura conjunta falla en una fila, la colección aísla por
 descarte las columnas culpables y deja sus nombres en `cobertura_podas`
 con motivo `columna_lectura_fallida`; las columnas sanas conservan sus
-relaciones. Si se declaró `orden`, el aislamiento repite las sondas sin
-`ORDER BY` sólo cuando la propia columna de orden es la culpable, y
+relaciones. En SQLite, la mezcla de tipos de cada columna leída sin tipo
+declarado (o `BLOB`, como en
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md))
+se mide en el motor —una sentencia por tabla, con
+[`typeof()`](https://rdrr.io/r/base/typeof.html); una columna con tipo
+declarado se lee como siempre— y la columna se compara con la misma
+lectura única de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+la de solo números, como doble; la de números y texto, como texto
+—ningún texto se lee como `0`, que es lo que hacía RSQLite según la
+primera fila que llegaba—; y en un par con una columna que guarda algún
+`BLOB`, los dos lados se comparan con su clase de almacenamiento: un
+`BLOB` solo aparea con un `BLOB` de los mismos bytes. Fuera de eso se
+compara por valor, como entre columnas con tipo declarado: el real `2.0`
+y el texto `'2'` son el mismo valor, aunque el motor, en una columna sin
+tipo declarado, no iguala un REAL con un TEXT; el par lo dice en una
+fila de `cobertura_pares` (y no cuenta en `meta$pares_faltantes`). Sus
+extremos no entran en la poda por `rangos_disjuntos`: el `MAX` de una
+columna que guarda texto con números es un texto. Una columna de enteros
+y reales con algún entero de valor absoluto de al menos 2^53, que un
+doble no representa, queda en `cobertura_podas` con motivo `tipo_mixto`
+y no se compara. Si se declaró `orden`, el aislamiento repite las sondas
+sin `ORDER BY` sólo cuando la propia columna de orden es la culpable, y
 `meta$estable` se calcula desde las lecturas que realmente llevaron ese
 orden.
 

@@ -1705,7 +1705,8 @@ no publicaría una cifra con esos valores por una guarda propia (acá, el
 cotejamiento `nocase`); el motivo dice cuál. `no_evaluada` y
 `no_verificado` dicen que la batería no pudo construir el caso o que el
 motor no está verificado en ella; la regla se mide como siempre, con un
-aviso. La batería está verificada en SQLite y DuckDB.
+aviso. La batería corre en SQLite, DuckDB, PostgreSQL (también 9.3),
+MySQL, MariaDB y SQL Server.
 
 El resultado se pasa a
 [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md):

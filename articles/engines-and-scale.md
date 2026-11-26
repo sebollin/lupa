@@ -1744,7 +1744,8 @@ would not publish a figure with those values because of a guard of its
 own (here, the `nocase` collation); the reason says which. `no_evaluada`
 and `no_verificado` say that the battery could not build the case or
 that the engine is not verified in it; the rule is measured as usual,
-with a warning. The battery is verified in SQLite and DuckDB.
+with a warning. The battery runs in SQLite, DuckDB, PostgreSQL (9.3
+too), MySQL, MariaDB and SQL Server.
 
 The result is passed to
 [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md):

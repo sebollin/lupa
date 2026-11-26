@@ -90,7 +90,8 @@ escoger la dirección PK/FK sin imponerla de antemano.</p>
 <span>  max_filas_huerfanas <span class="op">=</span> <span class="fl">1000L</span>,</span>
 <span>  .rangos <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  .rellenos_finales <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  .trazar_huerfanas <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  .trazar_huerfanas <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  .claves_almacenamiento <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -159,6 +160,14 @@ comparacion del motor sin convertir todas las columnas de texto.</p></dd>
 <dd><p>Uso interno. <code>FALSE</code> omite las columnas
 <code>huerfanas_tabla1</code> y <code>huerfanas_tabla2</code>, y la pasada por columna que
 cuestan; los cuatro conteos se calculan siempre.</p></dd>
+
+
+<dt id="arg--claves-almacenamiento">.claves_almacenamiento<a class="anchor" aria-label="anchor" href="#arg--claves-almacenamiento"></a></dt>
+<dd><p>Uso interno de <code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>. Lista
+nombrada por <code>tabla1</code> y <code>tabla2</code> con las columnas que llegan escritas con
+su clase de almacenamiento (una columna de SQLite que mezcla BLOB con otros
+tipos). En cada par que tiene una, la otra columna se escribe igual, y un
+BLOB solo aparea con un BLOB de los mismos bytes.</p></dd>
 
 </dl></div>
     <div class="section level2">

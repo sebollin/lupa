@@ -751,7 +751,15 @@
   resultado: lo que no conformó queda no medible en el motor, o se mide
   por bloques en R con `estrategia_no_sql = "bloques"`; una batería de
   otra conexión, otro modelo u otra configuración se rechaza con aviso.
-  Verificada en SQLite y DuckDB.
+  Corre en SQLite, DuckDB, PostgreSQL (también 9.3), MySQL, MariaDB y
+  SQL Server: cada valor inventado se escribe con `CAST` al tipo de la
+  columna real y con su intercalación, y una columna que la tabla no
+  tiene es la que el servidor crearía, con la intercalación de la base;
+  un tipo al que el motor no convierte un literal (`YEAR` en MariaDB)
+  queda `no_evaluada` con el motivo. En MySQL y MariaDB encuentra que
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  cuenta `TRUE` sobre una columna `BOOLEAN` distinto que R, y con la
+  batería esa regla deja de contarse en el motor.
 
 - `plan_medicion_dbi(..., compilar = TRUE)`, como
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
@@ -1023,6 +1031,48 @@
   la matriz por dimensión y lo no medido.
 
 ### Correcciones
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  en SQLite, una columna sin tipo declarado (o `BLOB`) que guarda
+  valores de tipos distintos se lee de una sola forma, la misma en
+  cualquier orden de filas, con cualquier historial de la conexión y por
+  cualquier vía (`perfil_muestra`, `universo = "muestra_motor"`,
+  `bloque_filas` y `medir_dbi(estrategia_no_sql = "bloques")`). RSQLite
+  la tipaba por la primera fila que llegaba: un `'ND'` se leía como `0`,
+  un real como entero, y la cifra publicada cambiaba de una corrida a
+  otra. La mezcla se mide en el motor con una sentencia por tabla, que
+  el plan cuenta: la columna de solo números se lee como doble (con un
+  entero desde 2^53 sus magnitudes no se publican), la de números y
+  texto como texto, con cada número escrito por R a partir de su valor,
+  y la que guarda algún `BLOB` como BLOB, sin cortar bytes.
+  `resumen_tabla$cobertura` declara cada columna y su forma de lectura,
+  y `resumen_tabla$meta$lectura_tipo_mixto` la publica. Las columnas con
+  tipo declarado se leen como antes; las generadas, que el catálogo no
+  lista, también se miden.
+
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md):
+  en SQLite, una columna sin tipo declarado (o `BLOB`) que guarda
+  valores de tipos distintos se compara con la misma lectura única que
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  ningún texto se lee como `0` (un `'ND'` coincidía con el `0` de otra
+  tabla según la primera fila que llegara) y un `BLOB` solo aparea con
+  un `BLOB` de los mismos bytes. Se compara por valor, como entre
+  columnas con tipo (`2.0` y `'2'` son el mismo valor), y
+  `cobertura_pares` lo declara, porque en una columna sin tipo declarado
+  el motor no iguala un REAL con un TEXT. Sus extremos no entran en la
+  poda por `rangos_disjuntos`. Solo la columna de enteros y reales con
+  un entero que un doble no representa queda en `cobertura_podas`, con
+  motivo `tipo_mixto`.
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  en MariaDB, la fecha cero (`0000-00-00`) de una columna `DATE` o
+  `DATETIME` se cuenta como fecha centinela, como en MySQL y en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  en lugar de leerse como la fecha `-1-11-30`, publicarse como moda y
+  callar los faltantes; `resumen_tabla$cobertura` dice qué columnas
+  llegaron como texto por eso. Con `bloque_filas` y con
+  `medir_dbi(estrategia_no_sql = "bloques")` la fuente por bloques queda
+  `no_disponible`, con ese motivo.
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
   la guarda de numeración de los faltantes disfrazados usa los mismos

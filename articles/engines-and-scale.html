@@ -2594,7 +2594,8 @@ because of a guard of its own (here, the <code>nocase</code> collation);
 the reason says which. <code>no_evaluada</code> and
 <code>no_verificado</code> say that the battery could not build the case
 or that the engine is not verified in it; the rule is measured as usual,
-with a warning. The battery is verified in SQLite and DuckDB.</p>
+with a warning. The battery runs in SQLite, DuckDB, PostgreSQL (9.3
+too), MySQL, MariaDB and SQL Server.</p>
 <p>The result is passed to <code><a href="../reference/medir_dbi.html">medir_dbi()</a></code>:</p>
 <div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">medicion_conf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/medir_dbi.html">medir_dbi</a></span><span class="op">(</span></span>

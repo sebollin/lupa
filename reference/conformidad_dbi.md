@@ -83,9 +83,9 @@ si la regla se puede medir:
 - `no_evaluada`: la batería no pudo construir o contar el caso; la regla
   se mide como siempre, con un aviso.
 
-- `no_verificado`: el motor no está verificado en la batería
-  (PostgreSQL, MySQL, MariaDB y SQL Server); la regla se mide como
-  siempre, con un aviso.
+- `no_verificado`: el motor no es ninguno de los verificados en la
+  batería (los seis de arriba); la regla se mide como siempre, con un
+  aviso.
 
 `condicion` es `"con_nulos"` en un caso que con los `NULL` inventados no
 conformó o se abstuvo: el mismo caso sin `NULL` va en la fila
@@ -109,9 +109,26 @@ sistema y la base; en MySQL y MariaDB `@hostname`, `@port` y la base; en
 SQL Server `@SERVERNAME`, la máquina y la base. Se pregunta con una
 sentencia, una vez por llamada. Dos bases en memoria no se distinguen.
 El atributo `intercalacion` es la que el motor usa por omisión (`NA` con
-su motivo en `intercalacion_motivo` si no se pudo leer).
+su motivo en `intercalacion_motivo` si no se pudo leer): `BINARY` en
+SQLite, `default_collation` en DuckDB, la de la base en PostgreSQL
+(`datcollate`) y en SQL Server, y `@collation_database` en MySQL y
+MariaDB. `version` es la que el motor informa. Si la batería es de otro
+servidor,
+[`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+dice que difiere el servidor; una versión o una intercalación distinta
+en el mismo servidor, que cambió desde que se armó.
 
 ## Details
+
+Corre en SQLite, DuckDB, PostgreSQL (también 9.3), MySQL, MariaDB y SQL
+Server. En un servidor cada valor inventado se escribe con `CAST` al
+tipo de la columna —en MySQL y MariaDB, al destino de `CAST()` que
+corresponde a ese tipo, con el juego de caracteres de su intercalación—
+y con su cláusula `COLLATE`; una columna que la tabla no tiene es la que
+el servidor crearía para esa clase, con la intercalación de la base. Si
+el motor no tiene cómo escribir un literal con el tipo de la columna
+(`YEAR` en MariaDB, `VARBINARY` en SQL Server), el caso queda
+`no_evaluada` con ese motivo.
 
 La batería responde una sola pregunta: si el motor, cuando cuenta, da lo
 mismo que R. No conformar es eso y nada más. Que
