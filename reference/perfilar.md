@@ -1536,16 +1536,18 @@ datos traen el atributo `marcas_limpieza` que deja
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md):
 las marcas que agregó el plan, con la columna que marca. Una marca así
 no explica la ausencia de su propia columna en
-`posible_ausencia_estructural`; una columna del usuario con el mismo
-nombre, sí. Cuando el camino no puede conocer un conteo, informa NA,
-nunca cero. La columna de lista `trazabilidad` distingue `disponible`,
-`truncada`, `no_aplica` y `no_disponible`; cuando corresponde conserva
-índices de fila acotados por `max_filas_hallazgo`, el total conocido y
-el alcance. En `clave_con_ausentes`, cuenta las filas con al menos un
-componente ausente y su traza enumera esas filas. En `clave_no_unica`,
-cuenta las filas que participan en colisiones entre claves completas y
-su traza excluye las filas incompletas; ambas unidades son `fila`. Así,
-una colisión entre ausentes no aparece como una repetición que refute la
+`posible_ausencia_estructural`, y la marca misma tampoco es objetivo de
+ese diagnóstico (`.grupo_duplicado` está vacía por diseño en las filas
+sin duplicado); una columna del usuario con el mismo nombre, sí. Cuando
+el camino no puede conocer un conteo, informa NA, nunca cero. La columna
+de lista `trazabilidad` distingue `disponible`, `truncada`, `no_aplica`
+y `no_disponible`; cuando corresponde conserva índices de fila acotados
+por `max_filas_hallazgo`, el total conocido y el alcance. En
+`clave_con_ausentes`, cuenta las filas con al menos un componente
+ausente y su traza enumera esas filas. En `clave_no_unica`, cuenta las
+filas que participan en colisiones entre claves completas y su traza
+excluye las filas incompletas; ambas unidades son `fila`. Así, una
+colisión entre ausentes no aparece como una repetición que refute la
 unicidad. `casi_duplicados_vocabulario`, donde la traza mezcla filas de
 formas variantes con filas de la forma dominante, conserva además
 `n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto

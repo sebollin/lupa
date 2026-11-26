@@ -906,8 +906,9 @@
   publica como columnas nuevas con severidad `error`, y
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   ya no informa como `posible_ausencia_estructural` la ausencia de una
-  columna explicada por su propia marca. Las reconoce por el atributo
-  `marcas_limpieza` que deja
+  columna explicada por su propia marca, ni la de la marca misma
+  (`.grupo_duplicado` está vacía por diseño en las filas sin duplicado).
+  Las reconoce por el atributo `marcas_limpieza` que deja
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   (y que
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
@@ -1120,11 +1121,19 @@
   `9007199254740993` contaba como centinela. La comparación es ahora
   entre enteros, también en MySQL y MariaDB.
 
-- En PostgreSQL anterior a la 12, el resumen con centinelas declarados
-  calcula una vez por fila la lectura exacta de cada columna doble, en
-  lugar de una vez por mención: sobre 200.000 filas por 20 columnas la
-  corrida con la política pasó de 2,4 a 0,5 veces el tiempo de la
-  corrida sin ella.
+- En PostgreSQL anterior a la 12, el resumen calcula una vez por fila la
+  lectura exacta de cada columna doble, en lugar de una vez por mención,
+  con centinelas declarados o sin ellos: sobre 200.000 filas por 20
+  columnas la corrida con la política pasó de 2,4 a 0,5 veces el tiempo
+  de la corrida sin ella, y sobre 50.000 filas por 20 columnas la
+  corrida sin política pasó de 207 a 100 segundos en 9.3. Desde la 12 la
+  consulta no cambia.
+
+- El motivo del resumen de fechas de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  para una columna `TIMESTAMP`, `DATETIME` o `DATE` de MySQL que el
+  controlador entrega como texto nombra su tipo en el motor; antes decía
+  que era texto en el motor.
 
 - `ReglaIntegridadInterEntidad` cuenta un `NaN` de la clave foránea como
   vacío y no como huérfano, igual que
