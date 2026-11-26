@@ -249,7 +249,8 @@
 
 .validar_argumentos_entrada_medir_dbi <- function(modelo, conexion, tablas,
                                                   max_valores_in, max_consultas,
-                                                  tamano_lote, bloque_filas) {
+                                                  tamano_lote, bloque_filas,
+                                                  aplicabilidad = NULL) {
   if (!inherits(modelo, "modelo_calidad")) {
     if (inherits(conexion, "modelo_calidad") ||
         inherits(modelo, "DBIConnection") ||
@@ -278,6 +279,11 @@
       is.na(max_consultas) || max_consultas < 1) {
     .detener("`max_consultas` debe ser un n\u00famero mayor o igual a 1 o Inf.",
              call. = FALSE)
+  }
+  # La misma forma que exige `medir()`: una regla sin nombre no tiene columna y
+  # medir la tabla entera sin avisar daria otra cifra que la medicion en memoria.
+  if (!is.null(aplicabilidad) && length(aplicabilidad)) {
+    .validar_forma_aplicabilidad(aplicabilidad)
   }
   if (!is.null(tamano_lote)) {
     if (!is.numeric(tamano_lote) || length(tamano_lote) != 1L ||
@@ -3879,7 +3885,7 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
   orden_texto <- .elegir_opcion(orden_texto)
   args <- .validar_argumentos_entrada_medir_dbi(
     modelo, conexion, tablas, max_valores_in, max_consultas,
-    tamano_lote, bloque_filas
+    tamano_lote, bloque_filas, aplicabilidad
   )
   con <- if (inherits(conexion, "coleccion_lupa")) conexion$conexion else conexion
   .con_corrida_dbi(con, "planificar una medici\u00f3n", {
@@ -4079,7 +4085,7 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
   orden_texto <- .elegir_opcion(orden_texto)
   args <- .validar_argumentos_entrada_medir_dbi(
     modelo, conexion, tablas, max_valores_in, max_consultas,
-    tamano_lote, bloque_filas
+    tamano_lote, bloque_filas, aplicabilidad
   )
   fecha_declarada <- !missing(fecha)
   fecha <- .fecha_argumento_utc(fecha)

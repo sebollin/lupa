@@ -40,6 +40,19 @@
   !any(nombres %in% .funciones_aplicabilidad_no_fila)
 }
 
+# La forma de `aplicabilidad`, que no depende de las tablas: una lista con un
+# nombre por regla. Sin nombre no hay columna a la que atar la regla, y la
+# medicion en memoria y la de bases de datos tienen que rechazarla igual, antes
+# de leer nada.
+.validar_forma_aplicabilidad <- function(aplicabilidad) {
+  if (!is.list(aplicabilidad) || is.null(names(aplicabilidad)) ||
+      any(!nzchar(names(aplicabilidad)))) {
+    .detener("`aplicabilidad` debe ser una lista con nombre por columna.",
+         call. = FALSE)
+  }
+  invisible(NULL)
+}
+
 .validar_aplicabilidad <- function(nombres, columnas_opcionales, aplicabilidad) {
   if (!is.character(columnas_opcionales)) {
     .detener("`columnas_opcionales` debe ser un vector de nombres de columnas.",
@@ -52,11 +65,7 @@
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
   }
   if (is.null(aplicabilidad)) return(invisible(NULL))
-  if (!is.list(aplicabilidad) || is.null(names(aplicabilidad)) ||
-      any(!nzchar(names(aplicabilidad)))) {
-    .detener("`aplicabilidad` debe ser una lista con nombre por columna.",
-         call. = FALSE)
-  }
+  .validar_forma_aplicabilidad(aplicabilidad)
   indices_aplicabilidad <- .indice_nombre(names(aplicabilidad), nombres)
   desconocidas <- names(aplicabilidad)[is.na(indices_aplicabilidad)]
   if (length(desconocidas)) {

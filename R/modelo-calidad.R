@@ -2207,13 +2207,7 @@ metricas_nucleo <- function() {
 # trabajo por cada metrica que toque la misma columna.
 .mascaras_aplicabilidad_medicion <- function(tablas, aplicabilidad) {
   if (is.null(aplicabilidad) || !length(aplicabilidad)) return(NULL)
-  if (!is.list(aplicabilidad) || is.null(names(aplicabilidad)) ||
-      any(!nzchar(names(aplicabilidad)))) {
-    .detener(
-      "`aplicabilidad` debe ser una lista con nombre por columna.",
-      call. = FALSE
-    )
-  }
+  .validar_forma_aplicabilidad(aplicabilidad)
   lapply(tablas, function(tabla) {
     indices <- .indice_nombre(names(aplicabilidad), names(tabla))
     presentes <- !is.na(indices)

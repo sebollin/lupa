@@ -56,11 +56,14 @@
       is.list(x) || .es_columna_compuesta(x) || inherits(x, c("Date", "POSIXt"))) {
     return(rep(FALSE, length(x)))
   }
-  valores <- if (inherits(x, "integer64")) {
-    # El resumen de integer64 compara por su identidad decimal exacta, no por un
-    # doble que podria haber perdido las cifras bajas.
-    .texto_identidad(x)
-  } else if (is.numeric(x)) {
+  if (inherits(x, "integer64")) {
+    # La misma comparacion que el perfil: un doble decide quien puede coincidir y
+    # el entero exacto lo confirma. Comparar el texto del entero con el doble
+    # (`"100000" %in% 1e5`) no encuentra el centinela redondo, que el doble
+    # escribe `1e+05`.
+    return(!is.na(x) & !is.na(.identidad_sentinelas_numericas(x, declarados)))
+  }
+  valores <- if (is.numeric(x)) {
     as.numeric(x)
   } else if (inherits(x, "difftime")) {
     as.numeric(x)

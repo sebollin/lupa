@@ -740,6 +740,11 @@
 
 ## Correcciones
 
+- `medir_dbi()` y `plan_medicion_dbi()` rechazan una `aplicabilidad` sin nombres
+  con el mismo error que `medir()`, antes de consultar; antes medían la tabla
+  entera sin avisar. En las dependencias, un centinela redondo declarado
+  (`100000`, `1e6`) sobre una columna `integer64` se enmascara como sobre un
+  doble: antes se comparaba con su escritura `1e+05` y no se reconocía.
 - `perfilar_dbi()`, `plan_perfilado_dbi()` y `perfilar_coleccion()` validan al
   entrar, antes de la primera consulta y también con `bloque_muestra =
   "solo_agregados"`, la forma de `sentinelas_numericos`, `cadenas_ausencia`,
