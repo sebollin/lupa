@@ -3409,7 +3409,7 @@
 # plan la cuente.
 .sql_tipo_mixto_medicion_dbi <- function(conexion, esq, columnas,
                                          columnas_sql) {
-  medir <- .columnas_sin_afinidad_sqlite_dbi(esq$tipos, columnas, esq$prototipo)
+  medir <- !is.na(.afinidades_sqlite_dbi(esq$tipos, columnas, esq$prototipo))
   if (!.es_sqlite_tipo_mixto_dbi(conexion) || !any(medir)) {
     return(NA_character_)
   }
@@ -3904,12 +3904,12 @@
     }))
   }
   cols_sql <- vapply(cols, function(c) .citar_col_dbi(conexion, c), character(1L))
-  # Una columna de SQLite sin tipo declarado que guarda tipos distintos se lee
+  # Una columna de SQLite que guarda tipos distintos se lee
   # de una sola forma, la de `perfilar_dbi()`: la mide una sentencia, que el
   # plan cuenta (ver `.sql_tipo_mixto_medicion_dbi()`).
   tipo_mixto <- .detectar_tipo_mixto_sqlite_dbi(
     conexion, esq$sql, cols, cols_sql,
-    medir = .columnas_sin_afinidad_sqlite_dbi(esq$tipos, cols, esq$prototipo),
+    afinidad = .afinidades_sqlite_dbi(esq$tipos, cols, esq$prototipo),
     consultar = function(sql) tryCatch(
       .consultar_medicion_dbi(conexion, sql, contador),
       error = function(e) NULL
@@ -3929,6 +3929,32 @@
       cobertura_directa = NULL
     )
   })
+  # Un entero que un doble no representa se lee como doble (ver
+  # `.detectar_tipo_mixto_sqlite_dbi()`): una regla que compara valores sobre
+  # esa columna mediria el doble redondeado, y `perfilar_dbi()` no publica sus
+  # magnitudes. Queda no medible; las que no miran el valor (`NoNulo` sin
+  # `valores_nulos`) siguen.
+  anchas <- .nombres_para_operar(as.character(
+    tipo_mixto$columna[tipo_mixto$ancho %in% TRUE]
+  ))
+  if (length(anchas)) {
+    acum <- lapply(acum, function(a) {
+      inst <- a$item$instancia
+      mira_valor <- !(identical(as.character(inst$declaracion$nombre), "NoNulo") &&
+                        !length(inst$configuracion$valores_nulos))
+      if (mira_valor && any(
+        .nombres_para_operar(as.character(inst$atributos)) %in% anchas
+      )) {
+        a$ok <- FALSE
+        a$error_base <- paste(
+          "La columna guarda un entero de valor absoluto mayor que 2^53 que un",
+          "doble no representa, y la lectura por bloques lo entrega como",
+          "doble: una regla que compara valores no mediria lo guardado."
+        )
+      }
+      a
+    })
+  }
   cap <- .capacidad_fuente_bloques_dbi(conexion)
   if (isTRUE(cap$disponible)) {
     if (contador$n >= contador$tope) {

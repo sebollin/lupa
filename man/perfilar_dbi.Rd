@@ -1548,31 +1548,33 @@ valor que llega: un texto que llega después de un número se lee como \code{0}
 lea todo como texto. El resumen SQL ve los valores guardados —la moda puede
 ser el texto, y las métricas de magnitud quedan \code{no_disponible} porque el
 motor devolvió algo que no se lee como número—.
-Una columna \strong{sin tipo declarado} (o \code{BLOB}) que guarda valores de tipos
-distintos se detecta en el motor —una sentencia por tabla cuenta con
-\code{typeof()} los tipos de cada columna, y el plan la cuenta; corre siempre
-que la tabla tenga una columna sin tipo declarado o \code{BLOB} (también una
-generada sin tipo), mezcle o no— y se lee de una
-sola forma, la misma en cualquier orden y con \code{universo = "muestra_motor"},
-\code{bloque_filas} y \code{medir_dbi(estrategia_no_sql = "bloques")}: si solo
-guarda números, como doble (si algún entero pasa de 2^53, que un doble no
-representa, sus cifras de magnitud no se publican, como en un entero
-ancho); si guarda números y texto, como texto —cada entero con sus
-dígitos, cada real escrito por R (\code{1}, \code{1.0} y \code{1e15} real valen lo mismo
-que el entero) y cada texto tal cual; un texto que se escribe igual que un
-número, \code{'2'} o \code{'Inf'}, cuenta como ese valor, y \code{'2.0'} no es \code{2}—, y
-se perfila como texto; si guarda algún \code{BLOB}, como BLOB, sin cortar
-bytes. \code{resumen_tabla$cobertura} declara cada columna, su forma de lectura
-y de dónde salen sus cifras, y \code{resumen_tabla$meta$lectura_tipo_mixto} la
-publica. El resumen SQL sigue sobre los valores guardados.
-En una columna \strong{con tipo declarado} de afinidad numérica, \code{perfil_muestra}
-ve lo que entregó el controlador: \code{minimo = 0}, una moda \code{0} que nadie
-escribió. \code{perfilar_dbi()} no relee esa columna como texto: cuenta con
-\code{typeof()} los valores guardados como texto o blob y declara
-cada divergencia con esa causa medida en \code{resumen_tabla$cobertura},
-y dice que las cifras de magnitud de \code{perfil_muestra} para esa columna no
-describen lo guardado. Para perfilar los valores guardados, leer la columna
-como texto (\verb{CAST(columna AS TEXT)} en una vista) o limpiarla en el origen.
+Una columna que guarda valores de tipos distintos se detecta en el
+motor —una sentencia por tabla cuenta con \code{typeof()} los tipos de cada
+columna, y el plan la cuenta; corre siempre, mezcle o no la tabla, porque
+cualquier columna de SQLite puede guardar otro tipo— y se lee de una sola
+forma, la misma en cualquier orden y con \code{universo = "muestra_motor"}, \code{bloque_filas} y
+\code{medir_dbi(estrategia_no_sql = "bloques")}. Vale para la columna sin tipo
+declarado (o \code{BLOB}), y también para la que tiene tipo declarado y guarda
+texto que su afinidad no convierte —un \code{'ND'} en una columna \code{INTEGER} o
+\code{NUMERIC}, un \code{'si'} en una \code{BOOLEAN}, la rama de texto de una columna
+generada \code{INTEGER}— o un \code{BLOB}. La afinidad se decide por las reglas de
+SQLite sobre el tipo declarado, y lo que cuenta es lo que el motor guarda:
+una columna con tipo declarado que guarda un solo tipo se lee como
+siempre, y sus enteros y reales siguen entregándose como doble, salvo un
+entero que no entra en 32 bits junto a un real —el controlador truncaría
+el real—, que se lee como doble y se declara. Una columna \code{ANY} de una
+tabla \code{STRICT} se trata como sin tipo declarado. Una columna
+sin tipo declarado que guarda solo números se lee como doble (si algún
+entero pasa de 2^53, que un doble no representa, sus cifras de magnitud no
+se publican, como en un entero ancho); la que guarda números y texto, como
+texto —cada entero con sus dígitos, cada real escrito por R (\code{1}, \code{1.0} y
+\code{1e15} real valen lo mismo que el entero) y cada texto tal cual; un texto
+que se escribe igual que un número, \code{'2'} o \code{'Inf'}, cuenta como ese
+valor, y \code{'2.0'} no es \code{2}—, y se perfila como texto; la que guarda algún
+\code{BLOB}, como BLOB, sin cortar bytes. \code{resumen_tabla$cobertura} declara cada
+columna, su forma de lectura y de dónde salen sus cifras, y
+\code{resumen_tabla$meta$lectura_tipo_mixto} la publica, con la afinidad de la
+columna. El resumen SQL sigue sobre los valores guardados.
 \strong{Limitación conocida:} un texto que R sí lee como número —\code{'0x10'},
 hexadecimal, que \code{as.numeric()} lee 16— pasa la sonda de magnitud como un
 número, y el resumen SQL publica \code{maximo = 16} sobre una columna \code{NUMERIC}

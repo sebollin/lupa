@@ -23823,7 +23823,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion,
     clave = clave,
-    reglas_aplicabilidad = aplicabilidad
+    reglas_aplicabilidad = aplicabilidad,
+    medir_tipos = FALSE
   )
   # El plan rechaza el tope que la corrida rechaza, en el mismo punto.
   .exigir_celdas_muestra_dbi(preparacion, max_celdas_muestra)
@@ -23879,7 +23880,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
     preparacion$muestra, length(preparacion$campos),
     max_celdas_muestra, max_bytes_muestra
   )
-  consultas_antes_agregados <- preparacion$presupuesto$usadas
+  # Con la sentencia de tipos anunciada (no mandada): cuenta en el plan.
+  consultas_antes_agregados <- preparacion$presupuesto$usadas +
+    (preparacion$presupuesto$tipos_anunciados %||% 0)
   # La corrida real cuenta el universo antes de construir un porcentaje para
   # TABLESAMPLE. El plan no ejecuta ese COUNT(*), pero si debe publicarlo en la
   # cantidad prevista para que su total siga coincidiendo con la corrida.
@@ -23967,7 +23970,11 @@ plan_perfilado_dbi <- function(conexion, tabla,
     plan <- .plan_spool_dbi(
       conexion, tabla, preparacion, emitidas = emitidas_plan,
       replan = consultas_antes_agregados -
-        .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI),
+        .guarda_duckdb_contada_dbi(conexion, .ACCIONES_PERFIL_DBI) -
+        # La preparacion que la corrida repite anuncia la sentencia que mide
+        # los tipos guardados sin mandarla: no es una consulta mas.
+        as.numeric(isTRUE(attr(preparacion$tipo_mixto, "anunciada",
+                               exact = TRUE))),
       conteo_en_preparacion = conteo_muestreo,
       capacidades = capacidades_plan
     )
@@ -28187,7 +28194,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           sondar_muestreo = TRUE,
                           max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
                           max_bytes_materializacion = .MAX_BYTES_MUESTRA,
-                          clave = NULL, reglas_aplicabilidad = NULL) {
+                          clave = NULL, reglas_aplicabilidad = NULL,
+                          medir_tipos = TRUE) {
   .requerir_dbi()
   max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
     max_bytes_procesamiento, "max_bytes_procesamiento"
@@ -28973,14 +28981,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
     tipos = esquema$tipos, presupuesto = presupuesto
   )
   if (!is.null(esquema$tipos_motor)) names(esquema$tipos_motor) <- campos
-  # SQLite: las columnas sin tipo declarado que guardan valores de tipos
-  # distintos, medidas en el motor con una sentencia -ver
+  # SQLite: las columnas que guardan valores de tipos distintos, con o sin
+  # tipo declarado, medidas en el motor con una sentencia -ver
   # `.detectar_tipo_mixto_sqlite_dbi()`-, y la forma de leer cada una. La usan
   # la muestra, la muestra del motor y la lectura por bloques; los agregados
   # SQL siguen sobre lo guardado.
   tipo_mixto <- .lectura_tipo_mixto_perfil_dbi(
     conexion, tabla_sql, campos, lectura$proyeccion_sql, tipos_pragma,
-    presupuesto = presupuesto, prototipo = prototipo
+    presupuesto = presupuesto, prototipo = prototipo,
+    ejecutar = medir_tipos
   )
   proyeccion_binaria <- .proyeccion_binaria_muestra_dbi(
     conexion, campos, lectura$proyeccion_sql,
@@ -30049,31 +30058,33 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   lea todo como texto. El resumen SQL ve los valores guardados —la moda puede
 #'   ser el texto, y las métricas de magnitud quedan `no_disponible` porque el
 #'   motor devolvió algo que no se lee como número—.
-#'   Una columna **sin tipo declarado** (o `BLOB`) que guarda valores de tipos
-#'   distintos se detecta en el motor —una sentencia por tabla cuenta con
-#'   `typeof()` los tipos de cada columna, y el plan la cuenta; corre siempre
-#'   que la tabla tenga una columna sin tipo declarado o `BLOB` (también una
-#'   generada sin tipo), mezcle o no— y se lee de una
-#'   sola forma, la misma en cualquier orden y con `universo = "muestra_motor"`,
-#'   `bloque_filas` y `medir_dbi(estrategia_no_sql = "bloques")`: si solo
-#'   guarda números, como doble (si algún entero pasa de 2^53, que un doble no
-#'   representa, sus cifras de magnitud no se publican, como en un entero
-#'   ancho); si guarda números y texto, como texto —cada entero con sus
-#'   dígitos, cada real escrito por R (`1`, `1.0` y `1e15` real valen lo mismo
-#'   que el entero) y cada texto tal cual; un texto que se escribe igual que un
-#'   número, `'2'` o `'Inf'`, cuenta como ese valor, y `'2.0'` no es `2`—, y
-#'   se perfila como texto; si guarda algún `BLOB`, como BLOB, sin cortar
-#'   bytes. `resumen_tabla$cobertura` declara cada columna, su forma de lectura
-#'   y de dónde salen sus cifras, y `resumen_tabla$meta$lectura_tipo_mixto` la
-#'   publica. El resumen SQL sigue sobre los valores guardados.
-#'   En una columna **con tipo declarado** de afinidad numérica, `perfil_muestra`
-#'   ve lo que entregó el controlador: `minimo = 0`, una moda `0` que nadie
-#'   escribió. `perfilar_dbi()` no relee esa columna como texto: cuenta con
-#'   `typeof()` los valores guardados como texto o blob y declara
-#'   cada divergencia con esa causa medida en `resumen_tabla$cobertura`,
-#'   y dice que las cifras de magnitud de `perfil_muestra` para esa columna no
-#'   describen lo guardado. Para perfilar los valores guardados, leer la columna
-#'   como texto (`CAST(columna AS TEXT)` en una vista) o limpiarla en el origen.
+#'   Una columna que guarda valores de tipos distintos se detecta en el
+#'   motor —una sentencia por tabla cuenta con `typeof()` los tipos de cada
+#'   columna, y el plan la cuenta; corre siempre, mezcle o no la tabla, porque
+#'   cualquier columna de SQLite puede guardar otro tipo— y se lee de una sola
+#'   forma, la misma en cualquier orden y con `universo = "muestra_motor"`, `bloque_filas` y
+#'   `medir_dbi(estrategia_no_sql = "bloques")`. Vale para la columna sin tipo
+#'   declarado (o `BLOB`), y también para la que tiene tipo declarado y guarda
+#'   texto que su afinidad no convierte —un `'ND'` en una columna `INTEGER` o
+#'   `NUMERIC`, un `'si'` en una `BOOLEAN`, la rama de texto de una columna
+#'   generada `INTEGER`— o un `BLOB`. La afinidad se decide por las reglas de
+#'   SQLite sobre el tipo declarado, y lo que cuenta es lo que el motor guarda:
+#'   una columna con tipo declarado que guarda un solo tipo se lee como
+#'   siempre, y sus enteros y reales siguen entregándose como doble, salvo un
+#'   entero que no entra en 32 bits junto a un real —el controlador truncaría
+#'   el real—, que se lee como doble y se declara. Una columna `ANY` de una
+#'   tabla `STRICT` se trata como sin tipo declarado. Una columna
+#'   sin tipo declarado que guarda solo números se lee como doble (si algún
+#'   entero pasa de 2^53, que un doble no representa, sus cifras de magnitud no
+#'   se publican, como en un entero ancho); la que guarda números y texto, como
+#'   texto —cada entero con sus dígitos, cada real escrito por R (`1`, `1.0` y
+#'   `1e15` real valen lo mismo que el entero) y cada texto tal cual; un texto
+#'   que se escribe igual que un número, `'2'` o `'Inf'`, cuenta como ese
+#'   valor, y `'2.0'` no es `2`—, y se perfila como texto; la que guarda algún
+#'   `BLOB`, como BLOB, sin cortar bytes. `resumen_tabla$cobertura` declara cada
+#'   columna, su forma de lectura y de dónde salen sus cifras, y
+#'   `resumen_tabla$meta$lectura_tipo_mixto` la publica, con la afinidad de la
+#'   columna. El resumen SQL sigue sobre los valores guardados.
 #'   **Limitación conocida:** un texto que R sí lee como número —`'0x10'`,
 #'   hexadecimal, que `as.numeric()` lee 16— pasa la sonda de magnitud como un
 #'   número, y el resumen SQL publica `maximo = 16` sobre una columna `NUMERIC`

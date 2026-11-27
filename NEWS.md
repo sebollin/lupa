@@ -795,31 +795,41 @@
   queda sin identidad; MySQL no lista las temporales en su catálogo y la
   registra como la permanente (documentado). Si la consulta de catálogo falla,
   el motivo de `no_medible` dice el error del motor y no que la tabla no está.
-- `perfilar_dbi()`: en SQLite, una columna sin tipo declarado (o `BLOB`) que
-  guarda valores de tipos distintos se lee de una sola forma, la misma en
-  cualquier orden de filas, con cualquier historial de la conexión y por
-  cualquier vía (`perfil_muestra`, `universo = "muestra_motor"`, `bloque_filas`
-  y `medir_dbi(estrategia_no_sql = "bloques")`). RSQLite la tipaba por la
-  primera fila que llegaba: un `'ND'` se leía como `0`, un real como entero, y
-  la cifra publicada cambiaba de una corrida a otra. La mezcla se mide en el
-  motor con una sentencia por tabla, que el plan cuenta: la columna de solo
-  números se lee como doble (con un entero desde 2^53 sus magnitudes no se
-  publican), la de números y texto como texto, con cada número escrito por R a
-  partir de su valor, y la que guarda algún `BLOB` como BLOB, sin cortar bytes.
-  `resumen_tabla$cobertura` declara cada columna y su forma de lectura, y
-  `resumen_tabla$meta$lectura_tipo_mixto` la publica. Las columnas con tipo
-  declarado se leen como antes; las generadas, que el catálogo no lista, también
-  se miden.
-- `relaciones_coleccion()`: en SQLite, una columna sin tipo declarado (o `BLOB`)
-  que guarda valores de tipos distintos se compara con la misma lectura única
-  que `perfilar_dbi()`: ningún texto se lee como `0`
-  (un `'ND'` coincidía con el `0` de otra tabla según la primera fila que
-  llegara) y un `BLOB` solo aparea con un `BLOB` de los mismos bytes. Se compara
-  por valor, como entre columnas con tipo (`2.0` y `'2'` son el mismo valor), y
-  `cobertura_pares` lo declara, porque en una columna sin tipo declarado el
-  motor no iguala un REAL con un TEXT. Sus extremos no entran en la poda por
-  `rangos_disjuntos`. Solo la columna de enteros y reales con un entero que un
-  doble no representa queda en `cobertura_podas`, con motivo `tipo_mixto`.
+- `perfilar_dbi()`: en SQLite, una columna que guarda valores de tipos
+  distintos se lee de una sola forma, la misma en cualquier orden de filas, con
+  cualquier historial de la conexión y por cualquier vía (`perfil_muestra`,
+  `universo = "muestra_motor"`, `bloque_filas` y
+  `medir_dbi(estrategia_no_sql = "bloques")`), tenga o no tipo declarado.
+  RSQLite la tipaba por la primera fila que llegaba: un `'ND'` en una columna sin
+  tipo, `INTEGER`, `NUMERIC` o `BOOLEAN`, o en una generada, se leía como `0`, un
+  real como entero, y la cifra publicada cambiaba de una corrida a otra. La
+  mezcla se mide en el motor con una sentencia por tabla: la afinidad del tipo
+  declarado se decide por las reglas de SQLite (`ANY`, desconocida) y solo cuenta
+  lo que ella no resuelve (números con texto, números con BLOB, texto con BLOB,
+  o un entero que no entra en 32 bits junto a un real, que el controlador leía
+  como `integer64` truncando el real, o un `-2147483648`, que R toma por
+  faltante). La de solo números se lee como doble (con un entero de más de 2^53
+  sus magnitudes no se publican, y `medir_dbi()` declara `no_medible` sobre esa
+  columna las reglas que comparan valores, porque el doble no representa el
+  entero), la de números y texto
+  como texto, con cada número escrito por R a partir de su valor, y la que guarda
+  algún `BLOB` como BLOB, sin cortar bytes. `resumen_tabla$cobertura` declara cada
+  columna y su forma de lectura, y `resumen_tabla$meta$lectura_tipo_mixto` la
+  publica, con su `afinidad`. Las tablas de SQLite emiten una sentencia más (la
+  medición): quien fija `max_consultas` justo debe sumarla.
+- `plan_perfilado_dbi()` anuncia esa sentencia sin ejecutarla: el plan no lee
+  filas (antes recorría la tabla cuando había columnas sin tipo) y la corrida
+  concilia con él.
+- `relaciones_coleccion()`: en SQLite, una columna que guarda valores de tipos
+  distintos, tenga o no tipo declarado, se compara con la misma lectura única
+  que `perfilar_dbi()`: ningún texto se lee como `0` (un `'ND'` coincidía con el
+  `0` de otra tabla según la primera fila que llegara) y un `BLOB` solo aparea
+  con un `BLOB` de los mismos bytes. Se compara por valor, como entre columnas
+  con tipo (`2.0` y `'2'` son el mismo valor), y `cobertura_pares` lo declara,
+  porque en el motor un REAL y un TEXT de una columna sin afinidad no son
+  iguales. Sus extremos no entran en la poda por `rangos_disjuntos`. Solo la
+  columna de enteros y reales con un entero que un doble no representa queda en
+  `cobertura_podas`, con motivo `tipo_mixto`.
 - `perfilar_dbi()`: en MariaDB, la fecha cero (`0000-00-00`) de una columna
   `DATE` o `DATETIME` se cuenta como fecha centinela, como en MySQL y en
   `perfilar()`, en lugar de leerse como la fecha `-1-11-30`, publicarse como

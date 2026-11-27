@@ -220,6 +220,7 @@ test_that("el plan de medicion publica solo sentencias: ni la consulta de la ses
   # sobre una sola lectura de la entidad.
   expect_false(anyNA(compilacion$sql))
   expect_false(any(compilacion$etapa == "plan"))
-  expect_identical(sum(compilacion$etapa == "bloques"), 1L)
+  # Dos: la medicion de los tipos guardados (SQLite) y la lectura unica.
+  expect_identical(sum(compilacion$etapa == "bloques"), 2L)
   expect_true(all(compilacion$estado == "compilada"))
 })

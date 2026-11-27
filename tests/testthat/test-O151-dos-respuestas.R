@@ -102,7 +102,10 @@ test_that("H4: la causa 'guarda texto' se mide con typeof() y no se deduce", {
   expect_equal(media$estado[[1L]], "no_disponible")
   expect_match(media$motivo[[1L]], "2 valores guardados como texto o blob", fixed = TRUE)
   cobertura <- p$resumen_tabla$cobertura
-  divergencias <- cobertura[cobertura$estado == "divergencia", ]
+  # Se declara la lectura como texto (ya no una divergencia), con la causa
+  # medida con `typeof()`.
+  divergencias <- cobertura[cobertura$estado == "degradado" &
+                              cobertura$elemento == "v", ]
   expect_true(nrow(divergencias) > 0L)
   expect_true(all(grepl("typeof()", divergencias$motivo, fixed = TRUE)))
 })

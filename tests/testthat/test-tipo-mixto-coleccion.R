@@ -159,11 +159,11 @@ test_that("un texto que se escribe como la clave de un BLOB no aparea con el BLO
   }
 })
 
-test_that("una columna con tipo declarado se compara como siempre aunque guarde otro tipo", {
-  # Lo que mide la coleccion es lo que mide `perfilar_dbi()`: las columnas sin
-  # tipo declarado (o `BLOB`). `b BOOLEAN` con 'si' se lee como siempre, sin
-  # medicion de la mezcla, sin fila de par y con la lectura de siempre (y el
-  # aviso de RSQLite de siempre).
+test_that("una columna con tipo declarado que guarda otro tipo se compara con la lectura unica", {
+  # Lo que mide la coleccion es lo que mide `perfilar_dbi()`: toda columna, con
+  # o sin tipo declarado. `b BOOLEAN` con 'si' se mide, se lee como texto (el
+  # 'si' no es el 0 de nadie) y el par lo declara; las columnas que guardan un
+  # solo tipo se leen como siempre.
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con))
   for (tabla in c("t", "u")) {
@@ -182,14 +182,15 @@ test_that("una columna con tipo declarado se compara como siempre aunque guarde 
   rel <- r$relaciones
   bb <- rel[rel$columna_tabla1 == "b" & rel$columna_tabla2 == "b", , drop = FALSE]
   expect_identical(nrow(bb), 1L)
-  expect_equal(bb$n_valores_comunes, 2)
+  expect_equal(bb$n_valores_comunes, 3)
   ii <- rel[rel$columna_tabla1 == "i" & rel$columna_tabla2 == "i", , drop = FALSE]
   expect_equal(ii$cobertura_tabla1_en_tabla2, 0.75)
-  expect_identical(nrow(r$cobertura_pares), 0L)
+  expect_identical(nrow(r$cobertura_pares), 1L)
+  expect_true(grepl("`b` (de `t`)", r$cobertura_pares$motivo, fixed = TRUE))
   expect_identical(r$meta$pares_faltantes, 0L)
-  expect_identical(
-    r$meta$lecturas$sql, c("SELECT * FROM `t` LIMIT 101", "SELECT * FROM `u` LIMIT 101")
-  )
+  # Solo `b` cambia de lectura: el resto de la proyeccion es la de siempre.
+  expect_true(all(grepl("^SELECT `n`, `i`, CASE typeof\\(`b`\\)", r$meta$lecturas$sql)))
+  expect_true(all(grepl("`id` FROM `[tu]` LIMIT 101$", r$meta$lecturas$sql)))
   # Y una columna sin tipo que mezcla se sigue comparando con la lectura unica:
   # contra `u.i`, que no guarda texto, 'si' y 'x' no son el 0 de nadie (dos de
   # cuatro, lo que cuenta el motor).

@@ -279,12 +279,16 @@ test_that("H9: la divergencia de una columna SQLite de tipo mixto lleva su causa
   expect_equal(tipos$n, 2)
   pd <- suppressWarnings(perfilar_dbi(con, "m"))
   cobertura <- pd$resumen_tabla$cobertura
-  divergencias <- cobertura[cobertura$estado == "divergencia", ]
+  # La columna se lee como texto y se declara con la causa medida con
+  # `typeof()`, en lugar de una divergencia entre R y el motor.
+  divergencias <- cobertura[cobertura$estado == "degradado" &
+                              cobertura$elemento == "v", ]
   expect_true(nrow(divergencias) > 0L)
-  expect_true(all(grepl("Causa medida", divergencias$motivo, fixed = TRUE)))
-  # Control: la misma tabla sin texto no diverge.
+  expect_true(all(grepl("typeof()", divergencias$motivo, fixed = TRUE)))
+  # Control: la misma tabla sin texto no declara nada.
   DBI::dbExecute(con, "UPDATE m SET v = id * 10")
   pd <- suppressWarnings(perfilar_dbi(con, "m"))
   cobertura <- pd$resumen_tabla$cobertura
-  expect_false(any(cobertura$estado == "divergencia", na.rm = TRUE))
+  expect_false(any(cobertura$estado %in% c("divergencia", "degradado") &
+                     cobertura$elemento == "v", na.rm = TRUE))
 })

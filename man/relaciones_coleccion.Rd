@@ -148,17 +148,17 @@ sigue la igualdad del motor, no una igualdad de cadenas recortadas.
 Si una lectura conjunta falla en una fila, la colección aísla por descarte
 las columnas culpables y deja sus nombres en \code{cobertura_podas} con motivo
 \code{columna_lectura_fallida}; las columnas sanas conservan sus relaciones. En
-SQLite, la mezcla de tipos de cada columna leída sin tipo declarado (o
-\code{BLOB}, como en \code{\link[=perfilar_dbi]{perfilar_dbi()}}) se mide en el motor —una sentencia por
-tabla, con \code{typeof()}; una columna con tipo declarado se lee como siempre— y
-la columna se compara con la misma lectura única de \code{\link[=perfilar_dbi]{perfilar_dbi()}}: la de
+SQLite, la mezcla de tipos de cada columna leída, con o sin tipo declarado
+(como en \code{\link[=perfilar_dbi]{perfilar_dbi()}}), se mide en el motor —una sentencia por tabla,
+con \code{typeof()}; una columna con tipo declarado que guarda un solo tipo se lee
+como siempre— y la columna se compara con la misma lectura única de \code{\link[=perfilar_dbi]{perfilar_dbi()}}: la de
 solo números, como doble; la de números y texto, como texto —ningún texto se lee
 como \code{0}, que es lo que hacía RSQLite según la primera fila que llegaba—; y
 en un par con una columna que guarda algún \code{BLOB}, los dos lados se comparan
 con su clase de almacenamiento: un \code{BLOB} solo aparea con un \code{BLOB} de los
 mismos bytes. Fuera de eso se compara por valor, como entre columnas con
 tipo declarado: el real \code{2.0} y el texto \code{'2'} son el mismo valor, aunque el
-motor, en una columna sin tipo declarado, no iguala un REAL con un TEXT; el
+motor, sin una afinidad que los convierta, no iguala un REAL con un TEXT; el
 par lo dice en una fila de \code{cobertura_pares} (y no cuenta en
 \code{meta$pares_faltantes}). Sus extremos no entran en la poda por \code{rangos_disjuntos}: el
 \code{MAX} de una columna que guarda texto con números es un texto. Una columna

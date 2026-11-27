@@ -22,13 +22,25 @@
 #   (ver `.texto_real_sqlite_dbi()`) y cada texto tal cual;
 # * con algun BLOB: `CAST(x AS BLOB)` en todas las filas, que no corta bytes.
 #
-# Las columnas con tipo declarado no cambian de lectura: su afinidad ya decide
-# como se guarda cada valor y el paquete declara la divergencia que deja el
-# texto en una afinidad numerica (ver `.texto_guardado_medido_dbi()`).
+# Las columnas con tipo declarado entran en la misma medicion: la afinidad de su
+# tipo (`.afinidad_sqlite_dbi()`) solo dice que valores convierte SQLite al
+# guardarlos, no que guarde un solo tipo -un texto que no se convierte a numero
+# queda como texto en una columna `INTEGER`, `NUMERIC` o `BOOLEAN`, y una columna
+# generada guarda lo que su expresion devuelva-, y su controlador las lee por el
+# tipo declarado, con lo que ese texto llegaba como `0` o como faltante. Lo que
+# decide la lectura es lo que el motor guarda de verdad (`typeof()`): una
+# columna tipada que guarda un solo tipo de almacenamiento no cambia de lectura.
+# Solo cuenta como mezcla lo que la afinidad no resuelve: numeros con texto,
+# numeros con BLOB o texto con BLOB; los enteros y los reales de una columna
+# tipada los une el controlador en un doble, como siempre.
 
 # El primer entero que un doble no representa con exactitud: la frontera de
 # toda la via DBI (`.MAX_ENTERO_EXACTO_DBI`), escrita como literal de SQLite.
 .SQL_ENTERO_EXACTO_SQLITE_DBI <- "9007199254740992"
+
+# El primer entero que no entra en un `integer` de R (2^31): el controlador lo
+# lee como `integer64` y trunca el real que llegue despues.
+.SQL_ENTERO_32_SQLITE_DBI <- "2147483648"
 
 # Los nombres de las columnas auxiliares con que se leen aparte el real y el
 # BLOB de una columna mezclada. Cada nombre se elige en la medicion para que no
@@ -43,47 +55,78 @@
   grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE, useBytes = TRUE)
 }
 
-# Las columnas de SQLite que pueden guardar cualquier cosa: sin tipo declarado
-# o `BLOB`, las dos con afinidad "ninguna". `tipos_pragma` trae el tipo
-# declarado de cada columna, con `""` para la que no lo tiene. `PRAGMA
+# La afinidad de un tipo declarado de SQLite, por las cinco reglas de su
+# documentacion y en su orden: contiene `INT` -> entera; `CHAR`, `CLOB` o `TEXT`
+# -> texto; `BLOB` o sin tipo -> ninguna; `REAL`, `FLOA` o `DOUB` -> real; el
+# resto -> numerica. Devuelve `NA` para el tipo que no se conoce.
+.afinidad_sqlite_dbi <- function(declarado) {
+  declarado <- .mayusculas_ascii(trimws(as.character(declarado)))
+  tiene <- function(partes) {
+    Reduce(`|`, lapply(partes, function(p) {
+      grepl(p, declarado, fixed = TRUE, useBytes = TRUE)
+    }))
+  }
+  salida <- rep("numerica", length(declarado))
+  salida[tiene(c("REAL", "FLOA", "DOUB"))] <- "real"
+  salida[!nzchar(declarado) | tiene("BLOB")] <- "ninguna"
+  salida[tiene(c("CHAR", "CLOB", "TEXT"))] <- "texto"
+  salida[tiene("INT")] <- "entera"
+  # `ANY` guarda el valor tal cual en una tabla `STRICT` y tiene afinidad
+  # numerica en una que no lo es. Saber si la tabla es `STRICT` exigiria pasar
+  # la identidad de la tabla a cada quien mide y leer su `CREATE TABLE`: la
+  # afinidad queda `desconocida`, que se mide como la sin afinidad -cada tipo
+  # cuenta aparte- y no se afirma en la cobertura.
+  salida[declarado %in% "ANY"] <- "desconocida"
+  salida[is.na(declarado)] <- NA_character_
+  salida
+}
+
+# La afinidad de cada una de `campos`, que decide cuales se miden: todas las que
+# la tabla devuelve, porque ninguna afinidad impide que SQLite guarde otro tipo
+# -`NA` para la que no se puede conocer, que no se mide-. `tipos_pragma` trae el
+# tipo declarado de cada columna, con `""` para la que no lo tiene. `PRAGMA
 # table_info` no lista las columnas generadas (`x AS (...)`), que la consulta si
 # devuelve: para una columna que la tabla devuelve y el catalogo no nombra decide
-# lo que el controlador dice de ella sin filas (`prototipo`): sin tipo
-# declarado llega `logical`, y con `BLOB`, `blob`.
-.columnas_sin_afinidad_sqlite_dbi <- function(tipos_pragma, campos,
-                                              prototipo = NULL) {
+# lo que el controlador dice de ella sin filas (`prototipo`), que sigue su tipo
+# declarado: sin tipo declarado llega `logical`, con `BLOB`, `blob`, y con un
+# tipo con afinidad, su clase.
+.afinidades_sqlite_dbi <- function(tipos_pragma, campos, prototipo = NULL) {
+  salida <- rep(NA_character_, length(campos))
   if (is.null(tipos_pragma) || !length(tipos_pragma) ||
-      is.null(names(tipos_pragma))) {
-    return(rep(FALSE, length(campos)))
+      is.null(names(tipos_pragma)) || !length(campos)) {
+    return(salida)
   }
   posicion <- match(
     .nombres_para_operar(as.character(campos)),
     .nombres_para_operar(names(tipos_pragma))
   )
   declarado <- trimws(as.character(tipos_pragma))[posicion]
-  sin_afinidad <- !is.na(declarado) & (!nzchar(declarado) |
-    grepl("BLOB", .mayusculas_ascii(declarado), fixed = TRUE, useBytes = TRUE))
+  salida <- .afinidad_sqlite_dbi(declarado)
   fuera_del_catalogo <- is.na(posicion)
   if (any(fuera_del_catalogo) && is.data.frame(prototipo)) {
     en_prototipo <- match(
       .nombres_para_operar(as.character(campos)),
       .nombres_para_operar(names(prototipo))
     )
-    sin_afinidad[fuera_del_catalogo] <- vapply(
+    salida[fuera_del_catalogo] <- vapply(
       which(fuera_del_catalogo), function(i) {
         j <- en_prototipo[[i]]
-        if (is.na(j)) return(FALSE)
+        if (is.na(j)) return(NA_character_)
         valor <- prototipo[[j]]
-        is.logical(valor) || inherits(valor, "blob")
-      }, logical(1L)
+        if (is.logical(valor) || inherits(valor, "blob")) return("ninguna")
+        if (is.character(valor)) return("texto")
+        if (is.integer(valor) || inherits(valor, "integer64")) return("entera")
+        "numerica"
+      }, character(1L)
     )
   }
-  sin_afinidad
+  salida
 }
 
 # La sentencia que mide la mezcla. Por columna, una suma de los codigos distintos de los tipos que guarda: cada tipo
-# tiene una potencia de dos -entero 1 (16 si su valor absoluto es de al menos
-# 2^53, que un doble no representa), real 2, texto 4, BLOB 8; el nulo no cuenta-,
+# tiene una potencia de dos -entero 1 (32 si su valor absoluto es de al menos
+# 2^31, que no entra en un `integer` de R, 64 si es exactamente -2^31, que R usa
+# como faltante, y 16 si es mayor que 2^53, que un doble no representa), real 2, texto 4, BLOB 8; el nulo no cuenta-,
 # asi que la suma es el conjunto de tipos, y la columna esta mezclada si guarda
 # mas de uno: `COUNT(DISTINCT typeof(x)) > 1`. Un recorrido de la tabla, sin
 # ordenar ni traer filas, y una columna de resultado por columna medida: una
@@ -103,7 +146,10 @@
     x <- columnas_sql[[i]]
     paste0(
       "SUM(DISTINCT CASE typeof(", x, ") WHEN 'integer' THEN CASE WHEN ", x,
-      " >= ", limite, " OR ", x, " <= -", limite, " THEN 16 ELSE 1 END ",
+      " > ", limite, " OR ", x, " < -", limite, " THEN 16 WHEN ", x,
+      " = -", .SQL_ENTERO_32_SQLITE_DBI, " THEN 64 WHEN ", x,
+      " >= ", .SQL_ENTERO_32_SQLITE_DBI, " OR ", x, " <= -",
+      .SQL_ENTERO_32_SQLITE_DBI, " THEN 32 ELSE 1 END ",
       "WHEN 'real' THEN 2 WHEN 'text' THEN 4 WHEN 'blob' THEN 8 END) AS ",
       "lupa_tm_tipos_", i,
       if (length(tipo_declarado_sql) == length(columnas_sql)) {
@@ -144,8 +190,9 @@
 .lectura_tipo_mixto_vacia_dbi <- function() {
   data.frame(
     columna = character(), clase = character(), ancho = logical(),
-    lectura = character(), fuente = character(), auxiliar_real = character(),
-    auxiliar_blob = character(), stringsAsFactors = FALSE
+    lectura = character(), fuente = character(), afinidad = character(),
+    auxiliar_real = character(), auxiliar_blob = character(),
+    stringsAsFactors = FALSE
   )
 }
 
@@ -183,30 +230,64 @@
   salida
 }
 
+# Que clase de mezcla guarda una columna, segun el conjunto de tipos que mide
+# la sentencia (`mascara`, ver `.sql_deteccion_tipo_mixto_dbi()`) y la afinidad
+# de su tipo declarado: `NULL` si no es una mezcla. Sin afinidad -sin tipo
+# declarado o `BLOB`- cada tipo cuenta aparte (entero, real, texto, BLOB); con
+# afinidad, los numeros son uno solo, que el controlador junta en un doble, y
+# la mezcla es de numeros con texto, de numeros con BLOB o de texto con BLOB.
+# `clase` es `numeros`, `texto` o `blob`, y `ancho` dice si guarda un entero
+# que un doble no representa.
+.clase_mezcla_tipo_mixto_dbi <- function(mascara, afinidad) {
+  tiene <- function(bit) bitwAnd(mascara, bit) > 0L
+  entero <- tiene(1L) || tiene(16L) || tiene(32L) || tiene(64L)
+  tipos <- if (afinidad %in% c("ninguna", "desconocida")) {
+    entero + tiene(2L) + tiene(4L) + tiene(8L)
+  } else {
+    # Los numeros son uno solo, salvo un entero que no entra en 32 bits junto
+    # a un real: el controlador lee `integer64` y trunca el real.
+    (entero || tiene(2L)) + (tiene(2L) && (tiene(16L) || tiene(32L))) +
+      tiene(4L) + tiene(8L)
+  }
+  # `-2^31` es el faltante de los enteros de R: el controlador lo entrega como
+  # `NA`, aunque sea el unico tipo que guarda la columna.
+  if (tipos < 2L && !tiene(64L)) return(NULL)
+  clase <- if (tiene(8L)) "blob" else if (tiene(4L)) "texto" else "numeros"
+  list(clase = clase, ancho = identical(clase, "numeros") && tiene(16L))
+}
+
 # Mide la mezcla de `campos` (con sus expresiones `campos_sql`) en `tabla_sql`
 # y devuelve una fila por columna mezclada: `clase` es `numeros`, `texto` o
 # `blob`, `ancho` dice si guarda un entero que un doble no representa,
-# `lectura` es la expresion con que se lee y `fuente` la columna de
-# `campos_sql` que la lectura reemplaza; `auxiliar_real` y `auxiliar_blob` son
-# los nombres de sus columnas auxiliares, que no coinciden con ninguna de
+# `lectura` es la expresion con que se lee, `fuente` la columna de
+# `campos_sql` que la lectura reemplaza y `afinidad` la de su tipo declarado
+# (ver `.afinidad_sqlite_dbi()`); `auxiliar_real` y `auxiliar_blob` son los
+# nombres de sus columnas auxiliares, que no coinciden con ninguna de
 # `nombres_tabla`. `consultar(sql)` manda la sentencia
 # con la cuenta de quien llama -el presupuesto de `perfilar_dbi()`, el contador
 # de `medir_dbi()`- y devuelve sus filas o `NULL`. Sin columnas que medir no
 # manda nada; si la sentencia no se pudo leer, la lectura queda como estaba y
 # `attr(, "ok")` es `FALSE`.
+#
+# `afinidad` trae la afinidad de cada columna (`.afinidades_sqlite_dbi()`), con
+# `NA` para la que no se mide. Sin ella, quien la manda es la sentencia: con
+# `tipo_declarado_sql` trae el tipo de cada columna y la afinidad sale de ahi,
+# y una columna sin tipo legible no se mide.
 .detectar_tipo_mixto_sqlite_dbi <- function(conexion, tabla_sql, campos,
-                                            campos_sql, medir, consultar,
+                                            campos_sql, afinidad, consultar,
                                             nombres_tabla = campos,
                                             tipo_declarado_sql = NULL) {
   salida <- .lectura_tipo_mixto_vacia_dbi()
   attr(salida, "ok") <- TRUE
-  medir <- as.logical(medir)
+  medir <- if (is.null(afinidad)) rep(TRUE, length(campos)) else {
+    !is.na(as.character(afinidad))
+  }
   if (!.es_sqlite_tipo_mixto_dbi(conexion) || !length(campos) ||
-      length(medir) != length(campos) || !any(medir, na.rm = TRUE) ||
+      length(medir) != length(campos) || !any(medir) ||
       length(tabla_sql) != 1L || is.na(tabla_sql)) {
     return(salida)
   }
-  indices <- which(medir %in% TRUE)
+  indices <- which(medir)
   declarado_sql <- if (length(tipo_declarado_sql) == length(campos)) {
     tipo_declarado_sql[indices]
   } else NULL
@@ -225,31 +306,24 @@
       suppressWarnings(as.integer(as.character(celda[[1L]])))
     }
     if (is.na(mascara)) next
-    # Con el tipo declarado en la misma sentencia, solo cuenta la columna sin
-    # afinidad -sin tipo declarado o `BLOB`-, como en `perfilar_dbi()`: una
-    # columna con tipo declarado que guarda otro tipo sigue su lectura de
-    # siempre. Sin tipo legible, tampoco cuenta.
-    if (!is.null(declarado_sql)) {
-      declarado <- fila[[paste0("lupa_tm_decl_", k)]]
-      declarado <- if (is.null(declarado) || !length(declarado) ||
-                       is.na(declarado[[1L]])) NA_character_ else {
-        as.character(declarado[[1L]])
-      }
-      if (!.columnas_sin_afinidad_sqlite_dbi(
-        stats::setNames(declarado, campos[[indices[[k]]]]), campos[[indices[[k]]]]
-      ) %in% TRUE) next
-    }
-    tiene <- function(bit) bitwAnd(mascara, bit) > 0L
-    entero <- tiene(1L) || tiene(16L)
-    if (entero + tiene(2L) + tiene(4L) + tiene(8L) < 2L) next
-    clase <- if (tiene(8L)) "blob" else if (tiene(4L)) "texto" else "numeros"
     i <- indices[[k]]
+    afinidad_i <- if (!is.null(afinidad)) as.character(afinidad[[i]]) else {
+      # El tipo viene en la misma sentencia; sin tipo legible, no se mide.
+      declarado <- fila[[paste0("lupa_tm_decl_", k)]]
+      if (is.null(declarado) || !length(declarado) || is.na(declarado[[1L]])) {
+        NA_character_
+      } else .afinidad_sqlite_dbi(as.character(declarado[[1L]]))
+    }
+    if (is.na(afinidad_i)) next
+    mezcla <- .clase_mezcla_tipo_mixto_dbi(mascara, afinidad_i)
+    if (is.null(mezcla)) next
     salida <- rbind(salida, data.frame(
-      columna = as.character(campos[[i]]), clase = clase,
-      ancho = identical(clase, "numeros") && tiene(16L),
-      lectura = .expresion_tipo_mixto_dbi(campos_sql[[i]], clase),
-      fuente = as.character(campos_sql[[i]]), auxiliar_real = NA_character_,
-      auxiliar_blob = NA_character_, stringsAsFactors = FALSE
+      columna = as.character(campos[[i]]), clase = mezcla$clase,
+      ancho = mezcla$ancho,
+      lectura = .expresion_tipo_mixto_dbi(campos_sql[[i]], mezcla$clase),
+      fuente = as.character(campos_sql[[i]]), afinidad = afinidad_i,
+      auxiliar_real = NA_character_, auxiliar_blob = NA_character_,
+      stringsAsFactors = FALSE
     ))
   }
   salida <- .auxiliares_tipo_mixto_dbi(salida, nombres_tabla)
@@ -449,17 +523,40 @@
   salida
 }
 
-# La lectura de las columnas sin tipo declarado (o `BLOB`) de una tabla de
-# SQLite que `perfilar_dbi()` va a leer: la mide con el presupuesto de la
-# corrida, en la preparacion -el plan, que prepara igual, la cuenta con el
-# resto de los portones- y devuelve la tabla de `.detectar_tipo_mixto_sqlite_dbi()`.
+# La lectura de las columnas de una tabla de SQLite que `perfilar_dbi()` va a leer: la mide con el presupuesto de la
+# corrida, en la preparacion -el plan, que prepara igual, la anuncia en
+# `presupuesto$tipos_anunciados`, que suma a los portones, sin ejecutarla (`ejecutar = FALSE`)- y devuelve la tabla de `.detectar_tipo_mixto_sqlite_dbi()`.
 .lectura_tipo_mixto_perfil_dbi <- function(conexion, tabla_sql, campos,
                                            campos_sql, tipos_pragma,
                                            presupuesto = NULL,
-                                           prototipo = NULL) {
+                                           prototipo = NULL,
+                                           ejecutar = TRUE) {
+  afinidad <- .afinidades_sqlite_dbi(tipos_pragma, campos, prototipo)
+  if (!isTRUE(ejecutar)) {
+    # El plan anuncia la sentencia -la cuenta entre las que la corrida va a
+    # mandar, en las mismas condiciones en que
+    # `.detectar_tipo_mixto_sqlite_dbi()` la manda- sin ejecutarla: recorre la
+    # tabla entera, y un plan no lee filas. La lectura que depende de su
+    # resultado se decide en la corrida; el plan queda con la de siempre.
+    salida <- .lectura_tipo_mixto_vacia_dbi()
+    attr(salida, "ok") <- TRUE
+    if (.es_sqlite_tipo_mixto_dbi(conexion) && length(campos) &&
+        any(!is.na(afinidad)) && length(tabla_sql) == 1L &&
+        !is.na(tabla_sql)) {
+      # Aparte de `usadas`: lo que la corrida cuenta como emitido es lo que se
+      # manda, y esta sentencia el plan no la manda (ver
+      # `plan_perfilado_dbi()`).
+      if (!is.null(presupuesto)) presupuesto$tipos_anunciados <- 1
+      attr(salida, "sql") <- .sql_deteccion_tipo_mixto_dbi(
+        tabla_sql, campos_sql[!is.na(afinidad)]
+      )
+      attr(salida, "anunciada") <- TRUE
+    }
+    return(salida)
+  }
   .detectar_tipo_mixto_sqlite_dbi(
     conexion, tabla_sql, campos, campos_sql,
-    medir = .columnas_sin_afinidad_sqlite_dbi(tipos_pragma, campos, prototipo),
+    afinidad = afinidad,
     consultar = function(sql) {
       respuesta <- .consultar_dbi(
         conexion, sql, presupuesto, etapa = "tipos_mezclados"
@@ -481,19 +578,42 @@
     clase <- as.character(tipo_mixto$clase[[k]])
     ancho <- isTRUE(tipo_mixto$ancho[[k]])
     nombre <- paste0("`", .comillas_sin_locale(columna), "`")
-    medida <- paste0(
+    afinidad <- if ("afinidad" %in% names(tipo_mixto)) {
+      as.character(tipo_mixto$afinidad[[k]])
+    } else "ninguna"
+    # Con tipo declarado, SQLite convierte al guardar lo que puede, y el
+    # controlador lee por ese tipo lo que quedo guardado como otro.
+    tipada <- !is.na(afinidad) && !afinidad %in% c("ninguna", "desconocida")
+    medida <- if (tipada) paste0(
+      " (medido en el motor con `typeof()`), y su controlador la lee por ",
+      "su tipo declarado: lo que no es de ese tipo llegaba convertido, un ",
+      "texto como `0` o como faltante seg\u00fan la v\u00eda. "
+    ) else paste0(
       " (medido en el motor con `typeof()`), y su controlador tipa lo que ",
       "lee por la primera fila que llega: la misma columna daba cifras ",
       "distintas seg\u00fan el orden de las filas. "
     )
+    guarda <- function(que) {
+      if (tipada) paste0(
+        "SQLite guarda en ", nombre, ", de afinidad ", afinidad,
+        " por su tipo declarado, ", que
+      ) else NULL
+    }
     motivo <- switch(
       clase,
       numeros = paste0(
-        "SQLite guarda enteros y reales mezclados en ", nombre, medida,
+        guarda(paste0(
+          "enteros que no entran en 32 bits junto a reales, o el entero ",
+          "-2^31, que R usa como faltante,"
+        )) %||% paste0(
+          "SQLite guarda enteros y reales mezclados en ", nombre,
+          " (o el entero -2^31, que R usa como faltante)"
+        ),
+        medida,
         "Se lee como doble (`CAST(", nombre, " AS REAL)`), igual en cualquier ",
         "orden, y sus cifras son las de esos dobles.",
         if (ancho) paste0(
-          " Guarda alg\u00fan entero de valor absoluto de al menos 2^53, que ",
+          " Guarda alg\u00fan entero de valor absoluto mayor que 2^53, que ",
           "un doble no representa con exactitud: como en un ",
           .FRAGMENTO_ENTERO_ANCHO_DBI, ", m\u00ednimo, m\u00e1ximo, media, ",
           "n_ceros, n_negativos, mediana y desv\u00edo no se publican como ",
@@ -502,8 +622,9 @@
         ) else " Cada entero cabe exacto en un doble: no se pierde ning\u00fan valor."
       ),
       texto = paste0(
-        "SQLite guarda n\u00fameros y texto mezclados en ", nombre, medida,
-        "Se lee como texto, igual en cualquier orden: cada entero con sus ",
+        guarda("n\u00fameros y texto a la vez") %||%
+          paste0("SQLite guarda n\u00fameros y texto mezclados en ", nombre),
+        medida, "Se lee como texto, igual en cualquier orden: cada entero con sus ",
         "d\u00edgitos, cada real escrito por R (`as.character()`, con 17 cifras ",
         "si las 15 no alcanzan, y sin decimales si es entero: `1`, `1.0` y ",
         "`1e15` real valen lo mismo que el entero) y cada texto tal cual. Un ",
@@ -516,8 +637,9 @@
         "disfrazado."
       ),
       blob = paste0(
-        "SQLite guarda BLOB mezclados con otros tipos en ", nombre, medida,
-        "Se lee como BLOB (`CAST(", nombre, " AS BLOB)`), igual en cualquier ",
+        guarda("BLOB junto con valores de otros tipos") %||%
+          paste0("SQLite guarda BLOB mezclados con otros tipos en ", nombre),
+        medida, "Se lee como BLOB (`CAST(", nombre, " AS BLOB)`), igual en cualquier ",
         "orden y sin cortar ning\u00fan byte: un n\u00famero pasa a los bytes ",
         "del texto con que SQLite lo escribe y un texto a sus bytes, as\u00ed ",
         "que un texto y un BLOB con los mismos bytes cuentan como el mismo ",
@@ -583,7 +705,7 @@
 .motivo_poda_tipo_mixto_dbi <- function() {
   paste(
     "SQLite guarda enteros y reales mezclados en la columna, con alg\u00fan",
-    "entero de valor absoluto de al menos 2^53 (medido en el motor con",
+    "entero de valor absoluto mayor que 2^53 (medido en el motor con",
     "`typeof()`): se lee como doble, que no lo representa con exactitud, y dos",
     "enteros distintos pueden quedar como uno, as\u00ed que una relaci\u00f3n",
     "sobre esos valores no describir\u00eda lo guardado."
@@ -594,7 +716,7 @@
 # mezcladas (`columnas_1`, `columnas_2`: las de cada tabla). La comparacion es
 # por valor sobre la lectura unica -un real `2.0` y el texto `'2'` cuentan como
 # el mismo valor, como en `detectar_relaciones()` y entre columnas con tipo
-# declarado-, mientras que el motor, en una columna sin tipo declarado, no
+# declarado-, mientras que el motor, sin una afinidad que los convierta, no
 # iguala un REAL con un TEXT. Un BLOB solo aparea con un BLOB de los mismos
 # bytes.
 .fila_par_tipo_mixto_dbi <- function(tabla_1, tabla_2, columnas_1,
@@ -614,8 +736,8 @@
       "`typeof()`): ", paste(c(nombrar(columnas_1, tabla_1),
                                nombrar(columnas_2, tabla_2)), collapse = " y "),
       ". Un n\u00famero y un texto que se escriben igual (`2.0` y `'2'`) ",
-      "cuentan como el mismo valor, aunque en el motor, en una columna sin tipo ",
-      "declarado, un REAL y un TEXT no son iguales; un BLOB solo aparea con un ",
+      "cuentan como el mismo valor, aunque en el motor, sin una afinidad que ",
+      "los convierta, un REAL y un TEXT no son iguales; un BLOB solo aparea con un ",
       "BLOB de los mismos bytes."
     ),
     como_resolverlo = paste(
@@ -658,7 +780,7 @@
       sql$estado[tocar] <- "no_disponible"
       sql$motivo[tocar] <- paste(
         "La columna mezcla enteros y reales y se lee como doble, y guarda un",
-        .FRAGMENTO_ENTERO_ANCHO_DBI, "de valor absoluto de al menos 2^53 que",
+        .FRAGMENTO_ENTERO_ANCHO_DBI, "de valor absoluto mayor que 2^53 que",
         "un doble no representa: no se publica como calculada."
       )
       resumen$sql <- sql

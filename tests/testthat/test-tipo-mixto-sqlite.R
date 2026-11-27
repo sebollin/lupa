@@ -135,13 +135,16 @@ test_that("una columna sin tipo que no mezcla sigue leyendose con su tipo", {
   expect_false(any(grepl("mezclados", cob$motivo, fixed = TRUE)))
 })
 
-test_that("una columna de afinidad numerica que guarda texto sigue declarando su divergencia", {
+test_that("una columna de afinidad numerica que guarda texto declara su lectura con la causa medida", {
   con <- .tms_con(c("10", "20", "'abc'", "40", "'abc'", "60"), tipo = "INTEGER")
   on.exit(DBI::dbDisconnect(con))
   p <- suppressWarnings(perfilar_dbi(con, "t"))
   cob <- p$resumen_tabla$cobertura
-  # La causa medida con `typeof()` de siempre, y ninguna relectura como texto.
-  expect_true(any(cob$estado == "divergencia"))
+  # Se declara la lectura (no una divergencia: R y el motor leen lo mismo) con
+  # la causa medida con `typeof()`.
+  expect_true(any(cob$estado == "degradado" & cob$elemento == "x" &
+                    grepl("typeof()", cob$motivo, fixed = TRUE)))
+  expect_false(any(cob$estado == "divergencia"))
   expect_false(any(grepl("mezclados", cob$motivo, fixed = TRUE)))
 })
 
@@ -167,8 +170,10 @@ test_that("una columna sin tipo con solo numeros se lee como doble, no como text
     especializar(nuc$Formato, "F", expresion_regular = "^[0-9.]+$"), "t", "x"
   ))
   m <- suppressWarnings(medir_dbi(mod, con, bloque_filas = 2, estrategia_no_sql = "bloques"))
-  expect_identical(nrow(m), 1L)
-  expect_equal(m$resultado, 1)
+  # Una regla de valor sobre un entero ancho no es medible por bloques: el doble
+  # redondeado no es lo guardado, y se declara.
+  expect_identical(nrow(m), 0L)
+  expect_true(grepl("2^53", attr(m, "cobertura_metricas")$motivo[[1L]], fixed = TRUE))
 })
 
 test_that("un BLOB mezclado no se relee como texto: se declara y no pierde bytes", {

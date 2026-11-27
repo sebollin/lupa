@@ -183,6 +183,7 @@ testthat::test_that(
     plan <- suppressWarnings(suppressMessages(plan_perfilado_dbi(
       con, "lupa_plan_cotas"
     )))
-    testthat::expect_equal(attr(plan, "total_maximo"), 30)
+    # Una mas que antes: la sentencia que mide los tipos guardados (SQLite).
+    testthat::expect_equal(attr(plan, "total_maximo"), 31)
   }
 )
