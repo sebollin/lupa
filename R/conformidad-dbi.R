@@ -290,10 +290,11 @@
   list(servidor = partes)
 }
 
-.lugar_conexion_dbi <- function(conexion) {
-  corrida <- .corrida_dbi(conexion)
-  if (!is.null(corrida) && !is.null(corrida$lugar)) return(corrida$lugar)
-  info <- .info_senas_conexion_dbi(conexion)
+# Lo que la conexion declara de su lugar, sin SQL: los campos de `dbGetInfo()`
+# (que la corrida ya leyo) con la base, el anfitrion -o la carpeta del socket-,
+# el puerto y el nombre del servidor, como `nombre=valor`. Nunca el usuario.
+# `archivo` reemplaza la base cuando el motor dijo que archivo tiene abierto.
+.partes_lugar_declarado_dbi <- function(info, archivo = NULL) {
   nombres <- names(info)
   if (is.null(nombres)) nombres <- character()
   normales <- .minusculas_ascii(gsub("[^A-Za-z0-9]", "", nombres, useBytes = TRUE))
@@ -301,18 +302,25 @@
     "dbname", "databasename", "dbdir", "host", "hostname", "port",
     "server", "servername"
   ))
+  vapply(lugar, function(i) {
+    valor <- paste(as.character(unlist(info[[i]])), collapse = ",")
+    if (!is.null(archivo) &&
+        normales[[i]] %in% c("dbname", "databasename", "dbdir")) {
+      valor <- archivo
+    }
+    paste0(normales[[i]], "=", valor)
+  }, character(1L))
+}
+
+.lugar_conexion_dbi <- function(conexion) {
+  corrida <- .corrida_dbi(conexion)
+  if (!is.null(corrida) && !is.null(corrida$lugar)) return(corrida$lugar)
+  info <- .info_senas_conexion_dbi(conexion)
   del_motor <- .lugar_del_motor_dbi(conexion)
   partes <- if (!is.null(del_motor$servidor)) {
     paste0(names(del_motor$servidor), "=", del_motor$servidor)
   } else {
-    vapply(lugar, function(i) {
-      valor <- paste(as.character(unlist(info[[i]])), collapse = ",")
-      if (!is.null(del_motor$archivo) &&
-          normales[[i]] %in% c("dbname", "databasename", "dbdir")) {
-        valor <- del_motor$archivo
-      }
-      paste0(normales[[i]], "=", valor)
-    }, character(1L))
+    .partes_lugar_declarado_dbi(info, del_motor$archivo)
   }
   huella <- .huella_conformidad_dbi(c(class(conexion)[[1L]], .sort_por_bytes(partes)))
   if (!is.null(corrida)) corrida$lugar <- huella

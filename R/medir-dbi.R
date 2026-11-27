@@ -644,18 +644,98 @@
   }, error = function(e) NA_character_)
 }
 
+# En PostgreSQL, MySQL, MariaDB y SQL Server la tabla que resolvio el motor
+# viene en la misma consulta que lee el catalogo de sus columnas: cada fila trae
+# el esquema y el nombre con que el catalogo la guarda (`lupa_esquema`,
+# `lupa_tabla`), no los que se escribieron, y la base (`lupa_base`: en
+# PostgreSQL y SQL Server, la de la tabla, que no es parte del esquema; en MySQL
+# y MariaDB el esquema es la base); el servidor, `.huella_servidor_dbi()`. Sin
+# la base, dos bases del mismo servidor con el mismo `esquema.tabla` eran una
+# tabla. Sin esquema o nombre, o si las filas no son de una sola tabla, no esta
+# resuelta y queda `NA`.
+.identidad_catalogo_dbi <- function(conexion, info) {
+  if (!is.data.frame(info) || !nrow(info) ||
+      !all(c("lupa_esquema", "lupa_tabla") %in% names(info))) {
+    return(NA_character_)
+  }
+  unica <- function(columna) {
+    v <- unique(as.character(info[[columna]]))
+    if (length(v) == 1L && .es_texto_escalar(v)) v else NULL
+  }
+  esquema <- unica("lupa_esquema")
+  tabla <- unica("lupa_tabla")
+  if (is.null(esquema) || is.null(tabla)) return(NA_character_)
+  base <- NA_character_
+  if ("lupa_base" %in% names(info)) {
+    base <- unica("lupa_base")
+    if (is.null(base)) return(NA_character_)
+  }
+  nombre <- .identidad_tabla_dbi(conexion, tabla = tabla, esquema = esquema, base = base)
+  if (is.na(nombre)) return(NA_character_)
+  huella <- .huella_servidor_dbi(conexion, info)
+  if (is.na(huella)) return(NA_character_)
+  paste0(as.character(DBI::dbQuoteString(conexion, paste0("servidor ", huella))),
+         ".", nombre)
+}
+
+# El servidor de la identidad de una tabla: dos servidores con la misma
+# `base.esquema.tabla` -produccion y replica, o una migracion- son dos tablas.
+# Sale de lo que la conexion declara sin SQL (`.partes_lugar_declarado_dbi()`:
+# base, anfitrion o carpeta del socket, puerto, nombre del servidor), con el
+# controlador, y en MySQL y MariaDB ademas `@@hostname` y `@@port`
+# (`lupa_srv_*` de la consulta de catalogo), que RMySQL no declara y que el
+# motor no le niega a ningun usuario. Se guarda solo la huella: ni el anfitrion
+# ni el puerto viajan en el resultado. Preguntarle al motor por su direccion o
+# por su inicio costaba una funcion que se puede revocar, y sin ella la consulta
+# de catalogo fallaba y la tabla no se media. Lo declarado depende de la ruta:
+# el mismo servidor por el socket y por TCP, o por dos nombres, son dos
+# servidores (el error que no publica nada falso). Sin nada declarado, `NA`.
+.huella_servidor_dbi <- function(conexion, info = NULL) {
+  partes <- .partes_lugar_declarado_dbi(.info_senas_conexion_dbi(conexion))
+  servidor <- if (is.data.frame(info)) grep("^lupa_srv_", names(info), value = TRUE) else character()
+  for (k in servidor) {
+    v <- unique(as.character(info[[k]]))
+    partes <- c(partes, paste0(sub("^lupa_srv_", "", k), "=",
+                               if (length(v) == 1L && !is.na(v)) v else "NA"))
+  }
+  if (!length(partes)) return(NA_character_)
+  .huella_conformidad_dbi(c(class(conexion)[[1L]], .sort_por_bytes(partes)))
+}
+
 .esquema_medicion_dbi <- function(conexion, ref_tabla, motor, contador = NULL,
                                   sesion = NULL) {
   consultas <- character()
+  # Despues de leer la tabla (`proto`), una consulta de catalogo que falla no
+  # dice que la tabla no esta: dice el error del motor -un permiso, una funcion
+  # revocada-, con clase `lupa_catalogo_medicion_dbi`. Las condiciones propias
+  # (el presupuesto, una conexion perdida) y las interrupciones siguen como
+  # vinieron.
+  tabla_leida <- FALSE
   consultar <- function(sql) {
     consultas <<- c(consultas, as.character(sql))
-    if (is.null(contador)) {
-      .traer_consulta_dbi(conexion, sql)
-    } else {
-      .consultar_medicion_dbi(
-        conexion, sql, contador, registrar_sql = FALSE
-      )
+    leer <- function() {
+      if (is.null(contador)) {
+        .traer_consulta_dbi(conexion, sql)
+      } else {
+        .consultar_medicion_dbi(
+          conexion, sql, contador, registrar_sql = FALSE
+        )
+      }
     }
+    if (!tabla_leida) return(leer())
+    tryCatch(leer(), error = function(e) {
+      if (.es_interrupcion_dbi(e) ||
+          any(startsWith(class(e), "lupa_"))) {
+        .detener(e)
+      }
+      .detener(structure(
+        class = c("lupa_catalogo_medicion_dbi", "error", "condition"),
+        list(message = paste0(
+          "no se pudo leer el cat\u00e1logo de la tabla `", nombre_cat,
+          "`, que s\u00ed se lee: ", .mensaje_motor(e)
+        ), call = NULL)
+      ))
+    })
   }
   q <- as.character(DBI::dbQuoteIdentifier(conexion, ref_tabla))
   nombre_cat <- if (inherits(ref_tabla, "Id")) {
@@ -689,6 +769,7 @@
   # control de sus cifras es `desconocido`.
   identidad <- NA_character_
   proto <- consultar(paste0("SELECT * FROM ", q, " WHERE 1 = 0"))
+  tabla_leida <- TRUE
   n_consultas <- 1L
   campos <- names(proto)
   clases <- vapply(proto, .clase_r_columna_dbi, character(1L))
@@ -700,6 +781,15 @@
   colacion_no_pad <- stats::setNames(rep(NA, length(campos)), campos)
   colacion_bin2 <- stats::setNames(rep(NA, length(campos)), campos)
   crear <- NA_character_
+  # En los servidores, los controladores citan `DBI::Id(catalog = "b", table =
+  # "t")` como dos partes, `b.t`, y el motor lee `t` del esquema `b` (en MySQL y
+  # MariaDB, de la base `b`): el catalogo de esa tabla es el de ese esquema. Con
+  # el nombre suelto, PostgreSQL describia la `t` visible del `search_path`.
+  if (motor %in% c("postgresql", "mysql", "mariadb", "sqlserver") &&
+      is.na(esquema_cat) && !is.na(catalogo_cat)) {
+    esquema_cat <- catalogo_cat
+    catalogo_cat <- NA_character_
+  }
   if (identical(motor, "sqlite")) {
     # En SQLite el esquema va delante del PRAGMA y del catalogo:
     # `PRAGMA table_info("main"."t")` es un error de sintaxis, y un referencial
@@ -902,7 +992,8 @@
       )
     }
     sql_pg <- paste0(
-      "SELECT a.attname AS column_name, t.typname AS typname, ",
+      "SELECT current_database() AS lupa_base, n.nspname AS lupa_esquema, ",
+      "c.relname AS lupa_tabla, a.attname AS column_name, t.typname AS typname, ",
       "pg_catalog.format_type(a.atttypid, a.atttypmod) AS formatted_type, ",
       "co.collname AS collation_name, ",
       if (tiene_det) "co.collisdeterministic" else "TRUE",
@@ -936,16 +1027,40 @@
           !is.na(cn) && nzchar(cn) && !identical(tp_base, "citext")
       }
     }
+    identidad <- .identidad_catalogo_dbi(conexion, info)
   } else if (motor %in% c("mysql", "mariadb") && isTRUE(sesion$ok)) {
-    filtro_esq <- if (!is.na(esquema_cat)) {
-      paste0("c.table_schema = ", DBI::dbQuoteString(conexion, esquema_cat))
-    } else {
-      "c.table_schema = DATABASE()"
-    }
+    # La base de la tabla que se lee: la del esquema del `Id`, o la de su
+    # catalogo -los dos controladores citan `Id(catalog = "b", table = "t")`
+    # como `b`.`t`, y el motor lee `t` de la base `b`-, o la de la sesion. Con
+    # `DATABASE()` para un `Id` con catalogo, los tipos y la identidad eran los
+    # de la homonima de la base de la sesion.
+    base_my <- if (!is.na(esquema_cat)) esquema_cat else catalogo_cat
+    base_sql <- if (!is.na(base_my)) {
+      as.character(DBI::dbQuoteString(conexion, base_my))
+    } else "DATABASE()"
+    filtro_esq <- paste0("c.table_schema = ", base_sql)
     con_pad_attr <- !isTRUE(sesion$es_mariadb)
+    # Una TEMPORARY tapa a la permanente del mismo nombre en la sesion, y
+    # `information_schema.columns` describe a la permanente. MariaDB lista las
+    # temporales de la sesion en `information_schema.tables`: si el nombre es de
+    # una, las columnas del catalogo no son las de la tabla que se lee. MySQL no
+    # las lista en ninguna vista (la unica senal es `SHOW CREATE TABLE`, una
+    # sentencia mas por tabla): ahi la lectura de una temporal que tapa a una
+    # permanente queda con la identidad y los tipos de la permanente.
+    servidor_my <- paste0(
+      "@@hostname AS lupa_srv_anfitrion, CAST(@@port AS CHAR) AS lupa_srv_puerto, "
+    )
+    temporal_my <- if (con_pad_attr) "" else paste0(
+      "CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables lupa_tt ",
+      "WHERE lupa_tt.table_schema = ", base_sql, " AND lupa_tt.table_name = ",
+      DBI::dbQuoteString(conexion, nombre_cat),
+      " AND lupa_tt.table_type = 'TEMPORARY') THEN 'si' ELSE 'no' END ",
+      "AS lupa_temporal, "
+    )
     sql_my <- if (con_pad_attr) {
       paste0(
-        "SELECT c.column_name, c.data_type, c.column_type, ",
+        "SELECT ", servidor_my, "c.table_schema AS lupa_esquema, c.table_name AS lupa_tabla, ",
+        "c.column_name, c.data_type, c.column_type, ",
         "c.collation_name, co.pad_attribute ",
         "FROM information_schema.columns c ",
         "LEFT JOIN information_schema.collations co ",
@@ -956,7 +1071,9 @@
       )
     } else {
       paste0(
-        "SELECT c.column_name, c.data_type, c.column_type, ",
+        "SELECT ", servidor_my, temporal_my,
+        "c.table_schema AS lupa_esquema, c.table_name AS lupa_tabla, ",
+        "c.column_name, c.data_type, c.column_type, ",
         "c.collation_name ",
         "FROM information_schema.columns c ",
         "WHERE ", filtro_esq, " AND c.table_name = ",
@@ -970,7 +1087,8 @@
       error = function(e) {
         if (!con_pad_attr) .detener(e)
         consultar(paste0(
-          "SELECT c.column_name, c.data_type, c.column_type, ",
+          "SELECT ", servidor_my, "c.table_schema AS lupa_esquema, c.table_name AS lupa_tabla, ",
+          "c.column_name, c.data_type, c.column_type, ",
           "c.collation_name ",
           "FROM information_schema.columns c ",
           "WHERE ", filtro_esq, " AND c.table_name = ",
@@ -983,6 +1101,15 @@
     n_consultas <- n_consultas + 1L
     if (is.data.frame(info) && nrow(info)) {
       names(info) <- .minusculas_ascii(names(info))
+      # El nombre es de una temporal: el catalogo describe a otra tabla, y la
+      # lectura queda como la de una temporal sin permanente, sin tipos del
+      # catalogo ni identidad.
+      if ("lupa_temporal" %in% names(info) &&
+          any(as.character(info$lupa_temporal) %in% "si")) {
+        info <- info[0L, , drop = FALSE]
+      }
+    }
+    if (is.data.frame(info) && nrow(info)) {
       tiene_pad <- "pad_attribute" %in% names(info)
       for (i in seq_len(nrow(info))) {
         col_i <- as.character(info$column_name[[i]])
@@ -1012,22 +1139,61 @@
         }
       }
     }
+    identidad <- .identidad_catalogo_dbi(conexion, info)
   } else if (identical(motor, "sqlserver") && isTRUE(sesion$ok)) {
+    # La tabla que leen los datos es la del nombre citado (`q`): `OBJECT_ID()`
+    # la resuelve con las mismas reglas -el esquema por omision del usuario y
+    # despues `dbo`-, y solo si es de la base actual, que es la de `sys.columns`
+    # (`.misma_base_sqlserver_dbi()`). El nombre sin citar de la consulta de
+    # las columnas no es siempre esa tabla: `OBJECT_ID('a.b')` busca `b` en el
+    # esquema `a`.
+    objeto <- paste0("N", as.character(DBI::dbQuoteString(conexion, q)))
+    # Un `Id` con catalogo y esquema es una tabla de esa base, quizas otra que
+    # la actual: sus columnas, sus tipos y su identidad estan en las vistas de
+    # catalogo de esa base (`"b".sys.columns`), no en las de la sesion, que
+    # describian a la homonima de la base actual.
+    if (!is.na(catalogo_cat)) {
+      base_id <- paste0(
+        "DB_ID(N", as.character(DBI::dbQuoteString(conexion, catalogo_cat)), ")"
+      )
+      vistas <- paste0(as.character(DBI::dbQuoteIdentifier(conexion, catalogo_cat)), ".")
+      resuelta <- paste0(
+        "c.object_id = OBJECT_ID(", objeto, ") AND PARSENAME(", objeto, ", 4) IS NULL"
+      )
+      identidad_ss <- paste0(
+        "DB_NAME(", base_id, ") AS lupa_base, ",
+        "CASE WHEN ", resuelta, " THEN OBJECT_SCHEMA_NAME(c.object_id, ", base_id,
+        ") END AS lupa_esquema, CASE WHEN ", resuelta,
+        " THEN OBJECT_NAME(c.object_id, ", base_id, ") END AS lupa_tabla, "
+      )
+    } else {
+      vistas <- ""
+      resuelta <- paste0(
+        "c.object_id = OBJECT_ID(", objeto, ") AND ",
+        .misma_base_sqlserver_dbi(objeto)
+      )
+      identidad_ss <- paste0(
+        "DB_NAME() AS lupa_base, ",
+        "CASE WHEN ", resuelta, " THEN OBJECT_SCHEMA_NAME(c.object_id) END ",
+        "AS lupa_esquema, CASE WHEN ", resuelta,
+        " THEN OBJECT_NAME(c.object_id) END AS lupa_tabla, "
+      )
+    }
     sql_ss <- if (!is.na(esquema_cat)) {
       paste0(
-        "SELECT c.name AS column_name, t.name AS data_type, ",
+        "SELECT ", identidad_ss, "c.name AS column_name, t.name AS data_type, ",
         "c.collation_name, c.precision, c.scale ",
-        "FROM sys.columns c ",
-        "JOIN sys.objects o ON o.object_id = c.object_id ",
-        "JOIN sys.schemas s ON s.schema_id = o.schema_id ",
-        "JOIN sys.types t ON t.user_type_id = c.user_type_id ",
+        "FROM ", vistas, "sys.columns c ",
+        "JOIN ", vistas, "sys.objects o ON o.object_id = c.object_id ",
+        "JOIN ", vistas, "sys.schemas s ON s.schema_id = o.schema_id ",
+        "JOIN ", vistas, "sys.types t ON t.user_type_id = c.user_type_id ",
         "WHERE s.name = ", DBI::dbQuoteString(conexion, esquema_cat),
         " AND o.name = ", DBI::dbQuoteString(conexion, nombre_cat),
         " ORDER BY c.column_id"
       )
     } else {
       paste0(
-        "SELECT c.name AS column_name, t.name AS data_type, ",
+        "SELECT ", identidad_ss, "c.name AS column_name, t.name AS data_type, ",
         "c.collation_name, c.precision, c.scale ",
         "FROM sys.columns c ",
         "JOIN sys.types t ON t.user_type_id = c.user_type_id ",
@@ -1062,6 +1228,7 @@
         }
       }
     }
+    identidad <- .identidad_catalogo_dbi(conexion, info)
   }
   cotejamientos[is.na(cotejamientos)] <- "desconocido"
   list(
@@ -1207,6 +1374,23 @@
   invisible(NULL)
 }
 
+# Una columna cuyos valores el controlador no lee como son: RMySQL lee un `BIT`
+# como `0` aunque el bit este encendido. Ni el motor ni R pueden medir sus
+# valores contra los de R: la traduccion se abstiene, y la lectura por bloques
+# tambien (`.admite_bloques_medicion_dbi()`). Contar presentes no depende del
+# valor. `NULL` si la lectura es fiel.
+.motivo_lectura_infiel_dbi <- function(esq, columna, motor) {
+  tp <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
+  if (length(tp) != 1L || is.na(tp)) return(NULL)
+  if (motor %in% c("mysql", "mariadb") && identical(tp, "bit") &&
+      isTRUE(esq$sesion$es_rmysql)) {
+    return(paste0(
+      "la columna `", columna, "` es `BIT` y RMySQL no la lee con fidelidad"
+    ))
+  }
+  NULL
+}
+
 .validar_columna_base_dbi <- function(esq, columna, motor, requiere_valor = TRUE) {
   tp <- if (!is.null(esq$tipos_base)) esq$tipos_base[[columna]] else NA_character_
   if (is.na(tp) || !nzchar(tp)) return(invisible(NULL))
@@ -1218,12 +1402,8 @@
         "` no escalar para traducci\u00f3n SQL en ", motor
       )
     }
-    if (identical(tp, "bit") && isTRUE(esq$sesion$es_rmysql) &&
-        isTRUE(requiere_valor)) {
-      .no_traducible_dbi(
-        "la columna `", columna, "` es `BIT` y RMySQL no la lee con fidelidad"
-      )
-    }
+    infiel <- .motivo_lectura_infiel_dbi(esq, columna, motor)
+    if (!is.null(infiel) && isTRUE(requiere_valor)) .no_traducible_dbi(infiel)
   }
   if (identical(motor, "sqlserver")) {
     if (tp %in% c("text", "ntext", "image", "xml", "geography", "geometry",
@@ -1473,14 +1653,49 @@
     (clase_col %in% c("entero", "doble") && clase_lit %in% c("entero", "doble"))
 }
 
+# `por_valor = TRUE` es la pertenencia de un dominio o de un centinela, que R
+# decide por la identidad de cada valor (`.en_conjunto_por_valor()`). Entre un
+# logico y un numero vale la misma regla que en R (`.logico_contra_numero()`):
+# un valor logico contra una columna numerica es su entero (`TRUE` es `1`, y en
+# un `TINYINT(1)` cuenta lo mismo que el motor), y un numero contra una columna
+# logica es `TRUE` si es `1` y `FALSE` si es `0`; otro numero no se traduce. Una
+# comparacion de la formula (`x == TRUE`) o un rango conservan la
+# compatibilidad de `TINYINT(1)` (`.logico_entero_compatible_dbi()`).
 .literal_sql_medicion <- function(conexion, valor, clase_col, motor,
-                                  esq = NULL, columna = NULL) {
+                                  esq = NULL, columna = NULL,
+                                  por_valor = FALSE, conjunto = NULL) {
   if (length(valor) != 1L) {
     .no_traducible_dbi("se esperaba un valor escalar, no ", length(valor))
   }
   if (is.na(valor) && !is.nan(valor)) return("NULL")
   clase_lit <- .clase_r_columna_dbi(valor)
-  compatible_logico <- !is.null(esq) &&
+  if (isTRUE(por_valor)) {
+    columna_r <- switch(clase_col, entero = integer(), doble = double(),
+                        logico = logical(), NULL)
+    # La regla mira el conjunto entero, como en la memoria: `unique()` y
+    # `as.list()` le sacan la clase a cada valor, y un `I(TRUE)` llegaba aca
+    # como `TRUE`.
+    referencia <- if (is.null(conjunto)) valor else conjunto
+    if (!is.null(columna_r)) {
+      par <- .logico_contra_numero(columna_r, referencia)
+      if (!identical(class(par$conjunto), class(referencia))) {
+        valor <- as.integer(valor)
+        clase_lit <- .clase_r_columna_dbi(valor)
+      } else if (!identical(class(par$x), class(columna_r))) {
+        if (!isTRUE(valor %in% c(0, 1))) {
+          .no_traducible_dbi(
+            "compara una columna `logico` con un n\u00famero que no es 0 ni 1"
+          )
+        }
+        valor <- as.logical(valor)
+        clase_lit <- "logico"
+      }
+    }
+  }
+  # En la pertenencia por valor decide solo la regla de arriba, la de la
+  # memoria: un logico sin clase ya paso a su entero, y uno con clase (`I(TRUE)`)
+  # no se iguala con un numero, tampoco en un `TINYINT(1)`.
+  compatible_logico <- !isTRUE(por_valor) && !is.null(esq) &&
     .logico_entero_compatible_dbi(esq, columna, clase_col, clase_lit, motor)
   if (!.clases_compatibles_sql(clase_col, clase_lit) && !compatible_logico) {
     .no_traducible_dbi(
@@ -2247,7 +2462,8 @@
               "(", x, " IN (",
               paste(vapply(as.list(lits), function(v) {
                 .literal_sql_medicion(conexion, v, clase, motor,
-                                      esq = esq, columna = spec$columna)
+                                      esq = esq, columna = spec$columna,
+                                      por_valor = TRUE, conjunto = vn)
               }, character(1L)), collapse = ", "), "))"
             )
           }
@@ -2348,7 +2564,8 @@
             "(", x_cmp, " IN (",
             paste(vapply(as.list(lits), function(v) {
               .literal_sql_medicion(conexion, v, clase, motor,
-                                    esq = esq, columna = spec$columna)
+                                    esq = esq, columna = spec$columna,
+                                    por_valor = TRUE, conjunto = conjunto)
             }, character(1L)), collapse = ", "), "))"
           )
         } else {
@@ -2943,7 +3160,8 @@
                             contador = contador, sesion = sesion),
       error = function(err) {
         errores_esquema[[e]] <<- if (
-          inherits(err, "lupa_presupuesto_medicion_dbi")
+          inherits(err, c("lupa_presupuesto_medicion_dbi",
+                          "lupa_catalogo_medicion_dbi"))
         ) {
           conditionMessage(err)
         } else {
@@ -2987,7 +3205,9 @@
     )
     a_bloques <- function(motivo) {
       if (.admite_bloques_medicion_dbi(estrategia_no_sql, instancia, spec,
-                                       cols_bloq)) {
+                                       cols_bloq,
+                                       esq = esquemas[[instancia$entidad[[1L]]]],
+                                       motor = motor)) {
         c(base, list(via = "bloques_r", motivo = motivo, columnas_bloque = cols_bloq))
       } else {
         c(base, list(via = "no_medible", motivo = motivo))
@@ -3056,6 +3276,7 @@
         length(.lotes_consolidada_medicion(items_e, senas, tamano_lote))
     }
   }
+  n_contador <- 2L * length(.contadores_aparte_medicion_dbi(con, esquemas, planes))
   list(
     conexion = con,
     planes = planes,
@@ -3064,6 +3285,7 @@
     motor = motor,
     n_esquema = if (is.null(contador)) n_esquema_estimadas else contador$n,
     n_consolidadas = n_consolidadas,
+    n_contador = n_contador,
     esquemas_referencial = esquemas_referencial,
     n_validaciones_referencial = n_validaciones_referencial
   )
@@ -3097,6 +3319,7 @@
   )
   p <- enriquecido$p
   motor <- p$motor
+  aparte <- .contadores_aparte_medicion_dbi(conexion, p$esquemas, p$planes)
   ejecutar <- function() {
     estado <- .CONTEXTO_MOTOR$compilador
     agregar <- function(sql, etapa) {
@@ -3119,6 +3342,11 @@
           identical(x$entidad, entidad)
       }, p$planes)
       if (length(items)) {
+        spec_aparte <- aparte[[entidad]]
+        sql_aparte <- if (is.list(spec_aparte)) {
+          .sql_contador_aparte_medicion_dbi(conexion, spec_aparte, esq)
+        } else NA_character_
+        agregar(sql_aparte, "contador")
         lotes <- .lotes_consolidada_medicion(
           items, .senas_conexion_dbi(conexion), tamano_lote
         )
@@ -3128,6 +3356,7 @@
             "consolidada"
           )
         }
+        agregar(sql_aparte, "contador")
         for (item in items) {
           if (identical(item$via, "sql_dedicado")) {
             agregar(.sql_dedicada_medicion_dbi(item, esq, motor), "dedicada")
@@ -3273,6 +3502,74 @@
   )
   if (!is.data.frame(q)) return(NA_character_)
   .instantanea_contador_dbi(q, spec)
+}
+
+# Un contador de modificaciones que el motor puede negarle a una credencial
+# comun (`negable`: `performance_schema` de MySQL, `INNODB_SYS_TABLESTATS` de
+# MariaDB, `sys.dm_db_index_operational_stats` de SQL Server) no va dentro de
+# la consulta que mide: negado, hacia fallar la consulta, y con ella toda la
+# medicion de la tabla. Se lee aparte, una sentencia antes y otra despues de
+# las consultas de agregados de la tabla; si el motor lo niega, solo baja el
+# control de lecturas, con el motivo. Una entrada por entidad con consultas de
+# agregados; el plan cuenta dos sentencias por cada una. Los que no se pueden
+# negar -`rowversion`, `xmin`- siguen dentro de la consulta.
+.contadores_aparte_medicion_dbi <- function(conexion, esquemas, planes) {
+  salida <- list()
+  for (e in names(esquemas)) {
+    esq <- esquemas[[e]]
+    if (is.null(esq)) next
+    con_sql <- any(vapply(planes, function(x) {
+      x$via %in% c("sql_consolidado", "sql_dedicado") && identical(x$entidad, e)
+    }, logical(1L)))
+    if (!con_sql) next
+    spec <- tryCatch(
+      .especificacion_contador_estabilidad_dbi(
+        conexion, esq$sql, esq$sql, tipos_motor = esq$tipos, campos = esq$campos
+      ),
+      error = function(err) NULL
+    )
+    if (is.list(spec) && isTRUE(spec$negable)) salida[[e]] <- spec
+  }
+  salida
+}
+
+.sql_contador_aparte_medicion_dbi <- function(conexion, spec, esq) {
+  exprs <- .expresiones_contador_estabilidad_dbi(conexion, spec, esq$sql)
+  if (!length(exprs)) return(NA_character_)
+  paste0("SELECT ", paste(exprs, collapse = ", "))
+}
+
+# La lectura aparte del contador: `ok` con su fila, o el motivo por el que el
+# motor no lo dio. Nunca detiene la medicion, salvo una interrupcion.
+.leer_contador_aparte_medicion_dbi <- function(conexion, spec, esq, contador) {
+  sql <- .sql_contador_aparte_medicion_dbi(conexion, spec, esq)
+  if (is.na(sql)) {
+    return(list(ok = FALSE, motivo = "el contador no tiene expresiones"))
+  }
+  q <- tryCatch(
+    .consultar_medicion_dbi(conexion, sql, contador),
+    lupa_presupuesto_medicion_dbi = function(e) e,
+    error = function(e) e
+  )
+  if (inherits(q, "error")) {
+    if (.es_interrupcion_dbi(q)) .detener(q)
+    return(list(ok = FALSE, motivo = if (
+      inherits(q, "lupa_presupuesto_medicion_dbi")
+    ) conditionMessage(q) else .mensaje_motor(q)))
+  }
+  if (!is.data.frame(q) || nrow(q) != 1L) {
+    return(list(ok = FALSE, motivo = "la lectura del contador no devolvi\u00f3 una fila"))
+  }
+  list(ok = TRUE, datos = q)
+}
+
+# La instantanea de una lectura con el contador leido aparte y las filas que
+# vio la consulta de agregados: el mismo texto que si viniera en la consulta.
+.instantanea_aparte_medicion_dbi <- function(lectura, spec, n_filas) {
+  if (!isTRUE(lectura$ok)) return(NA_character_)
+  datos <- lectura$datos
+  datos$n_filas <- n_filas
+  .instantanea_contador_dbi(datos, spec)
 }
 
 # El valor del contador de modificaciones del motor que vio una lectura, como
@@ -3473,12 +3770,20 @@
 # Si una regla que el motor no puede contar como R se lee por bloques en R: la
 # misma condicion para lo que no se traduce, para lo que la guarda frena y para
 # lo que la bateria de conformidad encontro no conforme.
+# Una columna que el controlador no lee con fidelidad
+# (`.motivo_lectura_infiel_dbi()`) tampoco se lee por bloques: R mediria lo que
+# el controlador entrego, no lo que la tabla guarda.
 .admite_bloques_medicion_dbi <- function(estrategia_no_sql, instancia, spec,
-                                         columnas_bloque) {
+                                         columnas_bloque, esq = NULL,
+                                         motor = NULL) {
+  infiel <- !is.null(esq) && !is.null(motor) && any(vapply(
+    columnas_bloque, function(cn) !is.null(.motivo_lectura_infiel_dbi(esq, cn, motor)),
+    logical(1L)
+  ))
   identical(estrategia_no_sql, "bloques") &&
     .separable_medicion_dbi(instancia, spec) &&
     length(instancia$entidad) == 1L &&
-    length(columnas_bloque) > 0L
+    length(columnas_bloque) > 0L && !infiel
 }
 
 # Filas del universo con NULL en alguna columna de la regla. Sin el conteo, se
@@ -3862,7 +4167,12 @@
 #'   columna, igual que en [medir()].
 #' @param estrategia_no_sql Cómo resolver las métricas que no se compilan a SQL:
 #'   `"no_medible"` (por omisión, no lee filas) o `"bloques"` (lee por bloques
-#'   sólo las columnas necesarias para las métricas separables por fila).
+#'   sólo las columnas necesarias para las métricas separables por fila). Una
+#'   columna que el controlador no lee con fidelidad no se lee por bloques: un
+#'   `BIT` de MySQL leído con RMySQL llega como `0` aunque el bit esté
+#'   encendido, y una regla sobre sus valores queda `no_medible` en las dos
+#'   vías. [medir()] sobre una tabla que el usuario leyó con RMySQL no puede
+#'   saberlo: mide esos `0`.
 #' @param bloque_filas Cantidad de filas por bloque cuando
 #'   `estrategia_no_sql = "bloques"`. `NULL` elige el tamaño automático.
 #' @param tamano_lote Tope opcional de métricas por consulta consolidada. `NULL`
@@ -3896,8 +4206,9 @@
 #' @return Un `data.frame` de clase `plan_medicion_dbi` con una fila por
 #'   métrica instanciada (`metrica_instanciada`, `metrica`, `entidad`,
 #'   `atributos`, `via`, `motivo`, `columnas_bloque`) y atributos `motor` y
-#'   `consultas` (`esquema`, `consolidadas`, `dedicadas`, `bloques`), y, cuando
-#'   se pide, `compilacion`.
+#'   `consultas` (`esquema`, `consolidadas`, `dedicadas`, `bloques` y, donde el
+#'   contador de modificaciones del motor se lee aparte, `contador`: dos por
+#'   tabla), y, cuando se pide, `compilacion`.
 #' @inheritSection plan_perfilado_dbi Compilación
 #' @export
 #' @seealso [medir_dbi()], [medir()], [plan_perfilado_dbi()]
@@ -3983,6 +4294,13 @@ plan_medicion_dbi <- function(modelo, conexion, tablas = NULL,
     ),
     bloques = as.integer(sum(plan$via %in% c("bloques_r", "distintos_r")))
   )
+  # El contador de modificaciones que el motor puede negar: dos sentencias por
+  # tabla, antes y despues de sus consultas de agregados.
+  if (isTRUE(p$n_contador > 0L)) {
+    attr(plan, "consultas") <- c(
+      attr(plan, "consultas"), contador = as.integer(p$n_contador)
+    )
+  }
   guarda_duckdb <- .guarda_duckdb_contada_dbi(con, .ACCIONES_MEDICION_DBI)
   if (guarda_duckdb > 0L) {
     attr(plan, "consultas") <- c(
@@ -4087,14 +4405,32 @@ print.plan_medicion_dbi <- function(x, ...) {
 #'   `UPDATE` que no cambia el conteo; donde el motor ofrece un contador de
 #'   modificaciones que lupa lee, se compara también ese contador y el control
 #'   se publica como `contador_del_motor`; si no, como
-#'   `solo_filas_agregadas_o_quitadas`. En SQL Server con `READ COMMITTED` por
+#'   `solo_filas_agregadas_o_quitadas`. El contador que el motor puede negarle
+#'   a una credencial sin permisos extra —`performance_schema` en MySQL,
+#'   `INNODB_SYS_TABLESTATS` en MariaDB, `sys.dm_db_index_operational_stats`
+#'   en SQL Server— se lee en una sentencia aparte antes y otra después de las
+#'   consultas de la tabla, nunca dentro de una que mide: si el motor lo niega,
+#'   la tabla se mide igual, sus lecturas quedan
+#'   `solo_filas_agregadas_o_quitadas` y el motivo queda en
+#'   `attr(x, "ejecucion_dbi")$contador_motor`. En SQL Server con `READ COMMITTED` por
 #'   bloqueo una sola sentencia tampoco es una instantánea. La tabla de cada
 #'   lectura es la que el motor resuelve para su nombre al leer su esquema, una
 #'   vez por llamada —si la base es un archivo, con la ruta del archivo en
 #'   lugar del nombre con que se adjuntó—: si
 #'   durante la medición cambia lo que resuelve un nombre, por ejemplo se crea
-#'   una tabla temporal con ese nombre, ese cambio no se ve. Dos o más
-#'   lecturas de la misma tabla nunca son `una_lectura`.
+#'   una tabla temporal con ese nombre, ese cambio no se ve. En PostgreSQL,
+#'   MySQL, MariaDB y SQL Server la tabla lleva su base y su servidor (una
+#'   huella, no la dirección): dos servidores, o dos bases del mismo servidor,
+#'   con el mismo esquema y nombre son dos tablas. El servidor sale de lo que
+#'   la conexión declara (el anfitrión o la carpeta del socket, el puerto, la
+#'   base, el nombre del servidor): dos conexiones al mismo servidor por rutas
+#'   distintas —el socket y TCP, o dos nombres del mismo anfitrión— se tratan
+#'   como tablas distintas y sus lecturas no se comparan. En MySQL el
+#'   catálogo no lista las tablas temporales, y la lectura de una temporal que
+#'   tapa a una permanente del mismo nombre se registra con la tabla (y los
+#'   tipos) de la permanente; en MariaDB, si el catálogo la lista, esa lectura
+#'   queda sin tabla resuelta. Dos o más lecturas de la misma tabla nunca son
+#'   `una_lectura`.
 #' @export
 #' @seealso [plan_medicion_dbi()], [medir()], [perfilar_dbi()],
 #'   [tablero_calidad()], [indice_calidad()]
@@ -4229,6 +4565,12 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     )
   })
   names(contadores) <- names(p$esquemas)
+  # El que el motor puede negar se lee aparte (`.contadores_aparte_medicion_dbi()`)
+  # y no entra en las consultas que miden.
+  aparte <- .contadores_aparte_medicion_dbi(con, p$esquemas, p$planes)
+  contadores_en_consulta <- contadores
+  for (e in names(aparte)) contadores_en_consulta[e] <- list(NULL)
+  contador_motor <- list()
   for (e in names(p$esquemas)) {
     if (is.null(p$esquemas[[e]])) next
     items <- Filter(
@@ -4237,22 +4579,63 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
       p$planes
     )
     if (!length(items)) next
+    spec_aparte <- aparte[[e]]
+    antes_e <- if (is.list(spec_aparte)) {
+      .leer_contador_aparte_medicion_dbi(con, spec_aparte, p$esquemas[[e]], contador)
+    }
+    leidos <- integer()
     lotes <- .lotes_consolidada_medicion(items, senas, args$tamano_lote)
     for (lote in lotes) {
       r <- .consolidada_medicion_dbi(con, p$esquemas[[e]], lote, contador,
                                      motor = motor,
-                                     contador_estabilidad = contadores[[e]])
+                                     contador_estabilidad = contadores_en_consulta[[e]])
       for (it in lote) {
         resultados[[it$j]] <- .conteos_item_medicion_dbi(
           r, it, con, contador, esq = p$esquemas[[e]], motor = motor,
-          contador_estabilidad = contadores[[e]]
+          contador_estabilidad = contadores_en_consulta[[e]]
         )
         if (is.null(resultados[[it$j]]$error)) {
-          registrar(e, resultados[[it$j]]$n_filas, resultados[[it$j]]$instantanea,
-                    resultados[[it$j]]$lectura)
+          if (is.list(spec_aparte)) {
+            leidos <- c(leidos, it$j)
+          } else {
+            registrar(e, resultados[[it$j]]$n_filas, resultados[[it$j]]$instantanea,
+                      resultados[[it$j]]$lectura)
+          }
         }
       }
     }
+    if (!is.list(spec_aparte)) next
+    despues_e <- .leer_contador_aparte_medicion_dbi(
+      con, spec_aparte, p$esquemas[[e]], contador
+    )
+    # Cada lectura de la tabla vale con el contador de antes si el de despues
+    # es el mismo; si cambio, una lectura mas con el de despues hace ver el
+    # cambio; si el motor no lo dio, sin instantanea.
+    ultima_n <- NA_real_
+    cambio <- FALSE
+    for (j in leidos) {
+      n_j <- resultados[[j]]$n_filas
+      inst_a <- .instantanea_aparte_medicion_dbi(antes_e, spec_aparte, n_j)
+      inst_d <- .instantanea_aparte_medicion_dbi(despues_e, spec_aparte, n_j)
+      inst <- if (!is.na(inst_a) && !is.na(inst_d)) inst_a else NA_character_
+      cambio <- cambio || (!is.na(inst) && !identical(inst_a, inst_d))
+      registrar(e, n_j, inst, resultados[[j]]$lectura)
+      ultima_n <- n_j
+    }
+    if (isTRUE(cambio)) {
+      registrar(e, ultima_n,
+                .instantanea_aparte_medicion_dbi(despues_e, spec_aparte, ultima_n),
+                paste0("contador-cierre:", e))
+    }
+    motivo_e <- if (!isTRUE(antes_e$ok)) antes_e$motivo else if (
+      !isTRUE(despues_e$ok)) despues_e$motivo else if (
+        is.na(.instantanea_aparte_medicion_dbi(antes_e, spec_aparte, NA_real_))
+      ) spec_aparte$motivo_inactivo %||% "el motor no dio el contador" else NA_character_
+    contador_motor[[length(contador_motor) + 1L]] <- data.frame(
+      entidad = e, mecanismo = as.character(spec_aparte$mecanismo),
+      leido = is.na(motivo_e), motivo = as.character(motivo_e),
+      stringsAsFactors = FALSE
+    )
   }
 
   filas <- list()
@@ -4431,7 +4814,9 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     }
     if (!is.null(motivo_g)) {
       if (.admite_bloques_medicion_dbi(estrategia_no_sql, instancia, x$spec,
-                                       x$columnas_bloque)) {
+                                       x$columnas_bloque,
+                                       esq = p$esquemas[[x$entidad]],
+                                       motor = motor)) {
         x$via <- "bloques_r"
         x$motivo <- motivo_g
         vias_finales[[j]] <- "bloques_r"
@@ -4615,6 +5000,10 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     sql = if (isTRUE(instrumentar)) contador$sql else NULL,
     segundos = if (isTRUE(instrumentar)) proc.time()[["elapsed"]] - inicio else NULL
   )
+  # Donde el contador del motor se leyo aparte: si se leyo y, si no, por que.
+  if (length(contador_motor)) {
+    attr(resultado, "ejecucion_dbi")$contador_motor <- do.call(rbind, contador_motor)
+  }
   class(resultado) <- c("medicion_resumen", "data.frame")
   resultado
   })

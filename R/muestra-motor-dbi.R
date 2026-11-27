@@ -830,17 +830,36 @@
     )
     if (is.na(lit)) return(NULL)
     obj <- paste0("N", lit)
+    # Un nombre de tres partes es una tabla de esa base: el contador y el
+    # permiso son los de esa base. Con `DB_ID()` el motor buscaba el id de la
+    # otra base en la actual y abortaba la consulta ("Could not find table or
+    # object ID").
+    partes_ss <- tryCatch(.partir_identificador(as.character(tabla_sql))$partes,
+                          error = function(e) character())
+    base_ss <- if (length(partes_ss) == 3L) {
+      .quitar_comillas_identificador(partes_ss[[1L]])
+    } else NA_character_
+    base_lit <- if (!is.na(base_ss)) {
+      tryCatch(paste0("N", as.character(DBI::dbQuoteString(conexion, base_ss))),
+               error = function(e) NA_character_)
+    } else NA_character_
+    if (!is.na(base_ss) && is.na(base_lit)) return(NULL)
+    nombre_base <- if (is.na(base_lit)) "DB_NAME()" else base_lit
+    id_base <- if (is.na(base_lit)) "DB_ID()" else paste0("DB_ID(", base_lit, ")")
     sql_ops <- paste0(
       "CASE WHEN OBJECT_ID(", obj, ", N'U') IS NOT NULL AND ",
-      "HAS_PERMS_BY_NAME(DB_NAME(), N'DATABASE', N'VIEW DATABASE STATE') = 1 THEN ",
+      "HAS_PERMS_BY_NAME(", nombre_base, ", N'DATABASE', N'VIEW DATABASE STATE') = 1 THEN ",
       "(SELECT CAST(COALESCE(SUM(leaf_insert_count + leaf_update_count + ",
       "leaf_delete_count + leaf_ghost_count), 0) AS VARCHAR(30)) ",
-      "FROM sys.dm_db_index_operational_stats(DB_ID(), OBJECT_ID(", obj,
+      "FROM sys.dm_db_index_operational_stats(", id_base, ", OBJECT_ID(", obj,
       ", N'U'), NULL, NULL)) ELSE NULL END"
     )
     return(list(
       motor = "sqlserver",
       mecanismo = "dm_db_index_operational_stats",
+      # El motor puede negarle esta lectura a una credencial comun: no va
+      # dentro de una consulta que mide (ver `.contadores_aparte_medicion_dbi()`).
+      negable = TRUE,
       etiqueta = "contador de escrituras del motor (sys.dm_db_index_operational_stats)",
       requiere_tabla_base = FALSE,
       requiere_filas_no_vacias = FALSE,
@@ -893,6 +912,8 @@
     return(list(
       motor = "mysql",
       mecanismo = "performance_schema",
+      # `performance_schema` exige un permiso que una credencial comun no tiene.
+      negable = TRUE,
       etiqueta = "contador de escrituras del motor (performance_schema)",
       requiere_tabla_base = FALSE,
       requiere_filas_no_vacias = FALSE,
@@ -933,6 +954,8 @@
     return(list(
       motor = "mariadb",
       mecanismo = "innodb_modified_counter",
+      # `INNODB_SYS_TABLESTATS` exige el permiso `PROCESS`.
+      negable = TRUE,
       etiqueta = "contador de modificaciones del motor (INNODB_SYS_TABLESTATS y UPDATE_TIME)",
       requiere_tabla_base = FALSE,
       requiere_filas_no_vacias = FALSE,

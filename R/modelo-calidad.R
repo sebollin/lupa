@@ -505,7 +505,14 @@
 #' externos sin incorporarlos como dependencias.
 #' Tanto `Formato` como `ValoresPosiblesPorExtension` omiten los valores `NA`:
 #' un ausente no genera una medida en esas métricas y, por lo tanto, tampoco
-#' integra el denominador de sus agregaciones. La completitud se mide por
+#' integra el denominador de sus agregaciones. Sus dominios y los
+#' `valores_nulos` de `NoNulo` se comparan por valor; entre un lógico y un
+#' número sin clase `TRUE` es `1` y `FALSE` es `0`, como `%in%` de R base (una
+#' columna `BOOLEAN` que el controlador lee entera tiene sus `1` en el dominio
+#' `TRUE`). Un texto no se convierte en lógico ni en número: `"1"` no es
+#' `TRUE`; un dominio o un centinela lógico sobre una columna de texto se
+#' compara como texto (`"TRUE"` cuenta, y en `NoNulo` también `"true"` y
+#' `"True"`, porque el centinela de texto no distingue mayúsculas). La completitud se mide por
 #' separado con `NoNulo`; así un mismo ausente no se penaliza en dos factores.
 #' `NoNulo` acepta el vector opcional `valores_nulos` para aplicar de forma
 #' deliberada el diccionario de nulos que contempla el marco; sin configurarlo,
@@ -1148,10 +1155,39 @@ modelo <- function(..., marco = NULL) {
 # `1e5` no se encontraba en una columna `integer64` y NoNulo publicaba como
 # presentes las ausencias disfrazadas; y una columna `haven_labelled` igualaba
 # `0.1 + 0.2` con `0.3`. Medido.
+#
+# Entre un logico y un numero, `TRUE` es `1` y `FALSE` es `0`, como `%in%` de R
+# base (`.logico_contra_numero()`): una columna `BOOLEAN`/`TINYINT(1)` que el
+# controlador lee entera tiene sus `1` en el dominio `TRUE`, como la cuenta el
+# motor. Nunca contra texto: `"1"` y `"TRUE"` escritos no son `TRUE`.
 .en_conjunto_por_valor <- function(x, conjunto) {
-  .texto_identidad(.valores_relacion(x)) %in%
-    .texto_identidad(.valores_relacion(conjunto))
+  par <- .logico_contra_numero(x, conjunto)
+  .texto_identidad(.valores_relacion(par$x)) %in%
+    .texto_identidad(.valores_relacion(par$conjunto))
 }
+
+# La regla de la pertenencia por valor entre un logico y un numero, para la
+# memoria, los bloques y la traduccion a SQL (`.literal_sql_medicion()`): si
+# un lado es logico y el otro es un numero -entero o doble sin clase, o
+# `integer64`-, el logico pasa a entero. Un numero con clase propia (`units`,
+# `difftime`, una fecha, un factor) tiene su propio `%in%` o `Ops` y no se toca,
+# ni el texto. Si no, los dos quedan como vienen.
+.logico_contra_numero <- function(x, conjunto) {
+  if (.es_logico_pertenencia(conjunto) && .es_numero_pertenencia(x)) {
+    conjunto <- as.integer(conjunto)
+  } else if (.es_logico_pertenencia(x) && .es_numero_pertenencia(conjunto)) {
+    x <- as.integer(x)
+  }
+  list(x = x, conjunto = conjunto)
+}
+
+# Los dos lados que la regla iguala: un logico sin clase y un numero sin clase
+# (entero o doble) o `integer64`. Los usa tambien el sello para saber que
+# metricas dependen de la regla (`.usa_pertenencia_por_valor()`).
+.es_numero_pertenencia <- function(v) {
+  inherits(v, "integer64") || (is.numeric(v) && !is.object(v))
+}
+.es_logico_pertenencia <- function(v) is.logical(v) && !is.object(v)
 
 .salida_metodo <- function(resultado, entidad, atributo, fila, objeto) {
   n <- length(resultado)
@@ -2280,7 +2316,9 @@ metricas_nucleo <- function() {
 #'   [marco_calidad()].
 #' @param datos **Segundo argumento.** Data frame para una sola entidad o lista
 #'   con nombre de data frames para varias entidades. Es la tabla que se mide,
-#'   no un perfil ni un modelo.
+#'   no un perfil ni un modelo. `medir()` mide los valores como llegaron: una
+#'   columna `BIT` de MySQL leída con RMySQL llega en `0` aunque el bit esté
+#'   encendido ([medir_dbi()] no mide sus valores).
 #'
 #'   Con una lista, tienen que estar las tablas de **todas** las entidades que el
 #'   modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las

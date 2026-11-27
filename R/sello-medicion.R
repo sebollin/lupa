@@ -338,6 +338,33 @@
   NA_character_
 }
 
+# La version de la regla con que compara la pertenencia por valor
+# (`.en_conjunto_por_valor()`): los dominios de `ValoresPosiblesPorExtension` y
+# de `Formato` con diccionario, y los `valores_nulos` de `NoNulo`. 1, la
+# identidad por texto; 2, ademas, entre un logico y un numero `TRUE` es `1` y
+# `FALSE` es `0` (`.logico_contra_numero()`). Entra en la huella de esas
+# metricas cuando la regla puede cambiar lo que miden: un conjunto logico, o uno
+# numerico con un `0` o un `1` (contra una columna logica). Un dominio de texto
+# o un centinela como `-99` miden lo mismo con las dos versiones y conservan su
+# huella. Una medicion de antes y una de ahora de la misma regla escrita no
+# tienen la misma definicion, y la comparacion lo dice como cambio de
+# definicion y no de resultado. Se sube cuando cambia la regla.
+.VERSION_PERTENENCIA_VALOR <- 2L
+
+.usa_pertenencia_por_valor <- function(instancia) {
+  metodo <- .subset2(instancia, "metodo")
+  if (!.metodo_del_paquete(metodo)) return(FALSE)
+  nombre <- as.character(.subset2(.subset2(instancia, "declaracion"), "nombre"))
+  configuracion <- unclass(.subset2(instancia, "configuracion"))
+  campo <- switch(nombre, ValoresPosiblesPorExtension = "valores",
+                  Formato = "diccionario", NoNulo = "valores_nulos", NULL)
+  if (is.null(campo)) return(FALSE)
+  conjunto <- configuracion[[campo]]
+  if (.es_logico_pertenencia(conjunto)) return(any(!is.na(conjunto)))
+  .es_numero_pertenencia(conjunto) &&
+    any(as.numeric(conjunto) %in% c(0, 1))
+}
+
 .depende_orden_texto <- function(instancia, lector) {
   nodo <- .nodo_para_huella(instancia)
   if (is.na(nodo)) return(FALSE)
@@ -1785,6 +1812,9 @@
   }
   if (identical(orden_texto, "bytes") && .depende_orden_texto(instancia, lector)) {
     partes$orden_texto <- "bytes"
+  }
+  if (.usa_pertenencia_por_valor(instancia)) {
+    partes$regla_pertenencia <- .VERSION_PERTENENCIA_VALOR
   }
   if (length(partes)) {
     textos <- c(textos, vapply(partes, .texto_configuracion_calidad, character(1L)))

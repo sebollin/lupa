@@ -43,7 +43,12 @@ columna, igual que en \code{\link[=medir]{medir()}}.}
 
 \item{estrategia_no_sql}{Cómo resolver las métricas que no se compilan a SQL:
 \code{"no_medible"} (por omisión, no lee filas) o \code{"bloques"} (lee por bloques
-sólo las columnas necesarias para las métricas separables por fila).}
+sólo las columnas necesarias para las métricas separables por fila). Una
+columna que el controlador no lee con fidelidad no se lee por bloques: un
+\code{BIT} de MySQL leído con RMySQL llega como \code{0} aunque el bit esté
+encendido, y una regla sobre sus valores queda \code{no_medible} en las dos
+vías. \code{\link[=medir]{medir()}} sobre una tabla que el usuario leyó con RMySQL no puede
+saberlo: mide esos \code{0}.}
 
 \item{bloque_filas}{Cantidad de filas por bloque cuando
 \code{estrategia_no_sql = "bloques"}. \code{NULL} elige el tamaño automático.}
@@ -113,14 +118,32 @@ corrida ven distinto número de filas, sus cifras quedan \code{no_cierran} y
 \code{UPDATE} que no cambia el conteo; donde el motor ofrece un contador de
 modificaciones que lupa lee, se compara también ese contador y el control
 se publica como \code{contador_del_motor}; si no, como
-\code{solo_filas_agregadas_o_quitadas}. En SQL Server con \verb{READ COMMITTED} por
+\code{solo_filas_agregadas_o_quitadas}. El contador que el motor puede negarle
+a una credencial sin permisos extra —\code{performance_schema} en MySQL,
+\code{INNODB_SYS_TABLESTATS} en MariaDB, \code{sys.dm_db_index_operational_stats}
+en SQL Server— se lee en una sentencia aparte antes y otra después de las
+consultas de la tabla, nunca dentro de una que mide: si el motor lo niega,
+la tabla se mide igual, sus lecturas quedan
+\code{solo_filas_agregadas_o_quitadas} y el motivo queda en
+\code{attr(x, "ejecucion_dbi")$contador_motor}. En SQL Server con \verb{READ COMMITTED} por
 bloqueo una sola sentencia tampoco es una instantánea. La tabla de cada
 lectura es la que el motor resuelve para su nombre al leer su esquema, una
 vez por llamada —si la base es un archivo, con la ruta del archivo en
 lugar del nombre con que se adjuntó—: si
 durante la medición cambia lo que resuelve un nombre, por ejemplo se crea
-una tabla temporal con ese nombre, ese cambio no se ve. Dos o más
-lecturas de la misma tabla nunca son \code{una_lectura}.
+una tabla temporal con ese nombre, ese cambio no se ve. En PostgreSQL,
+MySQL, MariaDB y SQL Server la tabla lleva su base y su servidor (una
+huella, no la dirección): dos servidores, o dos bases del mismo servidor,
+con el mismo esquema y nombre son dos tablas. El servidor sale de lo que
+la conexión declara (el anfitrión o la carpeta del socket, el puerto, la
+base, el nombre del servidor): dos conexiones al mismo servidor por rutas
+distintas —el socket y TCP, o dos nombres del mismo anfitrión— se tratan
+como tablas distintas y sus lecturas no se comparan. En MySQL el
+catálogo no lista las tablas temporales, y la lectura de una temporal que
+tapa a una permanente del mismo nombre se registra con la tabla (y los
+tipos) de la permanente; en MariaDB, si el catálogo la lista, esa lectura
+queda sin tabla resuelta. Dos o más lecturas de la misma tabla nunca son
+\code{una_lectura}.
 }
 \description{
 Evalúa un modelo de calidad directamente en el motor SQL (SQLite, DuckDB,

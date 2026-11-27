@@ -279,6 +279,17 @@
   NA_character_
 }
 
+# Solo una tabla de la base actual: `OBJECT_ID()` de un nombre de tres partes
+# de otra base da el id ALLI, y `sys.columns` es el de esta. `objeto` es el
+# literal `N'...'` del nombre citado con que se leen los datos. Lo usan los
+# permisos de `perfilar_dbi()` y la tabla que resuelve `medir_dbi()`.
+.misma_base_sqlserver_dbi <- function(objeto) {
+  paste0(
+    "PARSENAME(", objeto, ", 4) IS NULL AND (PARSENAME(", objeto,
+    ", 3) IS NULL OR PARSENAME(", objeto, ", 3) = DB_NAME())"
+  )
+}
+
 .permisos_columnas_dbi <- function(conexion, tabla_sql, presupuesto = NULL) {
   motor <- .motor_permisos_columnas_dbi(conexion)
   if (is.na(motor) || length(tabla_sql) != 1L || is.na(tabla_sql) ||
@@ -346,12 +357,7 @@
       traer(sql), NULL, proyectar = TRUE, sql = sql
     ))
   }
-  # Solo una tabla de la base actual: `OBJECT_ID()` de un nombre de tres partes
-  # de otra base da el id ALLI, y `sys.columns` es el de esta.
-  misma_base <- paste0(
-    "PARSENAME(", objeto, ", 4) IS NULL AND (PARSENAME(", objeto,
-    ", 3) IS NULL OR PARSENAME(", objeto, ", 3) = DB_NAME())"
-  )
+  misma_base <- .misma_base_sqlserver_dbi(objeto)
   # Un decimal se publica con su precision y su escala, como lo hacen los
   # catalogos de PostgreSQL (`format_type()`), MySQL y MariaDB (`COLUMN_TYPE`).
   # `TYPE_NAME()` solo da `decimal`, y sin la escala la guarda del desvio no

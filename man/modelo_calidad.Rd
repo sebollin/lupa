@@ -147,7 +147,14 @@ normalizar; exige al menos dos valores numéricos válidos y ninguno infinito
 externos sin incorporarlos como dependencias.
 Tanto \code{Formato} como \code{ValoresPosiblesPorExtension} omiten los valores \code{NA}:
 un ausente no genera una medida en esas métricas y, por lo tanto, tampoco
-integra el denominador de sus agregaciones. La completitud se mide por
+integra el denominador de sus agregaciones. Sus dominios y los
+\code{valores_nulos} de \code{NoNulo} se comparan por valor; entre un lógico y un
+número sin clase \code{TRUE} es \code{1} y \code{FALSE} es \code{0}, como \code{\%in\%} de R base (una
+columna \code{BOOLEAN} que el controlador lee entera tiene sus \code{1} en el dominio
+\code{TRUE}). Un texto no se convierte en lógico ni en número: \code{"1"} no es
+\code{TRUE}; un dominio o un centinela lógico sobre una columna de texto se
+compara como texto (\code{"TRUE"} cuenta, y en \code{NoNulo} también \code{"true"} y
+\code{"True"}, porque el centinela de texto no distingue mayúsculas). La completitud se mide por
 separado con \code{NoNulo}; así un mismo ausente no se penaliza en dos factores.
 \code{NoNulo} acepta el vector opcional \code{valores_nulos} para aplicar de forma
 deliberada el diccionario de nulos que contempla el marco; sin configurarlo,

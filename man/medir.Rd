@@ -36,7 +36,9 @@ reúne las métricas instanciadas que se van a ejecutar. No es el objeto
 
 \item{datos}{\strong{Segundo argumento.} Data frame para una sola entidad o lista
 con nombre de data frames para varias entidades. Es la tabla que se mide,
-no un perfil ni un modelo.
+no un perfil ni un modelo. \code{medir()} mide los valores como llegaron: una
+columna \code{BIT} de MySQL leída con RMySQL llega en \code{0} aunque el bit esté
+encendido (\code{\link[=medir_dbi]{medir_dbi()}} no mide sus valores).
 
 Con una lista, tienen que estar las tablas de \strong{todas} las entidades que el
 modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las

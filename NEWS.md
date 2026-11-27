@@ -481,6 +481,31 @@
 
 ## Medir la calidad
 
+- **Cambia una cifra publicada.** En la pertenencia por valor —los dominios de
+  `ValoresPosiblesPorExtension` y de `Formato` con diccionario, y los
+  `valores_nulos` de `NoNulo`— `TRUE` es `1` y `FALSE` es `0` entre un lógico y
+  un número sin clase (entero, doble o `integer64`), en las dos direcciones,
+  como `%in%` de R base. Un dominio lógico sobre una columna numérica cuenta sus
+  `1`: `c(1L, 0L, NA, 2L)` con `valores = TRUE` da 1 de 3 (antes 0 de 3), y un
+  `BOOLEAN`/`TINYINT(1)` de MySQL o MariaDB que el controlador lee entero, con
+  `1, 0, NULL`, da 1 de 2 en `medir()`, en `medir_dbi()` —en el motor y por
+  bloques— y en `conformidad_dbi()` (antes 0 de 2 en R, y la regla no se medía
+  en el motor). Un dominio numérico sobre una columna lógica cuenta sus `TRUE`:
+  `c(TRUE, FALSE, NA, TRUE)` con `valores = 1L` da 2 de 3 (antes 0 de 3). Un
+  lógico o un número con clase (`I(TRUE)`, `haven_labelled`, `units`), el texto,
+  los factores, las fechas y `difftime` no se igualan: `"1"` no es `TRUE`. En el
+  motor esas reglas se miden sobre las columnas que el controlador lee como
+  entero o doble; un `BIGINT` que se lee como `integer64` sigue `no_medible` en el
+  motor en PostgreSQL, MariaDB y SQL Server (se mide en memoria y por bloques).
+  El sello de las reglas con un conjunto lógico, o numérico con un `0` o un `1`,
+  lleva la versión de la regla: por una vez, las mediciones anteriores de esas
+  reglas no se comparan con las nuevas (se publica que cambió la definición),
+  también cuando su cifra no cambió.
+- `medir_dbi()`: una columna que el controlador no lee con fidelidad tampoco se
+  lee por bloques: un `BIT` de MySQL leído con RMySQL llega como `0` aunque el
+  bit esté encendido, y una regla sobre sus valores queda `no_medible` también
+  con `estrategia_no_sql = "bloques"`. `medir()` sobre una tabla leída así mide
+  esos `0`.
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una fila por
   métrica y objeto, con numerador, denominador, no evaluados y su motivo, sin
   una fila por celda. Con 1.000.000 de filas y 20 columnas, la medición completa
@@ -748,6 +773,28 @@
 
 ## Correcciones
 
+- `medir_dbi()` en MySQL y MariaDB mide con un usuario que solo tiene `SELECT`
+  sobre la tabla: el contador de modificaciones que el motor puede negar
+  (`performance_schema` en MySQL, `INNODB_SYS_TABLESTATS` en MariaDB,
+  `sys.dm_db_index_operational_stats` en SQL Server) se lee en una sentencia
+  aparte, que el plan anuncia, y si el motor lo niega solo baja
+  `control_lecturas`, con el motivo. Antes, con ese usuario, cuatro de cada cinco
+  reglas quedaban `no_medible` en MySQL y MariaDB.
+- `medir_dbi()` registra en PostgreSQL, MySQL, MariaDB y SQL Server la tabla de
+  cada lectura (`attr(, "lecturas")$tabla`), como en SQLite y DuckDB, con su
+  servidor, su base, su esquema y su nombre: dos rótulos de la misma tabla son
+  una tabla, dos llamadas sobre la misma tabla unidas con `rbind()` ya no
+  cierran si la tabla cambió entre ellas, y el `control_lecturas` de
+  `semaforo_calidad()` deja de ser `desconocido` en esos motores. El servidor
+  sale de lo que la conexión declara, sin consultas: dos conexiones al mismo
+  servidor por rutas distintas (socket y TCP) se tratan como tablas distintas.
+  Un `DBI::Id(catalog = )` en MySQL y MariaDB, o `DBI::Id(catalog = , schema = )`
+  en SQL Server, se describe con su base: sus tipos son los de esa tabla (antes,
+  los de la homónima de la base actual, y en SQL Server sin `rowversion` la
+  medición abortaba). En MariaDB, una tabla temporal que tapa a una permanente
+  queda sin identidad; MySQL no lista las temporales en su catálogo y la
+  registra como la permanente (documentado). Si la consulta de catálogo falla,
+  el motivo de `no_medible` dice el error del motor y no que la tabla no está.
 - `perfilar_dbi()`: en SQLite, una columna sin tipo declarado (o `BLOB`) que
   guarda valores de tipos distintos se lee de una sola forma, la misma en
   cualquier orden de filas, con cualquier historial de la conexión y por

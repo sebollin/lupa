@@ -1,8 +1,8 @@
 # conformidad_dbi() en MySQL (RMySQL) y MariaDB (RMariaDB), cuando el servicio
 # existe: la bateria cuenta en el servidor con el tipo y la intercalacion de
-# cada columna real. Una columna BOOLEAN es TINYINT(1): R la lee como entero y
-# no la iguala a TRUE, y el motor si; la bateria lo ve y medir_dbi() deja de
-# contar esa regla en el motor.
+# cada columna real. Una columna BOOLEAN es TINYINT(1): R la lee como entero, y
+# entre un logico y un numero TRUE es 1 en R como en el motor; la bateria es
+# conforme y medir_dbi() cuenta esa regla en el motor.
 
 testthat::skip_on_cran()
 skip_if_not_installed("DBI")
@@ -100,10 +100,11 @@ skip_if_not_installed("DBI")
   expect_identical(names(lugar$servidor), c("anfitrion", "puerto", "base"))
   expect_false(anyNA(lugar$servidor))
 
-  # TINYINT(1) contra TRUE: el motor cuenta 1 = TRUE y R no.
+  # TINYINT(1) contra TRUE: el motor y R cuentan 1 = TRUE.
   logica <- modelo(inst(nuc$ValoresPosiblesPorExtension, "El", "b", valores = TRUE))
   bl <- conformidad_dbi(con, logica)
-  expect_false(any(bl$conformidad %in% c("conforme", "no_verificado")))
+  # Con la regla logico-numero (TRUE es 1, como el motor) la bateria es conforme.
+  expect_true(all(bl$conformidad == "conforme"))
   en_r <- suppressWarnings(medir(
     logica, stats::setNames(list(DBI::dbReadTable(con, tabla)), tabla),
     id_medicion = "c", fecha = .csrv_fecha_mysql, detalle = "resumen"
@@ -113,10 +114,9 @@ skip_if_not_installed("DBI")
   expect_identical(c(por_bloques$numerador, por_bloques$denominador),
                    c(en_r$numerador, en_r$denominador))
   sin_bloques <- .csrv_medir_mysql(logica, con, conformidad = bl)
-  expect_identical(nrow(sin_bloques), 0L)
-  expect_identical(
-    attr(sin_bloques, "cobertura_metricas", exact = TRUE)$estado, "no_medible"
-  )
+  expect_identical(nrow(sin_bloques), 1L)
+  expect_identical(c(sin_bloques$numerador, sin_bloques$denominador),
+                   c(en_r$numerador, en_r$denominador))
 }
 
 test_that("MySQL: la bateria cuenta en el servidor lo mismo que R", {

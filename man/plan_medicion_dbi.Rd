@@ -33,7 +33,12 @@ columna, igual que en \code{\link[=medir]{medir()}}.}
 
 \item{estrategia_no_sql}{Cómo resolver las métricas que no se compilan a SQL:
 \code{"no_medible"} (por omisión, no lee filas) o \code{"bloques"} (lee por bloques
-sólo las columnas necesarias para las métricas separables por fila).}
+sólo las columnas necesarias para las métricas separables por fila). Una
+columna que el controlador no lee con fidelidad no se lee por bloques: un
+\code{BIT} de MySQL leído con RMySQL llega como \code{0} aunque el bit esté
+encendido, y una regla sobre sus valores queda \code{no_medible} en las dos
+vías. \code{\link[=medir]{medir()}} sobre una tabla que el usuario leyó con RMySQL no puede
+saberlo: mide esos \code{0}.}
 
 \item{bloque_filas}{Cantidad de filas por bloque cuando
 \code{estrategia_no_sql = "bloques"}. \code{NULL} elige el tamaño automático.}
@@ -74,8 +79,9 @@ sentencia en \code{attr(plan, "compilacion")}. Ver la sección Compilación.}
 Un \code{data.frame} de clase \code{plan_medicion_dbi} con una fila por
 métrica instanciada (\code{metrica_instanciada}, \code{metrica}, \code{entidad},
 \code{atributos}, \code{via}, \code{motivo}, \code{columnas_bloque}) y atributos \code{motor} y
-\code{consultas} (\code{esquema}, \code{consolidadas}, \code{dedicadas}, \code{bloques}), y, cuando
-se pide, \code{compilacion}.
+\code{consultas} (\code{esquema}, \code{consolidadas}, \code{dedicadas}, \code{bloques} y, donde el
+contador de modificaciones del motor se lee aparte, \code{contador}: dos por
+tabla), y, cuando se pide, \code{compilacion}.
 }
 \description{
 Clasifica cada métrica del modelo según la vía con que se medirá en el motor
