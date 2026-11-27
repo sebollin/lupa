@@ -331,6 +331,14 @@
   !is.na(h$columna) & .clave_bytes(h$columna) %in% repetidas
 }
 
+# La evidencia de un hallazgo sin sus cifras: lo que distingue a dos hallazgos
+# del mismo tipo en la misma columna aunque sus conteos cambien. Lo usan el id
+# de las decisiones y la comparacion entre entregas, para identificar un
+# hallazgo con la misma regla.
+.forma_evidencia_hallazgo <- function(evidencia) {
+  gsub("[0-9.,]+", "#", .texto_o_vacio(evidencia), useBytes = TRUE)
+}
+
 # Dos hallazgos del mismo tipo en la misma columna (un detector que informa
 # varios casos a la vez) se distinguen por su lugar en el orden de sus bytes, no
 # por el orden en que salieron: el texto de la evidencia, sin sus cifras, fija el
@@ -354,7 +362,7 @@
   hermano <- clave %in% clave[duplicated(clave)]
   if (!any(hermano)) return(clave)
   evidencia <- .texto_o_vacio(h$evidencia)
-  forma <- gsub("[0-9.,]+", "#", evidencia, useBytes = TRUE)
+  forma <- .forma_evidencia_hallazgo(evidencia)
   aparicion <- sprintf("%012d", seq_len(n))
   orden <- .orden_por_bytes(
     clave, ifelse(repetida, aparicion, forma), ifelse(repetida, "", evidencia)

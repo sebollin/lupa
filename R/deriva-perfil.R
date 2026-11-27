@@ -1196,7 +1196,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   isTRUE(identical(unidad, "fila")) && isTRUE(tabla)
 }
 
-.resumir_hallazgos_deriva <- function(perfil) {
+.resumir_hallazgos_deriva <- function(perfil, separar = character()) {
   x <- perfil$hallazgos
   if (!nrow(x)) {
     return(data.frame(
@@ -1275,6 +1275,21 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     clave_grupo[usados] <- clave_de(primera_de_grupo[usados])
     clave[filas_con_grupo] <- clave_grupo[grupos_presentes]
   }
+  # Dos hallazgos del mismo tipo en la misma columna -por ejemplo un
+  # `valor_fuera_dominio` por filas y otro de columna- son dos hallazgos, no
+  # uno, cuando `separar` los nombra (ver `.hermanos_a_separar_deriva()`): cada
+  # uno se identifica por su lectura -por filas o de columna- y publica su
+  # propio conteo.
+  hermanos <- setdiff(
+    which(.llave_hermano_deriva(x$columna, x$tipo_hallazgo) %in% separar),
+    duplicadas
+  )
+  if (length(hermanos)) {
+    clave[hermanos] <- paste0(
+      clave[hermanos], "|#",
+      .lectura_hallazgo_deriva(x$evidencia[hermanos])
+    )
+  }
   grupos <- .dividir_por_bytes(seq_len(nrow(x)), clave, drop = TRUE)
   miembros_por_fila <- vector("list", nrow(x))
   miembros_por_fila[duplicadas] <- miembros_duplicadas
@@ -1326,6 +1341,160 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     )
   }
   resultado
+}
+
+# La columna y el tipo de un hallazgo como un solo texto, para decir cuales se
+# separan en `.resumir_hallazgos_deriva()`.
+.llave_hermano_deriva <- function(columna, tipo) {
+  columna <- as.character(columna)
+  llave <- ifelse(is.na(columna), "T", paste0("C", .clave_bytes(columna)))
+  paste(llave, .clave_bytes(as.character(tipo)), sep = "\034")
+}
+
+# La lectura de un hallazgo de dominio o de centinela: de columna o por filas.
+# La decide el detector al emitirlo y deja la frase fija "Lectura de columna" en
+# la evidencia (`R/dominios.R`); la severidad no sirve, porque cambia con los
+# datos. La tabla no guarda el valor del centinela ni el limite del dominio.
+.lectura_hallazgo_deriva <- function(evidencia) {
+  ifelse(
+    grepl(" Lectura de columna", .texto_o_vacio(evidencia), fixed = TRUE,
+          useBytes = TRUE),
+    "columna", "filas"
+  )
+}
+
+# Los tipos de hallazgo cuyos hermanos se distinguen por su lectura. Los demas
+# tipos repetidos se comparan juntos, como siempre.
+.TIPOS_HERMANOS_POR_LECTURA_DERIVA <- c("valor_fuera_dominio", "fecha_centinela")
+
+# Una lista declarada como conjunto: sin repetidos, en orden de bytes, y vacia
+# si no se declaro nada. Es como `comparar_perfiles()` compara las listas
+# `cadenas_ausencia` y `centinelas_fecha`.
+.lista_declarada_deriva <- function(x) {
+  if (is.null(x) || !length(x)) return(character())
+  .sort_por_bytes(unique(as.character(x)))
+}
+
+# Si cambio lo que el usuario declara sobre ausencias, dominios o centinelas
+# entre las dos entregas: un hallazgo no se resuelve ni aparece porque se
+# declaro, y esa diferencia ya la publica `comparar_perfiles()` en su fila
+# `configuracion_*`.
+.configuracion_ausencia_distinta_deriva <- function(anterior, actual) {
+  una <- function(perfil) {
+    meta <- perfil$meta
+    list(
+      dominios = list(meta$dominios$inferir, meta$dominios$declarados),
+      centinelas_fecha = .lista_declarada_deriva(meta$centinelas_fecha),
+      cadenas_ausencia = .lista_declarada_deriva(meta$cadenas_ausencia),
+      sentinelas_numericos = .configuracion_sentinelas_perfil(perfil)
+    )
+  }
+  if (!identical(una(anterior), una(actual))) return(TRUE)
+  # Y la declaracion por columna, que solo existe si alguna la uso.
+  if (!is.list(anterior$meta[["ausencias_por_columna"]]) &&
+      !is.list(actual$meta[["ausencias_por_columna"]])) {
+    return(FALSE)
+  }
+  conjunto <- function(x) {
+    if (is.null(x) || !length(x)) return(NULL)
+    .sort_por_bytes(unique(x), na.last = TRUE)
+  }
+  columnas <- unique(c(
+    as.character(anterior$columnas$columna), as.character(actual$columnas$columna)
+  ))
+  for (col in columnas) {
+    pa <- .ausencias_de_columna(anterior$meta, col)
+    pb <- .ausencias_de_columna(actual$meta, col)
+    if (!identical(conjunto(pa$sentinelas), conjunto(pb$sentinelas)) ||
+        !identical(.lista_declarada_deriva(pa$cadenas),
+                   .lista_declarada_deriva(pb$cadenas))) {
+      return(TRUE)
+    }
+  }
+  FALSE
+}
+
+# Que hallazgos de una misma columna y tipo se comparan por separado. Se separan
+# unicamente los grupos donde el emparejamiento no tiene duda; en cualquier otro
+# se sigue juntando, que es no publicar cuenta ni aparecido ni resuelto. Hace
+# falta que:
+# * el tipo sea uno de `.TIPOS_HERMANOS_POR_LECTURA_DERIVA`: en los demas no hay
+#   en el hallazgo nada estructurado que diga cual es cual;
+# * la declaracion de dominios, centinelas y ausencias sea la misma en las dos
+#   entregas;
+# * en las DOS entregas el grupo este presente, con mas de uno en alguna; todos
+#   cuenten filas (`unidad_conteo`; un perfil de una version anterior no la
+#   declara); la columna no tenga nombre repetido -la tabla no dice de cual
+#   homonima es cada uno-; cada evidencia nombre la cuenta de su hallazgo; y
+#   haya a lo sumo uno de cada lectura;
+# * las lecturas de las dos entregas sean las mismas (un hallazgo de columna
+#   pasa a lectura por filas cuando la tabla crece: no es el mismo, ni uno
+#   resuelto), y lo que dice cada
+#   hallazgo antes de su fuente -el limite del dominio, los centinelas
+#   observados- sea lo mismo: si cambio el valor, es otra causa.
+# Los grupos de columnas iguales son un hallazgo por grupo y no se separan.
+.hermanos_a_separar_deriva <- function(anterior, actual) {
+  if (.configuracion_ausencia_distinta_deriva(anterior, actual)) {
+    return(character())
+  }
+  resumen <- function(perfil) {
+    x <- perfil$hallazgos
+    vacio <- list(llave = character(), ok = logical(), lectura = character(),
+                  causa = character())
+    if (!is.data.frame(x) || !nrow(x) ||
+        !all(c("columna", "tipo_hallazgo", "evidencia") %in%
+             names(x))) {
+      return(vacio)
+    }
+    llave <- .llave_hermano_deriva(x$columna, x$tipo_hallazgo)
+    llave[!as.character(x$tipo_hallazgo) %in%
+            .TIPOS_HERMANOS_POR_LECTURA_DERIVA] <- NA_character_
+    fila <- if ("unidad_conteo" %in% names(x)) {
+      as.character(x$unidad_conteo) %in% "fila"
+    } else rep(FALSE, nrow(x))
+    nombres <- if (is.data.frame(perfil$columnas)) {
+      .clave_bytes(as.character(perfil$columnas$columna))
+    } else character()
+    repetidos <- nombres[duplicated(nombres)]
+    homonima <- !is.na(x$columna) & .clave_bytes(as.character(x$columna)) %in% repetidos
+    # La evidencia nombra la cuenta del hallazgo, con o sin separador de miles.
+    sin_miles <- .texto_o_vacio(x$evidencia)
+    for (i in 1:2) {
+      sin_miles <- gsub("([0-9])[.,]([0-9]{3})", "\\1\\2", sin_miles, useBytes = TRUE)
+    }
+    cuenta <- if ("n_afectados" %in% names(x)) {
+      suppressWarnings(as.numeric(x$n_afectados))
+    } else rep(NA_real_, nrow(x))
+    coherente <- vapply(seq_len(nrow(x)), function(i) {
+      isTRUE(is.finite(cuenta[[i]])) && cuenta[[i]] %in% suppressWarnings(
+        as.numeric(regmatches(
+          sin_miles[[i]], gregexpr("[0-9]+", sin_miles[[i]], useBytes = TRUE)
+        )[[1L]])
+      )
+    }, logical(1L))
+    list(llave = llave, lectura = .lectura_hallazgo_deriva(x$evidencia),
+         causa = sub("; fuente: .*$", "", .texto_o_vacio(x$evidencia), useBytes = TRUE),
+         ok = fila & !homonima & coherente)
+  }
+  a <- resumen(anterior)
+  b <- resumen(actual)
+  llaves <- unique(c(a$llave[duplicated(a$llave)], b$llave[duplicated(b$llave)]))
+  llaves <- llaves[!is.na(llaves)]
+  vale <- function(r, llave) {
+    i <- which(r$llave %in% llave)
+    if (!length(i) || !all(r$ok[i]) || anyDuplicated(r$lectura[i])) {
+      return(NULL)
+    }
+    stats::setNames(r$causa[i], r$lectura[i])
+  }
+  llaves[vapply(llaves, function(llave) {
+    x <- vale(a, llave)
+    y <- vale(b, llave)
+    if (is.null(x) || is.null(y)) return(FALSE)
+    comunes <- intersect(names(x), names(y))
+    length(comunes) > 0L &&
+      setequal(names(x), names(y)) && all(x[comunes] == y[comunes])
+  }, logical(1L))]
 }
 
 # Como se reparten en grupos de columnas iguales los nombres de un perfil: el
@@ -3858,11 +4027,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # bajando de 0,305 a 0 y el hallazgo "resuelto" con severidad `ok` -una mejora
   # que no ocurrio-, o en la otra direccion un deterioro con severidad `error`.
   # Se declara con su propia fila, igual que la politica gemela.
-  cadenas <- function(x) {
-    x <- x$meta$cadenas_ausencia
-    if (is.null(x) || !length(x)) return(character())
-    .sort_por_bytes(unique(as.character(x)))
-  }
+  cadenas <- function(x) .lista_declarada_deriva(x$meta$cadenas_ausencia)
   cadenas_a <- cadenas(anterior)
   cadenas_b <- cadenas(actual)
   if (!identical(cadenas_a, cadenas_b)) {
@@ -3966,11 +4131,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # `error` desde una aparicion. Con los mismos datos y la lista en una sola
   # corrida, los hallazgos `fecha_centinela` aparecerian o se resolverian sin
   # que cambie nada en la tabla; se declara con su propia fila.
-  fechas_centinela <- function(x) {
-    x <- x$meta$centinelas_fecha
-    if (is.null(x) || !length(x)) return(character())
-    .sort_por_bytes(unique(as.character(x)))
-  }
+  fechas_centinela <- function(x) .lista_declarada_deriva(x$meta$centinelas_fecha)
   fechas_a <- fechas_centinela(anterior)
   fechas_b <- fechas_centinela(actual)
   if (!identical(fechas_a, fechas_b)) {
@@ -4401,8 +4562,9 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     fecha_anterior, fecha_actual, columnas_tocadas,
     columnas_resolucion_distinta, columnas_faltantes_distintos,
     sin_deriva_global, umbral_cambio, umbral_error, agregar) {
-  hallazgos_a <- .resumir_hallazgos_deriva(anterior)
-  hallazgos_b <- .resumir_hallazgos_deriva(actual)
+  separar <- .hermanos_a_separar_deriva(anterior, actual)
+  hallazgos_a <- .resumir_hallazgos_deriva(anterior, separar)
+  hallazgos_b <- .resumir_hallazgos_deriva(actual, separar)
   nuevos <- setdiff(hallazgos_b$clave, hallazgos_a$clave)
   resueltos <- setdiff(hallazgos_a$clave, hallazgos_b$clave)
   nombres_actuales <- .nombres_para_operar(unique(mapa_b$original))

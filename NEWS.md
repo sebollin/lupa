@@ -624,6 +624,15 @@
 
 ## Comparar entregas
 
+- `comparar_perfiles()` compara por separado dos hallazgos del mismo tipo que
+  cuentan filas en una columna (un `valor_fuera_dominio` por filas y otro de
+  columna, o dos centinelas de fecha), cada uno con su par de la otra entrega, y
+  publica `conteo_hallazgo` cuando empeora o mejora; antes, con dos hallazgos del
+  mismo tipo en una columna, no publicaba ninguna cuenta. Solo los separa cuando
+  el emparejamiento no tiene duda en las dos entregas —la misma lectura, de filas
+  o de columna, el mismo límite o los mismos centinelas, una columna sin nombre
+  repetido y la misma configuración de ausencia, con las declaraciones
+  comparadas sin importar el orden—; si no, el grupo se compara como antes.
 - `comparar_perfiles()` mide la deriva de la distribución entre dos entregas,
   en filas que se filtran por `aspecto`: `deriva_media` (diferencia de medias
   estandarizada, con los cortes 0,2 y 0,8 de Cohen; una columna constante que
