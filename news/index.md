@@ -661,6 +661,41 @@
 
 ### Medir la calidad
 
+- **Cambia una cifra publicada.** En la pertenencia por valor —los
+  dominios de `ValoresPosiblesPorExtension` y de `Formato` con
+  diccionario, y los `valores_nulos` de `NoNulo`— `TRUE` es `1` y
+  `FALSE` es `0` entre un lógico y un número sin clase (entero, doble o
+  `integer64`), en las dos direcciones, como `%in%` de R base. Un
+  dominio lógico sobre una columna numérica cuenta sus `1`:
+  `c(1L, 0L, NA, 2L)` con `valores = TRUE` da 1 de 3 (antes 0 de 3), y
+  un `BOOLEAN`/`TINYINT(1)` de MySQL o MariaDB que el controlador lee
+  entero, con `1, 0, NULL`, da 1 de 2 en
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), en
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  —en el motor y por bloques— y en
+  [`conformidad_dbi()`](https://sebollin.github.io/lupa/reference/conformidad_dbi.md)
+  (antes 0 de 2 en R, y la regla no se medía en el motor). Un dominio
+  numérico sobre una columna lógica cuenta sus `TRUE`:
+  `c(TRUE, FALSE, NA, TRUE)` con `valores = 1L` da 2 de 3 (antes 0 de
+  3). Un lógico o un número con clase (`I(TRUE)`, `haven_labelled`,
+  `units`), el texto, los factores, las fechas y `difftime` no se
+  igualan: `"1"` no es `TRUE`. En el motor esas reglas se miden sobre
+  las columnas que el controlador lee como entero o doble; un `BIGINT`
+  que se lee como `integer64` sigue `no_medible` en el motor en
+  PostgreSQL, MariaDB y SQL Server (se mide en memoria y por bloques).
+  El sello de las reglas con un conjunto lógico, o numérico con un `0` o
+  un `1`, lleva la versión de la regla: por una vez, las mediciones
+  anteriores de esas reglas no se comparan con las nuevas (se publica
+  que cambió la definición), también cuando su cifra no cambió.
+
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md):
+  una columna que el controlador no lee con fidelidad tampoco se lee por
+  bloques: un `BIT` de MySQL leído con RMySQL llega como `0` aunque el
+  bit esté encendido, y una regla sobre sus valores queda `no_medible`
+  también con `estrategia_no_sql = "bloques"`.
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) sobre
+  una tabla leída así mide esos `0`.
+
 - `medir(..., detalle = "resumen")` devuelve una `medicion_resumen`: una
   fila por métrica y objeto, con numerador, denominador, no evaluados y
   su motivo, sin una fila por celda. Con 1.000.000 de filas y 20
@@ -832,6 +867,17 @@
 
 ### Comparar entregas
 
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  compara por separado dos hallazgos del mismo tipo que cuentan filas en
+  una columna (un `valor_fuera_dominio` por filas y otro de columna, o
+  dos centinelas de fecha), cada uno con su par de la otra entrega, y
+  publica `conteo_hallazgo` cuando empeora o mejora; antes, con dos
+  hallazgos del mismo tipo en una columna, no publicaba ninguna cuenta.
+  Solo los separa cuando el emparejamiento no tiene duda en las dos
+  entregas —la misma lectura, de filas o de columna, el mismo límite o
+  los mismos centinelas, una columna sin nombre repetido y la misma
+  configuración de ausencia, con las declaraciones comparadas sin
+  importar el orden—; si no, el grupo se compara como antes.
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
   mide la deriva de la distribución entre dos entregas, en filas que se
   filtran por `aspecto`: `deriva_media` (diferencia de medias
@@ -1032,34 +1078,79 @@
 
 ### Correcciones
 
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  en MySQL y MariaDB mide con un usuario que solo tiene `SELECT` sobre
+  la tabla: el contador de modificaciones que el motor puede negar
+  (`performance_schema` en MySQL, `INNODB_SYS_TABLESTATS` en MariaDB,
+  `sys.dm_db_index_operational_stats` en SQL Server) se lee en una
+  sentencia aparte, que el plan anuncia, y si el motor lo niega solo
+  baja `control_lecturas`, con el motivo. Antes, con ese usuario, cuatro
+  de cada cinco reglas quedaban `no_medible` en MySQL y MariaDB.
+
+- [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  registra en PostgreSQL, MySQL, MariaDB y SQL Server la tabla de cada
+  lectura (`attr(, "lecturas")$tabla`), como en SQLite y DuckDB, con su
+  servidor, su base, su esquema y su nombre: dos rótulos de la misma
+  tabla son una tabla, dos llamadas sobre la misma tabla unidas con
+  [`rbind()`](https://rdrr.io/r/base/cbind.html) ya no cierran si la
+  tabla cambió entre ellas, y el `control_lecturas` de
+  [`semaforo_calidad()`](https://sebollin.github.io/lupa/reference/semaforo_calidad.md)
+  deja de ser `desconocido` en esos motores. El servidor sale de lo que
+  la conexión declara, sin consultas: dos conexiones al mismo servidor
+  por rutas distintas (socket y TCP) se tratan como tablas distintas. Un
+  `DBI::Id(catalog = )` en MySQL y MariaDB, o
+  `DBI::Id(catalog = , schema = )` en SQL Server, se describe con su
+  base: sus tipos son los de esa tabla (antes, los de la homónima de la
+  base actual, y en SQL Server sin `rowversion` la medición abortaba).
+  En MariaDB, una tabla temporal que tapa a una permanente queda sin
+  identidad; MySQL no lista las temporales en su catálogo y la registra
+  como la permanente (documentado). Si la consulta de catálogo falla, el
+  motivo de `no_medible` dice el error del motor y no que la tabla no
+  está.
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
-  en SQLite, una columna sin tipo declarado (o `BLOB`) que guarda
-  valores de tipos distintos se lee de una sola forma, la misma en
-  cualquier orden de filas, con cualquier historial de la conexión y por
-  cualquier vía (`perfil_muestra`, `universo = "muestra_motor"`,
-  `bloque_filas` y `medir_dbi(estrategia_no_sql = "bloques")`). RSQLite
-  la tipaba por la primera fila que llegaba: un `'ND'` se leía como `0`,
-  un real como entero, y la cifra publicada cambiaba de una corrida a
-  otra. La mezcla se mide en el motor con una sentencia por tabla, que
-  el plan cuenta: la columna de solo números se lee como doble (con un
-  entero desde 2^53 sus magnitudes no se publican), la de números y
+  en SQLite, una columna que guarda valores de tipos distintos se lee de
+  una sola forma, la misma en cualquier orden de filas, con cualquier
+  historial de la conexión y por cualquier vía (`perfil_muestra`,
+  `universo = "muestra_motor"`, `bloque_filas` y
+  `medir_dbi(estrategia_no_sql = "bloques")`), tenga o no tipo
+  declarado. RSQLite la tipaba por la primera fila que llegaba: un
+  `'ND'` en una columna sin tipo, `INTEGER`, `NUMERIC` o `BOOLEAN`, o en
+  una generada, se leía como `0`, un real como entero, y la cifra
+  publicada cambiaba de una corrida a otra. La mezcla se mide en el
+  motor con una sentencia por tabla: la afinidad del tipo declarado se
+  decide por las reglas de SQLite (`ANY`, desconocida) y solo cuenta lo
+  que ella no resuelve (números con texto, números con BLOB, texto con
+  BLOB, o un entero que no entra en 32 bits junto a un real, que el
+  controlador leía como `integer64` truncando el real, o un
+  `-2147483648`, que R toma por faltante). La de solo números se lee
+  como doble (con un entero de más de 2^53 sus magnitudes no se
+  publican, y
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  declara `no_medible` sobre esa columna las reglas que comparan
+  valores, porque el doble no representa el entero), la de números y
   texto como texto, con cada número escrito por R a partir de su valor,
   y la que guarda algún `BLOB` como BLOB, sin cortar bytes.
   `resumen_tabla$cobertura` declara cada columna y su forma de lectura,
-  y `resumen_tabla$meta$lectura_tipo_mixto` la publica. Las columnas con
-  tipo declarado se leen como antes; las generadas, que el catálogo no
-  lista, también se miden.
+  y `resumen_tabla$meta$lectura_tipo_mixto` la publica, con su
+  `afinidad`. Las tablas de SQLite emiten una sentencia más (la
+  medición): quien fija `max_consultas` justo debe sumarla.
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  anuncia esa sentencia sin ejecutarla: el plan no lee filas (antes
+  recorría la tabla cuando había columnas sin tipo) y la corrida
+  concilia con él.
 
 - [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md):
-  en SQLite, una columna sin tipo declarado (o `BLOB`) que guarda
-  valores de tipos distintos se compara con la misma lectura única que
+  en SQLite, una columna que guarda valores de tipos distintos, tenga o
+  no tipo declarado, se compara con la misma lectura única que
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
   ningún texto se lee como `0` (un `'ND'` coincidía con el `0` de otra
   tabla según la primera fila que llegara) y un `BLOB` solo aparea con
   un `BLOB` de los mismos bytes. Se compara por valor, como entre
   columnas con tipo (`2.0` y `'2'` son el mismo valor), y
-  `cobertura_pares` lo declara, porque en una columna sin tipo declarado
-  el motor no iguala un REAL con un TEXT. Sus extremos no entran en la
+  `cobertura_pares` lo declara, porque en el motor un REAL y un TEXT de
+  una columna sin afinidad no son iguales. Sus extremos no entran en la
   poda por `rangos_disjuntos`. Solo la columna de enteros y reales con
   un entero que un doble no representa queda en `cobertura_podas`, con
   motivo `tipo_mixto`.

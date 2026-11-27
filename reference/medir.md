@@ -57,7 +57,11 @@ medir(
 
   **Segundo argumento.** Data frame para una sola entidad o lista con
   nombre de data frames para varias entidades. Es la tabla que se mide,
-  no un perfil ni un modelo.
+  no un perfil ni un modelo. `medir()` mide los valores como llegaron:
+  una columna `BIT` de MySQL leída con RMySQL llega en `0` aunque el bit
+  esté encendido
+  ([`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  no mide sus valores).
 
   Con una lista, tienen que estar las tablas de **todas** las entidades
   que el modelo mide; si falta alguna se rechaza antes de medir,
@@ -509,13 +513,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261126T142356.770392-8483-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261126T142356.770392-8483-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261126T142356.770392-8483-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261127T050656.202807-8292-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261127T050656.202807-8292-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261127T050656.202807-8292-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261126T142356.770392-8483 2026-11-26 14:23:56  NoNulo
-#> 2 medicion-20261126T142356.770392-8483 2026-11-26 14:23:56  NoNulo
-#> 3 medicion-20261126T142356.770392-8483 2026-11-26 14:23:56  NoNulo
+#> 1 medicion-20261127T050656.202807-8292 2026-11-27 05:06:56  NoNulo
+#> 2 medicion-20261127T050656.202807-8292 2026-11-27 05:06:56  NoNulo
+#> 3 medicion-20261127T050656.202807-8292 2026-11-27 05:06:56  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

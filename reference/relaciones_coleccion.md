@@ -189,13 +189,13 @@ de cadenas recortadas.
 Si una lectura conjunta falla en una fila, la colección aísla por
 descarte las columnas culpables y deja sus nombres en `cobertura_podas`
 con motivo `columna_lectura_fallida`; las columnas sanas conservan sus
-relaciones. En SQLite, la mezcla de tipos de cada columna leída sin tipo
-declarado (o `BLOB`, como en
-[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md))
+relaciones. En SQLite, la mezcla de tipos de cada columna leída, con o
+sin tipo declarado (como en
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)),
 se mide en el motor —una sentencia por tabla, con
 [`typeof()`](https://rdrr.io/r/base/typeof.html); una columna con tipo
-declarado se lee como siempre— y la columna se compara con la misma
-lectura única de
+declarado que guarda un solo tipo se lee como siempre— y la columna se
+compara con la misma lectura única de
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
 la de solo números, como doble; la de números y texto, como texto
 —ningún texto se lee como `0`, que es lo que hacía RSQLite según la
@@ -203,8 +203,8 @@ primera fila que llegaba—; y en un par con una columna que guarda algún
 `BLOB`, los dos lados se comparan con su clase de almacenamiento: un
 `BLOB` solo aparea con un `BLOB` de los mismos bytes. Fuera de eso se
 compara por valor, como entre columnas con tipo declarado: el real `2.0`
-y el texto `'2'` son el mismo valor, aunque el motor, en una columna sin
-tipo declarado, no iguala un REAL con un TEXT; el par lo dice en una
+y el texto `'2'` son el mismo valor, aunque el motor, sin una afinidad
+que los convierta, no iguala un REAL con un TEXT; el par lo dice en una
 fila de `cobertura_pares` (y no cuenta en `meta$pares_faltantes`). Sus
 extremos no entran en la poda por `rangos_disjuntos`: el `MAX` de una
 columna que guarda texto con números es un texto. Una columna de enteros

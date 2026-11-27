@@ -57,7 +57,13 @@ plan_medicion_dbi(
 
   Cómo resolver las métricas que no se compilan a SQL: `"no_medible"`
   (por omisión, no lee filas) o `"bloques"` (lee por bloques sólo las
-  columnas necesarias para las métricas separables por fila).
+  columnas necesarias para las métricas separables por fila). Una
+  columna que el controlador no lee con fidelidad no se lee por bloques:
+  un `BIT` de MySQL leído con RMySQL llega como `0` aunque el bit esté
+  encendido, y una regla sobre sus valores queda `no_medible` en las dos
+  vías. [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  sobre una tabla que el usuario leyó con RMySQL no puede saberlo: mide
+  esos `0`.
 
 - bloque_filas:
 
@@ -116,8 +122,9 @@ plan_medicion_dbi(
 Un `data.frame` de clase `plan_medicion_dbi` con una fila por métrica
 instanciada (`metrica_instanciada`, `metrica`, `entidad`, `atributos`,
 `via`, `motivo`, `columnas_bloque`) y atributos `motor` y `consultas`
-(`esquema`, `consolidadas`, `dedicadas`, `bloques`), y, cuando se pide,
-`compilacion`.
+(`esquema`, `consolidadas`, `dedicadas`, `bloques` y, donde el contador
+de modificaciones del motor se lee aparte, `contador`: dos por tabla),
+y, cuando se pide, `compilacion`.
 
 ## Details
 

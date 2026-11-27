@@ -1695,31 +1695,33 @@ valor que llega: un texto que llega después de un número se lee como <code>0</
 lea todo como texto. El resumen SQL ve los valores guardados —la moda puede
 ser el texto, y las métricas de magnitud quedan <code>no_disponible</code> porque el
 motor devolvió algo que no se lee como número—.
-Una columna <strong>sin tipo declarado</strong> (o <code>BLOB</code>) que guarda valores de tipos
-distintos se detecta en el motor —una sentencia por tabla cuenta con
-<code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los tipos de cada columna, y el plan la cuenta; corre siempre
-que la tabla tenga una columna sin tipo declarado o <code>BLOB</code> (también una
-generada sin tipo), mezcle o no— y se lee de una
-sola forma, la misma en cualquier orden y con <code>universo = "muestra_motor"</code>,
-<code>bloque_filas</code> y <code>medir_dbi(estrategia_no_sql = "bloques")</code>: si solo
-guarda números, como doble (si algún entero pasa de 2^53, que un doble no
-representa, sus cifras de magnitud no se publican, como en un entero
-ancho); si guarda números y texto, como texto —cada entero con sus
-dígitos, cada real escrito por R (<code>1</code>, <code>1.0</code> y <code>1e15</code> real valen lo mismo
-que el entero) y cada texto tal cual; un texto que se escribe igual que un
-número, <code>'2'</code> o <code>'Inf'</code>, cuenta como ese valor, y <code>'2.0'</code> no es <code>2</code>—, y
-se perfila como texto; si guarda algún <code>BLOB</code>, como BLOB, sin cortar
-bytes. <code>resumen_tabla$cobertura</code> declara cada columna, su forma de lectura
-y de dónde salen sus cifras, y <code>resumen_tabla$meta$lectura_tipo_mixto</code> la
-publica. El resumen SQL sigue sobre los valores guardados.
-En una columna <strong>con tipo declarado</strong> de afinidad numérica, <code>perfil_muestra</code>
-ve lo que entregó el controlador: <code>minimo = 0</code>, una moda <code>0</code> que nadie
-escribió. <code>perfilar_dbi()</code> no relee esa columna como texto: cuenta con
-<code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los valores guardados como texto o blob y declara
-cada divergencia con esa causa medida en <code>resumen_tabla$cobertura</code>,
-y dice que las cifras de magnitud de <code>perfil_muestra</code> para esa columna no
-describen lo guardado. Para perfilar los valores guardados, leer la columna
-como texto (<code>CAST(columna AS TEXT)</code> en una vista) o limpiarla en el origen.
+Una columna que guarda valores de tipos distintos se detecta en el
+motor —una sentencia por tabla cuenta con <code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los tipos de cada
+columna, y el plan la cuenta; corre siempre, mezcle o no la tabla, porque
+cualquier columna de SQLite puede guardar otro tipo— y se lee de una sola
+forma, la misma en cualquier orden y con <code>universo = "muestra_motor"</code>, <code>bloque_filas</code> y
+<code>medir_dbi(estrategia_no_sql = "bloques")</code>. Vale para la columna sin tipo
+declarado (o <code>BLOB</code>), y también para la que tiene tipo declarado y guarda
+texto que su afinidad no convierte —un <code>'ND'</code> en una columna <code>INTEGER</code> o
+<code>NUMERIC</code>, un <code>'si'</code> en una <code>BOOLEAN</code>, la rama de texto de una columna
+generada <code>INTEGER</code>— o un <code>BLOB</code>. La afinidad se decide por las reglas de
+SQLite sobre el tipo declarado, y lo que cuenta es lo que el motor guarda:
+una columna con tipo declarado que guarda un solo tipo se lee como
+siempre, y sus enteros y reales siguen entregándose como doble, salvo un
+entero que no entra en 32 bits junto a un real —el controlador truncaría
+el real—, que se lee como doble y se declara. Una columna <code>ANY</code> de una
+tabla <code>STRICT</code> se trata como sin tipo declarado. Una columna
+sin tipo declarado que guarda solo números se lee como doble (si algún
+entero pasa de 2^53, que un doble no representa, sus cifras de magnitud no
+se publican, como en un entero ancho); la que guarda números y texto, como
+texto —cada entero con sus dígitos, cada real escrito por R (<code>1</code>, <code>1.0</code> y
+<code>1e15</code> real valen lo mismo que el entero) y cada texto tal cual; un texto
+que se escribe igual que un número, <code>'2'</code> o <code>'Inf'</code>, cuenta como ese
+valor, y <code>'2.0'</code> no es <code>2</code>—, y se perfila como texto; la que guarda algún
+<code>BLOB</code>, como BLOB, sin cortar bytes. <code>resumen_tabla$cobertura</code> declara cada
+columna, su forma de lectura y de dónde salen sus cifras, y
+<code>resumen_tabla$meta$lectura_tipo_mixto</code> la publica, con la afinidad de la
+columna. El resumen SQL sigue sobre los valores guardados.
 <strong>Limitación conocida:</strong> un texto que R sí lee como número —<code>'0x10'</code>,
 hexadecimal, que <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric()</a></code> lee 16— pasa la sonda de magnitud como un
 número, y el resumen SQL publica <code>maximo = 16</code> sobre una columna <code>NUMERIC</code>

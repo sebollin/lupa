@@ -74,7 +74,7 @@ completo
 #> (COUNT(*)); no descarta cambios fuera de esos controles).
 #> Duplicados exactos: 0 excedente(s) (calculado).
 #> Métricas: calculado 45, no_aplica 15
-#> Consultas emitidas: 22 (dialecto limit)
+#> Consultas emitidas: 23 (dialecto limit)
 #> Derrame estimado: no se pudo estimar (No se pudo estimar el derrame: la conexión no fue
 #> reconocida como PostgreSQL y no hay un `pg_stats` portable.).
 #> Derrame: no disponible (El controlador no fue reconocido como PostgreSQL; no se puede
@@ -592,7 +592,7 @@ compilacion <- attr(plan, "compilacion")
 table(compilacion$estado)
 #> 
 #> candidata_rechazada           compilada       no_verificada 
-#>                   1                  11                  10
+#>                   1                  11                  11
 unique(compilacion$metodo[compilacion$estado == "compilada"])
 #> [1] "EXPLAIN QUERY PLAN"
 ```

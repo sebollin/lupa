@@ -69,16 +69,18 @@ comparó el número de filas, que no ve un `UPDATE` que no lo cambia) o
 `desconocido`: no se puede saber qué lecturas respaldan la cifra. Tiene
 cuatro causas. El resumen no conserva `id_medicion`, `entidad` o
 `entidad_referida`. El motor no resolvió la tabla de alguna lectura: en
-SQLite y DuckDB se resuelve, en los demás motores todavía no, y tampoco
-la trae un resumen medido antes de que las lecturas registraran su
-tabla. El nombre de la entidad da más de una tabla en las partes unidas:
-una parte la leyó en memoria y otra en el motor, o dos partes leyeron
-bases distintas adjuntas con el mismo alias. O un referencial en R
-comparte su nombre con otro de las mismas filas y otros datos,
-respaldado de otra forma, o con una tabla de otra parte que no tiene sus
-mismos datos. Una celda con color y control `limitado` o `desconocido`
-lo dice también la impresión. Atributos: `cortes`, `niveles`,
-`comparacion`, `conteo_niveles`, `cortes_sin_celdas`,
+SQLite, DuckDB, PostgreSQL, MySQL, MariaDB y SQL Server se resuelve con
+el catálogo del motor, salvo una tabla que ese catálogo no encuentra (en
+SQL Server, un nombre con un punto adentro); en otros motores no se
+resuelve, y tampoco la trae un resumen medido antes de que las lecturas
+registraran su tabla. El nombre de la entidad da más de una tabla en las
+partes unidas: una parte la leyó en memoria y otra en el motor, o dos
+partes leyeron bases distintas adjuntas con el mismo alias. O un
+referencial en R comparte su nombre con otro de las mismas filas y otros
+datos, respaldado de otra forma, o con una tabla de otra parte que no
+tiene sus mismos datos. Una celda con color y control `limitado` o
+`desconocido` lo dice también la impresión. Atributos: `cortes`,
+`niveles`, `comparacion`, `conteo_niveles`, `cortes_sin_celdas`,
 `fuera_del_semaforo` y los del tablero.
 
 ## Details

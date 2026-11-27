@@ -1356,10 +1356,10 @@ plan:</p>
 <span>  distintos_4 <span class="op">=</span> <span class="fu">consultas_por_lote</span><span class="op">(</span>tamano_lote_distintos <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;             planos distintos total</span></span>
-<span><span class="co">#&gt; planos_1         4         2    26</span></span>
-<span><span class="co">#&gt; por_omision      1         2    23</span></span>
-<span><span class="co">#&gt; distintos_1      1         4    25</span></span>
-<span><span class="co">#&gt; distintos_4      1         1    22</span></span></code></pre></div>
+<span><span class="co">#&gt; planos_1         4         2    27</span></span>
+<span><span class="co">#&gt; por_omision      1         2    24</span></span>
+<span><span class="co">#&gt; distintos_1      1         4    26</span></span>
+<span><span class="co">#&gt; distintos_4      1         1    23</span></span></code></pre></div>
 <p>El valor de <code>tamano_lote_distintos</code> es un supuesto del
 código, anotado junto a la constante (<code>R/perfilar-dbi.R</code>). En
 PostgreSQL, la lectura de la tabla es la misma con cualquier lote. El
@@ -1473,8 +1473,8 @@ consultas. La tabla que sigue tiene 200 filas y 158 columnas:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">por_politica</span></span>
 <span><span class="co">#&gt;            todas por_cardinalidad </span></span>
-<span><span class="co">#&gt;              336              258</span></span></code></pre></div>
-<p>Con <code>"por_cardinalidad"</code>, la corrida ahorró 78 de 336
+<span><span class="co">#&gt;              337              259</span></span></code></pre></div>
+<p>Con <code>"por_cardinalidad"</code>, la corrida ahorró 78 de 337
 consultas, todas de moda.</p>
 <p>Las fuentes estructurales se resuelven siempre que la política
 necesita la cardinalidad, aunque <code>estrategia_distintos</code> esté
@@ -1524,9 +1524,9 @@ alcance. No escanea datos para decidir el costo.</p>
 <tbody>
 <tr class="odd">
 <td align="left">portones (esquema y sondas)</td>
-<td align="right">4</td>
+<td align="right">5</td>
 <td align="left">una vez</td>
-<td align="right">4</td>
+<td align="right">5</td>
 </tr>
 <tr class="even">
 <td align="left">capacidad de dialecto (formas candidatas)</td>
@@ -1607,18 +1607,18 @@ final)</td>
 <p>El costo es un <strong>rango</strong>:</p>
 <ul>
 <li>
-<code>attr(plan, "total")</code> (23 aquí) cuenta las consultas si
+<code>attr(plan, "total")</code> (24 aquí) cuenta las consultas si
 ningún lote se rechaza. Con
 <code>politica_costo = "por_cardinalidad"</code>, supone que se omite la
 moda cuya cardinalidad no se conoce.</li>
 <li>
-<code>attr(plan, "total_maximo")</code> (36) suma el camino que
+<code>attr(plan, "total_maximo")</code> (37) suma el camino que
 ejecuta esa moda y las sondas de bisección, si el motor rechazara todos
 los lotes. Son hasta <code>2n − 1</code> por lote de <code>n</code>
 columnas. <code>total_lotes_rechazados</code> publica el mismo
 número.</li>
 </ul>
-<p>La corrida por omisión del ejemplo emitió 23.</p>
+<p>La corrida por omisión del ejemplo emitió 24.</p>
 <p>El rango vale cuando el muestreo se puede construir. Si
 <code>universo = "muestra_motor"</code> y la forma no se puede
 construir, <code>attr(plan, "muestreo")</code> lo declara y el plan
@@ -1651,8 +1651,8 @@ columnas, todas de texto:</p>
 <span>  solo_texto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"ancha_texto"</span><span class="op">)</span>, <span class="st">"total"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                   ancha ancha_recorren_la_tabla              solo_texto </span></span>
-<span><span class="co">#&gt;                     338                     327                     257</span></span></code></pre></div>
-<p>De las 338 consultas de la tabla ancha, 327 escanean, ordenan o
+<span><span class="co">#&gt;                     339                     327                     258</span></span></code></pre></div>
+<p>De las 339 consultas de la tabla ancha, 327 escanean, ordenan o
 agrupan la tabla entera. Las columnas de texto cuestan menos, sobre todo
 porque la mediana —que ordena la tabla— se pide sólo sobre columnas
 numéricas. <code>muestra</code> no acota nada de eso: acota lo que se

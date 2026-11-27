@@ -127,7 +127,12 @@ columna, igual que en <code><a href="medir.html">medir()</a></code>.</p></dd>
 <dt id="arg-estrategia-no-sql">estrategia_no_sql<a class="anchor" aria-label="anchor" href="#arg-estrategia-no-sql"></a></dt>
 <dd><p>Cómo resolver las métricas que no se compilan a SQL:
 <code>"no_medible"</code> (por omisión, no lee filas) o <code>"bloques"</code> (lee por bloques
-sólo las columnas necesarias para las métricas separables por fila).</p></dd>
+sólo las columnas necesarias para las métricas separables por fila). Una
+columna que el controlador no lee con fidelidad no se lee por bloques: un
+<code>BIT</code> de MySQL leído con RMySQL llega como <code>0</code> aunque el bit esté
+encendido, y una regla sobre sus valores queda <code>no_medible</code> en las dos
+vías. <code><a href="medir.html">medir()</a></code> sobre una tabla que el usuario leyó con RMySQL no puede
+saberlo: mide esos <code>0</code>.</p></dd>
 
 
 <dt id="arg-bloque-filas">bloque_filas<a class="anchor" aria-label="anchor" href="#arg-bloque-filas"></a></dt>
@@ -184,8 +189,9 @@ sentencia en <code>attr(plan, "compilacion")</code>. Ver la sección Compilació
     <p>Un <code>data.frame</code> de clase <code>plan_medicion_dbi</code> con una fila por
 métrica instanciada (<code>metrica_instanciada</code>, <code>metrica</code>, <code>entidad</code>,
 <code>atributos</code>, <code>via</code>, <code>motivo</code>, <code>columnas_bloque</code>) y atributos <code>motor</code> y
-<code>consultas</code> (<code>esquema</code>, <code>consolidadas</code>, <code>dedicadas</code>, <code>bloques</code>), y, cuando
-se pide, <code>compilacion</code>.</p>
+<code>consultas</code> (<code>esquema</code>, <code>consolidadas</code>, <code>dedicadas</code>, <code>bloques</code> y, donde el
+contador de modificaciones del motor se lee aparte, <code>contador</code>: dos por
+tabla), y, cuando se pide, <code>compilacion</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
