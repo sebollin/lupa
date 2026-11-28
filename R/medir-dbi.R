@@ -780,6 +780,14 @@
   colacion_binaria <- stats::setNames(rep(NA, length(campos)), campos)
   colacion_no_pad <- stats::setNames(rep(NA, length(campos)), campos)
   colacion_bin2 <- stats::setNames(rep(NA, length(campos)), campos)
+  # Las columnas que llegan enmascaradas a esta credencial (SQL Server): el
+  # motor devuelve la mascara y no el dato, y una lectura por bloques mediria la
+  # mascara.
+  enmascaradas <- character()
+  # El catalogo no permite saber si alguna llega enmascarada (una vista cuyo
+  # origen no se ve, un sinonimo, `DENY VIEW DEFINITION`): se lee como siempre y
+  # `medir_dbi()` lo declara, una vez por tabla.
+  mascara_sin_comprobar <- FALSE
   crear <- NA_character_
   # En los servidores, los controladores citan `DBI::Id(catalog = "b", table =
   # "t")` como dos partes, `b.t`, y el motor lee `t` del esquema `b` (en MySQL y
@@ -1160,6 +1168,7 @@
       resuelta <- paste0(
         "c.object_id = OBJECT_ID(", objeto, ") AND PARSENAME(", objeto, ", 4) IS NULL"
       )
+      base_unmask <- paste0("N", as.character(DBI::dbQuoteString(conexion, catalogo_cat)))
       identidad_ss <- paste0(
         "DB_NAME(", base_id, ") AS lupa_base, ",
         "CASE WHEN ", resuelta, " THEN OBJECT_SCHEMA_NAME(c.object_id, ", base_id,
@@ -1168,6 +1177,7 @@
       )
     } else {
       vistas <- ""
+      base_unmask <- "NULL"
       resuelta <- paste0(
         "c.object_id = OBJECT_ID(", objeto, ") AND ",
         .misma_base_sqlserver_dbi(objeto)
@@ -1179,10 +1189,21 @@
         " THEN OBJECT_NAME(c.object_id) END AS lupa_tabla, "
       )
     }
-    sql_ss <- if (!is.na(esquema_cat)) {
+    # Una columna enmascarada (`is_masked`, SQL Server 2016+) lee la mascara
+    # salvo que la credencial tenga `UNMASK` sobre la columna (2022) o la base:
+    # la misma decision que toma `.permisos_columnas_dbi()`. Va en la consulta
+    # de catalogo que ya se hace; un servidor sin la columna la repite sin ella.
+    mascara_ss <- function(con_mascara) if (con_mascara) paste0(
+      ", CASE WHEN c.is_masked = 1 AND ",
+      .sql_sin_unmask_sqlserver_dbi(objeto, "QUOTENAME(c.name)", base_unmask),
+      " = 0 THEN 1 ELSE 0 END AS lupa_enmascarada, ",
+      "(SELECT o2.type FROM ", vistas, "sys.objects o2 WHERE o2.object_id = ",
+      "c.object_id) AS lupa_tipo_objeto "
+    ) else " "
+    sql_ss_con <- function(con_mascara) if (!is.na(esquema_cat)) {
       paste0(
         "SELECT ", identidad_ss, "c.name AS column_name, t.name AS data_type, ",
-        "c.collation_name, c.precision, c.scale ",
+        "c.collation_name, c.precision, c.scale", mascara_ss(con_mascara),
         "FROM ", vistas, "sys.columns c ",
         "JOIN ", vistas, "sys.objects o ON o.object_id = c.object_id ",
         "JOIN ", vistas, "sys.schemas s ON s.schema_id = o.schema_id ",
@@ -1194,7 +1215,7 @@
     } else {
       paste0(
         "SELECT ", identidad_ss, "c.name AS column_name, t.name AS data_type, ",
-        "c.collation_name, c.precision, c.scale ",
+        "c.collation_name, c.precision, c.scale", mascara_ss(con_mascara),
         "FROM sys.columns c ",
         "JOIN sys.types t ON t.user_type_id = c.user_type_id ",
         "WHERE c.object_id = OBJECT_ID(",
@@ -1202,10 +1223,44 @@
         ") ORDER BY c.column_id"
       )
     }
-    info <- consultar(sql_ss)
+    info <- tryCatch(
+      consultar(sql_ss_con(TRUE)),
+      lupa_catalogo_medicion_dbi = function(e) NULL
+    )
     n_consultas <- n_consultas + 1L
+    if (is.null(info)) {
+      info <- consultar(sql_ss_con(FALSE))
+      n_consultas <- n_consultas + 1L
+    }
+    # El catalogo no describe la tabla que se lee (`DENY VIEW DEFINITION`, un
+    # sinonimo): no se sabe si una columna llega enmascarada. Se lee como siempre
+    # y se declara, salvo que la credencial lea el dato de todas las columnas. Una
+    # tabla temporal vive en `tempdb`, fuera de este catalogo, y se lee como
+    # siempre sin declarar.
+    if (is.data.frame(info) && !nrow(info) && !startsWith(nombre_cat, "#") &&
+        !.unmask_total_sqlserver_dbi(conexion, q, campos, catalogo = catalogo_cat)) {
+      mascara_sin_comprobar <- TRUE
+    }
     if (is.data.frame(info) && nrow(info)) {
       names(info) <- .minusculas_ascii(names(info))
+      # Una vista no lleva la marca de la mascara: se busca en su origen.
+      if ("lupa_tipo_objeto" %in% names(info) &&
+          any(trimws(as.character(info$lupa_tipo_objeto)) == "V")) {
+        origen <- tryCatch(
+          consultar(.sql_origen_vista_sqlserver_dbi(
+            conexion, q, vistas,
+            if (!is.na(catalogo_cat)) base_unmask else "DB_NAME()", base_unmask
+          )),
+          lupa_catalogo_medicion_dbi = function(e) NULL
+        )
+        n_consultas <- n_consultas + 1L
+        if (is.data.frame(origen)) names(origen) <- .minusculas_ascii(names(origen))
+        dudosas <- .columnas_vista_sin_comprobar_dbi(
+          origen, as.character(info$column_name)
+        )
+        enmascaradas <- c(enmascaradas, dudosas$enmascaradas)
+        if (length(dudosas$sin_comprobar)) mascara_sin_comprobar <- TRUE
+      }
       for (i in seq_len(nrow(info))) {
         col_i <- as.character(info$column_name[[i]])
         idx <- match(.minusculas_ascii(col_i), .minusculas_ascii(campos))
@@ -1218,6 +1273,10 @@
                   as.integer(info$precision[[i]]), as.integer(info$scale[[i]]))
         } else {
           .mayusculas_ascii(tp_base)
+        }
+        if ("lupa_enmascarada" %in% names(info) &&
+            isTRUE(as.logical(info$lupa_enmascarada[[i]]))) {
+          enmascaradas <- c(enmascaradas, col_real)
         }
         cn <- as.character(info$collation_name[[i]])
         if (!is.na(cn) && nzchar(cn)) {
@@ -1244,6 +1303,8 @@
     colacion_binaria = colacion_binaria,
     colacion_no_pad = colacion_no_pad,
     colacion_bin2 = colacion_bin2,
+    enmascaradas = enmascaradas,
+    mascara_sin_comprobar = mascara_sin_comprobar,
     sesion = sesion,
     n_campos = length(campos),
     prototipo = .normalizar_columnas_texto(proto),
@@ -3210,7 +3271,10 @@
                                        motor = motor)) {
         c(base, list(via = "bloques_r", motivo = motivo, columnas_bloque = cols_bloq))
       } else {
-        c(base, list(via = "no_medible", motivo = motivo))
+        c(base, list(via = "no_medible", motivo = .motivo_con_mascara_dbi(
+          motivo, estrategia_no_sql, instancia, spec, cols_bloq,
+          esquemas[[instancia$entidad[[1L]]]]
+        )))
       }
     }
     if (.es_metrica_referencial_dbi(instancia)) {
@@ -3780,10 +3844,39 @@
     columnas_bloque, function(cn) !is.null(.motivo_lectura_infiel_dbi(esq, cn, motor)),
     logical(1L)
   ))
+  # Una columna enmascarada se leeria como la mascara (`xxxx`): tampoco se
+  # mide por bloques. Las cuentas del motor no dependen de la mascara.
+  enmascarada <- length(.columnas_enmascaradas_bloque_dbi(esq, columnas_bloque)) > 0L
   identical(estrategia_no_sql, "bloques") &&
     .separable_medicion_dbi(instancia, spec) &&
     length(instancia$entidad) == 1L &&
-    length(columnas_bloque) > 0L && !infiel
+    length(columnas_bloque) > 0L && !infiel && !enmascarada
+}
+
+# Por que una regla pedida por bloques no se midio: si es por una columna
+# enmascarada, el motivo lo dice (la lectura habria medido la mascara).
+.motivo_con_mascara_dbi <- function(motivo, estrategia_no_sql, instancia, spec,
+                                    columnas_bloque, esq) {
+  if (!identical(estrategia_no_sql, "bloques") ||
+      !.separable_medicion_dbi(instancia, spec)) {
+    return(motivo)
+  }
+  enmascaradas <- .columnas_enmascaradas_bloque_dbi(esq, columnas_bloque)
+  if (!length(enmascaradas)) return(motivo)
+  paste0(
+    motivo, "; no se lee por bloques porque ",
+    if (length(enmascaradas) == 1L) "la columna " else "las columnas ",
+    paste0("`", enmascaradas, "`", collapse = ", "),
+    if (length(enmascaradas) == 1L) " llega enmascarada" else " llegan enmascaradas",
+    " para esta credencial (enmascaramiento din\u00e1mico de SQL Server) y se ",
+    "medir\u00eda la m\u00e1scara, no el dato; con permiso `UNMASK` se mide"
+  )
+}
+
+# Las columnas de `columnas_bloque` que la credencial lee enmascaradas.
+.columnas_enmascaradas_bloque_dbi <- function(esq, columnas_bloque) {
+  if (is.null(esq) || !length(esq$enmascaradas)) return(character())
+  columnas_bloque[columnas_bloque %in% esq$enmascaradas]
 }
 
 # Filas del universo con NULL en alguna columna de la regla. Sin el conteo, se
@@ -4385,6 +4478,15 @@ print.plan_medicion_dbi <- function(x, ...) {
 #' indica `estrategia_no_sql = "bloques"`, se mide en R proyectando sólo sus
 #' columnas y leyendo por bloques.
 #'
+#' En SQL Server, una columna con enmascaramiento dinámico (`MASKED WITH`) que la
+#' credencial lee enmascarada: las reglas que traduce el motor miden el dato real
+#' —la máscara se aplica sólo a lo que el motor devuelve, no a lo que cuenta—;
+#' las que se leen por bloques no se miden, porque R leería la máscara
+#' (`no_medible`, con el motivo). Si el catálogo no permite saber si las columnas
+#' de la tabla dependen de una columna enmascarada (una vista cuyo origen no se
+#' ve, un sinónimo, `DENY VIEW DEFINITION`), se mide como siempre y se declara en
+#' `attr(resultado, "mascara_sin_comprobar")` y con un aviso.
+#'
 #' En la medición en memoria, `aplicable` y `aplicabilidad` conservan la
 #' evaluación publicada de [medir()]; el resumen resuelve cada
 #' `aplicabilidad` una sola vez, igual que la medición completa. En la vía DBI,
@@ -4849,7 +4951,12 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
         pendientes_bloques[[length(pendientes_bloques) + 1L]] <- x
         next
       }
-      cob(.no_medible_dbi(instancia, id_medicion, fecha, motivo_g, en_base = TRUE))
+      cob(.no_medible_dbi(
+        instancia, id_medicion, fecha,
+        .motivo_con_mascara_dbi(motivo_g, estrategia_no_sql, instancia, x$spec,
+                                x$columnas_bloque, p$esquemas[[x$entidad]]),
+        en_base = TRUE
+      ))
       next
     }
     if (!is.null(abstencion)) {
@@ -5011,6 +5118,26 @@ medir_dbi <- function(modelo, conexion, tablas = NULL,
     orden_texto, .lector_esquemas(p$esquemas)
   )
   attr(resultado, "detalle") <- "resumen"
+  # Una tabla cuyo catalogo no dice si alguna columna llega enmascarada se midio
+  # como siempre: se declara, una vez por tabla.
+  mascara_dudosa <- names(Filter(
+    function(e) isTRUE(e$mascara_sin_comprobar), p$esquemas
+  ))
+  if (length(mascara_dudosa) && nrow(resultado)) {
+    attr(resultado, "mascara_sin_comprobar") <- data.frame(
+      entidad = mascara_dudosa,
+      motivo = .motivo_permisos_sin_consultar_dbi("origen"),
+      stringsAsFactors = FALSE
+    )
+    .avisar(
+      "No se pudo comprobar en el cat\u00e1logo si las columnas de ",
+      paste0("`", mascara_dudosa, "`", collapse = ", "),
+      " dependen de una columna enmascarada para esta credencial; se midi\u00f3 ",
+      "como siempre, y si dependen, sus cifras pueden ser las de la ",
+      "m\u00e1scara. El detalle est\u00e1 en `attr(medicion, \"mascara_sin_comprobar\")`.",
+      call. = FALSE
+    )
+  }
   if (!isTRUE(proteger_datos_personales) && nrow(resultado)) {
     personales <- .columnas_personales_esquemas_dbi(
       p$esquemas, columnas_personales, validadores_personales

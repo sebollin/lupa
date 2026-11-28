@@ -290,7 +290,160 @@
   )
 }
 
-.permisos_columnas_dbi <- function(conexion, tabla_sql, presupuesto = NULL) {
+# La base de una tabla de SQL Server que no es la de la sesion: un `DBI::Id` con
+# `catalog` y `schema` (`b.dbo.t`) nombra una tabla de OTRA base, y sus
+# columnas, sus permisos y sus mascaras estan en las vistas de catalogo de esa
+# base (`b.sys.columns`), no en las de la sesion. `NA` si no lo es, o si la base
+# del `Id` es la actual: ahi rige la consulta de siempre.
+.otra_base_sqlserver_dbi <- function(conexion, tabla) {
+  if (!inherits(tabla, "Id") ||
+      !all(c("catalog", "schema") %in% names(tabla@name)) ||
+      !identical(.motor_permisos_columnas_dbi(conexion), "sqlserver")) {
+    return(NA_character_)
+  }
+  catalogo <- as.character(tabla@name[["catalog"]])
+  if (length(catalogo) != 1L || is.na(catalogo) || !nzchar(catalogo)) {
+    return(NA_character_)
+  }
+  actual <- tryCatch(
+    as.character(.dbi("dbGetInfo", conexion, DBI::dbGetInfo(conexion))$dbname),
+    error = function(e) NA_character_
+  )
+  if (length(actual) == 1L && !is.na(actual) &&
+      identical(.minusculas_ascii(actual), .minusculas_ascii(catalogo))) {
+    return(NA_character_)
+  }
+  catalogo
+}
+
+# Si la credencial lee el dato de una columna enmascarada (1) o la mascara (0).
+# Manda la respuesta por columna, que ya compone el permiso de la base, el del
+# esquema y los `DENY`; solo si no contesta (`NULL`: versiones sin `UNMASK` por
+# columna) se cae al permiso de la base. No es `columna OR base`: un `GRANT` de
+# base no puede tapar un `DENY` de columna.
+.sql_sin_unmask_sqlserver_dbi <- function(objeto, columna_sql, base_unmask,
+                                          por_columna = TRUE) {
+  paste0(
+    "COALESCE(",
+    if (por_columna) paste0(
+      "HAS_PERMS_BY_NAME(", objeto, ", 'OBJECT', 'UNMASK', ", columna_sql,
+      ", 'COLUMN'), "
+    ) else "",
+    "HAS_PERMS_BY_NAME(", base_unmask, ", 'DATABASE', 'UNMASK'), 0)"
+  )
+}
+
+# De donde sale cada columna de una vista de SQL Server. El catalogo de la vista
+# no lleva la marca de la mascara, que vive en la tabla de origen: la describe
+# `sys.dm_exec_describe_first_result_set()` (con `SELECT` sobre la vista alcanza)
+# y la marca se busca en el catalogo del origen. `visible` es 0 cuando el origen
+# no se resuelve o su catalogo no se ve: no se sabe si esta enmascarado.
+.sql_origen_vista_sqlserver_dbi <- function(conexion, tabla_sql, vistas,
+                                            base_nombre, base_unmask) {
+  consulta <- as.character(DBI::dbQuoteString(
+    conexion, paste0("SELECT * FROM ", tabla_sql)
+  ))
+  paste0(
+    "SELECT d.name AS columna, d.system_type_name AS tipo, ",
+    "CASE WHEN sc.column_id IS NULL OR NOT (d.source_database IS NULL OR ",
+    "d.source_database = ", base_nombre, ") THEN 0 ELSE 1 END AS visible, ",
+    "CASE WHEN sc.is_masked = 1 AND ",
+    .sql_sin_unmask_sqlserver_dbi(
+      paste0("(QUOTENAME(", base_nombre, ") + '.' + QUOTENAME(ss.name) + '.' + ",
+             "QUOTENAME(so.name))"),
+      "QUOTENAME(sc.name)", base_unmask
+    ),
+    " = 0 THEN 1 ELSE 0 END AS enmascarada ",
+    "FROM sys.dm_exec_describe_first_result_set(N", consulta, ", NULL, 1) d ",
+    "LEFT JOIN ", vistas, "sys.schemas ss ON ss.name = d.source_schema ",
+    "LEFT JOIN ", vistas, "sys.objects so ON so.schema_id = ss.schema_id ",
+    "AND so.name = d.source_table AND so.type = 'U' ",
+    "LEFT JOIN ", vistas, "sys.columns sc ON sc.object_id = so.object_id ",
+    "AND sc.name = d.source_column WHERE d.is_hidden = 0"
+  )
+}
+# Las columnas de una vista cuya mascara se sabe y las que no se pueden
+# comprobar. `origen` es la respuesta de `.sql_origen_vista_sqlserver_dbi()`
+# (`NULL` si no contesto); `columnas`, las de la vista. `enmascaradas`: el origen
+# lo esta y la credencial no tiene `UNMASK` sobre el. `sin_comprobar`: el origen
+# no se resuelve o su catalogo no se ve, de cualquier tipo (`default()` y
+# `random()` tambien enmascaran numeros y fechas): se lee como siempre y la
+# cobertura lo declara.
+.columnas_vista_sin_comprobar_dbi <- function(origen, columnas) {
+  enmascaradas <- character()
+  sin_comprobar <- character()
+  for (k in seq_along(columnas)) {
+    fila <- if (is.data.frame(origen) && nrow(origen)) {
+      origen[.minusculas_ascii(as.character(origen$columna)) ==
+               .minusculas_ascii(columnas[[k]]), , drop = FALSE]
+    } else NULL
+    if (!is.null(fila) && nrow(fila) &&
+        isTRUE(as.logical(as.numeric(fila$enmascarada[[1L]])))) {
+      enmascaradas <- c(enmascaradas, columnas[[k]])
+    } else if (is.null(fila) || !nrow(fila) ||
+               !isTRUE(as.logical(as.numeric(fila$visible[[1L]])))) {
+      sin_comprobar <- c(sin_comprobar, columnas[[k]])
+    }
+  }
+  list(enmascaradas = enmascaradas, sin_comprobar = sin_comprobar)
+}
+
+# Si la credencial lee el dato de TODAS las columnas (el permiso efectivo por
+# columna es 1): entonces no hay mascara que comprobar aunque el catalogo no se
+# vea. Una sentencia, solo cuando el catalogo no contesto. `FALSE` si no se sabe.
+.unmask_total_sqlserver_dbi <- function(conexion, tabla_sql, columnas,
+                                        presupuesto = NULL,
+                                        catalogo = NA_character_) {
+  columnas <- as.character(columnas)
+  if (!length(columnas) || anyNA(columnas) || length(tabla_sql) != 1L ||
+      is.na(tabla_sql)) {
+    return(FALSE)
+  }
+  objeto <- tryCatch(
+    paste0("N", as.character(DBI::dbQuoteString(conexion, tabla_sql))),
+    error = function(e) NA_character_
+  )
+  if (is.na(objeto)) return(FALSE)
+  base_unmask <- if (is.na(catalogo)) "NULL" else
+    paste0("N", as.character(DBI::dbQuoteString(conexion, catalogo)))
+  # El nombre de la columna va por `QUOTENAME()`, como en el catalogo: crudo,
+  # `HAS_PERMS_BY_NAME()` no halla una columna con corchete, punto o comilla y
+  # contesta `NULL`.
+  nombres <- vapply(columnas, function(cn) {
+    paste0("QUOTENAME(N", as.character(DBI::dbQuoteString(conexion, cn)), ")")
+  }, character(1L))
+  sql <- paste0(
+    "SELECT ", paste0(
+      "HAS_PERMS_BY_NAME(", objeto, ", 'OBJECT', 'UNMASK', ", nombres,
+      ", 'COLUMN') AS c", seq_along(columnas), ", "
+    , collapse = ""),
+    "HAS_PERMS_BY_NAME(", base_unmask, ", 'DATABASE', 'UNMASK') AS base, ",
+    "CAST(SERVERPROPERTY('ProductMajorVersion') AS INT) AS version"
+  )
+  .contar_dbi(presupuesto)
+  r <- tryCatch(.traer_consulta_dbi(conexion, sql), error = function(e) {
+    .repropagar_transaccion_dbi(e)
+    NULL
+  })
+  if (!is.data.frame(r) || nrow(r) != 1L || ncol(r) != length(columnas) + 2L) {
+    return(FALSE)
+  }
+  por_columna <- suppressWarnings(as.numeric(unlist(r[seq_along(columnas)])))
+  base <- suppressWarnings(as.numeric(r[[length(columnas) + 1L]]))
+  version <- suppressWarnings(as.numeric(r[[length(columnas) + 2L]]))
+  # Una respuesta por columna manda. Que no conteste (`NULL`) solo se explica en
+  # una version sin `UNMASK` por columna (anterior a SQL Server 2022, 16): ahi
+  # vale el de la base. En una que si lo admite, `NULL` es "no se sabe".
+  if (anyNA(por_columna)) {
+    return(length(version) == 1L && !is.na(version) && version < 16 &&
+             length(base) == 1L && isTRUE(base == 1) &&
+             all(is.na(por_columna) | por_columna == 1))
+  }
+  all(por_columna == 1)
+}
+
+.permisos_columnas_dbi <- function(conexion, tabla_sql, presupuesto = NULL,
+                                   catalogo = NA_character_) {
   motor <- .motor_permisos_columnas_dbi(conexion)
   if (is.na(motor) || length(tabla_sql) != 1L || is.na(tabla_sql) ||
       !nzchar(tabla_sql)) {
@@ -357,7 +510,16 @@
       traer(sql), NULL, proyectar = TRUE, sql = sql
     ))
   }
+  # De otra base: las vistas de esa base, y la condicion de `misma_base` no
+  # corresponde (`OBJECT_ID()` de un nombre de tres partes da el id alli).
+  vistas <- ""
+  base_unmask <- "NULL"
   misma_base <- .misma_base_sqlserver_dbi(objeto)
+  if (!is.na(catalogo)) {
+    vistas <- paste0(as.character(DBI::dbQuoteIdentifier(conexion, catalogo)), ".")
+    base_unmask <- paste0("N", as.character(DBI::dbQuoteString(conexion, catalogo)))
+    misma_base <- paste0("PARSENAME(", objeto, ", 4) IS NULL")
+  }
   # Un decimal se publica con su precision y su escala, como lo hacen los
   # catalogos de PostgreSQL (`format_type()`), MySQL y MariaDB (`COLUMN_TYPE`).
   # `TYPE_NAME()` solo da `decimal`, y sin la escala la guarda del desvio no
@@ -374,28 +536,55 @@
       "TYPE_NAME(c.user_type_id)) END AS tipo_motor, ",
       "TYPE_NAME(c.user_type_id) AS tipo_declarado_motor, ",
     "o.type AS tipo_objeto, CASE WHEN c.is_nullable = 0 THEN 1 ELSE 0 END AS not_null ",
-    "FROM sys.columns c ",
-    "JOIN sys.objects o ON o.object_id = c.object_id WHERE c.object_id = OBJECT_ID(", objeto,
+    "FROM ", vistas, "sys.columns c ",
+    "JOIN ", vistas, "sys.objects o ON o.object_id = c.object_id WHERE c.object_id = OBJECT_ID(", objeto,
     ") AND ", misma_base, " ORDER BY c.column_id"
   )
   columnas <- traer(sql)
   mascaras <- NULL
+  sin_comprobar <- FALSE
   if (is.data.frame(columnas) && nrow(columnas)) {
     # `UNMASK` por columna existe desde SQL Server 2022; antes la permision es
     # de la base. `HAS_PERMS_BY_NAME()` da NULL para una permision que la clase
     # no tiene, y si la consulta falla se pide solo la de la base.
+    # El permiso efectivo de la columna ya incluye el de la base y los `DENY`:
+    # un `GRANT UNMASK` de base no tapa un `DENY` de columna o de esquema
+    # (`.sql_sin_unmask_sqlserver_dbi()`).
     sql_mascaras <- function(por_columna) paste0(
       "SELECT m.name AS columna, m.masking_function AS m\u00e1scara, ",
-      if (por_columna) paste0(
-        "COALESCE(HAS_PERMS_BY_NAME(", objeto,
-        ", 'OBJECT', 'UNMASK', QUOTENAME(m.name), 'COLUMN'), 0) AS sin_mascara_columna, "
-      ) else "0 AS sin_mascara_columna, ",
-      "COALESCE(HAS_PERMS_BY_NAME(NULL, 'DATABASE', 'UNMASK'), 0) ",
-      "AS sin_mascara_base FROM sys.masked_columns m WHERE m.object_id = ",
+      .sql_sin_unmask_sqlserver_dbi(objeto, "QUOTENAME(m.name)", base_unmask,
+                                    por_columna),
+      " AS sin_mascara_columna, 0 AS sin_mascara_base FROM ", vistas,
+      "sys.masked_columns m WHERE m.object_id = ",
       "OBJECT_ID(", objeto, ") AND m.is_masked = 1"
     )
     mascaras <- traer(sql_mascaras(TRUE))
     if (is.null(mascaras)) mascaras <- traer(sql_mascaras(FALSE))
+    # Una vista no lleva la marca de la mascara: se busca en su origen. Las que
+    # el origen dice enmascaradas se suman a las del catalogo; las que no se
+    # pueden comprobar se leen como siempre y se declaran (`origen_sin_comprobar`).
+    if (is.data.frame(mascaras) && "tipo_objeto" %in% names(columnas) &&
+        any(trimws(as.character(columnas$tipo_objeto)) == "V")) {
+      origen <- traer(.sql_origen_vista_sqlserver_dbi(
+        conexion, tabla_sql, vistas,
+        if (is.na(catalogo)) "DB_NAME()" else base_unmask, base_unmask
+      ))
+      dudosas <- .columnas_vista_sin_comprobar_dbi(
+        origen, as.character(columnas$columna)
+      )
+      sin_comprobar <- length(dudosas$sin_comprobar) > 0L
+      nuevas <- dudosas$enmascaradas[
+        !(dudosas$enmascaradas %in% as.character(mascaras$columna))
+      ]
+      if (length(nuevas)) {
+        fila <- data.frame(
+          columna = nuevas, mascara = NA_character_, sin_mascara_columna = 0L,
+          sin_mascara_base = 0L, stringsAsFactors = FALSE
+        )
+        names(fila)[[2L]] <- names(mascaras)[[2L]]
+        mascaras <- rbind(mascaras[names(fila)], fila)
+      }
+    }
   }
   salida <- .interpretar_permisos_columnas_dbi(
     columnas, mascaras, proyectar = TRUE, sql = sql
@@ -405,6 +594,9 @@
   # (ver `.columnas_tabla_dbi()`).
   if (!is.null(salida) && is.null(mascaras)) {
     attr(salida, "mascaras_sin_respuesta") <- TRUE
+  }
+  if (!is.null(salida) && isTRUE(sin_comprobar)) {
+    attr(salida, "origen_sin_comprobar") <- TRUE
   }
   salida
 }
@@ -596,8 +788,16 @@
       error = function(e) NA_character_
     )
   }
+  # El nombre de la base solo viaja cuando la tabla es de otra: para las demas
+  # la llamada es la de siempre.
+  otra_base <- if (isTRUE(catalogo)) .otra_base_sqlserver_dbi(conexion, tabla) else
+    NA_character_
   permisos <- if (isTRUE(catalogo)) tryCatch(
-    .permisos_columnas_dbi(conexion, tabla_sql, presupuesto),
+    if (is.na(otra_base)) {
+      .permisos_columnas_dbi(conexion, tabla_sql, presupuesto)
+    } else {
+      .permisos_columnas_dbi(conexion, tabla_sql, presupuesto, catalogo = otra_base)
+    },
     error = function(e) {
       .repropagar_transaccion_dbi(e)
       NULL
@@ -614,7 +814,17 @@
       "columnas"
     } else NA_character_
   )
-  if (is.null(permisos)) return(vacio)
+  # Sin catalogo no se sabe, salvo que la credencial lea el dato de todas las
+  # columnas (`UNMASK` efectivo): entonces no hay mascara que declarar.
+  if (is.null(permisos)) {
+    if (!is.na(vacio$permisos_sin_consultar) && length(listados) &&
+        identical(.motor_permisos_columnas_dbi(conexion), "sqlserver") &&
+        .unmask_total_sqlserver_dbi(conexion, tabla_sql, listados, presupuesto,
+                                    otra_base)) {
+      vacio$permisos_sin_consultar <- NA_character_
+    }
+    return(vacio)
+  }
   catalogo <- permisos$columna
   campos <- .reconciliar_campos_catalogo_dbi(listados, catalogo)
   posiciones <- .indice_nombre(campos, catalogo)
@@ -648,6 +858,8 @@
     error = if (length(campos)) NULL else error,
     permisos_sin_consultar = if (isTRUE(attr(permisos, "mascaras_sin_respuesta"))) {
       "mascaras"
+    } else if (isTRUE(attr(permisos, "origen_sin_comprobar"))) {
+      "origen"
     } else NA_character_
   )
 }
@@ -694,6 +906,14 @@
 # (`permisos_sin_consultar`, ver `.columnas_tabla_dbi()`), dicho igual en
 # `perfilar_dbi()`, `perfilar_coleccion()` y `relaciones_coleccion()`.
 .motivo_permisos_sin_consultar_dbi <- function(parte) {
+  if (identical(parte, "origen")) {
+    return(paste(
+      "No se pudo comprobar en el cat\u00e1logo del motor si las columnas de la",
+      "tabla (o de la vista) dependen de una columna enmascarada para esta",
+      "credencial, as\u00ed que se ley\u00f3 como siempre: si dependen, sus cifras",
+      "pueden ser las de la m\u00e1scara y no las del dato."
+    ))
+  }
   if (identical(parte, "mascaras")) {
     return(paste(
       "No se pudo consultar en el cat\u00e1logo del motor qu\u00e9 columnas de la",
@@ -21051,7 +21271,14 @@
         "dbListFields() no sirvio (", motivo,
         "); los nombres se leyeron con una consulta de cero filas."
       ),
-      permisos_sin_consultar = columnas$permisos_sin_consultar
+      permisos_sin_consultar = if (
+        !is.na(columnas$permisos_sin_consultar) &&
+          identical(.motor_permisos_columnas_dbi(conexion), "sqlserver") &&
+          .unmask_total_sqlserver_dbi(
+            conexion, tabla_sql, names(respaldo$datos), presupuesto,
+            .otra_base_sqlserver_dbi(conexion, tabla)
+          )
+      ) NA_character_ else columnas$permisos_sin_consultar
     ))
   }
   .detener_dbi("lupa_error_campos_dbi", paste0(
@@ -29333,8 +29560,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' y la conexión sigue. Y como entonces no se sabe qué columnas llegan
 #' enmascaradas, una fila `degradado` de `resumen_tabla$cobertura` sobre la tabla
 #' lo declara —también si sólo falló la consulta de `sys.masked_columns`—, y
-#' `resumen_tabla$meta$permisos_sin_consultar` dice qué parte no contestó (`"columnas"` o
-#' `"mascaras"`): una columna enmascarada de esa tabla se mide como si la
+#' `resumen_tabla$meta$permisos_sin_consultar` dice qué parte no contestó (`"columnas"`,
+#' `"mascaras"` u `"origen"`, el de una vista que no se pudo comprobar): una columna enmascarada de esa tabla se mide como si la
 #' máscara fuera el valor.
 #' Con enmascaramiento dinámico de SQL Server (`MASKED WITH`, 2016+) y una
 #' credencial sin `UNMASK` sobre la columna o la base, el motor devuelve la

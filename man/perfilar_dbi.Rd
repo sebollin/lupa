@@ -812,8 +812,8 @@ base, una tabla temporal— se intenta leer: el rechazo del motor se declara
 y la conexión sigue. Y como entonces no se sabe qué columnas llegan
 enmascaradas, una fila \code{degradado} de \code{resumen_tabla$cobertura} sobre la tabla
 lo declara —también si sólo falló la consulta de \code{sys.masked_columns}—, y
-\code{resumen_tabla$meta$permisos_sin_consultar} dice qué parte no contestó (\code{"columnas"} o
-\code{"mascaras"}): una columna enmascarada de esa tabla se mide como si la
+\code{resumen_tabla$meta$permisos_sin_consultar} dice qué parte no contestó (\code{"columnas"},
+\code{"mascaras"} u \code{"origen"}, el de una vista que no se pudo comprobar): una columna enmascarada de esa tabla se mide como si la
 máscara fuera el valor.
 Con enmascaramiento dinámico de SQL Server (\verb{MASKED WITH}, 2016+) y una
 credencial sin \code{UNMASK} sobre la columna o la base, el motor devuelve la

@@ -159,6 +159,15 @@ ni se interpreta como cero— o, cuando la métrica es separable por fila y se
 indica \code{estrategia_no_sql = "bloques"}, se mide en R proyectando sólo sus
 columnas y leyendo por bloques.
 
+En SQL Server, una columna con enmascaramiento dinámico (\verb{MASKED WITH}) que la
+credencial lee enmascarada: las reglas que traduce el motor miden el dato real
+—la máscara se aplica sólo a lo que el motor devuelve, no a lo que cuenta—;
+las que se leen por bloques no se miden, porque R leería la máscara
+(\code{no_medible}, con el motivo). Si el catálogo no permite saber si las columnas
+de la tabla dependen de una columna enmascarada (una vista cuyo origen no se
+ve, un sinónimo, \verb{DENY VIEW DEFINITION}), se mide como siempre y se declara en
+\code{attr(resultado, "mascara_sin_comprobar")} y con un aviso.
+
 En la medición en memoria, \code{aplicable} y \code{aplicabilidad} conservan la
 evaluación publicada de \code{\link[=medir]{medir()}}; el resumen resuelve cada
 \code{aplicabilidad} una sola vez, igual que la medición completa. En la vía DBI,

@@ -479,6 +479,20 @@
   impide que dos procesos sigan la misma corrida. Sin `directorio_reanudacion`
   nada cambia.
 
+- SQL Server: una columna con enmascaramiento dinámico (`MASKED WITH`) se declara
+  también cuando la tabla está en otra base (`DBI::Id(catalog = , schema = ,
+  table = )`) o es una vista cuyo origen se ve: `perfilar_dbi()`, `coleccion()`,
+  `relaciones_coleccion()` y `medir_dbi()` ya no publican la máscara (`xxxx`)
+  como dato. Manda el permiso `UNMASK` efectivo de la columna: un `GRANT UNMASK`
+  de la base no tapa un `DENY` de columna o de esquema. Cuando el catálogo no
+  permite saber si una columna depende de otra enmascarada (vista cuyo origen no
+  se ve, sinónimo, `DENY VIEW DEFINITION`), se mide como siempre y se declara:
+  `perfilar_dbi()` en la cobertura y `medir_dbi()` en
+  `attr(, "mascara_sin_comprobar")` y con un aviso. `medir_dbi(estrategia_no_sql =
+  "bloques")` no lee por bloques una columna enmascarada (`no_medible`, con el
+  motivo); las reglas que traduce el motor miden el dato real, porque la máscara
+  se aplica sólo a lo que el motor devuelve.
+
 ## Medir la calidad
 
 - **Cambia una cifra publicada.** En la pertenencia por valor —los dominios de
