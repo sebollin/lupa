@@ -1219,7 +1219,32 @@ contenido parece una coordenada), y admiten calificativos como \code{wgs84},
 infieren sólo si el contenido parece una coordenada (al menos 10 valores,
 como mucho la mitad fuera del rango y la mayoría de lo que cabe con 3 a 8
 decimales) y entonces sólo avisan de la columna, sin acusar filas: pueden
-ser otra cosa (\code{lat} de latencia). Si las fechas futuras de una columna
+ser otra cosa (\code{lat} de latencia). Una proporción (\code{proporcion},
+\code{participacion}; no \code{prop}, que también abrevia propiedad) se valida en
+\verb{[0, 100]} como un porcentaje, y además se lee su escala en el contenido,
+salvo que el nombre diga porcentaje (\code{porcentaje}, \code{pct}, \code{percent},
+\code{percentage}, \code{porcentual}, \code{por_ciento}, \code{tanto_por_ciento}). Los valores
+solos no dicen si la escala es de 0 a 1 o de 0 a 100: una proporción con
+unos pocos valores mal cargados, un porcentaje de valores chicos y una razón
+dan los mismos números. Por eso no se decide: si la escala de 0 a 1 es
+plausible (la mayoría de los valores que no son 0 ni 1 está estrictamente
+entre 0 y 1) y hay valores que pasan de 1 sin pasar de 100, se publican en
+un \code{valor_fuera_dominio} propio, aviso \code{ok} de la columna que no acusa
+filas, con lo medido (cuántos valores hay en \verb{(0, 1)} y cuántos en
+\verb{(1, 100]}) y las dos lecturas: si la escala es de 0 a 1 están fuera de su
+dominio; si es de 0 a 100, no. Un 0 o un 1 valen en las dos escalas y no
+cuentan, ni los centinelas que el perfil ya contó como faltantes
+disfrazados. Los valores se comparan con 0 y con 1 escritos con cuatro
+cifras, como en la evidencia (un 1,0000001 es 1); el borde de 100 es el de
+\verb{[0, 100]}, y un valor que con cuatro cifras se escribiría como un borde sin
+serlo (100,004) se escribe con las cifras que hagan falta. El aviso no
+repite las filas que ya nombran el hallazgo de \verb{[0, 100]} ni \code{escala_mixta}
+en la misma columna y no cambia lo que esos publican. En \code{\link[=perfilar_por]{perfilar_por()}}
+cada grupo lee su escala con sus valores, y \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara
+este aviso con el suyo de la otra entrega. En \code{\link[=perfilar_dbi]{perfilar_dbi()}} la lectura
+usa las filas leídas: con \code{muestra}, sólo las de la muestra, porque el
+resumen del motor no cuenta valores por tramo de escala. Si las fechas
+futuras de una columna
 forman una grilla regular sin huecos que arranca en el presente (todos los
 días, los hábiles, cada 7 o 14 días, o un día fijo o el fin de cada mes,
 trimestre, semestre o año), el aviso de fechas futuras lo dice y nombra la

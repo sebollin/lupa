@@ -4423,7 +4423,12 @@
       tipos_hallazgos, limite, distinguir_mayusculas, clave = clave,
       posicion = posiciones[[i]], asignaciones_fecha = asignaciones_fecha
     )
-    if (is.list(traza)) traza[["posicion_columna"]] <- NULL
+    # Las filas completas de una traza cortada sirven para no repetir filas
+    # entre hallazgos (ver `.dominio_una_voz()`); tampoco se publican.
+    if (is.list(traza)) {
+      traza[["posicion_columna"]] <- NULL
+      traza[["indices_completos"]] <- NULL
+    }
     traza
   })
   hallazgos$trazabilidad <- I(trazabilidad)
@@ -7341,7 +7346,10 @@
     hallazgos <- c(hallazgos, relaciones_funcionales)
   }
   if (length(hallazgos_dominio)) {
-    hallazgos <- c(hallazgos, hallazgos_dominio)
+    # La lectura de la escala de 0 a 1 de una proporcion no repite las filas
+    # que `escala_mixta` ya nombra en la misma columna (ver
+    # `.dominio_una_voz()`).
+    hallazgos <- c(hallazgos, .dominio_una_voz(hallazgos_dominio, hallazgos))
   }
 
   if (length(hallazgos)) {

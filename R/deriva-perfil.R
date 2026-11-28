@@ -428,7 +428,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 
 .configuracion_dominios_perfil <- function(perfil) {
   if (!"dominios" %in% names(perfil$meta)) return(NULL)
-  perfil$meta[["dominios"]]
+  dominios <- perfil$meta[["dominios"]]
+  # Las cuentas de la lectura de la escala de 0 a 1 son una medicion de los
+  # datos, no una politica: cambian con los valores y no son configuracion.
+  if (is.list(dominios)) {
+    dominios[["escala_unitaria"]] <- NULL
+    dominios[["lectura_escala_unitaria"]] <- NULL
+  }
+  dominios
 }
 
 .texto_dominios_deriva <- function(x) {
@@ -1280,8 +1287,15 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   # uno, cuando `separar` los nombra (ver `.hermanos_a_separar_deriva()`): cada
   # uno se identifica por su lectura -por filas o de columna- y publica su
   # propio conteo.
+  # La lectura de la escala de 0 a 1 de una proporcion es otro hecho que los
+  # hallazgos de [0, 100] de su columna, no uno de ellos con otra lectura: se
+  # compara siempre con su par y no entra en el emparejamiento de los hermanos,
+  # que sigue como si no estuviera.
+  unitaria <- .filas_escala_unitaria(x)
+  if (any(unitaria)) clave[unitaria] <- paste0(clave[unitaria], "|#escala_0_1")
   hermanos <- setdiff(
-    which(.llave_hermano_deriva(x$columna, x$tipo_hallazgo) %in% separar),
+    which(.llave_hermano_deriva(x$columna, x$tipo_hallazgo) %in% separar &
+            !unitaria),
     duplicadas
   )
   if (length(hermanos)) {
@@ -1361,6 +1375,60 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
           useBytes = TRUE),
     "columna", "filas"
   )
+}
+
+# Que paso con la lectura de la escala de 0 a 1 de una columna que el perfil
+# anterior publicaba y el nuevo no. La columna se identifica por su POSICION: la
+# del aviso en el perfil anterior sale de sus cuentas
+# (`meta$dominios$escala_unitaria`, la fila plausible con valores en (1, 100]),
+# y se aparea con el perfil nuevo como la comparacion aparea las columnas
+# (`.mapa_columnas_perfil()`: las homonimas, por su orden). Devuelve el estado:
+# * "modificado": en la columna apareada siguen valores en (1, 100], con sus
+#   cuentas;
+# * "resuelto": el perfil nuevo evaluo la lectura en esa columna y no tiene
+#   valores en (1, 100];
+# * "no_comparable": no se sabe, con el motivo: no se ubica la columna del aviso
+#   o no se aparea, o el perfil nuevo no dejo constancia de haber evaluado la
+#   lectura en ella (`meta$dominios$lectura_escala_unitaria`: un perfil de una
+#   version anterior, o con la regla declarada o apagada).
+.lectura_escala_en_actual_deriva <- function(anterior, actual, columna, mapa_a,
+                                            mapa_b) {
+  no_comparable <- function(motivo) list(estado = "no_comparable", motivo = motivo)
+  registro_a <- anterior$meta$dominios$escala_unitaria
+  propia <- if (is.data.frame(registro_a) && nrow(registro_a) && !is.na(columna)) {
+    registro_a[.nombres_para_operar(as.character(registro_a$columna)) %in%
+                 .nombres_para_operar(columna) &
+                 registro_a$n_arriba > 0 & registro_a$plausible, , drop = FALSE]
+  } else NULL
+  if (is.null(propia) || nrow(propia) != 1L) {
+    return(no_comparable(paste0(
+      "el perfil anterior no dice de cu\u00e1l de las columnas con ese ",
+      "nombre era el aviso (", if (is.null(propia) || !nrow(propia)) {
+        "no guarda sus cuentas"
+      } else "hay varias hom\u00f3nimas con la lectura", ")"
+    )))
+  }
+  clave <- mapa_a$clave[match(propia$posicion_columna, mapa_a$indice)]
+  posicion <- mapa_b$indice[match(clave, mapa_b$clave)]
+  if (length(posicion) != 1L || is.na(posicion)) {
+    return(no_comparable("la columna del aviso no se aparea con una del perfil nuevo"))
+  }
+  evaluadas <- actual$meta$dominios$lectura_escala_unitaria$evaluadas
+  if (!is.data.frame(evaluadas) || !posicion %in% evaluadas$posicion_columna) {
+    return(no_comparable(paste0(
+      "el perfil nuevo no evalu\u00f3 la lectura de la escala de 0 a 1 en esta ",
+      "columna (es de una versi\u00f3n anterior del paquete, o la regla de la ",
+      "columna est\u00e1 declarada o apagada), as\u00ed que no se sabe si los ",
+      "valores que pasan de 1 siguen"
+    )))
+  }
+  registro_b <- actual$meta$dominios$escala_unitaria
+  fila <- if (is.data.frame(registro_b)) {
+    registro_b[registro_b$posicion_columna %in% posicion &
+                 registro_b$n_arriba > 0, , drop = FALSE]
+  } else NULL
+  if (is.null(fila) || !nrow(fila)) return(list(estado = "resuelto"))
+  list(estado = "modificado", cuentas = fila[1L, , drop = FALSE])
 }
 
 # Los tipos de hallazgo cuyos hermanos se distinguen por su lectura. Los demas
@@ -1447,8 +1515,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       return(vacio)
     }
     llave <- .llave_hermano_deriva(x$columna, x$tipo_hallazgo)
+    # La lectura de la escala de 0 a 1 tiene clave propia y no es hermana de
+    # nadie (ver `.resumir_hallazgos_deriva()`).
     llave[!as.character(x$tipo_hallazgo) %in%
-            .TIPOS_HERMANOS_POR_LECTURA_DERIVA] <- NA_character_
+            .TIPOS_HERMANOS_POR_LECTURA_DERIVA |
+            .filas_escala_unitaria(x)] <- NA_character_
     fila <- if ("unidad_conteo" %in% names(x)) {
       as.character(x$unidad_conteo) %in% "fila"
     } else rep(FALSE, nrow(x))
@@ -2829,7 +2900,18 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' hallazgo de una columna retirada no se presenta como resuelto.
 #'
 #' Un hallazgo que ya no aparece se informa como `resuelto` sólo si el
-#' diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
+#' diagnóstico volvió a evaluarse. La lectura de la escala de 0 a 1 de una
+#' proporción (ver `dominios` en [perfilar()]), además, sólo si la columna ya no
+#' tiene valores en `(1, 100]`: si siguen —la escala de 0 a 1 dejó de ser
+#' plausible o los nombra `escala_mixta`—, el cambio es `modificado`, con
+#' severidad `sospechoso` y las cuentas del perfil nuevo, que el perfil guarda en
+#' `meta$dominios$escala_unitaria` aunque no publique el aviso. La columna se
+#' identifica por su posición, apareada como el resto de la comparación (las
+#' homónimas, por su orden), y se leen las cuentas de esa columna. Si no se puede
+#' ubicar o aparear, o si el perfil nuevo no dejó constancia de haber evaluado la
+#' lectura en ella (`meta$dominios$lectura_escala_unitaria`: un perfil de una
+#' versión anterior del paquete, o una regla declarada o apagada), el cambio es
+#' `no_comparable`, con el motivo, y no `resuelto`. Si el perfil nuevo lo declinó —y lo dice en
 #' su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado` con
 #' severidad `sospechoso`, porque no se sabe si el hallazgo sigue: dejar de
 #' mirar no es lo mismo que arreglar. Una fila de esa cobertura sin columna
@@ -4845,6 +4927,53 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     por_tipo <- clave_declinacion %in%
       .declinados_por_cambio_de_tipo(anterior, actual)
     declinado <- declinado || length(separadas_por_tipo) > 0L
+    # La lectura de la escala de 0 a 1 se va cuando deja de ser plausible (la
+    # mayoria paso a (1, 100]) o cuando `escala_mixta` nombra sus valores, no
+    # solo cuando esos valores se van. Si en la columna apareada siguen, no es
+    # una mejora: cambiaron los datos, como cuando un hallazgo de dominio cambia
+    # de lectura (abajo, `severidad_hallazgo`). Si no se sabe -la columna no
+    # se aparea, o el perfil nuevo no evaluo la lectura en ella-, tampoco se
+    # da por resuelto. Ver `.lectura_escala_en_actual_deriva()`.
+    lectura <- if (!declinado && isTRUE(.filas_escala_unitaria(x))) {
+      .lectura_escala_en_actual_deriva(anterior, actual, x$columna, mapa_a, mapa_b)
+    } else NULL
+    if (identical(lectura$estado, "no_comparable")) {
+      agregar(
+        x$columna, "hallazgo", "no_comparable", "sospechoso",
+        x$tipo_hallazgo, NA_character_,
+        descripcion = paste0(
+          "La lectura de la escala de 0 a 1 ya no se publica, pero no se puede ",
+          "decir que se resolvi\u00f3: ", lectura$motivo, "."
+        ),
+        evidencia = x$evidencia
+      )
+      next
+    }
+    if (identical(lectura$estado, "modificado")) {
+      sigue <- lectura$cuentas
+      agregar(
+        x$columna, "hallazgo", "modificado", "sospechoso",
+        x$tipo_hallazgo, x$tipo_hallazgo,
+        descripcion = paste0(
+          "La lectura de la escala de 0 a 1 ya no se publica, pero los valores ",
+          "que pasan de 1 siguen: en el perfil nuevo hay ", sigue$n_arriba,
+          " en (1, 100]",
+          if (sigue$n_afuera > 0) {
+            paste0(", ", sigue$n_interior, " en (0, 1) y ", sigue$n_afuera,
+                   " fuera de [0, 100]")
+          } else paste0(" y ", sigue$n_interior, " en (0, 1)"),
+          ", de ", sigue$n_base, " valores distintos de 0 y de 1",
+          if (!sigue$plausible) {
+            ", y la escala de 0 a 1 dej\u00f3 de ser plausible (ya no es la mayor\u00eda la que est\u00e1 entre 0 y 1)"
+          } else {
+            ", y los nombra otro hallazgo de la columna (`escala_mixta`)"
+          },
+          ". No es una mejora: cambiaron los datos."
+        ),
+        evidencia = x$evidencia
+      )
+      next
+    }
     agregar(
       x$columna,
       "hallazgo",

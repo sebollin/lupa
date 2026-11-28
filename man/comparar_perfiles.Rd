@@ -364,7 +364,18 @@ severidad \code{error}, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.
 
 Un hallazgo que ya no aparece se informa como \code{resuelto} sólo si el
-diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
+diagnóstico volvió a evaluarse. La lectura de la escala de 0 a 1 de una
+proporción (ver \code{dominios} en \code{\link[=perfilar]{perfilar()}}), además, sólo si la columna ya no
+tiene valores en \verb{(1, 100]}: si siguen —la escala de 0 a 1 dejó de ser
+plausible o los nombra \code{escala_mixta}—, el cambio es \code{modificado}, con
+severidad \code{sospechoso} y las cuentas del perfil nuevo, que el perfil guarda en
+\code{meta$dominios$escala_unitaria} aunque no publique el aviso. La columna se
+identifica por su posición, apareada como el resto de la comparación (las
+homónimas, por su orden), y se leen las cuentas de esa columna. Si no se puede
+ubicar o aparear, o si el perfil nuevo no dejó constancia de haber evaluado la
+lectura en ella (\code{meta$dominios$lectura_escala_unitaria}: un perfil de una
+versión anterior del paquete, o una regla declarada o apagada), el cambio es
+\code{no_comparable}, con el motivo, y no \code{resuelto}. Si el perfil nuevo lo declinó —y lo dice en
 su \code{cobertura_diagnosticos}—, el cambio se informa como \code{no_evaluado} con
 severidad \code{sospechoso}, porque no se sabe si el hallazgo sigue: dejar de
 mirar no es lo mismo que arreglar. Una fila de esa cobertura sin columna

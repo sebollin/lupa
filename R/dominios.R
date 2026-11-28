@@ -130,6 +130,26 @@
   "ms", "millis", "milliseconds"
 )
 
+# Los nombres que infieren el dominio de [0, 100]: los de un porcentaje dicen la
+# escala; los de una proporcion no (puede ser de 0 a 1 o de 0 a 100). `prop`
+# no es una proporcion: tambien abrevia propiedad o propietario.
+.TOKENS_PORCENTAJE <- c("porcentaje", "pct", "percent")
+.TOKENS_PROPORCION <- c("proporcion", "participacion")
+
+# Si el nombre dice porcentaje, aunque no infiera por eso el dominio: ademas de
+# `.TOKENS_PORCENTAJE`, el adjetivo (`porcentual`, `porcentuales`), el ingles
+# `percentage` y el tanto por ciento escrito en partes (`por_ciento`,
+# `tanto_por_ciento`, `x_ciento`) o junto (`porciento`, `tantoporciento`).
+# `percentil` no es un porcentaje. Los tokens ya vienen separados en camelCase.
+.nombre_dice_porcentaje <- function(tokens) {
+  if (!length(tokens)) return(FALSE)
+  anterior <- c("", utils::head(tokens, -1L))
+  any(tokens %in% c(.TOKENS_PORCENTAJE, "percentage", "percentages",
+                    "porciento", "tantoporciento", "xciento")) ||
+    any(grepl("^porcentu", tokens, useBytes = TRUE)) ||
+    any(tokens %in% "ciento" & anterior %in% c("por", "x"))
+}
+
 # Palabras que hacen del porcentaje uno relativo a otra cosa (`pct_of_sales`,
 # `porcentaje_sobre_costo`): puede pasar de 100 sin ser un error.
 .PALABRAS_PORCENTAJE_RELATIVO <- c(
@@ -369,7 +389,7 @@
     ))
   }
   porcentaje <- any(tokens %in% c(
-    "porcentaje", "pct", "percent", "proporcion", "participacion"
+    .TOKENS_PORCENTAJE, .TOKENS_PROPORCION
   )) && !any(tokens %in% .PALABRAS_PORCENTAJE_ABIERTO)
   if (porcentaje) {
     # Un porcentaje relativo a otra cosa (`pct_of_sales`) puede pasar de 100:
@@ -380,6 +400,14 @@
       fuente = "nombre_y_contenido"
     )
     if (any(tokens %in% .PALABRAS_PORCENTAJE_AMBIGUO)) regla$solo_aviso <- TRUE
+    # Una proporcion puede estar en la escala de 0 a 1 o en la de 0 a 100, y
+    # el nombre no dice cual: la regla sigue siendo [0, 100] y la escala se
+    # lee en el contenido (`.dominio_escala_unitaria()`). Un nombre de
+    # porcentaje ya dice la escala. La marca es interna: no se publica.
+    if (any(tokens %in% .TOKENS_PROPORCION) &&
+        !.nombre_dice_porcentaje(tokens)) {
+      regla$contenido_unitario <- TRUE
+    }
     return(regla)
   }
   # Coordenadas. Los nombres completos (`latitud`, `longitude`) bastan; las
@@ -911,6 +939,211 @@
   list(modo = if (negativos > 0L) "mezcla" else "0_360", negativos = negativos)
 }
 
+# Un valor como lo escribe la evidencia de un dominio: cuatro cifras
+# significativas, salvo junto a un borde (abajo).
+.DOMINIO_CIFRAS_EVIDENCIA <- 4L
+.dominio_valor_escrito <- function(x) signif(x, .DOMINIO_CIFRAS_EVIDENCIA)
+# `bordes` son los limites contra los que se lee el valor. Uno que con cuatro
+# cifras se escribiria como un borde sin serlo (100,004 contra un maximo de 100)
+# se escribe con las cifras que hagan falta para que se vea de que lado queda:
+# la misma escritura no puede estar adentro en una lista y afuera en otra. Sin
+# un valor asi, la escritura es la de siempre.
+.dominio_formato_valor <- function(x, bordes = NULL) {
+  escrito <- .dominio_valor_escrito(x)
+  texto <- format(escrito, scientific = FALSE, trim = TRUE)
+  bordes <- bordes[is.finite(bordes)]
+  if (!length(bordes) || !length(x)) return(texto)
+  for (i in which(escrito %in% bordes & !(x %in% bordes))) {
+    for (cifras in seq(.DOMINIO_CIFRAS_EVIDENCIA + 1L, 15L)) {
+      otro <- signif(x[[i]], cifras)
+      if (!(otro %in% bordes)) break
+    }
+    texto[[i]] <- format(otro, scientific = FALSE, trim = TRUE, digits = 15L)
+  }
+  texto
+}
+
+# La escala de 0 a 1 de una proporcion, leida en el contenido. Por los valores
+# solos la escala es ambigua: una proporcion de 0 a 1 con unos pocos valores
+# mal cargados, un porcentaje de 0 a 100 de valores chicos y una razon entre dos
+# cantidades dan los mismos numeros, en cualquier proporcion medida. No hay un
+# corte que separe el error de lo legitimo; por eso no se decide cual es: se
+# dice lo medido y las dos lecturas.
+#
+# `.dominio_cuentas_escala_unitaria()` cuenta, de los valores evaluables, los
+# que quedan fuera de [0, 100] (los nombra esa regla, con su mismo borde
+# exacto), los iguales a 0 o a 1 (valen en las dos escalas y no cuentan), los
+# que estan estrictamente entre 0 y 1 y los que pasan de 1 sin pasar de 100.
+# Los centinelas que el perfil ya conto como faltantes disfrazados (`excluir`)
+# no entran en ninguna cuenta. Se cuenta con el valor exacto: igual a 0 o a 1
+# es igual con la tolerancia con que el paquete compara dobles
+# (`.TOLERANCIA_ESCALA_UNITARIA`), y 1,00004 o 0,99996 no son 1. La escala de
+# 0 a 1 es plausible si la mayoria de los valores que no son 0 ni 1 esta
+# estrictamente entre 0 y 1 (con enteros).
+# `.dominio_escala_unitaria()` devuelve las cuentas si hay lectura (escala
+# plausible y valores en (1, 100]), o NULL.
+#
+# La tolerancia es la de `.discrepancia_filas()` y de los pesos que suman 1:
+# `abs(a - b) <= sqrt(.Machine$double.eps) * max(1, abs(a), abs(b))`.
+.TOLERANCIA_ESCALA_UNITARIA <- sqrt(.Machine$double.eps)
+# La version de la lectura que el perfil deja en `meta$dominios`, como
+# `.VERSION_PERTENENCIA_VALOR`: se sube cuando cambia lo que la lectura cuenta.
+.VERSION_LECTURA_ESCALA_UNITARIA <- 1L
+.dominio_cuentas_escala_unitaria <- function(v, excluir = NULL) {
+  if (is.null(excluir)) excluir <- rep(FALSE, length(v))
+  tolerancia <- .TOLERANCIA_ESCALA_UNITARIA * pmax(1, abs(v))
+  afuera <- !excluir & (v < 0 | v > 100)
+  neutros <- !excluir & !afuera &
+    (abs(v) <= tolerancia | abs(v - 1) <= tolerancia)
+  resto <- !excluir & !afuera & !neutros
+  interior <- resto & v < 1
+  arriba <- resto & v > 1
+  n_base <- sum(!excluir & !neutros)
+  n_interior <- sum(interior)
+  list(
+    arriba = arriba, n_base = n_base, n_interior = n_interior,
+    n_arriba = sum(arriba), n_afuera = sum(afuera),
+    n_neutros = sum(neutros), n_excluidos = sum(excluir),
+    plausible = n_interior * 2 > n_base,
+    desde = if (any(arriba)) min(v[arriba]) else NA_real_,
+    hasta = if (any(arriba)) max(v[arriba]) else NA_real_
+  )
+}
+.dominio_escala_unitaria <- function(v, excluir = NULL) {
+  cuentas <- .dominio_cuentas_escala_unitaria(v, excluir)
+  if (!cuentas$n_arriba || !cuentas$plausible) return(NULL)
+  cuentas
+}
+
+# La frase fija con que la evidencia nombra la lectura de la escala de 0 a 1.
+# Con ella `comparar_perfiles()` y el id de las decisiones distinguen este
+# hallazgo de los de [0, 100] de la misma columna (ver
+# `.resumir_hallazgos_deriva()` y `.ids_hallazgos()`).
+.FRASE_LECTURA_ESCALA_UNITARIA <- " Lectura de la escala de 0 a 1:"
+.es_lectura_escala_unitaria <- function(evidencia) {
+  grepl(.FRASE_LECTURA_ESCALA_UNITARIA, .texto_o_vacio(evidencia),
+        fixed = TRUE, useBytes = TRUE)
+}
+
+# Las filas de una tabla de hallazgos que son esa lectura.
+.filas_escala_unitaria <- function(x) {
+  if (!is.data.frame(x) || !nrow(x) ||
+      !all(c("tipo_hallazgo", "evidencia") %in% names(x))) {
+    return(rep(FALSE, NROW(x)))
+  }
+  as.character(x$tipo_hallazgo) %in% "valor_fuera_dominio" &
+    .es_lectura_escala_unitaria(x$evidencia)
+}
+
+# El hallazgo de la escala de 0 a 1 (ver `.dominio_escala_unitaria()`). Es un
+# aviso de la columna, severidad `ok`, que no acusa filas: dice cuantos valores
+# hay en (0, 1) y cuantos en (1, 100], y las dos lecturas, sin decir cual vale.
+# La causa -lo que la evidencia dice antes de su fuente- es fija, como en los de
+# [0, 100], para que la comparacion entre entregas lo empareje con su par.
+# `lectura` trae las filas que quedan y, en `n_nombradas`, cuantas de las que
+# pasan de 1 se sacaron porque `escala_mixta` ya las nombra.
+.hallazgo_escala_unitaria <- function(lectura, n_nombradas = 0L) {
+  cuentas <- lectura$cuentas
+  k <- length(lectura$filas)
+  bordes <- c(0, 1, 100)
+  desde <- .dominio_formato_valor(cuentas$desde, bordes)
+  hasta <- .dominio_formato_valor(cuentas$hasta, bordes)
+  evidencia <- paste0(
+    "Escala de 0 a 1 [minimo=0, maximo=1], le\u00edda en el contenido; ",
+    "fuente: nombre_y_contenido; filas afectadas: ", k, ".",
+    .FRASE_LECTURA_ESCALA_UNITARIA, " de ", cuentas$n_base,
+    " valores distintos de 0 y de 1, ", cuentas$n_interior, " est\u00e1n en ",
+    "(0, 1) y ", cuentas$n_arriba, " en (1, 100] (",
+    if (identical(desde, hasta)) desde else paste0("de ", desde, " a ", hasta),
+    if (n_nombradas > 0) {
+      paste0("; ", n_nombradas, " de esos los nombra `escala_mixta` y no se ",
+             "repiten ac\u00e1")
+    } else "",
+    ")",
+    if (cuentas$n_afuera > 0) {
+      paste0("; ", cuentas$n_afuera, " quedan fuera de [0, 100] y los nombra ",
+             "el hallazgo de ese dominio")
+    } else "",
+    if (cuentas$n_neutros == 1L) {
+      "; el igual a 0 o a 1 vale en las dos escalas y no cuenta"
+    } else if (cuentas$n_neutros > 1L) {
+      paste0("; los ", cuentas$n_neutros, " iguales a 0 o a 1 valen en las ",
+             "dos escalas y no cuentan")
+    } else "",
+    if (cuentas$n_excluidos == 1L) {
+      "; el faltante disfrazado no cuenta"
+    } else if (cuentas$n_excluidos > 1L) {
+      paste0("; los ", cuentas$n_excluidos, " faltantes disfrazados no cuentan")
+    } else "",
+    ". Si la escala es de 0 a 1, los que pasan de 1 quedan fuera de su ",
+    "dominio; si es de 0 a 100, no. El dominio que se infiere por el nombre ",
+    "es [0, 100]."
+  )
+  hallazgo <- .nuevo_hallazgo(
+    lectura$nombre, tipo = "valor_fuera_dominio", severidad = "ok",
+    descripcion = paste0(
+      "La mayor\u00eda de los valores est\u00e1 entre 0 y 1, y estos pasan de 1 sin ",
+      "pasar de 100. Los valores no dicen la escala: si es de 0 a 1, estos ",
+      "quedan fuera de su dominio; si es de 0 a 100 (un porcentaje de valores ",
+      "chicos) o la columna es una raz\u00f3n entre dos cantidades, no. No se ",
+      "acusan filas."
+    ),
+    evidencia = evidencia,
+    sugerencia = paste0(
+      "Confirmar la escala en la fuente. Declararla con `dominios` la deja ",
+      "dicha: `list(minimo = 0, maximo = 1)` acusa por fila lo que pasa de 1, y ",
+      "`list(minimo = 0, maximo = 100)` apaga esta lectura."
+    ),
+    n_evaluados = lectura$n_evaluados, n_afectados = k, unidad_conteo = "fila"
+  )
+  hallazgo$trazabilidad <- I(list(
+    .nueva_traza_dominio(lectura$filas, lectura$indice)
+  ))
+  hallazgo
+}
+
+# Un hecho, una voz: las filas de la lectura de 0 a 1 que `escala_mixta` ya
+# nombra en la misma columna no se repiten. La columna se identifica por su
+# posicion y no por su nombre (una tabla puede repetirlo), y las filas de
+# `escala_mixta` son todas, no las de su traza, que se corta (ver
+# `.hallazgos_exactitud_columna()`). El hallazgo se rehace con las que quedan,
+# o desaparece si no queda ninguna. `dominio` es la lista de hallazgos de
+# dominio y `otros`, la de los demas hallazgos de la tabla; la marca interna se
+# quita siempre.
+.dominio_una_voz <- function(dominio, otros) {
+  marcados <- which(vapply(dominio, function(h) {
+    !is.null(attr(h, "escala_unitaria", exact = TRUE))
+  }, logical(1L)))
+  if (!length(marcados)) return(dominio)
+  nombradas <- list()
+  for (h in otros) {
+    if (!is.data.frame(h) || nrow(h) != 1L ||
+        !identical(as.character(h$tipo_hallazgo), "escala_mixta")) {
+      next
+    }
+    traza <- h$trazabilidad[[1L]]
+    posicion <- if (is.list(traza)) traza[["posicion_columna"]] else NULL
+    if (length(posicion) != 1L || is.na(posicion)) next
+    filas <- traza[["indices_completos"]]
+    if (is.null(filas)) filas <- traza[["indices_fila"]]
+    clave <- as.character(posicion)
+    nombradas[[clave]] <- c(nombradas[[clave]], as.integer(filas))
+  }
+  for (k in marcados) {
+    lectura <- attr(dominio[[k]], "escala_unitaria", exact = TRUE)
+    attr(dominio[[k]], "escala_unitaria") <- NULL
+    dichas <- lectura$filas %in% nombradas[[as.character(lectura$indice)]]
+    if (!any(dichas)) next
+    if (all(dichas)) {
+      dominio[k] <- list(NULL)
+      next
+    }
+    lectura$filas <- lectura$filas[!dichas]
+    dominio[[k]] <- .hallazgo_escala_unitaria(lectura, sum(dichas))
+  }
+  Filter(Negate(is.null), dominio)
+}
+
 # Distancia mediana de los valores de afuera al borde del dominio, en anchos del
 # dominio. Mas de un ancho: la columna esta en otra escala, no apenas afuera.
 .dominio_distancia_en_anchos <- function(afuera, regla) {
@@ -1029,16 +1262,21 @@
 .dominio_diagnostico_escala <- function(afuera, regla, reescala = NULL,
                                         parte = 1, codigos = numeric(),
                                         posibles = NULL) {
-  formato <- function(x) format(signif(x, 4L), scientific = FALSE, trim = TRUE)
+  formato <- .dominio_formato_valor
+  # Los valores de afuera se escriben contra los bordes del dominio: uno que pasa
+  # apenas del maximo no se publica como el maximo.
+  bordes <- c(regla$minimo, regla$maximo)
+  afuera_escrito <- function(x) .dominio_formato_valor(x, bordes)
   texto_codigos <- if (length(codigos)) {
     otros <- afuera[!(afuera %in% codigos)]
     paste0(
-      " Los valores ", paste(formato(codigos), collapse = " y "),
+      " Los valores ", paste(afuera_escrito(codigos), collapse = " y "),
       " se repiten y concentran lo de afuera: pueden ser c\u00f3digos de ",
       "ausencia (centinelas).",
       if (length(otros)) {
         paste0(" Quedan afuera ", length(otros), " valores m\u00e1s, de ",
-               formato(min(otros)), " a ", formato(max(otros)), ".")
+               afuera_escrito(min(otros)), " a ", afuera_escrito(max(otros)),
+               ".")
       } else ""
     )
   } else ""
@@ -1076,8 +1314,8 @@
   if (length(codigos)) return(texto_codigos)
   anchos <- .dominio_distancia_en_anchos(afuera, regla)
   paste0(
-    " Los valores de afuera van de ", formato(min(afuera)), " a ",
-    formato(max(afuera)), "; su distancia mediana al dominio es ",
+    " Los valores de afuera van de ", afuera_escrito(min(afuera)), " a ",
+    afuera_escrito(max(afuera)), "; su distancia mediana al dominio es ",
     if (is.finite(anchos)) formato(anchos) else "NA",
     " veces el ancho del dominio",
     if (isTRUE(anchos > .UMBRAL_DOMINIO_OTRA_UNIDAD_ANCHOS)) {
@@ -1156,6 +1394,8 @@
   }
   severidad_fila <- if (declarada) "error" else "sospechoso"
   salida <- list()
+  lectura_escala <- NULL
+  lectura_evaluada <- FALSE
   # `lectura` es el modo con que se publica el componente: "fila" acusa las
   # filas; "columna" avisa de la columna (severidad `ok`) con las dos lecturas.
   agregar <- function(tipo_hallazgo, indices, evidencia, descripcion,
@@ -1438,6 +1678,47 @@
         }
       )
     }
+    # La escala de 0 a 1 de una proporcion: un hallazgo propio, despues de los
+    # de [0, 100] (que no cambian) y sin repetir sus filas. Cada grupo de
+    # `perfilar_por()` lo decide con sus valores, como una tabla con ese
+    # contenido.
+    if (inferida && isTRUE(regla$contenido_unitario) && !valores$fecha) {
+      # Los centinelas que el perfil ya conto como faltantes disfrazados no son
+      # contenido de la escala: no entran en las cuentas de la lectura.
+      disfrazados <- resultado$faltantes_disfrazados$mascara_numerica
+      excluir <- if (length(disfrazados) == length(x)) {
+        as.logical(disfrazados[indices_evaluados]) %in% TRUE
+      } else NULL
+      unitaria <- .dominio_cuentas_escala_unitaria(
+        valores$valores[indices_evaluados], excluir
+      )
+      lectura_evaluada <- TRUE
+      # Las cuentas se guardan aunque no haya aviso (escala de 0 a 1 no
+      # plausible): `comparar_perfiles()` las lee para no dar por resuelto un
+      # aviso cuyos valores siguen en la entrega nueva.
+      if (unitaria$n_arriba > 0L) {
+        lectura_escala <- data.frame(
+          columna = nombre, posicion_columna = indice,
+          n_evaluados = length(indices_evaluados), n_base = unitaria$n_base,
+          n_interior = unitaria$n_interior, n_arriba = unitaria$n_arriba,
+          n_afuera = unitaria$n_afuera, n_neutros = unitaria$n_neutros,
+          n_excluidos = unitaria$n_excluidos, plausible = unitaria$plausible,
+          stringsAsFactors = FALSE
+        )
+      }
+      if (unitaria$n_arriba > 0L && unitaria$plausible) {
+        filas <- indices_evaluados[unitaria$arriba]
+        lectura <- list(
+          nombre = nombre, indice = indice, cuentas = unitaria, filas = filas,
+          n_evaluados = length(indices_evaluados)
+        )
+        hallazgo <- .hallazgo_escala_unitaria(lectura)
+        # `.dominio_una_voz()` lo rehace sin las filas que `escala_mixta` ya
+        # nombra en la misma columna, y quita esta marca.
+        attr(hallazgo, "escala_unitaria") <- lectura
+        salida[[length(salida) + 1L]] <- hallazgo
+      }
+    }
   }
   if (isTRUE(regla$no_futuras) && valores$fecha) {
     referencia <- suppressWarnings(as.numeric(fecha_hora))
@@ -1540,6 +1821,8 @@
     )
   }
   attr(salida, "resumen_centinelas") <- resumen_centinelas
+  attr(salida, "lectura_escala") <- lectura_escala
+  attr(salida, "lectura_evaluada") <- lectura_evaluada
   salida
 }
 
@@ -1588,6 +1871,8 @@
   # aplico, como se leyo y las cuentas de centinelas que publicaron sus
   # hallazgos (ver `.resumen_fechas_dominios()`).
   aplicadas <- vector("list", length(nombres))
+  lecturas_escala <- list()
+  evaluadas_escala <- list()
   for (i in seq_along(nombres)) {
     nombre <- nombres[[i]]
     elegida <- .dominio_regla_columna(
@@ -1633,11 +1918,13 @@
       } else list(rango = "fila", futuras = "fila", centinelas = "fila",
                   aplica = TRUE)
       aplicar_regla <- !inferida || isTRUE(sostenimiento$aplica)
-      # La marca de fecha de registro es de uso interno: no se publica en las
-      # reglas inferidas (el resto de la regla es la de siempre).
+      # Las marcas de fecha de registro y de escala leida en el contenido son
+      # de uso interno: no se publican en las reglas inferidas (el resto de la
+      # regla es la de siempre).
       if (inferida && aplicar_regla) {
         inferidos[[nombre]] <- regla_publicada[
-          setdiff(names(regla_publicada), "fecha_de_registro")
+          setdiff(names(regla_publicada),
+                  c("fecha_de_registro", "contenido_unitario"))
         ]
       }
       aplicadas[[i]] <- list(
@@ -1655,6 +1942,14 @@
       aplicadas[[i]]$centinelas <- attr(
         hallazgos_columna, "resumen_centinelas", exact = TRUE
       )
+      lecturas_escala[[length(lecturas_escala) + 1L]] <- attr(
+        hallazgos_columna, "lectura_escala", exact = TRUE
+      )
+      if (isTRUE(attr(hallazgos_columna, "lectura_evaluada", exact = TRUE))) {
+        evaluadas_escala[[length(evaluadas_escala) + 1L]] <- data.frame(
+          columna = nombre, posicion_columna = i, stringsAsFactors = FALSE
+        )
+      }
       if (length(hallazgos_columna)) {
         hallazgos <- c(hallazgos, hallazgos_columna)
       }
@@ -1678,6 +1973,23 @@
       inferidos = inferidos
     )
   } else NULL
+  # Las cuentas de la lectura de la escala de 0 a 1 de las proporciones con
+  # valores en (1, 100], haya o no aviso. Solo existe si alguna las tiene.
+  lecturas_escala <- Filter(Negate(is.null), lecturas_escala)
+  if (!is.null(meta) && length(lecturas_escala)) {
+    meta$escala_unitaria <- do.call(rbind, lecturas_escala)
+    rownames(meta$escala_unitaria) <- NULL
+  }
+  # La constancia de que la lectura se evaluo, y en que columnas: sin ella,
+  # que no haya cuentas no dice que los valores se fueron (el perfil puede ser
+  # de una version que no la tenia, o tener la regla declarada o apagada).
+  if (!is.null(meta) && length(evaluadas_escala)) {
+    evaluadas <- do.call(rbind, evaluadas_escala)
+    rownames(evaluadas) <- NULL
+    meta$lectura_escala_unitaria <- list(
+      version = .VERSION_LECTURA_ESCALA_UNITARIA, evaluadas = evaluadas
+    )
+  }
   salida <- list(
     resultados = resultados,
     reglas = reglas,

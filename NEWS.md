@@ -493,6 +493,29 @@
   motivo); las reglas que traduce el motor miden el dato real, porque la máscara
   se aplica sólo a lo que el motor devuelve.
 
+- `perfilar()` lee la escala de una proporción (`proporcion`, `participacion`;
+  no `prop`, ni un nombre que diga porcentaje, como `pct`, `porcentual` o
+  `tanto_por_ciento`). Por los valores solos la escala es ambigua (una
+  proporción con valores mal cargados, un porcentaje de valores chicos y una
+  razón dan los mismos números), así que no se decide: si la mayoría de los
+  valores que no son 0 ni 1 está entre 0 y 1 y hay valores entre 1 y 100, un
+  `valor_fuera_dominio` propio, aviso `ok` de la columna que no acusa filas,
+  dice cuántos hay en cada tramo y las dos lecturas (si la escala es de 0 a 1
+  están fuera de su dominio; si es de 0 a 100, no). Se cuenta con el valor
+  exacto (1,00004 no es 1) y no cuentan los 0, los 1 ni los centinelas que el
+  perfil ya contó como faltantes disfrazados. El aviso no cambia lo que publican
+  los hallazgos de `[0, 100]` y no repite las filas que ellos o `escala_mixta`
+  ya nombran. El perfil guarda sus cuentas en `meta$dominios$escala_unitaria`, y
+  `comparar_perfiles()` lo compara con el de la otra entrega: si desaparece pero
+  sus valores siguen, el cambio es `modificado`, no `resuelto`; la columna se
+  aparea por posición, y contra un perfil que no evaluó esta lectura (de una
+  versión anterior, o con el dominio apagado) la fila es `no_comparable`. Su id
+  de decisión nombra su lectura, así que el de un hallazgo que ya estaba no
+  cambia cuando aparece.
+- Los valores de afuera de un dominio que con cuatro cifras se escribirían como
+  su borde sin serlo (100,004 contra un máximo de 100) se escriben con las
+  cifras que hagan falta.
+
 ## Medir la calidad
 
 - **Cambia una cifra publicada.** En la pertenencia por valor —los dominios de

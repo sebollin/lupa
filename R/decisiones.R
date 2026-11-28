@@ -359,6 +359,12 @@
     .escapar_parte_id_hallazgo(h$columna), .escapar_parte_id_hallazgo(h$tipo_hallazgo),
     sep = "|"
   )
+  # La lectura de la escala de 0 a 1 de una proporcion no es hermana de los
+  # hallazgos de [0, 100] de su columna: su id nombra su lectura, y el de ellos
+  # no cambia cuando aparece (una decision tomada sobre el de siempre le sigue
+  # valiendo).
+  unitaria <- .filas_escala_unitaria(h)
+  clave[unitaria] <- paste0(clave[unitaria], "|escala_0_1")
   hermano <- clave %in% clave[duplicated(clave)]
   if (!any(hermano)) return(clave)
   evidencia <- .texto_o_vacio(h$evidencia)

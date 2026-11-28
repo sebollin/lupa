@@ -860,6 +860,15 @@
           escala$n_evaluados, escala$n_afectados, "fila"
         )
       ))
+      # La traza se corta en 1.000 filas, y la lectura de la escala de 0 a 1 de
+      # la misma columna necesita todas para no repetirlas (ver
+      # `.dominio_una_voz()`). El campo es interno: se quita al publicar la
+      # traza, como la posicion de la columna.
+      ultimo <- length(salida)
+      if (isTRUE(salida[[ultimo]]$trazabilidad[[1L]]$truncado)) {
+        salida[[ultimo]]$trazabilidad[[1L]]$indices_completos <-
+          as.integer(escala$indices)
+      }
     }
   }
 
