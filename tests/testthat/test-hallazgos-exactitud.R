@@ -554,7 +554,7 @@ test_that("una serie con ausentes se evalua sobre los presentes", {
   expect_equal(h$n_evaluados[[1L]], 497)
 })
 
-test_that("la escala mixta es informativa y no se recorta", {
+test_that("la escala mixta es informativa y el recorte no se recomienda ni aplica", {
   h <- .hallazgos_de(.datos_escala(), "escala_mixta")
   expect_equal(nrow(h), 1L)
   expect_equal(as.character(h$severidad[[1L]]), "ok")
@@ -566,7 +566,11 @@ test_that("la escala mixta es informativa y no se recorta", {
   plan <- planificar_limpieza(perfilar(datos, nombre = "x"))
   acciones <- plan[plan$columna == "altura", , drop = FALSE]
   expect_true("marcar_outliers" %in% acciones$estrategia)
-  expect_false("winsorizar_outliers" %in% acciones$estrategia)
+  winsor <- acciones[which(acciones$estrategia == "winsorizar_outliers"), ]
+  expect_equal(nrow(winsor), 1L)
+  expect_false(winsor$recomendada[[1L]])
+  expect_false(winsor$aplicar[[1L]])
+  expect_match(winsor$justificacion[[1L]], "mezclar escalas")
   sin_accion <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
   expect_false("escala_mixta" %in% sin_accion$hallazgo)
 })

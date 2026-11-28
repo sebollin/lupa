@@ -855,7 +855,7 @@
           paste0(
             "Declarar la unidad y decidir si son dos poblaciones distintas o ",
             "una unidad mal cargada; separar o convertir antes de sumar o ",
-            "comparar. El plan de limpieza no recorta estos valores."
+            "comparar. El plan de limpieza no los recorta por omisi\u00f3n."
           ),
           escala$n_evaluados, escala$n_afectados, "fila"
         )

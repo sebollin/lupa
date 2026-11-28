@@ -2559,10 +2559,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   grupo_ya_planificado <- !is.na(grupo_de_hallazgo) &
     duplicated(grupo_de_hallazgo)
-  # Una columna con `escala_mixta` mezcla unidades o poblaciones: recortar sus
-  # extremos con los limites de Tukey destruiria valores que el perfil acaba de
-  # describir como de otra escala. La marca de outlier se sigue ofreciendo; el
-  # recorte, no.
+  # Una columna con `escala_mixta` puede mezclar unidades o poblaciones: el
+  # recorte de Tukey se sigue ofreciendo, como en toda columna con outliers, pero
+  # su justificacion lo dice, porque recortar antes de reescalar cambiaria
+  # valores validos. Ni se recomienda ni se aplica por omision.
   columnas_escala_mixta <- .nombres_para_operar(as.character(
     hallazgos$columna[as.character(hallazgos$tipo_hallazgo) == "escala_mixta"]
   ))
@@ -3394,14 +3394,22 @@ planificar_limpieza <- function(perfil, datos = NULL,
         decision_grupo = "pendiente",
         recomendacion_grupo = "marcar_outliers"
       ))
-      sin_winsorizar <- !is.na(columna) &&
+      escala_mixta_col <- !is.na(columna) &&
         isTRUE(.nombres_para_operar(columna) %in% columnas_escala_mixta)
-      if (!sin_winsorizar) {
+      {
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "winsorizar_outliers", FALSE,
           paste0(
             "Sustituye los extremos por los l\u00edmites de Tukey y altera valores ",
             "observados; s\u00f3lo debe elegirse con justificaci\u00f3n anal\u00edtica.",
+            if (escala_mixta_col) {
+              paste0(
+                " La columna puede mezclar escalas (hallazgo `escala_mixta`): ",
+                "recortarla antes de reescalar cambiar\u00eda valores v\u00e1lidos."
+              )
+            } else {
+              ""
+            },
             if (winsor_pierde_entero) {
               paste0(
                 " Los l\u00edmites de Tukey son cuartiles, as\u00ed que la columna deja ",

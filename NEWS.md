@@ -820,6 +820,11 @@
   y una marca común que cambia de estado tiene su fila (`aspecto = "columna"`,
   `cambio = "modificado"`).
 
+- `planificar_limpieza()` vuelve a ofrecer `winsorizar_outliers` en las
+  columnas con `escala_mixta`, como en 0.1.2, sin recomendarla ni aplicarla por
+  omisión: su justificación advierte que la columna puede mezclar escalas y que
+  recortarla antes de reescalar cambiaría valores válidos.
+
 ## Documentación
 
 - «Comparar entregas y seguir la calidad» explica el sello de definición y sus
