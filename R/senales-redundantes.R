@@ -204,6 +204,7 @@ print.senal_redundante <- function(x, ...) {
     if (inherits(x, c("POSIXt", "Date"))) return(.valores_relacion(x))
     if (is.numeric(x)) return(.texto_identidad(x))
     if (is.character(x) || is.factor(x)) return(.valores_relacion(x))
+    if (.es_columna_blob(x)) return(.claves_blob(x))
     as.character(x)
   })
 }
@@ -213,6 +214,9 @@ print.senal_redundante <- function(x, ...) {
 # fecha-hora al segundo, un doble con 15 cifras, un texto tal cual- junta dos
 # valores distintos.
 .texto_que_distingue_senal <- function(x) {
+  # Un BLOB se cita por sus bytes en hexadecimal, que un texto puede escribir
+  # igual: se dice que es un BLOB.
+  if (.es_columna_blob(x)) return(paste(.texto_valor(x), "(BLOB)"))
   if (inherits(x, "POSIXt")) return(paste(.valores_relacion(x), "UTC"))
   if (inherits(x, "difftime")) {
     return(paste(.etiqueta_numero_reversible(as.numeric(x)), units(x)))
@@ -449,8 +453,18 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       minimo <- do.call(pmin, comparables)
       maximo != minimo & maximo - minimo > senal$ventana
     } else {
+      # Cada columna contra la primera por `.comparar_valores()`: un BLOB solo
+      # es igual a un BLOB de los mismos bytes, y contra un texto o un numero
+      # toda fila es discordante. Entre columnas que no son BLOB decide la
+      # clave de la senal, armada sobre todas a la vez -las duraciones se
+      # comparan en segundos solo si lo son todas-.
       claves <- .claves_senal(comparables)
-      Reduce(`|`, lapply(claves[-1L], function(x) x != claves[[1L]]))
+      Reduce(`|`, lapply(seq_along(comparables)[-1L], function(k) {
+        !.comparar_valores(
+          comparables[[k]], comparables[[1L]], como = "igualdad",
+          sin_blob = function(x, y) claves[[k]] == claves[[1L]]
+        )
+      }))
     }
     indices <- which(completos)[discordante]
     ejemplos <- utils::head(indices, max_ejemplos)
@@ -551,7 +565,11 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
         "; universo: ", n_evaluadas, " de ", nrow(datos),
         if (nrow(datos) == 1L) " fila con todas las columnas presentes" else
           " filas con todas las columnas presentes",
-        if (!numericos) "; comparaci\u00f3n textual exacta" else "",
+        if (!numericos) {
+          if (any(vapply(comparables, .es_columna_blob, logical(1L)))) {
+            "; comparaci\u00f3n exacta, los BLOB por sus bytes"
+          } else "; comparaci\u00f3n textual exacta"
+        } else "",
         if (senal$ventana > 0 && numericos) {
           paste0("; ventana declarada: ", senal$ventana)
         } else ""

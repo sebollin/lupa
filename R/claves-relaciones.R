@@ -362,9 +362,11 @@
 #' Dos claves simples se marcan como redundantes cuando sus contenidos son
 #' idénticos —incluidas clase, atributos, ausencias y representación exacta—,
 #' aunque tengan nombres distintos. Las columnas compuestas —matrices o
-#' arreglos de más de una dimensión— y las de lista no se interpretan como
-#' claves. Los pares también quedan en el atributo
-#' `claves_redundantes`.
+#' arreglos de más de una dimensión— y las listas que no son BLOB no se
+#' interpretan como claves. Una columna BLOB —la clase `blob` o una lista de
+#' `raw`, con `NULL` por faltante— sí: se compara por sus bytes, sus dos
+#' formas son la misma columna y nunca es redundante con una de texto o de
+#' números. Los pares también quedan en el atributo `claves_redundantes`.
 #'
 #' Una columna cuyo nombre se repite en la tabla no se analiza: una clave se
 #' publica por el nombre de sus columnas, y ese nombre no diría cuál de las dos
@@ -400,7 +402,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # salvo una fila en el nivel `NA` salia clave exacta con 40 distintos, y
   # `perfilar(clave = )` la refutaba con 1 faltante y 39 distintos.
   # Ver `.normalizar_columnas_entrada()`.
-  datos <- .normalizar_columnas_entrada(datos)
+  # Un BLOB se busca como clave por sus bytes (`.blob_como_clave()`), pero la
+  # redundancia entre dos columnas se decide sobre la tabla original: escrito
+  # como clave, el BLOB `01` era identico a un texto `b:01`.
+  entrada <- .normalizar_columnas_entrada(datos)
+  datos <- .blob_como_clave(entrada)
   normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
   if (length(max_combinacion) != 1L || is.na(max_combinacion) ||
       max_combinacion < 1L || max_combinacion > 3L) {
@@ -480,7 +486,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   }
 
   indices_simples <- unlist(encontradas[lengths(encontradas) == 1L], use.names = FALSE)
-  redundantes <- .pares_redundantes(datos, indices_simples, nombres)
+  redundantes <- .pares_redundantes(entrada, indices_simples, nombres)
   # Las equivalentes de cada clave simple, buscadas una vez: con k copias hay
   # k (k - 1) / 2 pares, y normalizarlos y recorrerlos para cada clave costaba
   # del orden de k^3. Las filas de cada extremo quedan en el orden de los pares.
@@ -608,6 +614,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 }
 
 .valores_relacion <- function(x) {
+  # Un BLOB se compara por sus bytes: `as.character()` lo escribe como
+  # `blob[1 B]`, asi que dos BLOB sin ningun valor comun daban el mismo texto.
+  # Su clave (`.claves_blob()`) solo se compara con la de otro BLOB: un BLOB y
+  # una columna que no lo es no se comparan (`.mismo_lado_blob()`).
+  if (.es_columna_blob(x)) return(.claves_blob(x))
   if (inherits(x, "POSIXt")) {
     # `format(tz = "UTC")` no convierte un `POSIXlt`: lo escribe en la zona en
     # que se descompuso, asi que el mismo instante en `POSIXlt` local y en
@@ -734,6 +745,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #     candidata-. Es la decision de los validadores: se pregunta por
 #     la clase antes de operar con la magnitud.
 .columna_no_comparable <- function(x) {
+  # Un BLOB tiene un valor por fila -sus bytes-, de cualquier largo.
+  if (.es_columna_blob(x)) return(NULL)
   if (.es_columna_compuesta(x)) {
     return(list(
       motivo = "columna_no_comparable",
@@ -1202,11 +1215,16 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' la otra, con `tz` explícito, y volver a comparar.
 #' Tampoco entra una columna que no tiene un valor comparable por fila: una
 #' compuesta —matriz, tabla anidada, valores que no se escriben como texto,
-#' como una `vctrs_rcrd`—, una lista de objetos —de vectores, de geometrías,
-#' de `NULL`— o una magnitud con unidad (`units`), cuyo número sin la unidad
+#' como una `vctrs_rcrd`—, una lista de objetos —de vectores, de geometrías—
+#' que no es BLOB o una magnitud con unidad (`units`), cuyo número sin la unidad
 #' no es su valor. Sus pares salen `sin_comparar` con
 #' `motivo_poda = "columna_no_comparable"`, y el detalle en `podas` dice cuál
 #' de las tres es; la función sigue con las demás columnas.
+#' Una columna BLOB —la clase `blob` o una lista de `raw`, con `NULL` por
+#' faltante— se compara por sus bytes, y sus dos formas dan lo mismo. Contra
+#' una columna que no es BLOB no comparte ningún valor, como en el motor,
+#' aunque un texto escriba sus bytes: el par sale `sin_coincidencias` sin
+#' compararse, y `podas` lo declara con `motivo = "blob_contra_otra_clase"`.
 #'
 #' Todas las podas, de las dos clases, quedan además en el atributo `podas` con
 #' su motivo y su detalle.
@@ -1466,14 +1484,14 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   # `sin_relleno` dice si el par comparo la columna sin el relleno final: la
   # traza tiene que salir de la misma columna que el resumen.
   trazar_lado <- function(lado, fila, indice, sin_relleno, huerfanos,
-                          cobertura) {
+                          cobertura, escapar = FALSE) {
     decidida <- .traza_huerfanas_relacion(
       huerfanos, cobertura, umbral_cobertura, max_filas_huerfanas
     )
     if (decidida$ubicar) {
       pendiente <- list(
         fila = fila, indice = indice, sin_relleno = sin_relleno,
-        huerfanos = huerfanos
+        escapar = escapar, huerfanos = huerfanos
       )
       if (lado == 1L) {
         por_ubicar_1[[length(por_ubicar_1) + 1L]] <<- pendiente
@@ -1490,7 +1508,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
     # Un grupo por columna y por variante: la misma columna con y sin el relleno
     # final son dos identidades distintas.
     grupo <- vapply(por_ubicar, function(p) {
-      2 * as.numeric(p$indice) + as.numeric(p$sin_relleno)
+      4 * as.numeric(p$indice) + 2 * as.numeric(p$sin_relleno) +
+        as.numeric(p$escapar)
     }, numeric(1L))
     for (clave in unique(grupo)) {
       del_grupo <- which(grupo == clave)
@@ -1499,6 +1518,9 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       if (primero$sin_relleno) {
         columna <- .normalizar_relleno_final_relacion(columna)
       }
+      # La columna que se comparo contra un BLOB se resumio escrita con su
+      # clase de almacenamiento: la traza la busca igual escrita.
+      if (primero$escapar) columna <- .clave_almacenamiento_dbi(columna)
       identidad <- .identidad_relacion(columna)
       for (k in del_grupo) {
         trazas[[por_ubicar[[k]]$fila]] <- .ubicar_huerfanas_relacion(
@@ -1523,6 +1545,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   }
   lectura_1 <- lapply(nombres_1[indices_1], function(n) lectura_de("tabla1", n))
   lectura_2 <- lapply(nombres_2[indices_2], function(n) lectura_de("tabla2", n))
+  escapadas_1 <- vector("list", length(indices_1))
+  escapadas_2 <- vector("list", length(indices_2))
   for (i in seq_along(indices_1)) {
     for (j in seq_along(indices_2)) {
       x <- columnas_1[[i]]
@@ -1553,20 +1577,35 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           sin_relleno_2 <- TRUE
         }
       }
-      # Si un lado llega escrito con su clase de almacenamiento, el otro se
-      # escribe igual, solo para este par: un BLOB no aparea con un texto que
-      # se escribe como su clave.
+      # Si un lado llega escrito con su clase de almacenamiento -la columna de
+      # SQLite que mezcla BLOB y texto-, el otro se escribe igual, solo para
+      # este par: cada clave lleva su clase, y un BLOB de la otra tabla se
+      # escribe con la misma clave de bytes.
       clave_1 <- clave_de("tabla1", nombre_1)
       clave_2 <- clave_de("tabla2", nombre_2)
+      escapar_1 <- FALSE
+      escapar_2 <- FALSE
       if (clave_1 && !clave_2) {
-        y <- .resumir_columna_relacion(
-          .clave_almacenamiento_dbi(tabla2[[indices_2[[j]]]])
-        )
+        # El resumen escapado de una columna se arma una vez: se reutiliza en
+        # cada par contra un BLOB.
+        if (is.null(escapadas_2[[j]])) {
+          escapadas_2[[j]] <- .resumir_columna_relacion(
+            .clave_almacenamiento_dbi(tabla2[[indices_2[[j]]]])
+          )
+        }
+        y <- escapadas_2[[j]]
+        escapar_2 <- TRUE
+        sin_relleno_2 <- FALSE
       }
       if (clave_2 && !clave_1) {
-        x <- .resumir_columna_relacion(
-          .clave_almacenamiento_dbi(tabla1[[indices_1[[i]]]])
-        )
+        if (is.null(escapadas_1[[i]])) {
+          escapadas_1[[i]] <- .resumir_columna_relacion(
+            .clave_almacenamiento_dbi(tabla1[[indices_1[[i]]]])
+          )
+        }
+        x <- escapadas_1[[i]]
+        escapar_1 <- TRUE
+        sin_relleno_1 <- FALSE
       }
       # Dos pares que no se pueden comparar, con `podar` o sin el, porque la
       # respuesta de la comparacion seria falsa y no solo cara:
@@ -1625,7 +1664,22 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
         }
         next
       }
-      poda <- if (isTRUE(podar)) {
+      # Un BLOB y una columna que no lo es no tienen ningun valor en comun: la
+      # respuesta se conoce sin comparar, como la de los rangos disjuntos, y
+      # es la del motor (SQLite nunca iguala un BLOB con un texto, DuckDB
+      # rechaza la comparacion).
+      cierta <- if (!clave_1 && !clave_2 && !.mismo_lado_blob(
+        tabla1[[indices_1[[i]]]], tabla2[[indices_2[[j]]]]
+      )) {
+        list(
+          motivo = "blob_contra_otra_clase",
+          detalle = paste(
+            "un BLOB solo es igual a un BLOB de los mismos bytes, nunca a un",
+            "texto o a un n\u00famero"
+          )
+        )
+      } else NULL
+      poda <- if (is.null(cierta) && isTRUE(podar)) {
         .poda_relacion(x, y, umbral_cobertura)
       } else NULL
       if (!is.null(poda)) {
@@ -1650,7 +1704,7 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
         }
         next
       }
-      cierta <- .poda_cierta_relacion(x, y)
+      if (is.null(cierta)) cierta <- .poda_cierta_relacion(x, y)
       if (!is.null(cierta)) {
         podas[[length(podas) + 1L]] <- data.frame(
           columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
@@ -1675,11 +1729,11 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
         if (trazar) {
           trazas_1[[length(filas)]] <- trazar_lado(
             1L, length(filas), indices_1[[i]], sin_relleno_1, huerfanos_1,
-            fila$cobertura_tabla1_en_tabla2
+            fila$cobertura_tabla1_en_tabla2, escapar_1
           )
           trazas_2[[length(filas)]] <- trazar_lado(
             2L, length(filas), indices_2[[j]], sin_relleno_2, huerfanos_2,
-            fila$cobertura_tabla2_en_tabla1
+            fila$cobertura_tabla2_en_tabla1, escapar_2
           )
         }
         comparadas <- comparadas + 1L
@@ -1751,11 +1805,11 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       if (trazar) {
         traza_1 <- trazar_lado(
           1L, length(filas), indices_1[[i]], sin_relleno_1, huerfanos_1,
-          fila$cobertura_tabla1_en_tabla2
+          fila$cobertura_tabla1_en_tabla2, escapar_1
         )
         traza_2 <- trazar_lado(
           2L, length(filas), indices_2[[j]], sin_relleno_2, huerfanos_2,
-          fila$cobertura_tabla2_en_tabla1
+          fila$cobertura_tabla2_en_tabla1, escapar_2
         )
         trazas_1[[length(filas)]] <- traza_1
         trazas_2[[length(filas)]] <- traza_2

@@ -604,14 +604,16 @@
       instancia$declaracion$nombre, spec$columna, x, list(valores_nulos),
       consecuencia = .MENSAJES_MEZCLA_HUSOS$no_ausente
     )
-    es_texto <- is.character(x) || is.factor(x) ||
-      is.character(valores_nulos) || is.factor(valores_nulos)
-    coincide <- if (es_texto) {
-      .minusculas_para_comparar(.texto_analizable(x)$valores) %in%
-        .minusculas_para_comparar(.texto_analizable(valores_nulos)$valores)
-    } else {
-      .en_conjunto_por_valor(x, valores_nulos)
-    }
+    coincide <- .comparar_valores(x, valores_nulos, function(x, valores_nulos) {
+      es_texto <- is.character(x) || is.factor(x) ||
+        is.character(valores_nulos) || is.factor(valores_nulos)
+      if (es_texto) {
+        .minusculas_para_comparar(.texto_analizable(x)$valores) %in%
+          .minusculas_para_comparar(.texto_analizable(valores_nulos)$valores)
+      } else {
+        .en_conjunto_por_valor(x, valores_nulos)
+      }
+    })
     ausente <- ausente | (!is.na(x) & coincide)
   }
   list(filas = filas, cumple = !ausente)
@@ -633,17 +635,26 @@
       .MENSAJES_MEZCLA_HUSOS$en_conjunto_extension
     }
   )
-  cumple <- if (texto || is.character(conjunto) || is.factor(conjunto)) {
-    .clave_bytes(valores) %in% .clave_bytes(.texto_analizable(conjunto)$valores)
-  } else {
-    .en_conjunto_por_valor(valores, conjunto)
-  }
+  cumple <- .comparar_valores(valores, conjunto, function(valores, conjunto) {
+    if (texto || is.character(conjunto) || is.factor(conjunto)) {
+      .clave_bytes(valores) %in%
+        .clave_bytes(.texto_analizable(conjunto)$valores)
+    } else {
+      .en_conjunto_por_valor(valores, conjunto)
+    }
+  })
   list(filas = filas, cumple = cumple)
 }
 
 .r_en_rango <- function(spec, tabla, instancia) {
   .validar_vinculo(instancia, 1L, 1L)
   x <- .obtener_columna_modelo(tabla, spec$columna, spec$entidad)
+  # Un BLOB no tiene orden de numero ni de texto: la clase `blob` abortaba con el
+  # error de vctrs y la lista no daba ninguna medida, sin decir por que.
+  .rechazar_sobre_blob(
+    x, spec$columna, "Un rango de valores",
+    "Declarar un `predicado` que lea sus bytes."
+  )
   x <- .texto_analizable(x)$valores
   filas <- which(!is.na(x))
   valores <- x[filas]
@@ -711,7 +722,10 @@
   if (isTRUE(spec$excluir_na)) {
     .validar_vinculo(instancia, 1L, 1L)
     x <- .obtener_columna_modelo(tabla, spec$columnas, spec$entidad)
-    x <- .texto_analizable(x)$valores
+    # Un BLOB no es texto: sus bytes llegan tal cual a `.duplicados_completos()`,
+    # que los compara por su clave. Leida como texto, una lista de `raw` de
+    # varios bytes quedaba toda `NA` y la metrica no media ninguna fila.
+    if (!.es_columna_blob(x)) x <- .texto_analizable(x)$valores
     filas <- which(!is.na(x))
     return(list(filas = filas, cumple = .duplicados_completos(x[filas])))
   }

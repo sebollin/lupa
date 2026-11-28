@@ -532,8 +532,15 @@ detectar_tablas_codigos <- function(coleccion, perfil, relaciones = NULL,
       # Un codigo que esta en las marcas incorporadas -o en los centinelas por
       # omision- con una etiqueta que no es de ausencia: el perfil lo cuenta como
       # faltante disfrazado y es un valor valido.
-      es_marca <- .minusculas_para_comparar(codigos) %in% marcas |
-        suppressWarnings(as.numeric(codigos)) %in% .numeros_na_locales
+      # Las marcas son texto y numeros: un codigo BLOB no es ninguna
+      # (`.comparar_valores()`), aunque su clave de bytes se escriba como texto.
+      es_marca <- .comparar_valores(
+        datos[[cc]], marcas, como = "pertenencia",
+        sin_blob = function(x, marcas) {
+          .minusculas_para_comparar(codigos) %in% marcas |
+            suppressWarnings(as.numeric(codigos)) %in% .numeros_na_locales
+        }
+      )
       valido_contado <- is.na(clase$semantica) & es_marca & !is.na(etiquetas)
       cuales <- which(!is.na(clase$semantica) | valido_contado)
       for (i in cuales) {

@@ -154,7 +154,17 @@ columna \code{BOOLEAN} que el controlador lee entera tiene sus \code{1} en el do
 \code{TRUE}). Un texto no se convierte en lógico ni en número: \code{"1"} no es
 \code{TRUE}; un dominio o un centinela lógico sobre una columna de texto se
 compara como texto (\code{"TRUE"} cuenta, y en \code{NoNulo} también \code{"true"} y
-\code{"True"}, porque el centinela de texto no distingue mayúsculas). La completitud se mide por
+\code{"True"}, porque el centinela de texto no distingue mayúsculas). Un dominio
+puede ser una columna BLOB —la clase \code{blob} o una lista de \code{raw}, un valor
+por elemento—: un BLOB sólo coincide con un BLOB de los mismos bytes, y
+nunca con un texto o un número, aunque el texto escriba sus bytes; un
+vector \code{raw} es un byte por posición, el dominio de una columna \code{raw}. Lo
+que lee texto o magnitudes no se aplica a un BLOB y la métrica se declara no
+medible, con el motivo: una \code{expresion_regular} de \code{Formato} o de
+\code{DesactualizacionPorFormato}, el rango de \code{ValoresPosiblesPorComprension} y la
+proximidad de \code{EntidadContradictoria}. Un \code{validador} o un \code{predicado}
+reciben los bytes, y las métricas de duplicación comparan un BLOB por sus
+bytes, también entre los demás valores de \code{EntidadDuplicada}. La completitud se mide por
 separado con \code{NoNulo}; así un mismo ausente no se penaliza en dos factores.
 \code{NoNulo} acepta el vector opcional \code{valores_nulos} para aplicar de forma
 deliberada el diccionario de nulos que contempla el marco; sin configurarlo,

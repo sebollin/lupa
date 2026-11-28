@@ -922,7 +922,11 @@
   preparacion <- .texto_analizable(x)
   x_analisis <- preparacion$valores
   x_identidad <- preparacion$valores_identidad
-  if (is.null(x_identidad)) x_identidad <- x_analisis
+  if (is.null(x_identidad)) {
+    # Un BLOB se compara y se infiere por su clase aunque no se pueda escribir
+    # como texto -una lista de `raw` de varios bytes-.
+    x_identidad <- if (.es_columna_blob(x)) x else x_analisis
+  }
   if (!all(aplicable)) {
     x_analisis[!aplicable] <- NA
     if (inherits(x_identidad, "sfc")) {
@@ -933,7 +937,8 @@
   }
 
   inferencia <- .inferir_tipo_interno(
-    if (is.character(x_analisis) || is.factor(x_analisis)) {
+    if (!.es_columna_blob(x) &&
+        (is.character(x_analisis) || is.factor(x_analisis))) {
       x_analisis
     } else {
       x_identidad
@@ -3940,7 +3945,11 @@
   # declarados: inferir el tipo ahi diria "desconocido" sobre una columna cuyo
   # tipo se conoce perfectamente.
   x_identidad <- preparacion_texto$valores_identidad
-  if (is.null(x_identidad)) x_identidad <- x_analisis
+  if (is.null(x_identidad)) {
+    # Un BLOB se infiere por su clase aunque no se pueda escribir como texto
+    # -una lista de `raw` de varios bytes-: la clase `blob` ya lo declaraba.
+    x_identidad <- if (.es_columna_blob(x)) x else x_analisis
+  }
   # Un byte no es un texto escrito por una persona. `.texto_analizable()` da a
   # una columna `raw` su escritura hexadecimal -`0a`, `1f`-, que sirve para
   # compararla y publicarla, pero no es una convencion que el dato tenga: leida
@@ -4034,8 +4043,8 @@
   # El perfilado conserva el resultado intermedio sólo durante esta llamada;
   # la función exportada `inferir_tipo()` nunca devuelve ese caché.
   inferencia <- .inferir_tipo_interno(
-    if (is.character(x_analisis_diagnostico) ||
-        is.factor(x_analisis_diagnostico)) {
+    if (!.es_columna_blob(x) && (is.character(x_analisis_diagnostico) ||
+        is.factor(x_analisis_diagnostico))) {
       x_analisis_diagnostico
     } else {
       x_identidad

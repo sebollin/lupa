@@ -60,7 +60,10 @@
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  x <- .texto_analizable(x)$valores
+  # El predicado de un BLOB recibe sus bytes, en las dos formas, como el
+  # `validador` de `Formato`: leida como texto, la lista de `raw` quedaba toda
+  # `NA` y la metrica no media ninguna fila, y la clase `blob` si llegaba.
+  if (!.es_columna_blob(x)) x <- .texto_analizable(x)$valores
   filas <- which(!is.na(x))
   valores <- x[filas]
   resultado <- .resultado_validador(
@@ -84,6 +87,13 @@
     x <- as.character(x)
     attributes(x) <- NULL
   }
+  # Un BLOB por sus bytes (`.claves_blob()`), por la misma razon: el metodo de
+  # `duplicated()` de la clase `blob` tambien traga `fromLast`, y la lista de
+  # `raw` no se compara como texto. Medido: tres filas con el mismo BLOB daban
+  # dos repetidas, y una lista de 16 bytes ninguna fila. En una tabla, cada
+  # columna BLOB entra con sus claves: se compara solo consigo misma.
+  if (.es_columna_blob(x)) x <- .claves_blob(x)
+  if (is.data.frame(x)) x <- .blob_como_clave(x)
   duplicated(x) | duplicated(x, fromLast = TRUE)
 }
 
@@ -134,11 +144,15 @@
     resultado <- rep(FALSE, nrow(tabla))
     indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
     otros <- names(tabla)[-unique(indices_atributos)]
+    # Un BLOB entre los demas valores se compara por su clave de bytes, celda
+    # contra celda de la misma columna: leido como `raw`, un valor de varios
+    # bytes hacia abortar `||` y la metrica no media nada.
+    valores_otros <- .blob_como_clave(tabla)
     compatibles <- function(b, a) {
       if (!length(otros)) return(TRUE)
       all(vapply(otros, function(nombre) {
-        x <- tabla[[nombre]][[a]]
-        y <- tabla[[nombre]][[b]]
+        x <- valores_otros[[nombre]][[a]]
+        y <- valores_otros[[nombre]][[b]]
         is.na(x) || is.na(y) || identical(as.character(x), as.character(y))
       }, logical(1L)))
     }
@@ -221,9 +235,15 @@
   entidad <- instancia$entidad[[1L]]
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
-  # Se pide la columna para que una que falta se rechace aca; el valor no
-  # hace falta, el texto sale de `.texto_fila_aproximada()`.
-  .obtener_columna_modelo(tabla, atributo, entidad)
+  # Se pide la columna para que una que falta se rechace aca; el texto sale de
+  # `.texto_fila_aproximada()`. Un BLOB no tiene escritura que acercar a otra:
+  # la clase `blob` se leia como el texto constante `<raw>` y la metrica
+  # publicaba "ninguna contradiccion" sin leer un byte.
+  .rechazar_sobre_blob(
+    .obtener_columna_modelo(tabla, atributo, entidad), atributo,
+    "La proximidad entre escrituras",
+    "Medir sus repeticiones exactas, por bytes, con `AtributoDuplicado`."
+  )
   config <- instancia$configuracion
   textos <- .texto_fila_aproximada(
     .seleccionar_columnas(tabla, atributo), atributo, config$normalizar
@@ -322,9 +342,16 @@
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  config <- instancia$configuracion
+  # Como en `Formato`: una expresion regular describe texto, no bytes.
+  if (!is.null(config$expresion_regular)) {
+    .rechazar_sobre_blob(
+      x, atributo, "Una expresi\u00f3n regular",
+      "Declarar un `validador` que lea sus bytes."
+    )
+  }
   filas <- which(!is.na(x))
   valores <- x[filas]
-  config <- instancia$configuracion
   vigente <- if (!is.null(config$expresion_regular)) {
     grepl(config$expresion_regular, as.character(valores), perl = TRUE)
   } else {

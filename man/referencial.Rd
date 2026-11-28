@@ -57,7 +57,10 @@ puede usarse para correctitud.
 La clave no admite ausentes y debe identificar cada fila de forma única.
 \code{valor} no puede repetir columnas de \code{clave} y representa atributos que se
 contrastan en correctitud semántica débil. El constructor copia la tabla y
-no consulta fuentes externas.
+no consulta fuentes externas. Una columna puede ser BLOB —la clase \code{blob} o
+una lista de \code{raw}—: se aparea por sus bytes y sólo con otro BLOB; contra un
+texto o un número ninguna fila coincide, aunque el texto escriba sus bytes, y
+no tiene proximidad textual.
 
 \strong{Un referencial que vive en el motor.} Con \code{datos = DBI::Id(...)} o el
 nombre de una tabla, el referencial no copia la tabla a R: guarda la

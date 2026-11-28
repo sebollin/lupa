@@ -111,7 +111,7 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   # faltante -"identifica cada fila sin repetir" se publicaba sobre la columna
   # que `perfilar(clave = )` refuta por ausentes-. Ver
   # `.normalizar_columnas_entrada()`.
-  datos <- .normalizar_columnas_entrada(datos)
+  datos <- .blob_como_clave(.normalizar_columnas_entrada(datos))
   # `Inf` pasaba la guarda y `as.integer(Inf)` es NA: aviso de R y error de
   # `head()`. Como `max_sugerencias` de `proponer_modelo()`, un entero positivo.
   maximo <- .validar_entero_positivo(maximo, "maximo")

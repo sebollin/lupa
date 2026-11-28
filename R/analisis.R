@@ -695,7 +695,10 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     detalle_medicion = if (conservar_detalle_medicion) detalle_medicion else NULL,
     evaluacion = evaluacion,
     plan_limpieza = plan, cobertura = cobertura, advertencias = advertencias,
-    datos = if (conservar_datos) as.data.frame(datos) else NULL,
+    # La copia es la de la entrada: el `NULL` de una lista BLOB queda `NULL`.
+    datos = if (conservar_datos) {
+      as.data.frame(.tabla_base(datos_originales, blob_ausentes = FALSE))
+    } else NULL,
     meta = list(
       nombre = nombre, fecha = fecha_utc,
       version_esquema = .version_esquema_analisis,

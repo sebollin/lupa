@@ -1672,15 +1672,18 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # entrada comun de las funciones que reciben una tabla, y por eso lleva la guarda
 # de `integer64`: un recorrido de las exportadas encontro cinco que solo pasan
 # por aca.
-.tabla_base <- function(tabla) {
+# `blob_ausentes = FALSE` deja el `NULL` de una lista BLOB como llego: es para
+# quien devuelve la tabla del usuario -la copia que conserva `analizar()`-, no
+# para quien la lee (`.normalizar_blob_ausentes()`).
+.tabla_base <- function(tabla, blob_ausentes = TRUE) {
   if (inherits(tabla, "data.frame")) .exigir_integer64_confiable(tabla)
   if (inherits(tabla, "data.table")) {
-    return(as.data.frame(data.table::copy(tabla), stringsAsFactors = FALSE))
+    tabla <- as.data.frame(data.table::copy(tabla), stringsAsFactors = FALSE)
+  } else if (inherits(tabla, "tbl_df")) {
+    tabla <- as.data.frame(tabla, stringsAsFactors = FALSE)
   }
-  if (inherits(tabla, "tbl_df")) {
-    return(as.data.frame(tabla, stringsAsFactors = FALSE))
-  }
-  tabla
+  if (!isTRUE(blob_ausentes)) return(tabla)
+  .normalizar_blob_ausentes(tabla)
 }
 
 # Equivalente a `data.frame[, columnas, drop = FALSE]`, sin depender de la
@@ -1891,6 +1894,11 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
   }
   if (inherits(x, "integer64")) {
     return("integer64")
+  }
+  # Una lista de `raw` sin clase -la que entregan algunos controladores- es el
+  # mismo BLOB que la clase `blob` (`.es_columna_blob()`).
+  if (.es_columna_blob(x)) {
+    return("blob")
   }
   if (inherits(x, "POSIXt")) {
     return("fecha-hora")
@@ -2173,6 +2181,12 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 }
 
 .texto_valor <- function(x) {
+  # Un BLOB se escribe por sus bytes en hexadecimal, como un `raw`
+  # (`.texto_analizable()`): `x[[1L]]` es un vector de bytes, no un valor.
+  if (.es_columna_blob(x)) {
+    if (!length(x) || !is.raw(x[[1L]])) return(NA_character_)
+    return(paste(as.character(x[[1L]]), collapse = ""))
+  }
   if (length(x) == 0L || is.na(x[[1L]])) {
     return(NA_character_)
   }
@@ -2930,6 +2944,7 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 .normalizar_columnas_entrada <- function(tabla) {
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
   .exigir_integer64_confiable(tabla)
+  tabla <- .normalizar_blob_ausentes(tabla)
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
     if ((is.factor(columna) && anyNA(levels(columna))) ||
@@ -2997,6 +3012,12 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # orden de los niveles es el orden de los valores. No se toca la entrada de la
 # tabla: los demas diagnosticos ven el factor como llego.
 .normalizar_columna_igualdad <- function(x) {
+  # Las dos formas de un BLOB -la clase `blob` y la lista de `raw`- son la misma
+  # columna: se igualan en una lista de `raw` con `NULL` por faltante, la misma
+  # huella para las dos. La comparacion la decide `.comparar_valores()`.
+  if (.es_columna_blob(x)) {
+    return(lapply(unclass(x), function(v) if (is.raw(v)) v else NULL))
+  }
   x <- .normalizar_columna_entrada(x)
   # El texto, con la lectura de las acciones: una columna `latin1` y su gemela
   # UTF-8 son la misma columna. Ver `.leer_latin1_sin_windows_1252()`.
@@ -3021,16 +3042,18 @@ match <- function(x, table, nomatch = NA_integer_, incomparables = NULL) {
 # La comparacion sobre columnas ya normalizadas, para quien normaliza una vez y
 # compara muchas (`.pares_de_columnas_identicas()`).
 .columnas_normalizadas_identicas <- function(x, y) {
-  # `identical()` iguala todos los NaN, y un `integer64` negativo ES un NaN en
-  # sus bits: `-1` y `-2` salian identicos. Comparar los bits es exacto para
-  # `integer64` -los bits son el valor-.
-  if (inherits(x, "integer64") && inherits(y, "integer64")) {
-    return(identical(class(x), class(y)) &&
-      identical(x, y, num.eq = FALSE, single.NA = FALSE))
-  }
-  identical(class(x), class(y)) &&
-    identical(is.na(x), is.na(y)) &&
-    identical(x, y)
+  .comparar_valores(x, y, como = "identicas", sin_blob = function(x, y) {
+    # `identical()` iguala todos los NaN, y un `integer64` negativo ES un NaN
+    # en sus bits: `-1` y `-2` salian identicos. Comparar los bits es exacto
+    # para `integer64` -los bits son el valor-.
+    if (inherits(x, "integer64") && inherits(y, "integer64")) {
+      return(identical(class(x), class(y)) &&
+        identical(x, y, num.eq = FALSE, single.NA = FALSE))
+    }
+    identical(class(x), class(y)) &&
+      identical(is.na(x), is.na(y)) &&
+      identical(x, y)
+  })
 }
 
 .nombre_paquete <- function() {

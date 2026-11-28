@@ -105,6 +105,21 @@
   nombres <- paste0("V", seq_len(ncol(objetivo)))
   objetivo <- as.data.frame(objetivo, stringsAsFactors = FALSE)
   referencia <- as.data.frame(referencia, stringsAsFactors = FALSE)
+  # Cada columna se aparea con la suya por `.comparar_valores()`: un BLOB solo
+  # con un BLOB, por sus bytes. Si un par junta un BLOB con un texto o un
+  # numero, ninguna fila coincide -como en el motor- aunque el texto diga la
+  # escritura de los bytes. Los pares sin BLOB quedan como estaban.
+  for (i in seq_len(ncol(objetivo))) {
+    par <- .comparar_valores(
+      objetivo[[i]], referencia[[i]], como = "claves",
+      sin_blob = function(x, y) list(x = x, y = y)
+    )
+    if (is.null(par)) return(rep(FALSE, nrow(objetivo)))
+    if (.es_columna_blob(objetivo[[i]])) {
+      objetivo[[i]] <- par$x
+      referencia[[i]] <- par$y
+    }
+  }
   names(objetivo) <- names(referencia) <- nombres
   combinado <- rbind(referencia, objetivo)
   codigos <- .codigos_filas(combinado)
@@ -181,20 +196,30 @@
 .referencial_tabla_normalizada <- function(tabla, columnas, perfil) {
   indices <- .indice_nombre(columnas, names(tabla))
   columnas <- names(tabla)[indices]
-  salida <- lapply(columnas, function(columna) {
+  # Un BLOB no es texto: no se normaliza -sus bytes son exactos- y sigue siendo
+  # BLOB, para que el apareo lo compare solo con otro BLOB.
+  blob <- vapply(columnas, function(columna) {
+    .es_columna_blob(tabla[[columna]])
+  }, logical(1L), USE.NAMES = FALSE)
+  salida <- lapply(seq_along(columnas), function(k) {
+    columna <- columnas[[k]]
+    if (blob[[k]]) return(rep(NA_character_, nrow(tabla)))
     texto <- suppressWarnings(.texto_identidad(.valores_relacion(tabla[[columna]])))
     .normalizacion_aplicar(
       texto, .normalizacion_para_columna(perfil, columna)
     )
   })
   names(salida) <- columnas
-  as.data.frame(salida, stringsAsFactors = FALSE)
+  salida <- as.data.frame(salida, stringsAsFactors = FALSE)
+  for (k in which(blob)) salida[[k]] <- tabla[[columnas[[k]]]]
+  salida
 }
 
 .referencial_filas_texto <- function(tabla, columnas, perfil) {
   normalizada <- .referencial_tabla_normalizada(tabla, columnas, perfil)
   if (!nrow(normalizada)) return(character())
   normalizada[] <- lapply(normalizada, function(x) {
+    if (.es_columna_blob(x)) x <- .claves_blob(x)
     x[is.na(x)] <- ""
     x
   })
@@ -235,6 +260,10 @@
   n <- nrow(tabla)
   if (!n || !ncol(tabla)) return(rep(FALSE, n))
   Reduce(`|`, lapply(tabla, function(x) {
+    # Un BLOB son bytes, no texto: su escritura no tiene proximidad que
+    # publicar, y un texto que dijera la misma escritura saldria "a distancia
+    # 0" de un valor que el apareo declara ausente.
+    if (.es_columna_blob(x)) return(rep(TRUE, n))
     ilegible <- .texto_analizable(x)$invalidos
     if (length(ilegible) == n) ilegible else rep(FALSE, n)
   }), init = rep(FALSE, n))
@@ -410,7 +439,10 @@
 #' La clave no admite ausentes y debe identificar cada fila de forma única.
 #' `valor` no puede repetir columnas de `clave` y representa atributos que se
 #' contrastan en correctitud semántica débil. El constructor copia la tabla y
-#' no consulta fuentes externas.
+#' no consulta fuentes externas. Una columna puede ser BLOB —la clase `blob` o
+#' una lista de `raw`—: se aparea por sus bytes y sólo con otro BLOB; contra un
+#' texto o un número ninguna fila coincide, aunque el texto escriba sus bytes, y
+#' no tiene proximidad textual.
 #'
 #' **Un referencial que vive en el motor.** Con `datos = DBI::Id(...)` o el
 #' nombre de una tabla, el referencial no copia la tabla a R: guarda la
@@ -501,16 +533,23 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   ))) {
     .detener("`clave` y `valor` no pueden compartir columnas.", call. = FALSE)
   }
+  # Una columna BLOB -la clase `blob` o una lista de `raw`- se acepta, como en
+  # los dominios de `medir()`: se aparea por sus bytes y solo con otro BLOB.
   if (any(vapply(
-    .seleccionar_columnas(tabla, c(clave, valor)), is.list, logical(1L)
+    .seleccionar_columnas(tabla, c(clave, valor)), function(x) {
+      is.list(x) && !.es_columna_blob(x)
+    }, logical(1L)
   ))) {
-    .detener("Las columnas del referencial deben ser vectores at\u00f3micos.", call. = FALSE)
+    .detener("Las columnas del referencial deben ser vectores at\u00f3micos o columnas BLOB.", call. = FALSE)
   }
+  tabla <- .normalizar_blob_ausentes(tabla)
   if (any(!.filas_completas(.seleccionar_columnas(tabla, clave)))) {
     .detener("La clave del referencial no puede contener valores ausentes.",
          call. = FALSE)
   }
-  if (anyDuplicated(.integer64_como_texto(.seleccionar_columnas(tabla, clave)))) {
+  if (anyDuplicated(.blob_como_clave(
+    .integer64_como_texto(.seleccionar_columnas(tabla, clave))
+  ))) {
     .detener("La clave del referencial debe identificar un\u00edvocamente cada fila.",
          call. = FALSE)
   }

@@ -1161,6 +1161,14 @@
 #' hexadecimal —`moda`, `n_distintos`—, pero no pasa por las etapas que
 #' interpretan la escritura de una persona —patrones, números escritos como
 #' texto, unidades, espacios—: un byte no es un texto escrito.
+#' Una columna BLOB —la clase `blob` que entrega RSQLite o una lista de `raw`,
+#' como la de DuckDB— es una sola cosa con sus dos formas: el `NULL` es un
+#' faltante —también en una columna toda `NULL`—, `n_distintos` y las columnas
+#' duplicadas comparan sus bytes, y un BLOB nunca es igual a un texto aunque el
+#' texto escriba sus bytes. Su `moda` no se publica —son bytes, no un texto—,
+#' y `cobertura_diagnosticos` lo declara con una fila `moda`; `frecuencia_moda`
+#' queda en `NA`, como en toda columna de listas. En [perfilar_dbi()],
+#' `resumen_tabla` publica la frecuencia que cuenta el motor.
 #' Un nivel `NA` de un factor —el que dejan `addNA()` o `factor(exclude =
 #' NULL)`— es un faltante: cuenta en `n_faltantes` y no en `n_distintos`, igual
 #' que en la medición, en [distribucion_valores()], en [inferir_tipo()], en
@@ -4097,6 +4105,10 @@ perfilar <- function(datos,
       cobertura_diagnosticos, cobertura_indescifrable
     )
   }
+  cobertura_moda_blob <- .cobertura_moda_blob(datos, nombres)
+  if (!is.null(cobertura_moda_blob)) {
+    cobertura_diagnosticos <- rbind(cobertura_diagnosticos, cobertura_moda_blob)
+  }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL
   if (isTRUE(ausencia_estructural)) {
     conjuntos <- .medir_etapa_dbi(
@@ -4609,6 +4621,10 @@ perfilar <- function(datos,
     clase <- .clase_vocabulario(columnas, i, umbral_alta_cardinalidad)
     if (!identical(clase, "vocabulario")) next
     x <- datos[[i]]
+    # Un BLOB entra al vocabulario con su clave de bytes (`.claves_blob()`,
+    # `b:` y su hexadecimal): la deriva ve cambiar los bytes, y solo la compara
+    # con el vocabulario de otro BLOB (`.comparar_vocabulario_deriva()`).
+    if (.es_columna_blob(x)) x <- .claves_blob(x)
     if (!is.atomic(x) && !is.factor(x)) next
     # Lo que el perfil cuenta como faltante disfrazado -una cadena de ausencia
     # como `"NA"` o un centinela- no es un valor del vocabulario: la deriva ya

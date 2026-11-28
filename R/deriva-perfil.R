@@ -1125,6 +1125,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   # Este diagnostico solo declara alcance: sus filas dependientes nombran los
   # chequeos que se omitieron, no un hallazgo propio.
   texto_largo_no_evaluado = character(),
+  # La moda de un BLOB no se publica (`.cobertura_moda_blob()`): la fila
+  # declara una cifra que el perfil no escribe, no un diagnostico que deje de
+  # producir un hallazgo -los que miran la moda ya excluyen las listas-.
+  moda = character(),
   relacion_orden_columnas = "relacion_orden_columnas",
   # La busqueda de dependencias recortada -por columnas, por presupuesto o por
   # la muestra- deja sin evaluar sus hallazgos sobre las columnas que nombra.
@@ -2294,11 +2298,22 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 
 # Que es una columna para el vocabulario: la regla que usan el perfil, para
 # decidir que guarda, y la deriva, para decidir que compara.
+# Si la columna `indice` de un perfil es BLOB: lo que el perfil declara de ella,
+# con el predicado de la entrada (`.es_columna_blob()`, por `.tipo_declarado()`).
+.columna_perfil_blob <- function(columnas, indice) {
+  "tipo_declarado" %in% names(columnas) &&
+    identical(as.character(columnas[["tipo_declarado"]][[indice]]), "blob")
+}
+
 .clase_vocabulario <- function(columnas, indice, umbral_alta_cardinalidad) {
   fila <- columnas[indice, , drop = FALSE]
   distintos <- .valor_columna_deriva(fila, "n_distintos")
-  if (!isTRUE(.almacenamiento_caracter_equivalencia(columnas, indice)) ||
-      !isTRUE(distintos >= 1)) {
+  # Un BLOB tiene vocabulario como un texto: sus valores se guardan con su
+  # clave de bytes (`.vocabulario_perfil()`), que solo se compara con la de otro
+  # BLOB (`.comparar_vocabulario_deriva()`).
+  es_blob <- .columna_perfil_blob(columnas, indice)
+  if (!(isTRUE(.almacenamiento_caracter_equivalencia(columnas, indice)) ||
+        es_blob) || !isTRUE(distintos >= 1)) {
     return("no_aplica")
   }
   tasa <- .valor_columna_deriva(fila, "tasa_distintos")
@@ -3826,6 +3841,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       # cardinalidad; una de dominio abierto en los dos, tampoco.
       if (any(estados %in% c("no_aplica", "identificador", "texto_largo")) ||
           all(estados == "abierto")) next
+      # Un BLOB y una columna que no lo es tampoco: no comparten ningun valor
+      # -su fila de tipo dice el cambio-, y comparar sus vocabularios igualaba
+      # el BLOB `01` con un texto que se escribe como su clave.
+      if (.columna_perfil_blob(anterior$columnas, indice_a) !=
+          .columna_perfil_blob(actual$columnas, indice_b)) next
       if ("protegido" %in% estados) {
         campos_protegidos <- rbind(campos_protegidos, data.frame(
           columna = nombre_a, campo = "vocabulario",

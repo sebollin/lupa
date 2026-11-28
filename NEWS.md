@@ -839,6 +839,31 @@
 
 ## Correcciones
 
+- Las columnas BLOB (la clase `blob` de RSQLite, una lista de `raw` como la
+  que entrega DuckDB, sin clase, con `I()` o con la clase `list`, o una
+  `vctrs_list_of` de `raw`) se leen igual en todo el paquete. El `NULL` es un
+  faltante, también en una columna toda `NULL`; todas esas formas son la misma
+  columna para el perfil, las columnas duplicadas y las claves; y un BLOB sólo
+  es igual a otro BLOB de los mismos bytes, nunca a un texto o a un número,
+  aunque el texto escriba sus bytes. `detectar_relaciones()`,
+  `relaciones_coleccion()`, `detectar_claves()`, `sugerir_clave()`,
+  `detectar_discordancias()`, `comparar_perfiles()`, los dominios de `medir()`
+  y `AtributoDuplicado`/`EntidadDuplicada` cuentan lo que cuenta el motor.
+  Antes, dos BLOB sin valores comunes daban una relación `m:m`,
+  `as.character()` igualaba todos los valores de la clase `blob` (cero
+  discordancias entre columnas distintas, un dominio `"<raw>"` que declaraba
+  conforme cualquier BLOB, dos filas repetidas de tres), y una lista de `raw`
+  contaba su `NULL` como un valor. `referencial()` acepta columnas BLOB en la
+  clave y en los valores, y los dominios de `medir()` (`valores`,
+  `valores_nulos`, `diccionario`) aceptan una lista BLOB; un vector `raw` sigue
+  siendo un byte por posición. `Formato` y `DesactualizacionPorFormato` con
+  `expresion_regular`, `EntidadContradictoria` y el rango de
+  `ValoresPosiblesPorComprension` sobre un BLOB se declaran no medibles, con el
+  motivo; `EntidadDuplicada` con atributos compara un BLOB por sus bytes. La moda de un BLOB no se publica (se
+  publicaba cortada en el primer `00`) y el motivo queda en la cobertura; el
+  resumen SQL de `perfilar_dbi()` publica la `frecuencia_moda` que cuenta el
+  motor. DuckDB declara el tipo `blob` como SQLite, también en una tabla vacía.
+
 - `medir_dbi()` en MySQL y MariaDB mide con un usuario que solo tiene `SELECT`
   sobre la tabla: el contador de modificaciones que el motor puede negar
   (`performance_schema` en MySQL, `INNODB_SYS_TABLESTATS` en MariaDB,

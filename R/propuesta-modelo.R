@@ -67,12 +67,19 @@
   function(df) {
     indices_df <- .indice_nombre(c(determinante, dependiente), names(df))
     if (anyNA(indices_df)) return(rep(FALSE, nrow(df)))
-    x <- .valores_relacion(df[[indices_df[[1L]]]])
-    y <- .valores_relacion(df[[indices_df[[2L]]]])
-    indice <- match(x, claves)
+    # Los valores de la tabla contra los del mapa, por `.comparar_valores()`:
+    # un BLOB solo casa con un BLOB de los mismos bytes.
+    indice <- .comparar_valores(
+      df[[indices_df[[1L]]]], mapa$determinante, como = "posicion",
+      sin_blob = function(x, mapa_x) match(.valores_relacion(x), claves)
+    )
+    iguales <- .comparar_valores(
+      df[[indices_df[[2L]]]], mapa$dependiente[indice], como = "igualdad",
+      sin_blob = function(y, mapa_y) .valores_relacion(y) == valores[indice]
+    )
     ausente <- is.na(df[[indices_df[[1L]]]]) |
       is.na(df[[indices_df[[2L]]]])
-    resultado <- !is.na(indice) & y == valores[indice]
+    resultado <- !is.na(indice) & iguales
     resultado[ausente] <- TRUE
     resultado[is.na(resultado)] <- FALSE
     resultado

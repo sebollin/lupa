@@ -1799,6 +1799,14 @@ Un vector de bytes (\code{raw}) se compara y se publica por su escritura
 hexadecimal —\code{moda}, \code{n_distintos}—, pero no pasa por las etapas que
 interpretan la escritura de una persona —patrones, números escritos como
 texto, unidades, espacios—: un byte no es un texto escrito.
+Una columna BLOB —la clase \code{blob} que entrega RSQLite o una lista de \code{raw},
+como la de DuckDB— es una sola cosa con sus dos formas: el \code{NULL} es un
+faltante —también en una columna toda \code{NULL}—, \code{n_distintos} y las columnas
+duplicadas comparan sus bytes, y un BLOB nunca es igual a un texto aunque el
+texto escriba sus bytes. Su \code{moda} no se publica —son bytes, no un texto—,
+y \code{cobertura_diagnosticos} lo declara con una fila \code{moda}; \code{frecuencia_moda}
+queda en \code{NA}, como en toda columna de listas. En \code{\link[=perfilar_dbi]{perfilar_dbi()}},
+\code{resumen_tabla} publica la frecuencia que cuenta el motor.
 Un nivel \code{NA} de un factor —el que dejan \code{addNA()} o \code{factor(exclude = NULL)}— es un faltante: cuenta en \code{n_faltantes} y no en \code{n_distintos}, igual
 que en la medición, en \code{\link[=distribucion_valores]{distribucion_valores()}}, en \code{\link[=inferir_tipo]{inferir_tipo()}}, en
 las dependencias y en las claves —\code{\link[=detectar_claves]{detectar_claves()}} y \code{\link[=sugerir_clave]{sugerir_clave()}} no

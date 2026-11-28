@@ -1233,11 +1233,11 @@
         )
       }
     )
-    return(.fecha_cero_del_controlador_dbi(
+    return(.normalizar_blob_ausentes(.fecha_cero_del_controlador_dbi(
       conexion, .texto_del_controlador_dbi(
         conexion, .armar_tipo_mixto_sqlite_dbi(conexion, valor)
       )
-    ))
+    )))
   }
   resultado <- .enviar_consulta_dbi(conexion, sql)
   on.exit(.limpiar_consulta_dbi(resultado, conexion), add = TRUE)
@@ -1443,9 +1443,9 @@
   attr(datos, "lupa_tipos_odbc") <- tipos
   # La columna de SQLite que se lee en dos partes -ver
   # `.proyeccion_tipo_mixto_dbi()`- vuelve a ser una antes de salir de aca.
-  .texto_del_controlador_dbi(
+  .normalizar_blob_ausentes(.texto_del_controlador_dbi(
     conexion, .armar_tipo_mixto_sqlite_dbi(conexion, datos)
-  )
+  ))
 }
 
 # ---- El texto que entrega el controlador ---------------------------------
@@ -18838,7 +18838,15 @@
         moda$ok <- FALSE
         moda$motivo <- frecuencia$motivo
       } else {
-        valor_moda <- tryCatch(.texto_moda(celda$valor), error = function(e) e)
+        # Como en memoria, los bytes de un BLOB no se publican como moda -se
+        # cortaban en el primer `00` y se publicaba un valor que no es el
+        # modal-; la frecuencia la cuenta el motor, y esa si se publica. La
+        # moda queda `NA` y su motivo va a la cobertura
+        # (`.declarar_moda_blob_dbi()`).
+        moda_blob <- .es_columna_blob(celda$valor) || is.raw(celda$valor)
+        valor_moda <- if (moda_blob) NA_character_ else {
+          tryCatch(.texto_moda(celda$valor), error = function(e) e)
+        }
         if (inherits(valor_moda, "error")) {
           moda$ok <- FALSE
           moda$motivo <- .mensaje_motor(valor_moda)
@@ -18865,6 +18873,7 @@
             fila$moda <- valor_moda
             fila$frecuencia_moda <- candidato
             if (!is.na(candidato)) moda$motivo <- motivo_cota
+            if (moda_blob) moda$blob <- TRUE
           }
         }
       }
@@ -18887,7 +18896,12 @@
       # vacia, y ahi NA con su motivo es lo correcto.
       if (!es_muestreado) fila$frecuencia_moda <- 0
     }
-    if (es_muestreado) {
+    if (isTRUE(moda$blob)) {
+      registros <- omitir(registros, "moda", "no_disponible", .MOTIVO_MODA_BLOB)
+      registros <- registrar(
+        registros, "frecuencia_moda", moda, motivo_exito = moda$motivo
+      )
+    } else if (es_muestreado) {
       registros <- registrar(
         registros, "moda", moda, motivo_exito = moda$motivo
       )
@@ -27428,7 +27442,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
     datos_muestra, columnas_castadas, tipos_declarados
   )
-  datos_muestra <- conversion_muestra$datos
+  datos_muestra <- .marcar_blob_vacio_dbi(
+    conversion_muestra$datos, tipos_declarados, tipos_motor
+  )
   n_obtenidas <- nrow(datos_muestra)
   alcance$filas_efectivas <- as.numeric(n_obtenidas)
   alcance$celdas_efectivas <- alcance$filas_efectivas * length(campos_sql)
@@ -27779,6 +27795,32 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )
     )
   }
+  resultado$resumen_tabla <- resumen
+  resultado
+}
+
+# La moda de un BLOB no se publica, y su motivo va a la cobertura del resumen
+# -`<columna>::moda`-, como en memoria (`.cobertura_moda_blob()`): sin la fila,
+# la moda `NA` al lado de una `frecuencia_moda` medida no decia por que.
+.declarar_moda_blob_dbi <- function(resultado) {
+  resumen <- resultado$resumen_tabla
+  if (!is.list(resumen) || !is.data.frame(resumen$sql) ||
+      !nrow(resumen$sql)) {
+    return(resultado)
+  }
+  cuales <- resumen$sql$metrica %in% "moda" &
+    resumen$sql$motivo %in% .MOTIVO_MODA_BLOB
+  if (!any(cuales)) return(resultado)
+  columnas <- unique(as.character(resumen$sql$columna[cuales]))
+  resumen$cobertura <- rbind(
+    if (is.null(resumen$cobertura)) .cobertura_dbi_vacia() else resumen$cobertura,
+    do.call(rbind, lapply(columnas, function(columna) {
+      .registro_cobertura_dbi(
+        "resumen_tabla", paste0(columna, "::moda"), "no_disponible",
+        .MOTIVO_MODA_BLOB, .REMEDIO_MODA_BLOB
+      )
+    }))
+  )
   resultado$resumen_tabla <- resumen
   resultado
 }
@@ -32064,6 +32106,7 @@ perfilar_dbi <- function(conexion, tabla,
     resultado, incluir_valores = incluir_valores
   )
   resultado <- .declarar_enmascaradas_dbi(resultado, preparacion)
+  resultado <- .declarar_moda_blob_dbi(resultado)
   resultado <- .agregar_cobertura_corroboracion_dbi(
     resultado, columnas_codigo = columnas_codigo,
     columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
@@ -32155,6 +32198,7 @@ perfilar_dbi <- function(conexion, tabla,
     resultado, incluir_valores = incluir_valores
   )
   resultado <- .declarar_enmascaradas_dbi(resultado, preparacion)
+  resultado <- .declarar_moda_blob_dbi(resultado)
   resultado <- .agregar_cobertura_corroboracion_dbi(
     resultado, columnas_codigo = columnas_codigo,
     columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,
@@ -33818,6 +33862,7 @@ perfilar_dbi <- function(conexion, tabla,
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
   estructura <- .declarar_afirmados_sin_valor_dbi(estructura, preparacion)
   estructura <- .declarar_enmascaradas_dbi(estructura, preparacion)
+  estructura <- .declarar_moda_blob_dbi(estructura)
   estructura <- .agregar_cobertura_corroboracion_dbi(
     estructura, columnas_codigo = columnas_codigo,
     columnas_opcionales = columnas_opcionales, aplicabilidad = aplicabilidad,

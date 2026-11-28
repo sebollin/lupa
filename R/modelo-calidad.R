@@ -512,7 +512,17 @@
 #' `TRUE`). Un texto no se convierte en lógico ni en número: `"1"` no es
 #' `TRUE`; un dominio o un centinela lógico sobre una columna de texto se
 #' compara como texto (`"TRUE"` cuenta, y en `NoNulo` también `"true"` y
-#' `"True"`, porque el centinela de texto no distingue mayúsculas). La completitud se mide por
+#' `"True"`, porque el centinela de texto no distingue mayúsculas). Un dominio
+#' puede ser una columna BLOB —la clase `blob` o una lista de `raw`, un valor
+#' por elemento—: un BLOB sólo coincide con un BLOB de los mismos bytes, y
+#' nunca con un texto o un número, aunque el texto escriba sus bytes; un
+#' vector `raw` es un byte por posición, el dominio de una columna `raw`. Lo
+#' que lee texto o magnitudes no se aplica a un BLOB y la métrica se declara no
+#' medible, con el motivo: una `expresion_regular` de `Formato` o de
+#' `DesactualizacionPorFormato`, el rango de `ValoresPosiblesPorComprension` y la
+#' proximidad de `EntidadContradictoria`. Un `validador` o un `predicado`
+#' reciben los bytes, y las métricas de duplicación comparan un BLOB por sus
+#' bytes, también entre los demás valores de `EntidadDuplicada`. La completitud se mide por
 #' separado con `NoNulo`; así un mismo ausente no se penaliza en dos factores.
 #' `NoNulo` acepta el vector opcional `valores_nulos` para aplicar de forma
 #' deliberada el diccionario de nulos que contempla el marco; sin configurarlo,
@@ -1031,8 +1041,8 @@ modelo <- function(..., marco = NULL) {
       !.es_texto_escalar(configuracion$expresion_regular)) {
     .detener("`expresion_regular` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
-  if (activas == "diccionario" && !is.atomic(configuracion$diccionario)) {
-    .detener("`diccionario` debe ser un vector at\u00f3mico.", call. = FALSE)
+  if (activas == "diccionario") {
+    .validar_dominio_blob(configuracion$diccionario, "diccionario")
   }
   if (activas == "validador" && !is.function(configuracion$validador)) {
     .detener("`validador` debe ser una funci\u00f3n.", call. = FALSE)
@@ -1069,18 +1079,28 @@ modelo <- function(..., marco = NULL) {
       opcional = configuracion$opcional
     ))
   }
-  if (!is.atomic(configuracion$valores_nulos)) {
-    .detener("`valores_nulos` debe ser un vector at\u00f3mico.", call. = FALSE)
-  }
+  .validar_dominio_blob(configuracion$valores_nulos, "valores_nulos")
   configuracion
 }
 
 .validar_config_valores <- function(configuracion) {
   configuracion <- .validar_propiedades_base(configuracion, "valores")
-  if (!is.atomic(configuracion$valores)) {
-    .detener("`valores` debe ser un vector at\u00f3mico.", call. = FALSE)
-  }
+  .validar_dominio_blob(configuracion$valores, "valores")
   configuracion
+}
+
+# Un dominio es un vector atomico o una columna BLOB (la clase `blob` o una
+# lista de `raw`, un valor por elemento). Un vector `raw` atomico es lo que era:
+# un byte por posicion, el dominio de una columna `raw`, y no un BLOB -contra
+# una columna BLOB no coincide ningun valor (`.comparar_valores()`)-.
+.validar_dominio_blob <- function(x, argumento) {
+  if (!is.atomic(x) && !.es_columna_blob(x)) {
+    .detener(
+      "`", argumento, "` debe ser un vector at\u00f3mico o una columna BLOB.",
+      call. = FALSE
+    )
+  }
+  invisible(x)
 }
 
 .validar_config_regla <- function(configuracion) {
@@ -1272,11 +1292,20 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  config <- instancia$configuracion
+  # Una expresion regular describe texto, y un BLOB son bytes: se evaluaba sobre
+  # `as.character()` -`<raw>` para toda la clase `blob`, el `deparse` de una
+  # lista-, y `^<raw>$` declaraba conforme cualquier BLOB. No se mide.
+  if (!is.null(config$expresion_regular)) {
+    .rechazar_sobre_blob(
+      x, atributo, "Una expresi\u00f3n regular",
+      "Declarar un `diccionario` BLOB o un `validador` que lea sus bytes."
+    )
+  }
   texto <- is.character(x) || is.factor(x)
   if (texto) x <- .texto_analizable(x)$valores
   filas <- which(!is.na(x))
   valores <- x[!is.na(x)]
-  config <- instancia$configuracion
   if (!is.null(config$expresion_regular)) {
     resultado <- grepl(
       config$expresion_regular, as.character(valores), perl = TRUE

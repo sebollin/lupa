@@ -113,7 +113,7 @@
         j <- en_prototipo[[i]]
         if (is.na(j)) return(NA_character_)
         valor <- prototipo[[j]]
-        if (is.logical(valor) || inherits(valor, "blob")) return("ninguna")
+        if (is.logical(valor) || .es_columna_blob(valor)) return("ninguna")
         if (is.character(valor)) return("texto")
         if (is.integer(valor) || inherits(valor, "integer64")) return("entera")
         "numerica"
