@@ -713,10 +713,11 @@
   declaradas_operativas <- .nombres_para_operar(declaradas)
   # Una marca de `aplicar()` no es un objetivo: su vacio es de diseno
   # (`.grupo_duplicado` es `NA` en las filas sin duplicado) y "predecirla" con
-  # otra columna no es una estructura del dato.
-  excluidas_operativas <- .nombres_para_operar(c(
-    excluidas, if (is.data.frame(marcas) && nrow(marcas)) marcas$marca
-  ))
+  # otra columna no es una estructura del dato. Se aparta por su posicion: otra
+  # columna con el mismo nombre es dato.
+  excluidas_operativas <- .nombres_para_operar(excluidas)
+  posicion_marca <- seq_along(nombres) %in%
+    .posiciones_marcas_limpieza(marcas, nombres)
   ausentes <- vector("list", length(nombres))
   no_atomicas <- character()
   for (i in seq_along(nombres)) {
@@ -739,7 +740,8 @@
   )
   candidata <- !is.na(n_ausentes) & n_ausentes >= .min_ausentes_ausencia &
     n_ausentes < n & n_ausentes >= n * .min_prop_ausencia_ausencia &
-    !(nombres_operativos %in% c(declaradas_operativas, excluidas_operativas))
+    !(nombres_operativos %in% c(declaradas_operativas, excluidas_operativas)) &
+    !posicion_marca
   indices <- which(candidata)
   # El piso de filas se declara solo cuando habia algo que examinar. Anunciar en
   # cada tabla de diez filas que no se busco un patron que no tenia candidatos
@@ -836,14 +838,15 @@
     # columna del usuario llamada asi si es una estructura del dato, y callarla
     # era silenciar un hallazgo.
     propias <- if (is.data.frame(marcas) && nrow(marcas)) {
-      .nombres_para_operar(marcas$marca[
+      .posiciones_marcas_limpieza(marcas[
         !is.na(marcas$columna) &
-          .nombres_para_operar(marcas$columna) %in% .nombres_para_operar(columna)
-      ])
-    } else character()
+          .nombres_para_operar(marcas$columna) %in% .nombres_para_operar(columna),
+        , drop = FALSE
+      ], nombres)
+    } else integer()
     for (det in determinantes) {
       if (det$indice == indices[[k]]) next
-      if (.nombres_para_operar(nombres[[det$indice]]) %in% propias) next
+      if (det$indice %in% propias) next
       ajuste <- .determinacion_ausencia(presentes[[k]], det)
       if (is.null(ajuste)) ajuste <- .determinacion_umbral(presentes[[k]], det)
       if (is.null(ajuste)) next
@@ -1630,14 +1633,10 @@
   if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(nombres)
   nombres_operativos <- .nombres_para_operar(nombres)
   declaradas <- .nombres_para_operar(aplicabilidad_resuelta$reglas$columna)
-  explicadas <- unique(c(
-    .nombres_para_operar(explicadas),
-    if (is.data.frame(marcas) && nrow(marcas)) {
-      .nombres_para_operar(marcas$marca)
-    } else {
-      character()
-    }
-  ))
+  explicadas <- unique(.nombres_para_operar(explicadas))
+  # Las marcas de `aplicar()` no son objetivo ni determinante, por su posicion.
+  posicion_marca <- seq_along(nombres) %in%
+    .posiciones_marcas_limpieza(marcas, nombres)
   # Una columna que participa de un bloque conjunto se saca como objetivo para
   # no repetir el bloque como dependencia. Como determinante no se saca: si su
   # ausencia esta contenida en la de otra, el bloque es una implicacion y la
@@ -1645,14 +1644,9 @@
   if (is.null(explicadas_determinante)) {
     explicadas_determinante <- explicadas
   } else {
-    explicadas_determinante <- unique(c(
-      .nombres_para_operar(explicadas_determinante),
-      if (is.data.frame(marcas) && nrow(marcas)) {
-        .nombres_para_operar(marcas$marca)
-      } else {
-        character()
-      }
-    ))
+    explicadas_determinante <- unique(
+      .nombres_para_operar(explicadas_determinante)
+    )
   }
 
   ausentes <- vector("list", length(nombres))
@@ -1723,7 +1717,8 @@
     n_ausentes >= .min_ausentes_conjuntos &
     n_ausentes >= n * .min_prop_ausencia_conjuntos &
     n_ausentes <= n * .max_prop_ausencia_conjuntos &
-    !(nombres_operativos %in% c(declaradas, explicadas))
+    !(nombres_operativos %in% c(declaradas, explicadas)) &
+    !posicion_marca
   indices <- which(candidata)
 
   if (hacer_conjuntos && n < .min_filas_ausencia_estructural &&
@@ -1964,7 +1959,8 @@
     ausente_objetivo <- ausentes[[objetivo]]
     for (det in determinantes) {
       if (det$indice == objetivo) next
-      if (nombres_operativos[[det$indice]] %in% excluidas_determinante) next
+      if (nombres_operativos[[det$indice]] %in% excluidas_determinante ||
+          posicion_marca[[det$indice]]) next
       for (candidato in det$candidatos) {
         n_candidatos_prueba <- n_candidatos_prueba + 1L
         ajuste <- .ajuste_simple_ausencia(
@@ -2021,7 +2017,8 @@
         primero <- determinantes[[par$primero]]
         segundo <- determinantes[[par$segundo]]
         if (nombres_operativos[[primero$indice]] %in% excluidas_determinante ||
-            nombres_operativos[[segundo$indice]] %in% excluidas_determinante) {
+            nombres_operativos[[segundo$indice]] %in% excluidas_determinante ||
+            posicion_marca[[primero$indice]] || posicion_marca[[segundo$indice]]) {
           next
         }
         if (isTRUE(par$cache$soporte)) {

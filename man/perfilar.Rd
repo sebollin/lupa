@@ -1323,10 +1323,43 @@ con otra caja o espacios en los bordes—, que se nombran en
 Es lo que \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara como vocabulario.
 \code{general$marcas_limpieza} está cuando los datos traen el atributo
 \code{marcas_limpieza} que deja \code{\link[=aplicar]{aplicar()}}: las marcas que agregó el plan, con
-la columna que marca. Una marca así no explica la ausencia de su propia
-columna en \code{posible_ausencia_estructural}, y la marca misma tampoco es
-objetivo de ese diagnóstico (\code{.grupo_duplicado} está vacía por diseño en
-las filas sin duplicado); una columna del usuario con el mismo nombre, sí. Cuando el camino
+la columna que marca, su \code{estado} y su \code{posicion} —la columna de la tabla
+de la que habla: entre las que llevan su nombre, la que tiene su huella, y
+si ninguna, la primera—. \code{\link[=aplicar]{aplicar()}} guarda la huella de
+cada marca —de sus valores, su clase y su cantidad de filas, y en
+\verb{.ausente_<x>} y \verb{.outlier_<x>} también de \code{x}— y el estado se decide una
+vez, por posición: \code{coincide}, si la columna es la que escribió y, en la
+marca de grupo, sus grupos siguen siendo los de las filas duplicadas que
+\code{\link[=aplicar]{aplicar()}} encuentra hoy en las demás columnas (toda \code{NA} vale si hoy no
+hay filas duplicadas); \code{desactualizada}, si la marca de grupo es la que
+escribió pero sus grupos ya no son esos —una celda editada después de
+marcar—; \code{no_coincide}, si después se agregaron, quitaron, reordenaron o
+editaron filas (ordenar la tabla también cuenta), se reemplazó la marca o
+la columna que describe, o el atributo vino de otra tabla; o \code{sin_huella},
+si el atributo no la trae: datos limpiados por una versión anterior, o un
+atributo armado con la tabla \code{general$marcas_limpieza} de un perfil, que no
+la publica. La comprobación contra los datos de hoy se hace solo para la
+marca de grupo (\code{.grupo_duplicado}): en \code{.fila_duplicada} y
+\code{.clave_duplicada}, \code{coincide} dice que nadie las tocó, no que sigan
+describiendo las filas de hoy. Todo lo lee de ahí, y por posición: otra
+columna con el mismo nombre que una marca es dato —entra en la comparación
+de grupos y sus hallazgos son suyos—. Una marca que no es \code{no_coincide} no explica la
+ausencia de su propia columna en \code{posible_ausencia_estructural}, y la marca
+misma tampoco es objetivo de ese diagnóstico (\code{.grupo_duplicado} está vacía
+por diseño en las filas sin duplicado); una columna del usuario con el
+mismo nombre, o una marca que no coincide, sí. El \code{faltantes} de la marca
+de grupo \code{coincide} sale con severidad \code{ok}, con la razón en la
+descripción; el de una \code{desactualizada} conserva su severidad y lo dice.
+Todo hallazgo de una marca que no coincide conserva su severidad, y la
+descripción dice que la columna no es la que escribió \code{\link[=aplicar]{aplicar()}}. Una
+marca de grupo sin ningún \code{NA} no tiene \code{faltantes}: si queda
+\code{desactualizada}, ningún hallazgo lo dice, y se ve en
+\code{general$marcas_limpieza$estado} y en \code{print()}, que nombra toda marca
+\code{desactualizada} o \code{no_coincide}; \code{\link[=perfilar_por]{perfilar_por()}} no lo publica. Con una
+marca sin huella, nada cambia respecto de antes de la huella. El atributo
+llega
+también a cada grupo de \code{\link[=perfilar_por]{perfilar_por()}}, pero no a \code{\link[=perfilar_dbi]{perfilar_dbi()}}: no
+viaja a la base. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por

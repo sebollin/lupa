@@ -2746,7 +2746,28 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' `.grupo_duplicado` significan que la fila no está en ningún grupo— también,
 #' con la razón en la descripción. Una columna del usuario con uno de esos
 #' nombres es una columna del usuario: si desaparece, es `error`, como
-#' cualquiera. El atributo sobrevive a quedarse con algunas filas
+#' cualquiera. Una marca cuya huella ya no coincide con la que guardó
+#' [aplicar()] en alguna de las dos entregas —la tabla cambió después de
+#' limpiar, por ejemplo al quedarse con algunas filas o al ordenarla— sigue
+#' publicándose con `ok` al aparecer o desaparecer, y la evidencia lo dice.
+#' Un cambio de `hallazgo` o `severidad_hallazgo` sobre una columna sale `ok`
+#' solo si la columna es marca `coincide` —o sin huella— en cada entrega donde
+#' está, según el estado que publica `general$marcas_limpieza` por posición, y
+#' su nombre no se repite en un perfil que publica la posición: en las dos, si
+#' la columna está en las dos; en la que la tiene, si aparece o desaparece. Si
+#' es marca en una sola de dos entregas que tienen la columna —la otra volvió
+#' de un CSV, de `merge()`, `cbind()` o [perfilar_dbi()], o usa ese nombre para
+#' una columna del usuario—, o es `desactualizada` o `no_coincide` en alguna,
+#' sus hallazgos se comparan como los de cualquier columna, con su severidad.
+#' Una marca que está en las dos
+#' entregas y cambió de estado —de `coincide` a `desactualizada` o a
+#' `no_coincide`, o al revés— tiene su fila, `aspecto = "columna"` y
+#' `cambio = "modificado"`, con los dos estados y severidad `sospechoso` si
+#' dejó de coincidir. Un registro sin huella —el de una versión anterior, o
+#' uno armado con la tabla `general$marcas_limpieza` de un perfil— no permite
+#' confirmar la marca: la comparación lo trata como antes de la huella, con sus
+#' hallazgos en `ok`, aunque [perfilar()] diagnostique la columna como dato.
+#' El atributo sobrevive a quedarse con algunas filas
 #' (`datos[filas, ]`, `head()`, ordenar), a `rbind()` y a cambiar o quitar una
 #' columna con `$<-` o `[[<-`; lo pierden la selección de columnas con `[`
 #' (`datos[, columnas]`, `datos[columnas]`), `cbind()`, `merge()`, `subset()`,
@@ -3053,6 +3074,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   comunes <- estructura$comunes
   marcas_a <- estructura$marcas_a
   marcas_b <- estructura$marcas_b
+  # Las columnas cuyos hallazgos se dan por de diseno: marca `coincide` -o sin
+  # huella- en cada entrega donde esta la columna. Ver
+  # `.comparar_estructura_deriva()`.
+  bajables <- estructura$bajables
   proteccion_a <- estructura$proteccion_a
   proteccion_b <- estructura$proteccion_b
   politica_proteccion_cambiada <- estructura$politica_proteccion_cambiada
@@ -3119,7 +3144,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   cambios <- acumulador$obtener()
   .comparar_final_deriva(
     anterior, actual, mapa_a, mapa_b, capa_tabla, muestra_no_comparable,
-    marcas_a, marcas_b, campos_protegidos, cambios
+    marcas_a, marcas_b, campos_protegidos, cambios, bajables = bajables
   )
 }
 
@@ -3182,18 +3207,79 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # marca como "Aparecio una columna", severidad `error`: la alarma era la
   # limpieza que el usuario pidio. La fila queda -la tabla si cambio de forma-
   # con severidad `ok`.
-  marcas_perfil <- function(perfil, mapa) {
-    marcas <- perfil$general$marcas_limpieza
-    if (!is.data.frame(marcas) || !nrow(marcas)) return(character())
-    mapa$clave[.nombres_para_operar(mapa$original) %in%
-                 .nombres_para_operar(as.character(marcas$marca))]
+  #
+  # Se reconocen por el estado que publico cada perfil, por posicion
+  # (`.estado_marcas_por_columna()`), y aca cuenta tambien la marca que ya no
+  # coincide: quedarse con algunas filas de lo limpio cambia la huella y la
+  # columna sigue siendo la marca que agrego la limpieza. La fila lo dice en la
+  # evidencia.
+  estados_a <- .estado_marcas_por_columna(anterior)
+  estados_b <- .estado_marcas_por_columna(actual)
+  marcas_perfil <- function(estados, mapa,
+                            cuales = c("coincide", "desactualizada",
+                                       "no_coincide", "sin_huella")) {
+    mapa$clave[estados[mapa$indice] %in% cuales]
   }
-  marcas_a <- marcas_perfil(anterior, mapa_a)
-  marcas_b <- marcas_perfil(actual, mapa_b)
+  marcas_a <- marcas_perfil(estados_a, mapa_a)
+  marcas_b <- marcas_perfil(estados_b, mapa_b)
+  cambiadas_a <- marcas_perfil(estados_a, mapa_a, "no_coincide")
+  cambiadas_b <- marcas_perfil(estados_b, mapa_b, "no_coincide")
+  viejas_a <- marcas_perfil(estados_a, mapa_a, "desactualizada")
+  viejas_b <- marcas_perfil(estados_b, mapa_b, "desactualizada")
+  # Los hallazgos de una columna solo se dan por de diseno si es marca
+  # `coincide` -o sin huella, como antes- en CADA entrega donde esta la columna,
+  # leida por posicion. La union por nombre de las marcas de las dos entregas
+  # tapaba un empeoramiento: limpio contra lo que volvio de un CSV -sin el
+  # atributo-, o contra una tabla que reasigno el nombre `.grupo_duplicado` a una
+  # columna del usuario, publicaba `faltantes` `ok -> error` con severidad `ok`.
+  # Medido. Una columna que esta en una sola entrega -la marca que aparece al
+  # limpiar- se juzga por esa. Un hallazgo solo trae el nombre de su columna:
+  # con un nombre repetido en un perfil que publica la posicion, no se sabe si
+  # es de la marca.
+  repetidas <- function(perfil, mapa) {
+    marcas <- perfil$general$marcas_limpieza
+    if (!is.data.frame(marcas) || !"posicion" %in% names(marcas)) {
+      return(character())
+    }
+    claves <- .nombres_para_operar(mapa$original)
+    mapa$original[duplicated(claves) | duplicated(claves, fromLast = TRUE)]
+  }
+  propias <- c("coincide", "sin_huella")
+  todas <- union(mapa_a$clave, mapa_b$clave)
+  estado_en <- function(estados, mapa) {
+    estados[mapa$indice[match(todas, mapa$clave)]]
+  }
+  en_a <- todas %in% mapa_a$clave
+  en_b <- todas %in% mapa_b$clave
+  bajable <- (!en_a | estado_en(estados_a, mapa_a) %in% propias) &
+    (!en_b | estado_en(estados_b, mapa_b) %in% propias)
+  originales <- ifelse(
+    en_a, mapa_a$original[match(todas, mapa_a$clave)],
+    mapa_b$original[match(todas, mapa_b$clave)]
+  )
+  bajables <- setdiff(
+    unique(originales[bajable]),
+    c(repetidas(anterior, mapa_a), repetidas(actual, mapa_b))
+  )
   evidencia_marca <- paste(
     "Es una marca del plan de limpieza: la agrega `aplicar()` y no es una",
     "columna de la entrega. No se comparan sus m\u00e9tricas."
   )
+  evidencia_cambiada <- paste(
+    evidencia_marca,
+    "Su contenido ya no coincide con el que escribi\u00f3 `aplicar()`: la",
+    "tabla cambi\u00f3 despu\u00e9s de limpiar (filas agregadas, quitadas,",
+    "reordenadas o editadas, o la columna reemplazada)."
+  )
+  evidencia_vieja <- paste(
+    evidencia_marca,
+    "Sus grupos ya no son las filas duplicadas de los datos: cambiaron valores",
+    "despu\u00e9s de marcarlas."
+  )
+  evidencia_de <- function(columna, cambiadas, viejas) {
+    if (columna %in% cambiadas) evidencia_cambiada else
+      if (columna %in% viejas) evidencia_vieja else evidencia_marca
+  }
   for (columna in desaparecidas) {
     marca <- columna %in% marcas_a
     agregar(
@@ -3202,7 +3288,9 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       descripcion = if (marca) {
         "Desapareci\u00f3 una marca que agrega el plan de limpieza."
       } else "La columna desapareci\u00f3 de la entrega actual.",
-      evidencia = if (marca) evidencia_marca else {
+      evidencia = if (marca) {
+        evidencia_de(columna, cambiadas_a, viejas_a)
+      } else {
         "No se comparan sus m\u00e9tricas, patrones ni rango."
       }
     )
@@ -3215,13 +3303,51 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       descripcion = if (marca) {
         "Apareci\u00f3 una marca que agrega el plan de limpieza."
       } else "Apareci\u00f3 una columna que no estaba en la entrega anterior.",
-      evidencia = if (marca) evidencia_marca else {
+      evidencia = if (marca) {
+        evidencia_de(columna, cambiadas_b, viejas_b)
+      } else {
         "No existe una base anterior para sus m\u00e9tricas."
       }
     )
   }
 
   comunes <- intersect(mapa_a$clave, mapa_b$clave)
+  # Una marca que esta en las dos entregas y cambio de estado -de `coincide` a
+  # `desactualizada` o a `no_coincide`, o al reves- es un cambio de la tabla,
+  # aunque ningun hallazgo lo muestre: una marca de grupo sin ningun `NA` cuyos
+  # grupos se rompieron no tiene `faltantes` que cambie. Medido: dos valores
+  # intercambiados entre parejas daban una comparacion vacia. Una marca sin
+  # huella no tiene estado que comparar.
+  for (columna in comunes) {
+    estado_a <- estados_a[mapa_a$indice[match(columna, mapa_a$clave)]]
+    estado_b <- estados_b[mapa_b$indice[match(columna, mapa_b$clave)]]
+    if (is.na(estado_a) || is.na(estado_b) ||
+        "sin_huella" %in% c(estado_a, estado_b) ||
+        identical(estado_a, estado_b)) {
+      next
+    }
+    agregar(
+      columna, "columna", "modificado",
+      if (identical(estado_b, "coincide")) "ok" else "sospechoso",
+      estado_a, estado_b,
+      descripcion = "Cambi\u00f3 el estado de una marca de `aplicar()`.",
+      evidencia = switch(
+        estado_b,
+        coincide = paste(
+          "La marca vuelve a ser la que escribi\u00f3 `aplicar()` y sus grupos,",
+          "los de los datos."
+        ),
+        desactualizada = paste(
+          "Sus grupos ya no son las filas duplicadas de los datos: cambiaron",
+          "valores despu\u00e9s de marcarlas."
+        ),
+        paste(
+          "La columna ya no coincide con la que escribi\u00f3 `aplicar()`: la",
+          "tabla cambi\u00f3 despu\u00e9s de limpiar."
+        )
+      )
+    )
+  }
   # La politica se mira antes de recorrer las columnas: si cambio la politica
   # entera, su fila `configuracion_proteccion` ya explica cada columna y la fila
   # por columna no se repite.
@@ -3236,6 +3362,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     comunes = comunes,
     marcas_a = marcas_a,
     marcas_b = marcas_b,
+    bajables = bajables,
     proteccion_a = proteccion_a,
     proteccion_b = proteccion_b,
     politica_proteccion_cambiada = politica_proteccion_cambiada,
@@ -4835,16 +4962,22 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 # puede afirmar y armado del objeto `deriva_perfil`.
 .comparar_final_deriva <- function(
     anterior, actual, mapa_a, mapa_b, capa_tabla, muestra_no_comparable,
-    marcas_a, marcas_b, campos_protegidos, cambios) {
+    marcas_a, marcas_b, campos_protegidos, cambios, bajables = NULL) {
   # Un hallazgo sobre una marca del plan no describe los datos: el `NA` de
   # `.grupo_duplicado` es "la fila no esta en ningun grupo", y despues de
   # `aplicar()` la deriva publicaba sus "faltantes" como hallazgo aparecido con
   # severidad `error`. Es el mismo motivo por el que el plan no propone acciones
-  # sobre las marcas. La fila queda, con severidad `ok`.
-  marcas <- c(
-    mapa_a$original[match(marcas_a, mapa_a$clave)],
-    mapa_b$original[match(marcas_b, mapa_b$clave)]
-  )
+  # sobre las marcas. La fila queda, con severidad `ok`. Solo la de una columna
+  # que es marca `coincide` -o sin huella- en cada entrega donde esta
+  # (`bajables`, de `.comparar_estructura_deriva()`): editada a constante, la
+  # marca publicaba su hallazgo nuevo `ok` como si fuera la de `aplicar()`, y una
+  # marca en una sola de dos entregas tapaba el `error` de la otra.
+  marcas <- if (is.null(bajables)) {
+    c(
+      mapa_a$original[match(marcas_a, mapa_a$clave)],
+      mapa_b$original[match(marcas_b, mapa_b$clave)]
+    )
+  } else as.character(bajables)
   if (length(marcas) && length(cambios)) {
     claves_marca <- .nombres_para_operar(marcas)
     cambios <- lapply(cambios, function(x) {

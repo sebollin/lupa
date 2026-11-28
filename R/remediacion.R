@@ -180,13 +180,14 @@
 
 # Las marcas que agrego `aplicar()`, en el atributo `marcas_limpieza` de los
 # datos: una fila por marca, con la columna que marca (`NA` en las de filas
-# repetidas). El nombre no alcanza: medido, una columna del usuario llamada
-# `.ausente_x` callaba el `posible_ausencia_estructural` de `x`, y una llamada
-# `.fila_duplicada` que desaparecia salia `ok`. Lo que el atributo no sobrevive
-# -un `merge()`, `cbind()`, la seleccion de columnas con `[`, un CSV- deja la
-# columna como del usuario: ruido, no silencio.
+# repetidas) y su huella. El nombre no alcanza: medido, una columna del usuario
+# llamada `.ausente_x` callaba el `posible_ausencia_estructural` de `x`, y una
+# llamada `.fila_duplicada` que desaparecia salia `ok`. Lo que el atributo no
+# sobrevive -un `merge()`, `cbind()`, la seleccion de columnas con `[`, un CSV-
+# deja la columna como del usuario: ruido, no silencio.
 .marcas_limpieza_vacias <- function() {
-  data.frame(marca = character(), columna = character(), stringsAsFactors = FALSE)
+  data.frame(marca = character(), columna = character(), huella = character(),
+             stringsAsFactors = FALSE)
 }
 
 .marcas_limpieza_registro <- function(registro) {
@@ -207,7 +208,8 @@
         NA_character_
       } else as.character(registro$columna[[i]])
       filas[[length(filas) + 1L]] <- data.frame(
-        marca = marca, columna = base, stringsAsFactors = FALSE
+        marca = marca, columna = base, huella = NA_character_,
+        stringsAsFactors = FALSE
       )
     }
   }
@@ -215,15 +217,21 @@
   do.call(rbind, filas)
 }
 
+# El atributo de una version anterior no trae `huella`: sus marcas quedan sin
+# ella (`NA`), y valen como valian entonces.
 .marcas_limpieza_tabla <- function(datos) {
   marcas <- attr(datos, "marcas_limpieza", exact = TRUE)
   if (!is.data.frame(marcas) || !nrow(marcas) ||
       !all(c("marca", "columna") %in% names(marcas))) {
     return(.marcas_limpieza_vacias())
   }
+  huella <- if ("huella" %in% names(marcas)) {
+    as.character(marcas[["huella"]])
+  } else rep(NA_character_, nrow(marcas))
   marcas <- data.frame(
-    marca = as.character(marcas$marca), columna = as.character(marcas$columna),
-    stringsAsFactors = FALSE
+    marca = as.character(marcas[["marca"]]),
+    columna = as.character(marcas[["columna"]]),
+    huella = huella, stringsAsFactors = FALSE
   )
   presentes <- .nombres_para_operar(marcas$marca) %in%
     .nombres_para_operar(as.character(names(datos)))
@@ -239,6 +247,391 @@
                      .nombres_para_operar(as.character(nombres)), , drop = FALSE]
   rownames(marcas) <- NULL
   marcas
+}
+
+# La huella de una columna de marca: el md5 de su serializacion version 2 sin la
+# cabecera, que lleva la version de R que escribe -como `.huella_vector_grande()`-,
+# asi que no cambia entre versiones de R ni entre plataformas. Cubre los valores,
+# la clase y los demas atributos, y el largo, que es la cantidad de filas: un
+# `rbind()`, un subconjunto o un orden nuevo de las filas, una celda editada o
+# una columna recreada con otro contenido dan otra huella.
+#
+# Una marca de columna (`.ausente_<x>`, `.outlier_<x>`) describe a `x`, y su
+# huella cubre tambien a `x` tal como esta (`base`): firmar solo la marca dejaba
+# pasar el registro de otra ejecucion copiado con su columna -una `.ausente_x`
+# que decia 25 ausentes sobre una `x` completa salia `coincide`- y una `x` cuyos
+# ausentes se movieron despues. Medido. Sin `x` en la tabla, la huella es la de
+# la marca sola, al firmar y al verificar.
+.huella_marca_limpieza <- function(x, base = NULL) {
+  crudo <- function(v) {
+    r <- tryCatch(serialize(v, NULL, version = 2L, xdr = TRUE),
+                  error = function(e) NULL)
+    if (is.null(r) || length(r) <= 14L) NULL else r[-seq_len(14L)]
+  }
+  marca <- crudo(x)
+  if (is.null(marca)) return("")
+  if (!is.null(base)) {
+    descrita <- crudo(base)
+    if (is.null(descrita)) return("")
+    marca <- c(marca, descrita)
+  }
+  .md5_crudos(list(marca))[[1L]]
+}
+
+# Las posiciones de las columnas de `datos` con el nombre de una marca. Casi
+# siempre una; con nombres repetidos, todas.
+.indices_de_nombre <- function(datos, marca) {
+  if (length(marca) != 1L || is.na(marca)) return(integer())
+  which(.nombres_para_operar(as.character(names(datos))) ==
+          .nombres_para_operar(as.character(marca)))
+}
+
+# La posicion de la columna de una marca: la `ordinal`-esima con su nombre, y
+# sin ella -o si ya no hay tantas- la primera.
+.indice_de_marca <- function(datos, marca, ordinal = 1L) {
+  candidatas <- .indices_de_nombre(datos, marca)
+  if (!length(candidatas)) return(NA_integer_)
+  if (length(ordinal) != 1L || is.na(ordinal) || ordinal < 1L ||
+      ordinal > length(candidatas)) {
+    ordinal <- 1L
+  }
+  candidatas[[ordinal]]
+}
+
+.columna_de_marca <- function(datos, marca, ordinal = 1L) {
+  i <- .indice_de_marca(datos, marca, ordinal)
+  if (is.na(i)) NULL else datos[[i]]
+}
+
+# La huella de la marca `k` de `marcas` sobre la columna `i` de `datos` (por
+# omision, la primera con su nombre), con su columna descrita.
+.huella_marca_en_tabla <- function(datos, marcas, k, i = NULL) {
+  if (is.null(i)) i <- .indice_de_marca(datos, marcas$marca[[k]])
+  if (length(i) != 1L || is.na(i)) return(NULL)
+  .huella_marca_limpieza(
+    datos[[i]], .columna_de_marca(datos, marcas$columna[[k]])
+  )
+}
+
+# Para cada marca, el `estado` de su huella y la columna de la que habla:
+# `posicion`, y `ordinal` entre las columnas con su nombre. Con nombres
+# repetidos, la marca es la columna cuya huella coincide, este donde este:
+# tomar siempre la primera daba por cambiada una marca intacta en cuanto el
+# usuario agregaba antes una copia con el mismo nombre, y publicaba el vacio de
+# diseno como `error`. Medido. Si ninguna coincide, la primera: `no_coincide`.
+.posicion_marcas_limpieza <- function(datos, marcas) {
+  n <- if (is.data.frame(marcas)) nrow(marcas) else 0L
+  salida <- list(estado = rep("sin_huella", n), posicion = rep(NA_integer_, n),
+                 ordinal = rep(1L, n))
+  if (!n) return(salida)
+  huellas <- if ("huella" %in% names(marcas)) {
+    as.character(marcas[["huella"]])
+  } else rep(NA_character_, n)
+  for (k in seq_len(n)) {
+    candidatas <- .indices_de_nombre(datos, marcas$marca[[k]])
+    if (length(candidatas)) salida$posicion[[k]] <- candidatas[[1L]]
+    if (is.na(huellas[[k]])) next
+    salida$estado[[k]] <- "no_coincide"
+    if (!nzchar(huellas[[k]])) next
+    for (j in seq_along(candidatas)) {
+      actual <- .huella_marca_en_tabla(datos, marcas, k, candidatas[[j]])
+      if (!is.null(actual) && identical(actual, huellas[[k]])) {
+        salida$estado[[k]] <- "coincide"
+        salida$posicion[[k]] <- candidatas[[j]]
+        salida$ordinal[[k]] <- j
+        break
+      }
+    }
+  }
+  salida
+}
+
+# La unica regla para saber si una columna es la marca que escribio
+# `aplicar()`. Cada marca del atributo queda en uno de tres estados:
+# - `coincide`: su huella es la de la columna; nadie la toco despues de
+#   `aplicar()`.
+# - `no_coincide`: la columna cambio despues (filas agregadas, quitadas,
+#   reordenadas o editadas, una columna recreada, el atributo de otra
+#   ejecucion pegado a columnas del usuario). Es una columna como cualquier otra.
+# - `sin_huella`: el atributo es de una version anterior, que no la guardaba, o
+#   es la tabla `general$marcas_limpieza` de un perfil, que no la publica. La
+#   marca vale como valia antes de la huella y nada se decide por ella.
+# El contenido no decide: tres intentos de reconocer la marca por su forma (que
+# sea logica sin `NA`, que sus grupos cuadren entre si) dejaron pasar columnas
+# del usuario que la imitaban y marcas viejas pegadas a filas editadas.
+.estado_marcas_limpieza <- function(datos, marcas) {
+  .posicion_marcas_limpieza(datos, marcas)$estado
+}
+
+# La tabla de marcas de `datos` con lo que se decide de cada una, una sola vez
+# y por posicion: `posicion` es la columna de la tabla cuya huella se calculo, y
+# `estado` toma cuatro valores:
+# - `coincide`: su huella es la de esa columna y, si es la marca de grupo, sus
+#   grupos son los de las filas duplicadas de hoy;
+# - `desactualizada`: es la marca de grupo que escribio `aplicar()` -su huella
+#   coincide- pero sus grupos ya no son los duplicados de hoy (una celda
+#   editada despues de marcar, una accion posterior del plan que normaliza);
+# - `no_coincide` y `sin_huella`, los de `.estado_marcas_limpieza()`.
+# `grupo` dice cual es la marca de grupo; es interno. Es la tabla que publica el
+# perfil en `general$marcas_limpieza` -sin `huella` ni `grupo`- y lo unico que
+# leen los hallazgos de las marcas, el diagnostico de ausencia, la deriva y el
+# plan: una columna con el mismo nombre en otra posicion no es la marca.
+.marcas_limpieza_con_estado <- function(datos) {
+  marcas <- .marcas_limpieza_tabla(datos)
+  ubicadas <- .posicion_marcas_limpieza(datos, marcas)
+  marcas$posicion <- ubicadas$posicion
+  marcas$ordinal <- ubicadas$ordinal
+  marcas$estado <- ubicadas$estado
+  grupos <- .grupos_marca_vigentes(datos, marcas)
+  marcas$grupo <- grupos$grupo
+  marcas$estado[grupos$grupo & !grupos$vigente] <- "desactualizada"
+  marcas
+}
+
+# Los estados que todavia son la columna que escribio `aplicar()`, o que se
+# leen como antes de la huella.
+.ESTADOS_MARCA_PROPIA <- c("coincide", "desactualizada", "sin_huella")
+
+# Las marcas que cuentan como marcas para los diagnosticos de ausencia, con su
+# `posicion`: la que no coincide es una columna del usuario.
+.marcas_limpieza_reconocidas <- function(marcas) {
+  if (!is.data.frame(marcas) || !nrow(marcas)) return(.marcas_limpieza_vacias())
+  estado <- if ("estado" %in% names(marcas)) {
+    as.character(marcas[["estado"]])
+  } else rep("sin_huella", nrow(marcas))
+  marcas[estado %in% .ESTADOS_MARCA_PROPIA, , drop = FALSE]
+}
+
+# Las posiciones de `nombres` que son marcas de `marcas`: por la `posicion` que
+# trae cada una, si la trae y la columna sigue teniendo ese nombre; sin ella
+# -una tabla de marcas armada antes de la posicion-, por el nombre.
+.posiciones_marcas_limpieza <- function(marcas, nombres) {
+  if (!is.data.frame(marcas) || !nrow(marcas) || !length(nombres)) {
+    return(integer())
+  }
+  claves <- .nombres_para_operar(as.character(nombres))
+  propias <- .nombres_para_operar(as.character(marcas$marca))
+  if (!"posicion" %in% names(marcas)) return(which(claves %in% propias))
+  pos <- suppressWarnings(as.integer(marcas[["posicion"]]))
+  valida <- !is.na(pos) & pos >= 1L & pos <= length(claves)
+  valida[valida] <- claves[pos[valida]] == propias[valida]
+  valida[is.na(valida)] <- FALSE
+  unique(pos[valida])
+}
+
+# Para cada columna de un perfil, el `estado` de la marca que ocupa esa
+# posicion, o `NA` si no es una marca. Un perfil de una version anterior no
+# publica `posicion` ni `estado`: se busca por el nombre y vale `sin_huella`.
+.estado_marcas_por_columna <- function(perfil) {
+  nombres <- as.character(perfil$columnas$columna)
+  estado <- rep(NA_character_, length(nombres))
+  marcas <- perfil$general$marcas_limpieza
+  if (!is.data.frame(marcas) || !nrow(marcas) || !length(nombres)) return(estado)
+  estados <- if ("estado" %in% names(marcas)) {
+    as.character(marcas[["estado"]])
+  } else rep("sin_huella", nrow(marcas))
+  claves <- .nombres_para_operar(nombres)
+  propias <- .nombres_para_operar(as.character(marcas$marca))
+  if ("posicion" %in% names(marcas)) {
+    pos <- suppressWarnings(as.integer(marcas[["posicion"]]))
+    valida <- !is.na(pos) & pos >= 1L & pos <= length(claves)
+    valida[valida] <- claves[pos[valida]] == propias[valida]
+    valida[is.na(valida)] <- FALSE
+    estado[pos[valida]] <- estados[valida]
+  } else {
+    i <- match(claves, propias)
+    estado[!is.na(i)] <- estados[i[!is.na(i)]]
+  }
+  estado
+}
+
+# El estado de la marca de la que habla cada hallazgo de un perfil publicado,
+# que solo trae el nombre de su columna. Si el nombre se repite en el perfil no
+# hay forma de saber de cual columna es -la regla de `.indice_columna_hallazgo()`-
+# y vale `NA`: no es de ninguna marca.
+.estado_marca_de_hallazgos <- function(perfil, columnas) {
+  por_columna <- .estado_marcas_por_columna(perfil)
+  if (!length(por_columna) || all(is.na(por_columna))) {
+    return(rep(NA_character_, length(columnas)))
+  }
+  claves <- .nombres_para_operar(as.character(perfil$columnas$columna))
+  repetidas <- claves[duplicated(claves)]
+  pedidas <- .nombres_para_operar(as.character(columnas))
+  estado <- por_columna[match(pedidas, claves)]
+  estado[is.na(columnas) | pedidas %in% repetidas] <- NA_character_
+  estado
+}
+
+# La columna de cada hallazgo de `perfilar()`, antes de publicar la traza: por la
+# posicion que dejo su detector en la traza provisoria o, sin ella, por su
+# nombre si la tabla no lo repite. Es la regla de `.indice_columna_hallazgo()`
+# en un solo recorrido.
+.indices_columna_hallazgos <- function(hallazgos, nombres) {
+  n <- if (is.data.frame(hallazgos)) nrow(hallazgos) else 0L
+  if (!n || !length(nombres)) return(rep(NA_integer_, n))
+  claves <- .nombres_para_operar(as.character(nombres))
+  repetido <- duplicated(claves) | duplicated(claves, fromLast = TRUE)
+  propias <- .nombres_para_operar(as.character(hallazgos$columna))
+  por_nombre <- match(propias, claves)
+  ambiguo <- !is.na(por_nombre) &
+    repetido[ifelse(is.na(por_nombre), 1L, por_nombre)]
+  por_nombre[ambiguo | is.na(hallazgos$columna)] <- NA_integer_
+  trazas <- if ("trazabilidad" %in% names(hallazgos)) hallazgos$trazabilidad else NULL
+  if (is.null(trazas)) return(por_nombre)
+  vapply(seq_len(n), function(i) {
+    traza <- trazas[[i]]
+    p <- if (is.list(traza)) traza[["posicion_columna"]] else NULL
+    if (length(p) == 1L && !is.na(p) && p >= 1L && p <= length(claves) &&
+        !is.na(hallazgos$columna[[i]]) && identical(claves[[p]], propias[[i]])) {
+      return(as.integer(p))
+    }
+    por_nombre[[i]]
+  }, integer(1L))
+}
+
+# La huella de las marcas que `aplicar()` escribio o recibio intactas, sobre la
+# tabla que devuelve. Una marca que llego sin huella o que ya no coincidia la
+# conserva como estaba: firmarla seria dar por buena una columna que nadie
+# verifico.
+# Con nombres repetidos se firma la columna que era la marca (`ordinales`, su
+# lugar entre las del mismo nombre): firmar la primera daba por marca a la copia
+# del usuario. Si ese lugar ya no existe -`normalizar_nombres` renombro las
+# homonimas- no se firma: la marca conserva la huella que traia.
+.firmar_marcas_limpieza <- function(datos, marcas, firmar,
+                                    ordinales = rep(1L, nrow(marcas))) {
+  for (k in which(firmar)) {
+    candidatas <- .indices_de_nombre(datos, marcas$marca[[k]])
+    ordinal <- ordinales[[k]]
+    if (is.na(ordinal) || ordinal < 1L) ordinal <- 1L
+    if (length(candidatas) < ordinal) next
+    huella <- .huella_marca_en_tabla(datos, marcas, k, candidatas[[ordinal]])
+    if (!is.null(huella)) marcas$huella[[k]] <- huella
+  }
+  marcas
+}
+
+# Las marcas de la tabla entera en la rebanada de un grupo de `perfilar_por()`.
+# La rebanada la arma `perfilar_por()` y no el usuario: las marcas que coinciden
+# en la tabla entera se firman sobre ella, y en el grupo siguen siendo las que
+# escribio `aplicar()`. Las que no coinciden siguen sin coincidir (una huella
+# vacia no coincide con ninguna columna). Las que no tienen huella no viajan,
+# como antes de la huella: en cada grupo eran columnas del usuario.
+.marcas_limpieza_rebanada <- function(rebanada, marcas) {
+  if (!is.data.frame(marcas) || !nrow(marcas)) return(rebanada)
+  viajan <- marcas$estado %in% c("coincide", "desactualizada", "no_coincide")
+  if (!any(viajan)) return(rebanada)
+  # Una marca de grupo desactualizada en la tabla entera sigue siendo la que
+  # escribio `aplicar()`: en cada grupo se vuelve a verificar contra sus filas.
+  coincide <- marcas$estado[viajan] %in% c("coincide", "desactualizada")
+  ordinales <- if ("ordinal" %in% names(marcas)) {
+    marcas$ordinal[viajan]
+  } else rep(1L, sum(viajan))
+  marcas <- marcas[viajan, c("marca", "columna", "huella"), drop = FALSE]
+  marcas$huella[!coincide] <- ""
+  marcas <- .firmar_marcas_limpieza(rebanada, marcas, coincide, ordinales)
+  rownames(marcas) <- NULL
+  attr(rebanada, "marcas_limpieza") <- marcas
+  rebanada
+}
+
+# La marca de grupo (`.grupo_duplicado`) describe las filas duplicadas que
+# `aplicar()` encontro al marcarlas. Que su huella coincida dice que nadie la
+# toco; no dice que esas filas sigan siendo iguales: una celda editada en otra
+# columna, un `id` asignado despues o una accion posterior del mismo plan que
+# normaliza texto cambian los duplicados sin tocar la marca. Por eso su vacio
+# se da por de diseno solo si sus grupos son, como particion, los que
+# `.grupos_filas_duplicadas()` -la deteccion que usa `aplicar()`- encuentra hoy
+# en la tabla sin las marcas cuya huella coincide, por posicion: las demas
+# columnas, tambien una marca que no coincide o sin huella y una segunda columna
+# con el nombre de una marca, entran en la identidad de la fila. Medido: con el
+# nombre, una `.ausente_x` del usuario repetida junto a la marca quedaba fuera
+# sin que nadie le calculara la huella, y el grupo salia `ok` en una tabla sin
+# ninguna fila duplicada. Una marca de grupo toda `NA` es la de una tabla sin
+# duplicados: vale si hoy tampoco los hay.
+# Devuelve, alineados con las filas de `marcas`, `grupo` (es una marca de grupo
+# que coincide) y `vigente` (y sus grupos son los de hoy).
+.grupos_marca_vigentes <- function(datos, marcas) {
+  n <- nrow(marcas)
+  salida <- list(grupo = logical(n), vigente = logical(n))
+  if (!n) return(salida)
+  coincide <- marcas$estado == "coincide"
+  posicion <- if ("posicion" %in% names(marcas)) {
+    marcas$posicion
+  } else unname(vapply(marcas$marca, .indice_de_marca, integer(1L), datos = datos))
+  fuera <- seq_along(datos) %in% posicion[coincide]
+  hoy <- NULL
+  for (k in which(coincide & is.na(marcas$columna))) {
+    if (is.na(posicion[[k]])) next
+    g <- datos[[posicion[[k]]]]
+    # La huella coincide, asi que la columna es la que escribio `aplicar()`:
+    # de las marcas de filas, solo la de grupo es entera; la de fila y la de
+    # clave son logicas.
+    if (!is.integer(g) || !is.null(dim(g))) next
+    salida$grupo[[k]] <- TRUE
+    if (is.null(hoy)) {
+      hoy <- tryCatch(
+        .grupos_filas_duplicadas(.seleccionar_columnas(datos, which(!fuera))),
+        error = function(e) FALSE
+      )
+    }
+    if (!is.list(hoy) || length(hoy$grupos) != length(g)) next
+    canonico <- match(g, unique(g[!is.na(g)]))
+    salida$vigente[[k]] <- identical(as.integer(canonico), as.integer(hoy$grupos))
+  }
+  salida
+}
+
+# Lo que el estado de cada marca decide sobre los hallazgos de su columna, por
+# posicion (`indices`, de `.indices_columna_hallazgos()`): un hallazgo de otra
+# columna con el mismo nombre no es de la marca. Medido: con una segunda columna
+# `.grupo_duplicado` del usuario, su `faltantes` de 57 % bajaba a `ok` por el
+# nombre de la marca real.
+# - `faltantes` en una marca de grupo `coincide` baja a `ok` y dice por que; el
+#   plan la sigue listando en `hallazgos_sin_accion`.
+# - `faltantes` en una marca `desactualizada` conserva su severidad y lo dice.
+# - Todo hallazgo de una marca que no coincide conserva su severidad y dice que
+#   la columna no es la que escribio `aplicar()`.
+# Una marca sin huella no cambia nada.
+.hallazgos_de_marcas_limpieza <- function(hallazgos, marcas, indices) {
+  if (!is.data.frame(hallazgos) || !nrow(hallazgos) ||
+      !is.data.frame(marcas) || !nrow(marcas)) {
+    return(hallazgos)
+  }
+  cual <- match(indices, marcas$posicion, incomparables = NA)
+  estado <- marcas$estado[cual]
+  grupo <- marcas$grupo[cual]
+  faltantes <- as.character(hallazgos$tipo_hallazgo) == "faltantes"
+  explicada <- faltantes & estado %in% "coincide" & grupo %in% TRUE &
+    !is.na(hallazgos$severidad) & as.character(hallazgos$severidad) != "ok"
+  vencida <- faltantes & estado %in% "desactualizada"
+  ajena <- estado %in% "no_coincide"
+  if (any(explicada)) {
+    hallazgos$severidad[explicada] <- "ok"
+    hallazgos$descripcion[explicada] <- paste(
+      hallazgos$descripcion[explicada],
+      "Es la marca de filas duplicadas que escribi\u00f3 `aplicar()` y sus",
+      "grupos siguen siendo los de los datos: su vac\u00edo es de dise\u00f1o",
+      "(`NA` es una fila que no se repite)."
+    )
+  }
+  if (any(vencida)) {
+    hallazgos$descripcion[vencida] <- paste(
+      hallazgos$descripcion[vencida],
+      "Es la marca de filas duplicadas que escribi\u00f3 `aplicar()`, pero sus",
+      "grupos no se confirman con las filas duplicadas de hoy (cambiaron",
+      "valores o columnas despu\u00e9s de marcarlas): conserva su severidad."
+    )
+  }
+  if (any(ajena)) {
+    hallazgos$descripcion[ajena] <- paste(
+      hallazgos$descripcion[ajena],
+      "La columna figura como marca de `aplicar()`, pero no coincide con la",
+      "que escribi\u00f3: cambi\u00f3 despu\u00e9s de limpiar (filas agregadas,",
+      "quitadas, reordenadas o editadas, o la columna reemplazada). Se",
+      "diagnostica como cualquier columna."
+    )
+  }
+  hallazgos
 }
 
 # Las marcas que el plan agrega SOBRE una columna -`marcar_filas_ausentes` y
@@ -595,8 +988,16 @@
   hallazgos <- perfil$hallazgos
   if (!inherits(hallazgos, "data.frame") || !nrow(hallazgos)) return(vacio)
   # Un hallazgo `ok` no espera accion: describe una propiedad medida, no un
-  # problema.
-  candidatos <- which(as.character(hallazgos$severidad) != "ok")
+  # problema. Salvo el vacio de una marca de grupo `coincide`, que `perfilar()`
+  # baja a `ok` (`.hallazgos_de_marcas_limpieza()`): el plan sigue diciendo por
+  # que no hay accion sobre ella. El estado de cada marca es el que publico el
+  # perfil, por posicion (`.estado_marca_de_hallazgos()`).
+  estado_marca <- .estado_marca_de_hallazgos(perfil, hallazgos$columna)
+  candidatos <- which(
+    as.character(hallazgos$severidad) != "ok" |
+      (as.character(hallazgos$tipo_hallazgo) == "faltantes" &
+         estado_marca %in% "coincide")
+  )
   # Un perfil de una version anterior trae un hallazgo `columnas_duplicadas`
   # por par, y el plan cubre el grupo con las acciones del primero: los demas
   # pares del grupo estan cubiertos, aunque nombren otra columna.
@@ -644,6 +1045,26 @@
     columna <- as.character(hallazgos$columna[[i]])
     if (!is.na(columna) &&
         .nombres_para_operar(columna) %in% .nombres_para_operar(marcas_plan)) {
+      # El plan no actua sobre una columna con nombre de marca aunque su huella
+      # no coincida: quedarse con algunas filas o pasar por un CSV la deja asi
+      # siendo la marca. Pero el motivo dice lo que el perfil midio.
+      if (identical(estado_marca[[i]], "no_coincide")) {
+        return(paste0(
+          "La columna lleva el nombre de una marca de `aplicar()`, pero no ",
+          "coincide con la que escribi\u00f3: cambi\u00f3 despu\u00e9s de ",
+          "limpiar. El plan no propone acciones sobre columnas con nombre de ",
+          "marca; el hallazgo queda para revisar."
+        ))
+      }
+      if (identical(estado_marca[[i]], "desactualizada")) {
+        return(paste0(
+          "Es la marca de filas duplicadas que escribi\u00f3 `aplicar()`, pero ",
+          "sus grupos ya no son las filas duplicadas de hoy: cambiaron valores ",
+          "despu\u00e9s de marcarlas. El plan no propone acciones sobre columnas ",
+          "con nombre de marca; para volver a marcar, quitar las marcas y ",
+          "planificar de nuevo."
+        ))
+      }
       return(paste0(
         "La columna es una marca que agrega el propio plan de limpieza, no un ",
         "dato que limpiar: el plan no propone acciones sobre ella. En ",
@@ -1507,9 +1928,26 @@
 #' y las marcas que agregó —`.fila_duplicada`, `.grupo_duplicado`,
 #' `.ausente_<columna>`, `.outlier_<columna>`— en el atributo
 #' `marcas_limpieza`, una fila por marca con la columna que marca (`NA` en las
-#' de filas repetidas), sumadas a las que ya traían los datos. Es lo que
-#' [perfilar()] y [comparar_perfiles()] leen para reconocerlas: una columna
-#' con uno de esos nombres que no está en el atributo es del usuario.
+#' de filas repetidas) y su `huella`, sumadas a las que ya traían los datos.
+#' La huella es un md5 de la columna de la marca tal como la devuelve
+#' `aplicar()` —sus valores, su clase y su cantidad de filas—, y en
+#' `.ausente_<columna>` y `.outlier_<columna>` también de la columna que
+#' describe, tal como queda al final de `aplicar()`. Por eso marcar los
+#' ausentes de `x` e imputar `x` en el mismo `aplicar()` deja una marca que
+#' coincide: registra qué valores faltaban antes de imputarlos. Las marcas que
+#' llegaron intactas se vuelven a firmar, y las demás conservan la que traían;
+#' la firma nueva cubre la `x` que deja este `aplicar()`, así que imputar `x`
+#' en un `aplicar()` posterior también deja `.ausente_x` como una marca que
+#' coincide, con los ausentes de antes de imputar.
+#' Es lo que [perfilar()] y [comparar_perfiles()] leen para reconocerlas: una
+#' columna con uno de esos nombres que no está en el atributo es del usuario, y
+#' una cuya huella ya no coincide —filas agregadas, quitadas, reordenadas u
+#' ordenadas, o editadas después, la marca o su columna reemplazadas, el
+#' atributo de otra tabla— [perfilar()] la diagnostica como cualquier columna.
+#' Un atributo sin `huella` —el de una versión anterior, o la tabla
+#' `general$marcas_limpieza` de un perfil pegada a los datos— se lee como antes
+#' de la huella. [planificar_limpieza()] no actúa sobre ninguna columna con
+#' nombre de marca, coincida o no.
 #'
 #' Las alternativas para un mismo hallazgo comparten `grupo`; las acciones
 #' independientes usan `NA`. Como máximo una alternativa de cada grupo puede
@@ -6527,8 +6965,11 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   if (!inherits(datos, "data.frame")) {
     .detener("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
-  # Las marcas que dejo un `aplicar()` anterior siguen siendo marcas.
+  # Las marcas que dejo un `aplicar()` anterior siguen siendo marcas. Las que
+  # llegan intactas se vuelven a firmar sobre lo que devuelve esta corrida.
   marcas_previas <- .marcas_limpieza_tabla(datos)
+  ubicadas_previas <- .posicion_marcas_limpieza(datos, marcas_previas)
+  previas_intactas <- ubicadas_previas$estado == "coincide"
   if (!is.logical(permitir_eliminacion) || length(permitir_eliminacion) != 1L ||
       is.na(permitir_eliminacion) || !is.logical(conservar_eliminados) ||
       length(conservar_eliminados) != 1L || is.na(conservar_eliminados)) {
@@ -6775,9 +7216,23 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   attr(salida, "registro_limpieza") <- registro
   # Que columnas son marcas, dicho por quien las creo: la comparacion de
   # entregas y el diagnostico de ausencia lo leen de aca y no del nombre, que
-  # una columna del usuario puede tener. Solo si hay alguna.
-  marcas <- .unir_marcas_limpieza(
-    marcas_previas, .marcas_limpieza_registro(registro), names(salida)
+  # una columna del usuario puede tener. Solo si hay alguna. Cada una lleva la
+  # huella de la columna tal como sale de aca: ver `.estado_marcas_limpieza()`.
+  nuevas <- .marcas_limpieza_registro(registro)
+  marcas <- .unir_marcas_limpieza(marcas_previas, nuevas, names(salida))
+  # Con nombres repetidos, una previa se firma en el lugar que tenia entre las
+  # columnas de su nombre; una nueva no tiene homonimas al crearse.
+  ordinales <- ubicadas_previas$ordinal[match(
+    .nombres_para_operar(marcas$marca),
+    .nombres_para_operar(marcas_previas$marca)
+  )]
+  ordinales[is.na(ordinales)] <- 1L
+  marcas <- .firmar_marcas_limpieza(
+    salida, marcas,
+    .nombres_para_operar(marcas$marca) %in% .nombres_para_operar(c(
+      nuevas$marca, marcas_previas$marca[previas_intactas]
+    )),
+    ordinales
   )
   if (nrow(marcas)) attr(salida, "marcas_limpieza") <- marcas
   # Una accion asigna con `datos[[indice]] <- ...`, que es `[[<-.data.frame`: R

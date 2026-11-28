@@ -281,7 +281,28 @@ pidió y no por la entrega, y un hallazgo sobre una marca —los \code{NA} de
 \code{.grupo_duplicado} significan que la fila no está en ningún grupo— también,
 con la razón en la descripción. Una columna del usuario con uno de esos
 nombres es una columna del usuario: si desaparece, es \code{error}, como
-cualquiera. El atributo sobrevive a quedarse con algunas filas
+cualquiera. Una marca cuya huella ya no coincide con la que guardó
+\code{\link[=aplicar]{aplicar()}} en alguna de las dos entregas —la tabla cambió después de
+limpiar, por ejemplo al quedarse con algunas filas o al ordenarla— sigue
+publicándose con \code{ok} al aparecer o desaparecer, y la evidencia lo dice.
+Un cambio de \code{hallazgo} o \code{severidad_hallazgo} sobre una columna sale \code{ok}
+solo si la columna es marca \code{coincide} —o sin huella— en cada entrega donde
+está, según el estado que publica \code{general$marcas_limpieza} por posición, y
+su nombre no se repite en un perfil que publica la posición: en las dos, si
+la columna está en las dos; en la que la tiene, si aparece o desaparece. Si
+es marca en una sola de dos entregas que tienen la columna —la otra volvió
+de un CSV, de \code{merge()}, \code{cbind()} o \code{\link[=perfilar_dbi]{perfilar_dbi()}}, o usa ese nombre para
+una columna del usuario—, o es \code{desactualizada} o \code{no_coincide} en alguna,
+sus hallazgos se comparan como los de cualquier columna, con su severidad.
+Una marca que está en las dos
+entregas y cambió de estado —de \code{coincide} a \code{desactualizada} o a
+\code{no_coincide}, o al revés— tiene su fila, \code{aspecto = "columna"} y
+\code{cambio = "modificado"}, con los dos estados y severidad \code{sospechoso} si
+dejó de coincidir. Un registro sin huella —el de una versión anterior, o
+uno armado con la tabla \code{general$marcas_limpieza} de un perfil— no permite
+confirmar la marca: la comparación lo trata como antes de la huella, con sus
+hallazgos en \code{ok}, aunque \code{\link[=perfilar]{perfilar()}} diagnostique la columna como dato.
+El atributo sobrevive a quedarse con algunas filas
 (\code{datos[filas, ]}, \code{head()}, ordenar), a \code{rbind()} y a cambiar o quitar una
 columna con \verb{$<-} o \verb{[[<-}; lo pierden la selección de columnas con \code{[}
 (\code{datos[, columnas]}, \code{datos[columnas]}), \code{cbind()}, \code{merge()}, \code{subset()},

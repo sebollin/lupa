@@ -95,9 +95,26 @@ registro queda en el atributo \code{registro_limpieza} de los datos resultantes,
 y las marcas que agregó —\code{.fila_duplicada}, \code{.grupo_duplicado},
 \verb{.ausente_<columna>}, \verb{.outlier_<columna>}— en el atributo
 \code{marcas_limpieza}, una fila por marca con la columna que marca (\code{NA} en las
-de filas repetidas), sumadas a las que ya traían los datos. Es lo que
-\code{\link[=perfilar]{perfilar()}} y \code{\link[=comparar_perfiles]{comparar_perfiles()}} leen para reconocerlas: una columna
-con uno de esos nombres que no está en el atributo es del usuario.
+de filas repetidas) y su \code{huella}, sumadas a las que ya traían los datos.
+La huella es un md5 de la columna de la marca tal como la devuelve
+\code{aplicar()} —sus valores, su clase y su cantidad de filas—, y en
+\verb{.ausente_<columna>} y \verb{.outlier_<columna>} también de la columna que
+describe, tal como queda al final de \code{aplicar()}. Por eso marcar los
+ausentes de \code{x} e imputar \code{x} en el mismo \code{aplicar()} deja una marca que
+coincide: registra qué valores faltaban antes de imputarlos. Las marcas que
+llegaron intactas se vuelven a firmar, y las demás conservan la que traían;
+la firma nueva cubre la \code{x} que deja este \code{aplicar()}, así que imputar \code{x}
+en un \code{aplicar()} posterior también deja \code{.ausente_x} como una marca que
+coincide, con los ausentes de antes de imputar.
+Es lo que \code{\link[=perfilar]{perfilar()}} y \code{\link[=comparar_perfiles]{comparar_perfiles()}} leen para reconocerlas: una
+columna con uno de esos nombres que no está en el atributo es del usuario, y
+una cuya huella ya no coincide —filas agregadas, quitadas, reordenadas u
+ordenadas, o editadas después, la marca o su columna reemplazadas, el
+atributo de otra tabla— \code{\link[=perfilar]{perfilar()}} la diagnostica como cualquier columna.
+Un atributo sin \code{huella} —el de una versión anterior, o la tabla
+\code{general$marcas_limpieza} de un perfil pegada a los datos— se lee como antes
+de la huella. \code{\link[=planificar_limpieza]{planificar_limpieza()}} no actúa sobre ninguna columna con
+nombre de marca, coincida o no.
 
 Las alternativas para un mismo hallazgo comparten \code{grupo}; las acciones
 independientes usan \code{NA}. Como máximo una alternativa de cada grupo puede

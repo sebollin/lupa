@@ -40,6 +40,26 @@ print.perfil <- function(x, ...) {
     )))
   }
   cli::cli_alert_info(.cli_literal(paste(no_evaluados, if (no_evaluados == 1L) "diagn\u00f3stico no evaluado" else "diagn\u00f3sticos no evaluados")))
+  # Una marca de `aplicar()` que ya no describe los datos puede no tener ningun
+  # hallazgo que lo diga: una marca de grupo sin ningun `NA` cuyos grupos se
+  # rompieron no tiene `faltantes`. Su estado se dice aca, donde se lee el
+  # veredicto. Ver `.marcas_limpieza_con_estado()`.
+  marcas <- original$general$marcas_limpieza
+  if (is.data.frame(marcas) && "estado" %in% names(marcas)) {
+    viejas <- as.character(marcas$estado) %in% c("desactualizada", "no_coincide")
+    if (any(viejas)) {
+      cli::cli_alert_warning(.cli_literal(paste0(
+        if (sum(viejas) == 1L) {
+          "1 marca de aplicar() ya no describe los datos: "
+        } else {
+          paste0(sum(viejas), " marcas de aplicar() ya no describen los datos: ")
+        },
+        paste0(as.character(marcas$marca[viejas]), " (",
+               as.character(marcas$estado[viejas]), ")", collapse = ", "),
+        " (ver general$marcas_limpieza)"
+      )))
+    }
+  }
   # Lo que se midio sobre la muestra se dice aca, donde se lee el veredicto: un
   # "0 hallazgos sospechosos" sobre 10 de 10.000 filas no es lo mismo que sobre
   # la tabla, y la consola no lo mencionaba en ninguna parte.

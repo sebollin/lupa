@@ -155,6 +155,15 @@ declara en esta cobertura, con el diagnóstico \code{centinelas_numericos}, y el
 motivo dice si contado habría hecho cruzar el umbral de \code{faltantes}. Las
 ausencias escritas con texto —un \code{"0"} declarado en \code{cadenas_ausencia},
 por ejemplo— son del grupo y se siguen contando.
+
+Las marcas de \code{\link[=aplicar]{aplicar()}} —el atributo \code{marcas_limpieza}— se verifican una
+vez sobre la tabla entera y llegan a cada grupo, donde \code{\link[=perfilar]{perfilar()}} vuelve
+a decidir su estado sobre las filas del grupo: el \code{faltantes} de la marca
+de grupo sale \code{ok} en un grupo cuyos duplicados están enteros. La salida
+no publica ese estado —no tiene \code{general}— ni lo nombra al imprimirse: una
+marca de grupo \code{desactualizada} sin ningún \code{NA} no tiene \code{faltantes} que
+lo diga, y solo se ve en \code{general$marcas_limpieza$estado} y en \code{print()}
+de \code{\link[=perfilar]{perfilar()}} sobre la tabla entera.
 }
 \description{
 Aplica \code{\link[=perfilar]{perfilar()}} a cada grupo de filas por separado y devuelve los

@@ -182,6 +182,15 @@
 #'   motivo dice si contado habría hecho cruzar el umbral de `faltantes`. Las
 #'   ausencias escritas con texto —un `"0"` declarado en `cadenas_ausencia`,
 #'   por ejemplo— son del grupo y se siguen contando.
+#'
+#'   Las marcas de [aplicar()] —el atributo `marcas_limpieza`— se verifican una
+#'   vez sobre la tabla entera y llegan a cada grupo, donde [perfilar()] vuelve
+#'   a decidir su estado sobre las filas del grupo: el `faltantes` de la marca
+#'   de grupo sale `ok` en un grupo cuyos duplicados están enteros. La salida
+#'   no publica ese estado —no tiene `general`— ni lo nombra al imprimirse: una
+#'   marca de grupo `desactualizada` sin ningún `NA` no tiene `faltantes` que
+#'   lo diga, y solo se ve en `general$marcas_limpieza$estado` y en `print()`
+#'   de [perfilar()] sobre la tabla entera.
 #' @export
 #' @seealso [perfilar()], [cobertura_analisis()]
 #'
@@ -797,6 +806,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     })
   }
 
+  # Las marcas de `aplicar()` se verifican una vez, sobre la tabla entera: la
+  # huella es la de la columna completa.
+  marcas_tabla <- .marcas_limpieza_con_estado(datos)
   for (indice_grupo in seq_along(grupos)) {
     nombre_grupo <- names(grupos)[[indice_grupo]]
     filas <- grupos[[indice_grupo]]
@@ -832,6 +844,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         rebanada, which(!vacias | conservadas)
       )
     }
+    # El atributo de `aplicar()` no sobrevive a la seleccion: sin el, cada grupo
+    # diagnosticaba las marcas como columnas del usuario. Ver
+    # `.marcas_limpieza_rebanada()`.
+    rebanada <- .marcas_limpieza_rebanada(rebanada, marcas_tabla)
     extras_grupo <- extras
     recortes_declaracion <- clave_recortada
     registrar_recorte <- function(texto) {
@@ -1460,7 +1476,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     estructural <- .diagnosticar_ausencia_estructural(
       rebanada, nombres, resultados, aplicabilidad_resuelta,
       arg("umbral_faltantes_error"), nombres_texto = nombres_texto,
-      marcas = .marcas_limpieza_tabla(rebanada)
+      marcas = .marcas_limpieza_reconocidas(.marcas_limpieza_con_estado(rebanada))
     )
     if (length(estructural$hallazgos)) {
       h <- .cruzar_faltantes_con_estructural(h, estructural$hallazgos)

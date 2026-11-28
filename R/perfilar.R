@@ -3187,10 +3187,43 @@
 #'   Es lo que [comparar_perfiles()] compara como vocabulario.
 #'   `general$marcas_limpieza` está cuando los datos traen el atributo
 #'   `marcas_limpieza` que deja [aplicar()]: las marcas que agregó el plan, con
-#'   la columna que marca. Una marca así no explica la ausencia de su propia
-#'   columna en `posible_ausencia_estructural`, y la marca misma tampoco es
-#'   objetivo de ese diagnóstico (`.grupo_duplicado` está vacía por diseño en
-#'   las filas sin duplicado); una columna del usuario con el mismo nombre, sí. Cuando el camino
+#'   la columna que marca, su `estado` y su `posicion` —la columna de la tabla
+#'   de la que habla: entre las que llevan su nombre, la que tiene su huella, y
+#'   si ninguna, la primera—. [aplicar()] guarda la huella de
+#'   cada marca —de sus valores, su clase y su cantidad de filas, y en
+#'   `.ausente_<x>` y `.outlier_<x>` también de `x`— y el estado se decide una
+#'   vez, por posición: `coincide`, si la columna es la que escribió y, en la
+#'   marca de grupo, sus grupos siguen siendo los de las filas duplicadas que
+#'   [aplicar()] encuentra hoy en las demás columnas (toda `NA` vale si hoy no
+#'   hay filas duplicadas); `desactualizada`, si la marca de grupo es la que
+#'   escribió pero sus grupos ya no son esos —una celda editada después de
+#'   marcar—; `no_coincide`, si después se agregaron, quitaron, reordenaron o
+#'   editaron filas (ordenar la tabla también cuenta), se reemplazó la marca o
+#'   la columna que describe, o el atributo vino de otra tabla; o `sin_huella`,
+#'   si el atributo no la trae: datos limpiados por una versión anterior, o un
+#'   atributo armado con la tabla `general$marcas_limpieza` de un perfil, que no
+#'   la publica. La comprobación contra los datos de hoy se hace solo para la
+#'   marca de grupo (`.grupo_duplicado`): en `.fila_duplicada` y
+#'   `.clave_duplicada`, `coincide` dice que nadie las tocó, no que sigan
+#'   describiendo las filas de hoy. Todo lo lee de ahí, y por posición: otra
+#'   columna con el mismo nombre que una marca es dato —entra en la comparación
+#'   de grupos y sus hallazgos son suyos—. Una marca que no es `no_coincide` no explica la
+#'   ausencia de su propia columna en `posible_ausencia_estructural`, y la marca
+#'   misma tampoco es objetivo de ese diagnóstico (`.grupo_duplicado` está vacía
+#'   por diseño en las filas sin duplicado); una columna del usuario con el
+#'   mismo nombre, o una marca que no coincide, sí. El `faltantes` de la marca
+#'   de grupo `coincide` sale con severidad `ok`, con la razón en la
+#'   descripción; el de una `desactualizada` conserva su severidad y lo dice.
+#'   Todo hallazgo de una marca que no coincide conserva su severidad, y la
+#'   descripción dice que la columna no es la que escribió [aplicar()]. Una
+#'   marca de grupo sin ningún `NA` no tiene `faltantes`: si queda
+#'   `desactualizada`, ningún hallazgo lo dice, y se ve en
+#'   `general$marcas_limpieza$estado` y en `print()`, que nombra toda marca
+#'   `desactualizada` o `no_coincide`; [perfilar_por()] no lo publica. Con una
+#'   marca sin huella, nada cambia respecto de antes de la huella. El atributo
+#'   llega
+#'   también a cada grupo de [perfilar_por()], pero no a [perfilar_dbi()]: no
+#'   viaja a la base. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
@@ -3450,8 +3483,13 @@ perfilar <- function(datos,
   }
   # Las marcas de `aplicar()` se leen antes de normalizar la tabla, que la
   # rehace: el atributo es lo unico que las distingue de una columna del
-  # usuario con el mismo nombre.
-  marcas_limpieza <- .marcas_limpieza_tabla(datos)
+  # usuario con el mismo nombre. Y su huella, que dice si la columna sigue
+  # siendo la que escribio `aplicar()`. El estado de cada marca se decide una
+  # vez, por posicion, y todo lo lee de ahi: ver `.marcas_limpieza_con_estado()`.
+  # Los diagnosticos de ausencia solo apartan las marcas que siguen siendo
+  # marcas.
+  marcas_limpieza <- .marcas_limpieza_con_estado(datos)
+  marcas_reconocidas <- .marcas_limpieza_reconocidas(marcas_limpieza)
   # Antes de cualquier analisis: las columnas de texto que no declaran su
   # codificacion la declaran. Ver `.marcar_utf8_tabla()`.
   datos <- .marcar_utf8_tabla(datos)
@@ -4041,7 +4079,7 @@ perfilar <- function(datos,
       .diagnosticar_patrones_ausencia(
         datos, nombres, resultados, aplicabilidad_resuelta,
         explicadas = character(), nombres_texto = nombres_texto,
-        marcas = marcas_limpieza, fase = "conjuntos"
+        marcas = marcas_reconocidas, fase = "conjuntos"
       )
     )
     if (nrow(conjuntos$cobertura)) {
@@ -4066,7 +4104,7 @@ perfilar <- function(datos,
       .diagnosticar_ausencia_estructural(
         datos, nombres, resultados, aplicabilidad_resuelta,
         umbral_faltantes_error, nombres_texto = nombres_texto,
-        marcas = marcas_limpieza, excluidas = conjuntos$conjuntas_cubiertas
+        marcas = marcas_reconocidas, excluidas = conjuntos$conjuntas_cubiertas
       )
     )
     if (nrow(estructural$cobertura)) {
@@ -4107,7 +4145,7 @@ perfilar <- function(datos,
           explicadas_estructural, conjuntos$conjuntas_cubiertas
         )),
         explicadas_determinante = explicadas_estructural,
-        nombres_texto = nombres_texto, marcas = marcas_limpieza,
+        nombres_texto = nombres_texto, marcas = marcas_reconocidas,
         fase = "dependencia"
       )
     )
@@ -4255,10 +4293,20 @@ perfilar <- function(datos,
     hallazgos <- rbind(hallazgos, aproximados$hallazgos)
     rownames(hallazgos) <- NULL
   }
+  # La columna de cada hallazgo, por la posicion que dejo su detector: la traza
+  # publicada ya no la trae. Solo si hay marcas.
+  indices_hallazgos <- if (nrow(marcas_limpieza)) {
+    .indices_columna_hallazgos(hallazgos, nombres)
+  } else integer()
   hallazgos <- .agregar_trazabilidad_hallazgos(
     hallazgos, datos, nombres, resultados, expandir = expandir,
     aproximados = aproximados, limite = max_filas_hallazgo,
     distinguir_mayusculas = distinguir_mayusculas, clave = clave
+  )
+  # El vacio de la marca de grupo es de diseno solo si es `coincide`; ver
+  # `.hallazgos_de_marcas_limpieza()`.
+  hallazgos <- .hallazgos_de_marcas_limpieza(
+    hallazgos, marcas_limpieza, indices_hallazgos
   )
   meta <- list(
     nombre = nombre,
@@ -4456,7 +4504,11 @@ perfilar <- function(datos,
   # En `general` y no como componente propio: la lista de componentes del
   # perfil es parte de su forma publicada.
   # Solo si hay alguna: el perfil de una tabla sin marcas no cambia.
-  if (nrow(marcas_limpieza)) general$marcas_limpieza <- marcas_limpieza
+  if (nrow(marcas_limpieza)) {
+    general$marcas_limpieza <- marcas_limpieza[
+      , c("marca", "columna", "estado", "posicion"), drop = FALSE
+    ]
+  }
   general$vocabulario <- .vocabulario_perfil(
     datos, nombres, columnas, aplicabilidad_resuelta$mascaras,
     umbral_alta_cardinalidad,

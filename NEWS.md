@@ -777,6 +777,26 @@
   `asociacion_con_signo`, el coeficiente con su dirección; las columnas que ya
   publicaba no cambian.
 
+- Las marcas de `aplicar()` se reconocen por una huella. `aplicar()` agrega al
+  atributo `marcas_limpieza` la columna `huella`: un md5 de cada marca tal como
+  la devuelve (sus valores, su clase y su cantidad de filas) y, en
+  `.ausente_<x>` y `.outlier_<x>`, también de `x`. Código que le haga `rbind()`
+  al atributo con un `data.frame` de dos columnas deja de funcionar.
+  `perfilar()`: el `faltantes` de `.grupo_duplicado` sale `ok`, con la razón,
+  cuando la marca es la que escribió `aplicar()` y sus grupos siguen siendo las
+  filas duplicadas de hoy; `planificar_limpieza()` lo sigue listando en
+  `hallazgos_sin_accion`. `general$marcas_limpieza` publica el `estado` de cada
+  marca (`coincide`, `desactualizada`, `no_coincide`, `sin_huella`) y su
+  `posicion`. Una marca que no coincide (filas agregadas, quitadas, ordenadas o
+  editadas, la marca o su columna cambiadas, el atributo de otra tabla) se
+  diagnostica como cualquier columna, y la descripción lo dice; una columna con
+  el nombre de una marca en otra posición es dato. `print()` nombra las marcas
+  que ya no describen los datos. Lo limpiado con una versión anterior se
+  diagnostica como antes. `comparar_perfiles()`: un hallazgo de una marca sale
+  `ok` sólo si la marca es `coincide` (o sin huella) en cada entrega donde está,
+  y una marca común que cambia de estado tiene su fila (`aspecto = "columna"`,
+  `cambio = "modificado"`).
+
 ## Documentación
 
 - «Comparar entregas y seguir la calidad» explica el sello de definición y sus
