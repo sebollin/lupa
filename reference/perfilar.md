@@ -1415,13 +1415,43 @@ perfilar(
   `lng` infieren sólo si el contenido parece una coordenada (al menos 10
   valores, como mucho la mitad fuera del rango y la mayoría de lo que
   cabe con 3 a 8 decimales) y entonces sólo avisan de la columna, sin
-  acusar filas: pueden ser otra cosa (`lat` de latencia). Si las fechas
-  futuras de una columna forman una grilla regular sin huecos que
-  arranca en el presente (todos los días, los hábiles, cada 7 o 14 días,
-  o un día fijo o el fin de cada mes, trimestre, semestre o año), el
-  aviso de fechas futuras lo dice y nombra la posibilidad de un
-  calendario o un pronóstico; no se hace para nombres de registro o de
-  modificación (`fecha_alta`, `fecha_actualizacion`). En
+  acusar filas: pueden ser otra cosa (`lat` de latencia). Una proporción
+  (`proporcion`, `participacion`; no `prop`, que también abrevia
+  propiedad) se valida en `[0, 100]` como un porcentaje, y además se lee
+  su escala en el contenido, salvo que el nombre diga porcentaje
+  (`porcentaje`, `pct`, `percent`, `percentage`, `porcentual`,
+  `por_ciento`, `tanto_por_ciento`). Los valores solos no dicen si la
+  escala es de 0 a 1 o de 0 a 100: una proporción con unos pocos valores
+  mal cargados, un porcentaje de valores chicos y una razón dan los
+  mismos números. Por eso no se decide: si la escala de 0 a 1 es
+  plausible (la mayoría de los valores que no son 0 ni 1 está
+  estrictamente entre 0 y 1) y hay valores que pasan de 1 sin pasar de
+  100, se publican en un `valor_fuera_dominio` propio, aviso `ok` de la
+  columna que no acusa filas, con lo medido (cuántos valores hay en
+  `(0, 1)` y cuántos en `(1, 100]`) y las dos lecturas: si la escala es
+  de 0 a 1 están fuera de su dominio; si es de 0 a 100, no. Un 0 o un 1
+  valen en las dos escalas y no cuentan, ni los centinelas que el perfil
+  ya contó como faltantes disfrazados. Los valores se comparan con 0 y
+  con 1 escritos con cuatro cifras, como en la evidencia (un 1,0000001
+  es 1); el borde de 100 es el de `[0, 100]`, y un valor que con cuatro
+  cifras se escribiría como un borde sin serlo (100,004) se escribe con
+  las cifras que hagan falta. El aviso no repite las filas que ya
+  nombran el hallazgo de `[0, 100]` ni `escala_mixta` en la misma
+  columna y no cambia lo que esos publican. En
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  cada grupo lee su escala con sus valores, y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  compara este aviso con el suyo de la otra entrega. En
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  la lectura usa las filas leídas: con `muestra`, sólo las de la
+  muestra, porque el resumen del motor no cuenta valores por tramo de
+  escala. Si las fechas futuras de una columna forman una grilla regular
+  sin huecos que arranca en el presente (todos los días, los hábiles,
+  cada 7 o 14 días, o un día fijo o el fin de cada mes, trimestre,
+  semestre o año), el aviso de fechas futuras lo dice y nombra la
+  posibilidad de un calendario o un pronóstico; no se hace para nombres
+  de registro o de modificación (`fecha_alta`, `fecha_actualizacion`).
+  En
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   la tabla manda: el sostén, el reescalado y el centinela mayoritario se
   deciden con la tabla entera, aunque un grupo esté entero en otro
@@ -1534,40 +1564,81 @@ que
 compara como vocabulario. `general$marcas_limpieza` está cuando los
 datos traen el atributo `marcas_limpieza` que deja
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md):
-las marcas que agregó el plan, con la columna que marca. Una marca así
-no explica la ausencia de su propia columna en
+las marcas que agregó el plan, con la columna que marca, su `estado` y
+su `posicion` —la columna de la tabla de la que habla: entre las que
+llevan su nombre, la que tiene su huella, y si ninguna, la primera—.
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+guarda la huella de cada marca —de sus valores, su clase y su cantidad
+de filas, y en `.ausente_<x>` y `.outlier_<x>` también de `x`— y el
+estado se decide una vez, por posición: `coincide`, si la columna es la
+que escribió y, en la marca de grupo, sus grupos siguen siendo los de
+las filas duplicadas que
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+encuentra hoy en las demás columnas (toda `NA` vale si hoy no hay filas
+duplicadas); `desactualizada`, si la marca de grupo es la que escribió
+pero sus grupos ya no son esos —una celda editada después de marcar—;
+`no_coincide`, si después se agregaron, quitaron, reordenaron o editaron
+filas (ordenar la tabla también cuenta), se reemplazó la marca o la
+columna que describe, o el atributo vino de otra tabla; o `sin_huella`,
+si el atributo no la trae: datos limpiados por una versión anterior, o
+un atributo armado con la tabla `general$marcas_limpieza` de un perfil,
+que no la publica. La comprobación contra los datos de hoy se hace solo
+para la marca de grupo (`.grupo_duplicado`): en `.fila_duplicada` y
+`.clave_duplicada`, `coincide` dice que nadie las tocó, no que sigan
+describiendo las filas de hoy. Todo lo lee de ahí, y por posición: otra
+columna con el mismo nombre que una marca es dato —entra en la
+comparación de grupos y sus hallazgos son suyos—. Una marca que no es
+`no_coincide` no explica la ausencia de su propia columna en
 `posible_ausencia_estructural`, y la marca misma tampoco es objetivo de
 ese diagnóstico (`.grupo_duplicado` está vacía por diseño en las filas
-sin duplicado); una columna del usuario con el mismo nombre, sí. Cuando
-el camino no puede conocer un conteo, informa NA, nunca cero. La columna
-de lista `trazabilidad` distingue `disponible`, `truncada`, `no_aplica`
-y `no_disponible`; cuando corresponde conserva índices de fila acotados
-por `max_filas_hallazgo`, el total conocido y el alcance. En
-`clave_con_ausentes`, cuenta las filas con al menos un componente
-ausente y su traza enumera esas filas. En `clave_no_unica`, cuenta las
-filas que participan en colisiones entre claves completas y su traza
-excluye las filas incompletas; ambas unidades son `fila`. Así, una
-colisión entre ausentes no aparece como una repetición que refute la
-unicidad. `casi_duplicados_vocabulario`, donde la traza mezcla filas de
-formas variantes con filas de la forma dominante, conserva además
-`n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
-completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
-con el reparto de lo que sobrevivió al truncado. En los tres
-diagnósticos de unidad `valor_distinto` las filas de las formas
-variantes se entregan primero —en `mayusculas_inconsistentes` y
-`normalizacion_unicode`, la forma dominante de cada grupo es la guardada
-más veces—, de modo que el truncado no se lleve lo accionable. En los
-tres hallazgos de unidad `formato` (`formatos_fecha_mixtos`,
-`formato_fecha_ambiguo` y `anio_de_dos_digitos`), `n_afectados` cuenta
-formatos y la traza enumera filas; por eso su total no se compara con
-`n_afectados`. La traza se arma sobre la columna entera aunque la tabla
-de formatos, la evidencia y `n_afectados` sean de una muestra, y puede
-nombrar filas escritas en formatos que la muestra no llegó a ver; esa
-segunda lectura se hace sólo cuando alguno de los tres hallazgos sale,
-una vez por columna. `anio_de_dos_digitos` traza toda fila cuya
-escritura sólo admite lecturas con el año de dos cifras, incluidas las
-que dos lecturas probadas aceptan y por eso no cuenta el `n` de ninguna;
-su total puede ser mayor que la suma de los `n` de `formatos_fecha`.
+sin duplicado); una columna del usuario con el mismo nombre, o una marca
+que no coincide, sí. El `faltantes` de la marca de grupo `coincide` sale
+con severidad `ok`, con la razón en la descripción; el de una
+`desactualizada` conserva su severidad y lo dice. Todo hallazgo de una
+marca que no coincide conserva su severidad, y la descripción dice que
+la columna no es la que escribió
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
+Una marca de grupo sin ningún `NA` no tiene `faltantes`: si queda
+`desactualizada`, ningún hallazgo lo dice, y se ve en
+`general$marcas_limpieza$estado` y en
+[`print()`](https://rdrr.io/r/base/print.html), que nombra toda marca
+`desactualizada` o `no_coincide`;
+[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+no lo publica. Con una marca sin huella, nada cambia respecto de antes
+de la huella. El atributo llega también a cada grupo de
+[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+pero no a
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+no viaja a la base. Cuando el camino no puede conocer un conteo, informa
+NA, nunca cero. La columna de lista `trazabilidad` distingue
+`disponible`, `truncada`, `no_aplica` y `no_disponible`; cuando
+corresponde conserva índices de fila acotados por `max_filas_hallazgo`,
+el total conocido y el alcance. En `clave_con_ausentes`, cuenta las
+filas con al menos un componente ausente y su traza enumera esas filas.
+En `clave_no_unica`, cuenta las filas que participan en colisiones entre
+claves completas y su traza excluye las filas incompletas; ambas
+unidades son `fila`. Así, una colisión entre ausentes no aparece como
+una repetición que refute la unicidad. `casi_duplicados_vocabulario`,
+donde la traza mezcla filas de formas variantes con filas de la forma
+dominante, conserva además `n_filas_formas_variantes` y
+`n_filas_formas_dominantes` con el reparto completo, y
+`mostrados_formas_variantes` y `mostrados_formas_dominantes` con el
+reparto de lo que sobrevivió al truncado. En los tres diagnósticos de
+unidad `valor_distinto` las filas de las formas variantes se entregan
+primero —en `mayusculas_inconsistentes` y `normalizacion_unicode`, la
+forma dominante de cada grupo es la guardada más veces—, de modo que el
+truncado no se lleve lo accionable. En los tres hallazgos de unidad
+`formato` (`formatos_fecha_mixtos`, `formato_fecha_ambiguo` y
+`anio_de_dos_digitos`), `n_afectados` cuenta formatos y la traza enumera
+filas; por eso su total no se compara con `n_afectados`. La traza se
+arma sobre la columna entera aunque la tabla de formatos, la evidencia y
+`n_afectados` sean de una muestra, y puede nombrar filas escritas en
+formatos que la muestra no llegó a ver; esa segunda lectura se hace sólo
+cuando alguno de los tres hallazgos sale, una vez por columna.
+`anio_de_dos_digitos` traza toda fila cuya escritura sólo admite
+lecturas con el año de dos cifras, incluidas las que dos lecturas
+probadas aceptan y por eso no cuenta el `n` de ninguna; su total puede
+ser mayor que la suma de los `n` de `formatos_fecha`.
 `formato_fecha_ambiguo` traza toda fila escrita en una lectura que la
 columna entera no puede resolver (si la columna entera las resuelve
 todas, las celdas que admiten dos o más de las lecturas que cita).
@@ -1975,7 +2046,17 @@ abortar el perfil entero. Un vector de bytes (`raw`) se compara y se
 publica por su escritura hexadecimal —`moda`, `n_distintos`—, pero no
 pasa por las etapas que interpretan la escritura de una persona
 —patrones, números escritos como texto, unidades, espacios—: un byte no
-es un texto escrito. Un nivel `NA` de un factor —el que dejan
+es un texto escrito. Una columna BLOB —la clase `blob` que entrega
+RSQLite o una lista de `raw`, como la de DuckDB— es una sola cosa con
+sus dos formas: el `NULL` es un faltante —también en una columna toda
+`NULL`—, `n_distintos` y las columnas duplicadas comparan sus bytes, y
+un BLOB nunca es igual a un texto aunque el texto escriba sus bytes. Su
+`moda` no se publica —son bytes, no un texto—, y
+`cobertura_diagnosticos` lo declara con una fila `moda`;
+`frecuencia_moda` queda en `NA`, como en toda columna de listas. En
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+`resumen_tabla` publica la frecuencia que cuenta el motor. Un nivel `NA`
+de un factor —el que dejan
 [`addNA()`](https://rdrr.io/r/base/factor.html) o
 `factor(exclude = NULL)`— es un faltante: cuenta en `n_faltantes` y no
 en `n_distintos`, igual que en la medición, en

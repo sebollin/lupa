@@ -334,11 +334,38 @@ limpieza que se pidió y no por la entrega, y un hallazgo sobre una marca
 —los `NA` de `.grupo_duplicado` significan que la fila no está en ningún
 grupo— también, con la razón en la descripción. Una columna del usuario
 con uno de esos nombres es una columna del usuario: si desaparece, es
-`error`, como cualquiera. El atributo sobrevive a quedarse con algunas
-filas (`datos[filas, ]`, [`head()`](https://rdrr.io/r/utils/head.html),
-ordenar), a [`rbind()`](https://rdrr.io/r/base/cbind.html) y a cambiar o
-quitar una columna con `$<-` o `[[<-`; lo pierden la selección de
-columnas con `[` (`datos[, columnas]`, `datos[columnas]`),
+`error`, como cualquiera. Una marca cuya huella ya no coincide con la
+que guardó
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+en alguna de las dos entregas —la tabla cambió después de limpiar, por
+ejemplo al quedarse con algunas filas o al ordenarla— sigue publicándose
+con `ok` al aparecer o desaparecer, y la evidencia lo dice. Un cambio de
+`hallazgo` o `severidad_hallazgo` sobre una columna sale `ok` solo si la
+columna es marca `coincide` —o sin huella— en cada entrega donde está,
+según el estado que publica `general$marcas_limpieza` por posición, y su
+nombre no se repite en un perfil que publica la posición: en las dos, si
+la columna está en las dos; en la que la tiene, si aparece o desaparece.
+Si es marca en una sola de dos entregas que tienen la columna —la otra
+volvió de un CSV, de [`merge()`](https://rdrr.io/r/base/merge.html),
+[`cbind()`](https://rdrr.io/r/base/cbind.html) o
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+o usa ese nombre para una columna del usuario—, o es `desactualizada` o
+`no_coincide` en alguna, sus hallazgos se comparan como los de cualquier
+columna, con su severidad. Una marca que está en las dos entregas y
+cambió de estado —de `coincide` a `desactualizada` o a `no_coincide`, o
+al revés— tiene su fila, `aspecto = "columna"` y
+`cambio = "modificado"`, con los dos estados y severidad `sospechoso` si
+dejó de coincidir. Un registro sin huella —el de una versión anterior, o
+uno armado con la tabla `general$marcas_limpieza` de un perfil— no
+permite confirmar la marca: la comparación lo trata como antes de la
+huella, con sus hallazgos en `ok`, aunque
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+diagnostique la columna como dato. El atributo sobrevive a quedarse con
+algunas filas (`datos[filas, ]`,
+[`head()`](https://rdrr.io/r/utils/head.html), ordenar), a
+[`rbind()`](https://rdrr.io/r/base/cbind.html) y a cambiar o quitar una
+columna con `$<-` o `[[<-`; lo pierden la selección de columnas con `[`
+(`datos[, columnas]`, `datos[columnas]`),
 [`cbind()`](https://rdrr.io/r/base/cbind.html),
 [`merge()`](https://rdrr.io/r/base/merge.html),
 [`subset()`](https://rdrr.io/r/base/subset.html),
@@ -404,15 +431,28 @@ severidad `error`, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.
 
 Un hallazgo que ya no aparece se informa como `resuelto` sólo si el
-diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice
-en su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado`
-con severidad `sospechoso`, porque no se sabe si el hallazgo sigue:
-dejar de mirar no es lo mismo que arreglar. Una fila de esa cobertura
-sin columna declina el diagnóstico en toda la tabla, también en cada
-columna: un grupo de columnas iguales comparado con una entrega sin
-filas sale `no_evaluado`, no `resuelto`. Lo mismo si el perfil nuevo
-apagó el diagnóstico con su argumento o retiró la declaración que lo
-habilita, cosa que se lee en `meta`:
+diagnóstico volvió a evaluarse. La lectura de la escala de 0 a 1 de una
+proporción (ver `dominios` en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)),
+además, sólo si la columna ya no tiene valores en `(1, 100]`: si siguen
+—la escala de 0 a 1 dejó de ser plausible o los nombra `escala_mixta`—,
+el cambio es `modificado`, con severidad `sospechoso` y las cuentas del
+perfil nuevo, que el perfil guarda en `meta$dominios$escala_unitaria`
+aunque no publique el aviso. La columna se identifica por su posición,
+apareada como el resto de la comparación (las homónimas, por su orden),
+y se leen las cuentas de esa columna. Si no se puede ubicar o aparear, o
+si el perfil nuevo no dejó constancia de haber evaluado la lectura en
+ella (`meta$dominios$lectura_escala_unitaria`: un perfil de una versión
+anterior del paquete, o una regla declarada o apagada), el cambio es
+`no_comparable`, con el motivo, y no `resuelto`. Si el perfil nuevo lo
+declinó —y lo dice en su `cobertura_diagnosticos`—, el cambio se informa
+como `no_evaluado` con severidad `sospechoso`, porque no se sabe si el
+hallazgo sigue: dejar de mirar no es lo mismo que arreglar. Una fila de
+esa cobertura sin columna declina el diagnóstico en toda la tabla,
+también en cada columna: un grupo de columnas iguales comparado con una
+entrega sin filas sale `no_evaluado`, no `resuelto`. Lo mismo si el
+perfil nuevo apagó el diagnóstico con su argumento o retiró la
+declaración que lo habilita, cosa que se lee en `meta`:
 `casi_duplicados_vocabulario = FALSE`, `ausencia_estructural = FALSE`,
 `variantes_equifrecuentes_vocabulario = FALSE`,
 `analizar_dependencias = FALSE`, una `clave` retirada o declarada sobre

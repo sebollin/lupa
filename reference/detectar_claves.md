@@ -70,8 +70,11 @@ no una clave válida.
 Dos claves simples se marcan como redundantes cuando sus contenidos son
 idénticos —incluidas clase, atributos, ausencias y representación
 exacta—, aunque tengan nombres distintos. Las columnas compuestas
-—matrices o arreglos de más de una dimensión— y las de lista no se
-interpretan como claves. Los pares también quedan en el atributo
+—matrices o arreglos de más de una dimensión— y las listas que no son
+BLOB no se interpretan como claves. Una columna BLOB —la clase `blob` o
+una lista de `raw`, con `NULL` por faltante— sí: se compara por sus
+bytes, sus dos formas son la misma columna y nunca es redundante con una
+de texto o de números. Los pares también quedan en el atributo
 `claves_redundantes`.
 
 Una columna cuyo nombre se repite en la tabla no se analiza: una clave

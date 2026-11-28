@@ -184,9 +184,26 @@ registro queda en el atributo <code>registro_limpieza</code> de los datos result
 y las marcas que agregó —<code>.fila_duplicada</code>, <code>.grupo_duplicado</code>,
 <code>.ausente_&lt;columna&gt;</code>, <code>.outlier_&lt;columna&gt;</code>— en el atributo
 <code>marcas_limpieza</code>, una fila por marca con la columna que marca (<code>NA</code> en las
-de filas repetidas), sumadas a las que ya traían los datos. Es lo que
-<code><a href="perfilar.html">perfilar()</a></code> y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> leen para reconocerlas: una columna
-con uno de esos nombres que no está en el atributo es del usuario.</p>
+de filas repetidas) y su <code>huella</code>, sumadas a las que ya traían los datos.
+La huella es un md5 de la columna de la marca tal como la devuelve
+<code>aplicar()</code> —sus valores, su clase y su cantidad de filas—, y en
+<code>.ausente_&lt;columna&gt;</code> y <code>.outlier_&lt;columna&gt;</code> también de la columna que
+describe, tal como queda al final de <code>aplicar()</code>. Por eso marcar los
+ausentes de <code>x</code> e imputar <code>x</code> en el mismo <code>aplicar()</code> deja una marca que
+coincide: registra qué valores faltaban antes de imputarlos. Las marcas que
+llegaron intactas se vuelven a firmar, y las demás conservan la que traían;
+la firma nueva cubre la <code>x</code> que deja este <code>aplicar()</code>, así que imputar <code>x</code>
+en un <code>aplicar()</code> posterior también deja <code>.ausente_x</code> como una marca que
+coincide, con los ausentes de antes de imputar.
+Es lo que <code><a href="perfilar.html">perfilar()</a></code> y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> leen para reconocerlas: una
+columna con uno de esos nombres que no está en el atributo es del usuario, y
+una cuya huella ya no coincide —filas agregadas, quitadas, reordenadas u
+ordenadas, o editadas después, la marca o su columna reemplazadas, el
+atributo de otra tabla— <code><a href="perfilar.html">perfilar()</a></code> la diagnostica como cualquier columna.
+Un atributo sin <code>huella</code> —el de una versión anterior, o la tabla
+<code>general$marcas_limpieza</code> de un perfil pegada a los datos— se lee como antes
+de la huella. <code>planificar_limpieza()</code> no actúa sobre ninguna columna con
+nombre de marca, coincida o no.</p>
 <p>Las alternativas para un mismo hallazgo comparten <code>grupo</code>; las acciones
 independientes usan <code>NA</code>. Como máximo una alternativa de cada grupo puede
 tener <code>aplicar == TRUE</code>, invariante que <code>aplicar()</code> vuelve a validar. No se

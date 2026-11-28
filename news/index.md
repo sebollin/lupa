@@ -659,6 +659,58 @@
   bloqueo impide que dos procesos sigan la misma corrida. Sin
   `directorio_reanudacion` nada cambia.
 
+- SQL Server: una columna con enmascaramiento dinámico (`MASKED WITH`)
+  se declara también cuando la tabla está en otra base
+  (`DBI::Id(catalog = , schema = , table = )`) o es una vista cuyo
+  origen se ve:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  y
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  ya no publican la máscara (`xxxx`) como dato. Manda el permiso
+  `UNMASK` efectivo de la columna: un `GRANT UNMASK` de la base no tapa
+  un `DENY` de columna o de esquema. Cuando el catálogo no permite saber
+  si una columna depende de otra enmascarada (vista cuyo origen no se
+  ve, sinónimo, `DENY VIEW DEFINITION`), se mide como siempre y se
+  declara:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  en la cobertura y
+  [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
+  en `attr(, "mascara_sin_comprobar")` y con un aviso.
+  `medir_dbi(estrategia_no_sql = "bloques")` no lee por bloques una
+  columna enmascarada (`no_medible`, con el motivo); las reglas que
+  traduce el motor miden el dato real, porque la máscara se aplica sólo
+  a lo que el motor devuelve.
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  lee la escala de una proporción (`proporcion`, `participacion`; no
+  `prop`, ni un nombre que diga porcentaje, como `pct`, `porcentual` o
+  `tanto_por_ciento`). Por los valores solos la escala es ambigua (una
+  proporción con valores mal cargados, un porcentaje de valores chicos y
+  una razón dan los mismos números), así que no se decide: si la mayoría
+  de los valores que no son 0 ni 1 está entre 0 y 1 y hay valores entre
+  1 y 100, un `valor_fuera_dominio` propio, aviso `ok` de la columna que
+  no acusa filas, dice cuántos hay en cada tramo y las dos lecturas (si
+  la escala es de 0 a 1 están fuera de su dominio; si es de 0 a 100,
+  no). Se cuenta con el valor exacto (1,00004 no es 1) y no cuentan los
+  0, los 1 ni los centinelas que el perfil ya contó como faltantes
+  disfrazados. El aviso no cambia lo que publican los hallazgos de
+  `[0, 100]` y no repite las filas que ellos o `escala_mixta` ya
+  nombran. El perfil guarda sus cuentas en
+  `meta$dominios$escala_unitaria`, y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  lo compara con el de la otra entrega: si desaparece pero sus valores
+  siguen, el cambio es `modificado`, no `resuelto`; la columna se aparea
+  por posición, y contra un perfil que no evaluó esta lectura (de una
+  versión anterior, o con el dominio apagado) la fila es
+  `no_comparable`. Su id de decisión nombra su lectura, así que el de un
+  hallazgo que ya estaba no cambia cuando aparece.
+
+- Los valores de afuera de un dominio que con cuatro cifras se
+  escribirían como su borde sin serlo (100,004 contra un máximo de 100)
+  se escriben con las cifras que hagan falta.
+
 ### Medir la calidad
 
 - **Cambia una cifra publicada.** En la pertenencia por valor —los
@@ -1030,6 +1082,7 @@
   después de las demás acciones: dos claves que quedan iguales al
   recortar espacios salen marcadas, y una fila que quedó sola tras
   desduplicar, no.
+
 - [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   acepta el resultado de
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
@@ -1042,6 +1095,7 @@
   separa las celdas cambiadas de las filas marcadas: antes, marcar
   cuatro filas duplicadas se imprimía como «4 cambios contados por las
   acciones»; ahora, «0 celdas cambiadas» y «4 filas marcadas».
+
 - Las acciones de celda sobre una columna `factor` la devuelven
   `factor`, y no `character`: los niveles se limpian en su orden, los
   que se funden quedan en el lugar del primero, y se conservan los
@@ -1049,11 +1103,43 @@
   su orden salvo que la limpieza funda dos niveles no contiguos;
   entonces queda sin orden y la justificación lo dice. Si todos sus
   valores pasan a faltantes, queda como texto.
+
 - [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md),
   y por ella
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
   agrega al final `asociacion_con_signo`, el coeficiente con su
   dirección; las columnas que ya publicaba no cambian.
+
+- Las marcas de
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  se reconocen por una huella.
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  agrega al atributo `marcas_limpieza` la columna `huella`: un md5 de
+  cada marca tal como la devuelve (sus valores, su clase y su cantidad
+  de filas) y, en `.ausente_<x>` y `.outlier_<x>`, también de `x`.
+  Código que le haga [`rbind()`](https://rdrr.io/r/base/cbind.html) al
+  atributo con un `data.frame` de dos columnas deja de funcionar.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  el `faltantes` de `.grupo_duplicado` sale `ok`, con la razón, cuando
+  la marca es la que escribió
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y sus grupos siguen siendo las filas duplicadas de hoy;
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  lo sigue listando en `hallazgos_sin_accion`. `general$marcas_limpieza`
+  publica el `estado` de cada marca (`coincide`, `desactualizada`,
+  `no_coincide`, `sin_huella`) y su `posicion`. Una marca que no
+  coincide (filas agregadas, quitadas, ordenadas o editadas, la marca o
+  su columna cambiadas, el atributo de otra tabla) se diagnostica como
+  cualquier columna, y la descripción lo dice; una columna con el nombre
+  de una marca en otra posición es dato.
+  [`print()`](https://rdrr.io/r/base/print.html) nombra las marcas que
+  ya no describen los datos. Lo limpiado con una versión anterior se
+  diagnostica como antes.
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md):
+  un hallazgo de una marca sale `ok` sólo si la marca es `coincide` (o
+  sin huella) en cada entrega donde está, y una marca común que cambia
+  de estado tiene su fila (`aspecto = "columna"`,
+  `cambio = "modificado"`).
 
 ### Documentación
 
@@ -1077,6 +1163,44 @@
   la matriz por dimensión y lo no medido.
 
 ### Correcciones
+
+- Las columnas BLOB (la clase `blob` de RSQLite, una lista de `raw` como
+  la que entrega DuckDB, sin clase, con
+  [`I()`](https://rdrr.io/r/base/AsIs.html) o con la clase `list`, o una
+  `vctrs_list_of` de `raw`) se leen igual en todo el paquete. El `NULL`
+  es un faltante, también en una columna toda `NULL`; todas esas formas
+  son la misma columna para el perfil, las columnas duplicadas y las
+  claves; y un BLOB sólo es igual a otro BLOB de los mismos bytes, nunca
+  a un texto o a un número, aunque el texto escriba sus bytes.
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md),
+  [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
+  [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md),
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md),
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),
+  los dominios de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) y
+  `AtributoDuplicado`/`EntidadDuplicada` cuentan lo que cuenta el motor.
+  Antes, dos BLOB sin valores comunes daban una relación `m:m`,
+  [`as.character()`](https://rdrr.io/r/base/character.html) igualaba
+  todos los valores de la clase `blob` (cero discordancias entre
+  columnas distintas, un dominio `"<raw>"` que declaraba conforme
+  cualquier BLOB, dos filas repetidas de tres), y una lista de `raw`
+  contaba su `NULL` como un valor.
+  [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+  acepta columnas BLOB en la clave y en los valores, y los dominios de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  (`valores`, `valores_nulos`, `diccionario`) aceptan una lista BLOB; un
+  vector `raw` sigue siendo un byte por posición. `Formato` y
+  `DesactualizacionPorFormato` con `expresion_regular`,
+  `EntidadContradictoria` y el rango de `ValoresPosiblesPorComprension`
+  sobre un BLOB se declaran no medibles, con el motivo;
+  `EntidadDuplicada` con atributos compara un BLOB por sus bytes. La
+  moda de un BLOB no se publica (se publicaba cortada en el primer `00`)
+  y el motivo queda en la cobertura; el resumen SQL de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publica la `frecuencia_moda` que cuenta el motor. DuckDB declara el
+  tipo `blob` como SQLite, también en una tabla vacía.
 
 - [`medir_dbi()`](https://sebollin.github.io/lupa/reference/medir_dbi.md)
   en MySQL y MariaDB mide con un usuario que solo tiene `SELECT` sobre

@@ -343,7 +343,28 @@ pidió y no por la entrega, y un hallazgo sobre una marca —los <code>NA</code>
 <code>.grupo_duplicado</code> significan que la fila no está en ningún grupo— también,
 con la razón en la descripción. Una columna del usuario con uno de esos
 nombres es una columna del usuario: si desaparece, es <code>error</code>, como
-cualquiera. El atributo sobrevive a quedarse con algunas filas
+cualquiera. Una marca cuya huella ya no coincide con la que guardó
+<code><a href="planificar_limpieza.html">aplicar()</a></code> en alguna de las dos entregas —la tabla cambió después de
+limpiar, por ejemplo al quedarse con algunas filas o al ordenarla— sigue
+publicándose con <code>ok</code> al aparecer o desaparecer, y la evidencia lo dice.
+Un cambio de <code>hallazgo</code> o <code>severidad_hallazgo</code> sobre una columna sale <code>ok</code>
+solo si la columna es marca <code>coincide</code> —o sin huella— en cada entrega donde
+está, según el estado que publica <code>general$marcas_limpieza</code> por posición, y
+su nombre no se repite en un perfil que publica la posición: en las dos, si
+la columna está en las dos; en la que la tiene, si aparece o desaparece. Si
+es marca en una sola de dos entregas que tienen la columna —la otra volvió
+de un CSV, de <code><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge()</a></code>, <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code> o <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, o usa ese nombre para
+una columna del usuario—, o es <code>desactualizada</code> o <code>no_coincide</code> en alguna,
+sus hallazgos se comparan como los de cualquier columna, con su severidad.
+Una marca que está en las dos
+entregas y cambió de estado —de <code>coincide</code> a <code>desactualizada</code> o a
+<code>no_coincide</code>, o al revés— tiene su fila, <code>aspecto = "columna"</code> y
+<code>cambio = "modificado"</code>, con los dos estados y severidad <code>sospechoso</code> si
+dejó de coincidir. Un registro sin huella —el de una versión anterior, o
+uno armado con la tabla <code>general$marcas_limpieza</code> de un perfil— no permite
+confirmar la marca: la comparación lo trata como antes de la huella, con sus
+hallazgos en <code>ok</code>, aunque <code><a href="perfilar.html">perfilar()</a></code> diagnostique la columna como dato.
+El atributo sobrevive a quedarse con algunas filas
 (<code>datos[filas, ]</code>, <code><a href="https://rdrr.io/r/utils/head.html" class="external-link">head()</a></code>, ordenar), a <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> y a cambiar o quitar una
 columna con <code>$&lt;-</code> o <code>[[&lt;-</code>; lo pierden la selección de columnas con <code>[</code>
 (<code>datos[, columnas]</code>, <code>datos[columnas]</code>), <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code>, <code><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge()</a></code>, <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code>,
@@ -398,7 +419,18 @@ tienen: que bajen es una mejora y queda <code>ok</code>.</p>
 severidad <code>error</code>, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.</p>
 <p>Un hallazgo que ya no aparece se informa como <code>resuelto</code> sólo si el
-diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
+diagnóstico volvió a evaluarse. La lectura de la escala de 0 a 1 de una
+proporción (ver <code>dominios</code> en <code><a href="perfilar.html">perfilar()</a></code>), además, sólo si la columna ya no
+tiene valores en <code>(1, 100]</code>: si siguen —la escala de 0 a 1 dejó de ser
+plausible o los nombra <code>escala_mixta</code>—, el cambio es <code>modificado</code>, con
+severidad <code>sospechoso</code> y las cuentas del perfil nuevo, que el perfil guarda en
+<code>meta$dominios$escala_unitaria</code> aunque no publique el aviso. La columna se
+identifica por su posición, apareada como el resto de la comparación (las
+homónimas, por su orden), y se leen las cuentas de esa columna. Si no se puede
+ubicar o aparear, o si el perfil nuevo no dejó constancia de haber evaluado la
+lectura en ella (<code>meta$dominios$lectura_escala_unitaria</code>: un perfil de una
+versión anterior del paquete, o una regla declarada o apagada), el cambio es
+<code>no_comparable</code>, con el motivo, y no <code>resuelto</code>. Si el perfil nuevo lo declinó —y lo dice en
 su <code>cobertura_diagnosticos</code>—, el cambio se informa como <code>no_evaluado</code> con
 severidad <code>sospechoso</code>, porque no se sabe si el hallazgo sigue: dejar de
 mirar no es lo mismo que arreglar. Una fila de esa cobertura sin columna

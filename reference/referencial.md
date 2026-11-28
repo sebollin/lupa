@@ -74,7 +74,10 @@ Objeto de clase `referencial`: una lista con la tabla de referencia en
 La clave no admite ausentes y debe identificar cada fila de forma única.
 `valor` no puede repetir columnas de `clave` y representa atributos que
 se contrastan en correctitud semántica débil. El constructor copia la
-tabla y no consulta fuentes externas.
+tabla y no consulta fuentes externas. Una columna puede ser BLOB —la
+clase `blob` o una lista de `raw`—: se aparea por sus bytes y sólo con
+otro BLOB; contra un texto o un número ninguna fila coincide, aunque el
+texto escriba sus bytes, y no tiene proximidad textual.
 
 **Un referencial que vive en el motor.** Con `datos = DBI::Id(...)` o el
 nombre de una tabla, el referencial no copia la tabla a R: guarda la

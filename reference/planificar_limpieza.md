@@ -109,12 +109,30 @@ acciones y sus parámetros. El mismo registro queda en el atributo
 `registro_limpieza` de los datos resultantes, y las marcas que agregó
 —`.fila_duplicada`, `.grupo_duplicado`, `.ausente_<columna>`,
 `.outlier_<columna>`— en el atributo `marcas_limpieza`, una fila por
-marca con la columna que marca (`NA` en las de filas repetidas), sumadas
-a las que ya traían los datos. Es lo que
+marca con la columna que marca (`NA` en las de filas repetidas) y su
+`huella`, sumadas a las que ya traían los datos. La huella es un md5 de
+la columna de la marca tal como la devuelve `aplicar()` —sus valores, su
+clase y su cantidad de filas—, y en `.ausente_<columna>` y
+`.outlier_<columna>` también de la columna que describe, tal como queda
+al final de `aplicar()`. Por eso marcar los ausentes de `x` e imputar
+`x` en el mismo `aplicar()` deja una marca que coincide: registra qué
+valores faltaban antes de imputarlos. Las marcas que llegaron intactas
+se vuelven a firmar, y las demás conservan la que traían; la firma nueva
+cubre la `x` que deja este `aplicar()`, así que imputar `x` en un
+`aplicar()` posterior también deja `.ausente_x` como una marca que
+coincide, con los ausentes de antes de imputar. Es lo que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
 [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
 leen para reconocerlas: una columna con uno de esos nombres que no está
-en el atributo es del usuario.
+en el atributo es del usuario, y una cuya huella ya no coincide —filas
+agregadas, quitadas, reordenadas u ordenadas, o editadas después, la
+marca o su columna reemplazadas, el atributo de otra tabla—
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) la
+diagnostica como cualquier columna. Un atributo sin `huella` —el de una
+versión anterior, o la tabla `general$marcas_limpieza` de un perfil
+pegada a los datos— se lee como antes de la huella.
+`planificar_limpieza()` no actúa sobre ninguna columna con nombre de
+marca, coincida o no.
 
 Las alternativas para un mismo hallazgo comparten `grupo`; las acciones
 independientes usan `NA`. Como máximo una alternativa de cada grupo

@@ -167,11 +167,17 @@ fueran los mismos días: el par sale con
 clase de la otra, con `tz` explícito, y volver a comparar. Tampoco entra
 una columna que no tiene un valor comparable por fila: una compuesta
 —matriz, tabla anidada, valores que no se escriben como texto, como una
-`vctrs_rcrd`—, una lista de objetos —de vectores, de geometrías, de
-`NULL`— o una magnitud con unidad (`units`), cuyo número sin la unidad
+`vctrs_rcrd`—, una lista de objetos —de vectores, de geometrías— que no
+es BLOB o una magnitud con unidad (`units`), cuyo número sin la unidad
 no es su valor. Sus pares salen `sin_comparar` con
 `motivo_poda = "columna_no_comparable"`, y el detalle en `podas` dice
-cuál de las tres es; la función sigue con las demás columnas.
+cuál de las tres es; la función sigue con las demás columnas. Una
+columna BLOB —la clase `blob` o una lista de `raw`, con `NULL` por
+faltante— se compara por sus bytes, y sus dos formas dan lo mismo.
+Contra una columna que no es BLOB no comparte ningún valor, como en el
+motor, aunque un texto escriba sus bytes: el par sale
+`sin_coincidencias` sin compararse, y `podas` lo declara con
+`motivo = "blob_contra_otra_clase"`.
 
 Todas las podas, de las dos clases, quedan además en el atributo `podas`
 con su motivo y su detalle.

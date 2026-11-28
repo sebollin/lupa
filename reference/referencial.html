@@ -147,7 +147,10 @@ declarado o <code>NA</code>, el <code>nombre</code>, y el perfil de normalizaci�
     <p>La clave no admite ausentes y debe identificar cada fila de forma única.
 <code>valor</code> no puede repetir columnas de <code>clave</code> y representa atributos que se
 contrastan en correctitud semántica débil. El constructor copia la tabla y
-no consulta fuentes externas.</p>
+no consulta fuentes externas. Una columna puede ser BLOB —la clase <code>blob</code> o
+una lista de <code>raw</code>—: se aparea por sus bytes y sólo con otro BLOB; contra un
+texto o un número ninguna fila coincide, aunque el texto escriba sus bytes, y
+no tiene proximidad textual.</p>
 <p><strong>Un referencial que vive en el motor.</strong> Con <code>datos = DBI::Id(...)</code> o el
 nombre de una tabla, el referencial no copia la tabla a R: guarda la
 referencia (en <code>tabla_motor</code>, sin conexión: se serializa como cualquier

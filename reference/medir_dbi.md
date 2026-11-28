@@ -210,6 +210,16 @@ se aproxima ni se interpreta como cero— o, cuando la métrica es
 separable por fila y se indica `estrategia_no_sql = "bloques"`, se mide
 en R proyectando sólo sus columnas y leyendo por bloques.
 
+En SQL Server, una columna con enmascaramiento dinámico (`MASKED WITH`)
+que la credencial lee enmascarada: las reglas que traduce el motor miden
+el dato real —la máscara se aplica sólo a lo que el motor devuelve, no a
+lo que cuenta—; las que se leen por bloques no se miden, porque R leería
+la máscara (`no_medible`, con el motivo). Si el catálogo no permite
+saber si las columnas de la tabla dependen de una columna enmascarada
+(una vista cuyo origen no se ve, un sinónimo, `DENY VIEW DEFINITION`),
+se mide como siempre y se declara en
+`attr(resultado, "mascara_sin_comprobar")` y con un aviso.
+
 En la medición en memoria, `aplicable` y `aplicabilidad` conservan la
 evaluación publicada de
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md); el

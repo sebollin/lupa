@@ -268,6 +268,14 @@ queda sin tabla resuelta. Dos o más lecturas de la misma tabla nunca son
 ni se interpreta como cero— o, cuando la métrica es separable por fila y se
 indica <code>estrategia_no_sql = "bloques"</code>, se mide en R proyectando sólo sus
 columnas y leyendo por bloques.</p>
+<p>En SQL Server, una columna con enmascaramiento dinámico (<code>MASKED WITH</code>) que la
+credencial lee enmascarada: las reglas que traduce el motor miden el dato real
+—la máscara se aplica sólo a lo que el motor devuelve, no a lo que cuenta—;
+las que se leen por bloques no se miden, porque R leería la máscara
+(<code>no_medible</code>, con el motivo). Si el catálogo no permite saber si las columnas
+de la tabla dependen de una columna enmascarada (una vista cuyo origen no se
+ve, un sinónimo, <code>DENY VIEW DEFINITION</code>), se mide como siempre y se declara en
+<code>attr(resultado, "mascara_sin_comprobar")</code> y con un aviso.</p>
 <p>En la medición en memoria, <code>aplicable</code> y <code>aplicabilidad</code> conservan la
 evaluación publicada de <code><a href="medir.html">medir()</a></code>; el resumen resuelve cada
 <code>aplicabilidad</code> una sola vez, igual que la medición completa. En la vía DBI,

@@ -950,14 +950,15 @@ columnas llegan enmascaradas, una fila `degradado` de
 `resumen_tabla$cobertura` sobre la tabla lo declara —también si sólo
 falló la consulta de `sys.masked_columns`—, y
 `resumen_tabla$meta$permisos_sin_consultar` dice qué parte no contestó
-(`"columnas"` o `"mascaras"`): una columna enmascarada de esa tabla se
-mide como si la máscara fuera el valor. Con enmascaramiento dinámico de
-SQL Server (`MASKED WITH`, 2016+) y una credencial sin `UNMASK` sobre la
-columna o la base, el motor devuelve la máscara y no el dato. La
-completitud de esa columna se publica —los no nulos se cuentan con una
-expresión que el motor no enmascara—; distintos, moda, extremos, media,
-mediana y desvío quedan `no_disponible` con el motivo, la columna no
-entra en `perfil_muestra` (una fila `alcance_distinto` lo dice) y
+(`"columnas"`, `"mascaras"` u `"origen"`, el de una vista que no se pudo
+comprobar): una columna enmascarada de esa tabla se mide como si la
+máscara fuera el valor. Con enmascaramiento dinámico de SQL Server
+(`MASKED WITH`, 2016+) y una credencial sin `UNMASK` sobre la columna o
+la base, el motor devuelve la máscara y no el dato. La completitud de
+esa columna se publica —los no nulos se cuentan con una expresión que el
+motor no enmascara—; distintos, moda, extremos, media, mediana y desvío
+quedan `no_disponible` con el motivo, la columna no entra en
+`perfil_muestra` (una fila `alcance_distinto` lo dice) y
 `resumen_tabla$cobertura` la declara. Con `UNMASK` se perfila entera.
 SQL Server tampoco admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni
 `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography`. El

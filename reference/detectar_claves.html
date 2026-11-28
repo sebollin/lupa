@@ -173,9 +173,11 @@ es un diagnóstico que requiere corregir o confirmar, no una clave válida.</p>
     <p>Dos claves simples se marcan como redundantes cuando sus contenidos son
 idénticos —incluidas clase, atributos, ausencias y representación exacta—,
 aunque tengan nombres distintos. Las columnas compuestas —matrices o
-arreglos de más de una dimensión— y las de lista no se interpretan como
-claves. Los pares también quedan en el atributo
-<code>claves_redundantes</code>.</p>
+arreglos de más de una dimensión— y las listas que no son BLOB no se
+interpretan como claves. Una columna BLOB —la clase <code>blob</code> o una lista de
+<code>raw</code>, con <code>NULL</code> por faltante— sí: se compara por sus bytes, sus dos
+formas son la misma columna y nunca es redundante con una de texto o de
+números. Los pares también quedan en el atributo <code>claves_redundantes</code>.</p>
 <p>Una columna cuyo nombre se repite en la tabla no se analiza: una clave se
 publica por el nombre de sus columnas, y ese nombre no diría cuál de las dos
 identifica. Se avisa, y los nombres quedan en el atributo

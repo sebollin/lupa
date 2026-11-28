@@ -236,6 +236,14 @@ declara en esta cobertura, con el diagnóstico <code>centinelas_numericos</code>
 motivo dice si contado habría hecho cruzar el umbral de <code>faltantes</code>. Las
 ausencias escritas con texto —un <code>"0"</code> declarado en <code>cadenas_ausencia</code>,
 por ejemplo— son del grupo y se siguen contando.</p>
+<p>Las marcas de <code><a href="planificar_limpieza.html">aplicar()</a></code> —el atributo <code>marcas_limpieza</code>— se verifican una
+vez sobre la tabla entera y llegan a cada grupo, donde <code><a href="perfilar.html">perfilar()</a></code> vuelve
+a decidir su estado sobre las filas del grupo: el <code>faltantes</code> de la marca
+de grupo sale <code>ok</code> en un grupo cuyos duplicados están enteros. La salida
+no publica ese estado —no tiene <code>general</code>— ni lo nombra al imprimirse: una
+marca de grupo <code>desactualizada</code> sin ningún <code>NA</code> no tiene <code>faltantes</code> que
+lo diga, y solo se ve en <code>general$marcas_limpieza$estado</code> y en <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>
+de <code><a href="perfilar.html">perfilar()</a></code> sobre la tabla entera.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

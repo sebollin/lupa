@@ -1395,7 +1395,32 @@ contenido parece una coordenada), y admiten calificativos como <code>wgs84</code
 infieren sólo si el contenido parece una coordenada (al menos 10 valores,
 como mucho la mitad fuera del rango y la mayoría de lo que cabe con 3 a 8
 decimales) y entonces sólo avisan de la columna, sin acusar filas: pueden
-ser otra cosa (<code>lat</code> de latencia). Si las fechas futuras de una columna
+ser otra cosa (<code>lat</code> de latencia). Una proporción (<code>proporcion</code>,
+<code>participacion</code>; no <code>prop</code>, que también abrevia propiedad) se valida en
+<code>[0, 100]</code> como un porcentaje, y además se lee su escala en el contenido,
+salvo que el nombre diga porcentaje (<code>porcentaje</code>, <code>pct</code>, <code>percent</code>,
+<code>percentage</code>, <code>porcentual</code>, <code>por_ciento</code>, <code>tanto_por_ciento</code>). Los valores
+solos no dicen si la escala es de 0 a 1 o de 0 a 100: una proporción con
+unos pocos valores mal cargados, un porcentaje de valores chicos y una razón
+dan los mismos números. Por eso no se decide: si la escala de 0 a 1 es
+plausible (la mayoría de los valores que no son 0 ni 1 está estrictamente
+entre 0 y 1) y hay valores que pasan de 1 sin pasar de 100, se publican en
+un <code>valor_fuera_dominio</code> propio, aviso <code>ok</code> de la columna que no acusa
+filas, con lo medido (cuántos valores hay en <code>(0, 1)</code> y cuántos en
+<code>(1, 100]</code>) y las dos lecturas: si la escala es de 0 a 1 están fuera de su
+dominio; si es de 0 a 100, no. Un 0 o un 1 valen en las dos escalas y no
+cuentan, ni los centinelas que el perfil ya contó como faltantes
+disfrazados. Los valores se comparan con 0 y con 1 escritos con cuatro
+cifras, como en la evidencia (un 1,0000001 es 1); el borde de 100 es el de
+<code>[0, 100]</code>, y un valor que con cuatro cifras se escribiría como un borde sin
+serlo (100,004) se escribe con las cifras que hagan falta. El aviso no
+repite las filas que ya nombran el hallazgo de <code>[0, 100]</code> ni <code>escala_mixta</code>
+en la misma columna y no cambia lo que esos publican. En <code><a href="perfilar_por.html">perfilar_por()</a></code>
+cada grupo lee su escala con sus valores, y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> compara
+este aviso con el suyo de la otra entrega. En <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> la lectura
+usa las filas leídas: con <code>muestra</code>, sólo las de la muestra, porque el
+resumen del motor no cuenta valores por tramo de escala. Si las fechas
+futuras de una columna
 forman una grilla regular sin huecos que arranca en el presente (todos los
 días, los hábiles, cada 7 o 14 días, o un día fijo o el fin de cada mes,
 trimestre, semestre o año), el aviso de fechas futuras lo dice y nombra la
@@ -1507,10 +1532,43 @@ con otra caja o espacios en los bordes—, que se nombran en
 Es lo que <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> compara como vocabulario.
 <code>general$marcas_limpieza</code> está cuando los datos traen el atributo
 <code>marcas_limpieza</code> que deja <code><a href="planificar_limpieza.html">aplicar()</a></code>: las marcas que agregó el plan, con
-la columna que marca. Una marca así no explica la ausencia de su propia
-columna en <code>posible_ausencia_estructural</code>, y la marca misma tampoco es
-objetivo de ese diagnóstico (<code>.grupo_duplicado</code> está vacía por diseño en
-las filas sin duplicado); una columna del usuario con el mismo nombre, sí. Cuando el camino
+la columna que marca, su <code>estado</code> y su <code>posicion</code> —la columna de la tabla
+de la que habla: entre las que llevan su nombre, la que tiene su huella, y
+si ninguna, la primera—. <code><a href="planificar_limpieza.html">aplicar()</a></code> guarda la huella de
+cada marca —de sus valores, su clase y su cantidad de filas, y en
+<code>.ausente_&lt;x&gt;</code> y <code>.outlier_&lt;x&gt;</code> también de <code>x</code>— y el estado se decide una
+vez, por posición: <code>coincide</code>, si la columna es la que escribió y, en la
+marca de grupo, sus grupos siguen siendo los de las filas duplicadas que
+<code><a href="planificar_limpieza.html">aplicar()</a></code> encuentra hoy en las demás columnas (toda <code>NA</code> vale si hoy no
+hay filas duplicadas); <code>desactualizada</code>, si la marca de grupo es la que
+escribió pero sus grupos ya no son esos —una celda editada después de
+marcar—; <code>no_coincide</code>, si después se agregaron, quitaron, reordenaron o
+editaron filas (ordenar la tabla también cuenta), se reemplazó la marca o
+la columna que describe, o el atributo vino de otra tabla; o <code>sin_huella</code>,
+si el atributo no la trae: datos limpiados por una versión anterior, o un
+atributo armado con la tabla <code>general$marcas_limpieza</code> de un perfil, que no
+la publica. La comprobación contra los datos de hoy se hace solo para la
+marca de grupo (<code>.grupo_duplicado</code>): en <code>.fila_duplicada</code> y
+<code>.clave_duplicada</code>, <code>coincide</code> dice que nadie las tocó, no que sigan
+describiendo las filas de hoy. Todo lo lee de ahí, y por posición: otra
+columna con el mismo nombre que una marca es dato —entra en la comparación
+de grupos y sus hallazgos son suyos—. Una marca que no es <code>no_coincide</code> no explica la
+ausencia de su propia columna en <code>posible_ausencia_estructural</code>, y la marca
+misma tampoco es objetivo de ese diagnóstico (<code>.grupo_duplicado</code> está vacía
+por diseño en las filas sin duplicado); una columna del usuario con el
+mismo nombre, o una marca que no coincide, sí. El <code>faltantes</code> de la marca
+de grupo <code>coincide</code> sale con severidad <code>ok</code>, con la razón en la
+descripción; el de una <code>desactualizada</code> conserva su severidad y lo dice.
+Todo hallazgo de una marca que no coincide conserva su severidad, y la
+descripción dice que la columna no es la que escribió <code><a href="planificar_limpieza.html">aplicar()</a></code>. Una
+marca de grupo sin ningún <code>NA</code> no tiene <code>faltantes</code>: si queda
+<code>desactualizada</code>, ningún hallazgo lo dice, y se ve en
+<code>general$marcas_limpieza$estado</code> y en <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>, que nombra toda marca
+<code>desactualizada</code> o <code>no_coincide</code>; <code><a href="perfilar_por.html">perfilar_por()</a></code> no lo publica. Con una
+marca sin huella, nada cambia respecto de antes de la huella. El atributo
+llega
+también a cada grupo de <code><a href="perfilar_por.html">perfilar_por()</a></code>, pero no a <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>: no
+viaja a la base. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 <code>trazabilidad</code> distingue <code>disponible</code>, <code>truncada</code>, <code>no_aplica</code> y
 <code>no_disponible</code>; cuando corresponde conserva índices de fila acotados por
@@ -1900,6 +1958,14 @@ Un vector de bytes (<code>raw</code>) se compara y se publica por su escritura
 hexadecimal —<code>moda</code>, <code>n_distintos</code>—, pero no pasa por las etapas que
 interpretan la escritura de una persona —patrones, números escritos como
 texto, unidades, espacios—: un byte no es un texto escrito.
+Una columna BLOB —la clase <code>blob</code> que entrega RSQLite o una lista de <code>raw</code>,
+como la de DuckDB— es una sola cosa con sus dos formas: el <code>NULL</code> es un
+faltante —también en una columna toda <code>NULL</code>—, <code>n_distintos</code> y las columnas
+duplicadas comparan sus bytes, y un BLOB nunca es igual a un texto aunque el
+texto escriba sus bytes. Su <code>moda</code> no se publica —son bytes, no un texto—,
+y <code>cobertura_diagnosticos</code> lo declara con una fila <code>moda</code>; <code>frecuencia_moda</code>
+queda en <code>NA</code>, como en toda columna de listas. En <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>,
+<code>resumen_tabla</code> publica la frecuencia que cuenta el motor.
 Un nivel <code>NA</code> de un factor —el que dejan <code><a href="https://rdrr.io/r/base/factor.html" class="external-link">addNA()</a></code> o <code>factor(exclude = NULL)</code>— es un faltante: cuenta en <code>n_faltantes</code> y no en <code>n_distintos</code>, igual
 que en la medición, en <code><a href="distribucion_valores.html">distribucion_valores()</a></code>, en <code><a href="inferir_tipo.html">inferir_tipo()</a></code>, en
 las dependencias y en las claves —<code><a href="detectar_claves.html">detectar_claves()</a></code> y <code><a href="sugerir_clave.html">sugerir_clave()</a></code> no
